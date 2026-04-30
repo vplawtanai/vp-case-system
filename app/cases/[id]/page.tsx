@@ -304,7 +304,7 @@ export default function CaseDetailPage() {
       </div>
 
       <div id="parties" style={sectionWrapStyle}>
-        <PartiesSection caseId={caseIdNumber} parties={parties} />
+        <PartiesSection caseId={caseIdNumber} />
       </div>
 
       <div id="timeline" style={sectionWrapStyle}>
