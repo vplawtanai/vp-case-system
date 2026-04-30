@@ -3,26 +3,13 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import {
-  collection,
-  onSnapshot,
-  query,
-  orderBy,
-} from "firebase/firestore";
-import { db } from "../../../lib/firebase";
-
-import { supabase } from "../../../lib/supabase"; // ✅ เพิ่มตรงนี้
+import { supabase } from "../../../lib/supabase";
 
 import CaseSectionNav from "../../components/CaseSectionNav";
-import CaseAlertsSection from "./components/CaseAlertsSection";
 import CaseInfoSection from "./components/CaseInfoSection";
 import PartiesSection from "./components/PartiesSection";
 import TimelineSection from "./components/TimelineSection";
 import TasksSection from "./components/TasksSection";
-import TimeLogsSection from "./components/TimeLogsSection";
-import DeadlinesSection from "./components/DeadlinesSection";
-import ServiceSection from "./components/ServiceSection";
-import NotesSection from "./components/NotesSection";
 import FeesSection from "./components/FeesSection";
 
 type CaseItem = {
@@ -74,6 +61,22 @@ type PartyItem = {
   lastName?: string;
   companyName?: string;
   orderNo?: number;
+
+  idNumber?: string;
+  phone?: string;
+
+  addressNo?: string;
+  moo?: string;
+  villageName?: string;
+  building?: string;
+  floor?: string;
+  room?: string;
+  soi?: string;
+  road?: string;
+  subdistrict?: string;
+  district?: string;
+  province?: string;
+  postalCode?: string;
 };
 
 type TimelineItem = {
@@ -96,34 +99,6 @@ type TaskItem = {
   done?: boolean;
 };
 
-type TimeLogItem = {
-  id: string;
-  workDate?: string;
-  staffName?: string;
-  minutes?: number;
-  note?: string;
-};
-
-type DeadlineItem = {
-  id: string;
-  deadlineType?: string;
-  dueDate?: string;
-  status?: string;
-  note?: string;
-  done?: boolean;
-};
-
-type ServiceItem = {
-  id: string;
-  defendantId?: string;
-  defendantLabel?: string;
-  serviceDate?: string;
-  method?: string;
-  result?: string;
-  answerDeadline?: string;
-  note?: string;
-};
-
 type FeeItem = {
   id: string;
   feeType?: string;
@@ -143,21 +118,20 @@ const sectionWrapStyle: React.CSSProperties = {
 export default function CaseDetailPage() {
   const params = useParams();
   const id = params?.id as string;
-const caseIdNumber = Number(id);
+  const caseIdNumber = Number(id);
 
   const [caseItem, setCaseItem] = useState<CaseItem | null>(null);
   const [parties, setParties] = useState<PartyItem[]>([]);
-  const [timeline, setTimeline] = useState<TimelineItem[]>([]);
-  const [tasks, setTasks] = useState<TaskItem[]>([]);
-  const [timeLogs, setTimeLogs] = useState<TimeLogItem[]>([]);
-  const [deadlines, setDeadlines] = useState<DeadlineItem[]>([]);
-  const [services, setServices] = useState<ServiceItem[]>([]);
-  const [fees, setFees] = useState<FeeItem[]>([]);
+  const [timeline] = useState<TimelineItem[]>([]);
+  const [tasks] = useState<TaskItem[]>([]);
+  const [fees] = useState<FeeItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const didScrollRef = useRef(false);
 
-  // 🔥 แก้เฉพาะตรงนี้ (Firebase → Supabase)
+  // =========================
+  // LOAD CASE FROM SUPABASE
+  // =========================
   useEffect(() => {
     if (!id) return;
 
@@ -165,26 +139,56 @@ const caseIdNumber = Number(id);
 
     const loadCase = async () => {
       try {
+        setLoading(true);
+
         const { data, error } = await supabase
           .from("cases")
           .select("*")
-          .eq("id", id)
+          .eq("id", caseIdNumber)
           .single();
 
-        if (error) {
+        console.log("CASE DATA:", data);
+        console.log("CASE ERROR:", error);
+
+        if (error || !data) {
           console.error(error);
           setCaseItem(null);
-        } else {
-          setCaseItem({
-            ...data,
-            fileNo: data.file_no,
-            clientName: data.client_name,
-            courtName: data.court_name,
-            caseNumber: data.case_number,
-            caseStatus: data.status,
-            ownerName: data.owner_name,
-          });
+          return;
         }
+
+        setCaseItem({
+          fileNo: data.file_no,
+          title: data.title,
+          clientName: data.client_name,
+          courtName: data.court_name,
+          caseNumber: data.case_number,
+          phase: data.phase,
+          caseStatus: data.status,
+          ownerName: data.owner_name,
+
+          caseType: data.case_type,
+          caseSubtype: data.case_subtype,
+          issueText: data.issue_text,
+          claimAmount: data.claim_amount,
+          noteText: data.note_text,
+          physicalStorageType: data.physical_storage_type,
+          physicalStorageDetail: data.physical_storage_detail,
+
+          judgmentFirstInstance: data.judgment_first_instance,
+          judgmentAppeal: data.judgment_appeal,
+          judgmentSupreme: data.judgment_supreme,
+
+          enforcementPeriodDays: data.enforcement_period_days,
+          enforcementNoticeResult: data.enforcement_notice_result,
+          enforcementNoticeMethod: data.enforcement_notice_method,
+          enforcementNoticeDate: data.enforcement_notice_date,
+          enforcementDueDate: data.enforcement_due_date,
+          enforcementReadyText: data.enforcement_ready_text,
+          enforcementIssued: data.enforcement_issued,
+          enforcementIssuedDate: data.enforcement_issued_date,
+
+          serviceRule: data.service_rule,
+        });
       } catch (error) {
         console.error(error);
         setCaseItem(null);
@@ -194,30 +198,66 @@ const caseIdNumber = Number(id);
     };
 
     loadCase();
-  }, [id]);
+  }, [id, caseIdNumber]);
 
-  // ❗ ส่วนอื่นยังใช้ Firebase เหมือนเดิม (ยังไม่แตะ)
-
+  // =========================
+  // LOAD PARTIES FROM SUPABASE
+  // =========================
   useEffect(() => {
-    if (!id) return;
+    if (!caseIdNumber) return;
 
-    const q = query(
-      collection(db, "cases", id, "parties"),
-      orderBy("orderNo", "asc")
-    );
+    const loadParties = async () => {
+      const { data, error } = await supabase
+        .from("parties")
+        .select("*")
+        .eq("case_id", caseIdNumber)
+        .order("order_no", { ascending: true });
 
-    const unsub = onSnapshot(q, (snapshot) => {
-      setParties(
-        snapshot.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as any),
-        })) as PartyItem[]
-      );
-    });
+      console.log("PARTIES DATA:", data);
+      console.log("PARTIES ERROR:", error);
 
-    return () => unsub();
-  }, [id]);
+      if (error) {
+        console.error(error);
+        setParties([]);
+        return;
+      }
 
+      const mappedParties = (data || []).map((p: any) => ({
+        id: p.id,
+        role: p.role,
+        entityType: p.entity_type,
+        title: p.title,
+        firstName: p.first_name,
+        lastName: p.last_name,
+        companyName: p.company_name,
+        orderNo: p.order_no,
+
+        idNumber: p.id_number,
+        phone: p.phone,
+
+        addressNo: p.address_no,
+        moo: p.moo,
+        villageName: p.village_name,
+        building: p.building,
+        floor: p.floor,
+        room: p.room,
+        soi: p.soi,
+        road: p.road,
+        subdistrict: p.subdistrict,
+        district: p.district,
+        province: p.province,
+        postalCode: p.postal_code,
+      })) as PartyItem[];
+
+      setParties(mappedParties);
+    };
+
+    loadParties();
+  }, [caseIdNumber]);
+
+  // =========================
+  // SCROLL TO HASH
+  // =========================
   useEffect(() => {
     if (loading) return;
     if (didScrollRef.current) return;
@@ -227,8 +267,13 @@ const caseIdNumber = Number(id);
 
     const timer = setTimeout(() => {
       const el = document.querySelector(hash);
+
       if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        el.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+
         didScrollRef.current = true;
       }
     }, 250);
@@ -243,8 +288,6 @@ const caseIdNumber = Number(id);
   if (!caseItem) {
     return <main style={{ padding: 24 }}>Case not found.</main>;
   }
-
-  const defendants = parties.filter((p) => p.role === "defendant");
 
   return (
     <main style={{ padding: 24, fontFamily: "system-ui" }}>
