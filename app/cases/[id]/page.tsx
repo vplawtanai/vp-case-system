@@ -143,6 +143,7 @@ const sectionWrapStyle: React.CSSProperties = {
 export default function CaseDetailPage() {
   const params = useParams();
   const id = params?.id as string;
+const caseIdNumber = Number(id);
 
   const [caseItem, setCaseItem] = useState<CaseItem | null>(null);
   const [parties, setParties] = useState<PartyItem[]>([]);
@@ -260,7 +261,7 @@ export default function CaseDetailPage() {
       </div>
 
       <div id="parties" style={sectionWrapStyle}>
-        <PartiesSection caseId={id} parties={parties} />
+        <PartiesSection caseId={caseIdNumber} parties={parties} />
       </div>
 
       <div id="timeline" style={sectionWrapStyle}>
