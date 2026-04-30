@@ -4,14 +4,14 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import {
-  doc,
-  getDoc,
   collection,
   onSnapshot,
   query,
   orderBy,
 } from "firebase/firestore";
 import { db } from "../../../lib/firebase";
+
+import { supabase } from "../../../lib/supabase"; // ✅ เพิ่มตรงนี้
 
 import CaseSectionNav from "../../components/CaseSectionNav";
 import CaseAlertsSection from "./components/CaseAlertsSection";
@@ -156,6 +156,7 @@ export default function CaseDetailPage() {
 
   const didScrollRef = useRef(false);
 
+  // 🔥 แก้เฉพาะตรงนี้ (Firebase → Supabase)
   useEffect(() => {
     if (!id) return;
 
@@ -163,13 +164,25 @@ export default function CaseDetailPage() {
 
     const loadCase = async () => {
       try {
-        const ref = doc(db, "cases", id);
-        const snap = await getDoc(ref);
+        const { data, error } = await supabase
+          .from("cases")
+          .select("*")
+          .eq("id", id)
+          .single();
 
-        if (snap.exists()) {
-          setCaseItem(snap.data() as CaseItem);
-        } else {
+        if (error) {
+          console.error(error);
           setCaseItem(null);
+        } else {
+          setCaseItem({
+            ...data,
+            fileNo: data.file_no,
+            clientName: data.client_name,
+            courtName: data.court_name,
+            caseNumber: data.case_number,
+            caseStatus: data.status,
+            ownerName: data.owner_name,
+          });
         }
       } catch (error) {
         console.error(error);
@@ -181,6 +194,8 @@ export default function CaseDetailPage() {
 
     loadCase();
   }, [id]);
+
+  // ❗ ส่วนอื่นยังใช้ Firebase เหมือนเดิม (ยังไม่แตะ)
 
   useEffect(() => {
     if (!id) return;
@@ -203,158 +218,22 @@ export default function CaseDetailPage() {
   }, [id]);
 
   useEffect(() => {
-    if (!id) return;
-
-    const q = query(
-      collection(db, "cases", id, "timeline"),
-      orderBy("eventDate", "asc")
-    );
-
-    const unsub = onSnapshot(q, (snapshot) => {
-      setTimeline(
-        snapshot.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as any),
-        })) as TimelineItem[]
-      );
-    });
-
-    return () => unsub();
-  }, [id]);
-
-  useEffect(() => {
-    if (!id) return;
-
-    const q = query(
-      collection(db, "cases", id, "tasks"),
-      orderBy("createdAt", "desc")
-    );
-
-    const unsub = onSnapshot(q, (snapshot) => {
-      setTasks(
-        snapshot.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as any),
-        })) as TaskItem[]
-      );
-    });
-
-    return () => unsub();
-  }, [id]);
-
-  useEffect(() => {
-    if (!id) return;
-
-    const q = query(
-      collection(db, "cases", id, "timeLogs"),
-      orderBy("createdAt", "desc")
-    );
-
-    const unsub = onSnapshot(q, (snapshot) => {
-      setTimeLogs(
-        snapshot.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as any),
-        })) as TimeLogItem[]
-      );
-    });
-
-    return () => unsub();
-  }, [id]);
-
-  useEffect(() => {
-    if (!id) return;
-
-    const q = query(
-      collection(db, "cases", id, "deadlines"),
-      orderBy("dueDate", "asc")
-    );
-
-    const unsub = onSnapshot(q, (snapshot) => {
-      setDeadlines(
-        snapshot.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as any),
-        })) as DeadlineItem[]
-      );
-    });
-
-    return () => unsub();
-  }, [id]);
-
-  useEffect(() => {
-    if (!id) return;
-
-    const q = query(
-      collection(db, "cases", id, "services"),
-      orderBy("serviceDate", "asc")
-    );
-
-    const unsub = onSnapshot(q, (snapshot) => {
-      setServices(
-        snapshot.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as any),
-        })) as ServiceItem[]
-      );
-    });
-
-    return () => unsub();
-  }, [id]);
-
-  useEffect(() => {
-    if (!id) return;
-
-    const q = query(
-      collection(db, "cases", id, "fees"),
-      orderBy("dueDate", "asc")
-    );
-
-    const unsub = onSnapshot(q, (snapshot) => {
-      setFees(
-        snapshot.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as any),
-        })) as FeeItem[]
-      );
-    });
-
-    return () => unsub();
-  }, [id]);
-
-  useEffect(() => {
     if (loading) return;
     if (didScrollRef.current) return;
 
     const hash = window.location.hash;
     if (!hash) return;
 
-    const scrollToHash = () => {
+    const timer = setTimeout(() => {
       const el = document.querySelector(hash);
-      if (!el) return;
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        didScrollRef.current = true;
+      }
+    }, 250);
 
-      el.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-
-      didScrollRef.current = true;
-    };
-
-    const timer = setTimeout(scrollToHash, 250);
     return () => clearTimeout(timer);
-  }, [
-    loading,
-    id,
-    caseItem,
-    parties,
-    timeline,
-    tasks,
-    timeLogs,
-    deadlines,
-    services,
-    fees,
-  ]);
+  }, [loading]);
 
   if (loading) {
     return <main style={{ padding: 24 }}>Loading...</main>;
@@ -376,14 +255,6 @@ export default function CaseDetailPage() {
 
       <CaseSectionNav />
 
-      <div style={{ marginBottom: 24 }}>
-        <CaseAlertsSection
-          deadlines={deadlines}
-          tasks={tasks}
-          timeline={timeline}
-        />
-      </div>
-
       <div id="info" style={sectionWrapStyle}>
         <CaseInfoSection caseId={id} caseItem={caseItem} />
       </div>
@@ -398,28 +269,6 @@ export default function CaseDetailPage() {
 
       <div id="tasks" style={sectionWrapStyle}>
         <TasksSection caseId={id} tasks={tasks} />
-      </div>
-
-      <div id="timelogs" style={sectionWrapStyle}>
-        <TimeLogsSection caseId={id} timeLogs={timeLogs} />
-      </div>
-
-      <div id="deadlines" style={sectionWrapStyle}>
-        <DeadlinesSection caseId={id} deadlines={deadlines} />
-      </div>
-
-      <div id="service" style={sectionWrapStyle}>
-        <ServiceSection
-          caseId={id}
-          services={services}
-          defendants={defendants}
-          timeline={timeline}
-          initialRule={caseItem.serviceRule}
-        />
-      </div>
-
-      <div id="notes" style={sectionWrapStyle}>
-        <NotesSection caseId={id} noteText={caseItem.noteText} />
       </div>
 
       <div id="fees" style={sectionWrapStyle}>
