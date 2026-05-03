@@ -11,6 +11,7 @@ const sections: Section[] = [
   { id: "info", label: "Info" },
   { id: "parties", label: "Parties" },
   { id: "timeline", label: "Timeline" },
+  { id: "judgments", label: "Judgments" },
   { id: "tasks", label: "Tasks" },
   { id: "deadlines", label: "Deadlines" },
   { id: "timelogs", label: "Time Logs" },
@@ -38,13 +39,14 @@ export default function CaseSectionNav() {
     const handleScroll = () => {
       let current = "info";
 
-      for (const s of sections) {
-        const el = document.getElementById(s.id);
+      for (const section of sections) {
+        const el = document.getElementById(section.id);
         if (!el) continue;
 
         const rect = el.getBoundingClientRect();
+
         if (rect.top <= 160) {
-          current = s.id;
+          current = section.id;
         }
       }
 
@@ -61,24 +63,32 @@ export default function CaseSectionNav() {
     <div style={outerWrapStyle}>
       <div style={wrapperStyle}>
         <div style={navContainerStyle}>
-          {sections.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => handleClick(s.id)}
-              style={{
-                ...pillStyle,
-                ...(active === s.id ? activeStyle : {}),
-              }}
-            >
-              {s.label}
-            </button>
-          ))}
+          {sections.map((section) => {
+            const isActive = active === section.id;
+
+            return (
+              <button
+                key={section.id}
+                type="button"
+                onClick={() => handleClick(section.id)}
+                style={{
+                  ...pillStyle,
+                  ...(isActive ? activeStyle : inactiveStyle),
+                }}
+              >
+                {section.label}
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
   );
 }
+
+/* =========================================================
+   STYLES
+========================================================= */
 
 const outerWrapStyle: React.CSSProperties = {
   position: "sticky",
@@ -115,6 +125,12 @@ const pillStyle: React.CSSProperties = {
   fontSize: 14,
   fontWeight: 600,
   minHeight: 40,
+};
+
+const inactiveStyle: React.CSSProperties = {
+  background: "#ffffff",
+  color: "#111111",
+  border: "1px solid #dddddd",
 };
 
 const activeStyle: React.CSSProperties = {
