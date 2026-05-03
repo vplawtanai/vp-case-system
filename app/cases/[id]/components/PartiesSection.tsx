@@ -754,8 +754,11 @@ function Select({
 ========================================================= */
 
 function renderPartyName(party: PartyItem) {
+  const orderText = party.order_no ? ` ที่ ${party.order_no}` : "";
+
   if (party.entity_type === "company") {
-    return party.company_name || "-";
+    const companyName = party.company_name || "-";
+    return `${companyName}${orderText}`;
   }
 
   const title = party.title || "";
@@ -764,7 +767,7 @@ function renderPartyName(party: PartyItem) {
 
   const fullName = `${title}${firstName} ${lastName}`.trim();
 
-  return fullName || "-";
+  return fullName ? `${fullName}${orderText}` : "-";
 }
 
 function renderRole(role?: PartyRole | null) {
