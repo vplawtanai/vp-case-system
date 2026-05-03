@@ -9,6 +9,7 @@ import CaseSectionNav from "../../components/CaseSectionNav";
 import CaseInfoSection from "./components/CaseInfoSection";
 import PartiesSection from "./components/PartiesSection";
 import TimelineSection from "./components/TimelineSection";
+import JudgmentsSection from "./components/JudgmentsSection";
 import TasksSection from "./components/TasksSection";
 import DeadlinesSection from "./components/DeadlinesSection";
 import FeesSection from "./components/FeesSection";
@@ -339,6 +340,10 @@ export default function CaseDetailPage() {
       <div id="timeline" style={sectionWrapStyle}>
         <TimelineSection caseId={id} timeline={timeline} />
       </div>
+
+     <div id="judgments" style={sectionWrapStyle}>
+       <JudgmentsSection caseId={id} />
+     </div>
 
       <div id="tasks" style={sectionWrapStyle}>
         <TasksSection caseId={id} tasks={tasks} />
