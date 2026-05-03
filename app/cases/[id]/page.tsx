@@ -12,6 +12,7 @@ import TimelineSection from "./components/TimelineSection";
 import JudgmentsSection from "./components/JudgmentsSection";
 import TasksSection from "./components/TasksSection";
 import DeadlinesSection from "./components/DeadlinesSection";
+import TimeLogsSection from "./components/TimeLogsSection";
 import FeesSection from "./components/FeesSection";
 
 /* =========================================================
@@ -349,9 +350,13 @@ export default function CaseDetailPage() {
         <TasksSection caseId={id} tasks={tasks} />
       </div>
 
-	<div id="deadlines" style={sectionWrapStyle}>
+      <div id="deadlines" style={sectionWrapStyle}>
   	<DeadlinesSection caseId={id} />
-	</div>
+      </div>
+
+      <div id="timelogs" style={sectionWrapStyle}>
+       <TimeLogsSection caseId={id} />
+      </div>
 
       <div id="fees" style={sectionWrapStyle}>
         <FeesSection caseId={id} fees={fees} />
