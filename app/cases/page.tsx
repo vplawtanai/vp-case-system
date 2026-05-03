@@ -82,6 +82,7 @@ export default function CasesPage() {
   const router = useRouter();
 
   const [cases, setCases] = useState<CaseItem[]>([]);
+  const [alertItems, setAlertItems] = useState<AlertCandidate[]>([]);
   const [saving, setSaving] = useState(false);
   const [isCompact, setIsCompact] = useState(false);
 
@@ -130,6 +131,7 @@ export default function CasesPage() {
 
     if (caseIds.length === 0) {
       setCases([]);
+      setAlertItems([]);
       return;
     }
 
@@ -155,7 +157,10 @@ export default function CasesPage() {
     ]);
 
     if (tasksRes.error) {
-      alert("Load tasks for alerts failed:\n" + JSON.stringify(tasksRes.error, null, 2));
+      alert(
+        "Load tasks for alerts failed:\n" +
+          JSON.stringify(tasksRes.error, null, 2)
+      );
       return;
     }
 
@@ -179,7 +184,10 @@ export default function CasesPage() {
     const deadlines = (deadlinesRes.data || []) as CaseDeadline[];
     const timeline = (timelineRes.data || []) as CaseTimeline[];
 
-    const alertMap = buildAlertMap(tasks, deadlines, timeline);
+    const allAlerts = buildAlertCandidates(tasks, deadlines, timeline);
+    const alertMap = buildAlertMapFromCandidates(allAlerts);
+
+    setAlertItems(allAlerts);
 
     const enrichedCases = baseCases.map((item) => {
       const alert = alertMap.get(item.id);
@@ -412,16 +420,25 @@ export default function CasesPage() {
 
   /* =========================================================
      SUMMARY
+     - Overdue / Today / Due Soon = จำนวน Alert จริง
+     - Clear = จำนวนคดีที่ไม่มี Alert
   ========================================================= */
 
   const summary = useMemo(() => {
+    const overdue = alertItems.filter((item) => item.level === "overdue").length;
+    const today = alertItems.filter((item) => item.level === "today").length;
+    const dueSoon = alertItems.filter((item) => item.level === "dueSoon").length;
+
+    const caseIdsWithAlert = new Set(alertItems.map((item) => item.case_id));
+    const clear = cases.filter((item) => !caseIdsWithAlert.has(item.id)).length;
+
     return {
-      overdue: cases.filter((c) => getRiskLevel(c) === "overdue").length,
-      today: cases.filter((c) => getRiskLevel(c) === "today").length,
-      dueSoon: cases.filter((c) => getRiskLevel(c) === "dueSoon").length,
-      clear: cases.filter((c) => getRiskLevel(c) === "clear").length,
+      overdue,
+      today,
+      dueSoon,
+      clear,
     };
-  }, [cases]);
+  }, [cases, alertItems]);
 
   /* =========================================================
      RENDER
@@ -431,7 +448,6 @@ export default function CasesPage() {
     <main style={pageStyle}>
       <AppTopNav title="Cases" subtitle="Case list" activePage="cases" />
 
-      {/* SUMMARY BLOCK */}
       <section style={blockStyle}>
         <div style={isCompact ? compactSummaryGridStyle : summaryGridStyle}>
           <SummaryCard
@@ -457,7 +473,6 @@ export default function CasesPage() {
         </div>
       </section>
 
-      {/* FILTER + ACTION BLOCK */}
       <section style={blockStyle}>
         <div style={isCompact ? compactFilterGridStyle : filterGridStyle}>
           <div>
@@ -551,7 +566,6 @@ export default function CasesPage() {
         </div>
       </section>
 
-      {/* CASE LIST BLOCK */}
       <section style={blockStyle}>
         <div style={resultTextStyle}>
           Showing {filteredCases.length} of {cases.length} case(s)
@@ -571,7 +585,7 @@ export default function CasesPage() {
    ALERT BUILDER
 ========================================================= */
 
-function buildAlertMap(
+function buildAlertCandidates(
   tasks: CaseTask[],
   deadlines: CaseDeadline[],
   timeline: CaseTimeline[]
@@ -606,10 +620,10 @@ function buildAlertMap(
     const level = getDateRiskLevel(deadline.current_due_date);
     if (level === "clear") return;
 
-    const deadlineText =
-      deadline.deadline_type === "อื่นๆ"
-        ? deadline.deadline_other || "Deadline"
-        : deadline.deadline_type || "Deadline";
+    const deadlineText = renderDeadlineTypeForAlert(
+      deadline.deadline_type,
+      deadline.deadline_other
+    );
 
     candidates.push({
       case_id: deadline.case_id,
@@ -641,21 +655,51 @@ function buildAlertMap(
     });
   });
 
-  candidates.sort((a, b) => {
-    if (a.case_id !== b.case_id) return a.case_id - b.case_id;
+  return candidates.sort((a, b) => {
     if (a.score !== b.score) return a.score - b.score;
     return a.date.localeCompare(b.date);
   });
+}
 
+function buildAlertMapFromCandidates(candidates: AlertCandidate[]) {
   const map = new Map<number, AlertCandidate>();
 
   candidates.forEach((candidate) => {
-    if (!map.has(candidate.case_id)) {
+    const existing = map.get(candidate.case_id);
+
+    if (!existing) {
+      map.set(candidate.case_id, candidate);
+      return;
+    }
+
+    if (candidate.score < existing.score) {
+      map.set(candidate.case_id, candidate);
+      return;
+    }
+
+    if (candidate.score === existing.score && candidate.date < existing.date) {
       map.set(candidate.case_id, candidate);
     }
   });
 
   return map;
+}
+
+function renderDeadlineTypeForAlert(
+  deadlineType?: string | null,
+  deadlineOther?: string | null
+) {
+  if (!deadlineType) return "Deadline";
+
+  if (deadlineType === "answer") return "ครบกำหนดยื่นคำให้การ";
+  if (deadlineType === "appeal") return "ครบกำหนดอุทธรณ์";
+  if (deadlineType === "appeal_answer") return "ครบกำหนดแก้อุทธรณ์";
+  if (deadlineType === "supreme") return "ครบกำหนดฎีกา";
+  if (deadlineType === "supreme_answer") return "ครบกำหนดแก้ฎีกา";
+
+  if (deadlineType === "อื่นๆ") return deadlineOther || "กำหนดเวลาอื่นๆ";
+
+  return deadlineType;
 }
 
 function getDateRiskLevel(dateText: string): RiskLevel {
@@ -844,7 +888,9 @@ function CaseCardList({
             <div style={infoLabelStyle}>Next Alert</div>
             <div style={infoValueStyle}>{c.next_alert_text || "-"}</div>
             {c.next_alert_date && (
-              <div style={subTextStyle}>{formatDisplayDate(c.next_alert_date)}</div>
+              <div style={subTextStyle}>
+                {formatDisplayDate(c.next_alert_date)}
+              </div>
             )}
           </div>
 
