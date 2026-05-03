@@ -10,6 +10,8 @@ import AppTopNav from "../components/AppTopNav";
    TYPES
 ========================================================= */
 
+type RiskLevel = "overdue" | "today" | "dueSoon" | "clear";
+
 type CaseItem = {
   id: number;
   file_no?: string | null;
@@ -24,12 +26,46 @@ type CaseItem = {
   physical_storage_type?: string | null;
   physical_storage_detail?: string | null;
 
-  risk_level?: string | null;
+  risk_level?: RiskLevel | null;
   next_alert_text?: string | null;
   next_alert_date?: string | null;
 
   created_at?: string | null;
   updated_at?: string | null;
+};
+
+type CaseTask = {
+  case_id: number;
+  task_type?: string | null;
+  task_other?: string | null;
+  due_date?: string | null;
+  status?: string | null;
+};
+
+type CaseDeadline = {
+  case_id: number;
+  deadline_type?: string | null;
+  deadline_other?: string | null;
+  current_due_date?: string | null;
+  status?: string | null;
+};
+
+type CaseTimeline = {
+  case_id: number;
+  event_type?: string | null;
+  event_date?: string | null;
+  event_time?: string | null;
+  appointment_type?: string | null;
+  appointment_other?: string | null;
+  order_no?: number | null;
+};
+
+type AlertCandidate = {
+  case_id: number;
+  level: RiskLevel;
+  text: string;
+  date: string;
+  score: number;
 };
 
 type SortMode =
@@ -44,10 +80,6 @@ type SortMode =
 
 export default function CasesPage() {
   const router = useRouter();
-
-  /* =========================================================
-     STATE
-  ========================================================= */
 
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [saving, setSaving] = useState(false);
@@ -76,24 +108,100 @@ export default function CasesPage() {
   }, []);
 
   /* =========================================================
-     LOAD CASES
+     LOAD CASES + REAL ALERTS
   ========================================================= */
 
   const fetchCases = async () => {
-    const { data, error } = await supabase
+    const { data: caseData, error: caseError } = await supabase
       .from("cases")
       .select("*")
       .order("created_at", { ascending: false });
 
-    console.log("CASES DATA:", data);
-    console.log("CASES ERROR:", error);
+    console.log("CASES DATA:", caseData);
+    console.log("CASES ERROR:", caseError);
 
-    if (error) {
-      alert("SUPABASE ERROR:\n" + JSON.stringify(error, null, 2));
+    if (caseError) {
+      alert("SUPABASE ERROR:\n" + JSON.stringify(caseError, null, 2));
       return;
     }
 
-    setCases((data || []) as CaseItem[]);
+    const baseCases = (caseData || []) as CaseItem[];
+    const caseIds = baseCases.map((c) => c.id);
+
+    if (caseIds.length === 0) {
+      setCases([]);
+      return;
+    }
+
+    const [tasksRes, deadlinesRes, timelineRes] = await Promise.all([
+      supabase
+        .from("case_tasks")
+        .select("case_id, task_type, task_other, due_date, status")
+        .in("case_id", caseIds),
+
+      supabase
+        .from("case_deadlines")
+        .select(
+          "case_id, deadline_type, deadline_other, current_due_date, status"
+        )
+        .in("case_id", caseIds),
+
+      supabase
+        .from("case_timeline")
+        .select(
+          "case_id, event_type, event_date, event_time, appointment_type, appointment_other, order_no"
+        )
+        .in("case_id", caseIds),
+    ]);
+
+    if (tasksRes.error) {
+      alert("Load tasks for alerts failed:\n" + JSON.stringify(tasksRes.error, null, 2));
+      return;
+    }
+
+    if (deadlinesRes.error) {
+      alert(
+        "Load deadlines for alerts failed:\n" +
+          JSON.stringify(deadlinesRes.error, null, 2)
+      );
+      return;
+    }
+
+    if (timelineRes.error) {
+      alert(
+        "Load timeline for alerts failed:\n" +
+          JSON.stringify(timelineRes.error, null, 2)
+      );
+      return;
+    }
+
+    const tasks = (tasksRes.data || []) as CaseTask[];
+    const deadlines = (deadlinesRes.data || []) as CaseDeadline[];
+    const timeline = (timelineRes.data || []) as CaseTimeline[];
+
+    const alertMap = buildAlertMap(tasks, deadlines, timeline);
+
+    const enrichedCases = baseCases.map((item) => {
+      const alert = alertMap.get(item.id);
+
+      if (!alert) {
+        return {
+          ...item,
+          risk_level: "clear" as RiskLevel,
+          next_alert_text: "-",
+          next_alert_date: "",
+        };
+      }
+
+      return {
+        ...item,
+        risk_level: alert.level,
+        next_alert_text: alert.text,
+        next_alert_date: alert.date,
+      };
+    });
+
+    setCases(enrichedCases);
   };
 
   useEffect(() => {
@@ -102,9 +210,6 @@ export default function CasesPage() {
 
   /* =========================================================
      CREATE CASE WITH AUTO FILE NO
-     - ถามยืนยันก่อนสร้าง
-     - สร้างเลขแฟ้ม
-     - เข้าไปกรอกรายละเอียดในหน้า detail
   ========================================================= */
 
   const createCase = async () => {
@@ -127,8 +232,7 @@ export default function CasesPage() {
 
       if (fileNoError) {
         alert(
-          "Generate File No failed:\n" +
-            JSON.stringify(fileNoError, null, 2)
+          "Generate File No failed:\n" + JSON.stringify(fileNoError, null, 2)
         );
         return;
       }
@@ -181,7 +285,7 @@ export default function CasesPage() {
      RISK LOGIC
   ========================================================= */
 
-  const getRiskLevel = (item: CaseItem) => {
+  const getRiskLevel = (item: CaseItem): RiskLevel => {
     return item.risk_level || "clear";
   };
 
@@ -273,8 +377,8 @@ export default function CasesPage() {
         const riskDiff = getRiskScore(a) - getRiskScore(b);
         if (riskDiff !== 0) return riskDiff;
 
-        return (a.next_alert_date || "").localeCompare(
-          b.next_alert_date || ""
+        return (a.next_alert_date || "9999-12-31").localeCompare(
+          b.next_alert_date || "9999-12-31"
         );
       }
 
@@ -464,6 +568,154 @@ export default function CasesPage() {
 }
 
 /* =========================================================
+   ALERT BUILDER
+========================================================= */
+
+function buildAlertMap(
+  tasks: CaseTask[],
+  deadlines: CaseDeadline[],
+  timeline: CaseTimeline[]
+) {
+  const candidates: AlertCandidate[] = [];
+
+  tasks.forEach((task) => {
+    if (!task.due_date) return;
+    if (isTaskDone(task.status)) return;
+
+    const level = getDateRiskLevel(task.due_date);
+    if (level === "clear") return;
+
+    const taskText =
+      task.task_type === "อื่นๆ"
+        ? task.task_other || "งานที่ต้องทำ"
+        : task.task_type || "งานที่ต้องทำ";
+
+    candidates.push({
+      case_id: task.case_id,
+      level,
+      text: `Task: ${taskText}`,
+      date: task.due_date,
+      score: getRiskScoreFromLevel(level),
+    });
+  });
+
+  deadlines.forEach((deadline) => {
+    if (!deadline.current_due_date) return;
+    if (isDeadlineDone(deadline.status)) return;
+
+    const level = getDateRiskLevel(deadline.current_due_date);
+    if (level === "clear") return;
+
+    const deadlineText =
+      deadline.deadline_type === "อื่นๆ"
+        ? deadline.deadline_other || "Deadline"
+        : deadline.deadline_type || "Deadline";
+
+    candidates.push({
+      case_id: deadline.case_id,
+      level,
+      text: `Deadline: ${deadlineText}`,
+      date: deadline.current_due_date,
+      score: getRiskScoreFromLevel(level),
+    });
+  });
+
+  timeline.forEach((event) => {
+    if (event.event_type !== "hearing") return;
+    if (!event.event_date) return;
+
+    const level = getDateRiskLevel(event.event_date);
+    if (level === "clear") return;
+
+    const appointmentText =
+      event.appointment_type === "นัดอื่นๆ"
+        ? event.appointment_other || "นัดศาล"
+        : event.appointment_type || "นัดศาล";
+
+    candidates.push({
+      case_id: event.case_id,
+      level,
+      text: `Timeline: นัดที่ ${event.order_no || "-"} ${appointmentText}`,
+      date: event.event_date,
+      score: getRiskScoreFromLevel(level),
+    });
+  });
+
+  candidates.sort((a, b) => {
+    if (a.case_id !== b.case_id) return a.case_id - b.case_id;
+    if (a.score !== b.score) return a.score - b.score;
+    return a.date.localeCompare(b.date);
+  });
+
+  const map = new Map<number, AlertCandidate>();
+
+  candidates.forEach((candidate) => {
+    if (!map.has(candidate.case_id)) {
+      map.set(candidate.case_id, candidate);
+    }
+  });
+
+  return map;
+}
+
+function getDateRiskLevel(dateText: string): RiskLevel {
+  const diffDays = diffDaysFromToday(dateText);
+
+  if (diffDays < 0) return "overdue";
+  if (diffDays === 0) return "today";
+  if (diffDays <= 3) return "dueSoon";
+
+  return "clear";
+}
+
+function getRiskScoreFromLevel(level: RiskLevel) {
+  if (level === "overdue") return 1;
+  if (level === "today") return 2;
+  if (level === "dueSoon") return 3;
+  return 5;
+}
+
+function diffDaysFromToday(dateText: string) {
+  const today = parseLocalDate(getTodayDateString());
+  const target = parseLocalDate(dateText);
+
+  return Math.floor(
+    (target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+  );
+}
+
+function parseLocalDate(dateText: string) {
+  const [year, month, day] = dateText.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function getTodayDateString() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function isTaskDone(status?: string | null) {
+  const value = (status || "").toLowerCase();
+
+  return value === "done" || value === "cancelled";
+}
+
+function isDeadlineDone(status?: string | null) {
+  const value = (status || "").toLowerCase();
+
+  return (
+    value === "done" ||
+    value === "filed" ||
+    value === "submitted" ||
+    value === "cancelled"
+  );
+}
+
+/* =========================================================
    TABLE VIEW
 ========================================================= */
 
@@ -472,7 +724,7 @@ function CaseTable({
   getRiskLevel,
 }: {
   cases: CaseItem[];
-  getRiskLevel: (item: CaseItem) => string;
+  getRiskLevel: (item: CaseItem) => RiskLevel;
 }) {
   return (
     <div style={{ overflowX: "auto" }}>
@@ -498,9 +750,7 @@ function CaseTable({
           {cases.map((c) => (
             <tr key={c.id} style={rowStyle}>
               <td style={tdStyle}>
-                <Link href={`/cases/${c.id}`} style={tableLinkStyle}>
-                  {c.file_no || "-"}
-                </Link>
+                <Link href={`/cases/${c.id}`}>{c.file_no || "-"}</Link>
               </td>
               <td style={tdStyle}>{c.title || "-"}</td>
               <td style={tdStyle}>{c.client_name || "-"}</td>
@@ -515,21 +765,21 @@ function CaseTable({
               <td style={tdStyle}>
                 <div>{c.next_alert_text || "-"}</div>
                 {c.next_alert_date && (
-                  <div style={subTextStyle}>{c.next_alert_date}</div>
+                  <div style={subTextStyle}>
+                    {formatDisplayDate(c.next_alert_date)}
+                  </div>
                 )}
               </td>
-              <td style={tdStyle}>{formatDate(c.updated_at)}</td>
+              <td style={tdStyle}>{formatDateTime(c.updated_at)}</td>
               <td style={tdStyle}>
-                <Link href={`/cases/${c.id}`} style={tableLinkStyle}>
-                  Open
-                </Link>
+                <Link href={`/cases/${c.id}`}>Open</Link>
               </td>
             </tr>
           ))}
 
           {cases.length === 0 && (
             <tr>
-              <td colSpan={12} style={{ padding: 16, color: "#333333" }}>
+              <td colSpan={12} style={{ padding: 16, color: "#666" }}>
                 No cases found.
               </td>
             </tr>
@@ -549,7 +799,7 @@ function CaseCardList({
   getRiskLevel,
 }: {
   cases: CaseItem[];
-  getRiskLevel: (item: CaseItem) => string;
+  getRiskLevel: (item: CaseItem) => RiskLevel;
 }) {
   if (cases.length === 0) {
     return <div style={emptyCardStyle}>No cases found.</div>;
@@ -583,14 +833,23 @@ function CaseCardList({
               label="Location"
               value={c.physical_storage_detail || "-"}
             />
-            <InfoLine label="Black Case No." value={c.case_number || "-"} />
-            <InfoLine label="Updated" value={formatDate(c.updated_at)} />
+            <InfoLine
+              label="Black Case No."
+              value={c.case_number || "-"}
+            />
+            <InfoLine label="Updated" value={formatDateTime(c.updated_at)} />
+          </div>
+
+          <div style={mobileAlertBoxStyle}>
+            <div style={infoLabelStyle}>Next Alert</div>
+            <div style={infoValueStyle}>{c.next_alert_text || "-"}</div>
+            {c.next_alert_date && (
+              <div style={subTextStyle}>{formatDisplayDate(c.next_alert_date)}</div>
+            )}
           </div>
 
           <div style={cardActionStyle}>
-            <Link href={`/cases/${c.id}`} style={cardActionLinkStyle}>
-              Open case
-            </Link>
+            <Link href={`/cases/${c.id}`}>Open case</Link>
           </div>
         </div>
       ))}
@@ -614,12 +873,12 @@ function SummaryCard({
   return (
     <div style={{ ...summaryCardStyle, background }}>
       <div style={summaryNumberStyle}>{count}</div>
-      <div style={summaryLabelStyle}>{label}</div>
+      <div style={summaryLabelTextStyle}>{label}</div>
     </div>
   );
 }
 
-function RiskBadge({ level }: { level: string }) {
+function RiskBadge({ level }: { level: RiskLevel }) {
   const text =
     level === "overdue"
       ? "Overdue"
@@ -661,7 +920,7 @@ function renderPhase(phase?: string | null) {
   return phase;
 }
 
-function formatDate(value?: string | null) {
+function formatDateTime(value?: string | null) {
   if (!value) return "-";
 
   try {
@@ -669,6 +928,16 @@ function formatDate(value?: string | null) {
   } catch {
     return value;
   }
+}
+
+function formatDisplayDate(value?: string | null) {
+  if (!value) return "-";
+
+  const parts = value.split("-");
+  if (parts.length !== 3) return value;
+
+  const [year, month, day] = parts;
+  return `${day}/${month}/${year}`;
 }
 
 /* =========================================================
@@ -679,10 +948,7 @@ const pageStyle: React.CSSProperties = {
   padding: 24,
   maxWidth: 1440,
   margin: "0 auto",
-  minHeight: "100vh",
-  background: "#ffffff",
   color: "#111111",
-  colorScheme: "light",
 };
 
 const blockStyle: React.CSSProperties = {
@@ -704,7 +970,7 @@ const compactSummaryGridStyle: React.CSSProperties = {
 };
 
 const summaryCardStyle: React.CSSProperties = {
-  border: "1px solid #d8d8d8",
+  border: "1px solid #ddd",
   borderRadius: 10,
   padding: 18,
   minHeight: 86,
@@ -713,14 +979,14 @@ const summaryCardStyle: React.CSSProperties = {
 
 const summaryNumberStyle: React.CSSProperties = {
   fontSize: 28,
-  fontWeight: 800,
+  fontWeight: 900,
   marginBottom: 8,
   color: "#111111",
 };
 
-const summaryLabelStyle: React.CSSProperties = {
-  color: "#222222",
-  fontWeight: 500,
+const summaryLabelTextStyle: React.CSSProperties = {
+  fontWeight: 700,
+  color: "#333333",
 };
 
 const filterGridStyle: React.CSSProperties = {
@@ -740,77 +1006,68 @@ const labelStyle: React.CSSProperties = {
   display: "block",
   marginBottom: 4,
   color: "#222222",
-  fontWeight: 600,
+  fontWeight: 700,
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "10px 12px",
-  border: "1px solid #bdbdbd",
+  border: "1px solid #ccc",
   borderRadius: 6,
   fontSize: 14,
   boxSizing: "border-box",
-  background: "#ffffff",
+  background: "white",
   color: "#111111",
   colorScheme: "light",
 };
 
 const primaryButtonStyle: React.CSSProperties = {
   padding: "10px 16px",
-  background: "#000000",
-  color: "#ffffff",
+  background: "black",
+  color: "white",
   borderRadius: 8,
   border: "none",
   cursor: "pointer",
   whiteSpace: "nowrap",
-  fontWeight: 600,
+  fontWeight: 800,
 };
 
 const resultTextStyle: React.CSSProperties = {
   marginBottom: 14,
-  color: "#333333",
-  fontWeight: 500,
+  color: "#555555",
+  fontWeight: 600,
 };
 
 const tableStyle: React.CSSProperties = {
   width: "100%",
   borderCollapse: "collapse",
   minWidth: 1100,
-  background: "#ffffff",
-  color: "#111111",
 };
 
 const thStyle: React.CSSProperties = {
   textAlign: "left",
   padding: 10,
-  borderBottom: "1px solid #dddddd",
+  borderBottom: "1px solid #eee",
   whiteSpace: "nowrap",
   color: "#111111",
-  fontWeight: 700,
 };
 
 const tdStyle: React.CSSProperties = {
   padding: 10,
   verticalAlign: "top",
-  borderTop: "1px solid #eeeeee",
+  borderTop: "1px solid #eee",
   whiteSpace: "nowrap",
   color: "#111111",
 };
 
 const rowStyle: React.CSSProperties = {
-  borderTop: "1px solid #eeeeee",
-  background: "#ffffff",
-};
-
-const tableLinkStyle: React.CSSProperties = {
-  color: "#0F2743",
-  fontWeight: 700,
-  textDecoration: "none",
+  borderTop: "1px solid #eee",
 };
 
 const subTextStyle: React.CSSProperties = {
   fontSize: 12,
-  color: "#555555",
+  color: "#666666",
+  marginTop: 2,
 };
 
 const riskBadgeBaseStyle: React.CSSProperties = {
@@ -818,22 +1075,22 @@ const riskBadgeBaseStyle: React.CSSProperties = {
   padding: "5px 10px",
   borderRadius: 999,
   fontSize: 13,
-  fontWeight: 700,
+  fontWeight: 800,
 };
 
 const riskOverdueStyle: React.CSSProperties = {
   background: "#ffe0e0",
-  color: "#9f1d16",
+  color: "#c0392b",
 };
 
 const riskTodayStyle: React.CSSProperties = {
   background: "#fff0c2",
-  color: "#8a4d00",
+  color: "#b26a00",
 };
 
 const riskDueSoonStyle: React.CSSProperties = {
   background: "#fff4d9",
-  color: "#9c5200",
+  color: "#c96b00",
 };
 
 const riskClearStyle: React.CSSProperties = {
@@ -848,12 +1105,11 @@ const caseCardListStyle: React.CSSProperties = {
 };
 
 const caseCardStyle: React.CSSProperties = {
-  border: "1px solid #d8d8d8",
+  border: "1px solid #ddd",
   borderRadius: 12,
   padding: 14,
-  background: "#ffffff",
+  background: "#fff",
   color: "#111111",
-  boxShadow: "0 1px 6px rgba(0,0,0,0.06)",
 };
 
 const caseCardHeaderStyle: React.CSSProperties = {
@@ -865,16 +1121,15 @@ const caseCardHeaderStyle: React.CSSProperties = {
 };
 
 const fileNoLinkStyle: React.CSSProperties = {
-  fontWeight: 800,
+  fontWeight: 900,
   fontSize: 16,
-  color: "#0F2743",
-  textDecoration: "none",
+  color: "#12355b",
 };
 
 const cardTitleStyle: React.CSSProperties = {
   marginTop: 4,
-  color: "#222222",
-  fontWeight: 700,
+  color: "#333333",
+  fontWeight: 800,
 };
 
 const caseCardGridStyle: React.CSSProperties = {
@@ -883,35 +1138,37 @@ const caseCardGridStyle: React.CSSProperties = {
   gap: 10,
 };
 
+const mobileAlertBoxStyle: React.CSSProperties = {
+  marginTop: 12,
+  padding: 10,
+  borderRadius: 10,
+  background: "#f8fafc",
+  border: "1px solid #eeeeee",
+};
+
 const infoLabelStyle: React.CSSProperties = {
   fontSize: 12,
-  color: "#555555",
-  fontWeight: 500,
+  color: "#666666",
+  fontWeight: 700,
 };
 
 const infoValueStyle: React.CSSProperties = {
   fontSize: 14,
-  fontWeight: 700,
-  wordBreak: "break-word",
+  fontWeight: 800,
   color: "#111111",
+  wordBreak: "break-word",
 };
 
 const cardActionStyle: React.CSSProperties = {
   marginTop: 12,
   paddingTop: 10,
-  borderTop: "1px solid #eeeeee",
-};
-
-const cardActionLinkStyle: React.CSSProperties = {
-  color: "#0F2743",
-  fontWeight: 700,
-  textDecoration: "none",
+  borderTop: "1px solid #eee",
+  fontWeight: 800,
 };
 
 const emptyCardStyle: React.CSSProperties = {
-  border: "1px solid #d8d8d8",
+  border: "1px solid #ddd",
   borderRadius: 12,
   padding: 16,
-  color: "#333333",
-  background: "#ffffff",
+  color: "#666",
 };
