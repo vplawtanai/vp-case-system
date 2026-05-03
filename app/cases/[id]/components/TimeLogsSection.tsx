@@ -127,7 +127,10 @@ export default function TimeLogsSection({ caseId }: Props) {
   }, [caseId]);
 
   const summary = useMemo(() => {
-    const totalMinutes = items.reduce((sum, item) => sum + (item.minutes || 0), 0);
+    const totalMinutes = items.reduce(
+      (sum, item) => sum + (item.minutes || 0),
+      0
+    );
 
     const coreWorkMinutes = items
       .filter((item) => item.billable !== false)
@@ -135,16 +138,45 @@ export default function TimeLogsSection({ caseId }: Props) {
 
     const supportTimeMinutes = totalMinutes - coreWorkMinutes;
 
-    const byStaffMap = new Map<string, number>();
+    const byStaffMap = new Map<
+      string,
+      {
+        totalMinutes: number;
+        coreWorkMinutes: number;
+        supportTimeMinutes: number;
+      }
+    >();
 
     items.forEach((item) => {
       const staff = item.staff_name || "-";
-      byStaffMap.set(staff, (byStaffMap.get(staff) || 0) + (item.minutes || 0));
+      const minutes = item.minutes || 0;
+      const isCoreWork = item.billable !== false;
+
+      const existing = byStaffMap.get(staff) || {
+        totalMinutes: 0,
+        coreWorkMinutes: 0,
+        supportTimeMinutes: 0,
+      };
+
+      existing.totalMinutes += minutes;
+
+      if (isCoreWork) {
+        existing.coreWorkMinutes += minutes;
+      } else {
+        existing.supportTimeMinutes += minutes;
+      }
+
+      byStaffMap.set(staff, existing);
     });
 
     const byStaff = Array.from(byStaffMap.entries())
-      .map(([staff, minutes]) => ({ staff, minutes }))
-      .sort((a, b) => b.minutes - a.minutes);
+      .map(([staff, value]) => ({
+        staff,
+        totalMinutes: value.totalMinutes,
+        coreWorkMinutes: value.coreWorkMinutes,
+        supportTimeMinutes: value.supportTimeMinutes,
+      }))
+      .sort((a, b) => b.totalMinutes - a.totalMinutes);
 
     return {
       totalMinutes,
@@ -368,11 +400,27 @@ export default function TimeLogsSection({ caseId }: Props) {
       {summary.byStaff.length > 0 && (
         <div style={staffSummaryStyle}>
           <div style={staffSummaryTitleStyle}>Time by Staff</div>
-          <div style={staffChipWrapStyle}>
+
+          <div style={staffCardGridStyle}>
             {summary.byStaff.map((row) => (
-              <span key={row.staff} style={staffChipStyle}>
-                {row.staff}: {formatDuration(row.minutes)}
-              </span>
+              <div key={row.staff} style={staffTimeCardStyle}>
+                <div style={staffNameStyle}>{row.staff}</div>
+
+                <div style={staffTimeLineStyle}>
+                  <span>Total</span>
+                  <strong>{formatDuration(row.totalMinutes)}</strong>
+                </div>
+
+                <div style={staffTimeLineStyle}>
+                  <span>Core</span>
+                  <strong>{formatDuration(row.coreWorkMinutes)}</strong>
+                </div>
+
+                <div style={staffTimeLineStyle}>
+                  <span>Support</span>
+                  <strong>{formatDuration(row.supportTimeMinutes)}</strong>
+                </div>
+              </div>
             ))}
           </div>
         </div>
@@ -814,21 +862,33 @@ const staffSummaryTitleStyle: CSSProperties = {
   color: "#111111",
 };
 
-const staffChipWrapStyle: CSSProperties = {
-  display: "flex",
-  gap: 8,
-  flexWrap: "wrap",
+const staffCardGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+  gap: 10,
 };
 
-const staffChipStyle: CSSProperties = {
-  display: "inline-flex",
-  padding: "6px 10px",
-  borderRadius: 999,
+const staffTimeCardStyle: CSSProperties = {
   border: "1px solid #dddddd",
+  borderRadius: 12,
+  padding: "10px 12px",
   background: "#f8fafc",
   color: "#111111",
+};
+
+const staffNameStyle: CSSProperties = {
+  fontWeight: 900,
+  marginBottom: 6,
+  color: "#111111",
+};
+
+const staffTimeLineStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 10,
   fontSize: 13,
-  fontWeight: 700,
+  color: "#333333",
+  lineHeight: 1.7,
 };
 
 const formCardStyle: CSSProperties = {
