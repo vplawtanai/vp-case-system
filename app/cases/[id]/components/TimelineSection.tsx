@@ -1,497 +1,470 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDoc,
-  getDocs,
-  serverTimestamp,
-  updateDoc,
-} from "firebase/firestore";
-import { db } from "../../../../lib/firebase";
+import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
+import { supabase } from "../../../../lib/supabase";
+
+type TimelineEventType = "filing" | "hearing";
 
 type TimelineItem = {
   id: string;
-  eventDate?: string;
-  startTime?: string;
-  endTime?: string;
-  appointment?: string;
-  done?: boolean;
+  case_id: number;
+  event_type?: TimelineEventType | string | null;
+  event_date?: string | null;
+  event_time?: string | null;
+  appointment_type?: string | null;
+  appointment_other?: string | null;
+  note?: string | null;
+  order_no?: number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
-type DeadlineItem = {
-  id: string;
-  deadlineType?: string;
-  dueDate?: string;
-  status?: string;
-  note?: string;
-  done?: boolean;
-};
-
-type TaskItem = {
-  id: string;
-  title?: string;
-  assigneeName?: string;
-  startDate?: string;
-  dueDate?: string;
-  priority?: string;
-  status?: string;
-  done?: boolean;
+type TimelineForm = {
+  event_date: string;
+  event_time: string;
+  appointment_type: string;
+  appointment_other: string;
+  note: string;
+  order_no: string;
 };
 
 type Props = {
   caseId: string;
-  timeline: TimelineItem[];
+  timeline?: unknown[];
 };
 
-export default function TimelineSection({ caseId, timeline }: Props) {
-  const emptyForm = {
-    eventDate: "",
-    startTime: "",
-    endTime: "",
-    appointment: "",
-    done: false,
-  };
+const appointmentOptions = [
+  "นัดไกล่เกลี่ย",
+  "นัดไกล่เกลี่ย/ให้การ/สืบพยานโจทก์",
+  "นัดพร้อม",
+  "นัดชี้สองสถาน/สืบพยานโจทก์",
+  "นัดชี้สองสถาน",
+  "นัดไต่สวนมูลฟ้อง",
+  "นัดฟังคำสั่ง",
+  "นัดสอบคำให้การจำเลย",
+  "นัดสอบคำให้การจำเลย/ตรวจพยาน",
+  "นัดสืบพยานโจทก์",
+  "นัดสืบพยานจำเลย",
+  "นัดฟังคำพิพากษา/คำสั่ง",
+  "นัดอื่นๆ",
+];
+
+const emptyAppointmentForm: TimelineForm = {
+  event_date: "",
+  event_time: "",
+  appointment_type: "นัดไกล่เกลี่ย",
+  appointment_other: "",
+  note: "",
+  order_no: "1",
+};
+
+export default function TimelineSection({ caseId }: Props) {
+  const caseIdNumber = Number(caseId);
+
+  const [items, setItems] = useState<TimelineItem[]>([]);
+  const [filingDate, setFilingDate] = useState("");
+  const [filingId, setFilingId] = useState<string | null>(null);
+
+  const [loading, setLoading] = useState(false);
+  const [savingFiling, setSavingFiling] = useState(false);
+  const [savingAppointment, setSavingAppointment] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState<TimelineForm>(emptyAppointmentForm);
 
-  const sortedTimeline = useMemo(() => {
-    return [...timeline].sort((a, b) => {
-      const aDateTime = `${a.eventDate || ""} ${a.startTime || ""}`.trim();
-      const bDateTime = `${b.eventDate || ""} ${b.startTime || ""}`.trim();
-      return aDateTime.localeCompare(bDateTime);
-    });
-  }, [timeline]);
+  const loadTimeline = async () => {
+    if (!caseIdNumber || Number.isNaN(caseIdNumber)) return;
 
-  const resetForm = () => {
-    setForm(emptyForm);
-    setEditingId(null);
-    setShowForm(false);
-  };
+    try {
+      setLoading(true);
 
-  const getUrgency = (item: TimelineItem) => {
-    if (item.done) return "Done";
-    if (!item.eventDate) return "-";
+      const { data, error } = await supabase
+        .from("case_timeline")
+        .select("*")
+        .eq("case_id", caseIdNumber)
+        .order("event_type", { ascending: true })
+        .order("order_no", { ascending: true })
+        .order("created_at", { ascending: true });
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const event = new Date(item.eventDate);
-    event.setHours(0, 0, 0, 0);
-
-    const diffDays = Math.floor(
-      (event.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    if (diffDays < 0) return "Overdue";
-    if (diffDays === 0) return "Today";
-    if (diffDays <= 3) return "Upcoming";
-    return "Normal";
-  };
-
-  const renderDeadlineType = (deadlineType?: string) => {
-    if (!deadlineType) return "Deadline";
-    if (deadlineType === "appeal") return "Appeal";
-    if (deadlineType === "supreme") return "Supreme Court";
-    if (deadlineType === "submission") return "Submission";
-    if (deadlineType === "payment") return "Payment";
-    return deadlineType;
-  };
-
-  const getDeadlineUrgency = (item: DeadlineItem) => {
-    if (item.done || item.status === "done") return "Done";
-    if (!item.dueDate) return "-";
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const due = new Date(item.dueDate);
-    due.setHours(0, 0, 0, 0);
-
-    const diffDays = Math.floor(
-      (due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    if (diffDays < 0) return "Overdue";
-    if (diffDays === 0) return "Today";
-    if (diffDays <= 3) return "Due Soon";
-    return "Normal";
-  };
-
-  const getTaskUrgency = (item: TaskItem) => {
-    if (item.done || item.status === "done") return "Done";
-    if (!item.dueDate) return "No Due Date";
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const due = new Date(item.dueDate);
-    due.setHours(0, 0, 0, 0);
-
-    const diffDays = Math.floor(
-      (due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    if (diffDays < 0) return "Overdue";
-    if (diffDays === 0) return "Today";
-    if (diffDays <= 3) return "Due Soon";
-    return "Normal";
-  };
-
-  const recomputeCaseRisk = async () => {
-    const [caseSnap, deadlineSnap, taskSnap, timelineSnap] = await Promise.all([
-      getDoc(doc(db, "cases", caseId)),
-      getDocs(collection(db, "cases", caseId, "deadlines")),
-      getDocs(collection(db, "cases", caseId, "tasks")),
-      getDocs(collection(db, "cases", caseId, "timeline")),
-    ]);
-
-    const caseData = caseSnap.exists() ? (caseSnap.data() as any) : {};
-
-    const allDeadlines = deadlineSnap.docs.map((d) => ({
-      id: d.id,
-      ...(d.data() as any),
-    })) as DeadlineItem[];
-
-    const allTasks = taskSnap.docs.map((d) => ({
-      id: d.id,
-      ...(d.data() as any),
-    })) as TaskItem[];
-
-    const allTimeline = timelineSnap.docs.map((d) => ({
-      id: d.id,
-      ...(d.data() as any),
-    })) as TimelineItem[];
-
-    const candidates: {
-      level: "overdue" | "today" | "dueSoon";
-      text: string;
-      date: string;
-      score: number;
-    }[] = [];
-
-    allDeadlines.forEach((item) => {
-      const urgency = getDeadlineUrgency(item);
-      if (!item.dueDate) return;
-
-      if (urgency === "Overdue") {
-        candidates.push({
-          level: "overdue",
-          text: `Deadline overdue: ${renderDeadlineType(item.deadlineType)}`,
-          date: item.dueDate,
-          score: 0,
-        });
-      } else if (urgency === "Today") {
-        candidates.push({
-          level: "today",
-          text: `Deadline today: ${renderDeadlineType(item.deadlineType)}`,
-          date: item.dueDate,
-          score: 1,
-        });
-      } else if (urgency === "Due Soon") {
-        candidates.push({
-          level: "dueSoon",
-          text: `Deadline due soon: ${renderDeadlineType(item.deadlineType)}`,
-          date: item.dueDate,
-          score: 2,
-        });
+      if (error) {
+        alert("Load timeline failed:\n" + JSON.stringify(error, null, 2));
+        setItems([]);
+        return;
       }
-    });
 
-    allTasks.forEach((item) => {
-      const urgency = getTaskUrgency(item);
-      if (!item.dueDate) return;
+      const timelineItems = (data || []) as TimelineItem[];
+      setItems(timelineItems);
 
-      if (urgency === "Overdue") {
-        candidates.push({
-          level: "overdue",
-          text: `Task overdue: ${item.title || "Task"}`,
-          date: item.dueDate,
-          score: 0,
-        });
-      } else if (urgency === "Today") {
-        candidates.push({
-          level: "today",
-          text: `Task today: ${item.title || "Task"}`,
-          date: item.dueDate,
-          score: 1,
-        });
-      } else if (urgency === "Due Soon") {
-        candidates.push({
-          level: "dueSoon",
-          text: `Task due soon: ${item.title || "Task"}`,
-          date: item.dueDate,
-          score: 2,
-        });
-      }
-    });
-
-    allTimeline.forEach((item) => {
-      const urgency = getUrgency(item);
-      if (!item.eventDate) return;
-
-      if (urgency === "Overdue") {
-        candidates.push({
-          level: "overdue",
-          text: `Timeline overdue: ${item.appointment || "Appointment"}`,
-          date: item.eventDate,
-          score: 0,
-        });
-      } else if (urgency === "Today") {
-        candidates.push({
-          level: "today",
-          text: `Timeline today: ${item.appointment || "Appointment"}`,
-          date: item.eventDate,
-          score: 1,
-        });
-      } else if (urgency === "Upcoming") {
-        candidates.push({
-          level: "dueSoon",
-          text: `Timeline upcoming: ${item.appointment || "Appointment"}`,
-          date: item.eventDate,
-          score: 2,
-        });
-      }
-    });
-
-    candidates.sort((a, b) => {
-      if (a.score !== b.score) return a.score - b.score;
-      return a.date.localeCompare(b.date);
-    });
-
-    const top = candidates[0];
-
-    await updateDoc(doc(db, "cases", caseId), {
-      riskLevel: top?.level || "clear",
-      nextAlertText: top?.text || "-",
-      nextAlertDate: top?.date || "",
-      enforcementReady: !!caseData.enforcementReady,
-      enforcementReadyText: caseData.enforcementReadyText || "-",
-      enforcementReadyDate: caseData.enforcementReadyDate || "",
-      updatedAt: serverTimestamp(),
-    });
+      const filing = timelineItems.find((item) => item.event_type === "filing");
+      setFilingId(filing?.id || null);
+      setFilingDate(filing?.event_date || "");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const createTimeline = async () => {
-    if (!form.eventDate || !form.appointment) {
-      alert("Please fill Date and Appointment.");
+  useEffect(() => {
+    loadTimeline();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [caseId]);
+
+  const appointments = useMemo(() => {
+    return items
+      .filter((item) => item.event_type === "hearing")
+      .sort((a, b) => {
+        const orderA = a.order_no || 0;
+        const orderB = b.order_no || 0;
+
+        if (orderA !== orderB) return orderA - orderB;
+
+        return (a.created_at || "").localeCompare(b.created_at || "");
+      });
+  }, [items]);
+
+  const getNextOrderNo = () => {
+    const maxOrder = appointments.reduce((max, item) => {
+      const order = item.order_no || 0;
+      return order > max ? order : max;
+    }, 0);
+
+    return maxOrder + 1;
+  };
+
+  const saveFilingDate = async () => {
+    if (!caseIdNumber || Number.isNaN(caseIdNumber)) {
+      alert("Missing case id");
       return;
     }
 
     try {
-      setSaving(true);
+      setSavingFiling(true);
 
-      await addDoc(collection(db, "cases", caseId, "timeline"), {
-        eventDate: form.eventDate,
-        startTime: form.startTime,
-        endTime: form.endTime,
-        appointment: form.appointment,
-        done: form.done,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
+      const now = new Date().toISOString();
 
-      await recomputeCaseRisk();
-      resetForm();
-    } catch (error) {
-      console.error(error);
-      alert("Create timeline failed.");
+      if (filingId) {
+        const { error } = await supabase
+          .from("case_timeline")
+          .update({
+            event_date: filingDate,
+            updated_at: now,
+          })
+          .eq("id", filingId);
+
+        if (error) {
+          alert("Save filing date failed:\n" + JSON.stringify(error, null, 2));
+          return;
+        }
+      } else {
+        const { error } = await supabase.from("case_timeline").insert([
+          {
+            case_id: caseIdNumber,
+            event_type: "filing",
+            event_date: filingDate,
+            event_time: "",
+            appointment_type: "",
+            appointment_other: "",
+            note: "",
+            order_no: 0,
+            created_at: now,
+            updated_at: now,
+          },
+        ]);
+
+        if (error) {
+          alert("Create filing date failed:\n" + JSON.stringify(error, null, 2));
+          return;
+        }
+      }
+
+      await loadTimeline();
     } finally {
-      setSaving(false);
+      setSavingFiling(false);
     }
   };
 
-  const startEdit = (item: TimelineItem) => {
+  const startAddAppointment = () => {
+    setEditingId(null);
+    setForm({
+      ...emptyAppointmentForm,
+      order_no: String(getNextOrderNo()),
+    });
+    setShowForm(true);
+  };
+
+  const startEditAppointment = (item: TimelineItem) => {
     setEditingId(item.id);
     setShowForm(true);
+
     setForm({
-      eventDate: item.eventDate || "",
-      startTime: item.startTime || "",
-      endTime: item.endTime || "",
-      appointment: item.appointment || "",
-      done: !!item.done,
+      event_date: item.event_date || "",
+      event_time: item.event_time || "",
+      appointment_type: item.appointment_type || "นัดไกล่เกลี่ย",
+      appointment_other: item.appointment_other || "",
+      note: item.note || "",
+      order_no: item.order_no ? String(item.order_no) : "1",
     });
   };
 
-  const saveEdit = async () => {
-    if (!editingId) return;
+  const cancelForm = () => {
+    setEditingId(null);
+    setShowForm(false);
+    setForm(emptyAppointmentForm);
+  };
 
-    if (!form.eventDate || !form.appointment) {
-      alert("Please fill Date and Appointment.");
+  const validateAppointment = () => {
+    if (!form.event_date.trim()) {
+      alert("กรุณากรอกวันที่นัด");
+      return false;
+    }
+
+    if (!form.appointment_type.trim()) {
+      alert("กรุณาเลือกเรื่องนัด");
+      return false;
+    }
+
+    if (
+      form.appointment_type === "นัดอื่นๆ" &&
+      !form.appointment_other.trim()
+    ) {
+      alert("กรุณากรอกเรื่องนัดอื่นๆ");
+      return false;
+    }
+
+    return true;
+  };
+
+  const buildAppointmentPayload = () => {
+    const now = new Date().toISOString();
+
+    return {
+      case_id: caseIdNumber,
+      event_type: "hearing",
+      event_date: form.event_date,
+      event_time: form.event_time,
+      appointment_type: form.appointment_type,
+      appointment_other:
+        form.appointment_type === "นัดอื่นๆ" ? form.appointment_other : "",
+      note: form.note,
+      order_no: form.order_no ? Number(form.order_no) : null,
+      updated_at: now,
+    };
+  };
+
+  const createAppointment = async () => {
+    if (!validateAppointment()) return;
+
+    try {
+      setSavingAppointment(true);
+
+      const { error } = await supabase.from("case_timeline").insert([
+        {
+          ...buildAppointmentPayload(),
+          created_at: new Date().toISOString(),
+        },
+      ]);
+
+      if (error) {
+        alert("Create appointment failed:\n" + JSON.stringify(error, null, 2));
+        return;
+      }
+
+      cancelForm();
+      await loadTimeline();
+    } finally {
+      setSavingAppointment(false);
+    }
+  };
+
+  const updateAppointment = async () => {
+    if (!editingId) return;
+    if (!validateAppointment()) return;
+
+    try {
+      setSavingAppointment(true);
+
+      const { error } = await supabase
+        .from("case_timeline")
+        .update(buildAppointmentPayload())
+        .eq("id", editingId);
+
+      if (error) {
+        alert("Update appointment failed:\n" + JSON.stringify(error, null, 2));
+        return;
+      }
+
+      cancelForm();
+      await loadTimeline();
+    } finally {
+      setSavingAppointment(false);
+    }
+  };
+
+  const deleteAppointment = async (id: string) => {
+    const confirmed = window.confirm("ต้องการลบนัดศาลรายการนี้หรือไม่?");
+    if (!confirmed) return;
+
+    const { error } = await supabase.from("case_timeline").delete().eq("id", id);
+
+    if (error) {
+      alert("Delete appointment failed:\n" + JSON.stringify(error, null, 2));
       return;
     }
 
-    try {
-      setSaving(true);
+    if (editingId === id) cancelForm();
 
-      await updateDoc(doc(db, "cases", caseId, "timeline", editingId), {
-        eventDate: form.eventDate,
-        startTime: form.startTime,
-        endTime: form.endTime,
-        appointment: form.appointment,
-        done: form.done,
-        updatedAt: serverTimestamp(),
-      });
-
-      await recomputeCaseRisk();
-      resetForm();
-    } catch (error) {
-      console.error(error);
-      alert("Save timeline failed.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const removeTimeline = async (id: string) => {
-    const confirmed = window.confirm("Delete this timeline item?");
-    if (!confirmed) return;
-
-    try {
-      await deleteDoc(doc(db, "cases", caseId, "timeline", id));
-      await recomputeCaseRisk();
-      if (editingId === id) resetForm();
-    } catch (error) {
-      console.error(error);
-      alert("Delete timeline failed.");
-    }
-  };
-
-  const toggleDone = async (item: TimelineItem) => {
-    try {
-      await updateDoc(doc(db, "cases", caseId, "timeline", item.id), {
-        done: !item.done,
-        updatedAt: serverTimestamp(),
-      });
-
-      await recomputeCaseRisk();
-    } catch (error) {
-      console.error(error);
-      alert("Update timeline failed.");
-    }
+    await loadTimeline();
   };
 
   return (
-    <div id="timeline" style={cardStyle}>
-      <div style={responsiveHeaderStyle}>
-        <h3 style={{ margin: 0 }}>Court Timeline</h3>
+    <div id="timeline" style={sectionStyle}>
+      <div style={headerStyle}>
+        <div>
+          <h3 style={titleStyle}>Court Timeline</h3>
+          <div style={subTitleStyle}>วันยื่นฟ้องและนัดศาล</div>
+        </div>
 
-        <div style={mobileStackButtonWrapStyle}>
-          {!showForm ? (
-            <button
-              onClick={() => {
-                setEditingId(null);
-                setForm(emptyForm);
-                setShowForm(true);
-              }}
-              style={buttonPrimary}
-            >
-              + Add Timeline
-            </button>
-          ) : (
-            <button onClick={resetForm} style={buttonSecondary}>
-              Cancel
-            </button>
-          )}
+        {!showForm ? (
+          <button type="button" onClick={startAddAppointment} style={primaryButtonStyle}>
+            + Add Appointment
+          </button>
+        ) : (
+          <button type="button" onClick={cancelForm} style={secondaryButtonStyle}>
+            Cancel
+          </button>
+        )}
+      </div>
+
+      <div style={filingCardStyle}>
+        <div style={filingTitleStyle}>Filing Date</div>
+        <div style={filingSubTitleStyle}>วันที่ยื่นฟ้อง</div>
+
+        <div style={filingFormStyle}>
+          <input
+            value={filingDate}
+            onChange={(e) => setFilingDate(e.target.value)}
+            placeholder="เช่น 15/05/2569"
+            style={inputStyle}
+          />
+
+          <button
+            type="button"
+            onClick={saveFilingDate}
+            disabled={savingFiling}
+            style={primaryButtonStyle}
+          >
+            {savingFiling ? "Saving..." : "Save Filing Date"}
+          </button>
         </div>
       </div>
 
       {showForm && (
-        <>
-          <div style={{ marginBottom: 12, fontWeight: 600 }}>
-            {editingId ? "Edit Court Timeline" : "Add Court Timeline"}
-          </div>
+        <div style={formCardStyle}>
+          <h4 style={formTitleStyle}>
+            {editingId ? "Edit Appointment" : "Add Appointment"}
+          </h4>
 
-          <div style={gridStyle}>
-            <div>
-              <label>Date</label>
-              <input
-                type="date"
-                value={form.eventDate}
-                onChange={(e) =>
-                  setForm({ ...form, eventDate: e.target.value })
-                }
-                style={inputStyle}
-              />
-            </div>
+          <div style={formGridStyle}>
+            <Input
+              label="ลำดับนัด"
+              value={form.order_no}
+              onChange={(value) =>
+                setForm({
+                  ...form,
+                  order_no: value.replace(/\D/g, ""),
+                })
+              }
+            />
 
-            <div>
-              <label>Start Time</label>
-              <input
-                type="time"
-                value={form.startTime}
-                onChange={(e) =>
-                  setForm({ ...form, startTime: e.target.value })
-                }
-                style={inputStyle}
-              />
-            </div>
+            <Input
+              label="วันที่"
+              value={form.event_date}
+              onChange={(value) => setForm({ ...form, event_date: value })}
+              placeholder="เช่น 20/06/2569"
+            />
 
-            <div>
-              <label>End Time</label>
-              <input
-                type="time"
-                value={form.endTime}
-                onChange={(e) =>
-                  setForm({ ...form, endTime: e.target.value })
+            <Input
+              label="เวลา"
+              value={form.event_time}
+              onChange={(value) => setForm({ ...form, event_time: value })}
+              placeholder="เช่น 09:00"
+            />
+
+            <Select
+              label="เรื่องนัด"
+              value={form.appointment_type}
+              onChange={(value) =>
+                setForm({
+                  ...form,
+                  appointment_type: value,
+                  appointment_other:
+                    value === "นัดอื่นๆ" ? form.appointment_other : "",
+                })
+              }
+              options={appointmentOptions.map((option) => ({
+                value: option,
+                label: option,
+              }))}
+            />
+
+            {form.appointment_type === "นัดอื่นๆ" && (
+              <Input
+                label="ระบุเรื่องนัดอื่นๆ"
+                value={form.appointment_other}
+                onChange={(value) =>
+                  setForm({ ...form, appointment_other: value })
                 }
-                style={inputStyle}
+                placeholder="กรอกเรื่องนัด"
               />
-            </div>
+            )}
 
             <div style={{ gridColumn: "1 / -1" }}>
-              <label>Appointment</label>
-              <input
-                value={form.appointment}
-                onChange={(e) =>
-                  setForm({ ...form, appointment: e.target.value })
-                }
-                style={inputStyle}
+              <Textarea
+                label="หมายเหตุ"
+                value={form.note}
+                onChange={(value) => setForm({ ...form, note: value })}
+                placeholder="รายละเอียดเพิ่มเติม"
               />
-            </div>
-
-            <div style={checkboxRowStyle}>
-              <input
-                type="checkbox"
-                checked={form.done}
-                onChange={(e) => setForm({ ...form, done: e.target.checked })}
-              />
-              <label>Done</label>
             </div>
           </div>
 
-          <button
-            onClick={editingId ? saveEdit : createTimeline}
-            disabled={saving}
-            style={{ ...buttonPrimary, marginTop: 16, marginBottom: 20 }}
-          >
-            {saving
-              ? "Saving..."
-              : editingId
-              ? "Save Timeline Changes"
-              : "Save New Timeline"}
-          </button>
-        </>
+          <div style={formButtonWrapStyle}>
+            <button
+              type="button"
+              onClick={editingId ? updateAppointment : createAppointment}
+              disabled={savingAppointment}
+              style={primaryButtonStyle}
+            >
+              {savingAppointment ? "Saving..." : "Save"}
+            </button>
+
+            <button
+              type="button"
+              onClick={cancelForm}
+              disabled={savingAppointment}
+              style={secondaryButtonStyle}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
 
-      {sortedTimeline.length === 0 ? (
-        <p>No timeline yet.</p>
+      <div style={listHeaderStyle}>Court Appointments</div>
+
+      {loading ? (
+        <div style={emptyStyle}>Loading timeline...</div>
+      ) : appointments.length === 0 ? (
+        <div style={emptyStyle}>No appointments added.</div>
       ) : (
-        <div style={timelineListStyle}>
-          {sortedTimeline.map((item) => (
-            <TimelineCard
+        <div style={appointmentListStyle}>
+          {appointments.map((item) => (
+            <AppointmentCard
               key={item.id}
               item={item}
-              urgency={getUrgency(item)}
-              onToggleDone={() => toggleDone(item)}
-              onEdit={() => startEdit(item)}
-              onDelete={() => removeTimeline(item.id)}
+              onEdit={startEditAppointment}
+              onDelete={deleteAppointment}
             />
           ))}
         </div>
@@ -500,81 +473,57 @@ export default function TimelineSection({ caseId, timeline }: Props) {
   );
 }
 
-function TimelineCard({
+/* =========================================================
+   SUB COMPONENTS
+========================================================= */
+
+function AppointmentCard({
   item,
-  urgency,
-  onToggleDone,
   onEdit,
   onDelete,
 }: {
   item: TimelineItem;
-  urgency: string;
-  onToggleDone: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
+  onEdit: (item: TimelineItem) => void;
+  onDelete: (id: string) => void;
 }) {
-  const isDone = !!item.done;
-  const timeText =
-    item.startTime || item.endTime
-      ? `${item.startTime || "-"}${item.endTime ? ` - ${item.endTime}` : ""}`
-      : "-";
+  const appointmentText =
+    item.appointment_type === "นัดอื่นๆ"
+      ? item.appointment_other || "นัดอื่นๆ"
+      : item.appointment_type || "-";
 
   return (
-    <div
-      style={{
-        ...timelineCardStyle,
-        background: isDone
-          ? "#f7f7f7"
-          : urgency === "Overdue"
-          ? "#fff5f5"
-          : urgency === "Today" || urgency === "Upcoming"
-          ? "#fffaf0"
-          : "#fff",
-      }}
-    >
-      <div style={timelineCardHeaderStyle}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={timelineTitleRowStyle}>
-            <input
-              type="checkbox"
-              checked={isDone}
-              onChange={onToggleDone}
-              style={{ marginTop: 2 }}
-            />
-            <div
-              style={{
-                ...timelineTitleStyle,
-                textDecoration: isDone ? "line-through" : "none",
-                color: isDone ? "#777" : "#111",
-              }}
-            >
-              {item.appointment || "-"}
-            </div>
+    <div style={appointmentCardStyle}>
+      <div style={appointmentHeaderStyle}>
+        <div>
+          <div style={appointmentTitleStyle}>
+            นัดที่ {item.order_no || "-"}
           </div>
-
-          <div style={timelineBadgeRowStyle}>
-            <span style={getUrgencyPillStyle(urgency)}>{urgency}</span>
-          </div>
+          <div style={appointmentMatterStyle}>{appointmentText}</div>
         </div>
       </div>
 
-      <div style={timelineMetaGridStyle}>
-        <div>
-          <div style={metaLabelStyle}>Date</div>
-          <div style={metaValueStyle}>{item.eventDate || "-"}</div>
-        </div>
-
-        <div>
-          <div style={metaLabelStyle}>Time</div>
-          <div style={metaValueStyle}>{timeText}</div>
-        </div>
+      <div style={appointmentMetaGridStyle}>
+        <InfoLine label="วันที่" value={item.event_date || "-"} />
+        <InfoLine label="เวลา" value={item.event_time || "-"} />
       </div>
 
-      <div style={rowActionsWrapStyle}>
-        <button onClick={onEdit} style={smallButtonStyle}>
+      {item.note && (
+        <div style={noteBlockStyle}>
+          <div style={infoLabelStyle}>หมายเหตุ</div>
+          <div style={infoValueStyle}>{item.note}</div>
+        </div>
+      )}
+
+      <div style={actionWrapStyle}>
+        <button type="button" onClick={() => onEdit(item)} style={smallButtonStyle}>
           Edit
         </button>
-        <button onClick={onDelete} style={smallDangerStyle}>
+
+        <button
+          type="button"
+          onClick={() => onDelete(item.id)}
+          style={dangerButtonStyle}
+        >
           Delete
         </button>
       </div>
@@ -582,200 +531,327 @@ function TimelineCard({
   );
 }
 
-function getUrgencyPillStyle(urgency: string): React.CSSProperties {
-  if (urgency === "Overdue") {
-    return {
-      ...pillBaseStyle,
-      background: "#ffe5e5",
-      color: "#b42318",
-      border: "1px solid #f1b5b5",
-    };
-  }
-
-  if (urgency === "Today") {
-    return {
-      ...pillBaseStyle,
-      background: "#fff3cd",
-      color: "#b54708",
-      border: "1px solid #f0d58a",
-    };
-  }
-
-  if (urgency === "Upcoming") {
-    return {
-      ...pillBaseStyle,
-      background: "#fff8e1",
-      color: "#b54708",
-      border: "1px solid #eedc9a",
-    };
-  }
-
-  if (urgency === "Done") {
-    return {
-      ...pillBaseStyle,
-      background: "#e6f4ea",
-      color: "#067647",
-      border: "1px solid #b9dfc3",
-    };
-  }
-
-  return {
-    ...pillBaseStyle,
-    background: "#f8fafc",
-    color: "#475467",
-    border: "1px solid #dde3ea",
-  };
+function InfoLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div style={infoLabelStyle}>{label}</div>
+      <div style={infoValueStyle}>{value}</div>
+    </div>
+  );
 }
 
-const cardStyle: React.CSSProperties = {
-  marginTop: 16,
-  border: "1px solid #ddd",
-  borderRadius: 10,
+function Input({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <div>
+      <label style={labelStyle}>{label}</label>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={inputStyle}
+      />
+    </div>
+  );
+}
+
+function Select({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <div>
+      <label style={labelStyle}>{label}</label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={inputStyle}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function Textarea({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <div>
+      <label style={labelStyle}>{label}</label>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={textareaStyle}
+      />
+    </div>
+  );
+}
+
+/* =========================================================
+   STYLES
+========================================================= */
+
+const sectionStyle: CSSProperties = {
+  border: "1px solid #dddddd",
   padding: 16,
-  overflow: "hidden",
+  borderRadius: 12,
+  background: "#ffffff",
+  color: "#111111",
 };
 
-const responsiveHeaderStyle: React.CSSProperties = {
+const headerStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  alignItems: "center",
   gap: 12,
-  flexWrap: "wrap",
-  marginBottom: 8,
-};
-
-const mobileStackButtonWrapStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 8,
+  alignItems: "flex-start",
+  marginBottom: 16,
   flexWrap: "wrap",
 };
 
-const gridStyle: React.CSSProperties = {
+const titleStyle: CSSProperties = {
+  margin: 0,
+  color: "#111111",
+};
+
+const subTitleStyle: CSSProperties = {
+  marginTop: 4,
+  color: "#555555",
+  fontSize: 13,
+};
+
+const primaryButtonStyle: CSSProperties = {
+  padding: "9px 14px",
+  background: "#000000",
+  color: "#ffffff",
+  borderRadius: 8,
+  border: "none",
+  cursor: "pointer",
+  fontWeight: 700,
+  whiteSpace: "nowrap",
+};
+
+const secondaryButtonStyle: CSSProperties = {
+  padding: "9px 14px",
+  background: "#ffffff",
+  color: "#111111",
+  borderRadius: 8,
+  border: "1px solid #cccccc",
+  cursor: "pointer",
+  fontWeight: 600,
+  whiteSpace: "nowrap",
+};
+
+const filingCardStyle: CSSProperties = {
+  border: "1px solid #dddddd",
+  borderRadius: 12,
+  padding: 14,
+  background: "#fafafa",
+  marginBottom: 16,
+};
+
+const filingTitleStyle: CSSProperties = {
+  fontSize: 16,
+  fontWeight: 800,
+  color: "#111111",
+};
+
+const filingSubTitleStyle: CSSProperties = {
+  marginTop: 3,
+  marginBottom: 10,
+  color: "#555555",
+  fontSize: 13,
+};
+
+const filingFormStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr auto",
+  gap: 10,
+  alignItems: "center",
+};
+
+const formCardStyle: CSSProperties = {
+  border: "1px solid #dddddd",
+  borderRadius: 12,
+  padding: 16,
+  background: "#fafafa",
+  marginBottom: 18,
+};
+
+const formTitleStyle: CSSProperties = {
+  marginTop: 0,
+  marginBottom: 12,
+  color: "#111111",
+};
+
+const formGridStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
   gap: 12,
 };
 
-const checkboxRowStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 8,
-  minHeight: 38,
+const labelStyle: CSSProperties = {
+  display: "block",
+  marginBottom: 4,
+  color: "#222222",
+  fontWeight: 600,
+  fontSize: 13,
 };
 
-const inputStyle: React.CSSProperties = {
+const inputStyle: CSSProperties = {
   width: "100%",
-  padding: 8,
-  borderRadius: 6,
-  border: "1px solid #ccc",
+  padding: "9px 10px",
+  borderRadius: 8,
+  border: "1px solid #bbbbbb",
+  background: "#ffffff",
+  color: "#111111",
+  colorScheme: "light",
+  boxSizing: "border-box",
 };
 
-const timelineListStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: 12,
+const textareaStyle: CSSProperties = {
+  ...inputStyle,
+  minHeight: 80,
+  resize: "vertical",
 };
 
-const timelineCardStyle: React.CSSProperties = {
-  border: "1px solid #e5e5e5",
-  borderRadius: 12,
-  padding: 14,
-};
-
-const timelineCardHeaderStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: 12,
-  marginBottom: 12,
-};
-
-const timelineTitleRowStyle: React.CSSProperties = {
+const formButtonWrapStyle: CSSProperties = {
   display: "flex",
   gap: 10,
-  alignItems: "flex-start",
+  marginTop: 16,
+  flexWrap: "wrap",
+};
+
+const listHeaderStyle: CSSProperties = {
+  fontSize: 16,
+  fontWeight: 800,
+  color: "#111111",
   marginBottom: 10,
 };
 
-const timelineTitleStyle: React.CSSProperties = {
-  fontSize: 16,
-  fontWeight: 700,
-  lineHeight: 1.4,
-  wordBreak: "break-word",
+const emptyStyle: CSSProperties = {
+  padding: 16,
+  border: "1px dashed #cccccc",
+  borderRadius: 12,
+  color: "#555555",
+  background: "#ffffff",
 };
 
-const timelineBadgeRowStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 8,
-  flexWrap: "wrap",
-};
-
-const timelineMetaGridStyle: React.CSSProperties = {
+const appointmentListStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
   gap: 12,
+};
+
+const appointmentCardStyle: CSSProperties = {
+  border: "1px solid #dddddd",
+  borderRadius: 12,
+  padding: 14,
+  background: "#ffffff",
+  color: "#111111",
+  boxShadow: "0 1px 6px rgba(0,0,0,0.05)",
+};
+
+const appointmentHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 10,
   marginBottom: 12,
 };
 
-const metaLabelStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: "#666",
-  marginBottom: 4,
-};
-
-const metaValueStyle: React.CSSProperties = {
+const appointmentTitleStyle: CSSProperties = {
   fontSize: 15,
-  color: "#111",
-  fontWeight: 500,
-  wordBreak: "break-word",
+  fontWeight: 800,
+  color: "#111111",
 };
 
-const pillBaseStyle: React.CSSProperties = {
-  display: "inline-block",
-  padding: "5px 10px",
-  borderRadius: 999,
+const appointmentMatterStyle: CSSProperties = {
+  marginTop: 4,
+  fontSize: 14,
+  color: "#222222",
+  fontWeight: 600,
+  lineHeight: 1.45,
+};
+
+const appointmentMetaGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: 10,
+  marginBottom: 10,
+};
+
+const infoLabelStyle: CSSProperties = {
   fontSize: 12,
-  fontWeight: 700,
+  color: "#666666",
+  marginBottom: 2,
 };
 
-const rowActionsWrapStyle: React.CSSProperties = {
+const infoValueStyle: CSSProperties = {
+  fontSize: 14,
+  color: "#111111",
+  fontWeight: 600,
+  wordBreak: "break-word",
+  lineHeight: 1.5,
+};
+
+const noteBlockStyle: CSSProperties = {
+  paddingTop: 8,
+  borderTop: "1px solid #eeeeee",
+};
+
+const actionWrapStyle: CSSProperties = {
   display: "flex",
   gap: 8,
-  flexWrap: "wrap",
+  marginTop: 12,
+  paddingTop: 10,
+  borderTop: "1px solid #eeeeee",
 };
 
-const buttonPrimary: React.CSSProperties = {
-  padding: "10px 16px",
+const smallButtonStyle: CSSProperties = {
+  padding: "7px 11px",
   borderRadius: 8,
-  background: "black",
-  color: "white",
-  border: "none",
+  border: "1px solid #cccccc",
+  background: "#ffffff",
+  color: "#111111",
   cursor: "pointer",
+  fontWeight: 600,
 };
 
-const buttonSecondary: React.CSSProperties = {
-  padding: "8px 14px",
+const dangerButtonStyle: CSSProperties = {
+  padding: "7px 11px",
   borderRadius: 8,
-  background: "white",
-  color: "black",
-  border: "1px solid #ccc",
+  border: "1px solid #e0b4b4",
+  background: "#fff5f5",
+  color: "#a40000",
   cursor: "pointer",
-};
-
-const smallButtonStyle: React.CSSProperties = {
-  padding: "6px 10px",
-  borderRadius: 6,
-  background: "white",
-  color: "black",
-  border: "1px solid #ccc",
-  cursor: "pointer",
-};
-
-const smallDangerStyle: React.CSSProperties = {
-  padding: "6px 10px",
-  borderRadius: 6,
-  background: "white",
-  color: "darkred",
-  border: "1px solid #ccc",
-  cursor: "pointer",
+  fontWeight: 700,
 };
