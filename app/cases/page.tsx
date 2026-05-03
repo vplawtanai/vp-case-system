@@ -58,6 +58,7 @@ type CaseTimeline = {
   appointment_type?: string | null;
   appointment_other?: string | null;
   order_no?: number | null;
+  status?: string | null;
 };
 
 type AlertCandidate = {
@@ -149,11 +150,11 @@ export default function CasesPage() {
         .in("case_id", caseIds),
 
       supabase
-        .from("case_timeline")
-        .select(
-          "case_id, event_type, event_date, event_time, appointment_type, appointment_other, order_no"
-        )
-        .in("case_id", caseIds),
+  .from("case_timeline")
+  .select(
+    "case_id, event_type, event_date, event_time, appointment_type, appointment_other, order_no, status"
+  )
+  .in("case_id", caseIds),
     ]);
 
     if (tasksRes.error) {
@@ -635,10 +636,11 @@ function buildAlertCandidates(
   });
 
   timeline.forEach((event) => {
-    if (event.event_type !== "hearing") return;
-    if (!event.event_date) return;
+  if (event.event_type !== "hearing") return;
+  if (!event.event_date) return;
+  if (isTimelineDone(event.status)) return;
 
-    const level = getDateRiskLevel(event.event_date);
+  const level = getDateRiskLevel(event.event_date);
     if (level === "clear") return;
 
     const appointmentText =
@@ -757,6 +759,13 @@ function isDeadlineDone(status?: string | null) {
     value === "submitted" ||
     value === "cancelled"
   );
+}
+function isTimelineDone(status?: string | null) {
+
+  const value = (status || "").toLowerCase();
+
+  return value === "done" || value === "cancelled";
+
 }
 
 /* =========================================================
