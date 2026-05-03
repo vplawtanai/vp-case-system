@@ -15,6 +15,7 @@ type TimelineItem = {
   event_end_time?: string | null;
   appointment_type?: string | null;
   appointment_other?: string | null;
+  status?: string | null;
   note?: string | null;
   order_no?: number | null;
   created_at?: string | null;
@@ -27,6 +28,7 @@ type TimelineForm = {
   event_end_time: string;
   appointment_type: string;
   appointment_other: string;
+  status: string;
   note: string;
   order_no: string;
 };
@@ -52,6 +54,12 @@ const appointmentOptions = [
   "นัดอื่นๆ",
 ];
 
+const appointmentStatusOptions = [
+  { value: "Scheduled", label: "Scheduled (รอนัด)" },
+  { value: "Done", label: "Done (เสร็จแล้ว)" },
+  { value: "Cancelled", label: "Cancelled (ยกเลิก/เลื่อน)" },
+];
+
 const startTimeOptions = ["08:30", "09:00", "09:30", "10:00", "16:30"];
 const endTimeOptions = ["12:00", "16:30", "17:30"];
 
@@ -61,6 +69,7 @@ const emptyAppointmentForm: TimelineForm = {
   event_end_time: "12:00",
   appointment_type: "นัดไกล่เกลี่ย",
   appointment_other: "",
+  status: "Scheduled",
   note: "",
   order_no: "1",
 };
@@ -122,20 +131,27 @@ export default function TimelineSection({ caseId }: Props) {
     return items
       .filter((item) => item.event_type === "hearing")
       .sort((a, b) => {
-        const orderA = a.order_no || 0;
-        const orderB = b.order_no || 0;
+        const aScore = getAppointmentAlertScore(a);
+        const bScore = getAppointmentAlertScore(b);
 
-        if (orderA !== orderB) return orderA - orderB;
+        if (aScore !== bScore) return aScore - bScore;
 
-        return (a.created_at || "").localeCompare(b.created_at || "");
+        const aDate = a.event_date || "9999-12-31";
+        const bDate = b.event_date || "9999-12-31";
+
+        if (aDate !== bDate) return aDate.localeCompare(bDate);
+
+        return (a.order_no || 0) - (b.order_no || 0);
       });
   }, [items]);
 
   const getNextOrderNo = () => {
-    const maxOrder = appointments.reduce((max, item) => {
-      const order = item.order_no || 0;
-      return order > max ? order : max;
-    }, 0);
+    const maxOrder = items
+      .filter((item) => item.event_type === "hearing")
+      .reduce((max, item) => {
+        const order = item.order_no || 0;
+        return order > max ? order : max;
+      }, 0);
 
     return maxOrder + 1;
   };
@@ -179,6 +195,7 @@ export default function TimelineSection({ caseId }: Props) {
             event_end_time: "",
             appointment_type: "",
             appointment_other: "",
+            status: "Done",
             note: "",
             order_no: 0,
             created_at: now,
@@ -218,6 +235,7 @@ export default function TimelineSection({ caseId }: Props) {
       event_end_time: item.event_end_time || "12:00",
       appointment_type: item.appointment_type || "นัดไกล่เกลี่ย",
       appointment_other: item.appointment_other || "",
+      status: item.status || "Scheduled",
       note: item.note || "",
       order_no: item.order_no ? String(item.order_no) : "1",
     });
@@ -273,6 +291,7 @@ export default function TimelineSection({ caseId }: Props) {
       appointment_type: form.appointment_type,
       appointment_other:
         form.appointment_type === "นัดอื่นๆ" ? form.appointment_other : "",
+      status: form.status || "Scheduled",
       note: form.note,
       order_no: form.order_no ? Number(form.order_no) : null,
       updated_at: now,
@@ -340,6 +359,25 @@ export default function TimelineSection({ caseId }: Props) {
     }
 
     if (editingId === id) cancelForm();
+
+    await loadTimeline();
+  };
+
+  const toggleAppointmentDone = async (item: TimelineItem) => {
+    const nextStatus = item.status === "Done" ? "Scheduled" : "Done";
+
+    const { error } = await supabase
+      .from("case_timeline")
+      .update({
+        status: nextStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", item.id);
+
+    if (error) {
+      alert("Update appointment status failed:\n" + JSON.stringify(error, null, 2));
+      return;
+    }
 
     await loadTimeline();
   };
@@ -488,6 +526,13 @@ export default function TimelineSection({ caseId }: Props) {
               />
             )}
 
+            <Select
+              label="Status"
+              value={form.status}
+              onChange={(value) => setForm({ ...form, status: value })}
+              options={appointmentStatusOptions}
+            />
+
             <div style={{ gridColumn: "1 / -1" }}>
               <Textarea
                 label="หมายเหตุ"
@@ -534,6 +579,7 @@ export default function TimelineSection({ caseId }: Props) {
               item={item}
               onEdit={startEditAppointment}
               onDelete={deleteAppointment}
+              onToggleDone={toggleAppointmentDone}
             />
           ))}
         </div>
@@ -550,10 +596,12 @@ function AppointmentCard({
   item,
   onEdit,
   onDelete,
+  onToggleDone,
 }: {
   item: TimelineItem;
   onEdit: (item: TimelineItem) => void;
   onDelete: (id: string) => void;
+  onToggleDone: (item: TimelineItem) => void;
 }) {
   const appointmentText =
     item.appointment_type === "นัดอื่นๆ"
@@ -565,15 +613,41 @@ function AppointmentCard({
       ? `${item.event_time || "-"} - ${item.event_end_time || "-"}`
       : "-";
 
+  const statusText = renderAppointmentStatus(item.status);
+  const alertStatus = getAppointmentAlertStatus(item);
+  const isDone = item.status === "Done";
+
   return (
-    <div style={appointmentCardStyle}>
+    <div
+      style={{
+        ...appointmentCardStyle,
+        background: isDone ? "#f7f7f7" : getAppointmentBackground(alertStatus),
+      }}
+    >
       <div style={appointmentHeaderStyle}>
         <div>
           <div style={appointmentTitleStyle}>
             นัดที่ {item.order_no || "-"}
           </div>
           <div style={appointmentMatterStyle}>{appointmentText}</div>
+
+          <div style={badgeRowStyle}>
+            <span style={getAppointmentStatusBadgeStyle(item.status)}>
+              {statusText}
+            </span>
+            <span style={getAppointmentAlertBadgeStyle(alertStatus)}>
+              {alertStatus}
+            </span>
+          </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => onToggleDone(item)}
+          style={isDone ? doneButtonStyle : smallButtonStyle}
+        >
+          {isDone ? "Undo" : "Done"}
+        </button>
       </div>
 
       <div style={appointmentMetaGridStyle}>
@@ -697,6 +771,137 @@ function Textarea({
 /* =========================================================
    HELPERS
 ========================================================= */
+
+function renderAppointmentStatus(status?: string | null) {
+  if (status === "Scheduled") return "Scheduled (รอนัด)";
+  if (status === "Done") return "Done (เสร็จแล้ว)";
+  if (status === "Cancelled") return "Cancelled (ยกเลิก/เลื่อน)";
+  return "Scheduled (รอนัด)";
+}
+
+function getAppointmentAlertStatus(item: TimelineItem) {
+  if (item.status === "Done") return "Done (เสร็จแล้ว)";
+  if (item.status === "Cancelled") return "Cancelled (ยกเลิก/เลื่อน)";
+  if (!item.event_date) return "No Date (ไม่กำหนดวัน)";
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const appointmentDate = new Date(item.event_date);
+  appointmentDate.setHours(0, 0, 0, 0);
+
+  const diffDays = Math.floor(
+    (appointmentDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  if (diffDays < 0) return "Overdue (เลยวันนัดแล้ว)";
+  if (diffDays === 0) return "Today (นัดวันนี้)";
+  if (diffDays <= 7) return "Upcoming (ใกล้ถึงนัด)";
+  return "Normal (ยังไม่ใกล้)";
+}
+
+function getAppointmentAlertScore(item: TimelineItem) {
+  const status = getAppointmentAlertStatus(item);
+
+  if (status.startsWith("Overdue")) return 1;
+  if (status.startsWith("Today")) return 2;
+  if (status.startsWith("Upcoming")) return 3;
+  if (status.startsWith("Normal")) return 4;
+  if (status.startsWith("No Date")) return 5;
+  if (status.startsWith("Cancelled")) return 6;
+  if (status.startsWith("Done")) return 7;
+
+  return 9;
+}
+
+function getAppointmentBackground(alertStatus: string) {
+  if (alertStatus.startsWith("Overdue")) return "#fff5f5";
+  if (alertStatus.startsWith("Today")) return "#fff8e1";
+  if (alertStatus.startsWith("Upcoming")) return "#fffaf0";
+  if (alertStatus.startsWith("Cancelled")) return "#f8fafc";
+  return "#ffffff";
+}
+
+function getAppointmentStatusBadgeStyle(status?: string | null): CSSProperties {
+  if (status === "Done") {
+    return {
+      ...badgeBaseStyle,
+      background: "#e6f4ea",
+      color: "#067647",
+      border: "1px solid #b9dfc3",
+    };
+  }
+
+  if (status === "Cancelled") {
+    return {
+      ...badgeBaseStyle,
+      background: "#f1f5f9",
+      color: "#475467",
+      border: "1px solid #d0d5dd",
+    };
+  }
+
+  return {
+    ...badgeBaseStyle,
+    background: "#fff8e1",
+    color: "#b54708",
+    border: "1px solid #eedc9a",
+  };
+}
+
+function getAppointmentAlertBadgeStyle(alertStatus: string): CSSProperties {
+  if (alertStatus.startsWith("Overdue")) {
+    return {
+      ...badgeBaseStyle,
+      background: "#ffe5e5",
+      color: "#b42318",
+      border: "1px solid #f1b5b5",
+    };
+  }
+
+  if (alertStatus.startsWith("Today")) {
+    return {
+      ...badgeBaseStyle,
+      background: "#fff3cd",
+      color: "#b54708",
+      border: "1px solid #f0d58a",
+    };
+  }
+
+  if (alertStatus.startsWith("Upcoming")) {
+    return {
+      ...badgeBaseStyle,
+      background: "#fff8e1",
+      color: "#b54708",
+      border: "1px solid #eedc9a",
+    };
+  }
+
+  if (alertStatus.startsWith("Done")) {
+    return {
+      ...badgeBaseStyle,
+      background: "#e6f4ea",
+      color: "#067647",
+      border: "1px solid #b9dfc3",
+    };
+  }
+
+  if (alertStatus.startsWith("Cancelled")) {
+    return {
+      ...badgeBaseStyle,
+      background: "#f1f5f9",
+      color: "#475467",
+      border: "1px solid #d0d5dd",
+    };
+  }
+
+  return {
+    ...badgeBaseStyle,
+    background: "#f8fafc",
+    color: "#475467",
+    border: "1px solid #dde3ea",
+  };
+}
 
 function formatDisplayDate(value?: string | null) {
   if (!value) return "-";
@@ -894,7 +1099,6 @@ const appointmentCardStyle: CSSProperties = {
   border: "1px solid #dddddd",
   borderRadius: 12,
   padding: 14,
-  background: "#ffffff",
   color: "#111111",
   boxShadow: "0 1px 6px rgba(0,0,0,0.05)",
 };
@@ -903,6 +1107,7 @@ const appointmentHeaderStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   gap: 10,
+  alignItems: "flex-start",
   marginBottom: 12,
 };
 
@@ -918,6 +1123,21 @@ const appointmentMatterStyle: CSSProperties = {
   color: "#222222",
   fontWeight: 600,
   lineHeight: 1.45,
+};
+
+const badgeRowStyle: CSSProperties = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+  marginTop: 8,
+};
+
+const badgeBaseStyle: CSSProperties = {
+  display: "inline-block",
+  padding: "5px 10px",
+  borderRadius: 999,
+  fontSize: 12,
+  fontWeight: 800,
 };
 
 const appointmentMetaGridStyle: CSSProperties = {
@@ -962,6 +1182,16 @@ const smallButtonStyle: CSSProperties = {
   color: "#111111",
   cursor: "pointer",
   fontWeight: 600,
+};
+
+const doneButtonStyle: CSSProperties = {
+  padding: "7px 11px",
+  borderRadius: 8,
+  border: "1px solid #b9dfc3",
+  background: "#e6f4ea",
+  color: "#067647",
+  cursor: "pointer",
+  fontWeight: 700,
 };
 
 const dangerButtonStyle: CSSProperties = {
