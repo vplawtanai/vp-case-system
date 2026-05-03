@@ -198,7 +198,6 @@ export default function CaseDetailPage() {
           client_name: data.client_name,
           court_name: data.court_name,
           case_number: data.case_number,
-          phase: data.phase,
           status: data.status,
           owner_name: data.owner_name,
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { supabase } from "../../../../lib/supabase";
 
 type CaseItem = {
@@ -26,9 +27,78 @@ type CaseItem = {
   caseStatus?: string;
 };
 
+type CaseItemFromDb = {
+  title?: string | null;
+
+  client_name?: string | null;
+  clientName?: string | null;
+
+  court_name?: string | null;
+  courtName?: string | null;
+
+  owner_name?: string | null;
+  ownerName?: string | null;
+
+  case_number?: string | null;
+  caseNumber?: string | null;
+
+  case_type?: string | null;
+  caseType?: string | null;
+
+  case_subtype?: string | null;
+  caseSubtype?: string | null;
+
+  issue_text?: string | null;
+  issueText?: string | null;
+
+  claim_amount?: string | null;
+  claimAmount?: string | null;
+
+  physical_storage_type?: string | null;
+  physicalStorageType?: string | null;
+
+  physical_storage_detail?: string | null;
+  physicalStorageDetail?: string | null;
+
+  status?: string | null;
+  caseStatus?: string | null;
+};
+
 type Props = {
   caseId: string;
-  caseItem: any;
+  caseItem: CaseItemFromDb | null;
+};
+
+type CardProps = {
+  title: string;
+  children: ReactNode;
+};
+
+type InputProps = {
+  label: string;
+  value?: string;
+  disabled?: boolean;
+  onChange: (value: string) => void;
+};
+
+type SelectOption = {
+  value: string;
+  label: string;
+};
+
+type SelectProps = {
+  label: string;
+  value?: string;
+  disabled?: boolean;
+  options: SelectOption[];
+  onChange: (value: string) => void;
+};
+
+type TextareaProps = {
+  label: string;
+  value?: string;
+  disabled?: boolean;
+  onChange: (value: string) => void;
 };
 
 export default function CaseInfoSection({ caseId, caseItem }: Props) {
@@ -129,8 +199,8 @@ export default function CaseInfoSection({ caseId, caseItem }: Props) {
       }
 
       setIsEditing(false);
-    } catch (error: any) {
-      alert("Save failed:\n" + JSON.stringify(error, null, 2));
+    } catch (error: unknown) {
+      alert("Save failed:\n" + stringifyError(error));
     } finally {
       setSaving(false);
     }
@@ -138,10 +208,12 @@ export default function CaseInfoSection({ caseId, caseItem }: Props) {
 
   const yearOptions = () => {
     const now = new Date().getFullYear() + 543;
-    const years = [];
+    const years: string[] = [];
+
     for (let i = -5; i <= 20; i++) {
       years.push(String(now + i));
     }
+
     return years;
   };
 
@@ -173,28 +245,28 @@ export default function CaseInfoSection({ caseId, caseItem }: Props) {
             label="Title"
             value={form.title}
             disabled={!isEditing}
-            onChange={(v) => setForm({ ...form, title: v })}
+            onChange={(value) => setForm({ ...form, title: value })}
           />
 
           <Input
             label="Client"
             value={form.clientName}
             disabled={!isEditing}
-            onChange={(v) => setForm({ ...form, clientName: v })}
+            onChange={(value) => setForm({ ...form, clientName: value })}
           />
 
           <Input
             label="Owner"
             value={form.ownerName}
             disabled={!isEditing}
-            onChange={(v) => setForm({ ...form, ownerName: v })}
+            onChange={(value) => setForm({ ...form, ownerName: value })}
           />
 
           <Input
             label="Court"
             value={form.courtName}
             disabled={!isEditing}
-            onChange={(v) => setForm({ ...form, courtName: v })}
+            onChange={(value) => setForm({ ...form, courtName: value })}
           />
 
           <div>
@@ -255,7 +327,7 @@ export default function CaseInfoSection({ caseId, caseItem }: Props) {
             label="Type"
             value={form.caseType}
             disabled={!isEditing}
-            onChange={(v) => setForm({ ...form, caseType: v })}
+            onChange={(value) => setForm({ ...form, caseType: value })}
             options={[
               { value: "Civil", label: "Civil (แพ่ง)" },
               { value: "Criminal", label: "Criminal (อาญา)" },
@@ -268,7 +340,7 @@ export default function CaseInfoSection({ caseId, caseItem }: Props) {
             label="Subtype"
             value={form.caseSubtype}
             disabled={!isEditing}
-            onChange={(v) => setForm({ ...form, caseSubtype: v })}
+            onChange={(value) => setForm({ ...form, caseSubtype: value })}
           />
         </Card>
 
@@ -278,7 +350,7 @@ export default function CaseInfoSection({ caseId, caseItem }: Props) {
             label="รายละเอียด"
             value={form.issueText}
             disabled={!isEditing}
-            onChange={(v) => setForm({ ...form, issueText: v })}
+            onChange={(value) => setForm({ ...form, issueText: value })}
           />
         </Card>
 
@@ -348,7 +420,9 @@ export default function CaseInfoSection({ caseId, caseItem }: Props) {
             label="Storage Type"
             value={form.physicalStorageType}
             disabled={!isEditing}
-            onChange={(v) => setForm({ ...form, physicalStorageType: v })}
+            onChange={(value) =>
+              setForm({ ...form, physicalStorageType: value })
+            }
             options={[
               { value: "Cabinet", label: "Cabinet" },
               { value: "Box", label: "Box" },
@@ -361,8 +435,8 @@ export default function CaseInfoSection({ caseId, caseItem }: Props) {
             label="Detail"
             value={form.physicalStorageDetail}
             disabled={!isEditing}
-            onChange={(v) =>
-              setForm({ ...form, physicalStorageDetail: v })
+            onChange={(value) =>
+              setForm({ ...form, physicalStorageDetail: value })
             }
           />
         </Card>
@@ -373,7 +447,7 @@ export default function CaseInfoSection({ caseId, caseItem }: Props) {
             label="Case Status"
             value={form.caseStatus}
             disabled={!isEditing}
-            onChange={(v) => setForm({ ...form, caseStatus: v })}
+            onChange={(value) => setForm({ ...form, caseStatus: value })}
             options={[
               { value: "Active", label: "Active" },
               { value: "Waiting", label: "Waiting" },
@@ -388,7 +462,7 @@ export default function CaseInfoSection({ caseId, caseItem }: Props) {
 
 /* COMPONENT */
 
-function Card({ title, children }: any) {
+function Card({ title, children }: CardProps) {
   return (
     <div style={cardStyle}>
       <h4>{title}</h4>
@@ -397,7 +471,7 @@ function Card({ title, children }: any) {
   );
 }
 
-function Input({ label, value, onChange, disabled }: any) {
+function Input({ label, value, onChange, disabled }: InputProps) {
   return (
     <div>
       <div>{label}</div>
@@ -411,7 +485,13 @@ function Input({ label, value, onChange, disabled }: any) {
   );
 }
 
-function Select({ label, value, onChange, options, disabled }: any) {
+function Select({
+  label,
+  value,
+  onChange,
+  options,
+  disabled,
+}: SelectProps) {
   return (
     <div>
       <div>{label}</div>
@@ -421,7 +501,7 @@ function Select({ label, value, onChange, options, disabled }: any) {
         onChange={(e) => onChange(e.target.value)}
         style={{ ...inputStyle, background: disabled ? "#f5f5f5" : "#fff" }}
       >
-        {options.map((o: any) => (
+        {options.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}
           </option>
@@ -431,7 +511,7 @@ function Select({ label, value, onChange, options, disabled }: any) {
   );
 }
 
-function Textarea({ label, value, onChange, disabled }: any) {
+function Textarea({ label, value, onChange, disabled }: TextareaProps) {
   return (
     <div>
       <div>{label}</div>
@@ -539,28 +619,40 @@ function buildClaimAmountText(baht?: string, satang?: string) {
   return `${cleanBaht} บาท ${cleanSatang} สตางค์`;
 }
 
+function stringifyError(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  try {
+    return JSON.stringify(error, null, 2);
+  } catch {
+    return String(error);
+  }
+}
+
 /* STYLE */
 
-const headerStyle: React.CSSProperties = {
+const headerStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   marginBottom: 20,
 };
 
-const gridStyle: React.CSSProperties = {
+const gridStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
   gap: 16,
 };
 
-const cardStyle: React.CSSProperties = {
+const cardStyle: CSSProperties = {
   border: "1px solid #ddd",
   borderRadius: 12,
   padding: 16,
   background: "#fff",
 };
 
-const inputStyle: React.CSSProperties = {
+const inputStyle: CSSProperties = {
   width: "100%",
   padding: 8,
   borderRadius: 6,
@@ -568,7 +660,7 @@ const inputStyle: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
-const textareaStyle: React.CSSProperties = {
+const textareaStyle: CSSProperties = {
   width: "100%",
   minHeight: 80,
   padding: 8,
@@ -577,7 +669,7 @@ const textareaStyle: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
-const btnPrimary: React.CSSProperties = {
+const btnPrimary: CSSProperties = {
   background: "black",
   color: "white",
   padding: "8px 12px",
@@ -586,7 +678,7 @@ const btnPrimary: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const btnSecondary: React.CSSProperties = {
+const btnSecondary: CSSProperties = {
   marginLeft: 8,
   padding: "8px 12px",
   borderRadius: 6,
@@ -595,7 +687,7 @@ const btnSecondary: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const claimPreviewStyle: React.CSSProperties = {
+const claimPreviewStyle: CSSProperties = {
   marginTop: 8,
   fontSize: 13,
   color: "#555",
