@@ -1,624 +1,442 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDoc,
-  getDocs,
-  serverTimestamp,
-  updateDoc,
-} from "firebase/firestore";
-import { db } from "../../../../lib/firebase";
+import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
+import { supabase } from "../../../../lib/supabase";
 
 type TaskItem = {
   id: string;
-  title?: string;
-  assigneeName?: string;
-  startDate?: string;
-  dueDate?: string;
-  priority?: string;
-  status?: string;
-  done?: boolean;
+  case_id: number;
+
+  order_no?: number | null;
+
+  task_type?: string | null;
+  task_other?: string | null;
+
+  owner_name?: string | null;
+  assignee_name?: string | null;
+
+  start_date?: string | null;
+  due_date?: string | null;
+
+  status?: string | null;
+  note?: string | null;
+
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
-type DeadlineItem = {
-  id: string;
-  deadlineType?: string;
-  dueDate?: string;
-  status?: string;
-  note?: string;
-  done?: boolean;
-};
-
-type TimelineItem = {
-  id: string;
-  eventDate?: string;
-  startTime?: string;
-  endTime?: string;
-  appointment?: string;
-  done?: boolean;
+type TaskForm = {
+  order_no: string;
+  task_type: string;
+  task_other: string;
+  owner_name: string;
+  assignee_name: string;
+  start_date: string;
+  due_date: string;
+  status: string;
+  note: string;
 };
 
 type Props = {
   caseId: string;
-  tasks: TaskItem[];
+  tasks?: unknown[];
 };
 
-export default function TasksSection({ caseId, tasks }: Props) {
-  const emptyForm = {
-    title: "",
-    assigneeName: "",
-    startDate: "",
-    dueDate: "",
-    priority: "medium",
-    status: "todo",
-    done: false,
-  };
+const taskTypeOptions = [
+  "สอบข้อเท็จจริง",
+  "เตรียมเอกสาร",
+  "ทำหนังสือบอกกล่าว",
+  "ร่างคำฟ้อง",
+  "เตรียมพยาน",
+  "เตรียมเอกสารวันนัดที่จะถึง",
+  "อื่นๆ",
+];
+
+const statusOptions = [
+  { value: "Pending", label: "Pending" },
+  { value: "In Progress", label: "In Progress" },
+  { value: "Done", label: "Done" },
+];
+
+const emptyForm: TaskForm = {
+  order_no: "1",
+  task_type: "สอบข้อเท็จจริง",
+  task_other: "",
+  owner_name: "",
+  assignee_name: "",
+  start_date: "",
+  due_date: "",
+  status: "Pending",
+  note: "",
+};
+
+export default function TasksSection({ caseId }: Props) {
+  const caseIdNumber = Number(caseId);
+
+  const [items, setItems] = useState<TaskItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
-  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [taskForm, setTaskForm] = useState(emptyForm);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<TaskForm>(emptyForm);
 
-  const renderPriority = (priority?: string) => {
-    if (!priority) return "-";
-    if (priority === "low") return "Low";
-    if (priority === "medium") return "Medium";
-    if (priority === "high") return "High";
-    if (priority === "critical") return "Critical";
-    return priority;
+  const loadTasks = async () => {
+    if (!caseIdNumber || Number.isNaN(caseIdNumber)) return;
+
+    try {
+      setLoading(true);
+
+      const { data, error } = await supabase
+        .from("case_tasks")
+        .select("*")
+        .eq("case_id", caseIdNumber)
+        .order("order_no", { ascending: true })
+        .order("created_at", { ascending: true });
+
+      if (error) {
+        alert("Load tasks failed:\n" + JSON.stringify(error, null, 2));
+        setItems([]);
+        return;
+      }
+
+      setItems((data || []) as TaskItem[]);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const renderTaskStatus = (status?: string, done?: boolean) => {
-    if (done) return "Done";
-    if (!status) return "-";
-    if (status === "todo") return "To Do";
-    if (status === "doing") return "Doing";
-    if (status === "done") return "Done";
-    return status;
-  };
-
-  const priorityScore = (priority?: string) => {
-    if (priority === "critical") return 4;
-    if (priority === "high") return 3;
-    if (priority === "medium") return 2;
-    if (priority === "low") return 1;
-    return 0;
-  };
-
-  const dueBucket = (
-    startDate?: string,
-    dueDate?: string,
-    status?: string,
-    done?: boolean
-  ) => {
-    if (done || status === "done") return 99;
-    if (!dueDate) return 50;
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const due = new Date(dueDate);
-    due.setHours(0, 0, 0, 0);
-
-    const start = startDate ? new Date(startDate) : null;
-    if (start) start.setHours(0, 0, 0, 0);
-
-    const diffDue = Math.floor(
-      (due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    if (diffDue < 0) return 0;
-    if (diffDue === 0) return 1;
-    if (start && start.getTime() <= today.getTime() && diffDue <= 3) return 2;
-    if (start && start.getTime() <= today.getTime()) return 3;
-    if (diffDue <= 3) return 4;
-    return 5;
-  };
-
-  const getUrgencyLabel = (task: TaskItem) => {
-    if (task.done || task.status === "done") return "Done";
-    if (!task.dueDate) return "No Due Date";
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const due = new Date(task.dueDate);
-    due.setHours(0, 0, 0, 0);
-
-    const diffDays = Math.floor(
-      (due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    if (diffDays < 0) return "Overdue";
-    if (diffDays === 0) return "Today";
-    if (diffDays <= 3) return "Due Soon";
-    return "Normal";
-  };
+  useEffect(() => {
+    loadTasks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [caseId]);
 
   const sortedTasks = useMemo(() => {
-    return [...tasks].sort((a, b) => {
-      const aDone = a.done || a.status === "done" ? 1 : 0;
-      const bDone = b.done || b.status === "done" ? 1 : 0;
+    return [...items].sort((a, b) => {
+      const aDone = a.status === "Done" ? 1 : 0;
+      const bDone = b.status === "Done" ? 1 : 0;
+
       if (aDone !== bDone) return aDone - bDone;
 
-      const aBucket = dueBucket(a.startDate, a.dueDate, a.status, a.done);
-      const bBucket = dueBucket(b.startDate, b.dueDate, b.status, b.done);
-      if (aBucket !== bBucket) return aBucket - bBucket;
+      const aDue = a.due_date || "9999-12-31";
+      const bDue = b.due_date || "9999-12-31";
 
-      const aDue = a.dueDate
-        ? new Date(a.dueDate).getTime()
-        : Number.MAX_SAFE_INTEGER;
-      const bDue = b.dueDate
-        ? new Date(b.dueDate).getTime()
-        : Number.MAX_SAFE_INTEGER;
-      if (aDue !== bDue) return aDue - bDue;
+      if (aDue !== bDue) return aDue.localeCompare(bDue);
 
-      const aPriority = priorityScore(a.priority);
-      const bPriority = priorityScore(b.priority);
-      if (aPriority !== bPriority) return bPriority - aPriority;
-
-      return 0;
+      return (a.order_no || 0) - (b.order_no || 0);
     });
-  }, [tasks]);
+  }, [items]);
 
-  const resetForm = () => {
-    setTaskForm(emptyForm);
-    setEditingTaskId(null);
+  const getNextOrderNo = () => {
+    const maxOrder = items.reduce((max, item) => {
+      const order = item.order_no || 0;
+      return order > max ? order : max;
+    }, 0);
+
+    return maxOrder + 1;
+  };
+
+  const startAddTask = () => {
+    setEditingId(null);
+    setForm({
+      ...emptyForm,
+      order_no: String(getNextOrderNo()),
+    });
+    setShowForm(true);
+  };
+
+  const startEditTask = (item: TaskItem) => {
+    setEditingId(item.id);
+    setShowForm(true);
+
+    setForm({
+      order_no: item.order_no ? String(item.order_no) : "1",
+      task_type: item.task_type || "สอบข้อเท็จจริง",
+      task_other: item.task_other || "",
+      owner_name: item.owner_name || "",
+      assignee_name: item.assignee_name || "",
+      start_date: item.start_date || "",
+      due_date: item.due_date || "",
+      status: item.status || "Pending",
+      note: item.note || "",
+    });
+  };
+
+  const cancelForm = () => {
+    setEditingId(null);
     setShowForm(false);
+    setForm(emptyForm);
   };
 
-  const renderDeadlineType = (deadlineType?: string) => {
-    if (!deadlineType) return "Deadline";
-    if (deadlineType === "appeal") return "Appeal";
-    if (deadlineType === "supreme") return "Supreme Court";
-    if (deadlineType === "submission") return "Submission";
-    if (deadlineType === "payment") return "Payment";
-    return deadlineType;
+  const validateTask = () => {
+    if (!caseIdNumber || Number.isNaN(caseIdNumber)) {
+      alert("Missing case id");
+      return false;
+    }
+
+    if (!form.task_type.trim()) {
+      alert("กรุณาเลือกงานที่ต้องทำ");
+      return false;
+    }
+
+    if (form.task_type === "อื่นๆ" && !form.task_other.trim()) {
+      alert("กรุณากรอกรายละเอียดงานอื่นๆ");
+      return false;
+    }
+
+    if (!form.assignee_name.trim()) {
+      alert("กรุณากรอกผู้รับมอบหมาย");
+      return false;
+    }
+
+    return true;
   };
 
-  const getDeadlineUrgency = (item: DeadlineItem) => {
-    if (item.done || item.status === "done") return "Done";
-    if (!item.dueDate) return "-";
+  const buildPayload = () => {
+    const now = new Date().toISOString();
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    return {
+      case_id: caseIdNumber,
 
-    const due = new Date(item.dueDate);
-    due.setHours(0, 0, 0, 0);
+      order_no: form.order_no ? Number(form.order_no) : null,
 
-    const diffDays = Math.floor(
-      (due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-    );
+      task_type: form.task_type,
+      task_other: form.task_type === "อื่นๆ" ? form.task_other : "",
 
-    if (diffDays < 0) return "Overdue";
-    if (diffDays === 0) return "Today";
-    if (diffDays <= 3) return "Due Soon";
-    return "Normal";
-  };
+      owner_name: form.owner_name,
+      assignee_name: form.assignee_name,
 
-  const getTimelineUrgency = (item: TimelineItem) => {
-    if (item.done) return "Done";
-    if (!item.eventDate) return "-";
+      start_date: form.start_date,
+      due_date: form.due_date,
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+      status: form.status,
+      note: form.note,
 
-    const event = new Date(item.eventDate);
-    event.setHours(0, 0, 0, 0);
-
-    const diffDays = Math.floor(
-      (event.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    if (diffDays < 0) return "Overdue";
-    if (diffDays === 0) return "Today";
-    if (diffDays <= 3) return "Upcoming";
-    return "Normal";
-  };
-
-  const recomputeCaseRisk = async () => {
-    const [caseSnap, deadlineSnap, taskSnap, timelineSnap] = await Promise.all([
-      getDoc(doc(db, "cases", caseId)),
-      getDocs(collection(db, "cases", caseId, "deadlines")),
-      getDocs(collection(db, "cases", caseId, "tasks")),
-      getDocs(collection(db, "cases", caseId, "timeline")),
-    ]);
-
-    const caseData = caseSnap.exists() ? (caseSnap.data() as any) : {};
-
-    const allDeadlines = deadlineSnap.docs.map((d) => ({
-      id: d.id,
-      ...(d.data() as any),
-    })) as DeadlineItem[];
-
-    const allTasks = taskSnap.docs.map((d) => ({
-      id: d.id,
-      ...(d.data() as any),
-    })) as TaskItem[];
-
-    const allTimeline = timelineSnap.docs.map((d) => ({
-      id: d.id,
-      ...(d.data() as any),
-    })) as TimelineItem[];
-
-    const candidates: {
-      level: "overdue" | "today" | "dueSoon";
-      text: string;
-      date: string;
-      score: number;
-    }[] = [];
-
-    allDeadlines.forEach((item) => {
-      const urgency = getDeadlineUrgency(item);
-      if (!item.dueDate) return;
-
-      if (urgency === "Overdue") {
-        candidates.push({
-          level: "overdue",
-          text: `Deadline overdue: ${renderDeadlineType(item.deadlineType)}`,
-          date: item.dueDate,
-          score: 0,
-        });
-      } else if (urgency === "Today") {
-        candidates.push({
-          level: "today",
-          text: `Deadline today: ${renderDeadlineType(item.deadlineType)}`,
-          date: item.dueDate,
-          score: 1,
-        });
-      } else if (urgency === "Due Soon") {
-        candidates.push({
-          level: "dueSoon",
-          text: `Deadline due soon: ${renderDeadlineType(item.deadlineType)}`,
-          date: item.dueDate,
-          score: 2,
-        });
-      }
-    });
-
-    allTasks.forEach((item) => {
-      const urgency = getUrgencyLabel(item);
-      if (!item.dueDate) return;
-
-      if (urgency === "Overdue") {
-        candidates.push({
-          level: "overdue",
-          text: `Task overdue: ${item.title || "Task"}`,
-          date: item.dueDate,
-          score: 0,
-        });
-      } else if (urgency === "Today") {
-        candidates.push({
-          level: "today",
-          text: `Task today: ${item.title || "Task"}`,
-          date: item.dueDate,
-          score: 1,
-        });
-      } else if (urgency === "Due Soon") {
-        candidates.push({
-          level: "dueSoon",
-          text: `Task due soon: ${item.title || "Task"}`,
-          date: item.dueDate,
-          score: 2,
-        });
-      }
-    });
-
-    allTimeline.forEach((item) => {
-      const urgency = getTimelineUrgency(item);
-      if (!item.eventDate) return;
-
-      if (urgency === "Overdue") {
-        candidates.push({
-          level: "overdue",
-          text: `Timeline overdue: ${item.appointment || "Appointment"}`,
-          date: item.eventDate,
-          score: 0,
-        });
-      } else if (urgency === "Today") {
-        candidates.push({
-          level: "today",
-          text: `Timeline today: ${item.appointment || "Appointment"}`,
-          date: item.eventDate,
-          score: 1,
-        });
-      } else if (urgency === "Upcoming") {
-        candidates.push({
-          level: "dueSoon",
-          text: `Timeline upcoming: ${item.appointment || "Appointment"}`,
-          date: item.eventDate,
-          score: 2,
-        });
-      }
-    });
-
-    candidates.sort((a, b) => {
-      if (a.score !== b.score) return a.score - b.score;
-      return a.date.localeCompare(b.date);
-    });
-
-    const top = candidates[0];
-
-    await updateDoc(doc(db, "cases", caseId), {
-      riskLevel: top?.level || "clear",
-      nextAlertText: top?.text || "-",
-      nextAlertDate: top?.date || "",
-      enforcementReady: !!caseData.enforcementReady,
-      enforcementReadyText: caseData.enforcementReadyText || "-",
-      enforcementReadyDate: caseData.enforcementReadyDate || "",
-      updatedAt: serverTimestamp(),
-    });
+      updated_at: now,
+    };
   };
 
   const createTask = async () => {
-    if (!taskForm.title) {
-      alert("Please fill Task Title.");
-      return;
-    }
+    if (!validateTask()) return;
 
     try {
       setSaving(true);
 
-      await addDoc(collection(db, "cases", caseId, "tasks"), {
-        title: taskForm.title,
-        assigneeName: taskForm.assigneeName,
-        startDate: taskForm.startDate,
-        dueDate: taskForm.dueDate,
-        priority: taskForm.priority,
-        status: taskForm.done ? "done" : taskForm.status,
-        done: taskForm.done,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
+      const { error } = await supabase.from("case_tasks").insert([
+        {
+          ...buildPayload(),
+          created_at: new Date().toISOString(),
+        },
+      ]);
 
-      await recomputeCaseRisk();
-      resetForm();
-    } catch (error) {
-      console.error(error);
-      alert("Create task failed.");
+      if (error) {
+        alert("Create task failed:\n" + JSON.stringify(error, null, 2));
+        return;
+      }
+
+      cancelForm();
+      await loadTasks();
     } finally {
       setSaving(false);
     }
   };
 
-  const startEditTask = (task: TaskItem) => {
-    setEditingTaskId(task.id);
-    setShowForm(true);
-    setTaskForm({
-      title: task.title || "",
-      assigneeName: task.assigneeName || "",
-      startDate: task.startDate || "",
-      dueDate: task.dueDate || "",
-      priority: task.priority || "medium",
-      status: task.done ? "done" : task.status || "todo",
-      done: !!task.done,
-    });
-  };
-
-  const saveTaskChanges = async () => {
-    if (!editingTaskId) return;
-    if (!taskForm.title) {
-      alert("Please fill Task Title.");
-      return;
-    }
+  const updateTask = async () => {
+    if (!editingId) return;
+    if (!validateTask()) return;
 
     try {
       setSaving(true);
 
-      await updateDoc(doc(db, "cases", caseId, "tasks", editingTaskId), {
-        title: taskForm.title,
-        assigneeName: taskForm.assigneeName,
-        startDate: taskForm.startDate,
-        dueDate: taskForm.dueDate,
-        priority: taskForm.priority,
-        status: taskForm.done ? "done" : taskForm.status,
-        done: taskForm.done,
-        updatedAt: serverTimestamp(),
-      });
+      const { error } = await supabase
+        .from("case_tasks")
+        .update(buildPayload())
+        .eq("id", editingId);
 
-      await recomputeCaseRisk();
-      resetForm();
-    } catch (error) {
-      console.error(error);
-      alert("Save task failed.");
+      if (error) {
+        alert("Update task failed:\n" + JSON.stringify(error, null, 2));
+        return;
+      }
+
+      cancelForm();
+      await loadTasks();
     } finally {
       setSaving(false);
     }
   };
 
-  const toggleDoneTask = async (task: TaskItem) => {
-    try {
-      const nextDone = !(task.done || task.status === "done");
-      await updateDoc(doc(db, "cases", caseId, "tasks", task.id), {
-        done: nextDone,
-        status: nextDone ? "done" : "todo",
-        updatedAt: serverTimestamp(),
-      });
-
-      await recomputeCaseRisk();
-    } catch (error) {
-      console.error(error);
-      alert("Update task failed.");
-    }
-  };
-
-  const removeTask = async (taskId: string) => {
-    const confirmed = window.confirm("Delete this task?");
+  const deleteTask = async (id: string) => {
+    const confirmed = window.confirm("ต้องการลบงานนี้หรือไม่?");
     if (!confirmed) return;
 
-    try {
-      await deleteDoc(doc(db, "cases", caseId, "tasks", taskId));
-      await recomputeCaseRisk();
-      if (editingTaskId === taskId) resetForm();
-    } catch (error) {
-      console.error(error);
-      alert("Delete task failed.");
+    const { error } = await supabase.from("case_tasks").delete().eq("id", id);
+
+    if (error) {
+      alert("Delete task failed:\n" + JSON.stringify(error, null, 2));
+      return;
     }
+
+    if (editingId === id) cancelForm();
+
+    await loadTasks();
+  };
+
+  const markDone = async (item: TaskItem) => {
+    const nextStatus = item.status === "Done" ? "Pending" : "Done";
+
+    const { error } = await supabase
+      .from("case_tasks")
+      .update({
+        status: nextStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", item.id);
+
+    if (error) {
+      alert("Update task status failed:\n" + JSON.stringify(error, null, 2));
+      return;
+    }
+
+    await loadTasks();
   };
 
   return (
-    <div id="tasks" style={cardStyle}>
-      <div style={responsiveHeaderStyle}>
-        <h3 style={{ margin: 0 }}>Tasks</h3>
-
-        <div style={mobileStackButtonWrapStyle}>
-          {!showForm ? (
-            <button
-              onClick={() => {
-                setEditingTaskId(null);
-                setTaskForm(emptyForm);
-                setShowForm(true);
-              }}
-              style={buttonPrimary}
-            >
-              + Add Task
-            </button>
-          ) : (
-            <button onClick={resetForm} style={buttonSecondary}>
-              Cancel
-            </button>
-          )}
+    <div id="tasks" style={sectionStyle}>
+      <div style={headerStyle}>
+        <div>
+          <h3 style={titleStyle}>Tasks</h3>
+          <div style={subTitleStyle}>งานที่ต้องทำในคดีนี้</div>
         </div>
+
+        {!showForm ? (
+          <button type="button" onClick={startAddTask} style={primaryButtonStyle}>
+            + Add Task
+          </button>
+        ) : (
+          <button type="button" onClick={cancelForm} style={secondaryButtonStyle}>
+            Cancel
+          </button>
+        )}
       </div>
 
       {showForm && (
-        <>
-          <div style={{ marginBottom: 12, fontWeight: 600 }}>
-            {editingTaskId ? "Edit Task" : "Add Task"}
-          </div>
+        <div style={formCardStyle}>
+          <h4 style={formTitleStyle}>
+            {editingId ? "Edit Task" : "Add Task"}
+          </h4>
 
-          <div style={gridStyle}>
+          <div style={formGridStyle}>
+            <div>
+              <label style={labelStyle}>ลำดับงาน</label>
+              <div style={readonlyBoxStyle}>งานที่ {form.order_no || "-"}</div>
+            </div>
+
+            <Select
+              label="งานที่ต้องทำ"
+              value={form.task_type}
+              onChange={(value) =>
+                setForm({
+                  ...form,
+                  task_type: value,
+                  task_other: value === "อื่นๆ" ? form.task_other : "",
+                })
+              }
+              options={taskTypeOptions.map((option) => ({
+                value: option,
+                label: option,
+              }))}
+            />
+
+            {form.task_type === "อื่นๆ" && (
+              <Input
+                label="ระบุงานอื่นๆ"
+                value={form.task_other}
+                onChange={(value) => setForm({ ...form, task_other: value })}
+                placeholder="กรอกรายละเอียดงาน"
+              />
+            )}
+
+            <Input
+              label="Owner / ผู้มอบหมาย"
+              value={form.owner_name}
+              onChange={(value) => setForm({ ...form, owner_name: value })}
+              placeholder="เช่น ทนายเป้า"
+            />
+
+            <Input
+              label="Assignee / ผู้รับมอบหมาย"
+              value={form.assignee_name}
+              onChange={(value) => setForm({ ...form, assignee_name: value })}
+              placeholder="เช่น แพม / แตงโม / ทนายตุลย์"
+            />
+
+            <Input
+              label="Start Date"
+              type="date"
+              value={form.start_date}
+              onChange={(value) => setForm({ ...form, start_date: value })}
+            />
+
+            <Input
+              label="Due Date"
+              type="date"
+              value={form.due_date}
+              onChange={(value) => setForm({ ...form, due_date: value })}
+            />
+
+            <Select
+              label="Status"
+              value={form.status}
+              onChange={(value) => setForm({ ...form, status: value })}
+              options={statusOptions}
+            />
+
             <div style={{ gridColumn: "1 / -1" }}>
-              <label>Task Title</label>
-              <input
-                placeholder="Task Title"
-                value={taskForm.title}
-                onChange={(e) =>
-                  setTaskForm({ ...taskForm, title: e.target.value })
-                }
-                style={inputStyle}
+              <Textarea
+                label="Note"
+                value={form.note}
+                onChange={(value) => setForm({ ...form, note: value })}
+                placeholder="หมายเหตุเพิ่มเติม"
               />
-            </div>
-
-            <div>
-              <label>Assigned To</label>
-              <input
-                placeholder="Assigned To"
-                value={taskForm.assigneeName}
-                onChange={(e) =>
-                  setTaskForm({ ...taskForm, assigneeName: e.target.value })
-                }
-                style={inputStyle}
-              />
-            </div>
-
-            <div>
-              <label>Start Date</label>
-              <input
-                type="date"
-                value={taskForm.startDate}
-                onChange={(e) =>
-                  setTaskForm({ ...taskForm, startDate: e.target.value })
-                }
-                style={inputStyle}
-              />
-            </div>
-
-            <div>
-              <label>Due Date</label>
-              <input
-                type="date"
-                value={taskForm.dueDate}
-                onChange={(e) =>
-                  setTaskForm({ ...taskForm, dueDate: e.target.value })
-                }
-                style={inputStyle}
-              />
-            </div>
-
-            <div>
-              <label>Priority</label>
-              <select
-                value={taskForm.priority}
-                onChange={(e) =>
-                  setTaskForm({ ...taskForm, priority: e.target.value })
-                }
-                style={inputStyle}
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="critical">Critical</option>
-              </select>
-            </div>
-
-            <div>
-              <label>Status</label>
-              <select
-                value={taskForm.status}
-                onChange={(e) =>
-                  setTaskForm({
-                    ...taskForm,
-                    status: e.target.value,
-                    done: e.target.value === "done",
-                  })
-                }
-                style={inputStyle}
-              >
-                <option value="todo">To Do</option>
-                <option value="doing">Doing</option>
-                <option value="done">Done</option>
-              </select>
-            </div>
-
-            <div style={checkboxRowStyle}>
-              <input
-                type="checkbox"
-                checked={taskForm.done}
-                onChange={(e) =>
-                  setTaskForm({
-                    ...taskForm,
-                    done: e.target.checked,
-                    status: e.target.checked ? "done" : "todo",
-                  })
-                }
-              />
-              <label>Done</label>
             </div>
           </div>
 
-          <button
-            onClick={editingTaskId ? saveTaskChanges : createTask}
-            disabled={saving}
-            style={{ ...buttonPrimary, marginTop: 16, marginBottom: 20 }}
-          >
-            {saving
-              ? "Saving..."
-              : editingTaskId
-              ? "Save Task Changes"
-              : "Save New Task"}
-          </button>
-        </>
+          <div style={formButtonWrapStyle}>
+            <button
+              type="button"
+              onClick={editingId ? updateTask : createTask}
+              disabled={saving}
+              style={primaryButtonStyle}
+            >
+              {saving ? "Saving..." : "Save"}
+            </button>
+
+            <button
+              type="button"
+              onClick={cancelForm}
+              disabled={saving}
+              style={secondaryButtonStyle}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
 
-      {sortedTasks.length === 0 ? (
-        <p>No tasks yet.</p>
+      {loading ? (
+        <div style={emptyStyle}>Loading tasks...</div>
+      ) : sortedTasks.length === 0 ? (
+        <div style={emptyStyle}>No tasks added.</div>
       ) : (
         <div style={taskListStyle}>
-          {sortedTasks.map((task) => (
+          {sortedTasks.map((item) => (
             <TaskCard
-              key={task.id}
-              task={task}
-              urgency={getUrgencyLabel(task)}
-              priorityText={renderPriority(task.priority)}
-              statusText={renderTaskStatus(task.status, task.done)}
-              onToggleDone={() => toggleDoneTask(task)}
-              onEdit={() => startEditTask(task)}
-              onDelete={() => removeTask(task.id)}
+              key={item.id}
+              item={item}
+              onEdit={startEditTask}
+              onDelete={deleteTask}
+              onToggleDone={markDone}
             />
           ))}
         </div>
@@ -627,90 +445,71 @@ export default function TasksSection({ caseId, tasks }: Props) {
   );
 }
 
+/* =========================================================
+   SUB COMPONENTS
+========================================================= */
+
 function TaskCard({
-  task,
-  urgency,
-  priorityText,
-  statusText,
-  onToggleDone,
+  item,
   onEdit,
   onDelete,
+  onToggleDone,
 }: {
-  task: TaskItem;
-  urgency: string;
-  priorityText: string;
-  statusText: string;
-  onToggleDone: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
+  item: TaskItem;
+  onEdit: (item: TaskItem) => void;
+  onDelete: (id: string) => void;
+  onToggleDone: (item: TaskItem) => void;
 }) {
-  const priorityStyle = getPriorityPillStyle(task.priority);
-  const urgencyStyle = getUrgencyPillStyle(urgency);
-  const isDone = !!task.done || task.status === "done";
+  const taskText =
+    item.task_type === "อื่นๆ" ? item.task_other || "อื่นๆ" : item.task_type || "-";
+
+  const isDone = item.status === "Done";
 
   return (
-    <div
-      style={{
-        ...taskCardStyle,
-        background: isDone
-          ? "#f7f7f7"
-          : urgency === "Overdue"
-          ? "#fff5f5"
-          : urgency === "Today" || urgency === "Due Soon"
-          ? "#fffaf0"
-          : "#fff",
-      }}
-    >
-      <div style={taskCardHeaderStyle}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={taskTitleRowStyle}>
-            <input
-              type="checkbox"
-              checked={isDone}
-              onChange={onToggleDone}
-              style={{ marginTop: 2 }}
-            />
-            <div
-              style={{
-                ...taskTitleStyle,
-                textDecoration: isDone ? "line-through" : "none",
-                color: isDone ? "#777" : "#111",
-              }}
-            >
-              {task.title || "-"}
-            </div>
+    <div style={{ ...taskCardStyle, background: isDone ? "#f7f7f7" : "#ffffff" }}>
+      <div style={taskHeaderStyle}>
+        <div>
+          <div style={taskTitleStyle}>
+            งานที่ {item.order_no || "-"} : {taskText}
           </div>
-
-          <div style={taskBadgeRowStyle}>
-            <span style={priorityStyle}>{priorityText}</span>
-            <span style={urgencyStyle}>{urgency}</span>
-            <span style={statusPillStyle}>{statusText}</span>
+          <div style={taskMetaTextStyle}>
+            Status: {item.status || "-"}
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => onToggleDone(item)}
+          style={isDone ? doneButtonStyle : smallButtonStyle}
+        >
+          {isDone ? "Undo" : "Done"}
+        </button>
       </div>
 
       <div style={taskMetaGridStyle}>
-        <div>
-          <div style={metaLabelStyle}>Assigned To</div>
-          <div style={metaValueStyle}>{task.assigneeName || "-"}</div>
-        </div>
-
-        <div>
-          <div style={metaLabelStyle}>Start Date</div>
-          <div style={metaValueStyle}>{task.startDate || "-"}</div>
-        </div>
-
-        <div>
-          <div style={metaLabelStyle}>Due Date</div>
-          <div style={metaValueStyle}>{task.dueDate || "-"}</div>
-        </div>
+        <InfoLine label="Owner" value={item.owner_name || "-"} />
+        <InfoLine label="Assignee" value={item.assignee_name || "-"} />
+        <InfoLine label="Start Date" value={formatDisplayDate(item.start_date)} />
+        <InfoLine label="Due Date" value={formatDisplayDate(item.due_date)} />
       </div>
 
-      <div style={rowActionsWrapStyle}>
-        <button onClick={onEdit} style={smallButtonStyle}>
+      {item.note && (
+        <div style={noteBlockStyle}>
+          <div style={infoLabelStyle}>Note</div>
+          <div style={infoValueStyle}>{item.note}</div>
+        </div>
+      )}
+
+      <div style={actionWrapStyle}>
+        <button type="button" onClick={() => onEdit(item)} style={smallButtonStyle}>
           Edit
         </button>
-        <button onClick={onDelete} style={smallDangerStyle}>
+
+        <button
+          type="button"
+          onClick={() => onDelete(item.id)}
+          style={dangerButtonStyle}
+        >
           Delete
         </button>
       </div>
@@ -718,243 +517,330 @@ function TaskCard({
   );
 }
 
-function getPriorityPillStyle(priority?: string): React.CSSProperties {
-  if (priority === "critical") {
-    return {
-      ...pillBaseStyle,
-      background: "#fdecec",
-      color: "#b42318",
-      border: "1px solid #f3c7c7",
-    };
-  }
-
-  if (priority === "high") {
-    return {
-      ...pillBaseStyle,
-      background: "#fff4e5",
-      color: "#b54708",
-      border: "1px solid #f3d1a7",
-    };
-  }
-
-  if (priority === "medium") {
-    return {
-      ...pillBaseStyle,
-      background: "#f5f5f5",
-      color: "#444",
-      border: "1px solid #ddd",
-    };
-  }
-
-  return {
-    ...pillBaseStyle,
-    background: "#f8fafc",
-    color: "#475467",
-    border: "1px solid #dde3ea",
-  };
+function InfoLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div style={infoLabelStyle}>{label}</div>
+      <div style={infoValueStyle}>{value}</div>
+    </div>
+  );
 }
 
-function getUrgencyPillStyle(urgency: string): React.CSSProperties {
-  if (urgency === "Overdue") {
-    return {
-      ...pillBaseStyle,
-      background: "#ffe5e5",
-      color: "#b42318",
-      border: "1px solid #f1b5b5",
-    };
-  }
-
-  if (urgency === "Today") {
-    return {
-      ...pillBaseStyle,
-      background: "#fff3cd",
-      color: "#b54708",
-      border: "1px solid #f0d58a",
-    };
-  }
-
-  if (urgency === "Due Soon") {
-    return {
-      ...pillBaseStyle,
-      background: "#fff8e1",
-      color: "#b54708",
-      border: "1px solid #eedc9a",
-    };
-  }
-
-  if (urgency === "Done") {
-    return {
-      ...pillBaseStyle,
-      background: "#e6f4ea",
-      color: "#067647",
-      border: "1px solid #b9dfc3",
-    };
-  }
-
-  return {
-    ...pillBaseStyle,
-    background: "#f8fafc",
-    color: "#475467",
-    border: "1px solid #dde3ea",
-  };
+function Input({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  type?: string;
+}) {
+  return (
+    <div>
+      <label style={labelStyle}>{label}</label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={inputStyle}
+      />
+    </div>
+  );
 }
 
-const cardStyle: React.CSSProperties = {
-  marginTop: 16,
-  border: "1px solid #ddd",
-  borderRadius: 10,
+function Select({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <div>
+      <label style={labelStyle}>{label}</label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={inputStyle}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function Textarea({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <div>
+      <label style={labelStyle}>{label}</label>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={textareaStyle}
+      />
+    </div>
+  );
+}
+
+/* =========================================================
+   HELPERS
+========================================================= */
+
+function formatDisplayDate(value?: string | null) {
+  if (!value) return "-";
+
+  const parts = value.split("-");
+  if (parts.length !== 3) return value;
+
+  const [year, month, day] = parts;
+  return `${day}/${month}/${year}`;
+}
+
+/* =========================================================
+   STYLES
+========================================================= */
+
+const sectionStyle: CSSProperties = {
+  border: "1px solid #dddddd",
   padding: 16,
-  overflow: "hidden",
+  borderRadius: 12,
+  background: "#ffffff",
+  color: "#111111",
 };
 
-const responsiveHeaderStyle: React.CSSProperties = {
+const headerStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  alignItems: "center",
   gap: 12,
-  flexWrap: "wrap",
-  marginBottom: 8,
-};
-
-const mobileStackButtonWrapStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 8,
+  alignItems: "flex-start",
+  marginBottom: 16,
   flexWrap: "wrap",
 };
 
-const gridStyle: React.CSSProperties = {
+const titleStyle: CSSProperties = {
+  margin: 0,
+  color: "#111111",
+};
+
+const subTitleStyle: CSSProperties = {
+  marginTop: 4,
+  color: "#555555",
+  fontSize: 13,
+};
+
+const primaryButtonStyle: CSSProperties = {
+  padding: "9px 14px",
+  background: "#000000",
+  color: "#ffffff",
+  borderRadius: 8,
+  border: "none",
+  cursor: "pointer",
+  fontWeight: 700,
+  whiteSpace: "nowrap",
+};
+
+const secondaryButtonStyle: CSSProperties = {
+  padding: "9px 14px",
+  background: "#ffffff",
+  color: "#111111",
+  borderRadius: 8,
+  border: "1px solid #cccccc",
+  cursor: "pointer",
+  fontWeight: 600,
+  whiteSpace: "nowrap",
+};
+
+const formCardStyle: CSSProperties = {
+  border: "1px solid #dddddd",
+  borderRadius: 12,
+  padding: 16,
+  background: "#fafafa",
+  marginBottom: 18,
+};
+
+const formTitleStyle: CSSProperties = {
+  marginTop: 0,
+  marginBottom: 12,
+  color: "#111111",
+};
+
+const formGridStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
   gap: 12,
 };
 
-const checkboxRowStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 8,
-  minHeight: 38,
+const labelStyle: CSSProperties = {
+  display: "block",
+  marginBottom: 4,
+  color: "#222222",
+  fontWeight: 600,
+  fontSize: 13,
 };
 
-const inputStyle: React.CSSProperties = {
+const inputStyle: CSSProperties = {
   width: "100%",
-  padding: 8,
-  borderRadius: 6,
-  border: "1px solid #ccc",
+  padding: "9px 10px",
+  borderRadius: 8,
+  border: "1px solid #bbbbbb",
+  background: "#ffffff",
+  color: "#111111",
+  colorScheme: "light",
+  boxSizing: "border-box",
 };
 
-const taskListStyle: React.CSSProperties = {
+const readonlyBoxStyle: CSSProperties = {
+  width: "100%",
+  padding: "9px 10px",
+  borderRadius: 8,
+  border: "1px solid #dddddd",
+  background: "#eeeeee",
+  color: "#111111",
+  boxSizing: "border-box",
+  fontWeight: 700,
+};
+
+const textareaStyle: CSSProperties = {
+  ...inputStyle,
+  minHeight: 80,
+  resize: "vertical",
+};
+
+const formButtonWrapStyle: CSSProperties = {
   display: "flex",
-  flexDirection: "column",
+  gap: 10,
+  marginTop: 16,
+  flexWrap: "wrap",
+};
+
+const emptyStyle: CSSProperties = {
+  padding: 16,
+  border: "1px dashed #cccccc",
+  borderRadius: 12,
+  color: "#555555",
+  background: "#ffffff",
+};
+
+const taskListStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
   gap: 12,
 };
 
-const taskCardStyle: React.CSSProperties = {
-  border: "1px solid #e5e5e5",
+const taskCardStyle: CSSProperties = {
+  border: "1px solid #dddddd",
   borderRadius: 12,
   padding: 14,
+  color: "#111111",
+  boxShadow: "0 1px 6px rgba(0,0,0,0.05)",
 };
 
-const taskCardHeaderStyle: React.CSSProperties = {
+const taskHeaderStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  alignItems: "flex-start",
   gap: 12,
+  alignItems: "flex-start",
   marginBottom: 12,
 };
 
-const taskTitleRowStyle: React.CSSProperties = {
-  display: "flex",
+const taskTitleStyle: CSSProperties = {
+  fontSize: 15,
+  fontWeight: 800,
+  color: "#111111",
+  lineHeight: 1.45,
+};
+
+const taskMetaTextStyle: CSSProperties = {
+  marginTop: 4,
+  color: "#555555",
+  fontSize: 13,
+  fontWeight: 600,
+};
+
+const taskMetaGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
   gap: 10,
-  alignItems: "flex-start",
   marginBottom: 10,
 };
 
-const taskTitleStyle: React.CSSProperties = {
-  fontSize: 16,
-  fontWeight: 700,
-  lineHeight: 1.4,
-  wordBreak: "break-word",
+const infoLabelStyle: CSSProperties = {
+  fontSize: 12,
+  color: "#666666",
+  marginBottom: 2,
 };
 
-const taskBadgeRowStyle: React.CSSProperties = {
+const infoValueStyle: CSSProperties = {
+  fontSize: 14,
+  color: "#111111",
+  fontWeight: 600,
+  wordBreak: "break-word",
+  lineHeight: 1.5,
+};
+
+const noteBlockStyle: CSSProperties = {
+  paddingTop: 8,
+  borderTop: "1px solid #eeeeee",
+};
+
+const actionWrapStyle: CSSProperties = {
   display: "flex",
   gap: 8,
-  flexWrap: "wrap",
+  marginTop: 12,
+  paddingTop: 10,
+  borderTop: "1px solid #eeeeee",
 };
 
-const taskMetaGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-  gap: 12,
-  marginBottom: 12,
+const smallButtonStyle: CSSProperties = {
+  padding: "7px 11px",
+  borderRadius: 8,
+  border: "1px solid #cccccc",
+  background: "#ffffff",
+  color: "#111111",
+  cursor: "pointer",
+  fontWeight: 600,
 };
 
-const metaLabelStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: "#666",
-  marginBottom: 4,
-};
-
-const metaValueStyle: React.CSSProperties = {
-  fontSize: 15,
-  color: "#111",
-  fontWeight: 500,
-  wordBreak: "break-word",
-};
-
-const pillBaseStyle: React.CSSProperties = {
-  display: "inline-block",
-  padding: "5px 10px",
-  borderRadius: 999,
-  fontSize: 12,
+const doneButtonStyle: CSSProperties = {
+  padding: "7px 11px",
+  borderRadius: 8,
+  border: "1px solid #b9dfc3",
+  background: "#e6f4ea",
+  color: "#067647",
+  cursor: "pointer",
   fontWeight: 700,
 };
 
-const statusPillStyle: React.CSSProperties = {
-  ...pillBaseStyle,
-  background: "#f5f5f5",
-  color: "#555",
-  border: "1px solid #ddd",
-};
-
-const rowActionsWrapStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 8,
-  flexWrap: "wrap",
-};
-
-const buttonPrimary: React.CSSProperties = {
-  padding: "10px 16px",
+const dangerButtonStyle: CSSProperties = {
+  padding: "7px 11px",
   borderRadius: 8,
-  background: "black",
-  color: "white",
-  border: "none",
+  border: "1px solid #e0b4b4",
+  background: "#fff5f5",
+  color: "#a40000",
   cursor: "pointer",
-};
-
-const buttonSecondary: React.CSSProperties = {
-  padding: "8px 14px",
-  borderRadius: 8,
-  background: "white",
-  color: "black",
-  border: "1px solid #ccc",
-  cursor: "pointer",
-};
-
-const smallButtonStyle: React.CSSProperties = {
-  padding: "6px 10px",
-  borderRadius: 6,
-  background: "white",
-  color: "black",
-  border: "1px solid #ccc",
-  cursor: "pointer",
-};
-
-const smallDangerStyle: React.CSSProperties = {
-  padding: "6px 10px",
-  borderRadius: 6,
-  background: "white",
-  color: "darkred",
-  border: "1px solid #ccc",
-  cursor: "pointer",
+  fontWeight: 700,
 };
