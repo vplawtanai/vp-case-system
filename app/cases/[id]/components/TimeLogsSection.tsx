@@ -46,6 +46,7 @@ const workTypeOptions = [
   "ร่างเอกสาร",
   "แก้ไขเอกสาร",
   "ติดต่อศาล",
+  "ติดต่อราชการ",
   "ติดต่อคู่ความ / ลูกความ",
   "ประชุม",
   "เดินทาง",
@@ -60,6 +61,17 @@ const staffOptions = [
   "แพม",
   "แตงโม",
   "อื่นๆ",
+];
+
+const timeCategoryOptions = [
+  {
+    value: "core",
+    label: "Core Work / เนื้องานหลัก",
+  },
+  {
+    value: "support",
+    label: "Support Time / เวลาสนับสนุน",
+  },
 ];
 
 const emptyForm: TimeLogForm = {
@@ -117,11 +129,11 @@ export default function TimeLogsSection({ caseId }: Props) {
   const summary = useMemo(() => {
     const totalMinutes = items.reduce((sum, item) => sum + (item.minutes || 0), 0);
 
-    const billableMinutes = items
+    const coreWorkMinutes = items
       .filter((item) => item.billable !== false)
       .reduce((sum, item) => sum + (item.minutes || 0), 0);
 
-    const nonBillableMinutes = totalMinutes - billableMinutes;
+    const supportTimeMinutes = totalMinutes - coreWorkMinutes;
 
     const byStaffMap = new Map<string, number>();
 
@@ -136,8 +148,8 @@ export default function TimeLogsSection({ caseId }: Props) {
 
     return {
       totalMinutes,
-      billableMinutes,
-      nonBillableMinutes,
+      coreWorkMinutes,
+      supportTimeMinutes,
       byStaff,
     };
   }, [items]);
@@ -321,7 +333,9 @@ export default function TimeLogsSection({ caseId }: Props) {
       <div style={headerStyle}>
         <div>
           <h3 style={titleStyle}>Time Logs</h3>
-          <div style={subTitleStyle}>บันทึกเวลาทำงานในคดีนี้</div>
+          <div style={subTitleStyle}>
+            บันทึกเวลาทำงาน แยกเนื้องานหลักและเวลาสนับสนุน
+          </div>
         </div>
 
         {!showForm ? (
@@ -341,12 +355,12 @@ export default function TimeLogsSection({ caseId }: Props) {
           value={formatDuration(summary.totalMinutes)}
         />
         <SummaryCard
-          label="Billable"
-          value={formatDuration(summary.billableMinutes)}
+          label="Core Work"
+          value={formatDuration(summary.coreWorkMinutes)}
         />
         <SummaryCard
-          label="Non-Billable"
-          value={formatDuration(summary.nonBillableMinutes)}
+          label="Support Time"
+          value={formatDuration(summary.supportTimeMinutes)}
         />
         <SummaryCard label="Entries" value={String(items.length)} />
       </div>
@@ -413,6 +427,18 @@ export default function TimeLogsSection({ caseId }: Props) {
               />
             )}
 
+            <Select
+              label="Time Category"
+              value={form.billable ? "core" : "support"}
+              onChange={(value) =>
+                setForm({
+                  ...form,
+                  billable: value === "core",
+                })
+              }
+              options={timeCategoryOptions}
+            />
+
             <div>
               <label style={labelStyle}>เวลาที่ใช้</label>
               <div style={durationInputWrapStyle}>
@@ -445,17 +471,6 @@ export default function TimeLogsSection({ caseId }: Props) {
                 />
                 <span style={durationUnitStyle}>นาที</span>
               </div>
-            </div>
-
-            <div style={checkboxBoxStyle}>
-              <input
-                type="checkbox"
-                checked={form.billable}
-                onChange={(e) =>
-                  setForm({ ...form, billable: e.target.checked })
-                }
-              />
-              <span>Billable / เวลาที่มีมูลค่าในคดี</span>
             </div>
 
             <div style={{ gridColumn: "1 / -1" }}>
@@ -535,6 +550,8 @@ function TimeLogCard({
   const workText =
     item.work_type === "อื่นๆ" ? item.work_other || "อื่นๆ" : item.work_type || "-";
 
+  const isCoreWork = item.billable !== false;
+
   return (
     <div style={logCardStyle}>
       <div style={logHeaderStyle}>
@@ -547,8 +564,8 @@ function TimeLogCard({
           </div>
         </div>
 
-        <span style={item.billable !== false ? billableBadgeStyle : nonBillableBadgeStyle}>
-          {item.billable !== false ? "Billable" : "Non-Billable"}
+        <span style={isCoreWork ? coreWorkBadgeStyle : supportTimeBadgeStyle}>
+          {isCoreWork ? "Core Work" : "Support Time"}
         </span>
       </div>
 
@@ -866,19 +883,6 @@ const durationUnitStyle: CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-const checkboxBoxStyle: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 8,
-  minHeight: 40,
-  padding: "9px 10px",
-  borderRadius: 8,
-  border: "1px solid #dddddd",
-  background: "#ffffff",
-  color: "#111111",
-  fontWeight: 600,
-};
-
 const textareaStyle: CSSProperties = {
   ...inputStyle,
   minHeight: 90,
@@ -937,7 +941,7 @@ const logMetaStyle: CSSProperties = {
   fontWeight: 600,
 };
 
-const billableBadgeStyle: CSSProperties = {
+const coreWorkBadgeStyle: CSSProperties = {
   display: "inline-flex",
   padding: "5px 10px",
   borderRadius: 999,
@@ -949,8 +953,8 @@ const billableBadgeStyle: CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-const nonBillableBadgeStyle: CSSProperties = {
-  ...billableBadgeStyle,
+const supportTimeBadgeStyle: CSSProperties = {
+  ...coreWorkBadgeStyle,
   background: "#f1f5f9",
   color: "#475467",
   border: "1px solid #d0d5dd",
