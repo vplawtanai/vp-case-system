@@ -1,459 +1,429 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "../../../../lib/firebase";
+import { supabase } from "../../../../lib/supabase";
 
 type CaseItem = {
+  title?: string;
+
   clientName?: string;
   courtName?: string;
-  caseNumber?: string;
-  phase?: string;
-  caseStatus?: string;
   ownerName?: string;
+
+  caseNumberPart1?: string;
+  caseNumberPart2?: string;
+  caseYear?: string;
+
   caseType?: string;
   caseSubtype?: string;
   issueText?: string;
-  claimAmount?: string;
+
+  claimAmountBaht?: string;
+  claimAmountSatang?: string;
+
   physicalStorageType?: string;
   physicalStorageDetail?: string;
-
-  judgmentFirstInstance?: string;
-  judgmentAppeal?: string;
-  judgmentSupreme?: string;
-
-  enforcementPeriodDays?: string;
-  enforcementNoticeResult?: string;
-  enforcementNoticeMethod?: string;
-  enforcementNoticeDate?: string;
-  enforcementDueDate?: string;
-  enforcementReady?: boolean;
-  enforcementReadyText?: string;
-  enforcementIssued?: boolean;
-  enforcementIssuedDate?: string;
+  caseStatus?: string;
 };
 
 type Props = {
   caseId: string;
-  caseItem: CaseItem | null;
+  caseItem: any;
 };
 
 export default function CaseInfoSection({ caseId, caseItem }: Props) {
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  const [currentCase, setCurrentCase] = useState<CaseItem | null>(caseItem);
-
-  const [form, setForm] = useState<any>({});
+  const [form, setForm] = useState<CaseItem>({});
 
   useEffect(() => {
-    setCurrentCase(caseItem);
+    const parsedCaseNumber = parseBlackCaseNumber(
+      caseItem?.case_number || caseItem?.caseNumber || ""
+    );
+
+    const parsedClaimAmount = parseClaimAmount(
+      caseItem?.claim_amount || caseItem?.claimAmount || ""
+    );
+
     setForm({
-      ...caseItem,
-      phase: caseItem?.phase || "litigation",
-      caseStatus: caseItem?.caseStatus || "Active",
-      clientName: caseItem?.clientName || "",
-      courtName: caseItem?.courtName || "",
-      caseNumber: caseItem?.caseNumber || "",
-      ownerName: caseItem?.ownerName || "",
-      caseType: caseItem?.caseType || "",
-      caseSubtype: caseItem?.caseSubtype || "",
-      issueText: caseItem?.issueText || "",
-      claimAmount: caseItem?.claimAmount || "",
-      physicalStorageType: caseItem?.physicalStorageType || "",
-      physicalStorageDetail: caseItem?.physicalStorageDetail || "",
-      judgmentFirstInstance: caseItem?.judgmentFirstInstance || "",
-      judgmentAppeal: caseItem?.judgmentAppeal || "",
-      judgmentSupreme: caseItem?.judgmentSupreme || "",
-      enforcementPeriodDays: caseItem?.enforcementPeriodDays || "",
-      enforcementNoticeResult: caseItem?.enforcementNoticeResult || "",
-      enforcementNoticeMethod: caseItem?.enforcementNoticeMethod || "",
-      enforcementNoticeDate: caseItem?.enforcementNoticeDate || "",
-      enforcementDueDate: caseItem?.enforcementDueDate || "",
-      enforcementReadyText: caseItem?.enforcementReadyText || "",
-      enforcementIssuedDate: caseItem?.enforcementIssuedDate || "",
+      title: caseItem?.title || "",
+
+      clientName: caseItem?.client_name || caseItem?.clientName || "",
+      courtName: caseItem?.court_name || caseItem?.courtName || "",
+      ownerName: caseItem?.owner_name || caseItem?.ownerName || "",
+
+      caseNumberPart1: parsedCaseNumber.part1,
+      caseNumberPart2: parsedCaseNumber.part2,
+      caseYear: parsedCaseNumber.year,
+
+      caseType: caseItem?.case_type || caseItem?.caseType || "Civil",
+      caseSubtype: caseItem?.case_subtype || caseItem?.caseSubtype || "",
+      issueText: caseItem?.issue_text || caseItem?.issueText || "",
+
+      claimAmountBaht: parsedClaimAmount.baht,
+      claimAmountSatang: parsedClaimAmount.satang,
+
+      physicalStorageType:
+        caseItem?.physical_storage_type ||
+        caseItem?.physicalStorageType ||
+        "Cabinet",
+      physicalStorageDetail:
+        caseItem?.physical_storage_detail ||
+        caseItem?.physicalStorageDetail ||
+        "",
+      caseStatus: caseItem?.status || caseItem?.caseStatus || "Active",
     });
   }, [caseItem]);
+
+  const formatNumber = (val: string) => {
+    const num = val.replace(/,/g, "").replace(/[^\d]/g, "");
+    if (!num) return "";
+    return Number(num).toLocaleString("en-US");
+  };
 
   const saveCaseInfo = async () => {
     try {
       setSaving(true);
 
-      await updateDoc(doc(db, "cases", caseId), {
-        ...form,
-        updatedAt: serverTimestamp(),
-      });
+      const fullCaseNumber = buildBlackCaseNumber(
+        form.caseNumberPart1,
+        form.caseNumberPart2,
+        form.caseYear
+      );
 
-      setCurrentCase(form);
+      const claimAmountText = buildClaimAmountText(
+        form.claimAmountBaht,
+        form.claimAmountSatang
+      );
+
+      const payload = {
+        title: form.title || "",
+
+        client_name: form.clientName || "",
+        court_name: form.courtName || "",
+        owner_name: form.ownerName || "",
+
+        case_number: fullCaseNumber,
+
+        case_type: form.caseType || "Civil",
+        case_subtype: form.caseSubtype || "",
+        issue_text: form.issueText || "",
+
+        claim_amount: claimAmountText,
+
+        physical_storage_type: form.physicalStorageType || "",
+        physical_storage_detail: form.physicalStorageDetail || "",
+        status: form.caseStatus || "Active",
+
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase
+        .from("cases")
+        .update(payload)
+        .eq("id", Number(caseId));
+
+      if (error) {
+        alert("Save failed:\n" + JSON.stringify(error, null, 2));
+        return;
+      }
+
       setIsEditing(false);
-    } catch (error) {
-      console.error(error);
-      alert("Save failed");
+    } catch (error: any) {
+      alert("Save failed:\n" + JSON.stringify(error, null, 2));
     } finally {
       setSaving(false);
     }
   };
 
-  const cancelEdit = () => {
-    setForm({
-      ...currentCase,
-      phase: currentCase?.phase || "litigation",
-      caseStatus: currentCase?.caseStatus || "Active",
-    });
-    setIsEditing(false);
+  const yearOptions = () => {
+    const now = new Date().getFullYear() + 543;
+    const years = [];
+    for (let i = -5; i <= 20; i++) {
+      years.push(String(now + i));
+    }
+    return years;
   };
 
   return (
-    <div id="case-info" style={cardStyle}>
+    <div>
       <div style={headerStyle}>
-        <h3 style={{ margin: 0 }}>Case Information</h3>
+        <h2>Case Information</h2>
 
         {!isEditing ? (
-          <button
-            type="button"
-            onClick={() => setIsEditing(true)}
-            style={buttonSecondary}
-          >
+          <button onClick={() => setIsEditing(true)} style={btnSecondary}>
             Edit
           </button>
         ) : (
-          <div style={headerButtonWrap}>
-            <button
-              type="button"
-              onClick={saveCaseInfo}
-              disabled={saving}
-              style={buttonPrimary}
-            >
+          <div>
+            <button onClick={saveCaseInfo} style={btnPrimary} disabled={saving}>
               {saving ? "Saving..." : "Save"}
             </button>
-            <button
-              type="button"
-              onClick={cancelEdit}
-              style={buttonSecondary}
-            >
+            <button onClick={() => setIsEditing(false)} style={btnSecondary}>
               Cancel
             </button>
           </div>
         )}
       </div>
 
-      {!isEditing ? (
-        <>
-          <div style={summaryGridStyle}>
-            <ViewCard label="Client" value={currentCase?.clientName} />
-            <ViewCard label="Court" value={currentCase?.courtName} />
-            <ViewCard label="Case No." value={currentCase?.caseNumber} />
-            <ViewCard label="Owner" value={currentCase?.ownerName} />
-            <ViewCard label="Phase" value={currentCase?.phase} />
-            <ViewCard label="Status" value={currentCase?.caseStatus} />
-            <ViewCard label="Type" value={currentCase?.caseType} />
-            <ViewCard label="Subtype" value={currentCase?.caseSubtype} />
+      <div style={gridStyle}>
+        {/* BASIC */}
+        <Card title="Basic Info">
+          <Input
+            label="Title"
+            value={form.title}
+            disabled={!isEditing}
+            onChange={(v) => setForm({ ...form, title: v })}
+          />
+
+          <Input
+            label="Client"
+            value={form.clientName}
+            disabled={!isEditing}
+            onChange={(v) => setForm({ ...form, clientName: v })}
+          />
+
+          <Input
+            label="Owner"
+            value={form.ownerName}
+            disabled={!isEditing}
+            onChange={(v) => setForm({ ...form, ownerName: v })}
+          />
+
+          <Input
+            label="Court"
+            value={form.courtName}
+            disabled={!isEditing}
+            onChange={(v) => setForm({ ...form, courtName: v })}
+          />
+
+          <div>
+            <div>Black Case Number</div>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <input
+                disabled={!isEditing}
+                value={form.caseNumberPart1 || ""}
+                onChange={(e) =>
+                  setForm({ ...form, caseNumberPart1: e.target.value })
+                }
+                style={{
+                  ...inputStyle,
+                  width: "30%",
+                  background: !isEditing ? "#f5f5f5" : "#fff",
+                }}
+                placeholder="อ"
+              />
+              <input
+                disabled={!isEditing}
+                value={form.caseNumberPart2 || ""}
+                onChange={(e) =>
+                  setForm({ ...form, caseNumberPart2: e.target.value })
+                }
+                style={{
+                  ...inputStyle,
+                  width: "30%",
+                  background: !isEditing ? "#f5f5f5" : "#fff",
+                }}
+                placeholder="123"
+              />
+              <span>/</span>
+              <select
+                disabled={!isEditing}
+                value={form.caseYear || ""}
+                onChange={(e) =>
+                  setForm({ ...form, caseYear: e.target.value })
+                }
+                style={{
+                  ...inputStyle,
+                  width: "40%",
+                  background: !isEditing ? "#f5f5f5" : "#fff",
+                }}
+              >
+                {yearOptions().map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
+        </Card>
 
-          <SectionBlock title="Issue">
-            <div style={paragraphStyle}>{currentCase?.issueText || "-"}</div>
-          </SectionBlock>
-
-          <SectionBlock title="Claim Amount">
-            <div style={paragraphStyle}>{currentCase?.claimAmount || "-"}</div>
-          </SectionBlock>
-
-          <SectionBlock title="Physical File">
-            <div style={paragraphStyle}>
-              {currentCase?.physicalStorageType || "-"}
-              {currentCase?.physicalStorageDetail
-                ? ` • ${currentCase.physicalStorageDetail}`
-                : ""}
-            </div>
-          </SectionBlock>
-
-          <SectionBlock title="Judgment">
-            <div style={detailGridStyle}>
-              <ViewCard
-                label="First Instance"
-                value={currentCase?.judgmentFirstInstance}
-              />
-              <ViewCard
-                label="Appeal"
-                value={currentCase?.judgmentAppeal}
-              />
-              <ViewCard
-                label="Supreme"
-                value={currentCase?.judgmentSupreme}
-              />
-            </div>
-          </SectionBlock>
-
-          <SectionBlock title="Enforcement">
-            <div style={detailGridStyle}>
-              <ViewCard
-                label="Days"
-                value={currentCase?.enforcementPeriodDays}
-              />
-              <ViewCard
-                label="Result"
-                value={currentCase?.enforcementNoticeResult}
-              />
-              <ViewCard
-                label="Method"
-                value={currentCase?.enforcementNoticeMethod}
-              />
-              <ViewCard
-                label="Notice Date"
-                value={currentCase?.enforcementNoticeDate}
-              />
-              <ViewCard
-                label="Due Date"
-                value={currentCase?.enforcementDueDate}
-              />
-              <ViewCard
-                label="Status"
-                value={currentCase?.enforcementReadyText}
-              />
-              <ViewCard
-                label="Issued Date"
-                value={currentCase?.enforcementIssuedDate}
-              />
-            </div>
-          </SectionBlock>
-        </>
-      ) : (
-        <>
-          <div style={formSectionTitleStyle}>Main Information</div>
-          <div style={gridForm}>
-            <Input
-              label="Client"
-              value={form.clientName}
-              onChange={(v: string) => setForm({ ...form, clientName: v })}
-            />
-            <Input
-              label="Court"
-              value={form.courtName}
-              onChange={(v: string) => setForm({ ...form, courtName: v })}
-            />
-            <Input
-              label="Case Number"
-              value={form.caseNumber}
-              onChange={(v: string) => setForm({ ...form, caseNumber: v })}
-            />
-            <Input
-              label="Owner"
-              value={form.ownerName}
-              onChange={(v: string) => setForm({ ...form, ownerName: v })}
-            />
-
-            <Select
-              label="Phase"
-              value={form.phase}
-              onChange={(v: string) => setForm({ ...form, phase: v })}
-              options={[
-                { value: "litigation", label: "Litigation" },
-                { value: "judgment", label: "Judgment" },
-                { value: "enforcement", label: "Enforcement" },
-                { value: "closed", label: "Closed" },
-              ]}
-            />
-
-            <Select
-              label="Status"
-              value={form.caseStatus}
-              onChange={(v: string) => setForm({ ...form, caseStatus: v })}
-              options={[
-                { value: "Active", label: "Active" },
-                { value: "Waiting", label: "Waiting" },
-                { value: "Done", label: "Done" },
-              ]}
-            />
-
-            <Input
-              label="Type"
-              value={form.caseType}
-              onChange={(v: string) => setForm({ ...form, caseType: v })}
-            />
-            <Input
-              label="Subtype"
-              value={form.caseSubtype}
-              onChange={(v: string) => setForm({ ...form, caseSubtype: v })}
-            />
-
-            <Input
-              label="Physical Storage Type"
-              value={form.physicalStorageType}
-              onChange={(v: string) =>
-                setForm({ ...form, physicalStorageType: v })
-              }
-            />
-            <Input
-              label="Physical Storage Detail"
-              value={form.physicalStorageDetail}
-              onChange={(v: string) =>
-                setForm({ ...form, physicalStorageDetail: v })
-              }
-            />
-          </div>
+        {/* TYPE */}
+        <Card title="Classification">
+          <Select
+            label="Type"
+            value={form.caseType}
+            disabled={!isEditing}
+            onChange={(v) => setForm({ ...form, caseType: v })}
+            options={[
+              { value: "Civil", label: "Civil (แพ่ง)" },
+              { value: "Criminal", label: "Criminal (อาญา)" },
+              { value: "Bankruptcy", label: "Bankruptcy (ล้มละลาย)" },
+              { value: "Administrative", label: "Administrative (ปกครอง)" },
+            ]}
+          />
 
           <Textarea
-            label="Issue"
+            label="Subtype"
+            value={form.caseSubtype}
+            disabled={!isEditing}
+            onChange={(v) => setForm({ ...form, caseSubtype: v })}
+          />
+        </Card>
+
+        {/* ISSUE */}
+        <Card title="Issue">
+          <Textarea
+            label="รายละเอียด"
             value={form.issueText}
-            onChange={(v: string) => setForm({ ...form, issueText: v })}
+            disabled={!isEditing}
+            onChange={(v) => setForm({ ...form, issueText: v })}
+          />
+        </Card>
+
+        {/* CLAIM */}
+        <Card title="Claim Value / Disputed Amount">
+          <div>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <input
+                disabled={!isEditing}
+                value={form.claimAmountBaht || ""}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    claimAmountBaht: formatNumber(e.target.value),
+                  })
+                }
+                style={{
+                  ...inputStyle,
+                  flex: 1,
+                  background: !isEditing ? "#f5f5f5" : "#fff",
+                }}
+                placeholder="50,000"
+              />
+              <span>บาท</span>
+
+              <input
+                disabled={!isEditing}
+                value={form.claimAmountSatang || ""}
+                maxLength={2}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, "");
+                  if (val === "" || Number(val) <= 99) {
+                    setForm({ ...form, claimAmountSatang: val });
+                  }
+                }}
+                onBlur={() => {
+                  const satang = form.claimAmountSatang || "00";
+                  setForm({
+                    ...form,
+                    claimAmountSatang: satang.padStart(2, "0"),
+                  });
+                }}
+                style={{
+                  ...inputStyle,
+                  width: 80,
+                  background: !isEditing ? "#f5f5f5" : "#fff",
+                }}
+                placeholder="00"
+              />
+              <span>สตางค์</span>
+            </div>
+
+            {!isEditing && (
+              <div style={claimPreviewStyle}>
+                {buildClaimAmountText(
+                  form.claimAmountBaht,
+                  form.claimAmountSatang
+                ) || "-"}
+              </div>
+            )}
+          </div>
+        </Card>
+
+        {/* STORAGE */}
+        <Card title="Storage">
+          <Select
+            label="Storage Type"
+            value={form.physicalStorageType}
+            disabled={!isEditing}
+            onChange={(v) => setForm({ ...form, physicalStorageType: v })}
+            options={[
+              { value: "Cabinet", label: "Cabinet" },
+              { value: "Box", label: "Box" },
+              { value: "Digital", label: "Digital" },
+              { value: "With Client", label: "With Client" },
+            ]}
           />
 
-          <Textarea
-            label="Claim Amount"
-            value={form.claimAmount}
-            onChange={(v: string) => setForm({ ...form, claimAmount: v })}
+          <Input
+            label="Detail"
+            value={form.physicalStorageDetail}
+            disabled={!isEditing}
+            onChange={(v) =>
+              setForm({ ...form, physicalStorageDetail: v })
+            }
           />
+        </Card>
 
-          <div style={formSectionTitleStyle}>Judgment</div>
-          <div style={gridForm}>
-            <Textarea
-              label="First Instance"
-              value={form.judgmentFirstInstance}
-              onChange={(v: string) =>
-                setForm({ ...form, judgmentFirstInstance: v })
-              }
-            />
-            <Textarea
-              label="Appeal"
-              value={form.judgmentAppeal}
-              onChange={(v: string) =>
-                setForm({ ...form, judgmentAppeal: v })
-              }
-            />
-            <Textarea
-              label="Supreme"
-              value={form.judgmentSupreme}
-              onChange={(v: string) =>
-                setForm({ ...form, judgmentSupreme: v })
-              }
-            />
-          </div>
-
-          <div style={formSectionTitleStyle}>Enforcement</div>
-          <div style={gridForm}>
-            <Input
-              label="Days"
-              value={form.enforcementPeriodDays}
-              onChange={(v: string) =>
-                setForm({ ...form, enforcementPeriodDays: v })
-              }
-            />
-            <Input
-              label="Result"
-              value={form.enforcementNoticeResult}
-              onChange={(v: string) =>
-                setForm({ ...form, enforcementNoticeResult: v })
-              }
-            />
-            <Input
-              label="Method"
-              value={form.enforcementNoticeMethod}
-              onChange={(v: string) =>
-                setForm({ ...form, enforcementNoticeMethod: v })
-              }
-            />
-            <Input
-              label="Notice Date"
-              value={form.enforcementNoticeDate}
-              onChange={(v: string) =>
-                setForm({ ...form, enforcementNoticeDate: v })
-              }
-            />
-            <Input
-              label="Due Date"
-              value={form.enforcementDueDate}
-              onChange={(v: string) =>
-                setForm({ ...form, enforcementDueDate: v })
-              }
-            />
-            <Input
-              label="Status Text"
-              value={form.enforcementReadyText}
-              onChange={(v: string) =>
-                setForm({ ...form, enforcementReadyText: v })
-              }
-            />
-            <Input
-              label="Issued Date"
-              value={form.enforcementIssuedDate}
-              onChange={(v: string) =>
-                setForm({ ...form, enforcementIssuedDate: v })
-              }
-            />
-          </div>
-        </>
-      )}
+        {/* STATUS */}
+        <Card title="Status">
+          <Select
+            label="Case Status"
+            value={form.caseStatus}
+            disabled={!isEditing}
+            onChange={(v) => setForm({ ...form, caseStatus: v })}
+            options={[
+              { value: "Active", label: "Active" },
+              { value: "Waiting", label: "Waiting" },
+              { value: "Done", label: "Done" },
+            ]}
+          />
+        </Card>
+      </div>
     </div>
   );
 }
 
-function ViewCard({ label, value }: { label: string; value?: string }) {
+/* COMPONENT */
+
+function Card({ title, children }: any) {
   return (
-    <div style={viewCardStyle}>
-      <div style={labelStyle}>{label}</div>
-      <div style={valueStyle}>{value || "-"}</div>
+    <div style={cardStyle}>
+      <h4>{title}</h4>
+      <div style={{ display: "grid", gap: 10 }}>{children}</div>
     </div>
   );
 }
 
-function SectionBlock({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div style={sectionBlockStyle}>
-      <div style={sectionTitleStyle}>{title}</div>
-      <div>{children}</div>
-    </div>
-  );
-}
-
-function Input({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value?: string;
-  onChange: (value: string) => void;
-}) {
+function Input({ label, value, onChange, disabled }: any) {
   return (
     <div>
-      <div style={labelStyle}>{label}</div>
+      <div>{label}</div>
       <input
         value={value || ""}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        style={inputStyle}
+        style={{ ...inputStyle, background: disabled ? "#f5f5f5" : "#fff" }}
       />
     </div>
   );
 }
 
-function Select({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value?: string;
-  onChange: (value: string) => void;
-  options: { value: string; label: string }[];
-}) {
+function Select({ label, value, onChange, options, disabled }: any) {
   return (
     <div>
-      <div style={labelStyle}>{label}</div>
+      <div>{label}</div>
       <select
         value={value || ""}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        style={inputStyle}
+        style={{ ...inputStyle, background: disabled ? "#f5f5f5" : "#fff" }}
       >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
+        {options.map((o: any) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
           </option>
         ))}
       </select>
@@ -461,112 +431,133 @@ function Select({
   );
 }
 
-function Textarea({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value?: string;
-  onChange: (value: string) => void;
-}) {
+function Textarea({ label, value, onChange, disabled }: any) {
   return (
-    <div style={{ marginTop: 12 }}>
-      <div style={labelStyle}>{label}</div>
+    <div>
+      <div>{label}</div>
       <textarea
         value={value || ""}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        style={textareaStyle}
+        style={{ ...textareaStyle, background: disabled ? "#f5f5f5" : "#fff" }}
       />
     </div>
   );
 }
 
-const cardStyle: React.CSSProperties = {
-  border: "1px solid #ddd",
-  borderRadius: 12,
-  padding: 16,
-  overflow: "hidden",
-};
+/* HELPER */
+
+function parseBlackCaseNumber(value: string) {
+  const currentThaiYear = String(new Date().getFullYear() + 543);
+
+  if (!value || !value.trim()) {
+    return {
+      part1: "",
+      part2: "",
+      year: currentThaiYear,
+    };
+  }
+
+  const cleaned = value.trim();
+
+  if (!cleaned.includes("/")) {
+    return {
+      part1: "",
+      part2: cleaned,
+      year: currentThaiYear,
+    };
+  }
+
+  const [leftRaw, yearRaw] = cleaned.split("/");
+  const leftParts = leftRaw.trim().split(/\s+/);
+
+  return {
+    part1: leftParts[0] || "",
+    part2: leftParts.slice(1).join(" ") || "",
+    year: yearRaw?.trim() || currentThaiYear,
+  };
+}
+
+function buildBlackCaseNumber(part1?: string, part2?: string, year?: string) {
+  const p1 = (part1 || "").trim();
+  const p2 = (part2 || "").trim();
+  const y = (year || "").trim();
+
+  if (!p1 && !p2 && !y) return "";
+
+  const left = [p1, p2].filter(Boolean).join(" ");
+
+  if (!left && y) return "";
+  if (left && y) return `${left}/${y}`;
+
+  return left;
+}
+
+function parseClaimAmount(value: string) {
+  const raw = (value || "").trim();
+
+  if (!raw) {
+    return {
+      baht: "",
+      satang: "00",
+    };
+  }
+
+  if (raw.includes("บาท")) {
+    const bahtMatch = raw.match(/([\d,]+)\s*บาท/);
+    const satangMatch = raw.match(/(\d{1,2})\s*สตางค์/);
+
+    return {
+      baht: bahtMatch?.[1] || "",
+      satang: satangMatch?.[1]?.padStart(2, "0") || "00",
+    };
+  }
+
+  const cleaned = raw.replace(/,/g, "").replace(/[^\d.]/g, "");
+
+  if (!cleaned) {
+    return {
+      baht: "",
+      satang: "00",
+    };
+  }
+
+  const [bahtRaw, satangRaw] = cleaned.split(".");
+
+  return {
+    baht: bahtRaw ? Number(bahtRaw).toLocaleString("en-US") : "",
+    satang: satangRaw ? satangRaw.slice(0, 2).padEnd(2, "0") : "00",
+  };
+}
+
+function buildClaimAmountText(baht?: string, satang?: string) {
+  const cleanBaht = (baht || "").trim();
+  const cleanSatang = (satang || "00").trim().padStart(2, "0");
+
+  if (!cleanBaht) return "";
+
+  return `${cleanBaht} บาท ${cleanSatang} สตางค์`;
+}
+
+/* STYLE */
 
 const headerStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  flexWrap: "wrap",
-  gap: 10,
-  marginBottom: 12,
-  alignItems: "center",
+  marginBottom: 20,
 };
 
-const headerButtonWrap: React.CSSProperties = {
-  display: "flex",
-  gap: 8,
-  flexWrap: "wrap",
-};
-
-const summaryGridStyle: React.CSSProperties = {
+const gridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  gap: 12,
+  gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+  gap: 16,
 };
 
-const detailGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-  gap: 12,
-};
-
-const gridForm: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: 12,
-};
-
-const sectionBlockStyle: React.CSSProperties = {
-  marginTop: 16,
-  paddingTop: 12,
-  borderTop: "1px solid #eee",
-};
-
-const sectionTitleStyle: React.CSSProperties = {
-  fontWeight: 700,
-  marginBottom: 8,
-  fontSize: 15,
-};
-
-const formSectionTitleStyle: React.CSSProperties = {
-  marginTop: 18,
-  marginBottom: 10,
-  fontWeight: 700,
-  fontSize: 15,
-};
-
-const viewCardStyle: React.CSSProperties = {
-  border: "1px solid #eee",
-  borderRadius: 10,
-  padding: 12,
+const cardStyle: React.CSSProperties = {
+  border: "1px solid #ddd",
+  borderRadius: 12,
+  padding: 16,
   background: "#fff",
-  minHeight: 68,
-};
-
-const labelStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: "#666",
-  marginBottom: 4,
-};
-
-const valueStyle: React.CSSProperties = {
-  fontSize: 15,
-  fontWeight: 500,
-  lineHeight: 1.5,
-  wordBreak: "break-word",
-};
-
-const paragraphStyle: React.CSSProperties = {
-  fontSize: 15,
-  fontWeight: 500,
-  lineHeight: 1.6,
-  wordBreak: "break-word",
 };
 
 const inputStyle: React.CSSProperties = {
@@ -574,30 +565,38 @@ const inputStyle: React.CSSProperties = {
   padding: 8,
   borderRadius: 6,
   border: "1px solid #ccc",
+  boxSizing: "border-box",
 };
 
 const textareaStyle: React.CSSProperties = {
   width: "100%",
-  minHeight: 90,
+  minHeight: 80,
   padding: 8,
   borderRadius: 6,
   border: "1px solid #ccc",
-  resize: "vertical",
+  boxSizing: "border-box",
 };
 
-const buttonPrimary: React.CSSProperties = {
-  padding: "8px 14px",
-  borderRadius: 8,
+const btnPrimary: React.CSSProperties = {
   background: "black",
   color: "white",
+  padding: "8px 12px",
+  borderRadius: 6,
   border: "none",
   cursor: "pointer",
 };
 
-const buttonSecondary: React.CSSProperties = {
-  padding: "8px 14px",
-  borderRadius: 8,
-  background: "white",
+const btnSecondary: React.CSSProperties = {
+  marginLeft: 8,
+  padding: "8px 12px",
+  borderRadius: 6,
   border: "1px solid #ccc",
+  background: "white",
   cursor: "pointer",
+};
+
+const claimPreviewStyle: React.CSSProperties = {
+  marginTop: 8,
+  fontSize: 13,
+  color: "#555",
 };

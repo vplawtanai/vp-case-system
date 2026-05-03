@@ -12,71 +12,64 @@ import TimelineSection from "./components/TimelineSection";
 import TasksSection from "./components/TasksSection";
 import FeesSection from "./components/FeesSection";
 
+/* =========================================================
+   TYPES
+========================================================= */
+
 type CaseItem = {
-  fileNo?: string;
-  title?: string;
-  clientName?: string;
-  courtName?: string;
-  caseNumber?: string;
-  phase?: string;
-  caseStatus?: string;
-  ownerName?: string;
-  caseType?: string;
-  caseSubtype?: string;
-  issueText?: string;
-  claimAmount?: string;
-  noteText?: string;
-  physicalStorageType?: string;
-  physicalStorageDetail?: string;
+  id?: number;
 
-  judgmentFirstInstance?: string;
-  judgmentAppeal?: string;
-  judgmentSupreme?: string;
+  // Supabase / DB fields
+  file_no?: string | null;
+  title?: string | null;
+  client_name?: string | null;
+  court_name?: string | null;
+  case_number?: string | null;
+  phase?: string | null;
+  status?: string | null;
+  owner_name?: string | null;
 
-  enforcementPeriodDays?: string;
-  enforcementNoticeResult?: string;
-  enforcementNoticeMethod?: string;
-  enforcementNoticeDate?: string;
-  enforcementDueDate?: string;
-  enforcementReadyText?: string;
-  enforcementIssued?: boolean;
-  enforcementIssuedDate?: string;
+  case_type?: string | null;
+  case_subtype?: string | null;
+  issue_text?: string | null;
+  claim_amount?: string | null;
+  note_text?: string | null;
+  physical_storage_type?: string | null;
+  physical_storage_detail?: string | null;
 
-  serviceRule?:
-    | "civilOrdinary"
-    | "summaryOrSimple"
-    | "consumer"
-    | "other";
-};
+  created_at?: string | null;
+  updated_at?: string | null;
 
-type PartyRole = "plaintiff" | "defendant" | "petitioner" | "objector";
-type PartyEntityType = "individual" | "company";
+  // Old camelCase fields, kept for compatibility
+  fileNo?: string | null;
+  clientName?: string | null;
+  courtName?: string | null;
+  caseNumber?: string | null;
+  caseStatus?: string | null;
+  ownerName?: string | null;
+  caseType?: string | null;
+  caseSubtype?: string | null;
+  issueText?: string | null;
+  claimAmount?: string | null;
+  noteText?: string | null;
+  physicalStorageType?: string | null;
+  physicalStorageDetail?: string | null;
 
-type PartyItem = {
-  id: string;
-  role?: PartyRole;
-  entityType?: PartyEntityType;
-  title?: string;
-  firstName?: string;
-  lastName?: string;
-  companyName?: string;
-  orderNo?: number;
+  // old fields, not used in Phase 1 but kept to avoid breaking existing components
+  judgmentFirstInstance?: string | null;
+  judgmentAppeal?: string | null;
+  judgmentSupreme?: string | null;
 
-  idNumber?: string;
-  phone?: string;
+  enforcementPeriodDays?: string | null;
+  enforcementNoticeResult?: string | null;
+  enforcementNoticeMethod?: string | null;
+  enforcementNoticeDate?: string | null;
+  enforcementDueDate?: string | null;
+  enforcementReadyText?: string | null;
+  enforcementIssued?: boolean | null;
+  enforcementIssuedDate?: string | null;
 
-  addressNo?: string;
-  moo?: string;
-  villageName?: string;
-  building?: string;
-  floor?: string;
-  room?: string;
-  soi?: string;
-  road?: string;
-  subdistrict?: string;
-  district?: string;
-  province?: string;
-  postalCode?: string;
+  serviceRule?: "civilOrdinary" | "summaryOrSimple" | "consumer" | "other";
 };
 
 type TimelineItem = {
@@ -110,10 +103,45 @@ type FeeItem = {
   note?: string;
 };
 
+/* =========================================================
+   STYLE
+========================================================= */
+
+const pageStyle: React.CSSProperties = {
+  padding: 24,
+  fontFamily: "system-ui",
+  maxWidth: 1440,
+  margin: "0 auto",
+};
+
 const sectionWrapStyle: React.CSSProperties = {
   scrollMarginTop: 120,
   marginBottom: 24,
 };
+
+const backLinkStyle: React.CSSProperties = {
+  marginBottom: 8,
+};
+
+const fileNoTitleStyle: React.CSSProperties = {
+  marginTop: 0,
+  marginBottom: 16,
+  fontSize: 24,
+  fontWeight: 700,
+};
+
+const subHeaderStyle: React.CSSProperties = {
+  marginTop: -8,
+  marginBottom: 20,
+  color: "#555",
+  display: "flex",
+  gap: 12,
+  flexWrap: "wrap",
+};
+
+/* =========================================================
+   MAIN PAGE
+========================================================= */
 
 export default function CaseDetailPage() {
   const params = useParams();
@@ -121,7 +149,6 @@ export default function CaseDetailPage() {
   const caseIdNumber = Number(id);
 
   const [caseItem, setCaseItem] = useState<CaseItem | null>(null);
-  const [parties, setParties] = useState<PartyItem[]>([]);
   const [timeline] = useState<TimelineItem[]>([]);
   const [tasks] = useState<TaskItem[]>([]);
   const [fees] = useState<FeeItem[]>([]);
@@ -129,11 +156,13 @@ export default function CaseDetailPage() {
 
   const didScrollRef = useRef(false);
 
-  // =========================
-  // LOAD CASE FROM SUPABASE
-  // =========================
+  /* =========================================================
+     LOAD CASE FROM SUPABASE
+  ========================================================= */
+
   useEffect(() => {
     if (!id) return;
+    if (!caseIdNumber || Number.isNaN(caseIdNumber)) return;
 
     didScrollRef.current = false;
 
@@ -151,14 +180,41 @@ export default function CaseDetailPage() {
         console.log("CASE ERROR:", error);
 
         if (error || !data) {
-          console.error(error);
+          console.error("LOAD CASE ERROR:", error);
           setCaseItem(null);
           return;
         }
 
-        setCaseItem({
-          fileNo: data.file_no,
+        /*
+          สำคัญ:
+          ส่งข้อมูลไปทั้ง snake_case และ camelCase
+          เพื่อให้ CaseInfoSection รุ่นเดิม/รุ่นใหม่อ่านได้หมด
+        */
+        const mappedCase: CaseItem = {
+          // raw DB fields
+          id: data.id,
+          file_no: data.file_no,
           title: data.title,
+          client_name: data.client_name,
+          court_name: data.court_name,
+          case_number: data.case_number,
+          phase: data.phase,
+          status: data.status,
+          owner_name: data.owner_name,
+
+          case_type: data.case_type,
+          case_subtype: data.case_subtype,
+          issue_text: data.issue_text,
+          claim_amount: data.claim_amount,
+          note_text: data.note_text,
+          physical_storage_type: data.physical_storage_type,
+          physical_storage_detail: data.physical_storage_detail,
+
+          created_at: data.created_at,
+          updated_at: data.updated_at,
+
+          // camelCase compatibility
+          fileNo: data.file_no,
           clientName: data.client_name,
           courtName: data.court_name,
           caseNumber: data.case_number,
@@ -169,11 +225,15 @@ export default function CaseDetailPage() {
           caseType: data.case_type,
           caseSubtype: data.case_subtype,
           issueText: data.issue_text,
-          claimAmount: data.claim_amount,
+          claimAmount:
+            data.claim_amount !== null && data.claim_amount !== undefined
+              ? String(data.claim_amount)
+              : "",
           noteText: data.note_text,
           physicalStorageType: data.physical_storage_type,
           physicalStorageDetail: data.physical_storage_detail,
 
+          // old fields, kept only for compatibility
           judgmentFirstInstance: data.judgment_first_instance,
           judgmentAppeal: data.judgment_appeal,
           judgmentSupreme: data.judgment_supreme,
@@ -188,9 +248,11 @@ export default function CaseDetailPage() {
           enforcementIssuedDate: data.enforcement_issued_date,
 
           serviceRule: data.service_rule,
-        });
+        };
+
+        setCaseItem(mappedCase);
       } catch (error) {
-        console.error(error);
+        console.error("LOAD CASE CATCH ERROR:", error);
         setCaseItem(null);
       } finally {
         setLoading(false);
@@ -200,64 +262,10 @@ export default function CaseDetailPage() {
     loadCase();
   }, [id, caseIdNumber]);
 
-  // =========================
-  // LOAD PARTIES FROM SUPABASE
-  // =========================
-  useEffect(() => {
-    if (!caseIdNumber) return;
+  /* =========================================================
+     SCROLL TO HASH
+  ========================================================= */
 
-    const loadParties = async () => {
-      const { data, error } = await supabase
-        .from("parties")
-        .select("*")
-        .eq("case_id", caseIdNumber)
-        .order("order_no", { ascending: true });
-
-      console.log("PARTIES DATA:", data);
-      console.log("PARTIES ERROR:", error);
-
-      if (error) {
-        console.error(error);
-        setParties([]);
-        return;
-      }
-
-      const mappedParties = (data || []).map((p: any) => ({
-        id: p.id,
-        role: p.role,
-        entityType: p.entity_type,
-        title: p.title,
-        firstName: p.first_name,
-        lastName: p.last_name,
-        companyName: p.company_name,
-        orderNo: p.order_no,
-
-        idNumber: p.id_number,
-        phone: p.phone,
-
-        addressNo: p.address_no,
-        moo: p.moo,
-        villageName: p.village_name,
-        building: p.building,
-        floor: p.floor,
-        room: p.room,
-        soi: p.soi,
-        road: p.road,
-        subdistrict: p.subdistrict,
-        district: p.district,
-        province: p.province,
-        postalCode: p.postal_code,
-      })) as PartyItem[];
-
-      setParties(mappedParties);
-    };
-
-    loadParties();
-  }, [caseIdNumber]);
-
-  // =========================
-  // SCROLL TO HASH
-  // =========================
   useEffect(() => {
     if (loading) return;
     if (didScrollRef.current) return;
@@ -281,21 +289,42 @@ export default function CaseDetailPage() {
     return () => clearTimeout(timer);
   }, [loading]);
 
+  /* =========================================================
+     RENDER STATES
+  ========================================================= */
+
   if (loading) {
-    return <main style={{ padding: 24 }}>Loading...</main>;
+    return <main style={pageStyle}>Loading...</main>;
   }
 
   if (!caseItem) {
-    return <main style={{ padding: 24 }}>Case not found.</main>;
+    return (
+      <main style={pageStyle}>
+        <p style={backLinkStyle}>
+          <Link href="/cases">← Back to Cases</Link>
+        </p>
+        <div>Case not found.</div>
+      </main>
+    );
   }
 
+  /* =========================================================
+     RENDER
+  ========================================================= */
+
   return (
-    <main style={{ padding: 24, fontFamily: "system-ui" }}>
-      <p>
+    <main style={pageStyle}>
+      <p style={backLinkStyle}>
         <Link href="/cases">← Back to Cases</Link>
       </p>
 
-      <h1 style={{ marginBottom: 16 }}>{caseItem.fileNo || "-"}</h1>
+      <h1 style={fileNoTitleStyle}>{caseItem.file_no || caseItem.fileNo || "-"}</h1>
+
+      <div style={subHeaderStyle}>
+        <span>Client: {caseItem.client_name || caseItem.clientName || "-"}</span>
+        <span>Owner: {caseItem.owner_name || caseItem.ownerName || "-"}</span>
+        <span>Status: {caseItem.status || caseItem.caseStatus || "-"}</span>
+      </div>
 
       <CaseSectionNav />
 
