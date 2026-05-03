@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 type Section = {
   id: string;
@@ -14,14 +14,12 @@ const sections: Section[] = [
   { id: "tasks", label: "Tasks" },
   { id: "timelogs", label: "Time Logs" },
   { id: "deadlines", label: "Deadlines" },
-  { id: "service", label: "Service" },
   { id: "notes", label: "Notes" },
   { id: "fees", label: "Fees" },
 ];
 
 export default function CaseSectionNav() {
   const [active, setActive] = useState<string>("info");
-  const containerRef = useRef<HTMLDivElement | null>(null);
 
   const handleClick = (id: string) => {
     const el = document.getElementById(id);
@@ -59,39 +57,14 @@ export default function CaseSectionNav() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const activeBtn = container.querySelector(
-      `[data-id="${active}"]`
-    ) as HTMLElement | null;
-
-    if (!activeBtn) return;
-
-    const containerRect = container.getBoundingClientRect();
-    const btnRect = activeBtn.getBoundingClientRect();
-
-    const offset =
-      btnRect.left -
-      containerRect.left -
-      containerRect.width / 2 +
-      btnRect.width / 2;
-
-    container.scrollTo({
-      left: container.scrollLeft + offset,
-      behavior: "smooth",
-    });
-  }, [active]);
-
   return (
     <div style={outerWrapStyle}>
       <div style={wrapperStyle}>
-        <div ref={containerRef} style={scrollContainerStyle}>
+        <div style={navContainerStyle}>
           {sections.map((s) => (
             <button
               key={s.id}
-              data-id={s.id}
+              type="button"
               onClick={() => handleClick(s.id)}
               style={{
                 ...pillStyle,
@@ -111,41 +84,41 @@ const outerWrapStyle: React.CSSProperties = {
   position: "sticky",
   top: 0,
   zIndex: 30,
-  background: "#fff",
+  background: "#ffffff",
   marginBottom: 16,
 };
 
 const wrapperStyle: React.CSSProperties = {
-  borderBottom: "1px solid #eee",
+  borderBottom: "1px solid #eeeeee",
   paddingTop: 8,
   paddingBottom: 8,
 };
 
-const scrollContainerStyle: React.CSSProperties = {
+const navContainerStyle: React.CSSProperties = {
   display: "flex",
+  flexWrap: "wrap",
   gap: 8,
-  overflowX: "auto",
-  WebkitOverflowScrolling: "touch",
+  alignItems: "center",
+  overflowX: "visible",
   padding: "0 4px 2px 4px",
-  scrollbarWidth: "none",
 };
 
 const pillStyle: React.CSSProperties = {
-  flexShrink: 0,
+  flex: "0 1 auto",
   whiteSpace: "nowrap",
   padding: "10px 14px",
   borderRadius: 999,
-  border: "1px solid #ddd",
-  background: "#fff",
-  color: "#111",
+  border: "1px solid #dddddd",
+  background: "#ffffff",
+  color: "#111111",
   cursor: "pointer",
   fontSize: 14,
-  fontWeight: 500,
+  fontWeight: 600,
   minHeight: 40,
 };
 
 const activeStyle: React.CSSProperties = {
-  background: "#000",
-  color: "#fff",
-  border: "1px solid #000",
+  background: "#000000",
+  color: "#ffffff",
+  border: "1px solid #000000",
 };
