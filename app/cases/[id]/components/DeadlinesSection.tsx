@@ -94,17 +94,17 @@ const partyOptions = [
 ];
 
 const procedureOptions = [
-  { value: "ordinary_civil", label: "Ordinary Civil Case (คดีแพ่งสามัญ)" },
+  { value: "ordinary_civil", label: "คดีแพ่งสามัญ" },
   {
     value: "small_or_simple",
-    label: "Small Claim / Simple Case (คดีมโนสาเร่/ไม่มีข้อยุ่งยาก)",
+    label: "คดีมโนสาเร่/ไม่มีข้อยุ่งยาก",
   },
-  { value: "consumer", label: "Consumer Case (คดีผู้บริโภค)" },
+  { value: "consumer", label: "คดีผู้บริโภค" },
 ];
 
 const serviceMethodOptions = [
-  { value: "personal", label: "Personal Service (รับหมายเอง)" },
-  { value: "posting", label: "Posting Service (ปิดหมาย)" },
+  { value: "personal", label: "รับหมายเอง" },
+  { value: "posting", label: "ปิดหมาย" },
 ];
 
 const statusOptions = [
