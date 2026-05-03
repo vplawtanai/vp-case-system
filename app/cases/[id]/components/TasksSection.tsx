@@ -54,9 +54,9 @@ const taskTypeOptions = [
 ];
 
 const statusOptions = [
-  { value: "Pending", label: "Pending" },
-  { value: "In Progress", label: "In Progress" },
-  { value: "Done", label: "Done" },
+  { value: "Pending", label: "Pending (รอทำ)" },
+  { value: "In Progress", label: "In Progress (กำลังทำ)" },
+  { value: "Done", label: "Done (เสร็จแล้ว)" },
 ];
 
 const emptyForm: TaskForm = {
@@ -114,10 +114,10 @@ export default function TasksSection({ caseId }: Props) {
 
   const sortedTasks = useMemo(() => {
     return [...items].sort((a, b) => {
-      const aDone = a.status === "Done" ? 1 : 0;
-      const bDone = b.status === "Done" ? 1 : 0;
+      const aScore = getDueStatusScore(a);
+      const bScore = getDueStatusScore(b);
 
-      if (aDone !== bDone) return aDone - bDone;
+      if (aScore !== bScore) return aScore - bScore;
 
       const aDue = a.due_date || "9999-12-31";
       const bDue = b.due_date || "9999-12-31";
@@ -464,16 +464,27 @@ function TaskCard({
     item.task_type === "อื่นๆ" ? item.task_other || "อื่นๆ" : item.task_type || "-";
 
   const isDone = item.status === "Done";
+  const dueStatus = getDueStatus(item);
+  const dueStatusStyle = getDueStatusStyle(dueStatus);
 
   return (
-    <div style={{ ...taskCardStyle, background: isDone ? "#f7f7f7" : "#ffffff" }}>
+    <div
+      style={{
+        ...taskCardStyle,
+        background: isDone ? "#f7f7f7" : getTaskBackground(dueStatus),
+      }}
+    >
       <div style={taskHeaderStyle}>
         <div>
           <div style={taskTitleStyle}>
             งานที่ {item.order_no || "-"} : {taskText}
           </div>
-          <div style={taskMetaTextStyle}>
-            Status: {item.status || "-"}
+
+          <div style={badgeRowStyle}>
+            <span style={getStatusBadgeStyle(item.status)}>
+              {renderStatus(item.status)}
+            </span>
+            <span style={dueStatusStyle}>{dueStatus}</span>
           </div>
         </div>
 
@@ -609,6 +620,125 @@ function Textarea({
 /* =========================================================
    HELPERS
 ========================================================= */
+
+function renderStatus(status?: string | null) {
+  if (status === "Pending") return "Pending (รอทำ)";
+  if (status === "In Progress") return "In Progress (กำลังทำ)";
+  if (status === "Done") return "Done (เสร็จแล้ว)";
+  return "-";
+}
+
+function getDueStatus(item: TaskItem) {
+  if (item.status === "Done") return "Done (เสร็จแล้ว)";
+  if (!item.due_date) return "No Due Date (ไม่กำหนดวัน)";
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const dueDate = new Date(item.due_date);
+  dueDate.setHours(0, 0, 0, 0);
+
+  const diffDays = Math.floor(
+    (dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  if (diffDays < 0) return "Overdue (เกินกำหนด)";
+  if (diffDays === 0) return "Today (ครบกำหนดวันนี้)";
+  if (diffDays <= 3) return "Due Soon (ใกล้ครบกำหนด)";
+  return "Normal (ปกติ)";
+}
+
+function getDueStatusScore(item: TaskItem) {
+  const status = getDueStatus(item);
+
+  if (status.startsWith("Overdue")) return 1;
+  if (status.startsWith("Today")) return 2;
+  if (status.startsWith("Due Soon")) return 3;
+  if (status.startsWith("Normal")) return 4;
+  if (status.startsWith("No Due Date")) return 5;
+  if (status.startsWith("Done")) return 6;
+
+  return 9;
+}
+
+function getTaskBackground(dueStatus: string) {
+  if (dueStatus.startsWith("Overdue")) return "#fff5f5";
+  if (dueStatus.startsWith("Today")) return "#fff8e1";
+  if (dueStatus.startsWith("Due Soon")) return "#fffaf0";
+  return "#ffffff";
+}
+
+function getStatusBadgeStyle(status?: string | null): CSSProperties {
+  if (status === "Done") {
+    return {
+      ...badgeBaseStyle,
+      background: "#e6f4ea",
+      color: "#067647",
+      border: "1px solid #b9dfc3",
+    };
+  }
+
+  if (status === "In Progress") {
+    return {
+      ...badgeBaseStyle,
+      background: "#fff8e1",
+      color: "#b54708",
+      border: "1px solid #eedc9a",
+    };
+  }
+
+  return {
+    ...badgeBaseStyle,
+    background: "#f5f5f5",
+    color: "#444444",
+    border: "1px solid #dddddd",
+  };
+}
+
+function getDueStatusStyle(dueStatus: string): CSSProperties {
+  if (dueStatus.startsWith("Overdue")) {
+    return {
+      ...badgeBaseStyle,
+      background: "#ffe5e5",
+      color: "#b42318",
+      border: "1px solid #f1b5b5",
+    };
+  }
+
+  if (dueStatus.startsWith("Today")) {
+    return {
+      ...badgeBaseStyle,
+      background: "#fff3cd",
+      color: "#b54708",
+      border: "1px solid #f0d58a",
+    };
+  }
+
+  if (dueStatus.startsWith("Due Soon")) {
+    return {
+      ...badgeBaseStyle,
+      background: "#fff8e1",
+      color: "#b54708",
+      border: "1px solid #eedc9a",
+    };
+  }
+
+  if (dueStatus.startsWith("Done")) {
+    return {
+      ...badgeBaseStyle,
+      background: "#e6f4ea",
+      color: "#067647",
+      border: "1px solid #b9dfc3",
+    };
+  }
+
+  return {
+    ...badgeBaseStyle,
+    background: "#f8fafc",
+    color: "#475467",
+    border: "1px solid #dde3ea",
+  };
+}
 
 function formatDisplayDate(value?: string | null) {
   if (!value) return "-";
@@ -774,11 +904,19 @@ const taskTitleStyle: CSSProperties = {
   lineHeight: 1.45,
 };
 
-const taskMetaTextStyle: CSSProperties = {
-  marginTop: 4,
-  color: "#555555",
-  fontSize: 13,
-  fontWeight: 600,
+const badgeRowStyle: CSSProperties = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+  marginTop: 8,
+};
+
+const badgeBaseStyle: CSSProperties = {
+  display: "inline-block",
+  padding: "5px 10px",
+  borderRadius: 999,
+  fontSize: 12,
+  fontWeight: 800,
 };
 
 const taskMetaGridStyle: CSSProperties = {
