@@ -12,6 +12,7 @@ type TimelineItem = {
   event_type?: TimelineEventType | string | null;
   event_date?: string | null;
   event_time?: string | null;
+  event_end_time?: string | null;
   appointment_type?: string | null;
   appointment_other?: string | null;
   note?: string | null;
@@ -23,6 +24,7 @@ type TimelineItem = {
 type TimelineForm = {
   event_date: string;
   event_time: string;
+  event_end_time: string;
   appointment_type: string;
   appointment_other: string;
   note: string;
@@ -50,9 +52,13 @@ const appointmentOptions = [
   "นัดอื่นๆ",
 ];
 
+const startTimeOptions = ["08:30", "09:00", "09:30", "10:00", "16:30"];
+const endTimeOptions = ["12:00", "16:30", "17:30"];
+
 const emptyAppointmentForm: TimelineForm = {
   event_date: "",
-  event_time: "",
+  event_time: "09:00",
+  event_end_time: "12:00",
   appointment_type: "นัดไกล่เกลี่ย",
   appointment_other: "",
   note: "",
@@ -65,6 +71,7 @@ export default function TimelineSection({ caseId }: Props) {
   const [items, setItems] = useState<TimelineItem[]>([]);
   const [filingDate, setFilingDate] = useState("");
   const [filingId, setFilingId] = useState<string | null>(null);
+  const [isEditingFiling, setIsEditingFiling] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [savingFiling, setSavingFiling] = useState(false);
@@ -100,6 +107,7 @@ export default function TimelineSection({ caseId }: Props) {
       const filing = timelineItems.find((item) => item.event_type === "filing");
       setFilingId(filing?.id || null);
       setFilingDate(filing?.event_date || "");
+      setIsEditingFiling(!filing?.event_date);
     } finally {
       setLoading(false);
     }
@@ -138,6 +146,11 @@ export default function TimelineSection({ caseId }: Props) {
       return;
     }
 
+    if (!filingDate.trim()) {
+      alert("กรุณาเลือกวันที่ยื่นฟ้อง");
+      return;
+    }
+
     try {
       setSavingFiling(true);
 
@@ -163,6 +176,7 @@ export default function TimelineSection({ caseId }: Props) {
             event_type: "filing",
             event_date: filingDate,
             event_time: "",
+            event_end_time: "",
             appointment_type: "",
             appointment_other: "",
             note: "",
@@ -178,6 +192,7 @@ export default function TimelineSection({ caseId }: Props) {
         }
       }
 
+      setIsEditingFiling(false);
       await loadTimeline();
     } finally {
       setSavingFiling(false);
@@ -199,7 +214,8 @@ export default function TimelineSection({ caseId }: Props) {
 
     setForm({
       event_date: item.event_date || "",
-      event_time: item.event_time || "",
+      event_time: item.event_time || "09:00",
+      event_end_time: item.event_end_time || "12:00",
       appointment_type: item.appointment_type || "นัดไกล่เกลี่ย",
       appointment_other: item.appointment_other || "",
       note: item.note || "",
@@ -215,7 +231,17 @@ export default function TimelineSection({ caseId }: Props) {
 
   const validateAppointment = () => {
     if (!form.event_date.trim()) {
-      alert("กรุณากรอกวันที่นัด");
+      alert("กรุณาเลือกวันที่นัด");
+      return false;
+    }
+
+    if (!form.event_time.trim()) {
+      alert("กรุณาเลือกเวลาเริ่มต้น");
+      return false;
+    }
+
+    if (!form.event_end_time.trim()) {
+      alert("กรุณาเลือกเวลาสิ้นสุด");
       return false;
     }
 
@@ -243,6 +269,7 @@ export default function TimelineSection({ caseId }: Props) {
       event_type: "hearing",
       event_date: form.event_date,
       event_time: form.event_time,
+      event_end_time: form.event_end_time,
       appointment_type: form.appointment_type,
       appointment_other:
         form.appointment_type === "นัดอื่นๆ" ? form.appointment_other : "",
@@ -337,26 +364,59 @@ export default function TimelineSection({ caseId }: Props) {
       </div>
 
       <div style={filingCardStyle}>
-        <div style={filingTitleStyle}>Filing Date</div>
-        <div style={filingSubTitleStyle}>วันที่ยื่นฟ้อง</div>
+        <div style={filingHeaderStyle}>
+          <div>
+            <div style={filingTitleStyle}>Filing Date</div>
+            <div style={filingSubTitleStyle}>วันที่ยื่นฟ้อง</div>
+          </div>
 
-        <div style={filingFormStyle}>
-          <input
-            value={filingDate}
-            onChange={(e) => setFilingDate(e.target.value)}
-            placeholder="เช่น 15/05/2569"
-            style={inputStyle}
-          />
-
-          <button
-            type="button"
-            onClick={saveFilingDate}
-            disabled={savingFiling}
-            style={primaryButtonStyle}
-          >
-            {savingFiling ? "Saving..." : "Save Filing Date"}
-          </button>
+          {!isEditingFiling && (
+            <button
+              type="button"
+              onClick={() => setIsEditingFiling(true)}
+              style={secondaryButtonStyle}
+            >
+              Edit
+            </button>
+          )}
         </div>
+
+        {isEditingFiling ? (
+          <div style={filingFormStyle}>
+            <input
+              type="date"
+              value={filingDate}
+              onChange={(e) => setFilingDate(e.target.value)}
+              style={inputStyle}
+            />
+
+            <button
+              type="button"
+              onClick={saveFilingDate}
+              disabled={savingFiling}
+              style={primaryButtonStyle}
+            >
+              {savingFiling ? "Saving..." : "Save Filing Date"}
+            </button>
+
+            {filingId && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditingFiling(false);
+                  loadTimeline();
+                }}
+                style={secondaryButtonStyle}
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        ) : (
+          <div style={filingDisplayStyle}>
+            {filingDate ? formatDisplayDate(filingDate) : "-"}
+          </div>
+        )}
       </div>
 
       {showForm && (
@@ -366,29 +426,38 @@ export default function TimelineSection({ caseId }: Props) {
           </h4>
 
           <div style={formGridStyle}>
-            <Input
-              label="ลำดับนัด"
-              value={form.order_no}
-              onChange={(value) =>
-                setForm({
-                  ...form,
-                  order_no: value.replace(/\D/g, ""),
-                })
-              }
-            />
+            <div>
+              <label style={labelStyle}>ลำดับนัด</label>
+              <div style={readonlyBoxStyle}>นัดที่ {form.order_no || "-"}</div>
+            </div>
 
             <Input
               label="วันที่"
+              type="date"
               value={form.event_date}
               onChange={(value) => setForm({ ...form, event_date: value })}
-              placeholder="เช่น 20/06/2569"
             />
 
-            <Input
-              label="เวลา"
+            <Select
+              label="เวลาเริ่มต้น"
               value={form.event_time}
               onChange={(value) => setForm({ ...form, event_time: value })}
-              placeholder="เช่น 09:00"
+              options={startTimeOptions.map((option) => ({
+                value: option,
+                label: option,
+              }))}
+            />
+
+            <Select
+              label="เวลาสิ้นสุด"
+              value={form.event_end_time}
+              onChange={(value) =>
+                setForm({ ...form, event_end_time: value })
+              }
+              options={endTimeOptions.map((option) => ({
+                value: option,
+                label: option,
+              }))}
             />
 
             <Select
@@ -491,6 +560,11 @@ function AppointmentCard({
       ? item.appointment_other || "นัดอื่นๆ"
       : item.appointment_type || "-";
 
+  const timeText =
+    item.event_time || item.event_end_time
+      ? `${item.event_time || "-"} - ${item.event_end_time || "-"}`
+      : "-";
+
   return (
     <div style={appointmentCardStyle}>
       <div style={appointmentHeaderStyle}>
@@ -503,8 +577,8 @@ function AppointmentCard({
       </div>
 
       <div style={appointmentMetaGridStyle}>
-        <InfoLine label="วันที่" value={item.event_date || "-"} />
-        <InfoLine label="เวลา" value={item.event_time || "-"} />
+        <InfoLine label="วันที่" value={formatDisplayDate(item.event_date)} />
+        <InfoLine label="เวลา" value={timeText} />
       </div>
 
       {item.note && (
@@ -545,16 +619,19 @@ function Input({
   value,
   onChange,
   placeholder,
+  type = "text",
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  type?: string;
 }) {
   return (
     <div>
       <label style={labelStyle}>{label}</label>
       <input
+        type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
@@ -615,6 +692,20 @@ function Textarea({
       />
     </div>
   );
+}
+
+/* =========================================================
+   HELPERS
+========================================================= */
+
+function formatDisplayDate(value?: string | null) {
+  if (!value) return "-";
+
+  const parts = value.split("-");
+  if (parts.length !== 3) return value;
+
+  const [year, month, day] = parts;
+  return `${day}/${month}/${year}`;
 }
 
 /* =========================================================
@@ -679,6 +770,14 @@ const filingCardStyle: CSSProperties = {
   marginBottom: 16,
 };
 
+const filingHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 10,
+  alignItems: "flex-start",
+  marginBottom: 10,
+};
+
 const filingTitleStyle: CSSProperties = {
   fontSize: 16,
   fontWeight: 800,
@@ -687,16 +786,24 @@ const filingTitleStyle: CSSProperties = {
 
 const filingSubTitleStyle: CSSProperties = {
   marginTop: 3,
-  marginBottom: 10,
   color: "#555555",
   fontSize: 13,
 };
 
 const filingFormStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "1fr auto",
+  gridTemplateColumns: "1fr auto auto",
   gap: 10,
   alignItems: "center",
+};
+
+const filingDisplayStyle: CSSProperties = {
+  padding: "9px 10px",
+  borderRadius: 8,
+  border: "1px solid #dddddd",
+  background: "#ffffff",
+  color: "#111111",
+  fontWeight: 700,
 };
 
 const formCardStyle: CSSProperties = {
@@ -736,6 +843,17 @@ const inputStyle: CSSProperties = {
   color: "#111111",
   colorScheme: "light",
   boxSizing: "border-box",
+};
+
+const readonlyBoxStyle: CSSProperties = {
+  width: "100%",
+  padding: "9px 10px",
+  borderRadius: 8,
+  border: "1px solid #dddddd",
+  background: "#eeeeee",
+  color: "#111111",
+  boxSizing: "border-box",
+  fontWeight: 700,
 };
 
 const textareaStyle: CSSProperties = {
