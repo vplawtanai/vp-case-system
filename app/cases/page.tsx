@@ -498,7 +498,9 @@ function CaseTable({
           {cases.map((c) => (
             <tr key={c.id} style={rowStyle}>
               <td style={tdStyle}>
-                <Link href={`/cases/${c.id}`}>{c.file_no || "-"}</Link>
+                <Link href={`/cases/${c.id}`} style={tableLinkStyle}>
+                  {c.file_no || "-"}
+                </Link>
               </td>
               <td style={tdStyle}>{c.title || "-"}</td>
               <td style={tdStyle}>{c.client_name || "-"}</td>
@@ -518,14 +520,16 @@ function CaseTable({
               </td>
               <td style={tdStyle}>{formatDate(c.updated_at)}</td>
               <td style={tdStyle}>
-                <Link href={`/cases/${c.id}`}>Open</Link>
+                <Link href={`/cases/${c.id}`} style={tableLinkStyle}>
+                  Open
+                </Link>
               </td>
             </tr>
           ))}
 
           {cases.length === 0 && (
             <tr>
-              <td colSpan={12} style={{ padding: 16, color: "#666" }}>
+              <td colSpan={12} style={{ padding: 16, color: "#333333" }}>
                 No cases found.
               </td>
             </tr>
@@ -579,15 +583,14 @@ function CaseCardList({
               label="Location"
               value={c.physical_storage_detail || "-"}
             />
-            <InfoLine
-              label="Black Case No."
-              value={c.case_number || "-"}
-            />
+            <InfoLine label="Black Case No." value={c.case_number || "-"} />
             <InfoLine label="Updated" value={formatDate(c.updated_at)} />
           </div>
 
           <div style={cardActionStyle}>
-            <Link href={`/cases/${c.id}`}>Open case</Link>
+            <Link href={`/cases/${c.id}`} style={cardActionLinkStyle}>
+              Open case
+            </Link>
           </div>
         </div>
       ))}
@@ -611,7 +614,7 @@ function SummaryCard({
   return (
     <div style={{ ...summaryCardStyle, background }}>
       <div style={summaryNumberStyle}>{count}</div>
-      <div>{label}</div>
+      <div style={summaryLabelStyle}>{label}</div>
     </div>
   );
 }
@@ -676,6 +679,10 @@ const pageStyle: React.CSSProperties = {
   padding: 24,
   maxWidth: 1440,
   margin: "0 auto",
+  minHeight: "100vh",
+  background: "#ffffff",
+  color: "#111111",
+  colorScheme: "light",
 };
 
 const blockStyle: React.CSSProperties = {
@@ -697,16 +704,23 @@ const compactSummaryGridStyle: React.CSSProperties = {
 };
 
 const summaryCardStyle: React.CSSProperties = {
-  border: "1px solid #ddd",
+  border: "1px solid #d8d8d8",
   borderRadius: 10,
   padding: 18,
   minHeight: 86,
+  color: "#111111",
 };
 
 const summaryNumberStyle: React.CSSProperties = {
   fontSize: 28,
   fontWeight: 800,
   marginBottom: 8,
+  color: "#111111",
+};
+
+const summaryLabelStyle: React.CSSProperties = {
+  color: "#222222",
+  fontWeight: 500,
 };
 
 const filterGridStyle: React.CSSProperties = {
@@ -725,61 +739,78 @@ const compactFilterGridStyle: React.CSSProperties = {
 const labelStyle: React.CSSProperties = {
   display: "block",
   marginBottom: 4,
-  color: "#333",
+  color: "#222222",
+  fontWeight: 600,
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "10px 12px",
-  border: "1px solid #ccc",
+  border: "1px solid #bdbdbd",
   borderRadius: 6,
   fontSize: 14,
   boxSizing: "border-box",
-  background: "white",
+  background: "#ffffff",
+  color: "#111111",
+  colorScheme: "light",
 };
 
 const primaryButtonStyle: React.CSSProperties = {
   padding: "10px 16px",
-  background: "black",
-  color: "white",
+  background: "#000000",
+  color: "#ffffff",
   borderRadius: 8,
   border: "none",
   cursor: "pointer",
   whiteSpace: "nowrap",
+  fontWeight: 600,
 };
 
 const resultTextStyle: React.CSSProperties = {
   marginBottom: 14,
-  color: "#555",
+  color: "#333333",
+  fontWeight: 500,
 };
 
 const tableStyle: React.CSSProperties = {
   width: "100%",
   borderCollapse: "collapse",
   minWidth: 1100,
+  background: "#ffffff",
+  color: "#111111",
 };
 
 const thStyle: React.CSSProperties = {
   textAlign: "left",
   padding: 10,
-  borderBottom: "1px solid #eee",
+  borderBottom: "1px solid #dddddd",
   whiteSpace: "nowrap",
+  color: "#111111",
+  fontWeight: 700,
 };
 
 const tdStyle: React.CSSProperties = {
   padding: 10,
   verticalAlign: "top",
-  borderTop: "1px solid #eee",
+  borderTop: "1px solid #eeeeee",
   whiteSpace: "nowrap",
+  color: "#111111",
 };
 
 const rowStyle: React.CSSProperties = {
-  borderTop: "1px solid #eee",
+  borderTop: "1px solid #eeeeee",
+  background: "#ffffff",
+};
+
+const tableLinkStyle: React.CSSProperties = {
+  color: "#0F2743",
+  fontWeight: 700,
+  textDecoration: "none",
 };
 
 const subTextStyle: React.CSSProperties = {
   fontSize: 12,
-  color: "#777",
+  color: "#555555",
 };
 
 const riskBadgeBaseStyle: React.CSSProperties = {
@@ -792,17 +823,17 @@ const riskBadgeBaseStyle: React.CSSProperties = {
 
 const riskOverdueStyle: React.CSSProperties = {
   background: "#ffe0e0",
-  color: "#c0392b",
+  color: "#9f1d16",
 };
 
 const riskTodayStyle: React.CSSProperties = {
   background: "#fff0c2",
-  color: "#b26a00",
+  color: "#8a4d00",
 };
 
 const riskDueSoonStyle: React.CSSProperties = {
   background: "#fff4d9",
-  color: "#c96b00",
+  color: "#9c5200",
 };
 
 const riskClearStyle: React.CSSProperties = {
@@ -817,10 +848,12 @@ const caseCardListStyle: React.CSSProperties = {
 };
 
 const caseCardStyle: React.CSSProperties = {
-  border: "1px solid #ddd",
+  border: "1px solid #d8d8d8",
   borderRadius: 12,
   padding: 14,
-  background: "#fff",
+  background: "#ffffff",
+  color: "#111111",
+  boxShadow: "0 1px 6px rgba(0,0,0,0.06)",
 };
 
 const caseCardHeaderStyle: React.CSSProperties = {
@@ -834,11 +867,14 @@ const caseCardHeaderStyle: React.CSSProperties = {
 const fileNoLinkStyle: React.CSSProperties = {
   fontWeight: 800,
   fontSize: 16,
+  color: "#0F2743",
+  textDecoration: "none",
 };
 
 const cardTitleStyle: React.CSSProperties = {
   marginTop: 4,
-  color: "#555",
+  color: "#222222",
+  fontWeight: 700,
 };
 
 const caseCardGridStyle: React.CSSProperties = {
@@ -849,24 +885,33 @@ const caseCardGridStyle: React.CSSProperties = {
 
 const infoLabelStyle: React.CSSProperties = {
   fontSize: 12,
-  color: "#777",
+  color: "#555555",
+  fontWeight: 500,
 };
 
 const infoValueStyle: React.CSSProperties = {
   fontSize: 14,
-  fontWeight: 600,
+  fontWeight: 700,
   wordBreak: "break-word",
+  color: "#111111",
 };
 
 const cardActionStyle: React.CSSProperties = {
   marginTop: 12,
   paddingTop: 10,
-  borderTop: "1px solid #eee",
+  borderTop: "1px solid #eeeeee",
+};
+
+const cardActionLinkStyle: React.CSSProperties = {
+  color: "#0F2743",
+  fontWeight: 700,
+  textDecoration: "none",
 };
 
 const emptyCardStyle: React.CSSProperties = {
-  border: "1px solid #ddd",
+  border: "1px solid #d8d8d8",
   borderRadius: 12,
   padding: 16,
-  color: "#666",
+  color: "#333333",
+  background: "#ffffff",
 };
