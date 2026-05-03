@@ -14,6 +14,7 @@ import TasksSection from "./components/TasksSection";
 import DeadlinesSection from "./components/DeadlinesSection";
 import TimeLogsSection from "./components/TimeLogsSection";
 import FeesSection from "./components/FeesSection";
+import NotesSection from "./components/NotesSection";
 
 /* =========================================================
    TYPES
@@ -361,6 +362,10 @@ export default function CaseDetailPage() {
       <div id="fees" style={sectionWrapStyle}>
         <FeesSection caseId={id} fees={fees} />
       </div>
+
+     <div id="notes" style={sectionWrapStyle}>
+      <NotesSection caseId={id} />
+     </div>
     </main>
   );
 }
