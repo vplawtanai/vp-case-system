@@ -926,14 +926,14 @@ export default function EnforcementSection({ caseId }: Props) {
             />
 
             <Input
-              label="วันที่ส่งคำบังคับ"
+              label="วันที่ส่งคำบังคับได้"
               type="date"
               value={enforcementForm.command_service_date}
               onChange={handleCommandDateChange}
             />
 
             <Select
-              label="วิธีส่งคำบังคับ"
+              label="ส่งคำบังคับโดยวิธี"
               value={enforcementForm.service_method}
               onChange={handleServiceMethodChange}
               options={serviceMethodOptions}
