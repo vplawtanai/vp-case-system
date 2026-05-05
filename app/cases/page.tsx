@@ -61,6 +61,16 @@ type CaseTimeline = {
   status?: string | null;
 };
 
+type CaseEnforcement = {
+  case_id: number;
+  party_label?: string | null;
+  party_other?: string | null;
+  final_due_date?: string | null;
+  writ_request_date?: string | null;
+  writ_issued_date?: string | null;
+  status?: string | null;
+};
+
 type AlertCandidate = {
   case_id: number;
   level: RiskLevel;
@@ -136,26 +146,34 @@ export default function CasesPage() {
       return;
     }
 
-    const [tasksRes, deadlinesRes, timelineRes] = await Promise.all([
-      supabase
-        .from("case_tasks")
-        .select("case_id, task_type, task_other, due_date, status")
-        .in("case_id", caseIds),
+    const [tasksRes, deadlinesRes, timelineRes, enforcementRes] =
+      await Promise.all([
+        supabase
+          .from("case_tasks")
+          .select("case_id, task_type, task_other, due_date, status")
+          .in("case_id", caseIds),
 
-      supabase
-        .from("case_deadlines")
-        .select(
-          "case_id, deadline_type, deadline_other, current_due_date, status"
-        )
-        .in("case_id", caseIds),
+        supabase
+          .from("case_deadlines")
+          .select(
+            "case_id, deadline_type, deadline_other, current_due_date, status"
+          )
+          .in("case_id", caseIds),
 
-      supabase
-  .from("case_timeline")
-  .select(
-    "case_id, event_type, event_date, event_time, appointment_type, appointment_other, order_no, status"
-  )
-  .in("case_id", caseIds),
-    ]);
+        supabase
+          .from("case_timeline")
+          .select(
+            "case_id, event_type, event_date, event_time, appointment_type, appointment_other, order_no, status"
+          )
+          .in("case_id", caseIds),
+
+        supabase
+          .from("case_enforcements")
+          .select(
+            "case_id, party_label, party_other, final_due_date, writ_request_date, writ_issued_date, status"
+          )
+          .in("case_id", caseIds),
+      ]);
 
     if (tasksRes.error) {
       alert(
@@ -181,11 +199,25 @@ export default function CasesPage() {
       return;
     }
 
+    if (enforcementRes.error) {
+      alert(
+        "Load enforcement for alerts failed:\n" +
+          JSON.stringify(enforcementRes.error, null, 2)
+      );
+      return;
+    }
+
     const tasks = (tasksRes.data || []) as CaseTask[];
     const deadlines = (deadlinesRes.data || []) as CaseDeadline[];
     const timeline = (timelineRes.data || []) as CaseTimeline[];
+    const enforcements = (enforcementRes.data || []) as CaseEnforcement[];
 
-    const allAlerts = buildAlertCandidates(tasks, deadlines, timeline);
+    const allAlerts = buildAlertCandidates(
+      tasks,
+      deadlines,
+      timeline,
+      enforcements
+    );
     const alertMap = buildAlertMapFromCandidates(allAlerts);
 
     setAlertItems(allAlerts);
@@ -589,7 +621,8 @@ export default function CasesPage() {
 function buildAlertCandidates(
   tasks: CaseTask[],
   deadlines: CaseDeadline[],
-  timeline: CaseTimeline[]
+  timeline: CaseTimeline[],
+  enforcements: CaseEnforcement[]
 ) {
   const candidates: AlertCandidate[] = [];
 
@@ -636,11 +669,11 @@ function buildAlertCandidates(
   });
 
   timeline.forEach((event) => {
-  if (event.event_type !== "hearing") return;
-  if (!event.event_date) return;
-  if (isTimelineDone(event.status)) return;
+    if (event.event_type !== "hearing") return;
+    if (!event.event_date) return;
+    if (isTimelineDone(event.status)) return;
 
-  const level = getDateRiskLevel(event.event_date);
+    const level = getDateRiskLevel(event.event_date);
     if (level === "clear") return;
 
     const appointmentText =
@@ -653,6 +686,27 @@ function buildAlertCandidates(
       level,
       text: `Timeline: นัดที่ ${event.order_no || "-"} ${appointmentText}`,
       date: event.event_date,
+      score: getRiskScoreFromLevel(level),
+    });
+  });
+
+  enforcements.forEach((item) => {
+    if (!item.final_due_date) return;
+    if (isEnforcementWritDone(item)) return;
+
+    const level = getDateRiskLevel(item.final_due_date);
+    if (level === "clear") return;
+
+    const partyText = renderEnforcementPartyLabel(
+      item.party_label,
+      item.party_other
+    );
+
+    candidates.push({
+      case_id: item.case_id,
+      level,
+      text: `Enforcement: ขอออกหมายบังคับคดี (${partyText})`,
+      date: item.final_due_date,
       score: getRiskScoreFromLevel(level),
     });
   });
@@ -760,12 +814,44 @@ function isDeadlineDone(status?: string | null) {
     value === "cancelled"
   );
 }
-function isTimelineDone(status?: string | null) {
 
+function isTimelineDone(status?: string | null) {
   const value = (status || "").toLowerCase();
 
   return value === "done" || value === "cancelled";
+}
 
+function isEnforcementWritDone(item: CaseEnforcement) {
+  if (item.writ_request_date || item.writ_issued_date) return true;
+
+  const value = (item.status || "").toLowerCase();
+
+  return (
+    value === "writ_requested" ||
+    value === "writ_issued" ||
+    value === "asset_searching" ||
+    value === "no_asset_found" ||
+    value === "asset_found_waiting_approval" ||
+    value === "client_rejected" ||
+    value === "approved_waiting_seizure" ||
+    value === "seized_waiting_auction" ||
+    value === "sold" ||
+    value === "closed"
+  );
+}
+
+function renderEnforcementPartyLabel(
+  value?: string | null,
+  other?: string | null
+) {
+  if (value === "defendant") return "จำเลย";
+  if (value === "defendant_1") return "จำเลยที่ 1";
+  if (value === "defendant_2") return "จำเลยที่ 2";
+  if (value === "defendant_3") return "จำเลยที่ 3";
+  if (value === "defendant_4") return "จำเลยที่ 4";
+  if (value === "other") return other || "อื่นๆ";
+
+  return value || "-";
 }
 
 /* =========================================================
