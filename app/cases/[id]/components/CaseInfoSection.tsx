@@ -75,6 +75,12 @@ type InfoBlockProps = {
   children: ReactNode;
 };
 
+type ReadOnlyValueProps = {
+  label: string;
+  value?: string;
+  multiline?: boolean;
+};
+
 type InputProps = {
   label: string;
   value?: string;
@@ -218,6 +224,12 @@ export default function CaseInfoSection({ caseId, caseItem }: Props) {
     return years;
   };
 
+  const blackCaseNumber = buildBlackCaseNumber(
+    form.caseNumberPart1,
+    form.caseNumberPart2,
+    form.caseYear
+  );
+
   const claimPreview =
     buildClaimAmountText(form.claimAmountBaht, form.claimAmountSatang) || "-";
 
@@ -248,212 +260,280 @@ export default function CaseInfoSection({ caseId, caseItem }: Props) {
       </div>
 
       <div style={mainGridStyle}>
-        <InfoBlock title="Basic Information" subtitle="ข้อมูลคู่ความและผู้รับผิดชอบ">
-          <Input
-            label="Title"
-            value={form.title}
-            disabled={!isEditing}
-            onChange={(value) => setForm({ ...form, title: value })}
-          />
+        <InfoBlock
+          title="Basic Information"
+          subtitle="ข้อมูลคู่ความและผู้รับผิดชอบ"
+        >
+          {isEditing ? (
+            <Input
+              label="Title"
+              value={form.title}
+              disabled={!isEditing}
+              onChange={(value) => setForm({ ...form, title: value })}
+            />
+          ) : (
+            <ReadOnlyValue label="Title" value={form.title} />
+          )}
 
-          <Input
-            label="Client"
-            value={form.clientName}
-            disabled={!isEditing}
-            onChange={(value) => setForm({ ...form, clientName: value })}
-          />
+          {isEditing ? (
+            <Input
+              label="Client"
+              value={form.clientName}
+              disabled={!isEditing}
+              onChange={(value) => setForm({ ...form, clientName: value })}
+            />
+          ) : (
+            <ReadOnlyValue label="Client" value={form.clientName} />
+          )}
 
-          <Input
-            label="Owner"
-            value={form.ownerName}
-            disabled={!isEditing}
-            onChange={(value) => setForm({ ...form, ownerName: value })}
-          />
+          {isEditing ? (
+            <Input
+              label="Owner"
+              value={form.ownerName}
+              disabled={!isEditing}
+              onChange={(value) => setForm({ ...form, ownerName: value })}
+            />
+          ) : (
+            <ReadOnlyValue label="Owner" value={form.ownerName} />
+          )}
         </InfoBlock>
 
         <InfoBlock title="Court Information" subtitle="ศาลและเลขคดีดำ">
-          <Input
-            label="Court"
-            value={form.courtName}
-            disabled={!isEditing}
-            onChange={(value) => setForm({ ...form, courtName: value })}
-          />
+          {isEditing ? (
+            <Input
+              label="Court"
+              value={form.courtName}
+              disabled={!isEditing}
+              onChange={(value) => setForm({ ...form, courtName: value })}
+            />
+          ) : (
+            <ReadOnlyValue label="Court" value={form.courtName} />
+          )}
 
-          <div>
-            <label style={labelStyle}>Black Case Number</label>
-            <div style={caseNumberRowStyle}>
-              <input
-                disabled={!isEditing}
-                value={form.caseNumberPart1 || ""}
-                onChange={(e) =>
-                  setForm({ ...form, caseNumberPart1: e.target.value })
-                }
-                style={{
-                  ...inputStyle,
-                  width: "28%",
-                  background: !isEditing ? "#f5f5f5" : "#fff",
-                }}
-                placeholder="ผบอ"
-              />
+          {isEditing ? (
+            <div>
+              <label style={labelStyle}>Black Case Number</label>
+              <div style={caseNumberRowStyle}>
+                <input
+                  disabled={!isEditing}
+                  value={form.caseNumberPart1 || ""}
+                  onChange={(e) =>
+                    setForm({ ...form, caseNumberPart1: e.target.value })
+                  }
+                  style={{
+                    ...inputStyle,
+                    width: "28%",
+                    background: !isEditing ? "#f5f5f5" : "#fff",
+                  }}
+                  placeholder="ผบอ"
+                />
 
-              <input
-                disabled={!isEditing}
-                value={form.caseNumberPart2 || ""}
-                onChange={(e) =>
-                  setForm({ ...form, caseNumberPart2: e.target.value })
-                }
-                style={{
-                  ...inputStyle,
-                  width: "32%",
-                  background: !isEditing ? "#f5f5f5" : "#fff",
-                }}
-                placeholder="56"
-              />
+                <input
+                  disabled={!isEditing}
+                  value={form.caseNumberPart2 || ""}
+                  onChange={(e) =>
+                    setForm({ ...form, caseNumberPart2: e.target.value })
+                  }
+                  style={{
+                    ...inputStyle,
+                    width: "32%",
+                    background: !isEditing ? "#f5f5f5" : "#fff",
+                  }}
+                  placeholder="56"
+                />
 
-              <span style={slashStyle}>/</span>
+                <span style={slashStyle}>/</span>
 
-              <select
-                disabled={!isEditing}
-                value={form.caseYear || ""}
-                onChange={(e) =>
-                  setForm({ ...form, caseYear: e.target.value })
-                }
-                style={{
-                  ...inputStyle,
-                  width: "40%",
-                  background: !isEditing ? "#f5f5f5" : "#fff",
-                }}
-              >
-                {yearOptions().map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
+                <select
+                  disabled={!isEditing}
+                  value={form.caseYear || ""}
+                  onChange={(e) =>
+                    setForm({ ...form, caseYear: e.target.value })
+                  }
+                  style={{
+                    ...inputStyle,
+                    width: "40%",
+                    background: !isEditing ? "#f5f5f5" : "#fff",
+                  }}
+                >
+                  {yearOptions().map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-          </div>
+          ) : (
+            <ReadOnlyValue label="Black Case Number" value={blackCaseNumber} />
+          )}
         </InfoBlock>
 
         <InfoBlock title="Classification" subtitle="ประเภทคดีและสถานะ">
-          <Select
-            label="Type"
-            value={form.caseType}
-            disabled={!isEditing}
-            onChange={(value) => setForm({ ...form, caseType: value })}
-            options={[
-              { value: "Civil", label: "Civil (แพ่ง)" },
-              { value: "Criminal", label: "Criminal (อาญา)" },
-              { value: "Bankruptcy", label: "Bankruptcy (ล้มละลาย)" },
-              { value: "Administrative", label: "Administrative (ปกครอง)" },
-            ]}
-          />
+          {isEditing ? (
+            <Select
+              label="Type"
+              value={form.caseType}
+              disabled={!isEditing}
+              onChange={(value) => setForm({ ...form, caseType: value })}
+              options={[
+                { value: "Civil", label: "Civil (แพ่ง)" },
+                { value: "Criminal", label: "Criminal (อาญา)" },
+                { value: "Bankruptcy", label: "Bankruptcy (ล้มละลาย)" },
+                { value: "Administrative", label: "Administrative (ปกครอง)" },
+              ]}
+            />
+          ) : (
+            <ReadOnlyValue label="Type" value={renderCaseType(form.caseType)} />
+          )}
 
-          <Textarea
-            label="Subtype"
-            value={form.caseSubtype}
-            disabled={!isEditing}
-            onChange={(value) => setForm({ ...form, caseSubtype: value })}
-            minHeight={82}
-          />
+          {isEditing ? (
+            <Textarea
+              label="Subtype"
+              value={form.caseSubtype}
+              disabled={!isEditing}
+              onChange={(value) => setForm({ ...form, caseSubtype: value })}
+              minHeight={82}
+            />
+          ) : (
+            <ReadOnlyValue
+              label="Subtype"
+              value={form.caseSubtype}
+              multiline
+            />
+          )}
 
-          <Select
-            label="Case Status"
-            value={form.caseStatus}
-            disabled={!isEditing}
-            onChange={(value) => setForm({ ...form, caseStatus: value })}
-            options={[
-              { value: "Active", label: "Active" },
-              { value: "Waiting", label: "Waiting" },
-              { value: "Done", label: "Done" },
-            ]}
-          />
+          {isEditing ? (
+            <Select
+              label="Case Status"
+              value={form.caseStatus}
+              disabled={!isEditing}
+              onChange={(value) => setForm({ ...form, caseStatus: value })}
+              options={[
+                { value: "Active", label: "Active" },
+                { value: "Waiting", label: "Waiting" },
+                { value: "Done", label: "Done" },
+              ]}
+            />
+          ) : (
+            <ReadOnlyValue label="Case Status" value={form.caseStatus} />
+          )}
         </InfoBlock>
 
         <InfoBlock title="Claim & Issue" subtitle="ทุนทรัพย์และประเด็นหลัก">
-          <div>
-            <label style={labelStyle}>Claim Value / Disputed Amount</label>
-            <div style={claimRowStyle}>
-              <input
-                disabled={!isEditing}
-                value={form.claimAmountBaht || ""}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    claimAmountBaht: formatNumber(e.target.value),
-                  })
-                }
-                style={{
-                  ...inputStyle,
-                  flex: 1,
-                  background: !isEditing ? "#f5f5f5" : "#fff",
-                }}
-                placeholder="50,000"
-              />
-              <span style={unitStyle}>บาท</span>
-
-              <input
-                disabled={!isEditing}
-                value={form.claimAmountSatang || ""}
-                maxLength={2}
-                onChange={(e) => {
-                  const val = e.target.value.replace(/\D/g, "");
-                  if (val === "" || Number(val) <= 99) {
-                    setForm({ ...form, claimAmountSatang: val });
+          {isEditing ? (
+            <div>
+              <label style={labelStyle}>Claim Value / Disputed Amount</label>
+              <div style={claimRowStyle}>
+                <input
+                  disabled={!isEditing}
+                  value={form.claimAmountBaht || ""}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      claimAmountBaht: formatNumber(e.target.value),
+                    })
                   }
-                }}
-                onBlur={() => {
-                  const satang = form.claimAmountSatang || "00";
-                  setForm({
-                    ...form,
-                    claimAmountSatang: satang.padStart(2, "0"),
-                  });
-                }}
-                style={{
-                  ...inputStyle,
-                  width: 82,
-                  background: !isEditing ? "#f5f5f5" : "#fff",
-                }}
-                placeholder="00"
-              />
-              <span style={unitStyle}>สตางค์</span>
+                  style={{
+                    ...inputStyle,
+                    flex: 1,
+                    background: !isEditing ? "#f5f5f5" : "#fff",
+                  }}
+                  placeholder="50,000"
+                />
+                <span style={unitStyle}>บาท</span>
+
+                <input
+                  disabled={!isEditing}
+                  value={form.claimAmountSatang || ""}
+                  maxLength={2}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, "");
+                    if (val === "" || Number(val) <= 99) {
+                      setForm({ ...form, claimAmountSatang: val });
+                    }
+                  }}
+                  onBlur={() => {
+                    const satang = form.claimAmountSatang || "00";
+                    setForm({
+                      ...form,
+                      claimAmountSatang: satang.padStart(2, "0"),
+                    });
+                  }}
+                  style={{
+                    ...inputStyle,
+                    width: 82,
+                    background: !isEditing ? "#f5f5f5" : "#fff",
+                  }}
+                  placeholder="00"
+                />
+                <span style={unitStyle}>สตางค์</span>
+              </div>
+
+              <div style={claimPreviewStyle}>{claimPreview}</div>
             </div>
+          ) : (
+            <ReadOnlyValue
+              label="Claim Value / Disputed Amount"
+              value={claimPreview}
+            />
+          )}
 
-            <div style={claimPreviewStyle}>{claimPreview}</div>
-          </div>
-
-          <Textarea
-            label="Issue Detail"
-            value={form.issueText}
-            disabled={!isEditing}
-            onChange={(value) => setForm({ ...form, issueText: value })}
-            minHeight={170}
-          />
+          {isEditing ? (
+            <Textarea
+              label="Issue Detail"
+              value={form.issueText}
+              disabled={!isEditing}
+              onChange={(value) => setForm({ ...form, issueText: value })}
+              minHeight={170}
+            />
+          ) : (
+            <ReadOnlyValue
+              label="Issue Detail"
+              value={form.issueText}
+              multiline
+            />
+          )}
         </InfoBlock>
 
-        <InfoBlock title="Storage" subtitle="ที่เก็บสำนวนตัวจริงหรือเอกสารหลัก">
-          <Select
-            label="Storage Type"
-            value={form.physicalStorageType}
-            disabled={!isEditing}
-            onChange={(value) =>
-              setForm({ ...form, physicalStorageType: value })
-            }
-            options={[
-              { value: "Cabinet", label: "Cabinet" },
-              { value: "Box", label: "Box" },
-              { value: "Digital", label: "Digital" },
-              { value: "With Client", label: "With Client" },
-            ]}
-          />
+        <InfoBlock
+          title="Storage"
+          subtitle="ที่เก็บสำนวนตัวจริงหรือเอกสารหลัก"
+        >
+          {isEditing ? (
+            <Select
+              label="Storage Type"
+              value={form.physicalStorageType}
+              disabled={!isEditing}
+              onChange={(value) =>
+                setForm({ ...form, physicalStorageType: value })
+              }
+              options={[
+                { value: "Cabinet", label: "Cabinet" },
+                { value: "Box", label: "Box" },
+                { value: "Digital", label: "Digital" },
+                { value: "With Client", label: "With Client" },
+              ]}
+            />
+          ) : (
+            <ReadOnlyValue
+              label="Storage Type"
+              value={form.physicalStorageType}
+            />
+          )}
 
-          <Input
-            label="Detail"
-            value={form.physicalStorageDetail}
-            disabled={!isEditing}
-            onChange={(value) =>
-              setForm({ ...form, physicalStorageDetail: value })
-            }
-          />
+          {isEditing ? (
+            <Input
+              label="Detail"
+              value={form.physicalStorageDetail}
+              disabled={!isEditing}
+              onChange={(value) =>
+                setForm({ ...form, physicalStorageDetail: value })
+              }
+            />
+          ) : (
+            <ReadOnlyValue label="Detail" value={form.physicalStorageDetail} />
+          )}
         </InfoBlock>
       </div>
     </div>
@@ -472,6 +552,17 @@ function InfoBlock({ title, subtitle, children }: InfoBlockProps) {
 
       <div style={blockContentStyle}>{children}</div>
     </section>
+  );
+}
+
+function ReadOnlyValue({ label, value, multiline = false }: ReadOnlyValueProps) {
+  return (
+    <div>
+      <div style={labelStyle}>{label}</div>
+      <div style={multiline ? readOnlyTextAreaStyle : readOnlyValueStyle}>
+        {value && value.trim() ? value : "-"}
+      </div>
+    </div>
   );
 }
 
@@ -540,6 +631,15 @@ function Textarea({
 }
 
 /* HELPERS */
+
+function renderCaseType(value?: string) {
+  if (!value) return "-";
+  if (value === "Civil") return "Civil (แพ่ง)";
+  if (value === "Criminal") return "Criminal (อาญา)";
+  if (value === "Bankruptcy") return "Bankruptcy (ล้มละลาย)";
+  if (value === "Administrative") return "Administrative (ปกครอง)";
+  return value;
+}
 
 function parseBlackCaseNumber(value: string) {
   const currentThaiYear = String(new Date().getFullYear() + 543);
@@ -712,9 +812,28 @@ const blockContentStyle: CSSProperties = {
 const labelStyle: CSSProperties = {
   display: "block",
   marginBottom: 4,
-  color: "#222222",
-  fontWeight: 600,
-  fontSize: 13,
+  color: "#666666",
+  fontWeight: 700,
+  fontSize: 12,
+};
+
+const readOnlyValueStyle: CSSProperties = {
+  minHeight: 22,
+  color: "#111111",
+  fontSize: 14,
+  fontWeight: 800,
+  lineHeight: 1.5,
+  wordBreak: "break-word",
+};
+
+const readOnlyTextAreaStyle: CSSProperties = {
+  minHeight: 44,
+  color: "#111111",
+  fontSize: 14,
+  fontWeight: 700,
+  lineHeight: 1.7,
+  whiteSpace: "pre-wrap",
+  wordBreak: "break-word",
 };
 
 const inputStyle: CSSProperties = {
