@@ -933,23 +933,23 @@ export default function EnforcementSection({ caseId }: Props) {
             />
 
             <Input
-              label="วันที่ส่งคำบังคับได้"
-              type="date"
-              value={enforcementForm.command_service_date}
-              onChange={handleCommandDateChange}
-            />
+  label="วันที่ชำระค่าส่งคำบังคับ"
+  type="date"
+  value={enforcementForm.command_service_fee_paid_date}
+  onChange={(value) =>
+    setEnforcementForm({
+      ...enforcementForm,
+      command_service_fee_paid_date: value,
+    })
+  }
+/>
 
-            <Input
-              label="วันที่ชำระค่าส่งคำบังคับ"
-              type="date"
-              value={enforcementForm.command_service_fee_paid_date}
-              onChange={(value) =>
-                setEnforcementForm({
-                  ...enforcementForm,
-                  command_service_fee_paid_date: value,
-                })
-              }
-            />
+<Input
+  label="วันที่ส่งคำบังคับได้"
+  type="date"
+  value={enforcementForm.command_service_date}
+  onChange={handleCommandDateChange}
+/>
 
             <Select
               label="ส่งคำบังคับได้โดยวิธี"
