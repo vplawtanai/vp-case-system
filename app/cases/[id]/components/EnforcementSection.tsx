@@ -140,7 +140,6 @@ const partyOptions = [
 
 const serviceMethodOptions = [
   { value: "personal", label: "รับเอง" },
-  { value: "substituted", label: "ส่งได้โดยบุคคลอื่น" },
   { value: "posted", label: "ปิดหมาย" },
   { value: "other", label: "อื่นๆ" },
 ];
@@ -148,7 +147,6 @@ const serviceMethodOptions = [
 const serviceResultOptions = [
   { value: "pending", label: "รอผลการส่ง" },
   { value: "served", label: "ส่งได้" },
-  { value: "posted", label: "ปิดหมาย" },
   { value: "failed", label: "ส่งไม่ได้" },
 ];
 
