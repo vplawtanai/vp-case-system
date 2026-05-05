@@ -933,7 +933,7 @@ export default function EnforcementSection({ caseId }: Props) {
             />
 
             <Select
-              label="ส่งคำบังคับโดยวิธี"
+              label="ส่งคำบังคับได้โดยวิธี"
               value={enforcementForm.service_method}
               onChange={handleServiceMethodChange}
               options={serviceMethodOptions}
