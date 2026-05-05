@@ -69,8 +69,9 @@ type Props = {
   caseItem: CaseItemFromDb | null;
 };
 
-type CardProps = {
+type InfoBlockProps = {
   title: string;
+  subtitle?: string;
   children: ReactNode;
 };
 
@@ -217,17 +218,25 @@ export default function CaseInfoSection({ caseId, caseItem }: Props) {
     return years;
   };
 
+  const claimPreview =
+    buildClaimAmountText(form.claimAmountBaht, form.claimAmountSatang) || "-";
+
   return (
-    <div>
+    <div id="info" style={sectionStyle}>
       <div style={headerStyle}>
-        <h2>Case Information</h2>
+        <div>
+          <h3 style={titleStyle}>Case Information</h3>
+          <div style={subTitleStyle}>
+            ข้อมูลหลักของแฟ้มคดี ศาล ประเภทคดี ทุนทรัพย์ และที่เก็บสำนวน
+          </div>
+        </div>
 
         {!isEditing ? (
           <button onClick={() => setIsEditing(true)} style={btnSecondary}>
             Edit
           </button>
         ) : (
-          <div>
+          <div style={buttonWrapStyle}>
             <button onClick={saveCaseInfo} style={btnPrimary} disabled={saving}>
               {saving ? "Saving..." : "Save"}
             </button>
@@ -238,9 +247,8 @@ export default function CaseInfoSection({ caseId, caseItem }: Props) {
         )}
       </div>
 
-      <div style={gridStyle}>
-        {/* BASIC */}
-        <Card title="Basic Info">
+      <div style={mainGridStyle}>
+        <InfoBlock title="Basic Information" subtitle="ข้อมูลคู่ความและผู้รับผิดชอบ">
           <Input
             label="Title"
             value={form.title}
@@ -261,7 +269,9 @@ export default function CaseInfoSection({ caseId, caseItem }: Props) {
             disabled={!isEditing}
             onChange={(value) => setForm({ ...form, ownerName: value })}
           />
+        </InfoBlock>
 
+        <InfoBlock title="Court Information" subtitle="ศาลและเลขคดีดำ">
           <Input
             label="Court"
             value={form.courtName}
@@ -270,8 +280,8 @@ export default function CaseInfoSection({ caseId, caseItem }: Props) {
           />
 
           <div>
-            <div>Black Case Number</div>
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <label style={labelStyle}>Black Case Number</label>
+            <div style={caseNumberRowStyle}>
               <input
                 disabled={!isEditing}
                 value={form.caseNumberPart1 || ""}
@@ -280,11 +290,12 @@ export default function CaseInfoSection({ caseId, caseItem }: Props) {
                 }
                 style={{
                   ...inputStyle,
-                  width: "30%",
+                  width: "28%",
                   background: !isEditing ? "#f5f5f5" : "#fff",
                 }}
-                placeholder="อ"
+                placeholder="ผบอ"
               />
+
               <input
                 disabled={!isEditing}
                 value={form.caseNumberPart2 || ""}
@@ -293,12 +304,14 @@ export default function CaseInfoSection({ caseId, caseItem }: Props) {
                 }
                 style={{
                   ...inputStyle,
-                  width: "30%",
+                  width: "32%",
                   background: !isEditing ? "#f5f5f5" : "#fff",
                 }}
-                placeholder="123"
+                placeholder="56"
               />
-              <span>/</span>
+
+              <span style={slashStyle}>/</span>
+
               <select
                 disabled={!isEditing}
                 value={form.caseYear || ""}
@@ -319,10 +332,9 @@ export default function CaseInfoSection({ caseId, caseItem }: Props) {
               </select>
             </div>
           </div>
-        </Card>
+        </InfoBlock>
 
-        {/* TYPE */}
-        <Card title="Classification">
+        <InfoBlock title="Classification" subtitle="ประเภทคดีและสถานะ">
           <Select
             label="Type"
             value={form.caseType}
@@ -341,23 +353,26 @@ export default function CaseInfoSection({ caseId, caseItem }: Props) {
             value={form.caseSubtype}
             disabled={!isEditing}
             onChange={(value) => setForm({ ...form, caseSubtype: value })}
+            minHeight={82}
           />
-        </Card>
 
-        {/* ISSUE */}
-        <Card title="Issue">
-          <Textarea
-            label="รายละเอียด"
-            value={form.issueText}
+          <Select
+            label="Case Status"
+            value={form.caseStatus}
             disabled={!isEditing}
-            onChange={(value) => setForm({ ...form, issueText: value })}
+            onChange={(value) => setForm({ ...form, caseStatus: value })}
+            options={[
+              { value: "Active", label: "Active" },
+              { value: "Waiting", label: "Waiting" },
+              { value: "Done", label: "Done" },
+            ]}
           />
-        </Card>
+        </InfoBlock>
 
-        {/* CLAIM */}
-        <Card title="Claim Value / Disputed Amount">
+        <InfoBlock title="Claim & Issue" subtitle="ทุนทรัพย์และประเด็นหลัก">
           <div>
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <label style={labelStyle}>Claim Value / Disputed Amount</label>
+            <div style={claimRowStyle}>
               <input
                 disabled={!isEditing}
                 value={form.claimAmountBaht || ""}
@@ -374,7 +389,7 @@ export default function CaseInfoSection({ caseId, caseItem }: Props) {
                 }}
                 placeholder="50,000"
               />
-              <span>บาท</span>
+              <span style={unitStyle}>บาท</span>
 
               <input
                 disabled={!isEditing}
@@ -395,27 +410,27 @@ export default function CaseInfoSection({ caseId, caseItem }: Props) {
                 }}
                 style={{
                   ...inputStyle,
-                  width: 80,
+                  width: 82,
                   background: !isEditing ? "#f5f5f5" : "#fff",
                 }}
                 placeholder="00"
               />
-              <span>สตางค์</span>
+              <span style={unitStyle}>สตางค์</span>
             </div>
 
-            {!isEditing && (
-              <div style={claimPreviewStyle}>
-                {buildClaimAmountText(
-                  form.claimAmountBaht,
-                  form.claimAmountSatang
-                ) || "-"}
-              </div>
-            )}
+            <div style={claimPreviewStyle}>{claimPreview}</div>
           </div>
-        </Card>
 
-        {/* STORAGE */}
-        <Card title="Storage">
+          <Textarea
+            label="Issue Detail"
+            value={form.issueText}
+            disabled={!isEditing}
+            onChange={(value) => setForm({ ...form, issueText: value })}
+            minHeight={170}
+          />
+        </InfoBlock>
+
+        <InfoBlock title="Storage" subtitle="ที่เก็บสำนวนตัวจริงหรือเอกสารหลัก">
           <Select
             label="Storage Type"
             value={form.physicalStorageType}
@@ -439,42 +454,31 @@ export default function CaseInfoSection({ caseId, caseItem }: Props) {
               setForm({ ...form, physicalStorageDetail: value })
             }
           />
-        </Card>
-
-        {/* STATUS */}
-        <Card title="Status">
-          <Select
-            label="Case Status"
-            value={form.caseStatus}
-            disabled={!isEditing}
-            onChange={(value) => setForm({ ...form, caseStatus: value })}
-            options={[
-              { value: "Active", label: "Active" },
-              { value: "Waiting", label: "Waiting" },
-              { value: "Done", label: "Done" },
-            ]}
-          />
-        </Card>
+        </InfoBlock>
       </div>
     </div>
   );
 }
 
-/* COMPONENT */
+/* COMPONENTS */
 
-function Card({ title, children }: CardProps) {
+function InfoBlock({ title, subtitle, children }: InfoBlockProps) {
   return (
-    <div style={cardStyle}>
-      <h4>{title}</h4>
-      <div style={{ display: "grid", gap: 10 }}>{children}</div>
-    </div>
+    <section style={infoBlockStyle}>
+      <div style={blockHeaderStyle}>
+        <h4 style={blockTitleStyle}>{title}</h4>
+        {subtitle && <div style={blockSubtitleStyle}>{subtitle}</div>}
+      </div>
+
+      <div style={blockContentStyle}>{children}</div>
+    </section>
   );
 }
 
 function Input({ label, value, onChange, disabled }: InputProps) {
   return (
     <div>
-      <div>{label}</div>
+      <label style={labelStyle}>{label}</label>
       <input
         value={value || ""}
         disabled={disabled}
@@ -494,7 +498,7 @@ function Select({
 }: SelectProps) {
   return (
     <div>
-      <div>{label}</div>
+      <label style={labelStyle}>{label}</label>
       <select
         value={value || ""}
         disabled={disabled}
@@ -511,21 +515,31 @@ function Select({
   );
 }
 
-function Textarea({ label, value, onChange, disabled }: TextareaProps) {
+function Textarea({
+  label,
+  value,
+  onChange,
+  disabled,
+  minHeight = 100,
+}: TextareaProps & { minHeight?: number }) {
   return (
     <div>
-      <div>{label}</div>
+      <label style={labelStyle}>{label}</label>
       <textarea
         value={value || ""}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        style={{ ...textareaStyle, background: disabled ? "#f5f5f5" : "#fff" }}
+        style={{
+          ...textareaStyle,
+          minHeight,
+          background: disabled ? "#f5f5f5" : "#fff",
+        }}
       />
     </div>
   );
 }
 
-/* HELPER */
+/* HELPERS */
 
 function parseBlackCaseNumber(value: string) {
   const currentThaiYear = String(new Date().getFullYear() + 543);
@@ -631,64 +645,152 @@ function stringifyError(error: unknown) {
   }
 }
 
-/* STYLE */
+/* STYLES */
+
+const sectionStyle: CSSProperties = {
+  border: "1px solid #dddddd",
+  padding: 16,
+  borderRadius: 12,
+  background: "#ffffff",
+  color: "#111111",
+};
 
 const headerStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  marginBottom: 20,
+  gap: 12,
+  alignItems: "flex-start",
+  marginBottom: 16,
+  flexWrap: "wrap",
 };
 
-const gridStyle: CSSProperties = {
+const titleStyle: CSSProperties = {
+  margin: 0,
+  color: "#111111",
+};
+
+const subTitleStyle: CSSProperties = {
+  marginTop: 4,
+  color: "#555555",
+  fontSize: 13,
+};
+
+const mainGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-  gap: 16,
+  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+  gap: 12,
 };
 
-const cardStyle: CSSProperties = {
-  border: "1px solid #ddd",
+const infoBlockStyle: CSSProperties = {
+  border: "1px solid #eeeeee",
   borderRadius: 12,
-  padding: 16,
-  background: "#fff",
+  padding: 14,
+  background: "#fafafa",
+};
+
+const blockHeaderStyle: CSSProperties = {
+  marginBottom: 12,
+};
+
+const blockTitleStyle: CSSProperties = {
+  margin: 0,
+  color: "#111111",
+  fontSize: 16,
+};
+
+const blockSubtitleStyle: CSSProperties = {
+  marginTop: 4,
+  color: "#666666",
+  fontSize: 13,
+};
+
+const blockContentStyle: CSSProperties = {
+  display: "grid",
+  gap: 10,
+};
+
+const labelStyle: CSSProperties = {
+  display: "block",
+  marginBottom: 4,
+  color: "#222222",
+  fontWeight: 600,
+  fontSize: 13,
 };
 
 const inputStyle: CSSProperties = {
   width: "100%",
-  padding: 8,
-  borderRadius: 6,
-  border: "1px solid #ccc",
+  padding: "9px 10px",
+  borderRadius: 8,
+  border: "1px solid #bbbbbb",
   boxSizing: "border-box",
+  color: "#111111",
+  colorScheme: "light",
 };
 
 const textareaStyle: CSSProperties = {
   width: "100%",
-  minHeight: 80,
-  padding: 8,
-  borderRadius: 6,
-  border: "1px solid #ccc",
+  padding: "9px 10px",
+  borderRadius: 8,
+  border: "1px solid #bbbbbb",
   boxSizing: "border-box",
+  color: "#111111",
+  resize: "vertical",
+  colorScheme: "light",
 };
 
-const btnPrimary: CSSProperties = {
-  background: "black",
-  color: "white",
-  padding: "8px 12px",
-  borderRadius: 6,
-  border: "none",
-  cursor: "pointer",
+const caseNumberRowStyle: CSSProperties = {
+  display: "flex",
+  gap: 6,
+  alignItems: "center",
 };
 
-const btnSecondary: CSSProperties = {
-  marginLeft: 8,
-  padding: "8px 12px",
-  borderRadius: 6,
-  border: "1px solid #ccc",
-  background: "white",
-  cursor: "pointer",
+const slashStyle: CSSProperties = {
+  fontWeight: 800,
+  color: "#333333",
+};
+
+const claimRowStyle: CSSProperties = {
+  display: "flex",
+  gap: 6,
+  alignItems: "center",
+  flexWrap: "wrap",
+};
+
+const unitStyle: CSSProperties = {
+  color: "#333333",
+  fontWeight: 600,
+  whiteSpace: "nowrap",
 };
 
 const claimPreviewStyle: CSSProperties = {
   marginTop: 8,
   fontSize: 13,
-  color: "#555",
+  color: "#555555",
+  fontWeight: 600,
+};
+
+const btnPrimary: CSSProperties = {
+  background: "black",
+  color: "white",
+  padding: "9px 14px",
+  borderRadius: 8,
+  border: "none",
+  cursor: "pointer",
+  fontWeight: 700,
+};
+
+const btnSecondary: CSSProperties = {
+  padding: "9px 14px",
+  borderRadius: 8,
+  border: "1px solid #cccccc",
+  background: "white",
+  color: "#111111",
+  cursor: "pointer",
+  fontWeight: 600,
+};
+
+const buttonWrapStyle: CSSProperties = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
 };
