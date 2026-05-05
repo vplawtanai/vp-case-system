@@ -14,6 +14,7 @@ type EnforcementItem = {
   judgment_date?: string | null;
 
   command_service_date?: string | null;
+  command_service_fee_paid_date?: string | null;
   service_method?: string | null;
   service_result?: string | null;
 
@@ -77,6 +78,7 @@ type EnforcementForm = {
   judgment_date: string;
 
   command_service_date: string;
+  command_service_fee_paid_date: string;
   service_method: string;
   service_result: string;
 
@@ -218,6 +220,7 @@ const emptyEnforcementForm: EnforcementForm = {
   judgment_date: "",
 
   command_service_date: "",
+  command_service_fee_paid_date: "",
   service_method: "personal",
   service_result: "pending",
 
@@ -455,6 +458,7 @@ export default function EnforcementSection({ caseId }: Props) {
       judgment_date: item.judgment_date || "",
 
       command_service_date: item.command_service_date || "",
+      command_service_fee_paid_date: item.command_service_fee_paid_date || "",
       service_method: item.service_method || "personal",
       service_result: item.service_result || "pending",
 
@@ -519,6 +523,9 @@ export default function EnforcementSection({ caseId }: Props) {
 
       command_service_date: toNullableDate(
         enforcementForm.command_service_date
+      ),
+      command_service_fee_paid_date: toNullableDate(
+        enforcementForm.command_service_fee_paid_date
       ),
       service_method: enforcementForm.service_method,
       service_result: enforcementForm.service_result,
@@ -930,6 +937,18 @@ export default function EnforcementSection({ caseId }: Props) {
               type="date"
               value={enforcementForm.command_service_date}
               onChange={handleCommandDateChange}
+            />
+
+            <Input
+              label="วันที่ชำระค่าส่งคำบังคับ"
+              type="date"
+              value={enforcementForm.command_service_fee_paid_date}
+              onChange={(value) =>
+                setEnforcementForm({
+                  ...enforcementForm,
+                  command_service_fee_paid_date: value,
+                })
+              }
             />
 
             <Select
@@ -1374,6 +1393,7 @@ function EnforcementCard({
 }) {
   const status = renderEnforcementStatus(item.status);
   const urgency = getEnforcementUrgency(item);
+  const commandDueAlert = getCommandDueAlert(item);
 
   return (
     <div style={enforcementCardStyle}>
@@ -1388,11 +1408,17 @@ function EnforcementCard({
         <span style={getUrgencyBadgeStyle(urgency)}>{urgency}</span>
       </div>
 
+      {commandDueAlert && <div style={alertBoxStyle}>{commandDueAlert}</div>}
+
       <div style={metaGridStyle}>
         <InfoLine label="Judgment Date" value={formatDisplayDate(item.judgment_date)} />
         <InfoLine
           label="Command Service Date"
           value={formatDisplayDate(item.command_service_date)}
+        />
+        <InfoLine
+          label="Command Service Fee Paid"
+          value={formatDisplayDate(item.command_service_fee_paid_date)}
         />
         <InfoLine label="Service Method" value={renderServiceMethod(item.service_method)} />
         <InfoLine label="Service Result" value={renderServiceResult(item.service_result)} />
@@ -1737,6 +1763,37 @@ function getEnforcementUrgency(item: EnforcementItem) {
   if (diff > 0 && diff <= 3) return "Soon";
 
   return "Normal";
+}
+
+function getCommandDueAlert(item: EnforcementItem) {
+  if (!item.final_due_date) return "";
+
+  const alreadyRequestedWrit =
+    !!item.writ_request_date ||
+    !!item.writ_issued_date ||
+    item.status === "writ_requested" ||
+    item.status === "writ_issued" ||
+    item.status === "asset_searching" ||
+    item.status === "no_asset_found" ||
+    item.status === "asset_found_waiting_approval" ||
+    item.status === "approved_waiting_seizure" ||
+    item.status === "seized_waiting_auction" ||
+    item.status === "sold" ||
+    item.status === "closed";
+
+  if (alreadyRequestedWrit) return "";
+
+  const diff = diffDaysFromToday(item.final_due_date);
+
+  if (diff < 0) {
+    return "ครบกำหนดตามคำบังคับแล้ว ควรดำเนินการขอออกหมายบังคับคดี";
+  }
+
+  if (diff === 0) {
+    return "วันนี้ครบกำหนดตามคำบังคับ เตรียมดำเนินการขอออกหมายบังคับคดี";
+  }
+
+  return "";
 }
 
 function getUrgencyBadgeStyle(urgency: string): CSSProperties {
@@ -2094,6 +2151,17 @@ const cardSubTitleStyle: CSSProperties = {
   color: "#555555",
   fontSize: 13,
   fontWeight: 700,
+};
+
+const alertBoxStyle: CSSProperties = {
+  padding: 10,
+  borderRadius: 10,
+  background: "#fff3cd",
+  border: "1px solid #f0d58a",
+  color: "#8a4b00",
+  fontSize: 14,
+  fontWeight: 800,
+  marginBottom: 12,
 };
 
 const metaGridStyle: CSSProperties = {
