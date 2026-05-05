@@ -12,11 +12,12 @@ const sections: Section[] = [
   { id: "parties", label: "Parties" },
   { id: "timeline", label: "Timeline" },
   { id: "judgments", label: "Judgments" },
+  { id: "enforcement", label: "Enforcement" },
   { id: "tasks", label: "Tasks" },
   { id: "deadlines", label: "Deadlines" },
   { id: "timelogs", label: "Time Logs" },
-  { id: "notes", label: "Notes" },
   { id: "fees", label: "Fees" },
+  { id: "notes", label: "Notes" },
 ];
 
 export default function CaseSectionNav() {

@@ -10,6 +10,7 @@ import CaseInfoSection from "./components/CaseInfoSection";
 import PartiesSection from "./components/PartiesSection";
 import TimelineSection from "./components/TimelineSection";
 import JudgmentsSection from "./components/JudgmentsSection";
+import EnforcementSection from "./components/EnforcementSection";
 import TasksSection from "./components/TasksSection";
 import DeadlinesSection from "./components/DeadlinesSection";
 import TimeLogsSection from "./components/TimeLogsSection";
@@ -345,6 +346,10 @@ export default function CaseDetailPage() {
 
      <div id="judgments" style={sectionWrapStyle}>
        <JudgmentsSection caseId={id} />
+     </div>
+
+     <div id="enforcement" style={sectionWrapStyle}>
+      <EnforcementSection caseId={id} />
      </div>
 
       <div id="tasks" style={sectionWrapStyle}>
