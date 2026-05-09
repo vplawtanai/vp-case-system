@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { supabase } from "../../lib/supabase";
 
 type AppTopNavProps = {
   title: string;
@@ -13,6 +15,8 @@ export default function AppTopNav({
   subtitle,
   activePage,
 }: AppTopNavProps) {
+  const router = useRouter();
+
   const getLinkStyle = (
     page: "dashboard" | "alerts" | "cases"
   ): React.CSSProperties => {
@@ -23,6 +27,16 @@ export default function AppTopNav({
     }
 
     return linkButtonStyle;
+  };
+
+  const handleLogout = async () => {
+    const confirmed = window.confirm("ต้องการออกจากระบบหรือไม่?");
+    if (!confirmed) return;
+
+    await supabase.auth.signOut();
+
+    router.replace("/login");
+    router.refresh();
   };
 
   return (
@@ -44,6 +58,10 @@ export default function AppTopNav({
         <Link href="/cases" style={getLinkStyle("cases")}>
           Cases
         </Link>
+
+        <button type="button" onClick={handleLogout} style={logoutButtonStyle}>
+          Logout
+        </button>
       </div>
     </div>
   );
@@ -79,6 +97,7 @@ const linkButtonStyle: React.CSSProperties = {
   color: "#111",
   textDecoration: "none",
   background: "#fff",
+  fontWeight: 700,
 };
 
 const primaryLinkButtonStyle: React.CSSProperties = {
@@ -88,4 +107,15 @@ const primaryLinkButtonStyle: React.CSSProperties = {
   color: "white",
   textDecoration: "none",
   background: "black",
+  fontWeight: 800,
+};
+
+const logoutButtonStyle: React.CSSProperties = {
+  padding: "10px 14px",
+  borderRadius: 8,
+  border: "1px solid #d0d5dd",
+  color: "#a40000",
+  background: "#fff5f5",
+  cursor: "pointer",
+  fontWeight: 800,
 };
