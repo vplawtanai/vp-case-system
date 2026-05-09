@@ -1,5 +1,6 @@
 "use client";
 
+import AuthGuard from "../../components/AuthGuard";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
@@ -298,17 +299,23 @@ export default function CaseDetailPage() {
   ========================================================= */
 
   if (loading) {
-    return <main style={pageStyle}>Loading...</main>;
+    return (
+      <AuthGuard>
+        <main style={pageStyle}>Loading...</main>
+      </AuthGuard>
+    );
   }
 
   if (!caseItem) {
     return (
-      <main style={pageStyle}>
-        <p style={backLinkStyle}>
-          <Link href="/cases">← Back to Cases</Link>
-        </p>
-        <div>Case not found.</div>
-      </main>
+      <AuthGuard>
+        <main style={pageStyle}>
+          <p style={backLinkStyle}>
+            <Link href="/cases">← Back to Cases</Link>
+          </p>
+          <div>Case not found.</div>
+        </main>
+      </AuthGuard>
     );
   }
 
@@ -317,60 +324,64 @@ export default function CaseDetailPage() {
   ========================================================= */
 
   return (
-    <main style={pageStyle}>
-      <p style={backLinkStyle}>
-        <Link href="/cases">← Back to Cases</Link>
-      </p>
+    <AuthGuard>
+      <main style={pageStyle}>
+        <p style={backLinkStyle}>
+          <Link href="/cases">← Back to Cases</Link>
+        </p>
 
-      <h1 style={fileNoTitleStyle}>{caseItem.file_no || caseItem.fileNo || "-"}</h1>
+        <h1 style={fileNoTitleStyle}>
+          {caseItem.file_no || caseItem.fileNo || "-"}
+        </h1>
 
-      <div style={subHeaderStyle}>
-        <span>Client: {caseItem.client_name || caseItem.clientName || "-"}</span>
-        <span>Owner: {caseItem.owner_name || caseItem.ownerName || "-"}</span>
-        <span>Status: {caseItem.status || caseItem.caseStatus || "-"}</span>
-      </div>
+        <div style={subHeaderStyle}>
+          <span>Client: {caseItem.client_name || caseItem.clientName || "-"}</span>
+          <span>Owner: {caseItem.owner_name || caseItem.ownerName || "-"}</span>
+          <span>Status: {caseItem.status || caseItem.caseStatus || "-"}</span>
+        </div>
 
-      <CaseSectionNav />
+        <CaseSectionNav />
 
-      <div id="info" style={sectionWrapStyle}>
-        <CaseInfoSection caseId={id} caseItem={caseItem} />
-      </div>
+        <div id="info" style={sectionWrapStyle}>
+          <CaseInfoSection caseId={id} caseItem={caseItem} />
+        </div>
 
-      <div id="parties" style={sectionWrapStyle}>
-        <PartiesSection caseId={caseIdNumber} />
-      </div>
+        <div id="parties" style={sectionWrapStyle}>
+          <PartiesSection caseId={caseIdNumber} />
+        </div>
 
-      <div id="timeline" style={sectionWrapStyle}>
-        <TimelineSection caseId={id} timeline={timeline} />
-      </div>
+        <div id="timeline" style={sectionWrapStyle}>
+          <TimelineSection caseId={id} timeline={timeline} />
+        </div>
 
-     <div id="judgments" style={sectionWrapStyle}>
-       <JudgmentsSection caseId={id} />
-     </div>
+        <div id="judgments" style={sectionWrapStyle}>
+          <JudgmentsSection caseId={id} />
+        </div>
 
-     <div id="enforcement" style={sectionWrapStyle}>
-      <EnforcementSection caseId={id} />
-     </div>
+        <div id="enforcement" style={sectionWrapStyle}>
+          <EnforcementSection caseId={id} />
+        </div>
 
-      <div id="tasks" style={sectionWrapStyle}>
-        <TasksSection caseId={id} tasks={tasks} />
-      </div>
+        <div id="tasks" style={sectionWrapStyle}>
+          <TasksSection caseId={id} tasks={tasks} />
+        </div>
 
-      <div id="deadlines" style={sectionWrapStyle}>
-  	<DeadlinesSection caseId={id} />
-      </div>
+        <div id="deadlines" style={sectionWrapStyle}>
+          <DeadlinesSection caseId={id} />
+        </div>
 
-      <div id="timelogs" style={sectionWrapStyle}>
-       <TimeLogsSection caseId={id} />
-      </div>
+        <div id="timelogs" style={sectionWrapStyle}>
+          <TimeLogsSection caseId={id} />
+        </div>
 
-      <div id="fees" style={sectionWrapStyle}>
-        <FeesSection caseId={id} fees={fees} />
-      </div>
+        <div id="fees" style={sectionWrapStyle}>
+          <FeesSection caseId={id} fees={fees} />
+        </div>
 
-     <div id="notes" style={sectionWrapStyle}>
-      <NotesSection caseId={id} />
-     </div>
-    </main>
+        <div id="notes" style={sectionWrapStyle}>
+          <NotesSection caseId={id} />
+        </div>
+      </main>
+    </AuthGuard>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import AuthGuard from "../components/AuthGuard";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase";
@@ -478,139 +479,141 @@ export default function CasesPage() {
   ========================================================= */
 
   return (
-    <main style={pageStyle}>
-      <AppTopNav title="Cases" subtitle="Case list" activePage="cases" />
+    <AuthGuard>
+      <main style={pageStyle}>
+        <AppTopNav title="Cases" subtitle="Case list" activePage="cases" />
 
-      <section style={blockStyle}>
-        <div style={isCompact ? compactSummaryGridStyle : summaryGridStyle}>
-          <SummaryCard
-            count={summary.overdue}
-            label="Overdue"
-            background="#fde2e2"
-          />
-          <SummaryCard
-            count={summary.today}
-            label="Today"
-            background="#fff3c4"
-          />
-          <SummaryCard
-            count={summary.dueSoon}
-            label="Due Soon"
-            background="#fff8df"
-          />
-          <SummaryCard
-            count={summary.clear}
-            label="Clear"
-            background="#e4f4e9"
-          />
-        </div>
-      </section>
-
-      <section style={blockStyle}>
-        <div style={isCompact ? compactFilterGridStyle : filterGridStyle}>
-          <div>
-            <label style={labelStyle}>Search</label>
-            <input
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-              placeholder="Search file no, title, client, black case number"
-              style={inputStyle}
+        <section style={blockStyle}>
+          <div style={isCompact ? compactSummaryGridStyle : summaryGridStyle}>
+            <SummaryCard
+              count={summary.overdue}
+              label="Overdue"
+              background="#fde2e2"
+            />
+            <SummaryCard
+              count={summary.today}
+              label="Today"
+              background="#fff3c4"
+            />
+            <SummaryCard
+              count={summary.dueSoon}
+              label="Due Soon"
+              background="#fff8df"
+            />
+            <SummaryCard
+              count={summary.clear}
+              label="Clear"
+              background="#e4f4e9"
             />
           </div>
+        </section>
 
-          <div>
-            <label style={labelStyle}>Status</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              style={inputStyle}
-            >
-              {statuses.map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </select>
+        <section style={blockStyle}>
+          <div style={isCompact ? compactFilterGridStyle : filterGridStyle}>
+            <div>
+              <label style={labelStyle}>Search</label>
+              <input
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                placeholder="Search file no, title, client, black case number"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Status</label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                style={inputStyle}
+              >
+                {statuses.map((s) => (
+                  <option key={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Phase</label>
+              <select
+                value={phaseFilter}
+                onChange={(e) => setPhaseFilter(e.target.value)}
+                style={inputStyle}
+              >
+                {phases.map((p) => (
+                  <option key={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Owner</label>
+              <select
+                value={ownerFilter}
+                onChange={(e) => setOwnerFilter(e.target.value)}
+                style={inputStyle}
+              >
+                {owners.map((o) => (
+                  <option key={o}>{o}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Storage</label>
+              <select
+                value={storageFilter}
+                onChange={(e) => setStorageFilter(e.target.value)}
+                style={inputStyle}
+              >
+                {storages.map((s) => (
+                  <option key={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Sort By</label>
+              <select
+                value={sortMode}
+                onChange={(e) => setSortMode(e.target.value as SortMode)}
+                style={inputStyle}
+              >
+                <option value="highestRisk">Highest Risk First</option>
+                <option value="latestUpdated">Latest Updated</option>
+                <option value="fileNo">File No</option>
+                <option value="nextAlertDate">Next Alert Date</option>
+              </select>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "flex-end" }}>
+              <button
+                onClick={createCase}
+                style={{
+                  ...primaryButtonStyle,
+                  width: isCompact ? "100%" : undefined,
+                }}
+                disabled={saving}
+              >
+                {saving ? "Creating..." : "+ Add Case"}
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section style={blockStyle}>
+          <div style={resultTextStyle}>
+            Showing {filteredCases.length} of {cases.length} case(s)
           </div>
 
-          <div>
-            <label style={labelStyle}>Phase</label>
-            <select
-              value={phaseFilter}
-              onChange={(e) => setPhaseFilter(e.target.value)}
-              style={inputStyle}
-            >
-              {phases.map((p) => (
-                <option key={p}>{p}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label style={labelStyle}>Owner</label>
-            <select
-              value={ownerFilter}
-              onChange={(e) => setOwnerFilter(e.target.value)}
-              style={inputStyle}
-            >
-              {owners.map((o) => (
-                <option key={o}>{o}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label style={labelStyle}>Storage</label>
-            <select
-              value={storageFilter}
-              onChange={(e) => setStorageFilter(e.target.value)}
-              style={inputStyle}
-            >
-              {storages.map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label style={labelStyle}>Sort By</label>
-            <select
-              value={sortMode}
-              onChange={(e) => setSortMode(e.target.value as SortMode)}
-              style={inputStyle}
-            >
-              <option value="highestRisk">Highest Risk First</option>
-              <option value="latestUpdated">Latest Updated</option>
-              <option value="fileNo">File No</option>
-              <option value="nextAlertDate">Next Alert Date</option>
-            </select>
-          </div>
-
-          <div style={{ display: "flex", alignItems: "flex-end" }}>
-            <button
-              onClick={createCase}
-              style={{
-                ...primaryButtonStyle,
-                width: isCompact ? "100%" : undefined,
-              }}
-              disabled={saving}
-            >
-              {saving ? "Creating..." : "+ Add Case"}
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section style={blockStyle}>
-        <div style={resultTextStyle}>
-          Showing {filteredCases.length} of {cases.length} case(s)
-        </div>
-
-        {isCompact ? (
-          <CaseCardList cases={filteredCases} getRiskLevel={getRiskLevel} />
-        ) : (
-          <CaseTable cases={filteredCases} getRiskLevel={getRiskLevel} />
-        )}
-      </section>
-    </main>
+          {isCompact ? (
+            <CaseCardList cases={filteredCases} getRiskLevel={getRiskLevel} />
+          ) : (
+            <CaseTable cases={filteredCases} getRiskLevel={getRiskLevel} />
+          )}
+        </section>
+      </main>
+    </AuthGuard>
   );
 }
 
@@ -972,10 +975,7 @@ function CaseCardList({
               label="Location"
               value={c.physical_storage_detail || "-"}
             />
-            <InfoLine
-              label="Black Case No."
-              value={c.case_number || "-"}
-            />
+            <InfoLine label="Black Case No." value={c.case_number || "-"} />
             <InfoLine label="Updated" value={formatDateTime(c.updated_at)} />
           </div>
 
