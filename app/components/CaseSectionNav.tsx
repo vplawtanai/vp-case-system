@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Section = {
   id: string;
   label: string;
+};
+
+type Props = {
+  canViewFees?: boolean;
 };
 
 const sections: Section[] = [
@@ -20,8 +24,15 @@ const sections: Section[] = [
   { id: "notes", label: "Notes" },
 ];
 
-export default function CaseSectionNav() {
+export default function CaseSectionNav({ canViewFees = false }: Props) {
   const [active, setActive] = useState<string>("info");
+
+  const visibleSections = useMemo(() => {
+    return sections.filter((section) => {
+      if (section.id === "fees") return canViewFees;
+      return true;
+    });
+  }, [canViewFees]);
 
   const handleClick = (id: string) => {
     const el = document.getElementById(id);
@@ -40,7 +51,7 @@ export default function CaseSectionNav() {
     const handleScroll = () => {
       let current = "info";
 
-      for (const section of sections) {
+      for (const section of visibleSections) {
         const el = document.getElementById(section.id);
         if (!el) continue;
 
@@ -58,13 +69,13 @@ export default function CaseSectionNav() {
     handleScroll();
 
     return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+  }, [visibleSections]);
 
   return (
     <div style={outerWrapStyle}>
       <div style={wrapperStyle}>
         <div style={navContainerStyle}>
-          {sections.map((section) => {
+          {visibleSections.map((section) => {
             const isActive = active === section.id;
 
             return (

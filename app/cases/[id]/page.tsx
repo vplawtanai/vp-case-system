@@ -22,6 +22,8 @@ import NotesSection from "./components/NotesSection";
    TYPES
 ========================================================= */
 
+type UserRole = "admin" | "partner" | "lawyer" | "staff" | "viewer" | "";
+
 type CaseItem = {
   id?: number;
 
@@ -159,8 +161,41 @@ export default function CaseDetailPage() {
   const [tasks] = useState<TaskItem[]>([]);
   const [fees] = useState<FeeItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState<UserRole>("");
+
+  const canViewFees = userRole === "admin" || userRole === "partner";
 
   const didScrollRef = useRef(false);
+
+  /* =========================================================
+     LOAD CURRENT USER ROLE
+  ========================================================= */
+
+  useEffect(() => {
+    const loadCurrentUserRole = async () => {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+
+      if (userError || !userData.user) {
+        setUserRole("");
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("user_profiles")
+        .select("role")
+        .eq("id", userData.user.id)
+        .single();
+
+      if (profileError || !profile?.role) {
+        setUserRole("");
+        return;
+      }
+
+      setUserRole(profile.role as UserRole);
+    };
+
+    loadCurrentUserRole();
+  }, []);
 
   /* =========================================================
      LOAD CASE FROM SUPABASE
@@ -340,7 +375,7 @@ export default function CaseDetailPage() {
           <span>Status: {caseItem.status || caseItem.caseStatus || "-"}</span>
         </div>
 
-        <CaseSectionNav />
+        <CaseSectionNav canViewFees={canViewFees} />
 
         <div id="info" style={sectionWrapStyle}>
           <CaseInfoSection caseId={id} caseItem={caseItem} />
@@ -374,9 +409,11 @@ export default function CaseDetailPage() {
           <TimeLogsSection caseId={id} />
         </div>
 
-        <div id="fees" style={sectionWrapStyle}>
-          <FeesSection caseId={id} fees={fees} />
-        </div>
+        {canViewFees && (
+          <div id="fees" style={sectionWrapStyle}>
+            <FeesSection caseId={id} fees={fees} />
+          </div>
+        )}
 
         <div id="notes" style={sectionWrapStyle}>
           <NotesSection caseId={id} />
