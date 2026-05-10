@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../../../lib/supabase";
+import { createAuditLog } from "../../../../lib/auditLog";
 
 type DeadlineItem = {
   id: string;
@@ -344,17 +345,31 @@ export default function DeadlinesSection({ caseId }: Props) {
     try {
       setSaving(true);
 
-      const { error } = await supabase.from("case_deadlines").insert([
-        {
-          ...buildPayload(),
-          created_at: new Date().toISOString(),
-        },
-      ]);
+      const payload = {
+        ...buildPayload(),
+        created_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from("case_deadlines")
+        .insert([payload])
+        .select("*")
+        .single();
 
       if (error) {
         alert("Create deadline failed:\n" + JSON.stringify(error, null, 2));
         return;
       }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_deadlines",
+        recordId: data?.id,
+        action: "create",
+        oldData: null,
+        newData: data || payload,
+        note: "Create legal deadline",
+      });
 
       cancelForm();
       await loadDeadlines();
@@ -370,15 +385,30 @@ export default function DeadlinesSection({ caseId }: Props) {
     try {
       setSaving(true);
 
-      const { error } = await supabase
+      const oldData = items.find((item) => item.id === editingId) || null;
+      const payload = buildPayload();
+
+      const { data, error } = await supabase
         .from("case_deadlines")
-        .update(buildPayload())
-        .eq("id", editingId);
+        .update(payload)
+        .eq("id", editingId)
+        .select("*")
+        .single();
 
       if (error) {
         alert("Update deadline failed:\n" + JSON.stringify(error, null, 2));
         return;
       }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_deadlines",
+        recordId: editingId,
+        action: "update",
+        oldData,
+        newData: data || payload,
+        note: "Update legal deadline",
+      });
 
       cancelForm();
       await loadDeadlines();
@@ -394,12 +424,28 @@ export default function DeadlinesSection({ caseId }: Props) {
 
     if (!confirmed) return;
 
+    const oldDeadline = items.find((item) => item.id === id) || null;
+    const oldExtensions = extensions.filter((item) => item.deadline_id === id);
+
     const { error } = await supabase.from("case_deadlines").delete().eq("id", id);
 
     if (error) {
       alert("Delete deadline failed:\n" + JSON.stringify(error, null, 2));
       return;
     }
+
+    await createAuditLog({
+      caseId: caseIdNumber,
+      tableName: "case_deadlines",
+      recordId: id,
+      action: "delete",
+      oldData: {
+        deadline: oldDeadline,
+        extensions: oldExtensions,
+      },
+      newData: null,
+      note: "Delete legal deadline and related extensions",
+    });
 
     if (editingId === id) cancelForm();
     if (extensionDeadlineId === id) cancelExtensionForm();
@@ -409,19 +455,37 @@ export default function DeadlinesSection({ caseId }: Props) {
 
   const toggleDone = async (item: DeadlineItem) => {
     const nextStatus = item.status === "Done" ? "Active" : "Done";
+    const oldData = item;
 
-    const { error } = await supabase
+    const payload = {
+      status: nextStatus,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase
       .from("case_deadlines")
-      .update({
-        status: nextStatus,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", item.id);
+      .update(payload)
+      .eq("id", item.id)
+      .select("*")
+      .single();
 
     if (error) {
       alert("Update deadline status failed:\n" + JSON.stringify(error, null, 2));
       return;
     }
+
+    await createAuditLog({
+      caseId: caseIdNumber,
+      tableName: "case_deadlines",
+      recordId: item.id,
+      action: "update",
+      oldData,
+      newData: data || {
+        ...item,
+        ...payload,
+      },
+      note: item.status === "Done" ? "Undo deadline status" : "Mark deadline as done",
+    });
 
     await loadDeadlines();
   };
@@ -447,6 +511,9 @@ export default function DeadlinesSection({ caseId }: Props) {
     try {
       setSavingExtension(true);
 
+      const oldDeadline =
+        items.find((item) => item.id === extensionDeadlineId) || null;
+
       const existing = extensions.filter(
         (item) => item.deadline_id === extensionDeadlineId
       );
@@ -459,19 +526,21 @@ export default function DeadlinesSection({ caseId }: Props) {
 
       const now = new Date().toISOString();
 
-      const { error: insertError } = await supabase
+      const extensionPayload = {
+        deadline_id: extensionDeadlineId,
+        extension_no: nextNo,
+        requested_date: extensionForm.requested_date || null,
+        granted_until_date: extensionForm.granted_until_date,
+        note: extensionForm.note,
+        created_at: now,
+        updated_at: now,
+      };
+
+      const { data: insertedExtension, error: insertError } = await supabase
         .from("case_deadline_extensions")
-        .insert([
-          {
-            deadline_id: extensionDeadlineId,
-            extension_no: nextNo,
-            requested_date: extensionForm.requested_date || null,
-            granted_until_date: extensionForm.granted_until_date,
-            note: extensionForm.note,
-            created_at: now,
-            updated_at: now,
-          },
-        ]);
+        .insert([extensionPayload])
+        .select("*")
+        .single();
 
       if (insertError) {
         alert(
@@ -480,14 +549,28 @@ export default function DeadlinesSection({ caseId }: Props) {
         return;
       }
 
-      const { error: updateError } = await supabase
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_deadline_extensions",
+        recordId: insertedExtension?.id,
+        action: "create",
+        oldData: null,
+        newData: insertedExtension || extensionPayload,
+        note: "Create deadline extension",
+      });
+
+      const deadlineUpdatePayload = {
+        current_due_date: extensionForm.granted_until_date,
+        status: "Active",
+        updated_at: now,
+      };
+
+      const { data: updatedDeadline, error: updateError } = await supabase
         .from("case_deadlines")
-        .update({
-          current_due_date: extensionForm.granted_until_date,
-          status: "Active",
-          updated_at: now,
-        })
-        .eq("id", extensionDeadlineId);
+        .update(deadlineUpdatePayload)
+        .eq("id", extensionDeadlineId)
+        .select("*")
+        .single();
 
       if (updateError) {
         alert(
@@ -496,6 +579,23 @@ export default function DeadlinesSection({ caseId }: Props) {
         );
         return;
       }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_deadlines",
+        recordId: extensionDeadlineId,
+        action: "update",
+        oldData: oldDeadline,
+        newData:
+          updatedDeadline ||
+          (oldDeadline
+            ? {
+                ...oldDeadline,
+                ...deadlineUpdatePayload,
+              }
+            : deadlineUpdatePayload),
+        note: "Update current due date after extension",
+      });
 
       cancelExtensionForm();
       await loadDeadlines();
