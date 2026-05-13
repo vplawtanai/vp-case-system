@@ -1,11 +1,9 @@
 "use client";
 
-import AuthGuard from "../../components/AuthGuard";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
-
 import CaseSectionNav from "../../components/CaseSectionNav";
 import CaseInfoSection from "./components/CaseInfoSection";
 import PartiesSection from "./components/PartiesSection";
@@ -16,6 +14,8 @@ import TasksSection from "./components/TasksSection";
 import DeadlinesSection from "./components/DeadlinesSection";
 import TimeLogsSection from "./components/TimeLogsSection";
 import FeesSection from "./components/FeesSection";
+import AuditLogSection from "./components/AuditLogSection";
+import AuthGuard from "../../components/AuthGuard";
 import NotesSection from "./components/NotesSection";
 
 /* =========================================================
@@ -414,6 +414,10 @@ export default function CaseDetailPage() {
             <FeesSection caseId={id} fees={fees} />
           </div>
         )}
+
+         <div id="history" style={sectionWrapStyle}>
+           <AuditLogSection caseId={id} />
+         </div>
 
         <div id="notes" style={sectionWrapStyle}>
           <NotesSection caseId={id} />
