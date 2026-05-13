@@ -147,6 +147,21 @@ const subHeaderStyle: React.CSSProperties = {
   flexWrap: "wrap",
 };
 
+const backToTopButtonStyle: React.CSSProperties = {
+  position: "fixed",
+  right: 22,
+  bottom: 22,
+  zIndex: 80,
+  padding: "10px 14px",
+  borderRadius: 999,
+  border: "1px solid #cccccc",
+  background: "#000000",
+  color: "#ffffff",
+  cursor: "pointer",
+  fontWeight: 800,
+  boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+};
+
 /* =========================================================
    MAIN PAGE
 ========================================================= */
@@ -329,6 +344,13 @@ export default function CaseDetailPage() {
     return () => clearTimeout(timer);
   }, [loading]);
 
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
+
   /* =========================================================
      RENDER STATES
   ========================================================= */
@@ -349,6 +371,10 @@ export default function CaseDetailPage() {
             <Link href="/cases">← Back to Cases</Link>
           </p>
           <div>Case not found.</div>
+
+          <button type="button" onClick={scrollToTop} style={backToTopButtonStyle}>
+            ↑ Top
+          </button>
         </main>
       </AuthGuard>
     );
@@ -415,13 +441,17 @@ export default function CaseDetailPage() {
           </div>
         )}
 
-         <div id="history" style={sectionWrapStyle}>
-           <AuditLogSection caseId={id} />
-         </div>
-
         <div id="notes" style={sectionWrapStyle}>
           <NotesSection caseId={id} />
         </div>
+
+        <div id="history" style={sectionWrapStyle}>
+          <AuditLogSection caseId={id} />
+        </div>
+
+        <button type="button" onClick={scrollToTop} style={backToTopButtonStyle}>
+          ↑ Top
+        </button>
       </main>
     </AuthGuard>
   );

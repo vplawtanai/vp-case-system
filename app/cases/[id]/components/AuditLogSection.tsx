@@ -33,6 +33,7 @@ export default function AuditLogSection({ caseId }: Props) {
 
   const [items, setItems] = useState<AuditLogItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const [actionFilter, setActionFilter] = useState("All");
   const [tableFilter, setTableFilter] = useState("All");
 
@@ -62,9 +63,11 @@ export default function AuditLogSection({ caseId }: Props) {
   };
 
   useEffect(() => {
+    if (!isOpen) return;
+
     loadAuditLogs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [caseId]);
+  }, [caseId, isOpen]);
 
   const tableOptions = useMemo(() => {
     const values = items
@@ -101,53 +104,77 @@ export default function AuditLogSection({ caseId }: Props) {
           </div>
         </div>
 
-        <button type="button" onClick={loadAuditLogs} style={secondaryButtonStyle}>
-          Refresh
-        </button>
-      </div>
+        <div style={buttonWrapStyle}>
+          {isOpen && (
+            <button
+              type="button"
+              onClick={loadAuditLogs}
+              style={secondaryButtonStyle}
+            >
+              Refresh
+            </button>
+          )}
 
-      <div style={filterGridStyle}>
-        <div>
-          <label style={labelStyle}>Table</label>
-          <select
-            value={tableFilter}
-            onChange={(e) => setTableFilter(e.target.value)}
-            style={inputStyle}
+          <button
+            type="button"
+            onClick={() => setIsOpen(!isOpen)}
+            style={primaryButtonStyle}
           >
-            {tableOptions.map((option) => (
-              <option key={option} value={option}>
-                {renderTableName(option)}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label style={labelStyle}>Action</label>
-          <select
-            value={actionFilter}
-            onChange={(e) => setActionFilter(e.target.value)}
-            style={inputStyle}
-          >
-            {actionOptions.map((option) => (
-              <option key={option} value={option}>
-                {renderAction(option)}
-              </option>
-            ))}
-          </select>
+            {isOpen ? "Hide History" : "Show History"}
+          </button>
         </div>
       </div>
 
-      {loading ? (
-        <div style={emptyStyle}>Loading history...</div>
-      ) : filteredItems.length === 0 ? (
-        <div style={emptyStyle}>No audit logs found.</div>
+      {!isOpen ? (
+        <div style={collapsedBoxStyle}>
+          History ถูกพับไว้ กด “Show History” เพื่อดูประวัติการแก้ไขข้อมูล
+        </div>
       ) : (
-        <div style={logListStyle}>
-          {filteredItems.map((item) => (
-            <AuditLogCard key={item.id} item={item} />
-          ))}
-        </div>
+        <>
+          <div style={filterGridStyle}>
+            <div>
+              <label style={labelStyle}>Table</label>
+              <select
+                value={tableFilter}
+                onChange={(e) => setTableFilter(e.target.value)}
+                style={inputStyle}
+              >
+                {tableOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {renderTableName(option)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Action</label>
+              <select
+                value={actionFilter}
+                onChange={(e) => setActionFilter(e.target.value)}
+                style={inputStyle}
+              >
+                {actionOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {renderAction(option)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {loading ? (
+            <div style={emptyStyle}>Loading history...</div>
+          ) : filteredItems.length === 0 ? (
+            <div style={emptyStyle}>No audit logs found.</div>
+          ) : (
+            <div style={logListStyle}>
+              {filteredItems.map((item) => (
+                <AuditLogCard key={item.id} item={item} />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -165,8 +192,8 @@ function AuditLogCard({ item }: { item: AuditLogItem }) {
           </div>
 
           <div style={logMetaStyle}>
-            {formatDateTime(item.created_at)} · {item.user_name || item.user_email || "-"} ·{" "}
-            {item.user_role || "-"}
+            {formatDateTime(item.created_at)} ·{" "}
+            {item.user_name || item.user_email || "-"} · {item.user_role || "-"}
           </div>
 
           {item.note && <div style={noteStyle}>{item.note}</div>}
@@ -421,6 +448,44 @@ const subTitleStyle: CSSProperties = {
   fontSize: 13,
 };
 
+const buttonWrapStyle: CSSProperties = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+};
+
+const primaryButtonStyle: CSSProperties = {
+  padding: "9px 14px",
+  background: "#000000",
+  color: "#ffffff",
+  borderRadius: 8,
+  border: "none",
+  cursor: "pointer",
+  fontWeight: 700,
+  whiteSpace: "nowrap",
+};
+
+const secondaryButtonStyle: CSSProperties = {
+  padding: "9px 14px",
+  background: "#ffffff",
+  color: "#111111",
+  borderRadius: 8,
+  border: "1px solid #cccccc",
+  cursor: "pointer",
+  fontWeight: 600,
+  whiteSpace: "nowrap",
+};
+
+const collapsedBoxStyle: CSSProperties = {
+  padding: 14,
+  border: "1px dashed #cccccc",
+  borderRadius: 12,
+  background: "#fafafa",
+  color: "#555555",
+  fontSize: 14,
+  fontWeight: 600,
+};
+
 const filterGridStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
@@ -445,17 +510,6 @@ const inputStyle: CSSProperties = {
   color: "#111111",
   colorScheme: "light",
   boxSizing: "border-box",
-};
-
-const secondaryButtonStyle: CSSProperties = {
-  padding: "9px 14px",
-  background: "#ffffff",
-  color: "#111111",
-  borderRadius: 8,
-  border: "1px solid #cccccc",
-  cursor: "pointer",
-  fontWeight: 600,
-  whiteSpace: "nowrap",
 };
 
 const emptyStyle: CSSProperties = {
