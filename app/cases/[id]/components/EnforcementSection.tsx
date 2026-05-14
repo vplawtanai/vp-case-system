@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../../../lib/supabase";
+import { createAuditLog } from "../../../../lib/auditLog";
 
 type EnforcementItem = {
   id: string;
@@ -551,17 +552,31 @@ export default function EnforcementSection({ caseId }: Props) {
     try {
       setSavingEnforcement(true);
 
-      const { error } = await supabase.from("case_enforcements").insert([
-        {
-          ...buildEnforcementPayload(),
-          created_at: new Date().toISOString(),
-        },
-      ]);
+      const payload = {
+        ...buildEnforcementPayload(),
+        created_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from("case_enforcements")
+        .insert([payload])
+        .select("*")
+        .single();
 
       if (error) {
         alert("Create enforcement failed:\n" + JSON.stringify(error, null, 2));
         return;
       }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_enforcements",
+        recordId: data?.id,
+        action: "create",
+        oldData: null,
+        newData: data || payload,
+        note: "Create enforcement command/writ",
+      });
 
       cancelEnforcementForm();
       await loadData();
@@ -577,15 +592,31 @@ export default function EnforcementSection({ caseId }: Props) {
     try {
       setSavingEnforcement(true);
 
-      const { error } = await supabase
+      const oldData =
+        enforcements.find((item) => item.id === editingEnforcementId) || null;
+      const payload = buildEnforcementPayload();
+
+      const { data, error } = await supabase
         .from("case_enforcements")
-        .update(buildEnforcementPayload())
-        .eq("id", editingEnforcementId);
+        .update(payload)
+        .eq("id", editingEnforcementId)
+        .select("*")
+        .single();
 
       if (error) {
         alert("Update enforcement failed:\n" + JSON.stringify(error, null, 2));
         return;
       }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_enforcements",
+        recordId: editingEnforcementId,
+        action: "update",
+        oldData,
+        newData: data || (oldData ? { ...oldData, ...payload } : payload),
+        note: "Update enforcement command/writ",
+      });
 
       cancelEnforcementForm();
       await loadData();
@@ -601,6 +632,9 @@ export default function EnforcementSection({ caseId }: Props) {
 
     if (!confirmed) return;
 
+    const oldEnforcement = enforcements.find((item) => item.id === id) || null;
+    const oldAssets = assets.filter((item) => item.enforcement_id === id);
+
     const { error } = await supabase
       .from("case_enforcements")
       .delete()
@@ -610,6 +644,19 @@ export default function EnforcementSection({ caseId }: Props) {
       alert("Delete enforcement failed:\n" + JSON.stringify(error, null, 2));
       return;
     }
+
+    await createAuditLog({
+      caseId: caseIdNumber,
+      tableName: "case_enforcements",
+      recordId: id,
+      action: "delete",
+      oldData: {
+        enforcement: oldEnforcement,
+        assets: oldAssets,
+      },
+      newData: null,
+      note: "Delete enforcement command/writ and related assets",
+    });
 
     if (editingEnforcementId === id) cancelEnforcementForm();
 
@@ -739,17 +786,31 @@ export default function EnforcementSection({ caseId }: Props) {
     try {
       setSavingAsset(true);
 
-      const { error } = await supabase.from("case_enforcement_assets").insert([
-        {
-          ...buildAssetPayload(),
-          created_at: new Date().toISOString(),
-        },
-      ]);
+      const payload = {
+        ...buildAssetPayload(),
+        created_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from("case_enforcement_assets")
+        .insert([payload])
+        .select("*")
+        .single();
 
       if (error) {
         alert("Create asset failed:\n" + JSON.stringify(error, null, 2));
         return;
       }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_enforcement_assets",
+        recordId: data?.id,
+        action: "create",
+        oldData: null,
+        newData: data || payload,
+        note: "Create enforcement asset/search record",
+      });
 
       cancelAssetForm();
       await loadData();
@@ -765,15 +826,30 @@ export default function EnforcementSection({ caseId }: Props) {
     try {
       setSavingAsset(true);
 
-      const { error } = await supabase
+      const oldData = assets.find((item) => item.id === editingAssetId) || null;
+      const payload = buildAssetPayload();
+
+      const { data, error } = await supabase
         .from("case_enforcement_assets")
-        .update(buildAssetPayload())
-        .eq("id", editingAssetId);
+        .update(payload)
+        .eq("id", editingAssetId)
+        .select("*")
+        .single();
 
       if (error) {
         alert("Update asset failed:\n" + JSON.stringify(error, null, 2));
         return;
       }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_enforcement_assets",
+        recordId: editingAssetId,
+        action: "update",
+        oldData,
+        newData: data || (oldData ? { ...oldData, ...payload } : payload),
+        note: "Update enforcement asset/search record",
+      });
 
       cancelAssetForm();
       await loadData();
@@ -786,6 +862,8 @@ export default function EnforcementSection({ caseId }: Props) {
     const confirmed = window.confirm("ต้องการลบรายการทรัพย์นี้หรือไม่?");
     if (!confirmed) return;
 
+    const oldData = assets.find((item) => item.id === id) || null;
+
     const { error } = await supabase
       .from("case_enforcement_assets")
       .delete()
@@ -795,6 +873,16 @@ export default function EnforcementSection({ caseId }: Props) {
       alert("Delete asset failed:\n" + JSON.stringify(error, null, 2));
       return;
     }
+
+    await createAuditLog({
+      caseId: caseIdNumber,
+      tableName: "case_enforcement_assets",
+      recordId: id,
+      action: "delete",
+      oldData,
+      newData: null,
+      note: "Delete enforcement asset/search record",
+    });
 
     if (editingAssetId === id) cancelAssetForm();
 
@@ -933,23 +1021,23 @@ export default function EnforcementSection({ caseId }: Props) {
             />
 
             <Input
-  label="วันที่ชำระค่าส่งคำบังคับ"
-  type="date"
-  value={enforcementForm.command_service_fee_paid_date}
-  onChange={(value) =>
-    setEnforcementForm({
-      ...enforcementForm,
-      command_service_fee_paid_date: value,
-    })
-  }
-/>
+              label="วันที่ชำระค่าส่งคำบังคับ"
+              type="date"
+              value={enforcementForm.command_service_fee_paid_date}
+              onChange={(value) =>
+                setEnforcementForm({
+                  ...enforcementForm,
+                  command_service_fee_paid_date: value,
+                })
+              }
+            />
 
-<Input
-  label="วันที่ส่งคำบังคับได้"
-  type="date"
-  value={enforcementForm.command_service_date}
-  onChange={handleCommandDateChange}
-/>
+            <Input
+              label="วันที่ส่งคำบังคับได้"
+              type="date"
+              value={enforcementForm.command_service_date}
+              onChange={handleCommandDateChange}
+            />
 
             <Select
               label="ส่งคำบังคับได้โดยวิธี"
