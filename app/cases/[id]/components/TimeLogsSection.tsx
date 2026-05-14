@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../../../lib/supabase";
+import { createAuditLog } from "../../../../lib/auditLog";
 
 type TimeLogItem = {
   id: string;
@@ -298,17 +299,31 @@ export default function TimeLogsSection({ caseId }: Props) {
     try {
       setSaving(true);
 
-      const { error } = await supabase.from("case_time_logs").insert([
-        {
-          ...buildPayload(),
-          created_at: new Date().toISOString(),
-        },
-      ]);
+      const payload = {
+        ...buildPayload(),
+        created_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from("case_time_logs")
+        .insert([payload])
+        .select("*")
+        .single();
 
       if (error) {
         alert("Create time log failed:\n" + JSON.stringify(error, null, 2));
         return;
       }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_time_logs",
+        recordId: data?.id,
+        action: "create",
+        oldData: null,
+        newData: data || payload,
+        note: "Create time log",
+      });
 
       cancelForm();
       await loadTimeLogs();
@@ -324,15 +339,30 @@ export default function TimeLogsSection({ caseId }: Props) {
     try {
       setSaving(true);
 
-      const { error } = await supabase
+      const oldData = items.find((item) => item.id === editingId) || null;
+      const payload = buildPayload();
+
+      const { data, error } = await supabase
         .from("case_time_logs")
-        .update(buildPayload())
-        .eq("id", editingId);
+        .update(payload)
+        .eq("id", editingId)
+        .select("*")
+        .single();
 
       if (error) {
         alert("Update time log failed:\n" + JSON.stringify(error, null, 2));
         return;
       }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_time_logs",
+        recordId: editingId,
+        action: "update",
+        oldData,
+        newData: data || (oldData ? { ...oldData, ...payload } : payload),
+        note: "Update time log",
+      });
 
       cancelForm();
       await loadTimeLogs();
@@ -345,6 +375,8 @@ export default function TimeLogsSection({ caseId }: Props) {
     const confirmed = window.confirm("ต้องการลบ Time Log นี้หรือไม่?");
     if (!confirmed) return;
 
+    const oldData = items.find((item) => item.id === id) || null;
+
     const { error } = await supabase
       .from("case_time_logs")
       .delete()
@@ -354,6 +386,16 @@ export default function TimeLogsSection({ caseId }: Props) {
       alert("Delete time log failed:\n" + JSON.stringify(error, null, 2));
       return;
     }
+
+    await createAuditLog({
+      caseId: caseIdNumber,
+      tableName: "case_time_logs",
+      recordId: id,
+      action: "delete",
+      oldData,
+      newData: null,
+      note: "Delete time log",
+    });
 
     if (editingId === id) cancelForm();
 
