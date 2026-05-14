@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../../../lib/supabase";
+import { createAuditLog } from "../../../../lib/auditLog";
 
 type NoteItem = {
   id: string;
@@ -209,17 +210,31 @@ export default function NotesSection({ caseId }: Props) {
     try {
       setSaving(true);
 
-      const { error } = await supabase.from("case_notes").insert([
-        {
-          ...buildPayload(),
-          created_at: new Date().toISOString(),
-        },
-      ]);
+      const payload = {
+        ...buildPayload(),
+        created_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from("case_notes")
+        .insert([payload])
+        .select("*")
+        .single();
 
       if (error) {
         alert("Create note failed:\n" + JSON.stringify(error, null, 2));
         return;
       }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_notes",
+        recordId: data?.id,
+        action: "create",
+        oldData: null,
+        newData: data || payload,
+        note: "Create note",
+      });
 
       cancelForm();
       await loadNotes();
@@ -235,15 +250,30 @@ export default function NotesSection({ caseId }: Props) {
     try {
       setSaving(true);
 
-      const { error } = await supabase
+      const oldData = items.find((item) => item.id === editingId) || null;
+      const payload = buildPayload();
+
+      const { data, error } = await supabase
         .from("case_notes")
-        .update(buildPayload())
-        .eq("id", editingId);
+        .update(payload)
+        .eq("id", editingId)
+        .select("*")
+        .single();
 
       if (error) {
         alert("Update note failed:\n" + JSON.stringify(error, null, 2));
         return;
       }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_notes",
+        recordId: editingId,
+        action: "update",
+        oldData,
+        newData: data || (oldData ? { ...oldData, ...payload } : payload),
+        note: "Update note",
+      });
 
       cancelForm();
       await loadNotes();
@@ -256,12 +286,24 @@ export default function NotesSection({ caseId }: Props) {
     const confirmed = window.confirm("ต้องการลบ Note นี้หรือไม่?");
     if (!confirmed) return;
 
+    const oldData = items.find((item) => item.id === id) || null;
+
     const { error } = await supabase.from("case_notes").delete().eq("id", id);
 
     if (error) {
       alert("Delete note failed:\n" + JSON.stringify(error, null, 2));
       return;
     }
+
+    await createAuditLog({
+      caseId: caseIdNumber,
+      tableName: "case_notes",
+      recordId: id,
+      action: "delete",
+      oldData,
+      newData: null,
+      note: "Delete note",
+    });
 
     if (editingId === id) cancelForm();
 
