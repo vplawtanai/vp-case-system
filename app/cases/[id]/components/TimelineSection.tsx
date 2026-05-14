@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../../../lib/supabase";
+import { createAuditLog } from "../../../../lib/auditLog";
 
 type TimelineEventType = "filing" | "hearing";
 
@@ -173,40 +174,70 @@ export default function TimelineSection({ caseId }: Props) {
       const now = new Date().toISOString();
 
       if (filingId) {
-        const { error } = await supabase
+        const oldData = items.find((item) => item.id === filingId) || null;
+
+        const payload = {
+          event_date: filingDate,
+          updated_at: now,
+        };
+
+        const { data, error } = await supabase
           .from("case_timeline")
-          .update({
-            event_date: filingDate,
-            updated_at: now,
-          })
-          .eq("id", filingId);
+          .update(payload)
+          .eq("id", filingId)
+          .select("*")
+          .single();
 
         if (error) {
           alert("Save filing date failed:\n" + JSON.stringify(error, null, 2));
           return;
         }
+
+        await createAuditLog({
+          caseId: caseIdNumber,
+          tableName: "case_timeline",
+          recordId: filingId,
+          action: "update",
+          oldData,
+          newData: data || (oldData ? { ...oldData, ...payload } : payload),
+          note: "Update filing date",
+        });
       } else {
-        const { error } = await supabase.from("case_timeline").insert([
-          {
-            case_id: caseIdNumber,
-            event_type: "filing",
-            event_date: filingDate,
-            event_time: "",
-            event_end_time: "",
-            appointment_type: "",
-            appointment_other: "",
-            status: "Done",
-            note: "",
-            order_no: 0,
-            created_at: now,
-            updated_at: now,
-          },
-        ]);
+        const payload = {
+          case_id: caseIdNumber,
+          event_type: "filing",
+          event_date: filingDate,
+          event_time: "",
+          event_end_time: "",
+          appointment_type: "",
+          appointment_other: "",
+          status: "Done",
+          note: "",
+          order_no: 0,
+          created_at: now,
+          updated_at: now,
+        };
+
+        const { data, error } = await supabase
+          .from("case_timeline")
+          .insert([payload])
+          .select("*")
+          .single();
 
         if (error) {
           alert("Create filing date failed:\n" + JSON.stringify(error, null, 2));
           return;
         }
+
+        await createAuditLog({
+          caseId: caseIdNumber,
+          tableName: "case_timeline",
+          recordId: data?.id,
+          action: "create",
+          oldData: null,
+          newData: data || payload,
+          note: "Create filing date",
+        });
       }
 
       setIsEditingFiling(false);
@@ -304,17 +335,31 @@ export default function TimelineSection({ caseId }: Props) {
     try {
       setSavingAppointment(true);
 
-      const { error } = await supabase.from("case_timeline").insert([
-        {
-          ...buildAppointmentPayload(),
-          created_at: new Date().toISOString(),
-        },
-      ]);
+      const payload = {
+        ...buildAppointmentPayload(),
+        created_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from("case_timeline")
+        .insert([payload])
+        .select("*")
+        .single();
 
       if (error) {
         alert("Create appointment failed:\n" + JSON.stringify(error, null, 2));
         return;
       }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_timeline",
+        recordId: data?.id,
+        action: "create",
+        oldData: null,
+        newData: data || payload,
+        note: "Create court appointment",
+      });
 
       cancelForm();
       await loadTimeline();
@@ -330,15 +375,30 @@ export default function TimelineSection({ caseId }: Props) {
     try {
       setSavingAppointment(true);
 
-      const { error } = await supabase
+      const oldData = items.find((item) => item.id === editingId) || null;
+      const payload = buildAppointmentPayload();
+
+      const { data, error } = await supabase
         .from("case_timeline")
-        .update(buildAppointmentPayload())
-        .eq("id", editingId);
+        .update(payload)
+        .eq("id", editingId)
+        .select("*")
+        .single();
 
       if (error) {
         alert("Update appointment failed:\n" + JSON.stringify(error, null, 2));
         return;
       }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_timeline",
+        recordId: editingId,
+        action: "update",
+        oldData,
+        newData: data || (oldData ? { ...oldData, ...payload } : payload),
+        note: "Update court appointment",
+      });
 
       cancelForm();
       await loadTimeline();
@@ -351,12 +411,24 @@ export default function TimelineSection({ caseId }: Props) {
     const confirmed = window.confirm("ต้องการลบนัดศาลรายการนี้หรือไม่?");
     if (!confirmed) return;
 
+    const oldData = items.find((item) => item.id === id) || null;
+
     const { error } = await supabase.from("case_timeline").delete().eq("id", id);
 
     if (error) {
       alert("Delete appointment failed:\n" + JSON.stringify(error, null, 2));
       return;
     }
+
+    await createAuditLog({
+      caseId: caseIdNumber,
+      tableName: "case_timeline",
+      recordId: id,
+      action: "delete",
+      oldData,
+      newData: null,
+      note: "Delete court appointment",
+    });
 
     if (editingId === id) cancelForm();
 
@@ -366,18 +438,40 @@ export default function TimelineSection({ caseId }: Props) {
   const toggleAppointmentDone = async (item: TimelineItem) => {
     const nextStatus = item.status === "Done" ? "Scheduled" : "Done";
 
-    const { error } = await supabase
+    const oldData = item;
+
+    const payload = {
+      status: nextStatus,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase
       .from("case_timeline")
-      .update({
-        status: nextStatus,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", item.id);
+      .update(payload)
+      .eq("id", item.id)
+      .select("*")
+      .single();
 
     if (error) {
       alert("Update appointment status failed:\n" + JSON.stringify(error, null, 2));
       return;
     }
+
+    await createAuditLog({
+      caseId: caseIdNumber,
+      tableName: "case_timeline",
+      recordId: item.id,
+      action: "update",
+      oldData,
+      newData: data || {
+        ...item,
+        ...payload,
+      },
+      note:
+        item.status === "Done"
+          ? "Undo court appointment status"
+          : "Mark court appointment as done",
+    });
 
     await loadTimeline();
   };
