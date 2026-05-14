@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../../../lib/supabase";
+import { createAuditLog } from "../../../../lib/auditLog";
 
 type JudgmentItem = {
   id: string;
@@ -231,30 +232,48 @@ export default function JudgmentsSection({ caseId }: Props) {
     return true;
   };
 
+  const buildJudgmentPayload = () => {
+    return {
+      case_id: caseIdNumber,
+      court_level: judgmentForm.court_level,
+      judgment_date: judgmentForm.judgment_date || null,
+      summary_text: judgmentForm.summary_text,
+      note: judgmentForm.note,
+      updated_at: new Date().toISOString(),
+    };
+  };
+
   const createJudgment = async () => {
     if (!validateJudgment()) return;
 
     try {
       setSavingJudgment(true);
 
-      const now = new Date().toISOString();
+      const payload = {
+        ...buildJudgmentPayload(),
+        created_at: new Date().toISOString(),
+      };
 
-      const { error } = await supabase.from("case_judgments").insert([
-        {
-          case_id: caseIdNumber,
-          court_level: judgmentForm.court_level,
-          judgment_date: judgmentForm.judgment_date || null,
-          summary_text: judgmentForm.summary_text,
-          note: judgmentForm.note,
-          created_at: now,
-          updated_at: now,
-        },
-      ]);
+      const { data, error } = await supabase
+        .from("case_judgments")
+        .insert([payload])
+        .select("*")
+        .single();
 
       if (error) {
         alert("Create judgment failed:\n" + JSON.stringify(error, null, 2));
         return;
       }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_judgments",
+        recordId: data?.id,
+        action: "create",
+        oldData: null,
+        newData: data || payload,
+        note: "Create judgment summary",
+      });
 
       cancelJudgmentForm();
       await loadData();
@@ -270,21 +289,31 @@ export default function JudgmentsSection({ caseId }: Props) {
     try {
       setSavingJudgment(true);
 
-      const { error } = await supabase
+      const oldData =
+        judgments.find((item) => item.id === editingJudgmentId) || null;
+      const payload = buildJudgmentPayload();
+
+      const { data, error } = await supabase
         .from("case_judgments")
-        .update({
-          court_level: judgmentForm.court_level,
-          judgment_date: judgmentForm.judgment_date || null,
-          summary_text: judgmentForm.summary_text,
-          note: judgmentForm.note,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", editingJudgmentId);
+        .update(payload)
+        .eq("id", editingJudgmentId)
+        .select("*")
+        .single();
 
       if (error) {
         alert("Update judgment failed:\n" + JSON.stringify(error, null, 2));
         return;
       }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_judgments",
+        recordId: editingJudgmentId,
+        action: "update",
+        oldData,
+        newData: data || (oldData ? { ...oldData, ...payload } : payload),
+        note: "Update judgment summary",
+      });
 
       cancelJudgmentForm();
       await loadData();
@@ -297,12 +326,24 @@ export default function JudgmentsSection({ caseId }: Props) {
     const confirmed = window.confirm("ต้องการลบข้อมูลคำพิพากษานี้หรือไม่?");
     if (!confirmed) return;
 
+    const oldData = judgments.find((item) => item.id === id) || null;
+
     const { error } = await supabase.from("case_judgments").delete().eq("id", id);
 
     if (error) {
       alert("Delete judgment failed:\n" + JSON.stringify(error, null, 2));
       return;
     }
+
+    await createAuditLog({
+      caseId: caseIdNumber,
+      tableName: "case_judgments",
+      recordId: id,
+      action: "delete",
+      oldData,
+      newData: null,
+      note: "Delete judgment summary",
+    });
 
     if (editingJudgmentId === id) cancelJudgmentForm();
 
@@ -353,33 +394,51 @@ export default function JudgmentsSection({ caseId }: Props) {
     return true;
   };
 
+  const buildFilingPayload = () => {
+    return {
+      case_id: caseIdNumber,
+      filing_type: filingForm.filing_type,
+      party_label: filingForm.party_label,
+      party_other:
+        filingForm.party_label === "อื่นๆ" ? filingForm.party_other : "",
+      filed_date: filingForm.filed_date,
+      summary_text: filingForm.summary_text,
+      note: filingForm.note,
+      updated_at: new Date().toISOString(),
+    };
+  };
+
   const createFiling = async () => {
     if (!validateFiling()) return;
 
     try {
       setSavingFiling(true);
 
-      const now = new Date().toISOString();
+      const payload = {
+        ...buildFilingPayload(),
+        created_at: new Date().toISOString(),
+      };
 
-      const { error } = await supabase.from("case_court_filings").insert([
-        {
-          case_id: caseIdNumber,
-          filing_type: filingForm.filing_type,
-          party_label: filingForm.party_label,
-          party_other:
-            filingForm.party_label === "อื่นๆ" ? filingForm.party_other : "",
-          filed_date: filingForm.filed_date,
-          summary_text: filingForm.summary_text,
-          note: filingForm.note,
-          created_at: now,
-          updated_at: now,
-        },
-      ]);
+      const { data, error } = await supabase
+        .from("case_court_filings")
+        .insert([payload])
+        .select("*")
+        .single();
 
       if (error) {
         alert("Create filing failed:\n" + JSON.stringify(error, null, 2));
         return;
       }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_court_filings",
+        recordId: data?.id,
+        action: "create",
+        oldData: null,
+        newData: data || payload,
+        note: "Create appeal/supreme filing",
+      });
 
       cancelFilingForm();
       await loadData();
@@ -395,24 +454,30 @@ export default function JudgmentsSection({ caseId }: Props) {
     try {
       setSavingFiling(true);
 
-      const { error } = await supabase
+      const oldData = filings.find((item) => item.id === editingFilingId) || null;
+      const payload = buildFilingPayload();
+
+      const { data, error } = await supabase
         .from("case_court_filings")
-        .update({
-          filing_type: filingForm.filing_type,
-          party_label: filingForm.party_label,
-          party_other:
-            filingForm.party_label === "อื่นๆ" ? filingForm.party_other : "",
-          filed_date: filingForm.filed_date,
-          summary_text: filingForm.summary_text,
-          note: filingForm.note,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", editingFilingId);
+        .update(payload)
+        .eq("id", editingFilingId)
+        .select("*")
+        .single();
 
       if (error) {
         alert("Update filing failed:\n" + JSON.stringify(error, null, 2));
         return;
       }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_court_filings",
+        recordId: editingFilingId,
+        action: "update",
+        oldData,
+        newData: data || (oldData ? { ...oldData, ...payload } : payload),
+        note: "Update appeal/supreme filing",
+      });
 
       cancelFilingForm();
       await loadData();
@@ -425,6 +490,8 @@ export default function JudgmentsSection({ caseId }: Props) {
     const confirmed = window.confirm("ต้องการลบข้อมูลการยื่นนี้หรือไม่?");
     if (!confirmed) return;
 
+    const oldData = filings.find((item) => item.id === id) || null;
+
     const { error } = await supabase
       .from("case_court_filings")
       .delete()
@@ -434,6 +501,16 @@ export default function JudgmentsSection({ caseId }: Props) {
       alert("Delete filing failed:\n" + JSON.stringify(error, null, 2));
       return;
     }
+
+    await createAuditLog({
+      caseId: caseIdNumber,
+      tableName: "case_court_filings",
+      recordId: id,
+      action: "delete",
+      oldData,
+      newData: null,
+      note: "Delete appeal/supreme filing",
+    });
 
     if (editingFilingId === id) cancelFilingForm();
 
