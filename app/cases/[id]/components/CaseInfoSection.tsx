@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { supabase } from "../../../../lib/supabase";
+import { createAuditLog } from "../../../../lib/auditLog";
 
 type CaseItem = {
   title?: string;
@@ -28,6 +29,8 @@ type CaseItem = {
 };
 
 type CaseItemFromDb = {
+  id?: number | null;
+
   title?: string | null;
 
   client_name?: string | null;
@@ -62,6 +65,9 @@ type CaseItemFromDb = {
 
   status?: string | null;
   caseStatus?: string | null;
+
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 type Props = {
@@ -109,6 +115,8 @@ type TextareaProps = {
 };
 
 export default function CaseInfoSection({ caseId, caseItem }: Props) {
+  const caseIdNumber = Number(caseId);
+
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<CaseItem>({});
@@ -159,6 +167,11 @@ export default function CaseInfoSection({ caseId, caseItem }: Props) {
   };
 
   const saveCaseInfo = async () => {
+    if (!caseIdNumber || Number.isNaN(caseIdNumber)) {
+      alert("Missing case id");
+      return;
+    }
+
     try {
       setSaving(true);
 
@@ -195,15 +208,32 @@ export default function CaseInfoSection({ caseId, caseItem }: Props) {
         updated_at: new Date().toISOString(),
       };
 
-      const { error } = await supabase
+      const oldData = caseItem || null;
+
+      const { data, error } = await supabase
         .from("cases")
         .update(payload)
-        .eq("id", Number(caseId));
+        .eq("id", caseIdNumber)
+        .select("*")
+        .single();
 
       if (error) {
         alert("Save failed:\n" + JSON.stringify(error, null, 2));
         return;
       }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "cases",
+        recordId: String(caseIdNumber),
+        action: "update",
+        oldData,
+        newData: data || {
+          id: caseIdNumber,
+          ...payload,
+        },
+        note: "Update case information",
+      });
 
       setIsEditing(false);
     } catch (error: unknown) {
