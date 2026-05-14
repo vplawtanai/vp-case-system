@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../../../lib/supabase";
+import { createAuditLog } from "../../../../lib/auditLog";
 
 type FeeItem = {
   id: string;
@@ -328,17 +329,31 @@ export default function FeesSection({ caseId }: Props) {
     try {
       setSavingFee(true);
 
-      const { error } = await supabase.from("case_fee_items").insert([
-        {
-          ...buildFeePayload(),
-          created_at: new Date().toISOString(),
-        },
-      ]);
+      const payload = {
+        ...buildFeePayload(),
+        created_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from("case_fee_items")
+        .insert([payload])
+        .select("*")
+        .single();
 
       if (error) {
         alert("Create fee item failed:\n" + JSON.stringify(error, null, 2));
         return;
       }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_fee_items",
+        recordId: data?.id,
+        action: "create",
+        oldData: null,
+        newData: data || payload,
+        note: "Create professional fee item",
+      });
 
       cancelFeeForm();
       await loadFees();
@@ -354,15 +369,30 @@ export default function FeesSection({ caseId }: Props) {
     try {
       setSavingFee(true);
 
-      const { error } = await supabase
+      const oldData = feeItems.find((item) => item.id === editingFeeId) || null;
+      const payload = buildFeePayload();
+
+      const { data, error } = await supabase
         .from("case_fee_items")
-        .update(buildFeePayload())
-        .eq("id", editingFeeId);
+        .update(payload)
+        .eq("id", editingFeeId)
+        .select("*")
+        .single();
 
       if (error) {
         alert("Update fee item failed:\n" + JSON.stringify(error, null, 2));
         return;
       }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_fee_items",
+        recordId: editingFeeId,
+        action: "update",
+        oldData,
+        newData: data || (oldData ? { ...oldData, ...payload } : payload),
+        note: "Update professional fee item",
+      });
 
       cancelFeeForm();
       await loadFees();
@@ -375,12 +405,24 @@ export default function FeesSection({ caseId }: Props) {
     const confirmed = window.confirm("ต้องการลบรายการค่าวิชาชีพนี้หรือไม่?");
     if (!confirmed) return;
 
+    const oldData = feeItems.find((item) => item.id === id) || null;
+
     const { error } = await supabase.from("case_fee_items").delete().eq("id", id);
 
     if (error) {
       alert("Delete fee item failed:\n" + JSON.stringify(error, null, 2));
       return;
     }
+
+    await createAuditLog({
+      caseId: caseIdNumber,
+      tableName: "case_fee_items",
+      recordId: id,
+      action: "delete",
+      oldData,
+      newData: null,
+      note: "Delete professional fee item",
+    });
 
     if (editingFeeId === id) cancelFeeForm();
 
@@ -460,17 +502,31 @@ export default function FeesSection({ caseId }: Props) {
     try {
       setSavingExpense(true);
 
-      const { error } = await supabase.from("case_expense_items").insert([
-        {
-          ...buildExpensePayload(),
-          created_at: new Date().toISOString(),
-        },
-      ]);
+      const payload = {
+        ...buildExpensePayload(),
+        created_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from("case_expense_items")
+        .insert([payload])
+        .select("*")
+        .single();
 
       if (error) {
         alert("Create expense item failed:\n" + JSON.stringify(error, null, 2));
         return;
       }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_expense_items",
+        recordId: data?.id,
+        action: "create",
+        oldData: null,
+        newData: data || payload,
+        note: "Create expense item",
+      });
 
       cancelExpenseForm();
       await loadFees();
@@ -486,15 +542,31 @@ export default function FeesSection({ caseId }: Props) {
     try {
       setSavingExpense(true);
 
-      const { error } = await supabase
+      const oldData =
+        expenseItems.find((item) => item.id === editingExpenseId) || null;
+      const payload = buildExpensePayload();
+
+      const { data, error } = await supabase
         .from("case_expense_items")
-        .update(buildExpensePayload())
-        .eq("id", editingExpenseId);
+        .update(payload)
+        .eq("id", editingExpenseId)
+        .select("*")
+        .single();
 
       if (error) {
         alert("Update expense item failed:\n" + JSON.stringify(error, null, 2));
         return;
       }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_expense_items",
+        recordId: editingExpenseId,
+        action: "update",
+        oldData,
+        newData: data || (oldData ? { ...oldData, ...payload } : payload),
+        note: "Update expense item",
+      });
 
       cancelExpenseForm();
       await loadFees();
@@ -507,6 +579,8 @@ export default function FeesSection({ caseId }: Props) {
     const confirmed = window.confirm("ต้องการลบรายการค่าใช้จ่ายนี้หรือไม่?");
     if (!confirmed) return;
 
+    const oldData = expenseItems.find((item) => item.id === id) || null;
+
     const { error } = await supabase
       .from("case_expense_items")
       .delete()
@@ -516,6 +590,16 @@ export default function FeesSection({ caseId }: Props) {
       alert("Delete expense item failed:\n" + JSON.stringify(error, null, 2));
       return;
     }
+
+    await createAuditLog({
+      caseId: caseIdNumber,
+      tableName: "case_expense_items",
+      recordId: id,
+      action: "delete",
+      oldData,
+      newData: null,
+      note: "Delete expense item",
+    });
 
     if (editingExpenseId === id) cancelExpenseForm();
 
