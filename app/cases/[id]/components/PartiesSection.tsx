@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../../../lib/supabase";
+import { createAuditLog } from "../../../../lib/auditLog";
 
 type PartyRole = "plaintiff" | "defendant" | "petitioner" | "objector";
 type PartyEntityType = "individual" | "company";
@@ -275,12 +276,26 @@ export default function PartiesSection({ caseId }: Props) {
         created_at: new Date().toISOString(),
       };
 
-      const { error } = await supabase.from("parties").insert([payload]);
+      const { data, error } = await supabase
+        .from("parties")
+        .insert([payload])
+        .select("*")
+        .single();
 
       if (error) {
         alert("Create party failed:\n" + JSON.stringify(error, null, 2));
         return;
       }
+
+      await createAuditLog({
+        caseId,
+        tableName: "parties",
+        recordId: data?.id,
+        action: "create",
+        oldData: null,
+        newData: data || payload,
+        note: "Create party",
+      });
 
       setShowForm(false);
       setEditingId(null);
@@ -298,15 +313,30 @@ export default function PartiesSection({ caseId }: Props) {
     try {
       setSaving(true);
 
-      const { error } = await supabase
+      const oldData = parties.find((party) => party.id === editingId) || null;
+      const payload = buildPayload();
+
+      const { data, error } = await supabase
         .from("parties")
-        .update(buildPayload())
-        .eq("id", editingId);
+        .update(payload)
+        .eq("id", editingId)
+        .select("*")
+        .single();
 
       if (error) {
         alert("Update party failed:\n" + JSON.stringify(error, null, 2));
         return;
       }
+
+      await createAuditLog({
+        caseId,
+        tableName: "parties",
+        recordId: editingId,
+        action: "update",
+        oldData,
+        newData: data || (oldData ? { ...oldData, ...payload } : payload),
+        note: "Update party",
+      });
 
       setShowForm(false);
       setEditingId(null);
@@ -321,12 +351,26 @@ export default function PartiesSection({ caseId }: Props) {
     const confirmed = window.confirm("ต้องการลบคู่ความ/ผู้เกี่ยวข้องรายนี้หรือไม่?");
     if (!confirmed) return;
 
+    const oldData = parties.find((party) => party.id === id) || null;
+
     const { error } = await supabase.from("parties").delete().eq("id", id);
 
     if (error) {
       alert("Delete party failed:\n" + JSON.stringify(error, null, 2));
       return;
     }
+
+    await createAuditLog({
+      caseId,
+      tableName: "parties",
+      recordId: id,
+      action: "delete",
+      oldData,
+      newData: null,
+      note: "Delete party",
+    });
+
+    if (editingId === id) cancelForm();
 
     await loadParties();
   };
