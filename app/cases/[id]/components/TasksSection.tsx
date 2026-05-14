@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../../../lib/supabase";
+import { createAuditLog } from "../../../../lib/auditLog";
 
 type TaskItem = {
   id: string;
@@ -207,8 +208,8 @@ export default function TasksSection({ caseId }: Props) {
       owner_name: form.owner_name,
       assignee_name: form.assignee_name,
 
-      start_date: form.start_date,
-      due_date: form.due_date,
+      start_date: form.start_date || null,
+      due_date: form.due_date || null,
 
       status: form.status,
       note: form.note,
@@ -223,17 +224,31 @@ export default function TasksSection({ caseId }: Props) {
     try {
       setSaving(true);
 
-      const { error } = await supabase.from("case_tasks").insert([
-        {
-          ...buildPayload(),
-          created_at: new Date().toISOString(),
-        },
-      ]);
+      const payload = {
+        ...buildPayload(),
+        created_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from("case_tasks")
+        .insert([payload])
+        .select("*")
+        .single();
 
       if (error) {
         alert("Create task failed:\n" + JSON.stringify(error, null, 2));
         return;
       }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_tasks",
+        recordId: data?.id,
+        action: "create",
+        oldData: null,
+        newData: data || payload,
+        note: "Create task",
+      });
 
       cancelForm();
       await loadTasks();
@@ -249,15 +264,30 @@ export default function TasksSection({ caseId }: Props) {
     try {
       setSaving(true);
 
-      const { error } = await supabase
+      const oldData = items.find((item) => item.id === editingId) || null;
+      const payload = buildPayload();
+
+      const { data, error } = await supabase
         .from("case_tasks")
-        .update(buildPayload())
-        .eq("id", editingId);
+        .update(payload)
+        .eq("id", editingId)
+        .select("*")
+        .single();
 
       if (error) {
         alert("Update task failed:\n" + JSON.stringify(error, null, 2));
         return;
       }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_tasks",
+        recordId: editingId,
+        action: "update",
+        oldData,
+        newData: data || (oldData ? { ...oldData, ...payload } : payload),
+        note: "Update task",
+      });
 
       cancelForm();
       await loadTasks();
@@ -270,12 +300,24 @@ export default function TasksSection({ caseId }: Props) {
     const confirmed = window.confirm("ต้องการลบงานนี้หรือไม่?");
     if (!confirmed) return;
 
+    const oldData = items.find((item) => item.id === id) || null;
+
     const { error } = await supabase.from("case_tasks").delete().eq("id", id);
 
     if (error) {
       alert("Delete task failed:\n" + JSON.stringify(error, null, 2));
       return;
     }
+
+    await createAuditLog({
+      caseId: caseIdNumber,
+      tableName: "case_tasks",
+      recordId: id,
+      action: "delete",
+      oldData,
+      newData: null,
+      note: "Delete task",
+    });
 
     if (editingId === id) cancelForm();
 
@@ -285,18 +327,37 @@ export default function TasksSection({ caseId }: Props) {
   const markDone = async (item: TaskItem) => {
     const nextStatus = item.status === "Done" ? "Pending" : "Done";
 
-    const { error } = await supabase
+    const oldData = item;
+
+    const payload = {
+      status: nextStatus,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase
       .from("case_tasks")
-      .update({
-        status: nextStatus,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", item.id);
+      .update(payload)
+      .eq("id", item.id)
+      .select("*")
+      .single();
 
     if (error) {
       alert("Update task status failed:\n" + JSON.stringify(error, null, 2));
       return;
     }
+
+    await createAuditLog({
+      caseId: caseIdNumber,
+      tableName: "case_tasks",
+      recordId: item.id,
+      action: "update",
+      oldData,
+      newData: data || {
+        ...item,
+        ...payload,
+      },
+      note: item.status === "Done" ? "Undo task status" : "Mark task as done",
+    });
 
     await loadTasks();
   };
