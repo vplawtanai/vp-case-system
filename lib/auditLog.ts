@@ -1,6 +1,6 @@
 import { supabase } from "./supabase";
 
-type AuditAction = "create" | "update" | "delete";
+type AuditAction = "create" | "update" | "delete" | "soft_delete" | "restore";
 
 type CreateAuditLogParams = {
   caseId?: number | string | null;

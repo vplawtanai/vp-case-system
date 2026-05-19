@@ -21,6 +21,9 @@ type TimeLogItem = {
 
   created_at?: string | null;
   updated_at?: string | null;
+
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 };
 
 type TimeLogForm = {
@@ -108,6 +111,7 @@ export default function TimeLogsSection({ caseId }: Props) {
         .from("case_time_logs")
         .select("*")
         .eq("case_id", caseIdNumber)
+        .is("deleted_at", null)
         .order("work_date", { ascending: false })
         .order("created_at", { ascending: false });
 
@@ -317,6 +321,8 @@ export default function TimeLogsSection({ caseId }: Props) {
       const payload = {
         ...buildPayload(),
         created_at: new Date().toISOString(),
+        deleted_at: null,
+        deleted_by: null,
       };
 
       const { data, error } = await supabase
@@ -361,6 +367,7 @@ export default function TimeLogsSection({ caseId }: Props) {
         .from("case_time_logs")
         .update(payload)
         .eq("id", editingId)
+        .is("deleted_at", null)
         .select("*")
         .single();
 
@@ -387,7 +394,10 @@ export default function TimeLogsSection({ caseId }: Props) {
   };
 
   const deleteTimeLog = async (id: string) => {
-    const confirmed = window.confirm("ต้องการลบ Time Log นี้หรือไม่?");
+    const confirmed = window.confirm(
+      "ต้องการลบ Time Log นี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
+    );
+
     if (!confirmed) return;
 
     try {
@@ -395,13 +405,22 @@ export default function TimeLogsSection({ caseId }: Props) {
 
       const oldData = items.find((item) => item.id === id) || null;
 
-      const { error } = await supabase
+      const payload = {
+        deleted_at: new Date().toISOString(),
+        deleted_by: "current_user",
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
         .from("case_time_logs")
-        .delete()
-        .eq("id", id);
+        .update(payload)
+        .eq("id", id)
+        .is("deleted_at", null)
+        .select("*")
+        .single();
 
       if (error) {
-        alert("Delete time log failed:\n" + JSON.stringify(error, null, 2));
+        alert("Soft delete time log failed:\n" + JSON.stringify(error, null, 2));
         return;
       }
 
@@ -409,10 +428,10 @@ export default function TimeLogsSection({ caseId }: Props) {
         caseId: caseIdNumber,
         tableName: "case_time_logs",
         recordId: id,
-        action: "delete",
+        action: "soft_delete",
         oldData,
-        newData: null,
-        note: "Delete time log",
+        newData: data || (oldData ? { ...oldData, ...payload } : payload),
+        note: "Soft delete time log",
       });
 
       if (editingId === id) cancelForm();
