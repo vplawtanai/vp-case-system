@@ -14,7 +14,6 @@ type TimeLogItem = {
 
   work_type?: string | null;
   work_other?: string | null;
-
   minutes?: number | null;
   billable?: boolean | null;
 
@@ -27,6 +26,7 @@ type TimeLogItem = {
 type TimeLogForm = {
   work_date: string;
   staff_name: string;
+  staff_other: string;
   work_type: string;
   work_other: string;
   hours: string;
@@ -78,6 +78,7 @@ const timeCategoryOptions = [
 const emptyForm: TimeLogForm = {
   work_date: getTodayDateString(),
   staff_name: "ทนายเป้า",
+  staff_other: "",
   work_type: "สอบข้อเท็จจริง",
   work_other: "",
   hours: "0",
@@ -209,13 +210,16 @@ export default function TimeLogsSection({ caseId }: Props) {
 
   const startEdit = (item: TimeLogItem) => {
     const split = splitMinutes(item.minutes || 0);
+    const savedStaffName = item.staff_name || "ทนายเป้า";
+    const isKnownStaff = staffOptions.includes(savedStaffName);
 
     setEditingId(item.id);
     setShowForm(true);
 
     setForm({
       work_date: item.work_date || getTodayDateString(),
-      staff_name: item.staff_name || "ทนายเป้า",
+      staff_name: isKnownStaff ? savedStaffName : "อื่นๆ",
+      staff_other: isKnownStaff ? "" : savedStaffName,
       work_type: item.work_type || "สอบข้อเท็จจริง",
       work_other: item.work_other || "",
       hours: String(split.hours),
@@ -228,7 +232,10 @@ export default function TimeLogsSection({ caseId }: Props) {
   const cancelForm = () => {
     setEditingId(null);
     setShowForm(false);
-    setForm(emptyForm);
+    setForm({
+      ...emptyForm,
+      work_date: getTodayDateString(),
+    });
   };
 
   const validateForm = () => {
@@ -247,8 +254,8 @@ export default function TimeLogsSection({ caseId }: Props) {
       return false;
     }
 
-    if (form.staff_name === "อื่นๆ") {
-      alert("ตอนนี้ช่องผู้ทำงานอื่นๆ ยังไม่ได้แยกไว้ ให้พิมพ์ชื่อจริงแทนคำว่าอื่นๆ ก่อน");
+    if (form.staff_name === "อื่นๆ" && !form.staff_other.trim()) {
+      alert("กรุณากรอกชื่อผู้ทำงานอื่นๆ");
       return false;
     }
 
@@ -269,20 +276,28 @@ export default function TimeLogsSection({ caseId }: Props) {
       return false;
     }
 
+    if (Number(form.minutes || 0) > 59) {
+      alert("ช่องนาทีต้องไม่เกิน 59 นาที");
+      return false;
+    }
+
     return true;
   };
 
   const buildPayload = () => {
     const now = new Date().toISOString();
 
+    const finalStaffName =
+      form.staff_name === "อื่นๆ" ? form.staff_other.trim() : form.staff_name;
+
     return {
       case_id: caseIdNumber,
 
       work_date: form.work_date,
-      staff_name: form.staff_name,
+      staff_name: finalStaffName,
 
       work_type: form.work_type,
-      work_other: form.work_type === "อื่นๆ" ? form.work_other : "",
+      work_other: form.work_type === "อื่นๆ" ? form.work_other.trim() : "",
 
       minutes: buildTotalMinutes(form.hours, form.minutes),
       billable: form.billable,
@@ -375,31 +390,37 @@ export default function TimeLogsSection({ caseId }: Props) {
     const confirmed = window.confirm("ต้องการลบ Time Log นี้หรือไม่?");
     if (!confirmed) return;
 
-    const oldData = items.find((item) => item.id === id) || null;
+    try {
+      setSaving(true);
 
-    const { error } = await supabase
-      .from("case_time_logs")
-      .delete()
-      .eq("id", id);
+      const oldData = items.find((item) => item.id === id) || null;
 
-    if (error) {
-      alert("Delete time log failed:\n" + JSON.stringify(error, null, 2));
-      return;
+      const { error } = await supabase
+        .from("case_time_logs")
+        .delete()
+        .eq("id", id);
+
+      if (error) {
+        alert("Delete time log failed:\n" + JSON.stringify(error, null, 2));
+        return;
+      }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_time_logs",
+        recordId: id,
+        action: "delete",
+        oldData,
+        newData: null,
+        note: "Delete time log",
+      });
+
+      if (editingId === id) cancelForm();
+
+      await loadTimeLogs();
+    } finally {
+      setSaving(false);
     }
-
-    await createAuditLog({
-      caseId: caseIdNumber,
-      tableName: "case_time_logs",
-      recordId: id,
-      action: "delete",
-      oldData,
-      newData: null,
-      note: "Delete time log",
-    });
-
-    if (editingId === id) cancelForm();
-
-    await loadTimeLogs();
   };
 
   return (
@@ -485,12 +506,27 @@ export default function TimeLogsSection({ caseId }: Props) {
             <Select
               label="ผู้ทำงาน"
               value={form.staff_name}
-              onChange={(value) => setForm({ ...form, staff_name: value })}
+              onChange={(value) =>
+                setForm({
+                  ...form,
+                  staff_name: value,
+                  staff_other: value === "อื่นๆ" ? form.staff_other : "",
+                })
+              }
               options={staffOptions.map((option) => ({
                 value: option,
                 label: option,
               }))}
             />
+
+            {form.staff_name === "อื่นๆ" && (
+              <Input
+                label="ระบุชื่อผู้ทำงานอื่นๆ"
+                value={form.staff_other}
+                onChange={(value) => setForm({ ...form, staff_other: value })}
+                placeholder="เช่น ทนายเอก / เสมียน / ผู้ช่วย / บุคคลอื่น"
+              />
+            )}
 
             <Select
               label="ประเภทงาน"
