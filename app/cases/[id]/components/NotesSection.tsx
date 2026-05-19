@@ -21,12 +21,16 @@ type NoteItem = {
 
   created_at?: string | null;
   updated_at?: string | null;
+
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 };
 
 type NoteForm = {
   note_no: string;
   note_date: string;
   author_name: string;
+  author_other: string;
   note_type: string;
   note_title: string;
   note_text: string;
@@ -53,6 +57,7 @@ const emptyForm: NoteForm = {
   note_no: "1",
   note_date: getTodayDateString(),
   author_name: "ทนายเป้า",
+  author_other: "",
   note_type: "General Note / บันทึกทั่วไป",
   note_title: "",
   note_text: "",
@@ -80,6 +85,7 @@ export default function NotesSection({ caseId }: Props) {
         .from("case_notes")
         .select("*")
         .eq("case_id", caseIdNumber)
+        .is("deleted_at", null)
         .order("note_no", { ascending: true })
         .order("created_at", { ascending: true });
 
@@ -131,13 +137,17 @@ export default function NotesSection({ caseId }: Props) {
   };
 
   const startEdit = (item: NoteItem) => {
+    const savedAuthorName = item.author_name || "ทนายเป้า";
+    const isKnownAuthor = authorOptions.includes(savedAuthorName);
+
     setEditingId(item.id);
     setShowForm(true);
 
     setForm({
       note_no: item.note_no ? String(item.note_no) : "1",
       note_date: item.note_date || getTodayDateString(),
-      author_name: item.author_name || "ทนายเป้า",
+      author_name: isKnownAuthor ? savedAuthorName : "อื่นๆ",
+      author_other: isKnownAuthor ? "" : savedAuthorName,
       note_type: item.note_type || "General Note / บันทึกทั่วไป",
       note_title: item.note_title || "",
       note_text: item.note_text || "",
@@ -148,7 +158,10 @@ export default function NotesSection({ caseId }: Props) {
   const cancelForm = () => {
     setEditingId(null);
     setShowForm(false);
-    setForm(emptyForm);
+    setForm({
+      ...emptyForm,
+      note_date: getTodayDateString(),
+    });
   };
 
   const validateNote = () => {
@@ -167,8 +180,8 @@ export default function NotesSection({ caseId }: Props) {
       return false;
     }
 
-    if (form.author_name === "อื่นๆ") {
-      alert("ตอนนี้ช่องผู้บันทึกอื่นๆ ยังไม่ได้แยกไว้ ให้พิมพ์ชื่อจริงแทนคำว่าอื่นๆ ก่อน");
+    if (form.author_name === "อื่นๆ" && !form.author_other.trim()) {
+      alert("กรุณากรอกชื่อผู้บันทึกอื่นๆ");
       return false;
     }
 
@@ -191,11 +204,14 @@ export default function NotesSection({ caseId }: Props) {
   };
 
   const buildPayload = () => {
+    const finalAuthorName =
+      form.author_name === "อื่นๆ" ? form.author_other.trim() : form.author_name;
+
     return {
       case_id: caseIdNumber,
       note_no: form.note_no ? Number(form.note_no) : null,
       note_date: form.note_date,
-      author_name: form.author_name,
+      author_name: finalAuthorName,
       note_type: form.note_type,
       note_title: form.note_title,
       note_text: form.note_text,
@@ -213,6 +229,8 @@ export default function NotesSection({ caseId }: Props) {
       const payload = {
         ...buildPayload(),
         created_at: new Date().toISOString(),
+        deleted_at: null,
+        deleted_by: null,
       };
 
       const { data, error } = await supabase
@@ -257,6 +275,7 @@ export default function NotesSection({ caseId }: Props) {
         .from("case_notes")
         .update(payload)
         .eq("id", editingId)
+        .is("deleted_at", null)
         .select("*")
         .single();
 
@@ -283,31 +302,52 @@ export default function NotesSection({ caseId }: Props) {
   };
 
   const deleteNote = async (id: string) => {
-    const confirmed = window.confirm("ต้องการลบ Note นี้หรือไม่?");
+    const confirmed = window.confirm(
+      "ต้องการลบ Note นี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
+    );
+
     if (!confirmed) return;
 
-    const oldData = items.find((item) => item.id === id) || null;
+    try {
+      setSaving(true);
 
-    const { error } = await supabase.from("case_notes").delete().eq("id", id);
+      const oldData = items.find((item) => item.id === id) || null;
 
-    if (error) {
-      alert("Delete note failed:\n" + JSON.stringify(error, null, 2));
-      return;
+      const payload = {
+        deleted_at: new Date().toISOString(),
+        deleted_by: "current_user",
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from("case_notes")
+        .update(payload)
+        .eq("id", id)
+        .is("deleted_at", null)
+        .select("*")
+        .single();
+
+      if (error) {
+        alert("Soft delete note failed:\n" + JSON.stringify(error, null, 2));
+        return;
+      }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_notes",
+        recordId: id,
+        action: "soft_delete",
+        oldData,
+        newData: data || (oldData ? { ...oldData, ...payload } : payload),
+        note: "Soft delete note",
+      });
+
+      if (editingId === id) cancelForm();
+
+      await loadNotes();
+    } finally {
+      setSaving(false);
     }
-
-    await createAuditLog({
-      caseId: caseIdNumber,
-      tableName: "case_notes",
-      recordId: id,
-      action: "delete",
-      oldData,
-      newData: null,
-      note: "Delete note",
-    });
-
-    if (editingId === id) cancelForm();
-
-    await loadNotes();
   };
 
   return (
@@ -353,12 +393,27 @@ export default function NotesSection({ caseId }: Props) {
             <Select
               label="ผู้บันทึก"
               value={form.author_name}
-              onChange={(value) => setForm({ ...form, author_name: value })}
+              onChange={(value) =>
+                setForm({
+                  ...form,
+                  author_name: value,
+                  author_other: value === "อื่นๆ" ? form.author_other : "",
+                })
+              }
               options={authorOptions.map((option) => ({
                 value: option,
                 label: option,
               }))}
             />
+
+            {form.author_name === "อื่นๆ" && (
+              <Input
+                label="ระบุชื่อผู้บันทึกอื่นๆ"
+                value={form.author_other}
+                onChange={(value) => setForm({ ...form, author_other: value })}
+                placeholder="เช่น ทนายเอก / ผู้ช่วย / บุคคลอื่น"
+              />
+            )}
 
             <Select
               label="ประเภท Note"
