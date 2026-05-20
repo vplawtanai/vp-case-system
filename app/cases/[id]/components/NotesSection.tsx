@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../../../lib/supabase";
 import { createAuditLog } from "../../../../lib/auditLog";
@@ -81,6 +81,17 @@ export default function NotesSection({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<NoteForm>(emptyForm);
 
+  const formRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollToForm = () => {
+    window.setTimeout(() => {
+      formRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 80);
+  };
+
   const loadNotes = async () => {
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) return;
 
@@ -114,6 +125,11 @@ export default function NotesSection({
 
   const sortedNotes = useMemo(() => {
     return [...items].sort((a, b) => {
+      const importantA = a.important ? 0 : 1;
+      const importantB = b.important ? 0 : 1;
+
+      if (importantA !== importantB) return importantA - importantB;
+
       const noA = a.note_no || 0;
       const noB = b.note_no || 0;
 
@@ -121,6 +137,30 @@ export default function NotesSection({
 
       return (a.created_at || "").localeCompare(b.created_at || "");
     });
+  }, [items]);
+
+  const summary = useMemo(() => {
+    const important = items.filter((item) => item.important).length;
+
+    const strategy = items.filter((item) =>
+      (item.note_type || "").startsWith("Strategy")
+    ).length;
+
+    const risk = items.filter((item) =>
+      (item.note_type || "").startsWith("Risk")
+    ).length;
+
+    const clientInstruction = items.filter((item) =>
+      (item.note_type || "").startsWith("Client Instruction")
+    ).length;
+
+    return {
+      total: items.length,
+      important,
+      strategy,
+      risk,
+      clientInstruction,
+    };
   }, [items]);
 
   const getNextNoteNo = () => {
@@ -145,6 +185,7 @@ export default function NotesSection({
       note_date: getTodayDateString(),
     });
     setShowForm(true);
+    scrollToForm();
   };
 
   const startEdit = (item: NoteItem) => {
@@ -158,6 +199,7 @@ export default function NotesSection({
 
     setEditingId(item.id);
     setShowForm(true);
+    scrollToForm();
 
     setForm({
       note_no: item.note_no ? String(item.note_no) : "1",
@@ -389,7 +431,8 @@ export default function NotesSection({
         <div>
           <h3 style={titleStyle}>Notes</h3>
           <div style={subTitleStyle}>
-            สมุดบันทึกกลางของคดี สำหรับข้อมูล ความเห็น และข้อสังเกตภายใน
+            สมุดบันทึกกลางของคดี สำหรับข้อมูล ความเห็น และข้อสังเกตภายใน · รวม{" "}
+            {summary.total} รายการ
           </div>
         </div>
 
@@ -406,11 +449,31 @@ export default function NotesSection({
         )}
       </div>
 
+      <div style={summaryGridStyle}>
+        <SummaryCard label="Total" value={String(summary.total)} />
+        <SummaryCard label="Important" value={String(summary.important)} />
+        <SummaryCard label="Strategy" value={String(summary.strategy)} />
+        <SummaryCard label="Risk" value={String(summary.risk)} />
+        <SummaryCard
+          label="Client Instruction"
+          value={String(summary.clientInstruction)}
+        />
+      </div>
+
       {showForm && (
-        <div style={formCardStyle}>
-          <h4 style={formTitleStyle}>
-            {editingId ? "Edit Note" : "Add Note"}
-          </h4>
+        <div ref={formRef} style={formCardStyle}>
+          <div style={formHeaderStyle}>
+            <div>
+              <h4 style={formTitleStyle}>
+                {editingId ? "Edit Note" : "Add Note"}
+              </h4>
+              <div style={formSubTitleStyle}>
+                บันทึกข้อมูลภายใน ประเด็นสำคัญ แนวทางคดี หรือข้อควรระวัง
+              </div>
+            </div>
+
+            {editingId && <span style={editBadgeStyle}>Editing</span>}
+          </div>
 
           <div style={formGridStyle}>
             <div>
@@ -537,6 +600,15 @@ export default function NotesSection({
 /* =========================================================
    SUB COMPONENTS
 ========================================================= */
+
+function SummaryCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={summaryCardStyle}>
+      <div style={summaryLabelStyle}>{label}</div>
+      <div style={summaryValueStyle}>{value}</div>
+    </div>
+  );
+}
 
 function NoteCard({
   item,
@@ -713,8 +785,8 @@ function formatDisplayDate(value?: string | null) {
 
 const sectionStyle: CSSProperties = {
   border: "1px solid #dddddd",
-  padding: 16,
-  borderRadius: 12,
+  padding: "clamp(12px, 2vw, 16px)",
+  borderRadius: 14,
   background: "#ffffff",
   color: "#111111",
 };
@@ -724,162 +796,235 @@ const headerStyle: CSSProperties = {
   justifyContent: "space-between",
   gap: 12,
   alignItems: "flex-start",
-  marginBottom: 16,
+  marginBottom: 14,
   flexWrap: "wrap",
 };
 
 const titleStyle: CSSProperties = {
   margin: 0,
   color: "#111111",
+  fontSize: 18,
+  fontWeight: 900,
 };
 
 const subTitleStyle: CSSProperties = {
-  marginTop: 4,
-  color: "#555555",
+  marginTop: 3,
+  color: "#666666",
   fontSize: 13,
+  lineHeight: 1.45,
 };
 
 const primaryButtonStyle: CSSProperties = {
-  padding: "9px 14px",
+  padding: "8px 13px",
   background: "#000000",
   color: "#ffffff",
   borderRadius: 8,
   border: "none",
   cursor: "pointer",
-  fontWeight: 700,
+  fontWeight: 800,
+  fontSize: 13,
   whiteSpace: "nowrap",
 };
 
 const secondaryButtonStyle: CSSProperties = {
-  padding: "9px 14px",
+  padding: "8px 13px",
   background: "#ffffff",
   color: "#111111",
   borderRadius: 8,
   border: "1px solid #cccccc",
   cursor: "pointer",
-  fontWeight: 600,
+  fontWeight: 700,
+  fontSize: 13,
   whiteSpace: "nowrap",
+};
+
+const summaryGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+  gap: 10,
+  marginBottom: 14,
+};
+
+const summaryCardStyle: CSSProperties = {
+  border: "1px solid #eeeeee",
+  borderRadius: 12,
+  padding: 11,
+  background: "#fafafa",
+};
+
+const summaryLabelStyle: CSSProperties = {
+  fontSize: 11,
+  color: "#777777",
+  marginBottom: 4,
+  fontWeight: 800,
+  textTransform: "uppercase",
+  letterSpacing: "0.03em",
+};
+
+const summaryValueStyle: CSSProperties = {
+  fontSize: 18,
+  fontWeight: 900,
+  color: "#111111",
 };
 
 const formCardStyle: CSSProperties = {
   border: "1px solid #dddddd",
-  borderRadius: 12,
-  padding: 16,
+  borderRadius: 14,
+  padding: 14,
   background: "#fafafa",
-  marginBottom: 18,
+  marginBottom: 16,
+  scrollMarginTop: 105,
+};
+
+const formHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 10,
+  alignItems: "flex-start",
+  marginBottom: 12,
+  flexWrap: "wrap",
 };
 
 const formTitleStyle: CSSProperties = {
-  marginTop: 0,
-  marginBottom: 12,
+  margin: 0,
   color: "#111111",
+  fontSize: 16,
+  fontWeight: 900,
+};
+
+const formSubTitleStyle: CSSProperties = {
+  marginTop: 3,
+  color: "#666666",
+  fontSize: 12,
+  lineHeight: 1.45,
+};
+
+const editBadgeStyle: CSSProperties = {
+  display: "inline-flex",
+  padding: "5px 10px",
+  borderRadius: 999,
+  background: "#fff8e1",
+  color: "#b54708",
+  border: "1px solid #eedc9a",
+  fontSize: 12,
+  fontWeight: 900,
+  whiteSpace: "nowrap",
 };
 
 const formGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: 12,
+  gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+  gap: 10,
 };
 
 const labelStyle: CSSProperties = {
   display: "block",
-  marginBottom: 4,
-  color: "#222222",
-  fontWeight: 600,
-  fontSize: 13,
+  marginBottom: 3,
+  color: "#777777",
+  fontWeight: 800,
+  fontSize: 11,
+  textTransform: "uppercase",
+  letterSpacing: "0.03em",
 };
 
 const inputStyle: CSSProperties = {
   width: "100%",
-  padding: "9px 10px",
+  padding: "8px 9px",
   borderRadius: 8,
   border: "1px solid #bbbbbb",
   background: "#ffffff",
   color: "#111111",
   colorScheme: "light",
   boxSizing: "border-box",
+  fontSize: 13,
 };
 
 const readonlyBoxStyle: CSSProperties = {
   width: "100%",
-  padding: "9px 10px",
+  padding: "8px 9px",
   borderRadius: 8,
   border: "1px solid #dddddd",
   background: "#eeeeee",
   color: "#111111",
   boxSizing: "border-box",
-  fontWeight: 700,
+  fontWeight: 800,
+  fontSize: 13,
 };
 
 const checkboxBoxStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 8,
-  minHeight: 40,
-  padding: "9px 10px",
+  minHeight: 36,
+  padding: "8px 9px",
   borderRadius: 8,
   border: "1px solid #dddddd",
   background: "#ffffff",
   color: "#111111",
-  fontWeight: 600,
+  fontWeight: 700,
+  fontSize: 13,
 };
 
 const textareaStyle: CSSProperties = {
   ...inputStyle,
-  minHeight: 130,
+  minHeight: 120,
   resize: "vertical",
 };
 
 const formButtonWrapStyle: CSSProperties = {
   display: "flex",
-  gap: 10,
-  marginTop: 16,
+  gap: 8,
+  marginTop: 12,
   flexWrap: "wrap",
 };
 
 const emptyStyle: CSSProperties = {
-  padding: 16,
+  padding: 14,
   border: "1px dashed #cccccc",
   borderRadius: 12,
   color: "#555555",
   background: "#ffffff",
+  fontSize: 13,
+  fontWeight: 700,
 };
 
 const noteListStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-  gap: 12,
+  gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+  gap: 10,
 };
 
 const noteCardStyle: CSSProperties = {
   border: "1px solid #dddddd",
   borderRadius: 12,
-  padding: 14,
+  padding: 12,
   background: "#ffffff",
   color: "#111111",
-  boxShadow: "0 1px 6px rgba(0,0,0,0.05)",
+  boxShadow: "0 1px 6px rgba(0,0,0,0.04)",
 };
 
 const noteHeaderStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  gap: 12,
+  gap: 10,
   alignItems: "flex-start",
-  marginBottom: 10,
+  marginBottom: 9,
 };
 
 const noteTitleStyle: CSSProperties = {
-  fontSize: 15,
+  fontSize: 14,
   fontWeight: 900,
   color: "#111111",
   lineHeight: 1.45,
+  wordBreak: "break-word",
 };
 
 const noteMetaStyle: CSSProperties = {
-  marginTop: 4,
+  marginTop: 3,
   color: "#555555",
-  fontSize: 13,
-  fontWeight: 600,
+  fontSize: 12,
+  fontWeight: 700,
+  lineHeight: 1.45,
 };
 
 const noteTextStyle: CSSProperties = {
@@ -888,48 +1033,51 @@ const noteTextStyle: CSSProperties = {
   background: "#f8fafc",
   border: "1px solid #eeeeee",
   color: "#111111",
-  fontSize: 14,
-  lineHeight: 1.7,
+  fontSize: 13,
+  lineHeight: 1.65,
   whiteSpace: "pre-wrap",
+  wordBreak: "break-word",
 };
 
 const importantBadgeStyle: CSSProperties = {
   display: "inline-flex",
-  padding: "5px 10px",
+  padding: "4px 8px",
   borderRadius: 999,
   background: "#fff3cd",
   color: "#b54708",
   border: "1px solid #f0d58a",
-  fontSize: 12,
-  fontWeight: 800,
+  fontSize: 11,
+  fontWeight: 900,
   whiteSpace: "nowrap",
 };
 
 const actionWrapStyle: CSSProperties = {
   display: "flex",
   gap: 8,
-  marginTop: 12,
+  marginTop: 10,
   paddingTop: 10,
   borderTop: "1px solid #eeeeee",
   flexWrap: "wrap",
 };
 
 const smallButtonStyle: CSSProperties = {
-  padding: "7px 11px",
+  padding: "7px 10px",
   borderRadius: 8,
   border: "1px solid #cccccc",
   background: "#ffffff",
   color: "#111111",
   cursor: "pointer",
-  fontWeight: 600,
+  fontWeight: 700,
+  fontSize: 13,
 };
 
 const dangerButtonStyle: CSSProperties = {
-  padding: "7px 11px",
+  padding: "7px 10px",
   borderRadius: 8,
   border: "1px solid #e0b4b4",
   background: "#fff5f5",
   color: "#a40000",
   cursor: "pointer",
-  fontWeight: 700,
+  fontWeight: 800,
+  fontSize: 13,
 };
