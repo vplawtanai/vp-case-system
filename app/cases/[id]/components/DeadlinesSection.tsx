@@ -72,6 +72,8 @@ type ExtensionForm = {
 type Props = {
   caseId: string;
   deadlines?: unknown[];
+  canEdit?: boolean;
+  canDelete?: boolean;
 };
 
 const deadlineTypeOptions = [
@@ -141,7 +143,11 @@ const emptyExtensionForm: ExtensionForm = {
   note: "",
 };
 
-export default function DeadlinesSection({ caseId }: Props) {
+export default function DeadlinesSection({
+  caseId,
+  canEdit = false,
+  canDelete = false,
+}: Props) {
   const caseIdNumber = Number(caseId);
 
   const [items, setItems] = useState<DeadlineItem[]>([]);
@@ -244,6 +250,11 @@ export default function DeadlinesSection({ caseId }: Props) {
   };
 
   const startAdd = () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เพิ่ม Legal Deadline");
+      return;
+    }
+
     setEditingId(null);
     setForm({
       ...emptyForm,
@@ -253,6 +264,11 @@ export default function DeadlinesSection({ caseId }: Props) {
   };
 
   const startEdit = (item: DeadlineItem) => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไข Legal Deadline");
+      return;
+    }
+
     setEditingId(item.id);
     setShowForm(true);
 
@@ -344,6 +360,12 @@ export default function DeadlinesSection({ caseId }: Props) {
   };
 
   const createDeadline = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เพิ่ม Legal Deadline");
+      cancelForm();
+      return;
+    }
+
     if (!validateDeadline()) return;
 
     try {
@@ -385,6 +407,12 @@ export default function DeadlinesSection({ caseId }: Props) {
   };
 
   const updateDeadline = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไข Legal Deadline");
+      cancelForm();
+      return;
+    }
+
     if (!editingId) return;
     if (!validateDeadline()) return;
 
@@ -425,6 +453,11 @@ export default function DeadlinesSection({ caseId }: Props) {
   };
 
   const deleteDeadline = async (id: string) => {
+    if (!canDelete) {
+      alert("คุณไม่มีสิทธิ์ลบ Legal Deadline");
+      return;
+    }
+
     const confirmed = window.confirm(
       "ต้องการลบกำหนดเวลานี้หรือไม่?\n\nระบบจะซ่อนกำหนดเวลานี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลและประวัติการขยายเวลาไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
     );
@@ -482,6 +515,11 @@ export default function DeadlinesSection({ caseId }: Props) {
   };
 
   const toggleDone = async (item: DeadlineItem) => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เปลี่ยนสถานะ Legal Deadline");
+      return;
+    }
+
     const nextStatus = item.status === "Done" ? "Active" : "Done";
     const oldData = item;
 
@@ -520,6 +558,11 @@ export default function DeadlinesSection({ caseId }: Props) {
   };
 
   const startAddExtension = (deadlineId: string) => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เพิ่มการขยายเวลา");
+      return;
+    }
+
     setExtensionDeadlineId(deadlineId);
     setExtensionForm(emptyExtensionForm);
   };
@@ -530,6 +573,12 @@ export default function DeadlinesSection({ caseId }: Props) {
   };
 
   const createExtension = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เพิ่มการขยายเวลา");
+      cancelExtensionForm();
+      return;
+    }
+
     if (!extensionDeadlineId) return;
 
     if (!extensionForm.granted_until_date) {
@@ -643,9 +692,11 @@ export default function DeadlinesSection({ caseId }: Props) {
         </div>
 
         {!showForm ? (
-          <button type="button" onClick={startAdd} style={primaryButtonStyle}>
-            + Add Deadline
-          </button>
+          canEdit ? (
+            <button type="button" onClick={startAdd} style={primaryButtonStyle}>
+              + Add Deadline
+            </button>
+          ) : null
         ) : (
           <button type="button" onClick={cancelForm} style={secondaryButtonStyle}>
             Cancel
@@ -812,6 +863,8 @@ export default function DeadlinesSection({ caseId }: Props) {
               extensionDeadlineId={extensionDeadlineId}
               extensionForm={extensionForm}
               savingExtension={savingExtension}
+              canEdit={canEdit}
+              canDelete={canDelete}
               onEdit={startEdit}
               onDelete={deleteDeadline}
               onToggleDone={toggleDone}
@@ -837,6 +890,8 @@ function DeadlineCard({
   extensionDeadlineId,
   extensionForm,
   savingExtension,
+  canEdit,
+  canDelete,
   onEdit,
   onDelete,
   onToggleDone,
@@ -850,6 +905,8 @@ function DeadlineCard({
   extensionDeadlineId: string | null;
   extensionForm: ExtensionForm;
   savingExtension: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
   onEdit: (item: DeadlineItem) => void;
   onDelete: (id: string) => void;
   onToggleDone: (item: DeadlineItem) => void;
@@ -871,6 +928,7 @@ function DeadlineCard({
   const dueStatus = getDeadlineDueStatus(item);
   const isDone = item.status === "Done";
   const isAddingExtension = extensionDeadlineId === item.id;
+  const showActions = canEdit || canDelete;
 
   return (
     <div
@@ -900,13 +958,15 @@ function DeadlineCard({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => onToggleDone(item)}
-          style={isDone ? doneButtonStyle : smallButtonStyle}
-        >
-          {isDone ? "Undo" : "Done"}
-        </button>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={() => onToggleDone(item)}
+            style={isDone ? doneButtonStyle : smallButtonStyle}
+          >
+            {isDone ? "Undo" : "Done"}
+          </button>
+        )}
       </div>
 
       <div style={deadlineMetaGridStyle}>
@@ -959,7 +1019,7 @@ function DeadlineCard({
         </div>
       )}
 
-      {isAddingExtension && (
+      {isAddingExtension && canEdit && (
         <div style={extensionFormStyle}>
           <div style={extensionTitleStyle}>Add Extension</div>
 
@@ -1024,27 +1084,39 @@ function DeadlineCard({
         </div>
       )}
 
-      <div style={actionWrapStyle}>
-        <button type="button" onClick={() => onEdit(item)} style={smallButtonStyle}>
-          Edit
-        </button>
+      {showActions && (
+        <div style={actionWrapStyle}>
+          {canEdit && (
+            <>
+              <button
+                type="button"
+                onClick={() => onEdit(item)}
+                style={smallButtonStyle}
+              >
+                Edit
+              </button>
 
-        <button
-          type="button"
-          onClick={() => onStartAddExtension(item.id)}
-          style={smallButtonStyle}
-        >
-          + Extension
-        </button>
+              <button
+                type="button"
+                onClick={() => onStartAddExtension(item.id)}
+                style={smallButtonStyle}
+              >
+                + Extension
+              </button>
+            </>
+          )}
 
-        <button
-          type="button"
-          onClick={() => onDelete(item.id)}
-          style={dangerButtonStyle}
-        >
-          Delete
-        </button>
-      </div>
+          {canDelete && (
+            <button
+              type="button"
+              onClick={() => onDelete(item.id)}
+              style={dangerButtonStyle}
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
