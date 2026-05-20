@@ -53,6 +53,8 @@ type FilingForm = {
 
 type Props = {
   caseId: string;
+  canEdit?: boolean;
+  canDelete?: boolean;
 };
 
 const courtLevelOptions = [
@@ -102,7 +104,11 @@ const emptyFilingForm: FilingForm = {
   note: "",
 };
 
-export default function JudgmentsSection({ caseId }: Props) {
+export default function JudgmentsSection({
+  caseId,
+  canEdit = false,
+  canDelete = false,
+}: Props) {
   const caseIdNumber = Number(caseId);
 
   const [judgments, setJudgments] = useState<JudgmentItem[]>([]);
@@ -204,12 +210,22 @@ export default function JudgmentsSection({ caseId }: Props) {
   }, [filings]);
 
   const startAddJudgment = () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เพิ่มข้อมูลคำพิพากษา/คำสั่ง");
+      return;
+    }
+
     setEditingJudgmentId(null);
     setJudgmentForm(emptyJudgmentForm);
     setShowJudgmentForm(true);
   };
 
   const startEditJudgment = (item: JudgmentItem) => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไขข้อมูลคำพิพากษา/คำสั่ง");
+      return;
+    }
+
     setEditingJudgmentId(item.id);
     setJudgmentForm({
       court_level: item.court_level || "first_instance",
@@ -252,6 +268,12 @@ export default function JudgmentsSection({ caseId }: Props) {
   };
 
   const createJudgment = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เพิ่มข้อมูลคำพิพากษา/คำสั่ง");
+      cancelJudgmentForm();
+      return;
+    }
+
     if (!validateJudgment()) return;
 
     try {
@@ -293,6 +315,12 @@ export default function JudgmentsSection({ caseId }: Props) {
   };
 
   const updateJudgment = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไขข้อมูลคำพิพากษา/คำสั่ง");
+      cancelJudgmentForm();
+      return;
+    }
+
     if (!editingJudgmentId) return;
     if (!validateJudgment()) return;
 
@@ -334,6 +362,11 @@ export default function JudgmentsSection({ caseId }: Props) {
   };
 
   const deleteJudgment = async (id: string) => {
+    if (!canDelete) {
+      alert("คุณไม่มีสิทธิ์ลบข้อมูลคำพิพากษา/คำสั่ง");
+      return;
+    }
+
     const confirmed = window.confirm(
       "ต้องการลบข้อมูลคำพิพากษานี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
     );
@@ -383,12 +416,22 @@ export default function JudgmentsSection({ caseId }: Props) {
   };
 
   const startAddFiling = () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เพิ่มข้อมูลการยื่นอุทธรณ์/ฎีกา");
+      return;
+    }
+
     setEditingFilingId(null);
     setFilingForm(emptyFilingForm);
     setShowFilingForm(true);
   };
 
   const startEditFiling = (item: CourtFilingItem) => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไขข้อมูลการยื่นอุทธรณ์/ฎีกา");
+      return;
+    }
+
     setEditingFilingId(item.id);
     setFilingForm({
       filing_type: item.filing_type || "appeal",
@@ -441,6 +484,12 @@ export default function JudgmentsSection({ caseId }: Props) {
   };
 
   const createFiling = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เพิ่มข้อมูลการยื่นอุทธรณ์/ฎีกา");
+      cancelFilingForm();
+      return;
+    }
+
     if (!validateFiling()) return;
 
     try {
@@ -482,6 +531,12 @@ export default function JudgmentsSection({ caseId }: Props) {
   };
 
   const updateFiling = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไขข้อมูลการยื่นอุทธรณ์/ฎีกา");
+      cancelFilingForm();
+      return;
+    }
+
     if (!editingFilingId) return;
     if (!validateFiling()) return;
 
@@ -522,6 +577,11 @@ export default function JudgmentsSection({ caseId }: Props) {
   };
 
   const deleteFiling = async (id: string) => {
+    if (!canDelete) {
+      alert("คุณไม่มีสิทธิ์ลบข้อมูลการยื่นอุทธรณ์/ฎีกา");
+      return;
+    }
+
     const confirmed = window.confirm(
       "ต้องการลบข้อมูลการยื่นนี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
     );
@@ -590,13 +650,15 @@ export default function JudgmentsSection({ caseId }: Props) {
             </div>
 
             {!showJudgmentForm ? (
-              <button
-                type="button"
-                onClick={startAddJudgment}
-                style={primaryButtonStyle}
-              >
-                + Add Judgment
-              </button>
+              canEdit ? (
+                <button
+                  type="button"
+                  onClick={startAddJudgment}
+                  style={primaryButtonStyle}
+                >
+                  + Add Judgment
+                </button>
+              ) : null
             ) : (
               <button
                 type="button"
@@ -664,9 +726,7 @@ export default function JudgmentsSection({ caseId }: Props) {
               <div style={formButtonWrapStyle}>
                 <button
                   type="button"
-                  onClick={
-                    editingJudgmentId ? updateJudgment : createJudgment
-                  }
+                  onClick={editingJudgmentId ? updateJudgment : createJudgment}
                   disabled={savingJudgment}
                   style={primaryButtonStyle}
                 >
@@ -695,6 +755,8 @@ export default function JudgmentsSection({ caseId }: Props) {
                 <JudgmentCard
                   key={item.id}
                   item={item}
+                  canEdit={canEdit}
+                  canDelete={canDelete}
                   onEdit={startEditJudgment}
                   onDelete={deleteJudgment}
                 />
@@ -713,13 +775,15 @@ export default function JudgmentsSection({ caseId }: Props) {
             </div>
 
             {!showFilingForm ? (
-              <button
-                type="button"
-                onClick={startAddFiling}
-                style={primaryButtonStyle}
-              >
-                + Add Filing
-              </button>
+              canEdit ? (
+                <button
+                  type="button"
+                  onClick={startAddFiling}
+                  style={primaryButtonStyle}
+                >
+                  + Add Filing
+                </button>
+              ) : null
             ) : (
               <button
                 type="button"
@@ -840,6 +904,8 @@ export default function JudgmentsSection({ caseId }: Props) {
                 <FilingCard
                   key={item.id}
                   item={item}
+                  canEdit={canEdit}
+                  canDelete={canDelete}
                   onEdit={startEditFiling}
                   onDelete={deleteFiling}
                 />
@@ -858,13 +924,19 @@ export default function JudgmentsSection({ caseId }: Props) {
 
 function JudgmentCard({
   item,
+  canEdit,
+  canDelete,
   onEdit,
   onDelete,
 }: {
   item: JudgmentItem;
+  canEdit: boolean;
+  canDelete: boolean;
   onEdit: (item: JudgmentItem) => void;
   onDelete: (id: string) => void;
 }) {
+  const showActions = canEdit || canDelete;
+
   return (
     <div style={itemCardStyle}>
       <div style={itemHeaderStyle}>
@@ -885,31 +957,48 @@ function JudgmentCard({
         </div>
       )}
 
-      <div style={actionWrapStyle}>
-        <button type="button" onClick={() => onEdit(item)} style={smallButtonStyle}>
-          Edit
-        </button>
-        <button
-          type="button"
-          onClick={() => onDelete(item.id)}
-          style={dangerButtonStyle}
-        >
-          Delete
-        </button>
-      </div>
+      {showActions && (
+        <div style={actionWrapStyle}>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => onEdit(item)}
+              style={smallButtonStyle}
+            >
+              Edit
+            </button>
+          )}
+
+          {canDelete && (
+            <button
+              type="button"
+              onClick={() => onDelete(item.id)}
+              style={dangerButtonStyle}
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 function FilingCard({
   item,
+  canEdit,
+  canDelete,
   onEdit,
   onDelete,
 }: {
   item: CourtFilingItem;
+  canEdit: boolean;
+  canDelete: boolean;
   onEdit: (item: CourtFilingItem) => void;
   onDelete: (id: string) => void;
 }) {
+  const showActions = canEdit || canDelete;
+
   const partyText =
     item.party_label === "อื่นๆ"
       ? item.party_other || "อื่นๆ"
@@ -937,18 +1026,29 @@ function FilingCard({
         </div>
       )}
 
-      <div style={actionWrapStyle}>
-        <button type="button" onClick={() => onEdit(item)} style={smallButtonStyle}>
-          Edit
-        </button>
-        <button
-          type="button"
-          onClick={() => onDelete(item.id)}
-          style={dangerButtonStyle}
-        >
-          Delete
-        </button>
-      </div>
+      {showActions && (
+        <div style={actionWrapStyle}>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => onEdit(item)}
+              style={smallButtonStyle}
+            >
+              Edit
+            </button>
+          )}
+
+          {canDelete && (
+            <button
+              type="button"
+              onClick={() => onDelete(item.id)}
+              style={dangerButtonStyle}
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

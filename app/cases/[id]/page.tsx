@@ -477,7 +477,11 @@ export default function CaseDetailPage() {
         </div>
 
         <div id="judgments" style={sectionWrapStyle}>
-          <JudgmentsSection caseId={id} />
+          <JudgmentsSection
+           caseId={id}
+           canEdit={permissions.canEditJudgments}
+           canDelete={permissions.canSoftDelete}
+          />
         </div>
 
         <div id="enforcement" style={sectionWrapStyle}>
