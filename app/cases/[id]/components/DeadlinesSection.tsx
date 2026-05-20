@@ -29,6 +29,9 @@ type DeadlineItem = {
 
   created_at?: string | null;
   updated_at?: string | null;
+
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 };
 
 type DeadlineExtension = {
@@ -167,6 +170,7 @@ export default function DeadlinesSection({ caseId }: Props) {
         .from("case_deadlines")
         .select("*")
         .eq("case_id", caseIdNumber)
+        .is("deleted_at", null)
         .order("order_no", { ascending: true })
         .order("created_at", { ascending: true });
 
@@ -348,6 +352,8 @@ export default function DeadlinesSection({ caseId }: Props) {
       const payload = {
         ...buildPayload(),
         created_at: new Date().toISOString(),
+        deleted_at: null,
+        deleted_by: null,
       };
 
       const { data, error } = await supabase
@@ -392,6 +398,7 @@ export default function DeadlinesSection({ caseId }: Props) {
         .from("case_deadlines")
         .update(payload)
         .eq("id", editingId)
+        .is("deleted_at", null)
         .select("*")
         .single();
 
@@ -419,38 +426,59 @@ export default function DeadlinesSection({ caseId }: Props) {
 
   const deleteDeadline = async (id: string) => {
     const confirmed = window.confirm(
-      "ต้องการลบกำหนดเวลานี้หรือไม่? ประวัติการขยายเวลาจะถูกลบไปด้วย"
+      "ต้องการลบกำหนดเวลานี้หรือไม่?\n\nระบบจะซ่อนกำหนดเวลานี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลและประวัติการขยายเวลาไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
     );
 
     if (!confirmed) return;
 
-    const oldDeadline = items.find((item) => item.id === id) || null;
-    const oldExtensions = extensions.filter((item) => item.deadline_id === id);
+    try {
+      setSaving(true);
 
-    const { error } = await supabase.from("case_deadlines").delete().eq("id", id);
+      const oldDeadline = items.find((item) => item.id === id) || null;
+      const oldExtensions = extensions.filter((item) => item.deadline_id === id);
 
-    if (error) {
-      alert("Delete deadline failed:\n" + JSON.stringify(error, null, 2));
-      return;
+      const payload = {
+        deleted_at: new Date().toISOString(),
+        deleted_by: "current_user",
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from("case_deadlines")
+        .update(payload)
+        .eq("id", id)
+        .is("deleted_at", null)
+        .select("*")
+        .single();
+
+      if (error) {
+        alert("Soft delete deadline failed:\n" + JSON.stringify(error, null, 2));
+        return;
+      }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_deadlines",
+        recordId: id,
+        action: "soft_delete",
+        oldData: {
+          deadline: oldDeadline,
+          extensions: oldExtensions,
+        },
+        newData: {
+          deadline: data || (oldDeadline ? { ...oldDeadline, ...payload } : payload),
+          extensions: oldExtensions,
+        },
+        note: "Soft delete legal deadline and keep related extensions",
+      });
+
+      if (editingId === id) cancelForm();
+      if (extensionDeadlineId === id) cancelExtensionForm();
+
+      await loadDeadlines();
+    } finally {
+      setSaving(false);
     }
-
-    await createAuditLog({
-      caseId: caseIdNumber,
-      tableName: "case_deadlines",
-      recordId: id,
-      action: "delete",
-      oldData: {
-        deadline: oldDeadline,
-        extensions: oldExtensions,
-      },
-      newData: null,
-      note: "Delete legal deadline and related extensions",
-    });
-
-    if (editingId === id) cancelForm();
-    if (extensionDeadlineId === id) cancelExtensionForm();
-
-    await loadDeadlines();
   };
 
   const toggleDone = async (item: DeadlineItem) => {
@@ -466,6 +494,7 @@ export default function DeadlinesSection({ caseId }: Props) {
       .from("case_deadlines")
       .update(payload)
       .eq("id", item.id)
+      .is("deleted_at", null)
       .select("*")
       .single();
 
@@ -569,6 +598,7 @@ export default function DeadlinesSection({ caseId }: Props) {
         .from("case_deadlines")
         .update(deadlineUpdatePayload)
         .eq("id", extensionDeadlineId)
+        .is("deleted_at", null)
         .select("*")
         .single();
 
