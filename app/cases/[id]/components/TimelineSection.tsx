@@ -21,6 +21,9 @@ type TimelineItem = {
   order_no?: number | null;
   created_at?: string | null;
   updated_at?: string | null;
+
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 };
 
 type TimelineForm = {
@@ -101,6 +104,7 @@ export default function TimelineSection({ caseId }: Props) {
         .from("case_timeline")
         .select("*")
         .eq("case_id", caseIdNumber)
+        .is("deleted_at", null)
         .order("event_type", { ascending: true })
         .order("order_no", { ascending: true })
         .order("created_at", { ascending: true });
@@ -185,6 +189,7 @@ export default function TimelineSection({ caseId }: Props) {
           .from("case_timeline")
           .update(payload)
           .eq("id", filingId)
+          .is("deleted_at", null)
           .select("*")
           .single();
 
@@ -216,6 +221,8 @@ export default function TimelineSection({ caseId }: Props) {
           order_no: 0,
           created_at: now,
           updated_at: now,
+          deleted_at: null,
+          deleted_by: null,
         };
 
         const { data, error } = await supabase
@@ -338,6 +345,8 @@ export default function TimelineSection({ caseId }: Props) {
       const payload = {
         ...buildAppointmentPayload(),
         created_at: new Date().toISOString(),
+        deleted_at: null,
+        deleted_by: null,
       };
 
       const { data, error } = await supabase
@@ -382,6 +391,7 @@ export default function TimelineSection({ caseId }: Props) {
         .from("case_timeline")
         .update(payload)
         .eq("id", editingId)
+        .is("deleted_at", null)
         .select("*")
         .single();
 
@@ -408,31 +418,52 @@ export default function TimelineSection({ caseId }: Props) {
   };
 
   const deleteAppointment = async (id: string) => {
-    const confirmed = window.confirm("ต้องการลบนัดศาลรายการนี้หรือไม่?");
+    const confirmed = window.confirm(
+      "ต้องการลบนัดศาลรายการนี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
+    );
+
     if (!confirmed) return;
 
-    const oldData = items.find((item) => item.id === id) || null;
+    try {
+      setSavingAppointment(true);
 
-    const { error } = await supabase.from("case_timeline").delete().eq("id", id);
+      const oldData = items.find((item) => item.id === id) || null;
 
-    if (error) {
-      alert("Delete appointment failed:\n" + JSON.stringify(error, null, 2));
-      return;
+      const payload = {
+        deleted_at: new Date().toISOString(),
+        deleted_by: "current_user",
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from("case_timeline")
+        .update(payload)
+        .eq("id", id)
+        .is("deleted_at", null)
+        .select("*")
+        .single();
+
+      if (error) {
+        alert("Soft delete appointment failed:\n" + JSON.stringify(error, null, 2));
+        return;
+      }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_timeline",
+        recordId: id,
+        action: "soft_delete",
+        oldData,
+        newData: data || (oldData ? { ...oldData, ...payload } : payload),
+        note: "Soft delete court appointment",
+      });
+
+      if (editingId === id) cancelForm();
+
+      await loadTimeline();
+    } finally {
+      setSavingAppointment(false);
     }
-
-    await createAuditLog({
-      caseId: caseIdNumber,
-      tableName: "case_timeline",
-      recordId: id,
-      action: "delete",
-      oldData,
-      newData: null,
-      note: "Delete court appointment",
-    });
-
-    if (editingId === id) cancelForm();
-
-    await loadTimeline();
   };
 
   const toggleAppointmentDone = async (item: TimelineItem) => {
@@ -449,6 +480,7 @@ export default function TimelineSection({ caseId }: Props) {
       .from("case_timeline")
       .update(payload)
       .eq("id", item.id)
+      .is("deleted_at", null)
       .select("*")
       .single();
 
