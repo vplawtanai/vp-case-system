@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../../../lib/supabase";
 import { createAuditLog } from "../../../../lib/auditLog";
@@ -119,6 +119,17 @@ export default function PartiesSection({
 
   const [form, setForm] = useState<PartyForm>(emptyForm);
 
+  const formRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollToForm = () => {
+    window.setTimeout(() => {
+      formRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 80);
+  };
+
   const loadParties = async () => {
     if (!caseId) return;
 
@@ -150,6 +161,16 @@ export default function PartiesSection({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [caseId]);
 
+  const getNextOrderNo = (role: PartyRole) => {
+    const sameRole = parties.filter((p) => p.role === role);
+    const maxOrder = sameRole.reduce((max, p) => {
+      const order = p.order_no || 0;
+      return order > max ? order : max;
+    }, 0);
+
+    return maxOrder + 1;
+  };
+
   const startAdd = () => {
     if (!canEdit) {
       alert("คุณไม่มีสิทธิ์เพิ่มคู่ความ/ผู้เกี่ยวข้อง");
@@ -162,6 +183,7 @@ export default function PartiesSection({
       order_no: String(getNextOrderNo("plaintiff")),
     });
     setShowForm(true);
+    scrollToForm();
   };
 
   const cancelForm = () => {
@@ -178,6 +200,7 @@ export default function PartiesSection({
 
     setEditingId(party.id);
     setShowForm(true);
+    scrollToForm();
 
     setForm({
       role: party.role || "plaintiff",
@@ -206,16 +229,6 @@ export default function PartiesSection({
       province: party.province || "",
       postal_code: party.postal_code || "",
     });
-  };
-
-  const getNextOrderNo = (role: PartyRole) => {
-    const sameRole = parties.filter((p) => p.role === role);
-    const maxOrder = sameRole.reduce((max, p) => {
-      const order = p.order_no || 0;
-      return order > max ? order : max;
-    }, 0);
-
-    return maxOrder + 1;
   };
 
   const buildPayload = () => {
@@ -445,12 +458,16 @@ export default function PartiesSection({
     };
   }, [parties]);
 
+  const totalParties = parties.length;
+
   return (
     <div style={sectionStyle}>
       <div style={headerStyle}>
         <div>
           <h3 style={titleStyle}>Parties</h3>
-          <div style={subTitleStyle}>คู่ความและผู้เกี่ยวข้องในคดี</div>
+          <div style={subTitleStyle}>
+            คู่ความและผู้เกี่ยวข้องในคดี · รวม {totalParties} รายการ
+          </div>
         </div>
 
         {!showForm ? (
@@ -467,108 +484,127 @@ export default function PartiesSection({
       </div>
 
       {showForm && (
-        <div style={formCardStyle}>
-          <h4 style={formTitleStyle}>
-            {editingId ? "Edit Party" : "Add Party"}
-          </h4>
+        <div ref={formRef} style={formCardStyle}>
+          <div style={formHeaderStyle}>
+            <div>
+              <h4 style={formTitleStyle}>
+                {editingId ? "Edit Party" : "Add Party"}
+              </h4>
+              <div style={formSubTitleStyle}>
+                กรอกเฉพาะข้อมูลที่จำเป็นก่อน รายละเอียดที่อยู่เติมภายหลังได้
+              </div>
+            </div>
 
-          <div style={formGridStyle}>
-            <Select
-              label="Role"
-              value={form.role}
-              onChange={(value) => {
-                const role = value as PartyRole;
-                setForm({
-                  ...form,
-                  role,
-                  order_no: editingId ? form.order_no : String(getNextOrderNo(role)),
-                });
-              }}
-              options={[
-                { value: "plaintiff", label: "Plaintiff (โจทก์)" },
-                { value: "defendant", label: "Defendant (จำเลย)" },
-                { value: "petitioner", label: "Petitioner (ผู้ร้อง)" },
-                { value: "objector", label: "Objector (ผู้คัดค้าน)" },
-              ]}
-            />
-
-            <Input
-              label="Order No."
-              value={form.order_no}
-              onChange={(value) =>
-                setForm({
-                  ...form,
-                  order_no: value.replace(/\D/g, ""),
-                })
-              }
-            />
-
-            <Select
-              label="Type"
-              value={form.entity_type}
-              onChange={(value) =>
-                setForm({
-                  ...form,
-                  entity_type: value as PartyEntityType,
-                })
-              }
-              options={[
-                { value: "individual", label: "Individual (บุคคลธรรมดา)" },
-                { value: "company", label: "Company (นิติบุคคล)" },
-              ]}
-            />
-
-            {form.entity_type === "individual" ? (
-              <>
-                <Select
-                  label="Title"
-                  value={form.title}
-                  onChange={(value) => setForm({ ...form, title: value })}
-                  options={[
-                    { value: "นาย", label: "นาย" },
-                    { value: "นาง", label: "นาง" },
-                    { value: "นางสาว", label: "นางสาว" },
-                    { value: "เด็กชาย", label: "เด็กชาย" },
-                    { value: "เด็กหญิง", label: "เด็กหญิง" },
-                    { value: "", label: "ไม่ระบุ" },
-                  ]}
-                />
-
-                <Input
-                  label="First Name"
-                  value={form.first_name}
-                  onChange={(value) => setForm({ ...form, first_name: value })}
-                />
-
-                <Input
-                  label="Last Name"
-                  value={form.last_name}
-                  onChange={(value) => setForm({ ...form, last_name: value })}
-                />
-              </>
-            ) : (
-              <Input
-                label="Company Name"
-                value={form.company_name}
-                onChange={(value) => setForm({ ...form, company_name: value })}
-              />
-            )}
-
-            <Input
-              label="ID No. / Tax ID"
-              value={form.id_number}
-              onChange={(value) => setForm({ ...form, id_number: value })}
-            />
-
-            <Input
-              label="Phone"
-              value={form.phone}
-              onChange={(value) => setForm({ ...form, phone: value })}
-            />
+            {editingId && <span style={editBadgeStyle}>Editing</span>}
           </div>
 
-          <div style={addressBlockStyle}>
-            <div style={addressTitleStyle}>Address</div>
+          <div style={formSectionStyle}>
+            <div style={formSectionTitleStyle}>Identity</div>
+
+            <div style={formGridStyle}>
+              <Select
+                label="Role"
+                value={form.role}
+                onChange={(value) => {
+                  const role = value as PartyRole;
+                  setForm({
+                    ...form,
+                    role,
+                    order_no: editingId
+                      ? form.order_no
+                      : String(getNextOrderNo(role)),
+                  });
+                }}
+                options={[
+                  { value: "plaintiff", label: "Plaintiff (โจทก์)" },
+                  { value: "defendant", label: "Defendant (จำเลย)" },
+                  { value: "petitioner", label: "Petitioner (ผู้ร้อง)" },
+                  { value: "objector", label: "Objector (ผู้คัดค้าน)" },
+                ]}
+              />
+
+              <Input
+                label="Order No."
+                value={form.order_no}
+                onChange={(value) =>
+                  setForm({
+                    ...form,
+                    order_no: value.replace(/\D/g, ""),
+                  })
+                }
+              />
+
+              <Select
+                label="Type"
+                value={form.entity_type}
+                onChange={(value) =>
+                  setForm({
+                    ...form,
+                    entity_type: value as PartyEntityType,
+                  })
+                }
+                options={[
+                  { value: "individual", label: "Individual (บุคคลธรรมดา)" },
+                  { value: "company", label: "Company (นิติบุคคล)" },
+                ]}
+              />
+
+              {form.entity_type === "individual" ? (
+                <>
+                  <Select
+                    label="Title"
+                    value={form.title}
+                    onChange={(value) => setForm({ ...form, title: value })}
+                    options={[
+                      { value: "นาย", label: "นาย" },
+                      { value: "นาง", label: "นาง" },
+                      { value: "นางสาว", label: "นางสาว" },
+                      { value: "เด็กชาย", label: "เด็กชาย" },
+                      { value: "เด็กหญิง", label: "เด็กหญิง" },
+                      { value: "", label: "ไม่ระบุ" },
+                    ]}
+                  />
+
+                  <Input
+                    label="First Name"
+                    value={form.first_name}
+                    onChange={(value) => setForm({ ...form, first_name: value })}
+                  />
+
+                  <Input
+                    label="Last Name"
+                    value={form.last_name}
+                    onChange={(value) => setForm({ ...form, last_name: value })}
+                  />
+                </>
+              ) : (
+                <div style={{ gridColumn: "span 2" }}>
+                  <Input
+                    label="Company Name"
+                    value={form.company_name}
+                    onChange={(value) =>
+                      setForm({ ...form, company_name: value })
+                    }
+                  />
+                </div>
+              )}
+
+              <Input
+                label="ID No. / Tax ID"
+                value={form.id_number}
+                onChange={(value) => setForm({ ...form, id_number: value })}
+              />
+
+              <Input
+                label="Phone"
+                value={form.phone}
+                onChange={(value) => setForm({ ...form, phone: value })}
+              />
+            </div>
+          </div>
+
+          <div style={formSectionStyle}>
+            <div style={formSectionTitleStyle}>Address</div>
 
             <div style={formGridStyle}>
               <Input
@@ -744,7 +780,10 @@ function PartyGroup({
   return (
     <div style={partyGroupStyle}>
       <div style={partyGroupTitleStyle}>
-        {title} <span style={partyGroupSubtitleStyle}>{subtitle}</span>
+        <div>
+          {title} <span style={partyGroupSubtitleStyle}>{subtitle}</span>
+        </div>
+        <span style={countBadgeStyle}>{parties.length}</span>
       </div>
 
       <div style={partyCardGridStyle}>
@@ -784,7 +823,7 @@ function PartyCard({
         <div>
           <div style={partyNameStyle}>{renderPartyName(party)}</div>
           <div style={partyMetaStyle}>
-            {renderRole(party.role)} No. {party.order_no || "-"} •{" "}
+            {renderRole(party.role)} No. {party.order_no || "-"} ·{" "}
             {party.entity_type === "company" ? "Company" : "Individual"}
           </div>
         </div>
@@ -797,7 +836,7 @@ function PartyCard({
 
       <div style={addressTextStyle}>
         <div style={infoLabelStyle}>Address</div>
-        <div style={infoValueStyle}>{renderAddress(party) || "-"}</div>
+        <div style={addressValueStyle}>{renderAddress(party) || "-"}</div>
       </div>
 
       {showActions && (
@@ -829,7 +868,7 @@ function PartyCard({
 
 function InfoLine({ label, value }: { label: string; value: string }) {
   return (
-    <div>
+    <div style={infoLineStyle}>
       <div style={infoLabelStyle}>{label}</div>
       <div style={infoValueStyle}>{value}</div>
     </div>
@@ -940,8 +979,8 @@ function renderAddress(party: PartyItem) {
 
 const sectionStyle: CSSProperties = {
   border: "1px solid #dddddd",
-  padding: 16,
-  borderRadius: 12,
+  padding: "clamp(12px, 2vw, 16px)",
+  borderRadius: 14,
   background: "#ffffff",
   color: "#111111",
 };
@@ -951,215 +990,304 @@ const headerStyle: CSSProperties = {
   justifyContent: "space-between",
   gap: 12,
   alignItems: "flex-start",
-  marginBottom: 16,
+  marginBottom: 14,
   flexWrap: "wrap",
 };
 
 const titleStyle: CSSProperties = {
   margin: 0,
   color: "#111111",
+  fontSize: 18,
+  fontWeight: 900,
 };
 
 const subTitleStyle: CSSProperties = {
-  marginTop: 4,
-  color: "#555555",
+  marginTop: 3,
+  color: "#666666",
   fontSize: 13,
+  lineHeight: 1.45,
 };
 
 const primaryButtonStyle: CSSProperties = {
-  padding: "9px 14px",
+  padding: "8px 13px",
   background: "#000000",
   color: "#ffffff",
   borderRadius: 8,
   border: "none",
   cursor: "pointer",
-  fontWeight: 700,
+  fontWeight: 800,
+  fontSize: 13,
   whiteSpace: "nowrap",
 };
 
 const secondaryButtonStyle: CSSProperties = {
-  padding: "9px 14px",
+  padding: "8px 13px",
   background: "#ffffff",
   color: "#111111",
   borderRadius: 8,
   border: "1px solid #cccccc",
   cursor: "pointer",
-  fontWeight: 600,
+  fontWeight: 700,
+  fontSize: 13,
   whiteSpace: "nowrap",
 };
 
 const formCardStyle: CSSProperties = {
   border: "1px solid #dddddd",
-  borderRadius: 12,
-  padding: 16,
+  borderRadius: 14,
+  padding: 14,
   background: "#fafafa",
-  marginBottom: 18,
+  marginBottom: 16,
+  scrollMarginTop: 105,
+};
+
+const formHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 10,
+  alignItems: "flex-start",
+  marginBottom: 12,
+  flexWrap: "wrap",
 };
 
 const formTitleStyle: CSSProperties = {
-  marginTop: 0,
-  marginBottom: 12,
+  margin: 0,
   color: "#111111",
+  fontSize: 16,
+  fontWeight: 900,
+};
+
+const formSubTitleStyle: CSSProperties = {
+  marginTop: 3,
+  color: "#666666",
+  fontSize: 12,
+  lineHeight: 1.45,
+};
+
+const editBadgeStyle: CSSProperties = {
+  display: "inline-flex",
+  padding: "5px 10px",
+  borderRadius: 999,
+  background: "#fff8e1",
+  color: "#b54708",
+  border: "1px solid #eedc9a",
+  fontSize: 12,
+  fontWeight: 900,
+  whiteSpace: "nowrap",
+};
+
+const formSectionStyle: CSSProperties = {
+  border: "1px solid #eeeeee",
+  borderRadius: 12,
+  padding: 12,
+  background: "#ffffff",
+  marginBottom: 10,
+};
+
+const formSectionTitleStyle: CSSProperties = {
+  fontSize: 13,
+  fontWeight: 900,
+  color: "#111111",
+  marginBottom: 10,
 };
 
 const formGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: 12,
+  gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+  gap: 10,
 };
 
 const labelStyle: CSSProperties = {
   display: "block",
-  marginBottom: 4,
-  color: "#222222",
-  fontWeight: 600,
-  fontSize: 13,
+  marginBottom: 3,
+  color: "#777777",
+  fontWeight: 800,
+  fontSize: 11,
+  textTransform: "uppercase",
+  letterSpacing: "0.03em",
 };
 
 const inputStyle: CSSProperties = {
   width: "100%",
-  padding: "9px 10px",
+  padding: "8px 9px",
   borderRadius: 8,
   border: "1px solid #bbbbbb",
   background: "#ffffff",
   color: "#111111",
   colorScheme: "light",
   boxSizing: "border-box",
-};
-
-const addressBlockStyle: CSSProperties = {
-  marginTop: 16,
-};
-
-const addressTitleStyle: CSSProperties = {
-  fontWeight: 700,
-  marginBottom: 10,
-  color: "#111111",
+  fontSize: 13,
 };
 
 const formButtonWrapStyle: CSSProperties = {
   display: "flex",
-  gap: 10,
-  marginTop: 16,
+  gap: 8,
+  marginTop: 12,
   flexWrap: "wrap",
 };
 
 const emptyStyle: CSSProperties = {
-  padding: 16,
+  padding: 14,
   border: "1px dashed #cccccc",
   borderRadius: 12,
   color: "#555555",
   background: "#ffffff",
+  fontSize: 13,
+  fontWeight: 700,
 };
 
 const partyGroupWrapStyle: CSSProperties = {
   display: "grid",
-  gap: 18,
+  gap: 14,
 };
 
 const partyGroupStyle: CSSProperties = {
   display: "grid",
-  gap: 10,
+  gap: 9,
 };
 
 const partyGroupTitleStyle: CSSProperties = {
-  fontSize: 16,
-  fontWeight: 800,
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 10,
+  alignItems: "center",
+  fontSize: 15,
+  fontWeight: 900,
   color: "#111111",
-  paddingTop: 8,
+  paddingTop: 10,
   borderTop: "1px solid #eeeeee",
 };
 
 const partyGroupSubtitleStyle: CSSProperties = {
   color: "#666666",
-  fontSize: 13,
-  fontWeight: 500,
+  fontSize: 12,
+  fontWeight: 700,
+};
+
+const countBadgeStyle: CSSProperties = {
+  display: "inline-flex",
+  minWidth: 26,
+  justifyContent: "center",
+  padding: "4px 8px",
+  borderRadius: 999,
+  background: "#f1f5f9",
+  color: "#475467",
+  border: "1px solid #d0d5dd",
+  fontSize: 12,
+  fontWeight: 900,
 };
 
 const partyCardGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-  gap: 12,
+  gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+  gap: 10,
 };
 
 const partyCardStyle: CSSProperties = {
   border: "1px solid #dddddd",
   borderRadius: 12,
-  padding: 14,
+  padding: 12,
   background: "#ffffff",
   color: "#111111",
-  boxShadow: "0 1px 6px rgba(0,0,0,0.05)",
+  boxShadow: "0 1px 6px rgba(0,0,0,0.04)",
 };
 
 const partyCardHeaderStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   gap: 10,
-  marginBottom: 12,
+  marginBottom: 10,
 };
 
 const partyNameStyle: CSSProperties = {
-  fontSize: 16,
-  fontWeight: 800,
+  fontSize: 15,
+  fontWeight: 900,
   color: "#111111",
+  lineHeight: 1.4,
+  wordBreak: "break-word",
 };
 
 const partyMetaStyle: CSSProperties = {
-  marginTop: 4,
-  fontSize: 13,
-  color: "#555555",
+  marginTop: 3,
+  fontSize: 12,
+  color: "#666666",
+  fontWeight: 700,
 };
 
 const partyInfoGridStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "1fr 1fr",
-  gap: 10,
-  marginBottom: 10,
+  gap: 8,
+  marginBottom: 8,
+};
+
+const infoLineStyle: CSSProperties = {
+  padding: "7px 8px",
+  border: "1px solid #eeeeee",
+  borderRadius: 10,
+  background: "#fafafa",
+  minWidth: 0,
 };
 
 const infoLabelStyle: CSSProperties = {
-  fontSize: 12,
-  color: "#666666",
+  fontSize: 11,
+  color: "#777777",
   marginBottom: 2,
+  fontWeight: 800,
+  textTransform: "uppercase",
+  letterSpacing: "0.03em",
 };
 
 const infoValueStyle: CSSProperties = {
-  fontSize: 14,
+  fontSize: 13,
   color: "#111111",
-  fontWeight: 600,
+  fontWeight: 800,
   wordBreak: "break-word",
-  lineHeight: 1.5,
+  lineHeight: 1.45,
 };
 
 const addressTextStyle: CSSProperties = {
-  paddingTop: 8,
-  borderTop: "1px solid #eeeeee",
+  padding: "8px 9px",
+  border: "1px solid #eeeeee",
+  borderRadius: 10,
+  background: "#fafafa",
+};
+
+const addressValueStyle: CSSProperties = {
+  fontSize: 13,
+  color: "#111111",
+  fontWeight: 700,
+  wordBreak: "break-word",
+  lineHeight: 1.5,
 };
 
 const partyActionStyle: CSSProperties = {
   display: "flex",
   gap: 8,
-  marginTop: 12,
+  marginTop: 10,
   paddingTop: 10,
   borderTop: "1px solid #eeeeee",
+  flexWrap: "wrap",
 };
 
 const smallButtonStyle: CSSProperties = {
-  padding: "7px 11px",
+  padding: "7px 10px",
   borderRadius: 8,
   border: "1px solid #cccccc",
   background: "#ffffff",
   color: "#111111",
   cursor: "pointer",
-  fontWeight: 600,
+  fontWeight: 700,
+  fontSize: 13,
 };
 
 const dangerButtonStyle: CSSProperties = {
-  padding: "7px 11px",
+  padding: "7px 10px",
   borderRadius: 8,
   border: "1px solid #e0b4b4",
   background: "#fff5f5",
   color: "#a40000",
   cursor: "pointer",
-  fontWeight: 700,
+  fontWeight: 800,
+  fontSize: 13,
 };
