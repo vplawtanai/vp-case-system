@@ -45,6 +45,8 @@ type TaskForm = {
 type Props = {
   caseId: string;
   tasks?: unknown[];
+  canEdit?: boolean;
+  canDelete?: boolean;
 };
 
 const taskTypeOptions = [
@@ -75,7 +77,11 @@ const emptyForm: TaskForm = {
   note: "",
 };
 
-export default function TasksSection({ caseId }: Props) {
+export default function TasksSection({
+  caseId,
+  canEdit = false,
+  canDelete = false,
+}: Props) {
   const caseIdNumber = Number(caseId);
 
   const [items, setItems] = useState<TaskItem[]>([]);
@@ -143,6 +149,11 @@ export default function TasksSection({ caseId }: Props) {
   };
 
   const startAddTask = () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เพิ่ม Task");
+      return;
+    }
+
     setEditingId(null);
     setForm({
       ...emptyForm,
@@ -152,6 +163,11 @@ export default function TasksSection({ caseId }: Props) {
   };
 
   const startEditTask = (item: TaskItem) => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไข Task");
+      return;
+    }
+
     setEditingId(item.id);
     setShowForm(true);
 
@@ -223,6 +239,12 @@ export default function TasksSection({ caseId }: Props) {
   };
 
   const createTask = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เพิ่ม Task");
+      cancelForm();
+      return;
+    }
+
     if (!validateTask()) return;
 
     try {
@@ -264,6 +286,12 @@ export default function TasksSection({ caseId }: Props) {
   };
 
   const updateTask = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไข Task");
+      cancelForm();
+      return;
+    }
+
     if (!editingId) return;
     if (!validateTask()) return;
 
@@ -304,6 +332,11 @@ export default function TasksSection({ caseId }: Props) {
   };
 
   const deleteTask = async (id: string) => {
+    if (!canDelete) {
+      alert("คุณไม่มีสิทธิ์ลบ Task");
+      return;
+    }
+
     const confirmed = window.confirm(
       "ต้องการลบงานนี้หรือไม่?\n\nระบบจะซ่อนงานนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
     );
@@ -353,8 +386,12 @@ export default function TasksSection({ caseId }: Props) {
   };
 
   const markDone = async (item: TaskItem) => {
-    const nextStatus = item.status === "Done" ? "Pending" : "Done";
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เปลี่ยนสถานะ Task");
+      return;
+    }
 
+    const nextStatus = item.status === "Done" ? "Pending" : "Done";
     const oldData = item;
 
     const payload = {
@@ -400,9 +437,15 @@ export default function TasksSection({ caseId }: Props) {
         </div>
 
         {!showForm ? (
-          <button type="button" onClick={startAddTask} style={primaryButtonStyle}>
-            + Add Task
-          </button>
+          canEdit ? (
+            <button
+              type="button"
+              onClick={startAddTask}
+              style={primaryButtonStyle}
+            >
+              + Add Task
+            </button>
+          ) : null
         ) : (
           <button type="button" onClick={cancelForm} style={secondaryButtonStyle}>
             Cancel
@@ -524,6 +567,8 @@ export default function TasksSection({ caseId }: Props) {
             <TaskCard
               key={item.id}
               item={item}
+              canEdit={canEdit}
+              canDelete={canDelete}
               onEdit={startEditTask}
               onDelete={deleteTask}
               onToggleDone={markDone}
@@ -541,11 +586,15 @@ export default function TasksSection({ caseId }: Props) {
 
 function TaskCard({
   item,
+  canEdit,
+  canDelete,
   onEdit,
   onDelete,
   onToggleDone,
 }: {
   item: TaskItem;
+  canEdit: boolean;
+  canDelete: boolean;
   onEdit: (item: TaskItem) => void;
   onDelete: (id: string) => void;
   onToggleDone: (item: TaskItem) => void;
@@ -556,6 +605,7 @@ function TaskCard({
   const isDone = item.status === "Done";
   const dueStatus = getDueStatus(item);
   const dueStatusStyle = getDueStatusStyle(dueStatus);
+  const showActions = canEdit || canDelete;
 
   return (
     <div
@@ -578,13 +628,15 @@ function TaskCard({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => onToggleDone(item)}
-          style={isDone ? doneButtonStyle : smallButtonStyle}
-        >
-          {isDone ? "Undo" : "Done"}
-        </button>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={() => onToggleDone(item)}
+            style={isDone ? doneButtonStyle : smallButtonStyle}
+          >
+            {isDone ? "Undo" : "Done"}
+          </button>
+        )}
       </div>
 
       <div style={taskMetaGridStyle}>
@@ -601,19 +653,29 @@ function TaskCard({
         </div>
       )}
 
-      <div style={actionWrapStyle}>
-        <button type="button" onClick={() => onEdit(item)} style={smallButtonStyle}>
-          Edit
-        </button>
+      {showActions && (
+        <div style={actionWrapStyle}>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => onEdit(item)}
+              style={smallButtonStyle}
+            >
+              Edit
+            </button>
+          )}
 
-        <button
-          type="button"
-          onClick={() => onDelete(item.id)}
-          style={dangerButtonStyle}
-        >
-          Delete
-        </button>
-      </div>
+          {canDelete && (
+            <button
+              type="button"
+              onClick={() => onDelete(item.id)}
+              style={dangerButtonStyle}
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
