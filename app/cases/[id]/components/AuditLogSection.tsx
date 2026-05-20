@@ -27,6 +27,7 @@ type AuditLogItem = {
 
 type Props = {
   caseId: string;
+  canRestore?: boolean;
 };
 
 const restorableTables = [
@@ -45,7 +46,7 @@ const restorableTables = [
   "case_notes",
 ];
 
-export default function AuditLogSection({ caseId }: Props) {
+export default function AuditLogSection({ caseId, canRestore = false }: Props) {
   const caseIdNumber = Number(caseId);
 
   const [items, setItems] = useState<AuditLogItem[]>([]);
@@ -89,6 +90,11 @@ export default function AuditLogSection({ caseId }: Props) {
   }, [caseId, isOpen]);
 
   const restoreRecord = async (item: AuditLogItem) => {
+        if (!canRestore) {
+      alert("คุณไม่มีสิทธิ์กู้คืนข้อมูลนี้");
+      return;
+    }
+
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) {
       alert("Missing case id");
       return;
@@ -282,10 +288,11 @@ export default function AuditLogSection({ caseId }: Props) {
           ) : (
             <div style={logListStyle}>
               {filteredItems.map((item) => (
-                <AuditLogCard
+                 <AuditLogCard
                   key={item.id}
                   item={item}
                   restoring={restoringId === item.id}
+                  canRestore={canRestore}
                   onRestore={restoreRecord}
                 />
               ))}
@@ -300,14 +307,17 @@ export default function AuditLogSection({ caseId }: Props) {
 function AuditLogCard({
   item,
   restoring,
+  canRestore,
   onRestore,
 }: {
   item: AuditLogItem;
   restoring: boolean;
+  canRestore: boolean;
   onRestore: (item: AuditLogItem) => void;
 }) {
   const changedFields = getChangedFields(item.old_data, item.new_data);
-  const canRestore =
+    const canShowRestoreButton =
+    canRestore &&
     item.action === "soft_delete" &&
     !!item.record_id &&
     restorableTables.includes(item.table_name);
@@ -333,7 +343,7 @@ function AuditLogCard({
             {item.action || "-"}
           </span>
 
-          {canRestore && (
+           {canShowRestoreButton && (
             <button
               type="button"
               onClick={() => onRestore(item)}

@@ -494,7 +494,9 @@ export default function CaseDetailPage() {
 
         {permissions.canViewHistory && (
           <div id="history" style={sectionWrapStyle}>
-            <AuditLogSection caseId={id} />
+            <AuditLogSection
+  caseId={id}
+  canRestore={permissions.canRestore} />
           </div>
         )}
 
