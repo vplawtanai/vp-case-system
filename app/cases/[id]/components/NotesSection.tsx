@@ -39,6 +39,8 @@ type NoteForm = {
 
 type Props = {
   caseId: string;
+  canEdit?: boolean;
+  canDelete?: boolean;
 };
 
 const authorOptions = ["ทนายเป้า", "ทนายตุลย์", "แพม", "แตงโม", "อื่นๆ"];
@@ -64,7 +66,11 @@ const emptyForm: NoteForm = {
   important: false,
 };
 
-export default function NotesSection({ caseId }: Props) {
+export default function NotesSection({
+  caseId,
+  canEdit = false,
+  canDelete = false,
+}: Props) {
   const caseIdNumber = Number(caseId);
 
   const [items, setItems] = useState<NoteItem[]>([]);
@@ -127,6 +133,11 @@ export default function NotesSection({ caseId }: Props) {
   };
 
   const startAdd = () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เพิ่ม Note");
+      return;
+    }
+
     setEditingId(null);
     setForm({
       ...emptyForm,
@@ -137,6 +148,11 @@ export default function NotesSection({ caseId }: Props) {
   };
 
   const startEdit = (item: NoteItem) => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไข Note");
+      return;
+    }
+
     const savedAuthorName = item.author_name || "ทนายเป้า";
     const isKnownAuthor = authorOptions.includes(savedAuthorName);
 
@@ -221,6 +237,12 @@ export default function NotesSection({ caseId }: Props) {
   };
 
   const createNote = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เพิ่ม Note");
+      cancelForm();
+      return;
+    }
+
     if (!validateNote()) return;
 
     try {
@@ -262,6 +284,12 @@ export default function NotesSection({ caseId }: Props) {
   };
 
   const updateNote = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไข Note");
+      cancelForm();
+      return;
+    }
+
     if (!editingId) return;
     if (!validateNote()) return;
 
@@ -302,6 +330,11 @@ export default function NotesSection({ caseId }: Props) {
   };
 
   const deleteNote = async (id: string) => {
+    if (!canDelete) {
+      alert("คุณไม่มีสิทธิ์ลบ Note");
+      return;
+    }
+
     const confirmed = window.confirm(
       "ต้องการลบ Note นี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
     );
@@ -361,9 +394,11 @@ export default function NotesSection({ caseId }: Props) {
         </div>
 
         {!showForm ? (
-          <button type="button" onClick={startAdd} style={primaryButtonStyle}>
-            + Add Note
-          </button>
+          canEdit ? (
+            <button type="button" onClick={startAdd} style={primaryButtonStyle}>
+              + Add Note
+            </button>
+          ) : null
         ) : (
           <button type="button" onClick={cancelForm} style={secondaryButtonStyle}>
             Cancel
@@ -487,6 +522,8 @@ export default function NotesSection({ caseId }: Props) {
             <NoteCard
               key={item.id}
               item={item}
+              canEdit={canEdit}
+              canDelete={canDelete}
               onEdit={startEdit}
               onDelete={deleteNote}
             />
@@ -503,13 +540,19 @@ export default function NotesSection({ caseId }: Props) {
 
 function NoteCard({
   item,
+  canEdit,
+  canDelete,
   onEdit,
   onDelete,
 }: {
   item: NoteItem;
+  canEdit: boolean;
+  canDelete: boolean;
   onEdit: (item: NoteItem) => void;
   onDelete: (id: string) => void;
 }) {
+  const showActions = canEdit || canDelete;
+
   return (
     <div
       style={{
@@ -534,19 +577,29 @@ function NoteCard({
 
       <div style={noteTextStyle}>{item.note_text || "-"}</div>
 
-      <div style={actionWrapStyle}>
-        <button type="button" onClick={() => onEdit(item)} style={smallButtonStyle}>
-          Edit
-        </button>
+      {showActions && (
+        <div style={actionWrapStyle}>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => onEdit(item)}
+              style={smallButtonStyle}
+            >
+              Edit
+            </button>
+          )}
 
-        <button
-          type="button"
-          onClick={() => onDelete(item.id)}
-          style={dangerButtonStyle}
-        >
-          Delete
-        </button>
-      </div>
+          {canDelete && (
+            <button
+              type="button"
+              onClick={() => onDelete(item.id)}
+              style={dangerButtonStyle}
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

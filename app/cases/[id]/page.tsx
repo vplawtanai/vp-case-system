@@ -494,7 +494,11 @@ export default function CaseDetailPage() {
         )}
 
         <div id="notes" style={sectionWrapStyle}>
-          <NotesSection caseId={id} />
+          <NotesSection
+           caseId={id}
+           canEdit={permissions.canEditNotes}
+           canDelete={permissions.canSoftDelete}
+          />
         </div>
 
         {permissions.canViewHistory && (
