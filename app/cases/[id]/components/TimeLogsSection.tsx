@@ -40,6 +40,8 @@ type TimeLogForm = {
 
 type Props = {
   caseId: string;
+  canEdit?: boolean;
+  canDelete?: boolean;
 };
 
 const workTypeOptions = [
@@ -59,13 +61,7 @@ const workTypeOptions = [
   "อื่นๆ",
 ];
 
-const staffOptions = [
-  "ทนายเป้า",
-  "ทนายตุลย์",
-  "แพม",
-  "แตงโม",
-  "อื่นๆ",
-];
+const staffOptions = ["ทนายเป้า", "ทนายตุลย์", "แพม", "แตงโม", "อื่นๆ"];
 
 const timeCategoryOptions = [
   {
@@ -90,7 +86,11 @@ const emptyForm: TimeLogForm = {
   note: "",
 };
 
-export default function TimeLogsSection({ caseId }: Props) {
+export default function TimeLogsSection({
+  caseId,
+  canEdit = false,
+  canDelete = false,
+}: Props) {
   const caseIdNumber = Number(caseId);
 
   const [items, setItems] = useState<TimeLogItem[]>([]);
@@ -204,6 +204,11 @@ export default function TimeLogsSection({ caseId }: Props) {
   }, [items]);
 
   const startAdd = () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เพิ่ม Time Log");
+      return;
+    }
+
     setEditingId(null);
     setForm({
       ...emptyForm,
@@ -213,6 +218,11 @@ export default function TimeLogsSection({ caseId }: Props) {
   };
 
   const startEdit = (item: TimeLogItem) => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไข Time Log");
+      return;
+    }
+
     const split = splitMinutes(item.minutes || 0);
     const savedStaffName = item.staff_name || "ทนายเป้า";
     const isKnownStaff = staffOptions.includes(savedStaffName);
@@ -313,6 +323,12 @@ export default function TimeLogsSection({ caseId }: Props) {
   };
 
   const createTimeLog = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เพิ่ม Time Log");
+      cancelForm();
+      return;
+    }
+
     if (!validateForm()) return;
 
     try {
@@ -354,6 +370,12 @@ export default function TimeLogsSection({ caseId }: Props) {
   };
 
   const updateTimeLog = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไข Time Log");
+      cancelForm();
+      return;
+    }
+
     if (!editingId) return;
     if (!validateForm()) return;
 
@@ -394,6 +416,11 @@ export default function TimeLogsSection({ caseId }: Props) {
   };
 
   const deleteTimeLog = async (id: string) => {
+    if (!canDelete) {
+      alert("คุณไม่มีสิทธิ์ลบ Time Log");
+      return;
+    }
+
     const confirmed = window.confirm(
       "ต้องการลบ Time Log นี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
     );
@@ -453,9 +480,11 @@ export default function TimeLogsSection({ caseId }: Props) {
         </div>
 
         {!showForm ? (
-          <button type="button" onClick={startAdd} style={primaryButtonStyle}>
-            + Add Time
-          </button>
+          canEdit ? (
+            <button type="button" onClick={startAdd} style={primaryButtonStyle}>
+              + Add Time
+            </button>
+          ) : null
         ) : (
           <button type="button" onClick={cancelForm} style={secondaryButtonStyle}>
             Cancel
@@ -660,6 +689,8 @@ export default function TimeLogsSection({ caseId }: Props) {
             <TimeLogCard
               key={item.id}
               item={item}
+              canEdit={canEdit}
+              canDelete={canDelete}
               onEdit={startEdit}
               onDelete={deleteTimeLog}
             />
@@ -685,17 +716,24 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
 
 function TimeLogCard({
   item,
+  canEdit,
+  canDelete,
   onEdit,
   onDelete,
 }: {
   item: TimeLogItem;
+  canEdit: boolean;
+  canDelete: boolean;
   onEdit: (item: TimeLogItem) => void;
   onDelete: (id: string) => void;
 }) {
   const workText =
-    item.work_type === "อื่นๆ" ? item.work_other || "อื่นๆ" : item.work_type || "-";
+    item.work_type === "อื่นๆ"
+      ? item.work_other || "อื่นๆ"
+      : item.work_type || "-";
 
   const isCoreWork = item.billable !== false;
+  const showActions = canEdit || canDelete;
 
   return (
     <div style={logCardStyle}>
@@ -716,19 +754,29 @@ function TimeLogCard({
 
       {item.note && <div style={noteBlockStyle}>{item.note}</div>}
 
-      <div style={actionWrapStyle}>
-        <button type="button" onClick={() => onEdit(item)} style={smallButtonStyle}>
-          Edit
-        </button>
+      {showActions && (
+        <div style={actionWrapStyle}>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => onEdit(item)}
+              style={smallButtonStyle}
+            >
+              Edit
+            </button>
+          )}
 
-        <button
-          type="button"
-          onClick={() => onDelete(item.id)}
-          style={dangerButtonStyle}
-        >
-          Delete
-        </button>
-      </div>
+          {canDelete && (
+            <button
+              type="button"
+              onClick={() => onDelete(item.id)}
+              style={dangerButtonStyle}
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
