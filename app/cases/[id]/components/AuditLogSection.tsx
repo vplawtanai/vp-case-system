@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../../../lib/supabase";
+import { createAuditLog } from "../../../../lib/auditLog";
 
 type AuditLogItem = {
   id: string;
@@ -28,11 +29,29 @@ type Props = {
   caseId: string;
 };
 
+const restorableTables = [
+  "parties",
+  "case_timeline",
+  "case_judgments",
+  "case_court_filings",
+  "case_enforcements",
+  "case_enforcement_assets",
+  "case_tasks",
+  "case_deadlines",
+  "case_deadline_extensions",
+  "case_time_logs",
+  "case_fee_items",
+  "case_expense_items",
+  "case_notes",
+];
+
 export default function AuditLogSection({ caseId }: Props) {
   const caseIdNumber = Number(caseId);
 
   const [items, setItems] = useState<AuditLogItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+
   const [isOpen, setIsOpen] = useState(false);
   const [actionFilter, setActionFilter] = useState("All");
   const [tableFilter, setTableFilter] = useState("All");
@@ -69,6 +88,101 @@ export default function AuditLogSection({ caseId }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [caseId, isOpen]);
 
+  const restoreRecord = async (item: AuditLogItem) => {
+    if (!caseIdNumber || Number.isNaN(caseIdNumber)) {
+      alert("Missing case id");
+      return;
+    }
+
+    if (item.action !== "soft_delete") {
+      alert("รายการนี้ไม่ใช่รายการที่ถูก Soft Delete");
+      return;
+    }
+
+    if (!item.table_name || !restorableTables.includes(item.table_name)) {
+      alert("ตารางนี้ยังไม่รองรับการ Restore");
+      return;
+    }
+
+    if (!item.record_id) {
+      alert("Missing record id");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `ต้องการกู้คืนรายการนี้หรือไม่?\n\nTable: ${renderTableName(
+        item.table_name
+      )}\nRecord ID: ${item.record_id}`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setRestoringId(item.id);
+
+      const { data: currentRow, error: readError } = await supabase
+        .from(item.table_name)
+        .select("*")
+        .eq("id", item.record_id)
+        .maybeSingle();
+
+      if (readError) {
+        alert("Read deleted record failed:\n" + JSON.stringify(readError, null, 2));
+        return;
+      }
+
+      if (!currentRow) {
+        alert(
+          "ไม่พบ record นี้ในตารางแล้ว อาจถูกลบถาวร หรือ record id ไม่ตรงกับตาราง"
+        );
+        return;
+      }
+
+      if (!currentRow.deleted_at) {
+        alert("รายการนี้ถูกกู้คืนแล้ว หรือยังไม่ได้ถูกลบ");
+        await loadAuditLogs();
+        return;
+      }
+
+      const payload = {
+        deleted_at: null,
+        deleted_by: null,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from(item.table_name)
+        .update(payload)
+        .eq("id", item.record_id)
+        .select("*")
+        .single();
+
+      if (error) {
+        alert("Restore failed:\n" + JSON.stringify(error, null, 2));
+        return;
+      }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: item.table_name,
+        recordId: item.record_id,
+        action: "restore",
+        oldData: currentRow,
+        newData: data || {
+          ...currentRow,
+          ...payload,
+        },
+        note: `Restore ${renderTableName(item.table_name)}`,
+      });
+
+      alert("Restore สำเร็จแล้ว");
+
+      await loadAuditLogs();
+    } finally {
+      setRestoringId(null);
+    }
+  };
+
   const tableOptions = useMemo(() => {
     const values = items
       .map((item) => item.table_name)
@@ -78,9 +192,7 @@ export default function AuditLogSection({ caseId }: Props) {
   }, [items]);
 
   const actionOptions = useMemo(() => {
-    const values = items
-      .map((item) => item.action)
-      .filter((value) => !!value);
+    const values = items.map((item) => item.action).filter((value) => !!value);
 
     return ["All", ...Array.from(new Set(values))];
   }, [items]);
@@ -100,7 +212,7 @@ export default function AuditLogSection({ caseId }: Props) {
         <div>
           <h3 style={titleStyle}>History / Audit Log</h3>
           <div style={subTitleStyle}>
-            ประวัติการเพิ่ม แก้ไข และลบข้อมูลในคดีนี้
+            ประวัติการเพิ่ม แก้ไข ลบ และกู้คืนข้อมูลในคดีนี้
           </div>
         </div>
 
@@ -170,7 +282,12 @@ export default function AuditLogSection({ caseId }: Props) {
           ) : (
             <div style={logListStyle}>
               {filteredItems.map((item) => (
-                <AuditLogCard key={item.id} item={item} />
+                <AuditLogCard
+                  key={item.id}
+                  item={item}
+                  restoring={restoringId === item.id}
+                  onRestore={restoreRecord}
+                />
               ))}
             </div>
           )}
@@ -180,8 +297,20 @@ export default function AuditLogSection({ caseId }: Props) {
   );
 }
 
-function AuditLogCard({ item }: { item: AuditLogItem }) {
+function AuditLogCard({
+  item,
+  restoring,
+  onRestore,
+}: {
+  item: AuditLogItem;
+  restoring: boolean;
+  onRestore: (item: AuditLogItem) => void;
+}) {
   const changedFields = getChangedFields(item.old_data, item.new_data);
+  const canRestore =
+    item.action === "soft_delete" &&
+    !!item.record_id &&
+    restorableTables.includes(item.table_name);
 
   return (
     <div style={logCardStyle}>
@@ -199,9 +328,22 @@ function AuditLogCard({ item }: { item: AuditLogItem }) {
           {item.note && <div style={noteStyle}>{item.note}</div>}
         </div>
 
-        <span style={getActionBadgeStyle(item.action)}>
-          {item.action || "-"}
-        </span>
+        <div style={badgeAndButtonWrapStyle}>
+          <span style={getActionBadgeStyle(item.action)}>
+            {item.action || "-"}
+          </span>
+
+          {canRestore && (
+            <button
+              type="button"
+              onClick={() => onRestore(item)}
+              disabled={restoring}
+              style={restoreButtonStyle}
+            >
+              {restoring ? "Restoring..." : "Restore"}
+            </button>
+          )}
+        </div>
       </div>
 
       <div style={smallInfoGridStyle}>
@@ -345,6 +487,8 @@ function renderAction(value?: string | null) {
   if (value === "create") return "Create";
   if (value === "update") return "Update";
   if (value === "delete") return "Delete";
+  if (value === "soft_delete") return "Soft Delete";
+  if (value === "restore") return "Restore";
   if (value === "All") return "All";
   return value;
 }
@@ -353,18 +497,19 @@ function renderTableName(value?: string | null) {
   if (!value) return "-";
   if (value === "All") return "All";
 
+  if (value === "parties") return "Parties";
   if (value === "case_deadlines") return "Legal Deadlines";
   if (value === "case_deadline_extensions") return "Deadline Extensions";
   if (value === "case_timeline") return "Timeline";
   if (value === "case_judgments") return "Judgments";
+  if (value === "case_court_filings") return "Court Filings";
   if (value === "case_enforcements") return "Enforcement";
   if (value === "case_enforcement_assets") return "Enforcement Assets";
-  if (value === "case_fees") return "Fees";
-  if (value === "case_expenses") return "Expenses";
+  if (value === "case_fee_items") return "Professional Fees";
+  if (value === "case_expense_items") return "Expenses";
   if (value === "case_tasks") return "Tasks";
   if (value === "case_time_logs") return "Time Logs";
   if (value === "case_notes") return "Notes";
-  if (value === "case_parties") return "Parties";
   if (value === "cases") return "Case Information";
 
   return value;
@@ -399,12 +544,21 @@ function getActionBadgeStyle(action: string): CSSProperties {
     };
   }
 
-  if (action === "delete") {
+  if (action === "delete" || action === "soft_delete") {
     return {
       ...badgeBaseStyle,
       background: "#fff5f5",
       color: "#a40000",
       border: "1px solid #e0b4b4",
+    };
+  }
+
+  if (action === "restore") {
+    return {
+      ...badgeBaseStyle,
+      background: "#edf4ff",
+      color: "#175cd3",
+      border: "1px solid #b2ccff",
     };
   }
 
@@ -562,12 +716,32 @@ const noteStyle: CSSProperties = {
   fontWeight: 700,
 };
 
+const badgeAndButtonWrapStyle: CSSProperties = {
+  display: "flex",
+  gap: 8,
+  alignItems: "center",
+  flexWrap: "wrap",
+  justifyContent: "flex-end",
+};
+
 const badgeBaseStyle: CSSProperties = {
   display: "inline-flex",
   padding: "5px 10px",
   borderRadius: 999,
   fontSize: 12,
   fontWeight: 800,
+  whiteSpace: "nowrap",
+};
+
+const restoreButtonStyle: CSSProperties = {
+  padding: "6px 10px",
+  borderRadius: 999,
+  border: "1px solid #b2ccff",
+  background: "#edf4ff",
+  color: "#175cd3",
+  cursor: "pointer",
+  fontSize: 12,
+  fontWeight: 900,
   whiteSpace: "nowrap",
 };
 
