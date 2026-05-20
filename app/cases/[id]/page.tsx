@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
+import { buildPermissions } from "../../../lib/permissions";
+import type { UserPermissions, UserRole } from "../../../lib/permissions";
 import CaseSectionNav from "../../components/CaseSectionNav";
 import CaseInfoSection from "./components/CaseInfoSection";
 import PartiesSection from "./components/PartiesSection";
@@ -21,8 +23,6 @@ import NotesSection from "./components/NotesSection";
 /* =========================================================
    TYPES
 ========================================================= */
-
-type UserRole = "admin" | "partner" | "lawyer" | "staff" | "viewer" | "";
 
 type CaseItem = {
   id?: number;
@@ -111,6 +111,11 @@ type FeeItem = {
   note?: string;
 };
 
+type UserProfile = {
+  role?: UserRole | string | null;
+  financial_access?: boolean | null;
+};
+
 /* =========================================================
    STYLE
 ========================================================= */
@@ -147,6 +152,26 @@ const subHeaderStyle: React.CSSProperties = {
   flexWrap: "wrap",
 };
 
+const permissionInfoStyle: React.CSSProperties = {
+  marginTop: -8,
+  marginBottom: 18,
+  color: "#666666",
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
+  fontSize: 12,
+  fontWeight: 700,
+};
+
+const permissionBadgeStyle: React.CSSProperties = {
+  display: "inline-flex",
+  padding: "5px 10px",
+  borderRadius: 999,
+  border: "1px solid #dddddd",
+  background: "#fafafa",
+  color: "#333333",
+};
+
 const backToTopButtonStyle: React.CSSProperties = {
   position: "fixed",
   right: 22,
@@ -176,40 +201,55 @@ export default function CaseDetailPage() {
   const [tasks] = useState<TaskItem[]>([]);
   const [fees] = useState<FeeItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userRole, setUserRole] = useState<UserRole>("");
 
-  const canViewFees = userRole === "admin" || userRole === "partner";
+  const [profile, setProfile] = useState<UserProfile>({
+    role: "",
+    financial_access: false,
+  });
+
+  const permissions: UserPermissions = useMemo(() => {
+    return buildPermissions(profile);
+  }, [profile]);
 
   const didScrollRef = useRef(false);
 
   /* =========================================================
-     LOAD CURRENT USER ROLE
+     LOAD CURRENT USER PROFILE / PERMISSIONS
   ========================================================= */
 
   useEffect(() => {
-    const loadCurrentUserRole = async () => {
+    const loadCurrentUserProfile = async () => {
       const { data: userData, error: userError } = await supabase.auth.getUser();
 
       if (userError || !userData.user) {
-        setUserRole("");
+        setProfile({
+          role: "",
+          financial_access: false,
+        });
         return;
       }
 
-      const { data: profile, error: profileError } = await supabase
+      const { data, error } = await supabase
         .from("user_profiles")
-        .select("role")
+        .select("role, financial_access")
         .eq("id", userData.user.id)
         .single();
 
-      if (profileError || !profile?.role) {
-        setUserRole("");
+      if (error || !data) {
+        setProfile({
+          role: "",
+          financial_access: false,
+        });
         return;
       }
 
-      setUserRole(profile.role as UserRole);
+      setProfile({
+        role: data.role || "",
+        financial_access: data.financial_access === true,
+      });
     };
 
-    loadCurrentUserRole();
+    loadCurrentUserProfile();
   }, []);
 
   /* =========================================================
@@ -401,7 +441,14 @@ export default function CaseDetailPage() {
           <span>Status: {caseItem.status || caseItem.caseStatus || "-"}</span>
         </div>
 
-        <CaseSectionNav canViewFees={canViewFees} />
+        <div style={permissionInfoStyle}>
+          <span style={permissionBadgeStyle}>Role: {permissions.role || "-"}</span>
+          <span style={permissionBadgeStyle}>
+            Financial Access: {permissions.financialAccess ? "Yes" : "No"}
+          </span>
+        </div>
+
+        <CaseSectionNav canViewFees={permissions.canViewFees} />
 
         <div id="info" style={sectionWrapStyle}>
           <CaseInfoSection caseId={id} caseItem={caseItem} />
@@ -435,7 +482,7 @@ export default function CaseDetailPage() {
           <TimeLogsSection caseId={id} />
         </div>
 
-        {canViewFees && (
+        {permissions.canViewFees && (
           <div id="fees" style={sectionWrapStyle}>
             <FeesSection caseId={id} fees={fees} />
           </div>
@@ -445,9 +492,11 @@ export default function CaseDetailPage() {
           <NotesSection caseId={id} />
         </div>
 
-        <div id="history" style={sectionWrapStyle}>
-          <AuditLogSection caseId={id} />
-        </div>
+        {permissions.canViewHistory && (
+          <div id="history" style={sectionWrapStyle}>
+            <AuditLogSection caseId={id} />
+          </div>
+        )}
 
         <button type="button" onClick={scrollToTop} style={backToTopButtonStyle}>
           ↑ Top
