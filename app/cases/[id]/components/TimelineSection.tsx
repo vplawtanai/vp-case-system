@@ -40,6 +40,8 @@ type TimelineForm = {
 type Props = {
   caseId: string;
   timeline?: unknown[];
+  canEdit?: boolean;
+  canDelete?: boolean;
 };
 
 const appointmentOptions = [
@@ -78,7 +80,11 @@ const emptyAppointmentForm: TimelineForm = {
   order_no: "1",
 };
 
-export default function TimelineSection({ caseId }: Props) {
+export default function TimelineSection({
+  caseId,
+  canEdit = false,
+  canDelete = false,
+}: Props) {
   const caseIdNumber = Number(caseId);
 
   const [items, setItems] = useState<TimelineItem[]>([]);
@@ -121,7 +127,7 @@ export default function TimelineSection({ caseId }: Props) {
       const filing = timelineItems.find((item) => item.event_type === "filing");
       setFilingId(filing?.id || null);
       setFilingDate(filing?.event_date || "");
-      setIsEditingFiling(!filing?.event_date);
+      setIsEditingFiling(!filing?.event_date && canEdit);
     } finally {
       setLoading(false);
     }
@@ -130,7 +136,7 @@ export default function TimelineSection({ caseId }: Props) {
   useEffect(() => {
     loadTimeline();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [caseId]);
+  }, [caseId, canEdit]);
 
   const appointments = useMemo(() => {
     return items
@@ -162,6 +168,13 @@ export default function TimelineSection({ caseId }: Props) {
   };
 
   const saveFilingDate = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไขวันยื่นฟ้อง");
+      setIsEditingFiling(false);
+      await loadTimeline();
+      return;
+    }
+
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) {
       alert("Missing case id");
       return;
@@ -255,6 +268,11 @@ export default function TimelineSection({ caseId }: Props) {
   };
 
   const startAddAppointment = () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เพิ่มนัดศาล");
+      return;
+    }
+
     setEditingId(null);
     setForm({
       ...emptyAppointmentForm,
@@ -264,6 +282,11 @@ export default function TimelineSection({ caseId }: Props) {
   };
 
   const startEditAppointment = (item: TimelineItem) => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไขนัดศาล");
+      return;
+    }
+
     setEditingId(item.id);
     setShowForm(true);
 
@@ -337,6 +360,12 @@ export default function TimelineSection({ caseId }: Props) {
   };
 
   const createAppointment = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เพิ่มนัดศาล");
+      cancelForm();
+      return;
+    }
+
     if (!validateAppointment()) return;
 
     try {
@@ -378,6 +407,12 @@ export default function TimelineSection({ caseId }: Props) {
   };
 
   const updateAppointment = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไขนัดศาล");
+      cancelForm();
+      return;
+    }
+
     if (!editingId) return;
     if (!validateAppointment()) return;
 
@@ -418,6 +453,11 @@ export default function TimelineSection({ caseId }: Props) {
   };
 
   const deleteAppointment = async (id: string) => {
+    if (!canDelete) {
+      alert("คุณไม่มีสิทธิ์ลบนัดศาล");
+      return;
+    }
+
     const confirmed = window.confirm(
       "ต้องการลบนัดศาลรายการนี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
     );
@@ -467,8 +507,12 @@ export default function TimelineSection({ caseId }: Props) {
   };
 
   const toggleAppointmentDone = async (item: TimelineItem) => {
-    const nextStatus = item.status === "Done" ? "Scheduled" : "Done";
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เปลี่ยนสถานะนัดศาล");
+      return;
+    }
 
+    const nextStatus = item.status === "Done" ? "Scheduled" : "Done";
     const oldData = item;
 
     const payload = {
@@ -517,9 +561,15 @@ export default function TimelineSection({ caseId }: Props) {
         </div>
 
         {!showForm ? (
-          <button type="button" onClick={startAddAppointment} style={primaryButtonStyle}>
-            + Add Appointment
-          </button>
+          canEdit ? (
+            <button
+              type="button"
+              onClick={startAddAppointment}
+              style={primaryButtonStyle}
+            >
+              + Add Appointment
+            </button>
+          ) : null
         ) : (
           <button type="button" onClick={cancelForm} style={secondaryButtonStyle}>
             Cancel
@@ -534,7 +584,7 @@ export default function TimelineSection({ caseId }: Props) {
             <div style={filingSubTitleStyle}>วันที่ยื่นฟ้อง</div>
           </div>
 
-          {!isEditingFiling && (
+          {!isEditingFiling && canEdit && (
             <button
               type="button"
               onClick={() => setIsEditingFiling(true)}
@@ -545,7 +595,7 @@ export default function TimelineSection({ caseId }: Props) {
           )}
         </div>
 
-        {isEditingFiling ? (
+        {isEditingFiling && canEdit ? (
           <div style={filingFormStyle}>
             <input
               type="date"
@@ -703,6 +753,8 @@ export default function TimelineSection({ caseId }: Props) {
             <AppointmentCard
               key={item.id}
               item={item}
+              canEdit={canEdit}
+              canDelete={canDelete}
               onEdit={startEditAppointment}
               onDelete={deleteAppointment}
               onToggleDone={toggleAppointmentDone}
@@ -720,11 +772,15 @@ export default function TimelineSection({ caseId }: Props) {
 
 function AppointmentCard({
   item,
+  canEdit,
+  canDelete,
   onEdit,
   onDelete,
   onToggleDone,
 }: {
   item: TimelineItem;
+  canEdit: boolean;
+  canDelete: boolean;
   onEdit: (item: TimelineItem) => void;
   onDelete: (id: string) => void;
   onToggleDone: (item: TimelineItem) => void;
@@ -742,6 +798,7 @@ function AppointmentCard({
   const statusText = renderAppointmentStatus(item.status);
   const alertStatus = getAppointmentAlertStatus(item);
   const isDone = item.status === "Done";
+  const showActions = canEdit || canDelete;
 
   return (
     <div
@@ -767,13 +824,15 @@ function AppointmentCard({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => onToggleDone(item)}
-          style={isDone ? doneButtonStyle : smallButtonStyle}
-        >
-          {isDone ? "Undo" : "Done"}
-        </button>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={() => onToggleDone(item)}
+            style={isDone ? doneButtonStyle : smallButtonStyle}
+          >
+            {isDone ? "Undo" : "Done"}
+          </button>
+        )}
       </div>
 
       <div style={appointmentMetaGridStyle}>
@@ -788,19 +847,29 @@ function AppointmentCard({
         </div>
       )}
 
-      <div style={actionWrapStyle}>
-        <button type="button" onClick={() => onEdit(item)} style={smallButtonStyle}>
-          Edit
-        </button>
+      {showActions && (
+        <div style={actionWrapStyle}>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => onEdit(item)}
+              style={smallButtonStyle}
+            >
+              Edit
+            </button>
+          )}
 
-        <button
-          type="button"
-          onClick={() => onDelete(item.id)}
-          style={dangerButtonStyle}
-        >
-          Delete
-        </button>
-      </div>
+          {canDelete && (
+            <button
+              type="button"
+              onClick={() => onDelete(item.id)}
+              style={dangerButtonStyle}
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -468,7 +468,12 @@ export default function CaseDetailPage() {
         </div>
 
         <div id="timeline" style={sectionWrapStyle}>
-          <TimelineSection caseId={id} timeline={timeline} />
+          <TimelineSection
+           caseId={id}
+           timeline={timeline}
+           canEdit={permissions.canEditTimeline}
+           canDelete={permissions.canSoftDelete}
+          />
         </div>
 
         <div id="judgments" style={sectionWrapStyle}>
