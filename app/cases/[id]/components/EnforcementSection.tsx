@@ -32,6 +32,9 @@ type EnforcementItem = {
 
   created_at?: string | null;
   updated_at?: string | null;
+
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 };
 
 type AssetItem = {
@@ -70,6 +73,9 @@ type AssetItem = {
 
   created_at?: string | null;
   updated_at?: string | null;
+
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 };
 
 type EnforcementForm = {
@@ -302,12 +308,14 @@ export default function EnforcementSection({ caseId }: Props) {
           .from("case_enforcements")
           .select("*")
           .eq("case_id", caseIdNumber)
+          .is("deleted_at", null)
           .order("created_at", { ascending: true }),
 
         supabase
           .from("case_enforcement_assets")
           .select("*")
           .eq("case_id", caseIdNumber)
+          .is("deleted_at", null)
           .order("created_at", { ascending: true }),
       ]);
 
@@ -555,6 +563,8 @@ export default function EnforcementSection({ caseId }: Props) {
       const payload = {
         ...buildEnforcementPayload(),
         created_at: new Date().toISOString(),
+        deleted_at: null,
+        deleted_by: null,
       };
 
       const { data, error } = await supabase
@@ -600,6 +610,7 @@ export default function EnforcementSection({ caseId }: Props) {
         .from("case_enforcements")
         .update(payload)
         .eq("id", editingEnforcementId)
+        .is("deleted_at", null)
         .select("*")
         .single();
 
@@ -627,40 +638,94 @@ export default function EnforcementSection({ caseId }: Props) {
 
   const deleteEnforcement = async (id: string) => {
     const confirmed = window.confirm(
-      "ต้องการลบรายการบังคับคดีนี้หรือไม่?\nรายการทรัพย์ที่ผูกกับรายการนี้จะถูกลบด้วย"
+      "ต้องการลบรายการบังคับคดีนี้หรือไม่?\n\nระบบจะซ่อนรายการบังคับคดีนี้และรายการทรัพย์ที่ผูกอยู่ ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
     );
 
     if (!confirmed) return;
 
-    const oldEnforcement = enforcements.find((item) => item.id === id) || null;
-    const oldAssets = assets.filter((item) => item.enforcement_id === id);
+    try {
+      setSavingEnforcement(true);
 
-    const { error } = await supabase
-      .from("case_enforcements")
-      .delete()
-      .eq("id", id);
+      const oldEnforcement = enforcements.find((item) => item.id === id) || null;
+      const oldAssets = assets.filter((item) => item.enforcement_id === id);
 
-    if (error) {
-      alert("Delete enforcement failed:\n" + JSON.stringify(error, null, 2));
-      return;
+      const now = new Date().toISOString();
+
+      const enforcementPayload = {
+        deleted_at: now,
+        deleted_by: "current_user",
+        updated_at: now,
+      };
+
+      const { data: updatedEnforcement, error: enforcementError } = await supabase
+        .from("case_enforcements")
+        .update(enforcementPayload)
+        .eq("id", id)
+        .is("deleted_at", null)
+        .select("*")
+        .single();
+
+      if (enforcementError) {
+        alert(
+          "Soft delete enforcement failed:\n" +
+            JSON.stringify(enforcementError, null, 2)
+        );
+        return;
+      }
+
+      let updatedAssets: AssetItem[] = [];
+
+      if (oldAssets.length > 0) {
+        const assetPayload = {
+          deleted_at: now,
+          deleted_by: "current_user",
+          updated_at: now,
+        };
+
+        const { data: assetData, error: assetError } = await supabase
+          .from("case_enforcement_assets")
+          .update(assetPayload)
+          .eq("enforcement_id", id)
+          .is("deleted_at", null)
+          .select("*");
+
+        if (assetError) {
+          alert(
+            "Soft delete related assets failed:\n" +
+              JSON.stringify(assetError, null, 2)
+          );
+          return;
+        }
+
+        updatedAssets = (assetData || []) as AssetItem[];
+      }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_enforcements",
+        recordId: id,
+        action: "soft_delete",
+        oldData: {
+          enforcement: oldEnforcement,
+          assets: oldAssets,
+        },
+        newData: {
+          enforcement:
+            updatedEnforcement ||
+            (oldEnforcement
+              ? { ...oldEnforcement, ...enforcementPayload }
+              : enforcementPayload),
+          assets: updatedAssets,
+        },
+        note: "Soft delete enforcement command/writ and related assets",
+      });
+
+      if (editingEnforcementId === id) cancelEnforcementForm();
+
+      await loadData();
+    } finally {
+      setSavingEnforcement(false);
     }
-
-    await createAuditLog({
-      caseId: caseIdNumber,
-      tableName: "case_enforcements",
-      recordId: id,
-      action: "delete",
-      oldData: {
-        enforcement: oldEnforcement,
-        assets: oldAssets,
-      },
-      newData: null,
-      note: "Delete enforcement command/writ and related assets",
-    });
-
-    if (editingEnforcementId === id) cancelEnforcementForm();
-
-    await loadData();
   };
 
   const startAddAsset = (enforcementId?: string) => {
@@ -789,6 +854,8 @@ export default function EnforcementSection({ caseId }: Props) {
       const payload = {
         ...buildAssetPayload(),
         created_at: new Date().toISOString(),
+        deleted_at: null,
+        deleted_by: null,
       };
 
       const { data, error } = await supabase
@@ -833,6 +900,7 @@ export default function EnforcementSection({ caseId }: Props) {
         .from("case_enforcement_assets")
         .update(payload)
         .eq("id", editingAssetId)
+        .is("deleted_at", null)
         .select("*")
         .single();
 
@@ -859,34 +927,52 @@ export default function EnforcementSection({ caseId }: Props) {
   };
 
   const deleteAsset = async (id: string) => {
-    const confirmed = window.confirm("ต้องการลบรายการทรัพย์นี้หรือไม่?");
+    const confirmed = window.confirm(
+      "ต้องการลบรายการทรัพย์นี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
+    );
+
     if (!confirmed) return;
 
-    const oldData = assets.find((item) => item.id === id) || null;
+    try {
+      setSavingAsset(true);
 
-    const { error } = await supabase
-      .from("case_enforcement_assets")
-      .delete()
-      .eq("id", id);
+      const oldData = assets.find((item) => item.id === id) || null;
 
-    if (error) {
-      alert("Delete asset failed:\n" + JSON.stringify(error, null, 2));
-      return;
+      const payload = {
+        deleted_at: new Date().toISOString(),
+        deleted_by: "current_user",
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from("case_enforcement_assets")
+        .update(payload)
+        .eq("id", id)
+        .is("deleted_at", null)
+        .select("*")
+        .single();
+
+      if (error) {
+        alert("Soft delete asset failed:\n" + JSON.stringify(error, null, 2));
+        return;
+      }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_enforcement_assets",
+        recordId: id,
+        action: "soft_delete",
+        oldData,
+        newData: data || (oldData ? { ...oldData, ...payload } : payload),
+        note: "Soft delete enforcement asset/search record",
+      });
+
+      if (editingAssetId === id) cancelAssetForm();
+
+      await loadData();
+    } finally {
+      setSavingAsset(false);
     }
-
-    await createAuditLog({
-      caseId: caseIdNumber,
-      tableName: "case_enforcement_assets",
-      recordId: id,
-      action: "delete",
-      oldData,
-      newData: null,
-      note: "Delete enforcement asset/search record",
-    });
-
-    if (editingAssetId === id) cancelAssetForm();
-
-    await loadData();
   };
 
   const assetsByEnforcement = useMemo(() => {
