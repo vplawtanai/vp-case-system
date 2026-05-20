@@ -136,6 +136,8 @@ type AssetForm = {
 
 type Props = {
   caseId: string;
+  canEdit?: boolean;
+  canDelete?: boolean;
 };
 
 const partyOptions = [
@@ -276,7 +278,11 @@ const emptyAssetForm: AssetForm = {
   note: "",
 };
 
-export default function EnforcementSection({ caseId }: Props) {
+export default function EnforcementSection({
+  caseId,
+  canEdit = false,
+  canDelete = false,
+}: Props) {
   const caseIdNumber = Number(caseId);
 
   const [enforcements, setEnforcements] = useState<EnforcementItem[]>([]);
@@ -451,12 +457,22 @@ export default function EnforcementSection({ caseId }: Props) {
   };
 
   const startAddEnforcement = () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เพิ่มข้อมูลบังคับคดี");
+      return;
+    }
+
     setEditingEnforcementId(null);
     setEnforcementForm(emptyEnforcementForm);
     setShowEnforcementForm(true);
   };
 
   const startEditEnforcement = (item: EnforcementItem) => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไขข้อมูลบังคับคดี");
+      return;
+    }
+
     setEditingEnforcementId(item.id);
     setShowEnforcementForm(true);
 
@@ -555,6 +571,12 @@ export default function EnforcementSection({ caseId }: Props) {
   };
 
   const createEnforcement = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เพิ่มข้อมูลบังคับคดี");
+      cancelEnforcementForm();
+      return;
+    }
+
     if (!validateEnforcement()) return;
 
     try {
@@ -596,6 +618,12 @@ export default function EnforcementSection({ caseId }: Props) {
   };
 
   const updateEnforcement = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไขข้อมูลบังคับคดี");
+      cancelEnforcementForm();
+      return;
+    }
+
     if (!editingEnforcementId) return;
     if (!validateEnforcement()) return;
 
@@ -637,6 +665,11 @@ export default function EnforcementSection({ caseId }: Props) {
   };
 
   const deleteEnforcement = async (id: string) => {
+    if (!canDelete) {
+      alert("คุณไม่มีสิทธิ์ลบข้อมูลบังคับคดี");
+      return;
+    }
+
     const confirmed = window.confirm(
       "ต้องการลบรายการบังคับคดีนี้หรือไม่?\n\nระบบจะซ่อนรายการบังคับคดีนี้และรายการทรัพย์ที่ผูกอยู่ ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
     );
@@ -729,6 +762,11 @@ export default function EnforcementSection({ caseId }: Props) {
   };
 
   const startAddAsset = (enforcementId?: string) => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เพิ่มข้อมูลทรัพย์/สืบทรัพย์");
+      return;
+    }
+
     setEditingAssetId(null);
     setAssetForm({
       ...emptyAssetForm,
@@ -738,6 +776,11 @@ export default function EnforcementSection({ caseId }: Props) {
   };
 
   const startEditAsset = (item: AssetItem) => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไขข้อมูลทรัพย์/สืบทรัพย์");
+      return;
+    }
+
     setEditingAssetId(item.id);
     setShowAssetForm(true);
 
@@ -846,6 +889,12 @@ export default function EnforcementSection({ caseId }: Props) {
   };
 
   const createAsset = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เพิ่มข้อมูลทรัพย์/สืบทรัพย์");
+      cancelAssetForm();
+      return;
+    }
+
     if (!validateAsset()) return;
 
     try {
@@ -887,6 +936,12 @@ export default function EnforcementSection({ caseId }: Props) {
   };
 
   const updateAsset = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไขข้อมูลทรัพย์/สืบทรัพย์");
+      cancelAssetForm();
+      return;
+    }
+
     if (!editingAssetId) return;
     if (!validateAsset()) return;
 
@@ -927,6 +982,11 @@ export default function EnforcementSection({ caseId }: Props) {
   };
 
   const deleteAsset = async (id: string) => {
+    if (!canDelete) {
+      alert("คุณไม่มีสิทธิ์ลบข้อมูลทรัพย์/สืบทรัพย์");
+      return;
+    }
+
     const confirmed = window.confirm(
       "ต้องการลบรายการทรัพย์นี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
     );
@@ -1000,13 +1060,15 @@ export default function EnforcementSection({ caseId }: Props) {
 
         <div style={buttonWrapStyle}>
           {!showEnforcementForm ? (
-            <button
-              type="button"
-              onClick={startAddEnforcement}
-              style={primaryButtonStyle}
-            >
-              + Add Command/Writ
-            </button>
+            canEdit ? (
+              <button
+                type="button"
+                onClick={startAddEnforcement}
+                style={primaryButtonStyle}
+              >
+                + Add Command/Writ
+              </button>
+            ) : null
           ) : (
             <button
               type="button"
@@ -1018,19 +1080,21 @@ export default function EnforcementSection({ caseId }: Props) {
           )}
 
           {!showAssetForm ? (
-            <button
-              type="button"
-              onClick={() => startAddAsset()}
-              style={secondaryButtonStyle}
-              disabled={enforcements.length === 0}
-              title={
-                enforcements.length === 0
-                  ? "ต้องมี Command/Writ ก่อนจึงเพิ่มทรัพย์ได้"
-                  : ""
-              }
-            >
-              + Add Asset Search
-            </button>
+            canEdit ? (
+              <button
+                type="button"
+                onClick={() => startAddAsset()}
+                style={secondaryButtonStyle}
+                disabled={enforcements.length === 0}
+                title={
+                  enforcements.length === 0
+                    ? "ต้องมี Command/Writ ก่อนจึงเพิ่มทรัพย์ได้"
+                    : ""
+                }
+              >
+                + Add Asset Search
+              </button>
+            ) : null
           ) : (
             <button
               type="button"
@@ -1521,6 +1585,8 @@ export default function EnforcementSection({ caseId }: Props) {
                 key={item.id}
                 item={item}
                 assets={itemAssets}
+                canEdit={canEdit}
+                canDelete={canDelete}
                 onEdit={startEditEnforcement}
                 onDelete={deleteEnforcement}
                 onAddAsset={startAddAsset}
@@ -1551,6 +1617,8 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
 function EnforcementCard({
   item,
   assets,
+  canEdit,
+  canDelete,
   onEdit,
   onDelete,
   onAddAsset,
@@ -1559,6 +1627,8 @@ function EnforcementCard({
 }: {
   item: EnforcementItem;
   assets: AssetItem[];
+  canEdit: boolean;
+  canDelete: boolean;
   onEdit: (item: EnforcementItem) => void;
   onDelete: (id: string) => void;
   onAddAsset: (enforcementId?: string) => void;
@@ -1568,6 +1638,7 @@ function EnforcementCard({
   const status = renderEnforcementStatus(item.status);
   const urgency = getEnforcementUrgency(item);
   const commandDueAlert = getCommandDueAlert(item);
+  const showActions = canEdit || canDelete;
 
   return (
     <div style={enforcementCardStyle}>
@@ -1598,11 +1669,19 @@ function EnforcementCard({
         <InfoLine label="Service Result" value={renderServiceResult(item.service_result)} />
         <InfoLine
           label="Compliance Days"
-          value={item.compliance_days !== null && item.compliance_days !== undefined ? String(item.compliance_days) : "-"}
+          value={
+            item.compliance_days !== null && item.compliance_days !== undefined
+              ? String(item.compliance_days)
+              : "-"
+          }
         />
         <InfoLine
           label="Extra Days"
-          value={item.extra_days !== null && item.extra_days !== undefined ? String(item.extra_days) : "-"}
+          value={
+            item.extra_days !== null && item.extra_days !== undefined
+              ? String(item.extra_days)
+              : "-"
+          }
         />
         <InfoLine
           label="Original Due Date"
@@ -1624,25 +1703,39 @@ function EnforcementCard({
 
       {item.note && <div style={noteBlockStyle}>{item.note}</div>}
 
-      <div style={actionWrapStyle}>
-        <button type="button" onClick={() => onEdit(item)} style={smallButtonStyle}>
-          Edit Command
-        </button>
-        <button
-          type="button"
-          onClick={() => onAddAsset(item.id)}
-          style={smallButtonStyle}
-        >
-          + Add Asset
-        </button>
-        <button
-          type="button"
-          onClick={() => onDelete(item.id)}
-          style={dangerButtonStyle}
-        >
-          Delete
-        </button>
-      </div>
+      {showActions && (
+        <div style={actionWrapStyle}>
+          {canEdit && (
+            <>
+              <button
+                type="button"
+                onClick={() => onEdit(item)}
+                style={smallButtonStyle}
+              >
+                Edit Command
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onAddAsset(item.id)}
+                style={smallButtonStyle}
+              >
+                + Add Asset
+              </button>
+            </>
+          )}
+
+          {canDelete && (
+            <button
+              type="button"
+              onClick={() => onDelete(item.id)}
+              style={dangerButtonStyle}
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      )}
 
       <div style={assetSectionStyle}>
         <div style={assetHeaderStyle}>Asset Search / Seizure / Auction</div>
@@ -1655,6 +1748,8 @@ function EnforcementCard({
               <AssetCard
                 key={asset.id}
                 item={asset}
+                canEdit={canEdit}
+                canDelete={canDelete}
                 onEdit={onEditAsset}
                 onDelete={onDeleteAsset}
               />
@@ -1668,13 +1763,19 @@ function EnforcementCard({
 
 function AssetCard({
   item,
+  canEdit,
+  canDelete,
   onEdit,
   onDelete,
 }: {
   item: AssetItem;
+  canEdit: boolean;
+  canDelete: boolean;
   onEdit: (item: AssetItem) => void;
   onDelete: (id: string) => void;
 }) {
+  const showActions = canEdit || canDelete;
+
   const title =
     renderAssetType(item.asset_type) +
     (item.asset_identifier ? ` / ${item.asset_identifier}` : "");
@@ -1742,18 +1843,29 @@ function AssetCard({
         <div style={noteBlockStyle}>{item.client_reason || item.note}</div>
       )}
 
-      <div style={actionWrapStyle}>
-        <button type="button" onClick={() => onEdit(item)} style={smallButtonStyle}>
-          Edit Asset
-        </button>
-        <button
-          type="button"
-          onClick={() => onDelete(item.id)}
-          style={dangerButtonStyle}
-        >
-          Delete
-        </button>
-      </div>
+      {showActions && (
+        <div style={actionWrapStyle}>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => onEdit(item)}
+              style={smallButtonStyle}
+            >
+              Edit Asset
+            </button>
+          )}
+
+          {canDelete && (
+            <button
+              type="button"
+              onClick={() => onDelete(item.id)}
+              style={dangerButtonStyle}
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

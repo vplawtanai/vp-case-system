@@ -485,7 +485,11 @@ export default function CaseDetailPage() {
         </div>
 
         <div id="enforcement" style={sectionWrapStyle}>
-          <EnforcementSection caseId={id} />
+          <EnforcementSection
+           caseId={id}
+           canEdit={permissions.canEditEnforcement}
+           canDelete={permissions.canSoftDelete}
+          />
         </div>
 
         <div id="tasks" style={sectionWrapStyle}>
