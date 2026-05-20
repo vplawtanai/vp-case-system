@@ -74,6 +74,8 @@ type PartyForm = {
 
 type Props = {
   caseId: number;
+  canEdit?: boolean;
+  canDelete?: boolean;
 };
 
 const emptyForm: PartyForm = {
@@ -104,7 +106,11 @@ const emptyForm: PartyForm = {
   postal_code: "",
 };
 
-export default function PartiesSection({ caseId }: Props) {
+export default function PartiesSection({
+  caseId,
+  canEdit = false,
+  canDelete = false,
+}: Props) {
   const [parties, setParties] = useState<PartyItem[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -145,6 +151,11 @@ export default function PartiesSection({ caseId }: Props) {
   }, [caseId]);
 
   const startAdd = () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เพิ่มคู่ความ/ผู้เกี่ยวข้อง");
+      return;
+    }
+
     setEditingId(null);
     setForm({
       ...emptyForm,
@@ -160,6 +171,11 @@ export default function PartiesSection({ caseId }: Props) {
   };
 
   const startEdit = (party: PartyItem) => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไขคู่ความ/ผู้เกี่ยวข้อง");
+      return;
+    }
+
     setEditingId(party.id);
     setShowForm(true);
 
@@ -270,6 +286,12 @@ export default function PartiesSection({ caseId }: Props) {
   };
 
   const createParty = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เพิ่มคู่ความ/ผู้เกี่ยวข้อง");
+      cancelForm();
+      return;
+    }
+
     if (!validateForm()) return;
 
     try {
@@ -313,6 +335,12 @@ export default function PartiesSection({ caseId }: Props) {
   };
 
   const updateParty = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไขคู่ความ/ผู้เกี่ยวข้อง");
+      cancelForm();
+      return;
+    }
+
     if (!editingId) return;
     if (!validateForm()) return;
 
@@ -355,6 +383,11 @@ export default function PartiesSection({ caseId }: Props) {
   };
 
   const deleteParty = async (id: string) => {
+    if (!canDelete) {
+      alert("คุณไม่มีสิทธิ์ลบคู่ความ/ผู้เกี่ยวข้อง");
+      return;
+    }
+
     const confirmed = window.confirm(
       "ต้องการลบคู่ความ/ผู้เกี่ยวข้องรายนี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
     );
@@ -421,9 +454,11 @@ export default function PartiesSection({ caseId }: Props) {
         </div>
 
         {!showForm ? (
-          <button type="button" onClick={startAdd} style={primaryButtonStyle}>
-            + Add Party
-          </button>
+          canEdit ? (
+            <button type="button" onClick={startAdd} style={primaryButtonStyle}>
+              + Add Party
+            </button>
+          ) : null
         ) : (
           <button type="button" onClick={cancelForm} style={secondaryButtonStyle}>
             Cancel
@@ -642,6 +677,8 @@ export default function PartiesSection({ caseId }: Props) {
             title="Plaintiff"
             subtitle="โจทก์"
             parties={grouped.plaintiff}
+            canEdit={canEdit}
+            canDelete={canDelete}
             onEdit={startEdit}
             onDelete={deleteParty}
           />
@@ -650,6 +687,8 @@ export default function PartiesSection({ caseId }: Props) {
             title="Defendant"
             subtitle="จำเลย"
             parties={grouped.defendant}
+            canEdit={canEdit}
+            canDelete={canDelete}
             onEdit={startEdit}
             onDelete={deleteParty}
           />
@@ -658,6 +697,8 @@ export default function PartiesSection({ caseId }: Props) {
             title="Petitioner"
             subtitle="ผู้ร้อง"
             parties={grouped.petitioner}
+            canEdit={canEdit}
+            canDelete={canDelete}
             onEdit={startEdit}
             onDelete={deleteParty}
           />
@@ -666,6 +707,8 @@ export default function PartiesSection({ caseId }: Props) {
             title="Objector"
             subtitle="ผู้คัดค้าน"
             parties={grouped.objector}
+            canEdit={canEdit}
+            canDelete={canDelete}
             onEdit={startEdit}
             onDelete={deleteParty}
           />
@@ -683,12 +726,16 @@ function PartyGroup({
   title,
   subtitle,
   parties,
+  canEdit,
+  canDelete,
   onEdit,
   onDelete,
 }: {
   title: string;
   subtitle: string;
   parties: PartyItem[];
+  canEdit: boolean;
+  canDelete: boolean;
   onEdit: (party: PartyItem) => void;
   onDelete: (id: string) => void;
 }) {
@@ -705,6 +752,8 @@ function PartyGroup({
           <PartyCard
             key={party.id}
             party={party}
+            canEdit={canEdit}
+            canDelete={canDelete}
             onEdit={onEdit}
             onDelete={onDelete}
           />
@@ -716,13 +765,19 @@ function PartyGroup({
 
 function PartyCard({
   party,
+  canEdit,
+  canDelete,
   onEdit,
   onDelete,
 }: {
   party: PartyItem;
+  canEdit: boolean;
+  canDelete: boolean;
   onEdit: (party: PartyItem) => void;
   onDelete: (id: string) => void;
 }) {
+  const showActions = canEdit || canDelete;
+
   return (
     <div style={partyCardStyle}>
       <div style={partyCardHeaderStyle}>
@@ -745,19 +800,29 @@ function PartyCard({
         <div style={infoValueStyle}>{renderAddress(party) || "-"}</div>
       </div>
 
-      <div style={partyActionStyle}>
-        <button type="button" onClick={() => onEdit(party)} style={smallButtonStyle}>
-          Edit
-        </button>
+      {showActions && (
+        <div style={partyActionStyle}>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => onEdit(party)}
+              style={smallButtonStyle}
+            >
+              Edit
+            </button>
+          )}
 
-        <button
-          type="button"
-          onClick={() => onDelete(party.id)}
-          style={dangerButtonStyle}
-        >
-          Delete
-        </button>
-      </div>
+          {canDelete && (
+            <button
+              type="button"
+              onClick={() => onDelete(party.id)}
+              style={dangerButtonStyle}
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

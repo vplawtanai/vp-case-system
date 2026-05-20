@@ -460,7 +460,11 @@ export default function CaseDetailPage() {
         </div>
 
         <div id="parties" style={sectionWrapStyle}>
-          <PartiesSection caseId={caseIdNumber} />
+          <PartiesSection
+           caseId={caseIdNumber}
+           canEdit={permissions.canEditParties}
+           canDelete={permissions.canSoftDelete}
+          />
         </div>
 
         <div id="timeline" style={sectionWrapStyle}>
