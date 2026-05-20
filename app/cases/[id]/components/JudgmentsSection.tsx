@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../../../lib/supabase";
 import { createAuditLog } from "../../../../lib/auditLog";
@@ -111,6 +111,9 @@ export default function JudgmentsSection({
 }: Props) {
   const caseIdNumber = Number(caseId);
 
+  const judgmentFormRef = useRef<HTMLDivElement | null>(null);
+  const filingFormRef = useRef<HTMLDivElement | null>(null);
+
   const [judgments, setJudgments] = useState<JudgmentItem[]>([]);
   const [filings, setFilings] = useState<CourtFilingItem[]>([]);
 
@@ -128,6 +131,15 @@ export default function JudgmentsSection({
   const [editingFilingId, setEditingFilingId] = useState<string | null>(null);
   const [savingFiling, setSavingFiling] = useState(false);
   const [filingForm, setFilingForm] = useState<FilingForm>(emptyFilingForm);
+
+  const scrollToRef = (ref: React.RefObject<HTMLDivElement | null>) => {
+    window.setTimeout(() => {
+      ref.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 80);
+  };
 
   const loadData = async () => {
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) return;
@@ -218,6 +230,7 @@ export default function JudgmentsSection({
     setEditingJudgmentId(null);
     setJudgmentForm(emptyJudgmentForm);
     setShowJudgmentForm(true);
+    scrollToRef(judgmentFormRef);
   };
 
   const startEditJudgment = (item: JudgmentItem) => {
@@ -234,6 +247,7 @@ export default function JudgmentsSection({
       note: item.note || "",
     });
     setShowJudgmentForm(true);
+    scrollToRef(judgmentFormRef);
   };
 
   const cancelJudgmentForm = () => {
@@ -424,6 +438,7 @@ export default function JudgmentsSection({
     setEditingFilingId(null);
     setFilingForm(emptyFilingForm);
     setShowFilingForm(true);
+    scrollToRef(filingFormRef);
   };
 
   const startEditFiling = (item: CourtFilingItem) => {
@@ -442,6 +457,7 @@ export default function JudgmentsSection({
       note: item.note || "",
     });
     setShowFilingForm(true);
+    scrollToRef(filingFormRef);
   };
 
   const cancelFilingForm = () => {
@@ -671,7 +687,7 @@ export default function JudgmentsSection({
           </div>
 
           {showJudgmentForm && (
-            <div style={formCardStyle}>
+            <div ref={judgmentFormRef} style={formCardStyle}>
               <h4 style={formTitleStyle}>
                 {editingJudgmentId ? "Edit Judgment" : "Add Judgment"}
               </h4>
@@ -796,7 +812,7 @@ export default function JudgmentsSection({
           </div>
 
           {showFilingForm && (
-            <div style={formCardStyle}>
+            <div ref={filingFormRef} style={formCardStyle}>
               <h4 style={formTitleStyle}>
                 {editingFilingId ? "Edit Filing" : "Add Filing"}
               </h4>
@@ -1168,7 +1184,7 @@ function formatDisplayDate(value?: string | null) {
 
 const sectionStyle: CSSProperties = {
   border: "1px solid #dddddd",
-  padding: 16,
+  padding: 14,
   borderRadius: 12,
   background: "#ffffff",
   color: "#111111",
@@ -1177,58 +1193,60 @@ const sectionStyle: CSSProperties = {
 const headerStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  gap: 12,
+  gap: 10,
   alignItems: "flex-start",
-  marginBottom: 16,
+  marginBottom: 14,
   flexWrap: "wrap",
 };
 
 const titleStyle: CSSProperties = {
   margin: 0,
   color: "#111111",
+  fontSize: 18,
 };
 
 const subTitleStyle: CSSProperties = {
   marginTop: 4,
   color: "#555555",
-  fontSize: 13,
+  fontSize: 12,
 };
 
 const twoColumnStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-  gap: 16,
+  gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+  gap: 14,
 };
 
 const panelStyle: CSSProperties = {
   border: "1px solid #eeeeee",
   borderRadius: 12,
-  padding: 14,
+  padding: 12,
   background: "#fafafa",
 };
 
 const panelHeaderStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  gap: 10,
+  gap: 8,
   alignItems: "flex-start",
-  marginBottom: 12,
+  marginBottom: 10,
   flexWrap: "wrap",
 };
 
 const panelTitleStyle: CSSProperties = {
   margin: 0,
   color: "#111111",
+  fontSize: 15,
 };
 
 const panelSubtitleStyle: CSSProperties = {
-  marginTop: 4,
+  marginTop: 3,
   color: "#555555",
-  fontSize: 13,
+  fontSize: 12,
 };
 
 const primaryButtonStyle: CSSProperties = {
-  padding: "9px 14px",
+  padding: "8px 12px",
   background: "#000000",
   color: "#ffffff",
   borderRadius: 8,
@@ -1236,10 +1254,11 @@ const primaryButtonStyle: CSSProperties = {
   cursor: "pointer",
   fontWeight: 700,
   whiteSpace: "nowrap",
+  fontSize: 13,
 };
 
 const secondaryButtonStyle: CSSProperties = {
-  padding: "9px 14px",
+  padding: "8px 12px",
   background: "#ffffff",
   color: "#111111",
   borderRadius: 8,
@@ -1247,26 +1266,29 @@ const secondaryButtonStyle: CSSProperties = {
   cursor: "pointer",
   fontWeight: 600,
   whiteSpace: "nowrap",
+  fontSize: 13,
 };
 
 const formCardStyle: CSSProperties = {
+  scrollMarginTop: 130,
   border: "1px solid #dddddd",
   borderRadius: 12,
-  padding: 16,
+  padding: 14,
   background: "#ffffff",
-  marginBottom: 14,
+  marginBottom: 12,
 };
 
 const formTitleStyle: CSSProperties = {
   marginTop: 0,
-  marginBottom: 12,
+  marginBottom: 10,
   color: "#111111",
+  fontSize: 15,
 };
 
 const formGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: 12,
+  gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+  gap: 10,
 };
 
 const labelStyle: CSSProperties = {
@@ -1274,51 +1296,53 @@ const labelStyle: CSSProperties = {
   marginBottom: 4,
   color: "#222222",
   fontWeight: 600,
-  fontSize: 13,
+  fontSize: 12,
 };
 
 const inputStyle: CSSProperties = {
   width: "100%",
-  padding: "9px 10px",
+  padding: "8px 9px",
   borderRadius: 8,
   border: "1px solid #bbbbbb",
   background: "#ffffff",
   color: "#111111",
   colorScheme: "light",
   boxSizing: "border-box",
+  fontSize: 13,
 };
 
 const textareaStyle: CSSProperties = {
   ...inputStyle,
-  minHeight: 100,
+  minHeight: 82,
   resize: "vertical",
 };
 
 const formButtonWrapStyle: CSSProperties = {
   display: "flex",
-  gap: 10,
-  marginTop: 16,
+  gap: 8,
+  marginTop: 14,
   flexWrap: "wrap",
 };
 
 const emptyStyle: CSSProperties = {
-  padding: 16,
+  padding: 14,
   border: "1px dashed #cccccc",
   borderRadius: 12,
   color: "#555555",
   background: "#ffffff",
+  fontSize: 13,
 };
 
 const cardListStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "1fr",
-  gap: 12,
+  gap: 10,
 };
 
 const itemCardStyle: CSSProperties = {
   border: "1px solid #dddddd",
   borderRadius: 12,
-  padding: 14,
+  padding: 12,
   background: "#ffffff",
   color: "#111111",
   boxShadow: "0 1px 6px rgba(0,0,0,0.05)",
@@ -1327,43 +1351,43 @@ const itemCardStyle: CSSProperties = {
 const itemHeaderStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  gap: 12,
+  gap: 10,
   alignItems: "flex-start",
-  marginBottom: 10,
+  marginBottom: 8,
 };
 
 const itemTitleStyle: CSSProperties = {
-  fontSize: 15,
+  fontSize: 14,
   fontWeight: 800,
   color: "#111111",
 };
 
 const itemMetaStyle: CSSProperties = {
-  marginTop: 4,
+  marginTop: 3,
   color: "#555555",
-  fontSize: 13,
+  fontSize: 12,
   fontWeight: 600,
 };
 
 const summaryBlockStyle: CSSProperties = {
-  padding: 10,
+  padding: 9,
   borderRadius: 10,
   background: "#f8fafc",
   border: "1px solid #eeeeee",
   color: "#111111",
-  fontSize: 14,
-  lineHeight: 1.6,
+  fontSize: 13,
+  lineHeight: 1.55,
   whiteSpace: "pre-wrap",
 };
 
 const infoLabelStyle: CSSProperties = {
-  fontSize: 12,
+  fontSize: 11,
   color: "#666666",
   marginBottom: 2,
 };
 
 const infoValueStyle: CSSProperties = {
-  fontSize: 14,
+  fontSize: 13,
   color: "#111111",
   fontWeight: 600,
   wordBreak: "break-word",
@@ -1372,7 +1396,7 @@ const infoValueStyle: CSSProperties = {
 };
 
 const noteBlockStyle: CSSProperties = {
-  marginTop: 10,
+  marginTop: 8,
   paddingTop: 8,
   borderTop: "1px solid #eeeeee",
 };
@@ -1380,28 +1404,30 @@ const noteBlockStyle: CSSProperties = {
 const actionWrapStyle: CSSProperties = {
   display: "flex",
   gap: 8,
-  marginTop: 12,
-  paddingTop: 10,
+  marginTop: 10,
+  paddingTop: 9,
   borderTop: "1px solid #eeeeee",
   flexWrap: "wrap",
 };
 
 const smallButtonStyle: CSSProperties = {
-  padding: "7px 11px",
+  padding: "6px 10px",
   borderRadius: 8,
   border: "1px solid #cccccc",
   background: "#ffffff",
   color: "#111111",
   cursor: "pointer",
   fontWeight: 600,
+  fontSize: 12,
 };
 
 const dangerButtonStyle: CSSProperties = {
-  padding: "7px 11px",
+  padding: "6px 10px",
   borderRadius: 8,
   border: "1px solid #e0b4b4",
   background: "#fff5f5",
   color: "#a40000",
   cursor: "pointer",
   fontWeight: 700,
+  fontSize: 12,
 };
