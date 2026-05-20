@@ -25,6 +25,9 @@ type TaskItem = {
 
   created_at?: string | null;
   updated_at?: string | null;
+
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 };
 
 type TaskForm = {
@@ -93,6 +96,7 @@ export default function TasksSection({ caseId }: Props) {
         .from("case_tasks")
         .select("*")
         .eq("case_id", caseIdNumber)
+        .is("deleted_at", null)
         .order("order_no", { ascending: true })
         .order("created_at", { ascending: true });
 
@@ -227,6 +231,8 @@ export default function TasksSection({ caseId }: Props) {
       const payload = {
         ...buildPayload(),
         created_at: new Date().toISOString(),
+        deleted_at: null,
+        deleted_by: null,
       };
 
       const { data, error } = await supabase
@@ -271,6 +277,7 @@ export default function TasksSection({ caseId }: Props) {
         .from("case_tasks")
         .update(payload)
         .eq("id", editingId)
+        .is("deleted_at", null)
         .select("*")
         .single();
 
@@ -297,31 +304,52 @@ export default function TasksSection({ caseId }: Props) {
   };
 
   const deleteTask = async (id: string) => {
-    const confirmed = window.confirm("ต้องการลบงานนี้หรือไม่?");
+    const confirmed = window.confirm(
+      "ต้องการลบงานนี้หรือไม่?\n\nระบบจะซ่อนงานนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
+    );
+
     if (!confirmed) return;
 
-    const oldData = items.find((item) => item.id === id) || null;
+    try {
+      setSaving(true);
 
-    const { error } = await supabase.from("case_tasks").delete().eq("id", id);
+      const oldData = items.find((item) => item.id === id) || null;
 
-    if (error) {
-      alert("Delete task failed:\n" + JSON.stringify(error, null, 2));
-      return;
+      const payload = {
+        deleted_at: new Date().toISOString(),
+        deleted_by: "current_user",
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from("case_tasks")
+        .update(payload)
+        .eq("id", id)
+        .is("deleted_at", null)
+        .select("*")
+        .single();
+
+      if (error) {
+        alert("Soft delete task failed:\n" + JSON.stringify(error, null, 2));
+        return;
+      }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_tasks",
+        recordId: id,
+        action: "soft_delete",
+        oldData,
+        newData: data || (oldData ? { ...oldData, ...payload } : payload),
+        note: "Soft delete task",
+      });
+
+      if (editingId === id) cancelForm();
+
+      await loadTasks();
+    } finally {
+      setSaving(false);
     }
-
-    await createAuditLog({
-      caseId: caseIdNumber,
-      tableName: "case_tasks",
-      recordId: id,
-      action: "delete",
-      oldData,
-      newData: null,
-      note: "Delete task",
-    });
-
-    if (editingId === id) cancelForm();
-
-    await loadTasks();
   };
 
   const markDone = async (item: TaskItem) => {
@@ -338,6 +366,7 @@ export default function TasksSection({ caseId }: Props) {
       .from("case_tasks")
       .update(payload)
       .eq("id", item.id)
+      .is("deleted_at", null)
       .select("*")
       .single();
 
