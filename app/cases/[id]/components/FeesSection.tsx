@@ -19,6 +19,8 @@ type FeeItem = {
   note?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 };
 
 type ExpenseItem = {
@@ -35,6 +37,8 @@ type ExpenseItem = {
   note?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 };
 
 type FeeForm = {
@@ -163,6 +167,7 @@ export default function FeesSection({ caseId }: Props) {
         .from("case_fee_items")
         .select("*")
         .eq("case_id", caseIdNumber)
+        .is("deleted_at", null)
         .order("installment_no", { ascending: true })
         .order("due_date", { ascending: true });
 
@@ -176,6 +181,7 @@ export default function FeesSection({ caseId }: Props) {
         .from("case_expense_items")
         .select("*")
         .eq("case_id", caseIdNumber)
+        .is("deleted_at", null)
         .order("expense_date", { ascending: false })
         .order("created_at", { ascending: false });
 
@@ -332,6 +338,8 @@ export default function FeesSection({ caseId }: Props) {
       const payload = {
         ...buildFeePayload(),
         created_at: new Date().toISOString(),
+        deleted_at: null,
+        deleted_by: null,
       };
 
       const { data, error } = await supabase
@@ -376,6 +384,7 @@ export default function FeesSection({ caseId }: Props) {
         .from("case_fee_items")
         .update(payload)
         .eq("id", editingFeeId)
+        .is("deleted_at", null)
         .select("*")
         .single();
 
@@ -402,31 +411,52 @@ export default function FeesSection({ caseId }: Props) {
   };
 
   const deleteFee = async (id: string) => {
-    const confirmed = window.confirm("ต้องการลบรายการค่าวิชาชีพนี้หรือไม่?");
+    const confirmed = window.confirm(
+      "ต้องการลบรายการค่าวิชาชีพนี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
+    );
+
     if (!confirmed) return;
 
-    const oldData = feeItems.find((item) => item.id === id) || null;
+    try {
+      setSavingFee(true);
 
-    const { error } = await supabase.from("case_fee_items").delete().eq("id", id);
+      const oldData = feeItems.find((item) => item.id === id) || null;
 
-    if (error) {
-      alert("Delete fee item failed:\n" + JSON.stringify(error, null, 2));
-      return;
+      const payload = {
+        deleted_at: new Date().toISOString(),
+        deleted_by: "current_user",
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from("case_fee_items")
+        .update(payload)
+        .eq("id", id)
+        .is("deleted_at", null)
+        .select("*")
+        .single();
+
+      if (error) {
+        alert("Soft delete fee item failed:\n" + JSON.stringify(error, null, 2));
+        return;
+      }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_fee_items",
+        recordId: id,
+        action: "soft_delete",
+        oldData,
+        newData: data || (oldData ? { ...oldData, ...payload } : payload),
+        note: "Soft delete professional fee item",
+      });
+
+      if (editingFeeId === id) cancelFeeForm();
+
+      await loadFees();
+    } finally {
+      setSavingFee(false);
     }
-
-    await createAuditLog({
-      caseId: caseIdNumber,
-      tableName: "case_fee_items",
-      recordId: id,
-      action: "delete",
-      oldData,
-      newData: null,
-      note: "Delete professional fee item",
-    });
-
-    if (editingFeeId === id) cancelFeeForm();
-
-    await loadFees();
   };
 
   const startAddExpense = () => {
@@ -505,6 +535,8 @@ export default function FeesSection({ caseId }: Props) {
       const payload = {
         ...buildExpensePayload(),
         created_at: new Date().toISOString(),
+        deleted_at: null,
+        deleted_by: null,
       };
 
       const { data, error } = await supabase
@@ -550,6 +582,7 @@ export default function FeesSection({ caseId }: Props) {
         .from("case_expense_items")
         .update(payload)
         .eq("id", editingExpenseId)
+        .is("deleted_at", null)
         .select("*")
         .single();
 
@@ -576,34 +609,54 @@ export default function FeesSection({ caseId }: Props) {
   };
 
   const deleteExpense = async (id: string) => {
-    const confirmed = window.confirm("ต้องการลบรายการค่าใช้จ่ายนี้หรือไม่?");
+    const confirmed = window.confirm(
+      "ต้องการลบรายการค่าใช้จ่ายนี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
+    );
+
     if (!confirmed) return;
 
-    const oldData = expenseItems.find((item) => item.id === id) || null;
+    try {
+      setSavingExpense(true);
 
-    const { error } = await supabase
-      .from("case_expense_items")
-      .delete()
-      .eq("id", id);
+      const oldData = expenseItems.find((item) => item.id === id) || null;
 
-    if (error) {
-      alert("Delete expense item failed:\n" + JSON.stringify(error, null, 2));
-      return;
+      const payload = {
+        deleted_at: new Date().toISOString(),
+        deleted_by: "current_user",
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from("case_expense_items")
+        .update(payload)
+        .eq("id", id)
+        .is("deleted_at", null)
+        .select("*")
+        .single();
+
+      if (error) {
+        alert(
+          "Soft delete expense item failed:\n" + JSON.stringify(error, null, 2)
+        );
+        return;
+      }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_expense_items",
+        recordId: id,
+        action: "soft_delete",
+        oldData,
+        newData: data || (oldData ? { ...oldData, ...payload } : payload),
+        note: "Soft delete expense item",
+      });
+
+      if (editingExpenseId === id) cancelExpenseForm();
+
+      await loadFees();
+    } finally {
+      setSavingExpense(false);
     }
-
-    await createAuditLog({
-      caseId: caseIdNumber,
-      tableName: "case_expense_items",
-      recordId: id,
-      action: "delete",
-      oldData,
-      newData: null,
-      note: "Delete expense item",
-    });
-
-    if (editingExpenseId === id) cancelExpenseForm();
-
-    await loadFees();
   };
 
   return (
