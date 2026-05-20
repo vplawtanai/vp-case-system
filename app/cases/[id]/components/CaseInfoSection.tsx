@@ -73,6 +73,7 @@ type CaseItemFromDb = {
 type Props = {
   caseId: string;
   caseItem: CaseItemFromDb | null;
+  canEdit?: boolean;
 };
 
 type InfoBlockProps = {
@@ -114,7 +115,11 @@ type TextareaProps = {
   onChange: (value: string) => void;
 };
 
-export default function CaseInfoSection({ caseId, caseItem }: Props) {
+export default function CaseInfoSection({
+  caseId,
+  caseItem,
+  canEdit = false,
+}: Props) {
   const caseIdNumber = Number(caseId);
 
   const [isEditing, setIsEditing] = useState(false);
@@ -167,6 +172,12 @@ export default function CaseInfoSection({ caseId, caseItem }: Props) {
   };
 
   const saveCaseInfo = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไขข้อมูลหลักของคดี");
+      setIsEditing(false);
+      return;
+    }
+
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) {
       alert("Missing case id");
       return;
@@ -274,9 +285,11 @@ export default function CaseInfoSection({ caseId, caseItem }: Props) {
         </div>
 
         {!isEditing ? (
-          <button onClick={() => setIsEditing(true)} style={btnSecondary}>
-            Edit
-          </button>
+          canEdit ? (
+            <button onClick={() => setIsEditing(true)} style={btnSecondary}>
+              Edit
+            </button>
+          ) : null
         ) : (
           <div style={buttonWrapStyle}>
             <button onClick={saveCaseInfo} style={btnPrimary} disabled={saving}>

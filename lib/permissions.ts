@@ -126,7 +126,7 @@ export function canViewFees(
 ========================================================= */
 
 export function canEditCaseInfo(role?: string | null) {
-  return isLawyerUp(role);
+  return isAssistantLawyerUp(role);
 }
 
 export function canEditParties(role?: string | null) {

@@ -451,7 +451,12 @@ export default function CaseDetailPage() {
         <CaseSectionNav canViewFees={permissions.canViewFees} />
 
         <div id="info" style={sectionWrapStyle}>
-          <CaseInfoSection caseId={id} caseItem={caseItem} />
+          <CaseInfoSection
+           caseId={id}
+           caseItem={caseItem}
+          canEdit={permissions.canEditCaseInfo}
+          />
+
         </div>
 
         <div id="parties" style={sectionWrapStyle}>
@@ -495,8 +500,10 @@ export default function CaseDetailPage() {
         {permissions.canViewHistory && (
           <div id="history" style={sectionWrapStyle}>
             <AuditLogSection
-  caseId={id}
-  canRestore={permissions.canRestore} />
+             caseId={id}
+             canRestore={permissions.canRestore}
+            />
+
           </div>
         )}
 
