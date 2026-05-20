@@ -27,7 +27,6 @@ import NotesSection from "./components/NotesSection";
 type CaseItem = {
   id?: number;
 
-  // Supabase / DB fields
   file_no?: string | null;
   title?: string | null;
   client_name?: string | null;
@@ -48,7 +47,6 @@ type CaseItem = {
   created_at?: string | null;
   updated_at?: string | null;
 
-  // Old camelCase fields, kept for compatibility
   fileNo?: string | null;
   clientName?: string | null;
   courtName?: string | null;
@@ -63,7 +61,6 @@ type CaseItem = {
   physicalStorageType?: string | null;
   physicalStorageDetail?: string | null;
 
-  // old fields, not used in Phase 1 but kept to avoid breaking existing components
   judgmentFirstInstance?: string | null;
   judgmentAppeal?: string | null;
   judgmentSupreme?: string | null;
@@ -121,61 +118,127 @@ type UserProfile = {
 ========================================================= */
 
 const pageStyle: React.CSSProperties = {
-  padding: 24,
+  padding: "clamp(12px, 2.5vw, 24px)",
   fontFamily: "system-ui",
-  maxWidth: 1440,
+  maxWidth: 1280,
   margin: "0 auto",
+  background: "#ffffff",
 };
 
 const sectionWrapStyle: React.CSSProperties = {
-  scrollMarginTop: 120,
-  marginBottom: 24,
+  scrollMarginTop: 100,
+  marginBottom: 18,
 };
 
 const backLinkStyle: React.CSSProperties = {
-  marginBottom: 8,
+  margin: 0,
+  marginBottom: 10,
+  fontSize: 14,
+  fontWeight: 700,
+};
+
+const caseHeaderCardStyle: React.CSSProperties = {
+  border: "1px solid #e5e5e5",
+  borderRadius: 16,
+  padding: "clamp(14px, 2.2vw, 20px)",
+  background: "#ffffff",
+  boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
+  marginBottom: 14,
+};
+
+const caseHeaderTopStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: 14,
+  flexWrap: "wrap",
 };
 
 const fileNoTitleStyle: React.CSSProperties = {
-  marginTop: 0,
-  marginBottom: 16,
-  fontSize: 24,
-  fontWeight: 700,
+  margin: 0,
+  fontSize: "clamp(26px, 4vw, 38px)",
+  fontWeight: 900,
+  letterSpacing: "-0.04em",
+  color: "#111111",
+  lineHeight: 1.05,
 };
 
-const subHeaderStyle: React.CSSProperties = {
-  marginTop: -8,
-  marginBottom: 20,
-  color: "#555",
-  display: "flex",
-  gap: 12,
-  flexWrap: "wrap",
+const caseTitleStyle: React.CSSProperties = {
+  marginTop: 8,
+  color: "#333333",
+  fontSize: "clamp(14px, 2.2vw, 16px)",
+  fontWeight: 700,
+  lineHeight: 1.5,
+};
+
+const caseMetaGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: 10,
+  marginTop: 14,
+};
+
+const metaBoxStyle: React.CSSProperties = {
+  border: "1px solid #eeeeee",
+  borderRadius: 12,
+  padding: "10px 12px",
+  background: "#fafafa",
+  minWidth: 0,
+};
+
+const metaLabelStyle: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 800,
+  color: "#777777",
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+  marginBottom: 4,
+};
+
+const metaValueStyle: React.CSSProperties = {
+  fontSize: 14,
+  fontWeight: 800,
+  color: "#111111",
+  wordBreak: "break-word",
+  lineHeight: 1.45,
+};
+
+const statusPillStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  padding: "6px 11px",
+  borderRadius: 999,
+  background: "#e6f4ea",
+  color: "#067647",
+  border: "1px solid #b9dfc3",
+  fontSize: 12,
+  fontWeight: 900,
+  whiteSpace: "nowrap",
 };
 
 const permissionInfoStyle: React.CSSProperties = {
-  marginTop: -8,
-  marginBottom: 18,
-  color: "#666666",
   display: "flex",
-  gap: 10,
+  gap: 8,
   flexWrap: "wrap",
-  fontSize: 12,
-  fontWeight: 700,
+  marginTop: 12,
 };
 
 const permissionBadgeStyle: React.CSSProperties = {
   display: "inline-flex",
-  padding: "5px 10px",
+  padding: "5px 9px",
   borderRadius: 999,
   border: "1px solid #dddddd",
-  background: "#fafafa",
-  color: "#333333",
+  background: "#ffffff",
+  color: "#444444",
+  fontSize: 12,
+  fontWeight: 800,
+  whiteSpace: "nowrap",
 };
 
 const backToTopButtonStyle: React.CSSProperties = {
   position: "fixed",
-  right: 22,
-  bottom: 22,
+  right: 18,
+  bottom: 18,
   zIndex: 80,
   padding: "10px 14px",
   borderRadius: 999,
@@ -183,8 +246,8 @@ const backToTopButtonStyle: React.CSSProperties = {
   background: "#000000",
   color: "#ffffff",
   cursor: "pointer",
-  fontWeight: 800,
-  boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+  fontWeight: 900,
+  boxShadow: "0 8px 24px rgba(0,0,0,0.20)",
 };
 
 /* =========================================================
@@ -281,13 +344,7 @@ export default function CaseDetailPage() {
           return;
         }
 
-        /*
-          สำคัญ:
-          ส่งข้อมูลไปทั้ง snake_case และ camelCase
-          เพื่อให้ CaseInfoSection รุ่นเดิม/รุ่นใหม่อ่านได้หมด
-        */
         const mappedCase: CaseItem = {
-          // raw DB fields
           id: data.id,
           file_no: data.file_no,
           title: data.title,
@@ -308,7 +365,6 @@ export default function CaseDetailPage() {
           created_at: data.created_at,
           updated_at: data.updated_at,
 
-          // camelCase compatibility
           fileNo: data.file_no,
           clientName: data.client_name,
           courtName: data.court_name,
@@ -328,7 +384,6 @@ export default function CaseDetailPage() {
           physicalStorageType: data.physical_storage_type,
           physicalStorageDetail: data.physical_storage_detail,
 
-          // old fields, kept only for compatibility
           judgmentFirstInstance: data.judgment_first_instance,
           judgmentAppeal: data.judgment_appeal,
           judgmentSupreme: data.judgment_supreme,
@@ -410,6 +465,7 @@ export default function CaseDetailPage() {
           <p style={backLinkStyle}>
             <Link href="/cases">← Back to Cases</Link>
           </p>
+
           <div>Case not found.</div>
 
           <button type="button" onClick={scrollToTop} style={backToTopButtonStyle}>
@@ -431,118 +487,149 @@ export default function CaseDetailPage() {
           <Link href="/cases">← Back to Cases</Link>
         </p>
 
-        <h1 style={fileNoTitleStyle}>
-          {caseItem.file_no || caseItem.fileNo || "-"}
-        </h1>
+        <div style={caseHeaderCardStyle}>
+          <div style={caseHeaderTopStyle}>
+            <div>
+              <h1 style={fileNoTitleStyle}>
+                {caseItem.file_no || caseItem.fileNo || "-"}
+              </h1>
 
-        <div style={subHeaderStyle}>
-          <span>Client: {caseItem.client_name || caseItem.clientName || "-"}</span>
-          <span>Owner: {caseItem.owner_name || caseItem.ownerName || "-"}</span>
-          <span>Status: {caseItem.status || caseItem.caseStatus || "-"}</span>
-        </div>
+              <div style={caseTitleStyle}>{caseItem.title || "-"}</div>
+            </div>
 
-        <div style={permissionInfoStyle}>
-          <span style={permissionBadgeStyle}>Role: {permissions.role || "-"}</span>
-          <span style={permissionBadgeStyle}>
-            Financial Access: {permissions.financialAccess ? "Yes" : "No"}
-          </span>
+            <span style={statusPillStyle}>
+              {caseItem.status || caseItem.caseStatus || "-"}
+            </span>
+          </div>
+
+          <div style={caseMetaGridStyle}>
+            <div style={metaBoxStyle}>
+              <div style={metaLabelStyle}>Client</div>
+              <div style={metaValueStyle}>
+                {caseItem.client_name || caseItem.clientName || "-"}
+              </div>
+            </div>
+
+            <div style={metaBoxStyle}>
+              <div style={metaLabelStyle}>Owner</div>
+              <div style={metaValueStyle}>
+                {caseItem.owner_name || caseItem.ownerName || "-"}
+              </div>
+            </div>
+
+            <div style={metaBoxStyle}>
+              <div style={metaLabelStyle}>Court</div>
+              <div style={metaValueStyle}>
+                {caseItem.court_name || caseItem.courtName || "-"}
+              </div>
+            </div>
+
+            <div style={metaBoxStyle}>
+              <div style={metaLabelStyle}>Black Case No.</div>
+              <div style={metaValueStyle}>
+                {caseItem.case_number || caseItem.caseNumber || "-"}
+              </div>
+            </div>
+          </div>
+
+          <div style={permissionInfoStyle}>
+            <span style={permissionBadgeStyle}>Role: {permissions.role || "-"}</span>
+            <span style={permissionBadgeStyle}>
+              Financial Access: {permissions.financialAccess ? "Yes" : "No"}
+            </span>
+          </div>
         </div>
 
         <CaseSectionNav canViewFees={permissions.canViewFees} />
 
         <div id="info" style={sectionWrapStyle}>
           <CaseInfoSection
-           caseId={id}
-           caseItem={caseItem}
-          canEdit={permissions.canEditCaseInfo}
+            caseId={id}
+            caseItem={caseItem}
+            canEdit={permissions.canEditCaseInfo}
           />
-
         </div>
 
         <div id="parties" style={sectionWrapStyle}>
           <PartiesSection
-           caseId={caseIdNumber}
-           canEdit={permissions.canEditParties}
-           canDelete={permissions.canSoftDelete}
+            caseId={caseIdNumber}
+            canEdit={permissions.canEditParties}
+            canDelete={permissions.canSoftDelete}
           />
         </div>
 
         <div id="timeline" style={sectionWrapStyle}>
           <TimelineSection
-           caseId={id}
-           timeline={timeline}
-           canEdit={permissions.canEditTimeline}
-           canDelete={permissions.canSoftDelete}
+            caseId={id}
+            timeline={timeline}
+            canEdit={permissions.canEditTimeline}
+            canDelete={permissions.canSoftDelete}
           />
         </div>
 
         <div id="judgments" style={sectionWrapStyle}>
           <JudgmentsSection
-           caseId={id}
-           canEdit={permissions.canEditJudgments}
-           canDelete={permissions.canSoftDelete}
+            caseId={id}
+            canEdit={permissions.canEditJudgments}
+            canDelete={permissions.canSoftDelete}
           />
         </div>
 
         <div id="enforcement" style={sectionWrapStyle}>
           <EnforcementSection
-           caseId={id}
-           canEdit={permissions.canEditEnforcement}
-           canDelete={permissions.canSoftDelete}
+            caseId={id}
+            canEdit={permissions.canEditEnforcement}
+            canDelete={permissions.canSoftDelete}
           />
         </div>
 
         <div id="tasks" style={sectionWrapStyle}>
           <TasksSection
-           caseId={id}
-           tasks={tasks}
-           canEdit={permissions.canEditTasks}
-           canDelete={permissions.canSoftDelete}
+            caseId={id}
+            tasks={tasks}
+            canEdit={permissions.canEditTasks}
+            canDelete={permissions.canSoftDelete}
           />
         </div>
 
         <div id="deadlines" style={sectionWrapStyle}>
           <DeadlinesSection
-           caseId={id}
-           canEdit={permissions.canEditDeadlines}
-           canDelete={permissions.canSoftDelete}
+            caseId={id}
+            canEdit={permissions.canEditDeadlines}
+            canDelete={permissions.canSoftDelete}
           />
         </div>
 
         <div id="timelogs" style={sectionWrapStyle}>
           <TimeLogsSection
-           caseId={id}
-           canEdit={permissions.canEditTimeLogs}
-           canDelete={permissions.canSoftDelete}
+            caseId={id}
+            canEdit={permissions.canEditTimeLogs}
+            canDelete={permissions.canSoftDelete}
           />
         </div>
 
         {permissions.canViewFees && (
           <div id="fees" style={sectionWrapStyle}>
-           <FeesSection
-            caseId={id}
-            fees={fees}
-            canEdit={permissions.canEditFees}
-            canDelete={permissions.canSoftDelete}
-          />
-        </div>
-       )}
+            <FeesSection
+              caseId={id}
+              fees={fees}
+              canEdit={permissions.canEditFees}
+              canDelete={permissions.canSoftDelete}
+            />
+          </div>
+        )}
 
         <div id="notes" style={sectionWrapStyle}>
           <NotesSection
-           caseId={id}
-           canEdit={permissions.canEditNotes}
-           canDelete={permissions.canSoftDelete}
+            caseId={id}
+            canEdit={permissions.canEditNotes}
+            canDelete={permissions.canSoftDelete}
           />
         </div>
 
         {permissions.canViewHistory && (
           <div id="history" style={sectionWrapStyle}>
-            <AuditLogSection
-             caseId={id}
-             canRestore={permissions.canRestore}
-            />
-
+            <AuditLogSection caseId={id} canRestore={permissions.canRestore} />
           </div>
         )}
 
