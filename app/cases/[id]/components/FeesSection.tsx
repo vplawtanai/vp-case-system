@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../../../lib/supabase";
 import { createAuditLog } from "../../../../lib/auditLog";
@@ -163,6 +163,27 @@ export default function FeesSection({
   const [expenseForm, setExpenseForm] =
     useState<ExpenseForm>(emptyExpenseForm);
 
+  const feeFormRef = useRef<HTMLDivElement | null>(null);
+  const expenseFormRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollToFeeForm = () => {
+    window.setTimeout(() => {
+      feeFormRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 80);
+  };
+
+  const scrollToExpenseForm = () => {
+    window.setTimeout(() => {
+      expenseFormRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 80);
+  };
+
   const loadFees = async () => {
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) return;
 
@@ -254,6 +275,36 @@ export default function FeesSection({
     };
   }, [feeItems, expenseItems]);
 
+  const sortedFeeItems = useMemo(() => {
+    return [...feeItems].sort((a, b) => {
+      const statusA = getFeeSortScore(a.status);
+      const statusB = getFeeSortScore(b.status);
+
+      if (statusA !== statusB) return statusA - statusB;
+
+      const aDue = a.due_date || "9999-12-31";
+      const bDue = b.due_date || "9999-12-31";
+
+      if (aDue !== bDue) return aDue.localeCompare(bDue);
+
+      return (a.installment_no || 0) - (b.installment_no || 0);
+    });
+  }, [feeItems]);
+
+  const sortedExpenseItems = useMemo(() => {
+    return [...expenseItems].sort((a, b) => {
+      const statusA = getExpenseSortScore(a.status);
+      const statusB = getExpenseSortScore(b.status);
+
+      if (statusA !== statusB) return statusA - statusB;
+
+      const aDate = a.expense_date || "0000-00-00";
+      const bDate = b.expense_date || "0000-00-00";
+
+      return bDate.localeCompare(aDate);
+    });
+  }, [expenseItems]);
+
   const getNextInstallmentNo = () => {
     const maxNo = feeItems.reduce((max, item) => {
       const no = item.installment_no || 0;
@@ -275,6 +326,8 @@ export default function FeesSection({
       installment_no: String(getNextInstallmentNo()),
     });
     setShowFeeForm(true);
+    setShowExpenseForm(false);
+    scrollToFeeForm();
   };
 
   const startEditFee = (item: FeeItem) => {
@@ -285,6 +338,8 @@ export default function FeesSection({
 
     setEditingFeeId(item.id);
     setShowFeeForm(true);
+    setShowExpenseForm(false);
+    scrollToFeeForm();
 
     setFeeForm({
       fee_type: item.fee_type || "ค่าวิชาชีพทนาย",
@@ -504,6 +559,8 @@ export default function FeesSection({
       expense_date: getTodayDateString(),
     });
     setShowExpenseForm(true);
+    setShowFeeForm(false);
+    scrollToExpenseForm();
   };
 
   const startEditExpense = (item: ExpenseItem) => {
@@ -514,6 +571,8 @@ export default function FeesSection({
 
     setEditingExpenseId(item.id);
     setShowExpenseForm(true);
+    setShowFeeForm(false);
+    scrollToExpenseForm();
 
     setExpenseForm({
       expense_type: item.expense_type || "Travel / ค่าเดินทาง",
@@ -742,6 +801,7 @@ export default function FeesSection({
         <SummaryCard
           label="Fee Outstanding"
           value={formatCurrency(summary.professionalFeeOutstanding)}
+          tone={summary.professionalFeeOutstanding > 0 ? "warning" : "normal"}
         />
         <SummaryCard
           label="Expenses"
@@ -752,8 +812,14 @@ export default function FeesSection({
           value={formatCurrency(summary.expenseReimbursed)}
         />
         <SummaryCard
+          label="Expense Outstanding"
+          value={formatCurrency(summary.expenseOutstanding)}
+          tone={summary.expenseOutstanding > 0 ? "warning" : "normal"}
+        />
+        <SummaryCard
           label="Total Outstanding"
           value={formatCurrency(summary.totalOutstanding)}
+          tone={summary.totalOutstanding > 0 ? "danger" : "normal"}
         />
       </div>
 
@@ -787,10 +853,19 @@ export default function FeesSection({
           </div>
 
           {showFeeForm && (
-            <div style={formCardStyle}>
-              <h4 style={formTitleStyle}>
-                {editingFeeId ? "Edit Fee" : "Add Fee"}
-              </h4>
+            <div ref={feeFormRef} style={formCardStyle}>
+              <div style={formHeaderStyle}>
+                <div>
+                  <h4 style={formTitleStyle}>
+                    {editingFeeId ? "Edit Fee" : "Add Fee"}
+                  </h4>
+                  <div style={formSubTitleStyle}>
+                    บันทึกค่าวิชาชีพ งวดชำระ ยอดรับชำระ และวันครบกำหนด
+                  </div>
+                </div>
+
+                {editingFeeId && <span style={editBadgeStyle}>Editing</span>}
+              </div>
 
               <div style={formGridStyle}>
                 <Select
@@ -917,11 +992,11 @@ export default function FeesSection({
 
           {loading ? (
             <div style={emptyStyle}>Loading fees...</div>
-          ) : feeItems.length === 0 ? (
+          ) : sortedFeeItems.length === 0 ? (
             <div style={emptyStyle}>No professional fees added.</div>
           ) : (
             <div style={itemListStyle}>
-              {feeItems.map((item) => (
+              {sortedFeeItems.map((item) => (
                 <FeeCard
                   key={item.id}
                   item={item}
@@ -966,10 +1041,21 @@ export default function FeesSection({
           </div>
 
           {showExpenseForm && (
-            <div style={formCardStyle}>
-              <h4 style={formTitleStyle}>
-                {editingExpenseId ? "Edit Expense" : "Add Expense"}
-              </h4>
+            <div ref={expenseFormRef} style={formCardStyle}>
+              <div style={formHeaderStyle}>
+                <div>
+                  <h4 style={formTitleStyle}>
+                    {editingExpenseId ? "Edit Expense" : "Add Expense"}
+                  </h4>
+                  <div style={formSubTitleStyle}>
+                    บันทึกค่าใช้จ่าย การออกเงินแทน และยอดเรียกคืนจากลูกค้า
+                  </div>
+                </div>
+
+                {editingExpenseId && (
+                  <span style={editBadgeStyle}>Editing</span>
+                )}
+              </div>
 
               <div style={formGridStyle}>
                 <Select
@@ -1104,11 +1190,11 @@ export default function FeesSection({
 
           {loading ? (
             <div style={emptyStyle}>Loading expenses...</div>
-          ) : expenseItems.length === 0 ? (
+          ) : sortedExpenseItems.length === 0 ? (
             <div style={emptyStyle}>No expenses added.</div>
           ) : (
             <div style={itemListStyle}>
-              {expenseItems.map((item) => (
+              {sortedExpenseItems.map((item) => (
                 <ExpenseCard
                   key={item.id}
                   item={item}
@@ -1130,9 +1216,23 @@ export default function FeesSection({
    SUB COMPONENTS
 ========================================================= */
 
-function SummaryCard({ label, value }: { label: string; value: string }) {
+function SummaryCard({
+  label,
+  value,
+  tone = "normal",
+}: {
+  label: string;
+  value: string;
+  tone?: "normal" | "warning" | "danger";
+}) {
   return (
-    <div style={summaryCardStyle}>
+    <div
+      style={{
+        ...summaryCardStyle,
+        ...(tone === "warning" ? summaryWarningStyle : {}),
+        ...(tone === "danger" ? summaryDangerStyle : {}),
+      }}
+    >
       <div style={summaryLabelStyle}>{label}</div>
       <div style={summaryValueStyle}>{value}</div>
     </div>
@@ -1165,8 +1265,8 @@ function FeeCard({
             งวดที่ {item.installment_no || "-"} : {item.fee_type || "-"}
           </div>
           <div style={itemMetaStyle}>
-            Due: {formatDisplayDate(item.due_date)} • Status:{" "}
-            {item.status || "-"}
+            Due: {formatDisplayDate(item.due_date)} • Paid:{" "}
+            {formatCurrency(paid)}
           </div>
         </div>
 
@@ -1446,8 +1546,27 @@ function formatDisplayDate(value?: string | null) {
   return `${day}/${month}/${year}`;
 }
 
+function getFeeSortScore(status?: string | null) {
+  if (status === "Overdue") return 1;
+  if (status === "Pending") return 2;
+  if (status === "Partially Paid") return 3;
+  if (status === "Paid") return 4;
+  if (status === "Cancelled") return 5;
+  return 9;
+}
+
+function getExpenseSortScore(status?: string | null) {
+  if (status === "Pending Reimbursement") return 1;
+  if (status === "Partially Reimbursed") return 2;
+  if (status === "Reimbursed") return 3;
+  if (status === "Paid by Client") return 4;
+  if (status === "Not Reimbursable") return 5;
+  if (status === "Cancelled") return 6;
+  return 9;
+}
+
 function getStatusBadgeStyle(status?: string | null): CSSProperties {
-  if (status === "Paid" || status === "Reimbursed") {
+  if (status === "Paid" || status === "Reimbursed" || status === "Paid by Client") {
     return {
       ...badgeBaseStyle,
       background: "#e6f4ea",
@@ -1493,8 +1612,8 @@ function getStatusBadgeStyle(status?: string | null): CSSProperties {
 
 const sectionStyle: CSSProperties = {
   border: "1px solid #dddddd",
-  padding: 16,
-  borderRadius: 12,
+  padding: "clamp(12px, 2vw, 16px)",
+  borderRadius: 14,
   background: "#ffffff",
   color: "#111111",
 };
@@ -1504,58 +1623,74 @@ const headerStyle: CSSProperties = {
   justifyContent: "space-between",
   gap: 12,
   alignItems: "flex-start",
-  marginBottom: 16,
+  marginBottom: 14,
   flexWrap: "wrap",
 };
 
 const titleStyle: CSSProperties = {
   margin: 0,
   color: "#111111",
+  fontSize: 18,
+  fontWeight: 900,
 };
 
 const subTitleStyle: CSSProperties = {
-  marginTop: 4,
-  color: "#555555",
+  marginTop: 3,
+  color: "#666666",
   fontSize: 13,
+  lineHeight: 1.45,
 };
 
 const summaryGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-  gap: 12,
-  marginBottom: 16,
+  gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))",
+  gap: 10,
+  marginBottom: 14,
 };
 
 const summaryCardStyle: CSSProperties = {
   border: "1px solid #eeeeee",
   borderRadius: 12,
-  padding: 14,
+  padding: 11,
   background: "#fafafa",
 };
 
+const summaryWarningStyle: CSSProperties = {
+  background: "#fffaf0",
+  border: "1px solid #eedc9a",
+};
+
+const summaryDangerStyle: CSSProperties = {
+  background: "#fff5f5",
+  border: "1px solid #f1b5b5",
+};
+
 const summaryLabelStyle: CSSProperties = {
-  fontSize: 12,
-  color: "#666666",
-  marginBottom: 6,
-  fontWeight: 600,
+  fontSize: 11,
+  color: "#777777",
+  marginBottom: 4,
+  fontWeight: 800,
+  textTransform: "uppercase",
+  letterSpacing: "0.03em",
 };
 
 const summaryValueStyle: CSSProperties = {
-  fontSize: 18,
+  fontSize: 16,
   fontWeight: 900,
   color: "#111111",
+  lineHeight: 1.35,
 };
 
 const twoColumnStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-  gap: 16,
+  gap: 14,
 };
 
 const panelStyle: CSSProperties = {
   border: "1px solid #eeeeee",
-  borderRadius: 12,
-  padding: 14,
+  borderRadius: 14,
+  padding: 12,
   background: "#fafafa",
 };
 
@@ -1571,78 +1706,116 @@ const panelHeaderStyle: CSSProperties = {
 const panelTitleStyle: CSSProperties = {
   margin: 0,
   color: "#111111",
+  fontSize: 16,
+  fontWeight: 900,
 };
 
 const panelSubtitleStyle: CSSProperties = {
-  marginTop: 4,
-  color: "#555555",
-  fontSize: 13,
+  marginTop: 3,
+  color: "#666666",
+  fontSize: 12,
+  lineHeight: 1.45,
 };
 
 const primaryButtonStyle: CSSProperties = {
-  padding: "9px 14px",
+  padding: "8px 13px",
   background: "#000000",
   color: "#ffffff",
   borderRadius: 8,
   border: "none",
   cursor: "pointer",
-  fontWeight: 700,
+  fontWeight: 800,
+  fontSize: 13,
   whiteSpace: "nowrap",
 };
 
 const secondaryButtonStyle: CSSProperties = {
-  padding: "9px 14px",
+  padding: "8px 13px",
   background: "#ffffff",
   color: "#111111",
   borderRadius: 8,
   border: "1px solid #cccccc",
   cursor: "pointer",
-  fontWeight: 600,
+  fontWeight: 700,
+  fontSize: 13,
   whiteSpace: "nowrap",
 };
 
 const formCardStyle: CSSProperties = {
   border: "1px solid #dddddd",
-  borderRadius: 12,
-  padding: 16,
+  borderRadius: 14,
+  padding: 14,
   background: "#ffffff",
   marginBottom: 14,
+  scrollMarginTop: 105,
+};
+
+const formHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 10,
+  alignItems: "flex-start",
+  marginBottom: 12,
+  flexWrap: "wrap",
 };
 
 const formTitleStyle: CSSProperties = {
-  marginTop: 0,
-  marginBottom: 12,
+  margin: 0,
   color: "#111111",
+  fontSize: 16,
+  fontWeight: 900,
+};
+
+const formSubTitleStyle: CSSProperties = {
+  marginTop: 3,
+  color: "#666666",
+  fontSize: 12,
+  lineHeight: 1.45,
+};
+
+const editBadgeStyle: CSSProperties = {
+  display: "inline-flex",
+  padding: "5px 10px",
+  borderRadius: 999,
+  background: "#fff8e1",
+  color: "#b54708",
+  border: "1px solid #eedc9a",
+  fontSize: 12,
+  fontWeight: 900,
+  whiteSpace: "nowrap",
 };
 
 const formGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: 12,
+  gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+  gap: 10,
 };
 
 const labelStyle: CSSProperties = {
   display: "block",
-  marginBottom: 4,
-  color: "#222222",
-  fontWeight: 600,
-  fontSize: 13,
+  marginBottom: 3,
+  color: "#777777",
+  fontWeight: 800,
+  fontSize: 11,
+  textTransform: "uppercase",
+  letterSpacing: "0.03em",
 };
 
 const inputStyle: CSSProperties = {
   width: "100%",
-  padding: "9px 10px",
+  padding: "8px 9px",
   borderRadius: 8,
   border: "1px solid #bbbbbb",
   background: "#ffffff",
   color: "#111111",
   colorScheme: "light",
   boxSizing: "border-box",
+  fontSize: 13,
 };
 
 const textareaStyle: CSSProperties = {
   ...inputStyle,
-  minHeight: 88,
+  minHeight: 78,
   resize: "vertical",
 };
 
@@ -1650,65 +1823,70 @@ const checkboxBoxStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 8,
-  minHeight: 40,
-  padding: "9px 10px",
+  minHeight: 36,
+  padding: "8px 9px",
   borderRadius: 8,
   border: "1px solid #dddddd",
   background: "#ffffff",
   color: "#111111",
-  fontWeight: 600,
+  fontWeight: 700,
+  fontSize: 13,
 };
 
 const formButtonWrapStyle: CSSProperties = {
   display: "flex",
-  gap: 10,
-  marginTop: 16,
+  gap: 8,
+  marginTop: 12,
   flexWrap: "wrap",
 };
 
 const emptyStyle: CSSProperties = {
-  padding: 16,
+  padding: 14,
   border: "1px dashed #cccccc",
   borderRadius: 12,
   color: "#555555",
   background: "#ffffff",
+  fontSize: 13,
+  fontWeight: 700,
 };
 
 const itemListStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "1fr",
-  gap: 12,
+  gap: 10,
 };
 
 const itemCardStyle: CSSProperties = {
   border: "1px solid #dddddd",
   borderRadius: 12,
-  padding: 14,
+  padding: 12,
   background: "#ffffff",
   color: "#111111",
-  boxShadow: "0 1px 6px rgba(0,0,0,0.05)",
+  boxShadow: "0 1px 6px rgba(0,0,0,0.04)",
 };
 
 const itemHeaderStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  gap: 12,
+  gap: 10,
   alignItems: "flex-start",
-  marginBottom: 10,
+  marginBottom: 9,
 };
 
 const itemTitleStyle: CSSProperties = {
-  fontSize: 15,
+  fontSize: 14,
   fontWeight: 900,
   color: "#111111",
   lineHeight: 1.45,
+  wordBreak: "break-word",
 };
 
 const itemMetaStyle: CSSProperties = {
-  marginTop: 4,
+  marginTop: 3,
   color: "#555555",
-  fontSize: 13,
-  fontWeight: 600,
+  fontSize: 12,
+  fontWeight: 700,
+  lineHeight: 1.45,
 };
 
 const descriptionStyle: CSSProperties = {
@@ -1717,28 +1895,32 @@ const descriptionStyle: CSSProperties = {
   background: "#f8fafc",
   border: "1px solid #eeeeee",
   color: "#111111",
-  fontSize: 14,
+  fontSize: 13,
   lineHeight: 1.6,
   whiteSpace: "pre-wrap",
   marginBottom: 10,
+  wordBreak: "break-word",
 };
 
 const moneyGridStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "1fr 1fr",
-  gap: 10,
+  gap: 9,
 };
 
 const infoLabelStyle: CSSProperties = {
-  fontSize: 12,
-  color: "#666666",
+  fontSize: 11,
+  color: "#777777",
   marginBottom: 2,
+  fontWeight: 800,
+  textTransform: "uppercase",
+  letterSpacing: "0.03em",
 };
 
 const infoValueStyle: CSSProperties = {
-  fontSize: 14,
+  fontSize: 13,
   color: "#111111",
-  fontWeight: 700,
+  fontWeight: 800,
   wordBreak: "break-word",
   lineHeight: 1.5,
 };
@@ -1750,45 +1932,48 @@ const noteBlockStyle: CSSProperties = {
   background: "#f8fafc",
   border: "1px solid #eeeeee",
   color: "#111111",
-  fontSize: 14,
+  fontSize: 13,
   lineHeight: 1.6,
   whiteSpace: "pre-wrap",
+  wordBreak: "break-word",
 };
 
 const actionWrapStyle: CSSProperties = {
   display: "flex",
   gap: 8,
-  marginTop: 12,
+  marginTop: 10,
   paddingTop: 10,
   borderTop: "1px solid #eeeeee",
   flexWrap: "wrap",
 };
 
 const smallButtonStyle: CSSProperties = {
-  padding: "7px 11px",
+  padding: "7px 10px",
   borderRadius: 8,
   border: "1px solid #cccccc",
   background: "#ffffff",
   color: "#111111",
   cursor: "pointer",
-  fontWeight: 600,
+  fontWeight: 700,
+  fontSize: 13,
 };
 
 const dangerButtonStyle: CSSProperties = {
-  padding: "7px 11px",
+  padding: "7px 10px",
   borderRadius: 8,
   border: "1px solid #e0b4b4",
   background: "#fff5f5",
   color: "#a40000",
   cursor: "pointer",
-  fontWeight: 700,
+  fontWeight: 800,
+  fontSize: 13,
 };
 
 const badgeBaseStyle: CSSProperties = {
   display: "inline-flex",
-  padding: "5px 10px",
+  padding: "4px 8px",
   borderRadius: 999,
-  fontSize: 12,
-  fontWeight: 800,
+  fontSize: 11,
+  fontWeight: 900,
   whiteSpace: "nowrap",
 };
