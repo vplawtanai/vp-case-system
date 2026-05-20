@@ -436,7 +436,7 @@ export default function CaseInfoSection({
               value={form.caseSubtype}
               disabled={!isEditing}
               onChange={(value) => setForm({ ...form, caseSubtype: value })}
-              minHeight={82}
+              minHeight={64}
             />
           ) : (
             <ReadOnlyValue
@@ -528,7 +528,7 @@ export default function CaseInfoSection({
               value={form.issueText}
               disabled={!isEditing}
               onChange={(value) => setForm({ ...form, issueText: value })}
-              minHeight={170}
+              minHeight={110}
             />
           ) : (
             <ReadOnlyValue
@@ -600,7 +600,7 @@ function InfoBlock({ title, subtitle, children }: InfoBlockProps) {
 
 function ReadOnlyValue({ label, value, multiline = false }: ReadOnlyValueProps) {
   return (
-    <div>
+    <div style={readOnlyRowStyle}>
       <div style={labelStyle}>{label}</div>
       <div style={multiline ? readOnlyTextAreaStyle : readOnlyValueStyle}>
         {value && value.trim() ? value : "-"}
@@ -792,8 +792,8 @@ function stringifyError(error: unknown) {
 
 const sectionStyle: CSSProperties = {
   border: "1px solid #dddddd",
-  padding: 16,
-  borderRadius: 12,
+  padding: "clamp(12px, 2vw, 16px)",
+  borderRadius: 14,
   background: "#ffffff",
   color: "#111111",
 };
@@ -803,101 +803,118 @@ const headerStyle: CSSProperties = {
   justifyContent: "space-between",
   gap: 12,
   alignItems: "flex-start",
-  marginBottom: 16,
+  marginBottom: 14,
   flexWrap: "wrap",
 };
 
 const titleStyle: CSSProperties = {
   margin: 0,
   color: "#111111",
+  fontSize: 18,
+  fontWeight: 900,
 };
 
 const subTitleStyle: CSSProperties = {
-  marginTop: 4,
-  color: "#555555",
+  marginTop: 3,
+  color: "#666666",
   fontSize: 13,
+  lineHeight: 1.45,
 };
 
 const mainGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-  gap: 12,
+  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+  gap: 10,
 };
 
 const infoBlockStyle: CSSProperties = {
   border: "1px solid #eeeeee",
   borderRadius: 12,
-  padding: 14,
+  padding: 12,
   background: "#fafafa",
 };
 
 const blockHeaderStyle: CSSProperties = {
-  marginBottom: 12,
+  marginBottom: 9,
 };
 
 const blockTitleStyle: CSSProperties = {
   margin: 0,
   color: "#111111",
-  fontSize: 16,
+  fontSize: 14,
+  fontWeight: 900,
 };
 
 const blockSubtitleStyle: CSSProperties = {
-  marginTop: 4,
-  color: "#666666",
-  fontSize: 13,
+  marginTop: 3,
+  color: "#777777",
+  fontSize: 12,
+  lineHeight: 1.35,
 };
 
 const blockContentStyle: CSSProperties = {
   display: "grid",
-  gap: 10,
+  gap: 8,
+};
+
+const readOnlyRowStyle: CSSProperties = {
+  padding: "7px 8px",
+  border: "1px solid #eeeeee",
+  borderRadius: 10,
+  background: "#ffffff",
 };
 
 const labelStyle: CSSProperties = {
   display: "block",
-  marginBottom: 4,
-  color: "#666666",
-  fontWeight: 700,
-  fontSize: 12,
+  marginBottom: 3,
+  color: "#777777",
+  fontWeight: 800,
+  fontSize: 11,
+  textTransform: "uppercase",
+  letterSpacing: "0.03em",
 };
 
 const readOnlyValueStyle: CSSProperties = {
-  minHeight: 22,
+  minHeight: 18,
   color: "#111111",
-  fontSize: 14,
+  fontSize: 13,
   fontWeight: 800,
-  lineHeight: 1.5,
+  lineHeight: 1.45,
   wordBreak: "break-word",
 };
 
 const readOnlyTextAreaStyle: CSSProperties = {
-  minHeight: 44,
+  minHeight: 28,
   color: "#111111",
-  fontSize: 14,
+  fontSize: 13,
   fontWeight: 700,
-  lineHeight: 1.7,
+  lineHeight: 1.55,
   whiteSpace: "pre-wrap",
   wordBreak: "break-word",
 };
 
 const inputStyle: CSSProperties = {
   width: "100%",
-  padding: "9px 10px",
+  padding: "8px 9px",
   borderRadius: 8,
   border: "1px solid #bbbbbb",
   boxSizing: "border-box",
   color: "#111111",
   colorScheme: "light",
+  fontSize: 13,
 };
 
 const textareaStyle: CSSProperties = {
   width: "100%",
-  padding: "9px 10px",
+  padding: "8px 9px",
   borderRadius: 8,
   border: "1px solid #bbbbbb",
   boxSizing: "border-box",
   color: "#111111",
   resize: "vertical",
   colorScheme: "light",
+  fontSize: 13,
+  lineHeight: 1.5,
 };
 
 const caseNumberRowStyle: CSSProperties = {
@@ -907,7 +924,7 @@ const caseNumberRowStyle: CSSProperties = {
 };
 
 const slashStyle: CSSProperties = {
-  fontWeight: 800,
+  fontWeight: 900,
   color: "#333333",
 };
 
@@ -920,35 +937,38 @@ const claimRowStyle: CSSProperties = {
 
 const unitStyle: CSSProperties = {
   color: "#333333",
-  fontWeight: 600,
+  fontWeight: 700,
   whiteSpace: "nowrap",
+  fontSize: 13,
 };
 
 const claimPreviewStyle: CSSProperties = {
-  marginTop: 8,
-  fontSize: 13,
+  marginTop: 6,
+  fontSize: 12,
   color: "#555555",
-  fontWeight: 600,
+  fontWeight: 700,
 };
 
 const btnPrimary: CSSProperties = {
   background: "black",
   color: "white",
-  padding: "9px 14px",
+  padding: "8px 13px",
   borderRadius: 8,
   border: "none",
   cursor: "pointer",
-  fontWeight: 700,
+  fontWeight: 800,
+  fontSize: 13,
 };
 
 const btnSecondary: CSSProperties = {
-  padding: "9px 14px",
+  padding: "8px 13px",
   borderRadius: 8,
   border: "1px solid #cccccc",
   background: "white",
   color: "#111111",
   cursor: "pointer",
-  fontWeight: 600,
+  fontWeight: 700,
+  fontSize: 13,
 };
 
 const buttonWrapStyle: CSSProperties = {
