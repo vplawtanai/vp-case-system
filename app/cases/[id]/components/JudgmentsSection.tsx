@@ -14,6 +14,9 @@ type JudgmentItem = {
   note?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 };
 
 type CourtFilingItem = {
@@ -27,6 +30,9 @@ type CourtFilingItem = {
   note?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 };
 
 type JudgmentForm = {
@@ -127,6 +133,7 @@ export default function JudgmentsSection({ caseId }: Props) {
         .from("case_judgments")
         .select("*")
         .eq("case_id", caseIdNumber)
+        .is("deleted_at", null)
         .order("created_at", { ascending: true });
 
       if (judgmentError) {
@@ -139,6 +146,7 @@ export default function JudgmentsSection({ caseId }: Props) {
         .from("case_court_filings")
         .select("*")
         .eq("case_id", caseIdNumber)
+        .is("deleted_at", null)
         .order("filed_date", { ascending: true })
         .order("created_at", { ascending: true });
 
@@ -252,6 +260,8 @@ export default function JudgmentsSection({ caseId }: Props) {
       const payload = {
         ...buildJudgmentPayload(),
         created_at: new Date().toISOString(),
+        deleted_at: null,
+        deleted_by: null,
       };
 
       const { data, error } = await supabase
@@ -297,6 +307,7 @@ export default function JudgmentsSection({ caseId }: Props) {
         .from("case_judgments")
         .update(payload)
         .eq("id", editingJudgmentId)
+        .is("deleted_at", null)
         .select("*")
         .single();
 
@@ -323,31 +334,52 @@ export default function JudgmentsSection({ caseId }: Props) {
   };
 
   const deleteJudgment = async (id: string) => {
-    const confirmed = window.confirm("ต้องการลบข้อมูลคำพิพากษานี้หรือไม่?");
+    const confirmed = window.confirm(
+      "ต้องการลบข้อมูลคำพิพากษานี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
+    );
+
     if (!confirmed) return;
 
-    const oldData = judgments.find((item) => item.id === id) || null;
+    try {
+      setSavingJudgment(true);
 
-    const { error } = await supabase.from("case_judgments").delete().eq("id", id);
+      const oldData = judgments.find((item) => item.id === id) || null;
 
-    if (error) {
-      alert("Delete judgment failed:\n" + JSON.stringify(error, null, 2));
-      return;
+      const payload = {
+        deleted_at: new Date().toISOString(),
+        deleted_by: "current_user",
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from("case_judgments")
+        .update(payload)
+        .eq("id", id)
+        .is("deleted_at", null)
+        .select("*")
+        .single();
+
+      if (error) {
+        alert("Soft delete judgment failed:\n" + JSON.stringify(error, null, 2));
+        return;
+      }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_judgments",
+        recordId: id,
+        action: "soft_delete",
+        oldData,
+        newData: data || (oldData ? { ...oldData, ...payload } : payload),
+        note: "Soft delete judgment summary",
+      });
+
+      if (editingJudgmentId === id) cancelJudgmentForm();
+
+      await loadData();
+    } finally {
+      setSavingJudgment(false);
     }
-
-    await createAuditLog({
-      caseId: caseIdNumber,
-      tableName: "case_judgments",
-      recordId: id,
-      action: "delete",
-      oldData,
-      newData: null,
-      note: "Delete judgment summary",
-    });
-
-    if (editingJudgmentId === id) cancelJudgmentForm();
-
-    await loadData();
   };
 
   const startAddFiling = () => {
@@ -417,6 +449,8 @@ export default function JudgmentsSection({ caseId }: Props) {
       const payload = {
         ...buildFilingPayload(),
         created_at: new Date().toISOString(),
+        deleted_at: null,
+        deleted_by: null,
       };
 
       const { data, error } = await supabase
@@ -461,6 +495,7 @@ export default function JudgmentsSection({ caseId }: Props) {
         .from("case_court_filings")
         .update(payload)
         .eq("id", editingFilingId)
+        .is("deleted_at", null)
         .select("*")
         .single();
 
@@ -487,34 +522,52 @@ export default function JudgmentsSection({ caseId }: Props) {
   };
 
   const deleteFiling = async (id: string) => {
-    const confirmed = window.confirm("ต้องการลบข้อมูลการยื่นนี้หรือไม่?");
+    const confirmed = window.confirm(
+      "ต้องการลบข้อมูลการยื่นนี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
+    );
+
     if (!confirmed) return;
 
-    const oldData = filings.find((item) => item.id === id) || null;
+    try {
+      setSavingFiling(true);
 
-    const { error } = await supabase
-      .from("case_court_filings")
-      .delete()
-      .eq("id", id);
+      const oldData = filings.find((item) => item.id === id) || null;
 
-    if (error) {
-      alert("Delete filing failed:\n" + JSON.stringify(error, null, 2));
-      return;
+      const payload = {
+        deleted_at: new Date().toISOString(),
+        deleted_by: "current_user",
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from("case_court_filings")
+        .update(payload)
+        .eq("id", id)
+        .is("deleted_at", null)
+        .select("*")
+        .single();
+
+      if (error) {
+        alert("Soft delete filing failed:\n" + JSON.stringify(error, null, 2));
+        return;
+      }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_court_filings",
+        recordId: id,
+        action: "soft_delete",
+        oldData,
+        newData: data || (oldData ? { ...oldData, ...payload } : payload),
+        note: "Soft delete appeal/supreme filing",
+      });
+
+      if (editingFilingId === id) cancelFilingForm();
+
+      await loadData();
+    } finally {
+      setSavingFiling(false);
     }
-
-    await createAuditLog({
-      caseId: caseIdNumber,
-      tableName: "case_court_filings",
-      recordId: id,
-      action: "delete",
-      oldData,
-      newData: null,
-      note: "Delete appeal/supreme filing",
-    });
-
-    if (editingFilingId === id) cancelFilingForm();
-
-    await loadData();
   };
 
   return (
