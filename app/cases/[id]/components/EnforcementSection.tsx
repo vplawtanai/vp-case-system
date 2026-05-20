@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../../../lib/supabase";
 import { createAuditLog } from "../../../../lib/auditLog";
@@ -303,6 +303,27 @@ export default function EnforcementSection({
   const [editingAssetId, setEditingAssetId] = useState<string | null>(null);
   const [assetForm, setAssetForm] = useState<AssetForm>(emptyAssetForm);
 
+  const enforcementFormRef = useRef<HTMLDivElement | null>(null);
+  const assetFormRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollToEnforcementForm = () => {
+    window.setTimeout(() => {
+      enforcementFormRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 80);
+  };
+
+  const scrollToAssetForm = () => {
+    window.setTimeout(() => {
+      assetFormRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 80);
+  };
+
   const loadData = async () => {
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) return;
 
@@ -465,6 +486,8 @@ export default function EnforcementSection({
     setEditingEnforcementId(null);
     setEnforcementForm(emptyEnforcementForm);
     setShowEnforcementForm(true);
+    setShowAssetForm(false);
+    scrollToEnforcementForm();
   };
 
   const startEditEnforcement = (item: EnforcementItem) => {
@@ -475,6 +498,8 @@ export default function EnforcementSection({
 
     setEditingEnforcementId(item.id);
     setShowEnforcementForm(true);
+    setShowAssetForm(false);
+    scrollToEnforcementForm();
 
     setEnforcementForm({
       party_label: item.party_label || "defendant",
@@ -773,6 +798,8 @@ export default function EnforcementSection({
       enforcement_id: enforcementId || enforcements[0]?.id || "",
     });
     setShowAssetForm(true);
+    setShowEnforcementForm(false);
+    scrollToAssetForm();
   };
 
   const startEditAsset = (item: AssetItem) => {
@@ -783,6 +810,8 @@ export default function EnforcementSection({
 
     setEditingAssetId(item.id);
     setShowAssetForm(true);
+    setShowEnforcementForm(false);
+    scrollToAssetForm();
 
     setAssetForm({
       enforcement_id: item.enforcement_id || "",
@@ -1125,7 +1154,7 @@ export default function EnforcementSection({
       </div>
 
       {showEnforcementForm && (
-        <div style={formCardStyle}>
+        <div ref={enforcementFormRef} style={formCardStyle}>
           <h4 style={formTitleStyle}>
             {editingEnforcementId ? "Edit Command & Writ" : "Add Command & Writ"}
           </h4>
@@ -1304,7 +1333,7 @@ export default function EnforcementSection({
       )}
 
       {showAssetForm && (
-        <div style={formCardStyle}>
+        <div ref={assetFormRef} style={formCardStyle}>
           <h4 style={formTitleStyle}>
             {editingAssetId
               ? "Edit Asset Search / Seizure / Auction"
@@ -1657,14 +1686,8 @@ function EnforcementCard({
 
       <div style={metaGridStyle}>
         <InfoLine label="Judgment Date" value={formatDisplayDate(item.judgment_date)} />
-        <InfoLine
-          label="Command Service Date"
-          value={formatDisplayDate(item.command_service_date)}
-        />
-        <InfoLine
-          label="Command Service Fee Paid"
-          value={formatDisplayDate(item.command_service_fee_paid_date)}
-        />
+        <InfoLine label="Command Service Date" value={formatDisplayDate(item.command_service_date)} />
+        <InfoLine label="Command Service Fee Paid" value={formatDisplayDate(item.command_service_fee_paid_date)} />
         <InfoLine label="Service Method" value={renderServiceMethod(item.service_method)} />
         <InfoLine label="Service Result" value={renderServiceResult(item.service_result)} />
         <InfoLine
@@ -1683,22 +1706,10 @@ function EnforcementCard({
               : "-"
           }
         />
-        <InfoLine
-          label="Original Due Date"
-          value={formatDisplayDate(item.original_due_date)}
-        />
-        <InfoLine
-          label="Final Due Date"
-          value={formatDisplayDate(item.final_due_date)}
-        />
-        <InfoLine
-          label="Writ Request Date"
-          value={formatDisplayDate(item.writ_request_date)}
-        />
-        <InfoLine
-          label="Writ Issued Date"
-          value={formatDisplayDate(item.writ_issued_date)}
-        />
+        <InfoLine label="Original Due Date" value={formatDisplayDate(item.original_due_date)} />
+        <InfoLine label="Final Due Date" value={formatDisplayDate(item.final_due_date)} />
+        <InfoLine label="Writ Request Date" value={formatDisplayDate(item.writ_request_date)} />
+        <InfoLine label="Writ Issued Date" value={formatDisplayDate(item.writ_issued_date)} />
       </div>
 
       {item.note && <div style={noteBlockStyle}>{item.note}</div>}
@@ -1707,30 +1718,18 @@ function EnforcementCard({
         <div style={actionWrapStyle}>
           {canEdit && (
             <>
-              <button
-                type="button"
-                onClick={() => onEdit(item)}
-                style={smallButtonStyle}
-              >
+              <button type="button" onClick={() => onEdit(item)} style={smallButtonStyle}>
                 Edit Command
               </button>
 
-              <button
-                type="button"
-                onClick={() => onAddAsset(item.id)}
-                style={smallButtonStyle}
-              >
+              <button type="button" onClick={() => onAddAsset(item.id)} style={smallButtonStyle}>
                 + Add Asset
               </button>
             </>
           )}
 
           {canDelete && (
-            <button
-              type="button"
-              onClick={() => onDelete(item.id)}
-              style={dangerButtonStyle}
-            >
+            <button type="button" onClick={() => onDelete(item.id)} style={dangerButtonStyle}>
               Delete
             </button>
           )}
@@ -1800,28 +1799,13 @@ function AssetCard({
         <InfoLine label="Search Office" value={item.search_office || "-"} />
         <InfoLine label="Search Date" value={formatDisplayDate(item.search_date)} />
         <InfoLine label="Asset Owner" value={item.asset_owner || "-"} />
-        <InfoLine
-          label="Estimated Value"
-          value={formatMoneyDisplay(item.estimated_value)}
-        />
-        <InfoLine
-          label="Client Notified"
-          value={formatDisplayDate(item.client_notified_date)}
-        />
-        <InfoLine
-          label="Client Approval Date"
-          value={formatDisplayDate(item.client_approval_date)}
-        />
-        <InfoLine
-          label="Seizure Request"
-          value={formatDisplayDate(item.seizure_request_date)}
-        />
+        <InfoLine label="Estimated Value" value={formatMoneyDisplay(item.estimated_value)} />
+        <InfoLine label="Client Notified" value={formatDisplayDate(item.client_notified_date)} />
+        <InfoLine label="Client Approval Date" value={formatDisplayDate(item.client_approval_date)} />
+        <InfoLine label="Seizure Request" value={formatDisplayDate(item.seizure_request_date)} />
         <InfoLine label="Seizure Date" value={formatDisplayDate(item.seizure_date)} />
         <InfoLine label="Seizure Status" value={renderSeizureStatus(item.seizure_status)} />
-        <InfoLine
-          label="Auction Announcement"
-          value={formatDisplayDate(item.auction_announcement_date)}
-        />
+        <InfoLine label="Auction Announcement" value={formatDisplayDate(item.auction_announcement_date)} />
         <InfoLine label="Auction Date" value={formatDisplayDate(item.auction_date)} />
         <InfoLine
           label="Auction Round"
@@ -1846,21 +1830,13 @@ function AssetCard({
       {showActions && (
         <div style={actionWrapStyle}>
           {canEdit && (
-            <button
-              type="button"
-              onClick={() => onEdit(item)}
-              style={smallButtonStyle}
-            >
+            <button type="button" onClick={() => onEdit(item)} style={smallButtonStyle}>
               Edit Asset
             </button>
           )}
 
           {canDelete && (
-            <button
-              type="button"
-              onClick={() => onDelete(item.id)}
-              style={dangerButtonStyle}
-            >
+            <button type="button" onClick={() => onDelete(item.id)} style={dangerButtonStyle}>
               Delete
             </button>
           )}
@@ -2242,8 +2218,8 @@ function toNullableInteger(value: string) {
 
 const sectionStyle: CSSProperties = {
   border: "1px solid #dddddd",
-  padding: 16,
-  borderRadius: 12,
+  padding: "clamp(12px, 2vw, 16px)",
+  borderRadius: 14,
   background: "#ffffff",
   color: "#111111",
 };
@@ -2260,12 +2236,15 @@ const headerStyle: CSSProperties = {
 const titleStyle: CSSProperties = {
   margin: 0,
   color: "#111111",
+  fontSize: 18,
+  fontWeight: 900,
 };
 
 const subTitleStyle: CSSProperties = {
-  marginTop: 4,
-  color: "#555555",
+  marginTop: 3,
+  color: "#666666",
   fontSize: 13,
+  lineHeight: 1.45,
 };
 
 const buttonWrapStyle: CSSProperties = {
@@ -2276,85 +2255,94 @@ const buttonWrapStyle: CSSProperties = {
 
 const summaryGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-  gap: 12,
-  marginBottom: 16,
+  gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))",
+  gap: 10,
+  marginBottom: 14,
 };
 
 const summaryCardStyle: CSSProperties = {
   border: "1px solid #eeeeee",
   borderRadius: 12,
-  padding: 14,
+  padding: 11,
   background: "#fafafa",
 };
 
 const summaryLabelStyle: CSSProperties = {
-  fontSize: 12,
-  color: "#666666",
-  marginBottom: 6,
-  fontWeight: 700,
+  fontSize: 11,
+  color: "#777777",
+  marginBottom: 4,
+  fontWeight: 800,
+  textTransform: "uppercase",
+  letterSpacing: "0.03em",
 };
 
 const summaryValueStyle: CSSProperties = {
-  fontSize: 22,
+  fontSize: 20,
   fontWeight: 900,
   color: "#111111",
 };
 
 const formCardStyle: CSSProperties = {
   border: "1px solid #dddddd",
-  borderRadius: 12,
-  padding: 16,
-  background: "#fafafa",
-  marginBottom: 18,
+  borderRadius: 14,
+  padding: 14,
+  background: "#ffffff",
+  marginBottom: 16,
+  scrollMarginTop: 105,
 };
 
 const formTitleStyle: CSSProperties = {
   marginTop: 0,
-  marginBottom: 12,
+  marginBottom: 10,
   color: "#111111",
+  fontSize: 16,
+  fontWeight: 900,
 };
 
 const formGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: 12,
+  gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+  gap: 10,
 };
 
 const labelStyle: CSSProperties = {
   display: "block",
-  marginBottom: 4,
-  color: "#222222",
-  fontWeight: 600,
-  fontSize: 13,
+  marginBottom: 3,
+  color: "#777777",
+  fontWeight: 800,
+  fontSize: 11,
+  textTransform: "uppercase",
+  letterSpacing: "0.03em",
 };
 
 const inputStyle: CSSProperties = {
   width: "100%",
-  padding: "9px 10px",
+  padding: "8px 9px",
   borderRadius: 8,
   border: "1px solid #bbbbbb",
   background: "#ffffff",
   color: "#111111",
   colorScheme: "light",
   boxSizing: "border-box",
+  fontSize: 13,
 };
 
 const textareaStyle: CSSProperties = {
   ...inputStyle,
-  minHeight: 90,
+  minHeight: 78,
   resize: "vertical",
 };
 
 const readonlyBoxStyle: CSSProperties = {
   width: "100%",
-  padding: "9px 10px",
+  padding: "8px 9px",
   borderRadius: 8,
   border: "1px solid #dddddd",
   background: "#eeeeee",
   color: "#111111",
   boxSizing: "border-box",
   fontWeight: 800,
+  fontSize: 13,
 };
 
 const formButtonWrapStyle: CSSProperties = {
@@ -2365,24 +2353,26 @@ const formButtonWrapStyle: CSSProperties = {
 };
 
 const primaryButtonStyle: CSSProperties = {
-  padding: "9px 14px",
+  padding: "8px 13px",
   background: "#000000",
   color: "#ffffff",
   borderRadius: 8,
   border: "none",
   cursor: "pointer",
-  fontWeight: 700,
+  fontWeight: 800,
+  fontSize: 13,
   whiteSpace: "nowrap",
 };
 
 const secondaryButtonStyle: CSSProperties = {
-  padding: "9px 14px",
+  padding: "8px 13px",
   background: "#ffffff",
   color: "#111111",
   borderRadius: 8,
   border: "1px solid #cccccc",
   cursor: "pointer",
-  fontWeight: 600,
+  fontWeight: 700,
+  fontSize: 13,
   whiteSpace: "nowrap",
 };
 
@@ -2411,10 +2401,10 @@ const enforcementListStyle: CSSProperties = {
 const enforcementCardStyle: CSSProperties = {
   border: "1px solid #dddddd",
   borderRadius: 12,
-  padding: 14,
+  padding: 12,
   background: "#ffffff",
   color: "#111111",
-  boxShadow: "0 1px 6px rgba(0,0,0,0.05)",
+  boxShadow: "0 1px 6px rgba(0,0,0,0.04)",
 };
 
 const cardHeaderStyle: CSSProperties = {
@@ -2426,7 +2416,7 @@ const cardHeaderStyle: CSSProperties = {
 };
 
 const cardTitleStyle: CSSProperties = {
-  fontSize: 16,
+  fontSize: 15,
   fontWeight: 900,
   color: "#111111",
   lineHeight: 1.45,
@@ -2452,22 +2442,24 @@ const alertBoxStyle: CSSProperties = {
 
 const metaGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-  gap: 10,
-  marginBottom: 10,
+  gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))",
+  gap: 9,
+  marginBottom: 9,
 };
 
 const infoLabelStyle: CSSProperties = {
-  fontSize: 12,
-  color: "#666666",
+  fontSize: 11,
+  color: "#777777",
   marginBottom: 2,
-  fontWeight: 700,
+  fontWeight: 800,
+  textTransform: "uppercase",
+  letterSpacing: "0.03em",
 };
 
 const infoValueStyle: CSSProperties = {
-  fontSize: 14,
+  fontSize: 13,
   color: "#111111",
-  fontWeight: 700,
+  fontWeight: 800,
   wordBreak: "break-word",
   lineHeight: 1.5,
 };
@@ -2478,10 +2470,11 @@ const noteBlockStyle: CSSProperties = {
   background: "#f8fafc",
   border: "1px solid #eeeeee",
   color: "#111111",
-  fontSize: 14,
+  fontSize: 13,
   lineHeight: 1.6,
   whiteSpace: "pre-wrap",
   marginTop: 8,
+  wordBreak: "break-word",
 };
 
 const actionWrapStyle: CSSProperties = {
@@ -2494,31 +2487,33 @@ const actionWrapStyle: CSSProperties = {
 };
 
 const smallButtonStyle: CSSProperties = {
-  padding: "7px 11px",
+  padding: "7px 10px",
   borderRadius: 8,
   border: "1px solid #cccccc",
   background: "#ffffff",
   color: "#111111",
   cursor: "pointer",
-  fontWeight: 600,
+  fontWeight: 700,
+  fontSize: 13,
 };
 
 const dangerButtonStyle: CSSProperties = {
-  padding: "7px 11px",
+  padding: "7px 10px",
   borderRadius: 8,
   border: "1px solid #e0b4b4",
   background: "#fff5f5",
   color: "#a40000",
   cursor: "pointer",
-  fontWeight: 700,
+  fontWeight: 800,
+  fontSize: 13,
 };
 
 const badgeBaseStyle: CSSProperties = {
   display: "inline-flex",
-  padding: "5px 10px",
+  padding: "4px 8px",
   borderRadius: 999,
-  fontSize: 12,
-  fontWeight: 800,
+  fontSize: 11,
+  fontWeight: 900,
   whiteSpace: "nowrap",
 };
 
@@ -2543,7 +2538,7 @@ const assetListStyle: CSSProperties = {
 const assetCardStyle: CSSProperties = {
   border: "1px solid #eeeeee",
   borderRadius: 12,
-  padding: 12,
+  padding: 11,
   background: "#fafafa",
 };
 
@@ -2556,9 +2551,10 @@ const assetCardHeaderStyle: CSSProperties = {
 };
 
 const assetTitleStyle: CSSProperties = {
-  fontSize: 15,
+  fontSize: 14,
   fontWeight: 900,
   color: "#111111",
+  lineHeight: 1.45,
 };
 
 const assetSubTitleStyle: CSSProperties = {
@@ -2570,12 +2566,12 @@ const assetSubTitleStyle: CSSProperties = {
 
 const assetBadgeStyle: CSSProperties = {
   display: "inline-flex",
-  padding: "5px 10px",
+  padding: "4px 8px",
   borderRadius: 999,
   background: "#f1f5f9",
   color: "#475467",
   border: "1px solid #d0d5dd",
-  fontSize: 12,
-  fontWeight: 800,
+  fontSize: 11,
+  fontWeight: 900,
   whiteSpace: "nowrap",
 };
