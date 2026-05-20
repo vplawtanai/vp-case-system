@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../../../lib/supabase";
 import { createAuditLog } from "../../../../lib/auditLog";
@@ -166,6 +166,27 @@ export default function DeadlinesSection({
     useState<ExtensionForm>(emptyExtensionForm);
   const [savingExtension, setSavingExtension] = useState(false);
 
+  const formRef = useRef<HTMLDivElement | null>(null);
+  const extensionFormRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollToForm = () => {
+    window.setTimeout(() => {
+      formRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 80);
+  };
+
+  const scrollToExtensionForm = () => {
+    window.setTimeout(() => {
+      extensionFormRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 80);
+  };
+
   const loadDeadlines = async () => {
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) return;
 
@@ -240,6 +261,35 @@ export default function DeadlinesSection({
     });
   }, [items]);
 
+  const summary = useMemo(() => {
+    const active = items.filter((item) => item.status !== "Done" && item.status !== "Cancelled").length;
+    const done = items.filter((item) => item.status === "Done").length;
+    const cancelled = items.filter((item) => item.status === "Cancelled").length;
+
+    const overdue = items.filter((item) =>
+      getDeadlineDueStatus(item).startsWith("Overdue")
+    ).length;
+
+    const today = items.filter((item) =>
+      getDeadlineDueStatus(item).startsWith("Today")
+    ).length;
+
+    const dueSoon = items.filter((item) =>
+      getDeadlineDueStatus(item).startsWith("Due Soon")
+    ).length;
+
+    return {
+      total: items.length,
+      active,
+      overdue,
+      today,
+      dueSoon,
+      done,
+      cancelled,
+      extensions: extensions.length,
+    };
+  }, [items, extensions]);
+
   const getNextOrderNo = () => {
     const maxOrder = items.reduce((max, item) => {
       const order = item.order_no || 0;
@@ -261,6 +311,7 @@ export default function DeadlinesSection({
       order_no: String(getNextOrderNo()),
     });
     setShowForm(true);
+    scrollToForm();
   };
 
   const startEdit = (item: DeadlineItem) => {
@@ -271,6 +322,7 @@ export default function DeadlinesSection({
 
     setEditingId(item.id);
     setShowForm(true);
+    scrollToForm();
 
     setForm({
       order_no: item.order_no ? String(item.order_no) : "1",
@@ -499,7 +551,8 @@ export default function DeadlinesSection({
           extensions: oldExtensions,
         },
         newData: {
-          deadline: data || (oldDeadline ? { ...oldDeadline, ...payload } : payload),
+          deadline:
+            data || (oldDeadline ? { ...oldDeadline, ...payload } : payload),
           extensions: oldExtensions,
         },
         note: "Soft delete legal deadline and keep related extensions",
@@ -551,7 +604,8 @@ export default function DeadlinesSection({
         ...item,
         ...payload,
       },
-      note: item.status === "Done" ? "Undo deadline status" : "Mark deadline as done",
+      note:
+        item.status === "Done" ? "Undo deadline status" : "Mark deadline as done",
     });
 
     await loadDeadlines();
@@ -565,6 +619,7 @@ export default function DeadlinesSection({
 
     setExtensionDeadlineId(deadlineId);
     setExtensionForm(emptyExtensionForm);
+    scrollToExtensionForm();
   };
 
   const cancelExtensionForm = () => {
@@ -688,7 +743,9 @@ export default function DeadlinesSection({
       <div style={headerStyle}>
         <div>
           <h3 style={titleStyle}>Legal Deadlines</h3>
-          <div style={subTitleStyle}>กำหนดเวลาทางกฎหมายและการขยายเวลา</div>
+          <div style={subTitleStyle}>
+            กำหนดเวลาทางกฎหมายและการขยายเวลา · รวม {summary.total} รายการ
+          </div>
         </div>
 
         {!showForm ? (
@@ -704,11 +761,29 @@ export default function DeadlinesSection({
         )}
       </div>
 
+      <div style={summaryGridStyle}>
+        <SummaryCard label="Active" value={String(summary.active)} />
+        <SummaryCard label="Today" value={String(summary.today)} />
+        <SummaryCard label="Due Soon" value={String(summary.dueSoon)} />
+        <SummaryCard label="Overdue" value={String(summary.overdue)} />
+        <SummaryCard label="Extended" value={String(summary.extensions)} />
+        <SummaryCard label="Done" value={String(summary.done)} />
+      </div>
+
       {showForm && (
-        <div style={formCardStyle}>
-          <h4 style={formTitleStyle}>
-            {editingId ? "Edit Deadline" : "Add Deadline"}
-          </h4>
+        <div ref={formRef} style={formCardStyle}>
+          <div style={formHeaderStyle}>
+            <div>
+              <h4 style={formTitleStyle}>
+                {editingId ? "Edit Deadline" : "Add Deadline"}
+              </h4>
+              <div style={formSubTitleStyle}>
+                บันทึกประเภทกำหนดเวลา ฝ่ายที่เกี่ยวข้อง วิธีส่งหมาย และวันครบกำหนด
+              </div>
+            </div>
+
+            {editingId && <span style={editBadgeStyle}>Editing</span>}
+          </div>
 
           <div style={formGridStyle}>
             <div>
@@ -865,6 +940,7 @@ export default function DeadlinesSection({
               savingExtension={savingExtension}
               canEdit={canEdit}
               canDelete={canDelete}
+              extensionFormRef={extensionFormRef}
               onEdit={startEdit}
               onDelete={deleteDeadline}
               onToggleDone={toggleDone}
@@ -884,6 +960,15 @@ export default function DeadlinesSection({
    SUB COMPONENTS
 ========================================================= */
 
+function SummaryCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={summaryCardStyle}>
+      <div style={summaryLabelStyle}>{label}</div>
+      <div style={summaryValueStyle}>{value}</div>
+    </div>
+  );
+}
+
 function DeadlineCard({
   item,
   extensions,
@@ -892,6 +977,7 @@ function DeadlineCard({
   savingExtension,
   canEdit,
   canDelete,
+  extensionFormRef,
   onEdit,
   onDelete,
   onToggleDone,
@@ -907,6 +993,7 @@ function DeadlineCard({
   savingExtension: boolean;
   canEdit: boolean;
   canDelete: boolean;
+  extensionFormRef: React.RefObject<HTMLDivElement | null>;
   onEdit: (item: DeadlineItem) => void;
   onDelete: (id: string) => void;
   onToggleDone: (item: DeadlineItem) => void;
@@ -1020,8 +1107,16 @@ function DeadlineCard({
       )}
 
       {isAddingExtension && canEdit && (
-        <div style={extensionFormStyle}>
-          <div style={extensionTitleStyle}>Add Extension</div>
+        <div ref={extensionFormRef} style={extensionFormStyle}>
+          <div style={extensionFormHeaderStyle}>
+            <div>
+              <div style={extensionTitleStyle}>Add Extension</div>
+              <div style={extensionSubTitleStyle}>
+                บันทึกวันที่ยื่นคำร้องและวันที่ศาลอนุญาตให้ขยาย
+              </div>
+            </div>
+            <span style={extensionBadgeStyle}>Extension</span>
+          </div>
 
           <div style={formGridStyle}>
             <Input
@@ -1123,7 +1218,7 @@ function DeadlineCard({
 
 function InfoLine({ label, value }: { label: string; value: string }) {
   return (
-    <div>
+    <div style={infoLineStyle}>
       <div style={infoLabelStyle}>{label}</div>
       <div style={infoValueStyle}>{value}</div>
     </div>
@@ -1433,8 +1528,8 @@ function formatDisplayDate(value?: string | null) {
 
 const sectionStyle: CSSProperties = {
   border: "1px solid #dddddd",
-  padding: 16,
-  borderRadius: 12,
+  padding: "clamp(12px, 2vw, 16px)",
+  borderRadius: 14,
   background: "#ffffff",
   color: "#111111",
 };
@@ -1444,163 +1539,234 @@ const headerStyle: CSSProperties = {
   justifyContent: "space-between",
   gap: 12,
   alignItems: "flex-start",
-  marginBottom: 16,
+  marginBottom: 14,
   flexWrap: "wrap",
 };
 
 const titleStyle: CSSProperties = {
   margin: 0,
   color: "#111111",
+  fontSize: 18,
+  fontWeight: 900,
 };
 
 const subTitleStyle: CSSProperties = {
-  marginTop: 4,
-  color: "#555555",
+  marginTop: 3,
+  color: "#666666",
   fontSize: 13,
+  lineHeight: 1.45,
 };
 
 const primaryButtonStyle: CSSProperties = {
-  padding: "9px 14px",
+  padding: "8px 13px",
   background: "#000000",
   color: "#ffffff",
   borderRadius: 8,
   border: "none",
   cursor: "pointer",
-  fontWeight: 700,
+  fontWeight: 800,
+  fontSize: 13,
   whiteSpace: "nowrap",
 };
 
 const secondaryButtonStyle: CSSProperties = {
-  padding: "9px 14px",
+  padding: "8px 13px",
   background: "#ffffff",
   color: "#111111",
   borderRadius: 8,
   border: "1px solid #cccccc",
   cursor: "pointer",
-  fontWeight: 600,
+  fontWeight: 700,
+  fontSize: 13,
   whiteSpace: "nowrap",
+};
+
+const summaryGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+  gap: 10,
+  marginBottom: 14,
+};
+
+const summaryCardStyle: CSSProperties = {
+  border: "1px solid #eeeeee",
+  borderRadius: 12,
+  padding: 11,
+  background: "#fafafa",
+};
+
+const summaryLabelStyle: CSSProperties = {
+  fontSize: 11,
+  color: "#777777",
+  marginBottom: 4,
+  fontWeight: 800,
+  textTransform: "uppercase",
+  letterSpacing: "0.03em",
+};
+
+const summaryValueStyle: CSSProperties = {
+  fontSize: 18,
+  fontWeight: 900,
+  color: "#111111",
 };
 
 const formCardStyle: CSSProperties = {
   border: "1px solid #dddddd",
-  borderRadius: 12,
-  padding: 16,
+  borderRadius: 14,
+  padding: 14,
   background: "#fafafa",
-  marginBottom: 18,
+  marginBottom: 16,
+  scrollMarginTop: 105,
+};
+
+const formHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 10,
+  alignItems: "flex-start",
+  marginBottom: 12,
+  flexWrap: "wrap",
 };
 
 const formTitleStyle: CSSProperties = {
-  marginTop: 0,
-  marginBottom: 12,
+  margin: 0,
   color: "#111111",
+  fontSize: 16,
+  fontWeight: 900,
+};
+
+const formSubTitleStyle: CSSProperties = {
+  marginTop: 3,
+  color: "#666666",
+  fontSize: 12,
+  lineHeight: 1.45,
+};
+
+const editBadgeStyle: CSSProperties = {
+  display: "inline-flex",
+  padding: "5px 10px",
+  borderRadius: 999,
+  background: "#fff8e1",
+  color: "#b54708",
+  border: "1px solid #eedc9a",
+  fontSize: 12,
+  fontWeight: 900,
+  whiteSpace: "nowrap",
 };
 
 const formGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: 12,
+  gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+  gap: 10,
 };
 
 const labelStyle: CSSProperties = {
   display: "block",
-  marginBottom: 4,
-  color: "#222222",
-  fontWeight: 600,
-  fontSize: 13,
+  marginBottom: 3,
+  color: "#777777",
+  fontWeight: 800,
+  fontSize: 11,
+  textTransform: "uppercase",
+  letterSpacing: "0.03em",
 };
 
 const inputStyle: CSSProperties = {
   width: "100%",
-  padding: "9px 10px",
+  padding: "8px 9px",
   borderRadius: 8,
   border: "1px solid #bbbbbb",
   background: "#ffffff",
   color: "#111111",
   colorScheme: "light",
   boxSizing: "border-box",
+  fontSize: 13,
 };
 
 const readonlyBoxStyle: CSSProperties = {
   width: "100%",
-  padding: "9px 10px",
+  padding: "8px 9px",
   borderRadius: 8,
   border: "1px solid #dddddd",
   background: "#eeeeee",
   color: "#111111",
   boxSizing: "border-box",
-  fontWeight: 700,
+  fontWeight: 800,
+  fontSize: 13,
 };
 
 const textareaStyle: CSSProperties = {
   ...inputStyle,
-  minHeight: 80,
+  minHeight: 76,
   resize: "vertical",
 };
 
 const formButtonWrapStyle: CSSProperties = {
   display: "flex",
-  gap: 10,
-  marginTop: 16,
+  gap: 8,
+  marginTop: 12,
   flexWrap: "wrap",
 };
 
 const emptyStyle: CSSProperties = {
-  padding: 16,
+  padding: 14,
   border: "1px dashed #cccccc",
   borderRadius: 12,
   color: "#555555",
   background: "#ffffff",
+  fontSize: 13,
+  fontWeight: 700,
 };
 
 const deadlineListStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-  gap: 12,
+  gridTemplateColumns: "repeat(auto-fit, minmax(270px, 1fr))",
+  gap: 10,
 };
 
 const deadlineCardStyle: CSSProperties = {
   border: "1px solid #dddddd",
   borderRadius: 12,
-  padding: 14,
+  padding: 12,
   color: "#111111",
-  boxShadow: "0 1px 6px rgba(0,0,0,0.05)",
+  boxShadow: "0 1px 6px rgba(0,0,0,0.04)",
 };
 
 const deadlineHeaderStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  gap: 12,
+  gap: 10,
   alignItems: "flex-start",
-  marginBottom: 12,
+  marginBottom: 10,
 };
 
 const deadlineTitleStyle: CSSProperties = {
-  fontSize: 15,
-  fontWeight: 800,
+  fontSize: 14,
+  fontWeight: 900,
   color: "#111111",
   lineHeight: 1.45,
+  wordBreak: "break-word",
 };
 
 const deadlineMatterStyle: CSSProperties = {
-  marginTop: 4,
-  fontSize: 14,
+  marginTop: 3,
+  fontSize: 13,
   color: "#222222",
-  fontWeight: 600,
+  fontWeight: 800,
 };
 
 const badgeRowStyle: CSSProperties = {
   display: "flex",
-  gap: 8,
+  gap: 6,
   flexWrap: "wrap",
-  marginTop: 8,
+  marginTop: 7,
 };
 
 const badgeBaseStyle: CSSProperties = {
   display: "inline-block",
-  padding: "5px 10px",
+  padding: "4px 8px",
   borderRadius: 999,
-  fontSize: 12,
-  fontWeight: 800,
+  fontSize: 11,
+  fontWeight: 900,
 };
 
 const extensionBadgeStyle: CSSProperties = {
@@ -1612,28 +1778,42 @@ const extensionBadgeStyle: CSSProperties = {
 
 const deadlineMetaGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "1fr 1fr",
-  gap: 10,
-  marginBottom: 10,
+  gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+  gap: 8,
+  marginBottom: 8,
+};
+
+const infoLineStyle: CSSProperties = {
+  padding: "7px 8px",
+  border: "1px solid #eeeeee",
+  borderRadius: 10,
+  background: "#fafafa",
+  minWidth: 0,
 };
 
 const infoLabelStyle: CSSProperties = {
-  fontSize: 12,
-  color: "#666666",
+  fontSize: 11,
+  color: "#777777",
   marginBottom: 2,
+  fontWeight: 800,
+  textTransform: "uppercase",
+  letterSpacing: "0.03em",
 };
 
 const infoValueStyle: CSSProperties = {
-  fontSize: 14,
+  fontSize: 13,
   color: "#111111",
-  fontWeight: 600,
+  fontWeight: 800,
   wordBreak: "break-word",
-  lineHeight: 1.5,
+  lineHeight: 1.45,
 };
 
 const noteBlockStyle: CSSProperties = {
-  paddingTop: 8,
-  borderTop: "1px solid #eeeeee",
+  padding: "8px 9px",
+  borderRadius: 10,
+  background: "#fafafa",
+  border: "1px solid #eeeeee",
+  marginTop: 8,
 };
 
 const extensionListStyle: CSSProperties = {
@@ -1643,15 +1823,22 @@ const extensionListStyle: CSSProperties = {
 };
 
 const extensionTitleStyle: CSSProperties = {
-  fontWeight: 800,
-  marginBottom: 8,
+  fontWeight: 900,
+  marginBottom: 6,
   color: "#111111",
+  fontSize: 14,
+};
+
+const extensionSubTitleStyle: CSSProperties = {
+  color: "#666666",
+  fontSize: 12,
+  lineHeight: 1.45,
 };
 
 const extensionItemStyle: CSSProperties = {
   border: "1px solid #eeeeee",
   borderRadius: 10,
-  padding: 10,
+  padding: 9,
   background: "#ffffff",
   marginBottom: 8,
 };
@@ -1662,43 +1849,56 @@ const extensionFormStyle: CSSProperties = {
   border: "1px solid #dddddd",
   borderRadius: 12,
   background: "#fafafa",
+  scrollMarginTop: 105,
+};
+
+const extensionFormHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 10,
+  alignItems: "flex-start",
+  marginBottom: 10,
+  flexWrap: "wrap",
 };
 
 const actionWrapStyle: CSSProperties = {
   display: "flex",
   gap: 8,
-  marginTop: 12,
+  marginTop: 10,
   paddingTop: 10,
   borderTop: "1px solid #eeeeee",
   flexWrap: "wrap",
 };
 
 const smallButtonStyle: CSSProperties = {
-  padding: "7px 11px",
+  padding: "7px 10px",
   borderRadius: 8,
   border: "1px solid #cccccc",
   background: "#ffffff",
   color: "#111111",
   cursor: "pointer",
-  fontWeight: 600,
+  fontWeight: 700,
+  fontSize: 13,
 };
 
 const doneButtonStyle: CSSProperties = {
-  padding: "7px 11px",
+  padding: "7px 10px",
   borderRadius: 8,
   border: "1px solid #b9dfc3",
   background: "#e6f4ea",
   color: "#067647",
   cursor: "pointer",
-  fontWeight: 700,
+  fontWeight: 800,
+  fontSize: 13,
 };
 
 const dangerButtonStyle: CSSProperties = {
-  padding: "7px 11px",
+  padding: "7px 10px",
   borderRadius: 8,
   border: "1px solid #e0b4b4",
   background: "#fff5f5",
   color: "#a40000",
   cursor: "pointer",
-  fontWeight: 700,
+  fontWeight: 800,
+  fontSize: 13,
 };
