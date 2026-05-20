@@ -39,6 +39,9 @@ type PartyItem = {
   order_no?: number | null;
   created_at?: string | null;
   updated_at?: string | null;
+
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 };
 
 type PartyForm = {
@@ -120,6 +123,7 @@ export default function PartiesSection({ caseId }: Props) {
         .from("parties")
         .select("*")
         .eq("case_id", caseId)
+        .is("deleted_at", null)
         .order("role", { ascending: true })
         .order("order_no", { ascending: true });
 
@@ -274,6 +278,8 @@ export default function PartiesSection({ caseId }: Props) {
       const payload = {
         ...buildPayload(),
         created_at: new Date().toISOString(),
+        deleted_at: null,
+        deleted_by: null,
       };
 
       const { data, error } = await supabase
@@ -320,6 +326,7 @@ export default function PartiesSection({ caseId }: Props) {
         .from("parties")
         .update(payload)
         .eq("id", editingId)
+        .is("deleted_at", null)
         .select("*")
         .single();
 
@@ -348,31 +355,52 @@ export default function PartiesSection({ caseId }: Props) {
   };
 
   const deleteParty = async (id: string) => {
-    const confirmed = window.confirm("ต้องการลบคู่ความ/ผู้เกี่ยวข้องรายนี้หรือไม่?");
+    const confirmed = window.confirm(
+      "ต้องการลบคู่ความ/ผู้เกี่ยวข้องรายนี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
+    );
+
     if (!confirmed) return;
 
-    const oldData = parties.find((party) => party.id === id) || null;
+    try {
+      setSaving(true);
 
-    const { error } = await supabase.from("parties").delete().eq("id", id);
+      const oldData = parties.find((party) => party.id === id) || null;
 
-    if (error) {
-      alert("Delete party failed:\n" + JSON.stringify(error, null, 2));
-      return;
+      const payload = {
+        deleted_at: new Date().toISOString(),
+        deleted_by: "current_user",
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from("parties")
+        .update(payload)
+        .eq("id", id)
+        .is("deleted_at", null)
+        .select("*")
+        .single();
+
+      if (error) {
+        alert("Soft delete party failed:\n" + JSON.stringify(error, null, 2));
+        return;
+      }
+
+      await createAuditLog({
+        caseId,
+        tableName: "parties",
+        recordId: id,
+        action: "soft_delete",
+        oldData,
+        newData: data || (oldData ? { ...oldData, ...payload } : payload),
+        note: "Soft delete party",
+      });
+
+      if (editingId === id) cancelForm();
+
+      await loadParties();
+    } finally {
+      setSaving(false);
     }
-
-    await createAuditLog({
-      caseId,
-      tableName: "parties",
-      recordId: id,
-      action: "delete",
-      oldData,
-      newData: null,
-      note: "Delete party",
-    });
-
-    if (editingId === id) cancelForm();
-
-    await loadParties();
   };
 
   const grouped = useMemo(() => {
