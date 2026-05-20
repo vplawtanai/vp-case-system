@@ -519,9 +519,14 @@ export default function CaseDetailPage() {
 
         {permissions.canViewFees && (
           <div id="fees" style={sectionWrapStyle}>
-            <FeesSection caseId={id} fees={fees} />
-          </div>
-        )}
+           <FeesSection
+            caseId={id}
+            fees={fees}
+            canEdit={permissions.canEditFees}
+            canDelete={permissions.canSoftDelete}
+          />
+        </div>
+       )}
 
         <div id="notes" style={sectionWrapStyle}>
           <NotesSection

@@ -68,6 +68,8 @@ type ExpenseForm = {
 type Props = {
   caseId: string;
   fees?: unknown[];
+  canEdit?: boolean;
+  canDelete?: boolean;
 };
 
 const feeTypeOptions = [
@@ -139,7 +141,11 @@ const emptyExpenseForm: ExpenseForm = {
   note: "",
 };
 
-export default function FeesSection({ caseId }: Props) {
+export default function FeesSection({
+  caseId,
+  canEdit = false,
+  canDelete = false,
+}: Props) {
   const caseIdNumber = Number(caseId);
 
   const [feeItems, setFeeItems] = useState<FeeItem[]>([]);
@@ -258,6 +264,11 @@ export default function FeesSection({ caseId }: Props) {
   };
 
   const startAddFee = () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เพิ่มรายการค่าวิชาชีพ");
+      return;
+    }
+
     setEditingFeeId(null);
     setFeeForm({
       ...emptyFeeForm,
@@ -267,6 +278,11 @@ export default function FeesSection({ caseId }: Props) {
   };
 
   const startEditFee = (item: FeeItem) => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไขรายการค่าวิชาชีพ");
+      return;
+    }
+
     setEditingFeeId(item.id);
     setShowFeeForm(true);
 
@@ -330,6 +346,12 @@ export default function FeesSection({ caseId }: Props) {
   };
 
   const createFee = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เพิ่มรายการค่าวิชาชีพ");
+      cancelFeeForm();
+      return;
+    }
+
     if (!validateFee()) return;
 
     try {
@@ -371,6 +393,12 @@ export default function FeesSection({ caseId }: Props) {
   };
 
   const updateFee = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไขรายการค่าวิชาชีพ");
+      cancelFeeForm();
+      return;
+    }
+
     if (!editingFeeId) return;
     if (!validateFee()) return;
 
@@ -411,6 +439,11 @@ export default function FeesSection({ caseId }: Props) {
   };
 
   const deleteFee = async (id: string) => {
+    if (!canDelete) {
+      alert("คุณไม่มีสิทธิ์ลบรายการค่าวิชาชีพ");
+      return;
+    }
+
     const confirmed = window.confirm(
       "ต้องการลบรายการค่าวิชาชีพนี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
     );
@@ -460,6 +493,11 @@ export default function FeesSection({ caseId }: Props) {
   };
 
   const startAddExpense = () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เพิ่มรายการค่าใช้จ่าย");
+      return;
+    }
+
     setEditingExpenseId(null);
     setExpenseForm({
       ...emptyExpenseForm,
@@ -469,6 +507,11 @@ export default function FeesSection({ caseId }: Props) {
   };
 
   const startEditExpense = (item: ExpenseItem) => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไขรายการค่าใช้จ่าย");
+      return;
+    }
+
     setEditingExpenseId(item.id);
     setShowExpenseForm(true);
 
@@ -527,6 +570,12 @@ export default function FeesSection({ caseId }: Props) {
   };
 
   const createExpense = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์เพิ่มรายการค่าใช้จ่าย");
+      cancelExpenseForm();
+      return;
+    }
+
     if (!validateExpense()) return;
 
     try {
@@ -568,6 +617,12 @@ export default function FeesSection({ caseId }: Props) {
   };
 
   const updateExpense = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไขรายการค่าใช้จ่าย");
+      cancelExpenseForm();
+      return;
+    }
+
     if (!editingExpenseId) return;
     if (!validateExpense()) return;
 
@@ -609,6 +664,11 @@ export default function FeesSection({ caseId }: Props) {
   };
 
   const deleteExpense = async (id: string) => {
+    if (!canDelete) {
+      alert("คุณไม่มีสิทธิ์ลบรายการค่าใช้จ่าย");
+      return;
+    }
+
     const confirmed = window.confirm(
       "ต้องการลบรายการค่าใช้จ่ายนี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
     );
@@ -706,9 +766,15 @@ export default function FeesSection({ caseId }: Props) {
             </div>
 
             {!showFeeForm ? (
-              <button type="button" onClick={startAddFee} style={primaryButtonStyle}>
-                + Add Fee
-              </button>
+              canEdit ? (
+                <button
+                  type="button"
+                  onClick={startAddFee}
+                  style={primaryButtonStyle}
+                >
+                  + Add Fee
+                </button>
+              ) : null
             ) : (
               <button
                 type="button"
@@ -859,6 +925,8 @@ export default function FeesSection({ caseId }: Props) {
                 <FeeCard
                   key={item.id}
                   item={item}
+                  canEdit={canEdit}
+                  canDelete={canDelete}
                   onEdit={startEditFee}
                   onDelete={deleteFee}
                 />
@@ -877,13 +945,15 @@ export default function FeesSection({ caseId }: Props) {
             </div>
 
             {!showExpenseForm ? (
-              <button
-                type="button"
-                onClick={startAddExpense}
-                style={primaryButtonStyle}
-              >
-                + Add Expense
-              </button>
+              canEdit ? (
+                <button
+                  type="button"
+                  onClick={startAddExpense}
+                  style={primaryButtonStyle}
+                >
+                  + Add Expense
+                </button>
+              ) : null
             ) : (
               <button
                 type="button"
@@ -1042,6 +1112,8 @@ export default function FeesSection({ caseId }: Props) {
                 <ExpenseCard
                   key={item.id}
                   item={item}
+                  canEdit={canEdit}
+                  canDelete={canDelete}
                   onEdit={startEditExpense}
                   onDelete={deleteExpense}
                 />
@@ -1069,16 +1141,21 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
 
 function FeeCard({
   item,
+  canEdit,
+  canDelete,
   onEdit,
   onDelete,
 }: {
   item: FeeItem;
+  canEdit: boolean;
+  canDelete: boolean;
   onEdit: (item: FeeItem) => void;
   onDelete: (id: string) => void;
 }) {
   const amount = toNumber(item.amount);
   const paid = toNumber(item.paid_amount);
   const outstanding = amount - paid;
+  const showActions = canEdit || canDelete;
 
   return (
     <div style={itemCardStyle}>
@@ -1109,35 +1186,50 @@ function FeeCard({
 
       {item.note && <div style={noteBlockStyle}>{item.note}</div>}
 
-      <div style={actionWrapStyle}>
-        <button type="button" onClick={() => onEdit(item)} style={smallButtonStyle}>
-          Edit
-        </button>
+      {showActions && (
+        <div style={actionWrapStyle}>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => onEdit(item)}
+              style={smallButtonStyle}
+            >
+              Edit
+            </button>
+          )}
 
-        <button
-          type="button"
-          onClick={() => onDelete(item.id)}
-          style={dangerButtonStyle}
-        >
-          Delete
-        </button>
-      </div>
+          {canDelete && (
+            <button
+              type="button"
+              onClick={() => onDelete(item.id)}
+              style={dangerButtonStyle}
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 function ExpenseCard({
   item,
+  canEdit,
+  canDelete,
   onEdit,
   onDelete,
 }: {
   item: ExpenseItem;
+  canEdit: boolean;
+  canDelete: boolean;
   onEdit: (item: ExpenseItem) => void;
   onDelete: (id: string) => void;
 }) {
   const amount = toNumber(item.amount);
   const reimbursed = toNumber(item.reimbursed_amount);
   const outstanding = item.reimbursable === false ? 0 : amount - reimbursed;
+  const showActions = canEdit || canDelete;
 
   return (
     <div style={itemCardStyle}>
@@ -1169,19 +1261,29 @@ function ExpenseCard({
 
       {item.note && <div style={noteBlockStyle}>{item.note}</div>}
 
-      <div style={actionWrapStyle}>
-        <button type="button" onClick={() => onEdit(item)} style={smallButtonStyle}>
-          Edit
-        </button>
+      {showActions && (
+        <div style={actionWrapStyle}>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => onEdit(item)}
+              style={smallButtonStyle}
+            >
+              Edit
+            </button>
+          )}
 
-        <button
-          type="button"
-          onClick={() => onDelete(item.id)}
-          style={dangerButtonStyle}
-        >
-          Delete
-        </button>
-      </div>
+          {canDelete && (
+            <button
+              type="button"
+              onClick={() => onDelete(item.id)}
+              style={dangerButtonStyle}
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
