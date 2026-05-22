@@ -26,6 +26,20 @@ type TimeLogItem = {
   deleted_by?: string | null;
 };
 
+type AuditLogItem = {
+  id: string;
+  case_id?: number | null;
+  table_name?: string | null;
+  record_id?: string | null;
+  action?: string | null;
+  old_data?: Record<string, unknown> | null;
+  new_data?: Record<string, unknown> | null;
+  note?: string | null;
+  created_at?: string | null;
+  created_by?: string | null;
+  user_email?: string | null;
+};
+
 type TimeLogForm = {
   work_date: string;
   staff_name: string;
@@ -94,10 +108,14 @@ export default function TimeLogsSection({
   const caseIdNumber = Number(caseId);
 
   const [items, setItems] = useState<TimeLogItem[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
+
   const [loading, setLoading] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
+  const [showHistory, setShowHistory] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<TimeLogForm>(emptyForm);
 
@@ -144,20 +162,66 @@ export default function TimeLogsSection({
     }
   };
 
+  const loadAuditLogs = async () => {
+    if (!caseIdNumber || Number.isNaN(caseIdNumber)) return;
+
+    try {
+      setLoadingHistory(true);
+
+      const primary = await supabase
+        .from("case_audit_logs")
+        .select("*")
+        .eq("case_id", caseIdNumber)
+        .eq("table_name", "case_time_logs")
+        .order("created_at", { ascending: false })
+        .limit(30);
+
+      if (!primary.error) {
+        setAuditLogs((primary.data || []) as AuditLogItem[]);
+        return;
+      }
+
+      const fallback = await supabase
+        .from("audit_logs")
+        .select("*")
+        .eq("case_id", caseIdNumber)
+        .eq("table_name", "case_time_logs")
+        .order("created_at", { ascending: false })
+        .limit(30);
+
+      if (fallback.error) {
+        console.warn("Load time log history failed", {
+          case_audit_logs: primary.error,
+          audit_logs: fallback.error,
+        });
+        setAuditLogs([]);
+        return;
+      }
+
+      setAuditLogs((fallback.data || []) as AuditLogItem[]);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const refreshAll = async () => {
+    await Promise.all([loadTimeLogs(), loadAuditLogs()]);
+  };
+
   useEffect(() => {
-    loadTimeLogs();
+    refreshAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [caseId]);
 
   const summary = useMemo(() => {
     const totalMinutes = items.reduce(
-      (sum, item) => sum + (item.minutes || 0),
+      (sum, item) => sum + safeMinutes(item.minutes),
       0
     );
 
     const coreWorkMinutes = items
       .filter((item) => item.billable !== false)
-      .reduce((sum, item) => sum + (item.minutes || 0), 0);
+      .reduce((sum, item) => sum + safeMinutes(item.minutes), 0);
 
     const supportTimeMinutes = totalMinutes - coreWorkMinutes;
 
@@ -172,7 +236,7 @@ export default function TimeLogsSection({
 
     items.forEach((item) => {
       const staff = item.staff_name || "-";
-      const minutes = item.minutes || 0;
+      const minutes = safeMinutes(item.minutes);
       const isCoreWork = item.billable !== false;
 
       const existing = byStaffMap.get(staff) || {
@@ -241,7 +305,7 @@ export default function TimeLogsSection({
       return;
     }
 
-    const split = splitMinutes(item.minutes || 0);
+    const split = splitMinutes(safeMinutes(item.minutes));
     const savedStaffName = item.staff_name || "ทนายเป้า";
     const isKnownStaff = staffOptions.includes(savedStaffName);
 
@@ -336,10 +400,15 @@ export default function TimeLogsSection({
       minutes: buildTotalMinutes(form.hours, form.minutes),
       billable: form.billable,
 
-      note: form.note,
+      note: form.note.trim(),
 
       updated_at: now,
     };
+  };
+
+  const getCurrentActor = async () => {
+    const { data } = await supabase.auth.getUser();
+    return data.user?.email || data.user?.id || "current_user";
   };
 
   const createTimeLog = async () => {
@@ -379,11 +448,11 @@ export default function TimeLogsSection({
         action: "create",
         oldData: null,
         newData: data || payload,
-        note: "Create time log",
+        note: buildTimeLogAuditNote("create", null, data || payload),
       });
 
       cancelForm();
-      await loadTimeLogs();
+      await refreshAll();
     } finally {
       setSaving(false);
     }
@@ -418,18 +487,20 @@ export default function TimeLogsSection({
         return;
       }
 
+      const newData = data || (oldData ? { ...oldData, ...payload } : payload);
+
       await createAuditLog({
         caseId: caseIdNumber,
         tableName: "case_time_logs",
         recordId: editingId,
         action: "update",
         oldData,
-        newData: data || (oldData ? { ...oldData, ...payload } : payload),
-        note: "Update time log",
+        newData,
+        note: buildTimeLogAuditNote("update", oldData, newData),
       });
 
       cancelForm();
-      await loadTimeLogs();
+      await refreshAll();
     } finally {
       setSaving(false);
     }
@@ -451,10 +522,11 @@ export default function TimeLogsSection({
       setSaving(true);
 
       const oldData = items.find((item) => item.id === id) || null;
+      const actor = await getCurrentActor();
 
       const payload = {
         deleted_at: new Date().toISOString(),
-        deleted_by: "current_user",
+        deleted_by: actor,
         updated_at: new Date().toISOString(),
       };
 
@@ -471,19 +543,21 @@ export default function TimeLogsSection({
         return;
       }
 
+      const newData = data || (oldData ? { ...oldData, ...payload } : payload);
+
       await createAuditLog({
         caseId: caseIdNumber,
         tableName: "case_time_logs",
         recordId: id,
         action: "soft_delete",
         oldData,
-        newData: data || (oldData ? { ...oldData, ...payload } : payload),
-        note: "Soft delete time log",
+        newData,
+        note: buildTimeLogAuditNote("soft_delete", oldData, newData),
       });
 
       if (editingId === id) cancelForm();
 
-      await loadTimeLogs();
+      await refreshAll();
     } finally {
       setSaving(false);
     }
@@ -495,21 +569,31 @@ export default function TimeLogsSection({
         <div>
           <h3 style={titleStyle}>Time Logs</h3>
           <div style={subTitleStyle}>
-            บันทึกเวลาทำงาน แยกเนื้องานหลักและเวลาสนับสนุน
+            บันทึกเวลาทำงาน แยกเนื้องานหลัก เวลาสนับสนุน และประวัติการแก้ไข
           </div>
         </div>
 
-        {!showForm ? (
-          canEdit ? (
-            <button type="button" onClick={startAdd} style={primaryButtonStyle}>
-              + Add Time
-            </button>
-          ) : null
-        ) : (
-          <button type="button" onClick={cancelForm} style={secondaryButtonStyle}>
-            Cancel
+        <div style={headerButtonWrapStyle}>
+          <button
+            type="button"
+            onClick={() => setShowHistory((value) => !value)}
+            style={secondaryButtonStyle}
+          >
+            {showHistory ? "Hide History" : "Show History"}
           </button>
-        )}
+
+          {!showForm ? (
+            canEdit ? (
+              <button type="button" onClick={startAdd} style={primaryButtonStyle}>
+                + Add Time
+              </button>
+            ) : null
+          ) : (
+            <button type="button" onClick={cancelForm} style={secondaryButtonStyle}>
+              Cancel
+            </button>
+          )}
+        </div>
       </div>
 
       <div style={summaryGridStyle}>
@@ -730,6 +814,14 @@ export default function TimeLogsSection({
           ))}
         </div>
       )}
+
+      {showHistory && (
+        <AuditHistoryPanel
+          items={auditLogs}
+          loading={loadingHistory}
+          onRefresh={loadAuditLogs}
+        />
+      )}
     </div>
   );
 }
@@ -773,7 +865,7 @@ function TimeLogCard({
       <div style={logHeaderStyle}>
         <div>
           <div style={logTitleStyle}>
-            {workText} • {formatDuration(item.minutes || 0)}
+            {workText} • {formatDuration(safeMinutes(item.minutes))}
           </div>
           <div style={logMetaStyle}>
             {formatDisplayDate(item.work_date)} • {item.staff_name || "-"}
@@ -808,6 +900,98 @@ function TimeLogCard({
               Delete
             </button>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AuditHistoryPanel({
+  items,
+  loading,
+  onRefresh,
+}: {
+  items: AuditLogItem[];
+  loading: boolean;
+  onRefresh: () => void;
+}) {
+  return (
+    <div style={historyPanelStyle}>
+      <div style={historyHeaderStyle}>
+        <div>
+          <div style={historyTitleStyle}>Time Logs History</div>
+          <div style={historySubtitleStyle}>
+            ประวัติการเพิ่ม แก้ไข และลบ Time Logs ล่าสุด
+          </div>
+        </div>
+
+        <button type="button" onClick={onRefresh} style={secondaryButtonStyle}>
+          Refresh History
+        </button>
+      </div>
+
+      {loading ? (
+        <div style={emptyStyle}>Loading history...</div>
+      ) : items.length === 0 ? (
+        <div style={emptyStyle}>
+          No history found. ถ้าเพิ่งเพิ่มระบบ History ให้ลองเพิ่มหรือแก้ Time Log ใหม่ 1 รายการก่อน
+        </div>
+      ) : (
+        <div style={historyListStyle}>
+          {items.map((item) => (
+            <AuditHistoryCard key={item.id} item={item} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AuditHistoryCard({ item }: { item: AuditLogItem }) {
+  const action = item.action || "-";
+  const oldData = normalizeAuditData(item.old_data);
+  const newData = normalizeAuditData(item.new_data);
+  const changedFields = buildChangedFieldRows(oldData, newData);
+
+  return (
+    <div style={historyCardStyle}>
+      <div style={historyCardTopStyle}>
+        <div>
+          <span style={getAuditActionBadgeStyle(action)}>
+            {renderAuditAction(action)}
+          </span>
+          <span style={historyDateStyle}>{formatDateTime(item.created_at)}</span>
+        </div>
+
+        <div style={historyActorStyle}>
+          {item.user_email || item.created_by || "-"}
+        </div>
+      </div>
+
+      <div style={historyNoteStyle}>
+        {item.note || buildTimeLogAuditNote(action, oldData, newData)}
+      </div>
+
+      {changedFields.length > 0 && (
+        <div style={changeTableWrapStyle}>
+          <table style={changeTableStyle}>
+            <thead>
+              <tr>
+                <th style={changeThStyle}>Field</th>
+                <th style={changeThStyle}>Before</th>
+                <th style={changeThStyle}>After</th>
+              </tr>
+            </thead>
+            <tbody>
+              {changedFields.map((row) => (
+                <tr key={row.field}>
+                  <td style={changeTdStyle}>{renderFieldLabel(row.field)}</td>
+                  <td style={changeTdStyle}>{renderAuditValue(row.before)}</td>
+                  <td style={changeTdStyle}>{renderAuditValue(row.after)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -911,9 +1095,16 @@ function sanitizeNumberString(value: string) {
   return value.replace(/[^\d]/g, "");
 }
 
+function safeMinutes(value?: number | null) {
+  if (typeof value !== "number") return 0;
+  return Number.isFinite(value) ? value : 0;
+}
+
 function buildTotalMinutes(hours: string, minutes: string) {
   const h = Number(hours || 0);
   const m = Number(minutes || 0);
+
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return 0;
 
   return h * 60 + m;
 }
@@ -926,8 +1117,9 @@ function splitMinutes(totalMinutes: number) {
 }
 
 function formatDuration(totalMinutes: number) {
-  const h = Math.floor(totalMinutes / 60);
-  const m = totalMinutes % 60;
+  const safeValue = Number.isFinite(totalMinutes) ? totalMinutes : 0;
+  const h = Math.floor(safeValue / 60);
+  const m = safeValue % 60;
 
   if (h <= 0) return `${m} นาที`;
   if (m <= 0) return `${h} ชม.`;
@@ -943,6 +1135,150 @@ function formatDisplayDate(value?: string | null) {
 
   const [year, month, day] = parts;
   return `${day}/${month}/${year}`;
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "-";
+
+  try {
+    return new Date(value).toLocaleString("th-TH");
+  } catch {
+    return value;
+  }
+}
+
+function normalizeAuditData(value?: Record<string, unknown> | null) {
+  if (!value || typeof value !== "object") return null;
+  return value;
+}
+
+function buildChangedFieldRows(
+  oldData?: Record<string, unknown> | null,
+  newData?: Record<string, unknown> | null
+) {
+  const fields = [
+    "work_date",
+    "staff_name",
+    "work_type",
+    "work_other",
+    "minutes",
+    "billable",
+    "note",
+    "deleted_at",
+    "deleted_by",
+  ];
+
+  return fields
+    .map((field) => ({
+      field,
+      before: oldData ? oldData[field] : null,
+      after: newData ? newData[field] : null,
+    }))
+    .filter((row) => JSON.stringify(row.before ?? null) !== JSON.stringify(row.after ?? null));
+}
+
+function buildTimeLogAuditNote(
+  action?: string | null,
+  oldData?: Record<string, unknown> | null,
+  newData?: Record<string, unknown> | null
+) {
+  const target = newData || oldData || {};
+  const workType = String(target.work_type || "Time Log");
+  const staffName = String(target.staff_name || "-");
+  const minutes =
+    typeof target.minutes === "number"
+      ? formatDuration(target.minutes)
+      : target.minutes
+        ? String(target.minutes)
+        : "-";
+
+  if (action === "create") {
+    return `เพิ่ม Time Log: ${workType} / ${staffName} / ${minutes}`;
+  }
+
+  if (action === "update") {
+    return `แก้ไข Time Log: ${workType} / ${staffName} / ${minutes}`;
+  }
+
+  if (action === "soft_delete" || action === "delete") {
+    return `ลบ Time Log: ${workType} / ${staffName} / ${minutes}`;
+  }
+
+  return `Time Log: ${workType} / ${staffName} / ${minutes}`;
+}
+
+function renderAuditAction(action: string) {
+  if (action === "create") return "Created";
+  if (action === "update") return "Updated";
+  if (action === "soft_delete") return "Deleted";
+  if (action === "delete") return "Deleted";
+
+  return action;
+}
+
+function renderFieldLabel(field: string) {
+  if (field === "work_date") return "วันที่ทำงาน";
+  if (field === "staff_name") return "ผู้ทำงาน";
+  if (field === "work_type") return "ประเภทงาน";
+  if (field === "work_other") return "ประเภทงานอื่นๆ";
+  if (field === "minutes") return "เวลา";
+  if (field === "billable") return "หมวดเวลา";
+  if (field === "note") return "รายละเอียด";
+  if (field === "deleted_at") return "เวลาที่ลบ";
+  if (field === "deleted_by") return "ผู้ลบ";
+
+  return field;
+}
+
+function renderAuditValue(value: unknown) {
+  if (value === null || value === undefined || value === "") return "-";
+
+  if (typeof value === "boolean") {
+    return value ? "Core Work" : "Support Time";
+  }
+
+  if (typeof value === "number") {
+    return formatDuration(value);
+  }
+
+  if (typeof value === "string") {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return formatDisplayDate(value);
+    if (/^\d{4}-\d{2}-\d{2}T/.test(value)) return formatDateTime(value);
+    return value;
+  }
+
+  return JSON.stringify(value);
+}
+
+function getAuditActionBadgeStyle(action: string): CSSProperties {
+  if (action === "create") {
+    return {
+      ...historyBadgeBaseStyle,
+      background: "#e6f4ea",
+      color: "#067647",
+      border: "1px solid #b9dfc3",
+    };
+  }
+
+  if (action === "update") {
+    return {
+      ...historyBadgeBaseStyle,
+      background: "#fff3cd",
+      color: "#b54708",
+      border: "1px solid #f0d58a",
+    };
+  }
+
+  if (action === "soft_delete" || action === "delete") {
+    return {
+      ...historyBadgeBaseStyle,
+      background: "#fff5f5",
+      color: "#a40000",
+      border: "1px solid #e0b4b4",
+    };
+  }
+
+  return historyBadgeBaseStyle;
 }
 
 /* =========================================================
@@ -963,6 +1299,13 @@ const headerStyle: CSSProperties = {
   gap: 12,
   alignItems: "flex-start",
   marginBottom: 16,
+  flexWrap: "wrap",
+};
+
+const headerButtonWrapStyle: CSSProperties = {
+  display: "flex",
+  gap: 8,
+  alignItems: "center",
   flexWrap: "wrap",
 };
 
@@ -1272,4 +1615,120 @@ const dangerButtonStyle: CSSProperties = {
   color: "#a40000",
   cursor: "pointer",
   fontWeight: 700,
+};
+
+const historyPanelStyle: CSSProperties = {
+  marginTop: 18,
+  border: "1px solid #eeeeee",
+  borderRadius: 14,
+  padding: 14,
+  background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+};
+
+const historyHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  alignItems: "flex-start",
+  flexWrap: "wrap",
+  marginBottom: 12,
+};
+
+const historyTitleStyle: CSSProperties = {
+  fontSize: 16,
+  fontWeight: 900,
+  color: "#111111",
+};
+
+const historySubtitleStyle: CSSProperties = {
+  marginTop: 4,
+  fontSize: 13,
+  color: "#555555",
+  fontWeight: 600,
+};
+
+const historyListStyle: CSSProperties = {
+  display: "grid",
+  gap: 10,
+};
+
+const historyCardStyle: CSSProperties = {
+  border: "1px solid #e5e7eb",
+  borderRadius: 12,
+  padding: 12,
+  background: "#ffffff",
+};
+
+const historyCardTopStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 10,
+  alignItems: "center",
+  flexWrap: "wrap",
+  marginBottom: 8,
+};
+
+const historyBadgeBaseStyle: CSSProperties = {
+  display: "inline-flex",
+  padding: "5px 10px",
+  borderRadius: 999,
+  fontSize: 12,
+  fontWeight: 900,
+  whiteSpace: "nowrap",
+  marginRight: 8,
+  background: "#f1f5f9",
+  color: "#334155",
+  border: "1px solid #d0d5dd",
+};
+
+const historyDateStyle: CSSProperties = {
+  color: "#555555",
+  fontSize: 13,
+  fontWeight: 700,
+};
+
+const historyActorStyle: CSSProperties = {
+  color: "#64748b",
+  fontSize: 12,
+  fontWeight: 800,
+};
+
+const historyNoteStyle: CSSProperties = {
+  color: "#111111",
+  fontSize: 14,
+  fontWeight: 800,
+  lineHeight: 1.5,
+  marginBottom: 8,
+};
+
+const changeTableWrapStyle: CSSProperties = {
+  overflowX: "auto",
+  border: "1px solid #eeeeee",
+  borderRadius: 10,
+};
+
+const changeTableStyle: CSSProperties = {
+  width: "100%",
+  borderCollapse: "collapse",
+  minWidth: 620,
+};
+
+const changeThStyle: CSSProperties = {
+  textAlign: "left",
+  padding: "8px 10px",
+  background: "#f8fafc",
+  borderBottom: "1px solid #eeeeee",
+  fontSize: 12,
+  fontWeight: 900,
+  color: "#111111",
+  whiteSpace: "nowrap",
+};
+
+const changeTdStyle: CSSProperties = {
+  padding: "8px 10px",
+  borderTop: "1px solid #eeeeee",
+  fontSize: 13,
+  color: "#111111",
+  verticalAlign: "top",
+  whiteSpace: "pre-wrap",
 };
