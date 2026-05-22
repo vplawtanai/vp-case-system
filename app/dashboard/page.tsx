@@ -134,11 +134,24 @@ type StaffTimeSummary = {
   totalMinutes: number;
 };
 
+type DailyStaffTimeDetail = {
+  id: string;
+  caseId: number;
+  fileNo: string;
+  title: string;
+  clientName: string;
+  workText: string;
+  coreMinutes: number;
+  supportMinutes: number;
+  totalMinutes: number;
+};
+
 type DailyStaffTimeSummary = {
   staff: string;
   coreMinutes: number;
   supportMinutes: number;
   totalMinutes: number;
+  details: DailyStaffTimeDetail[];
 };
 
 type CaseTimeSummary = {
@@ -184,6 +197,12 @@ export default function DashboardPage() {
   const permissions: UserPermissions = useMemo(() => {
     return buildPermissions(profile);
   }, [profile]);
+
+  const canSeeTeamWorkload = permissions.canViewTeamWorkload;
+  const canSeeDailyStaffWorkload = permissions.canViewDailyStaffWorkload;
+  const canSeeCaseCost = permissions.canViewCaseCost;
+  const canSeeAnyWorkloadData =
+    canSeeTeamWorkload || canSeeDailyStaffWorkload || canSeeCaseCost;
 
   const [cases, setCases] = useState<EnrichedCase[]>([]);
   const [alertItems, setAlertItems] = useState<AlertCandidate[]>([]);
@@ -281,7 +300,7 @@ export default function DashboardPage() {
         return;
       }
 
-      const [tasksRes, deadlinesRes, timelineRes, enforcementRes, timeLogsRes] =
+      const [tasksRes, deadlinesRes, timelineRes, enforcementRes] =
         await Promise.all([
           supabase
             .from("case_tasks")
@@ -311,14 +330,6 @@ export default function DashboardPage() {
             .from("case_enforcements")
             .select(
               "id, case_id, party_label, party_other, final_due_date, writ_request_date, writ_issued_date, status"
-            )
-            .in("case_id", caseIds)
-            .is("deleted_at", null),
-
-          supabase
-            .from("case_time_logs")
-            .select(
-              "id, case_id, work_date, staff_name, work_type, work_other, minutes, billable, note, created_at, updated_at"
             )
             .in("case_id", caseIds)
             .is("deleted_at", null),
@@ -353,19 +364,29 @@ export default function DashboardPage() {
         return;
       }
 
-      if (timeLogsRes.error) {
-        alert(
-          "Load time logs failed:\n" +
-            JSON.stringify(timeLogsRes.error, null, 2)
-        );
-        return;
+      let loadedTimeLogs: CaseTimeLog[] = [];
+
+      if (canSeeAnyWorkloadData) {
+        const { data, error } = await supabase
+          .from("case_time_logs")
+          .select(
+            "id, case_id, work_date, staff_name, work_type, work_other, minutes, billable, note, created_at, updated_at"
+          )
+          .in("case_id", caseIds)
+          .is("deleted_at", null);
+
+        if (error) {
+          alert("Load time logs failed:\n" + JSON.stringify(error, null, 2));
+          return;
+        }
+
+        loadedTimeLogs = (data || []) as CaseTimeLog[];
       }
 
       const tasks = (tasksRes.data || []) as CaseTask[];
       const deadlines = (deadlinesRes.data || []) as CaseDeadline[];
       const timeline = (timelineRes.data || []) as CaseTimeline[];
       const enforcements = (enforcementRes.data || []) as CaseEnforcement[];
-      const loadedTimeLogs = (timeLogsRes.data || []) as CaseTimeLog[];
 
       const allAlerts = buildAlertCandidates(
         tasks,
@@ -412,7 +433,7 @@ export default function DashboardPage() {
 
     fetchDashboard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadingProfile, permissions.canViewDashboard]);
+  }, [loadingProfile, permissions.canViewDashboard, canSeeAnyWorkloadData]);
 
   const owners = useMemo(() => {
     const values = cases
@@ -527,8 +548,9 @@ export default function DashboardPage() {
   }, [filteredCases]);
 
   const filteredTimeLogsAllTime = useMemo(() => {
+    if (!canSeeAnyWorkloadData) return [];
     return timeLogs.filter((item) => filteredCaseIds.has(item.case_id));
-  }, [timeLogs, filteredCaseIds]);
+  }, [timeLogs, filteredCaseIds, canSeeAnyWorkloadData]);
 
   const filteredTimeLogsByPeriod = useMemo(() => {
     return filteredTimeLogsAllTime.filter((item) =>
@@ -541,11 +563,7 @@ export default function DashboardPage() {
       .map((item) => item.work_date)
       .filter((value): value is string => !!value && value.trim() !== "");
 
-    const uniqueValues = Array.from(new Set(values)).sort((a, b) =>
-      b.localeCompare(a)
-    );
-
-    return uniqueValues;
+    return Array.from(new Set(values)).sort((a, b) => b.localeCompare(a));
   }, [filteredTimeLogsByPeriod]);
 
   useEffect(() => {
@@ -556,62 +574,14 @@ export default function DashboardPage() {
     }
   }, [dailyDateOptions, selectedDailyDate]);
 
-  const dailyStaffSummary = useMemo<DailyStaffTimeSummary[]>(() => {
-    const map = new Map<string, DailyStaffTimeSummary>();
-
-    filteredTimeLogsByPeriod
-      .filter((item) => item.work_date === selectedDailyDate)
-      .forEach((item) => {
-        const staff = item.staff_name || "-";
-        const minutes = safeMinutes(item.minutes);
-        const isCore = item.billable !== false;
-
-        const current = map.get(staff) || {
-          staff,
-          coreMinutes: 0,
-          supportMinutes: 0,
-          totalMinutes: 0,
-        };
-
-        if (isCore) {
-          current.coreMinutes += minutes;
-        } else {
-          current.supportMinutes += minutes;
-        }
-
-        current.totalMinutes += minutes;
-        map.set(staff, current);
-      });
-
-    return Array.from(map.values()).sort(
-      (a, b) => b.totalMinutes - a.totalMinutes
-    );
-  }, [filteredTimeLogsByPeriod, selectedDailyDate]);
-
-  const dailySummary = useMemo(() => {
-    const coreMinutes = dailyStaffSummary.reduce(
-      (sum, item) => sum + item.coreMinutes,
-      0
-    );
-
-    const supportMinutes = dailyStaffSummary.reduce(
-      (sum, item) => sum + item.supportMinutes,
-      0
-    );
-
-    return {
-      coreMinutes,
-      supportMinutes,
-      totalMinutes: coreMinutes + supportMinutes,
-    };
-  }, [dailyStaffSummary]);
-
   const totalLoggedMinutes = useMemo(() => {
+    if (!canSeeTeamWorkload) return 0;
+
     return filteredTimeLogsByPeriod.reduce(
       (sum, item) => sum + safeMinutes(item.minutes),
       0
     );
-  }, [filteredTimeLogsByPeriod]);
+  }, [filteredTimeLogsByPeriod, canSeeTeamWorkload]);
 
   const summary = useMemo(() => {
     const overdue = filteredCases.filter(
@@ -765,6 +735,75 @@ export default function DashboardPage() {
       (a, b) => b.periodMinutes - a.periodMinutes
     );
   }, [filteredTimeLogsAllTime, timeRange, selectedMonth]);
+
+  const dailyStaffSummary = useMemo<DailyStaffTimeSummary[]>(() => {
+    const map = new Map<string, DailyStaffTimeSummary>();
+
+    filteredTimeLogsByPeriod
+      .filter((item) => item.work_date === selectedDailyDate)
+      .forEach((item) => {
+        const staff = item.staff_name || "-";
+        const minutes = safeMinutes(item.minutes);
+        const isCore = item.billable !== false;
+        const caseItem = caseMap.get(item.case_id);
+
+        const current = map.get(staff) || {
+          staff,
+          coreMinutes: 0,
+          supportMinutes: 0,
+          totalMinutes: 0,
+          details: [],
+        };
+
+        const detail: DailyStaffTimeDetail = {
+          id: item.id,
+          caseId: item.case_id,
+          fileNo: caseItem?.file_no || "-",
+          title: caseItem?.title || "-",
+          clientName: caseItem?.client_name || "-",
+          workText: renderWorkType(item.work_type, item.work_other),
+          coreMinutes: isCore ? minutes : 0,
+          supportMinutes: isCore ? 0 : minutes,
+          totalMinutes: minutes,
+        };
+
+        if (isCore) {
+          current.coreMinutes += minutes;
+        } else {
+          current.supportMinutes += minutes;
+        }
+
+        current.totalMinutes += minutes;
+        current.details.push(detail);
+
+        map.set(staff, current);
+      });
+
+    return Array.from(map.values())
+      .map((item) => ({
+        ...item,
+        details: item.details.sort((a, b) => b.totalMinutes - a.totalMinutes),
+      }))
+      .sort((a, b) => b.totalMinutes - a.totalMinutes);
+  }, [filteredTimeLogsByPeriod, selectedDailyDate, caseMap]);
+
+  const dailySummary = useMemo(() => {
+    const coreMinutes = dailyStaffSummary.reduce(
+      (sum, item) => sum + item.coreMinutes,
+      0
+    );
+
+    const supportMinutes = dailyStaffSummary.reduce(
+      (sum, item) => sum + item.supportMinutes,
+      0
+    );
+
+    return {
+      coreMinutes,
+      supportMinutes,
+      totalMinutes: coreMinutes + supportMinutes,
+    };
+  }, [dailyStaffSummary]);
 
   const topTimeConsumingCases = useMemo<CaseTimeSummary[]>(() => {
     const map = new Map<number, CaseTimeSummary>();
@@ -1020,32 +1059,36 @@ export default function DashboardPage() {
               ]}
             />
 
-            <SelectFilter
-              label="Time Period"
-              value={timeRange}
-              onChange={(value) => setTimeRange(value as TimeRange)}
-              options={[
-                { value: "today", label: "Today" },
-                { value: "thisWeek", label: "This Week" },
-                { value: "thisMonth", label: "This Month" },
-                { value: "selectedMonth", label: "Selected Month" },
-                { value: "all", label: "All Time" },
-              ]}
-            />
+            {canSeeAnyWorkloadData && (
+              <>
+                <SelectFilter
+                  label="Time Period"
+                  value={timeRange}
+                  onChange={(value) => setTimeRange(value as TimeRange)}
+                  options={[
+                    { value: "today", label: "Today" },
+                    { value: "thisWeek", label: "This Week" },
+                    { value: "thisMonth", label: "This Month" },
+                    { value: "selectedMonth", label: "Selected Month" },
+                    { value: "all", label: "All Time" },
+                  ]}
+                />
 
-            <SelectFilter
-              label="Month / Year"
-              value={selectedMonth}
-              onChange={(value) => {
-                setSelectedMonth(value);
-                setTimeRange("selectedMonth");
-              }}
-              disabled={timeRange !== "selectedMonth"}
-              options={monthOptions.map((item) => ({
-                value: item,
-                label: renderMonthKey(item),
-              }))}
-            />
+                <SelectFilter
+                  label="Month / Year"
+                  value={selectedMonth}
+                  onChange={(value) => {
+                    setSelectedMonth(value);
+                    setTimeRange("selectedMonth");
+                  }}
+                  disabled={timeRange !== "selectedMonth"}
+                  options={monthOptions.map((item) => ({
+                    value: item,
+                    label: renderMonthKey(item),
+                  }))}
+                />
+              </>
+            )}
           </div>
         </section>
 
@@ -1081,12 +1124,16 @@ export default function DashboardPage() {
               count={String(summary.enforcementReady)}
               tone="blue"
             />
-            <MetricCard
-              label="Total Logged Time"
-              subLabel={renderTimeRangeLabel(timeRange, selectedMonth)}
-              count={formatDuration(summary.totalLoggedMinutes)}
-              tone="purple"
-            />
+
+            {canSeeTeamWorkload && (
+              <MetricCard
+                label="Total Logged Time"
+                subLabel={renderTimeRangeLabel(timeRange, selectedMonth)}
+                count={formatDuration(summary.totalLoggedMinutes)}
+                tone="purple"
+              />
+            )}
+
             <MetricCard
               label="Clear"
               subLabel="ยังไม่มี Alert"
@@ -1136,104 +1183,112 @@ export default function DashboardPage() {
           />
         </section>
 
-        <section style={workloadStackSectionStyle}>
-          <div style={sectionCardStyle}>
-            <div style={workloadHeaderGridStyle}>
-              <SectionHeader
-                eyebrow="WORKLOAD"
-                title="Core vs Support Workload"
-                subtitle="ภาพรวมเวลาทำงานหลักและเวลาสนับสนุนตามเดือนที่เลือก"
-              />
+        {canSeeTeamWorkload && (
+          <section style={workloadStackSectionStyle}>
+            <div style={sectionCardStyle}>
+              <div style={workloadHeaderGridStyle}>
+                <SectionHeader
+                  eyebrow="WORKLOAD"
+                  title="Core vs Support Workload"
+                  subtitle="ภาพรวมเวลาทำงานหลักและเวลาสนับสนุนตามเดือนที่เลือก"
+                />
 
-              <SelectFilter
-                label="Select Month"
-                value={selectedMonth}
-                onChange={(value) => {
-                  setSelectedMonth(value);
-                  setTimeRange("selectedMonth");
-                }}
-                options={monthOptions.map((item) => ({
-                  value: item,
-                  label: renderMonthKey(item),
-                }))}
-              />
+                <SelectFilter
+                  label="Select Month"
+                  value={selectedMonth}
+                  onChange={(value) => {
+                    setSelectedMonth(value);
+                    setTimeRange("selectedMonth");
+                  }}
+                  options={monthOptions.map((item) => ({
+                    value: item,
+                    label: renderMonthKey(item),
+                  }))}
+                />
+              </div>
+
+              <WorkloadOverview summary={workloadSummary} />
             </div>
 
-            <WorkloadOverview summary={workloadSummary} />
-          </div>
-
-          <div style={sectionCardStyle}>
-            <SectionHeader
-              eyebrow="TEAM"
-              title="Staff Core / Support Split"
-              subtitle="อันดับภาระงานของแต่ละคน แยก Core Work และ Support Time ตามเดือนที่เลือก"
-            />
-            <StaffWorkloadChart items={staffTimeSummary} />
-          </div>
-        </section>
+            <div style={sectionCardStyle}>
+              <SectionHeader
+                eyebrow="TEAM"
+                title="Staff Core / Support Split"
+                subtitle="อันดับภาระงานของแต่ละคน แยก Core Work และ Support Time ตามเดือนที่เลือก"
+              />
+              <StaffWorkloadChart items={staffTimeSummary} />
+            </div>
+          </section>
+        )}
 
         <section style={singleColumnSectionStyle}>
-          <div style={sectionCardStyle}>
-            <SectionHeader
-              eyebrow="TEAM TIME"
-              title="Time by Staff"
-              subtitle="ภาพรวมเวลาทำงานรายคนตามช่วงเวลาที่เลือก"
-            />
-
-            {staffTimeSummary.length === 0 ? (
-              <div style={emptyStyle}>No time logs found.</div>
-            ) : isCompact ? (
-              <StaffTimeCardList items={staffTimeSummary} />
-            ) : (
-              <StaffTimeTable items={staffTimeSummary} />
-            )}
-          </div>
-
-          <div style={sectionCardStyle}>
-            <div style={dailyHeaderGridStyle}>
+          {canSeeTeamWorkload && (
+            <div style={sectionCardStyle}>
               <SectionHeader
-                eyebrow="DAILY TIME CHECK"
-                title="Daily Core / Support by Staff"
-                subtitle="เลือกวันที่เพื่อดูว่าในวันนั้นแต่ละคนทำ Core Work และ Support Time เท่าไร"
+                eyebrow="TEAM TIME"
+                title="Time by Staff"
+                subtitle="ภาพรวมเวลาทำงานรายคนตามช่วงเวลาที่เลือก"
               />
 
-              <SelectFilter
-                label="Select Date"
-                value={dailyDateOptions.length > 0 ? selectedDailyDate : ""}
-                onChange={setSelectedDailyDate}
-                disabled={dailyDateOptions.length === 0}
-                options={
-                  dailyDateOptions.length > 0
-                    ? dailyDateOptions.map((item) => ({
-                        value: item,
-                        label: formatDisplayDate(item),
-                      }))
-                    : [{ value: "", label: "No date" }]
-                }
+              {staffTimeSummary.length === 0 ? (
+                <div style={emptyStyle}>No time logs found.</div>
+              ) : isCompact ? (
+                <StaffTimeCardList items={staffTimeSummary} />
+              ) : (
+                <StaffTimeTable items={staffTimeSummary} />
+              )}
+            </div>
+          )}
+
+          {canSeeDailyStaffWorkload && (
+            <div style={sectionCardStyle}>
+              <div style={dailyHeaderGridStyle}>
+                <SectionHeader
+                  eyebrow="DAILY TIME CHECK"
+                  title="Daily Core / Support by Staff"
+                  subtitle="เลือกวันที่เพื่อดูว่าในวันนั้นแต่ละคนทำ Core Work / Support Time เท่าไร และทำคดีอะไรบ้าง"
+                />
+
+                <SelectFilter
+                  label="Select Date"
+                  value={dailyDateOptions.length > 0 ? selectedDailyDate : ""}
+                  onChange={setSelectedDailyDate}
+                  disabled={dailyDateOptions.length === 0}
+                  options={
+                    dailyDateOptions.length > 0
+                      ? dailyDateOptions.map((item) => ({
+                          value: item,
+                          label: formatDisplayDate(item),
+                        }))
+                      : [{ value: "", label: "No date" }]
+                  }
+                />
+              </div>
+
+              <DailyStaffTimeCheck
+                selectedDate={selectedDailyDate}
+                items={dailyStaffSummary}
+                summary={dailySummary}
+                isCompact={isCompact}
               />
             </div>
+          )}
 
-            <DailyStaffTimeCheck
-              selectedDate={selectedDailyDate}
-              items={dailyStaffSummary}
-              summary={dailySummary}
-              isCompact={isCompact}
-            />
-          </div>
+          {canSeeCaseCost && (
+            <div style={sectionCardStyle}>
+              <SectionHeader
+                eyebrow="CASE COST"
+                title="Top Time-Consuming Cases"
+                subtitle="5 คดีที่ใช้เวลาทำงานมากที่สุดตามช่วงเวลาที่เลือก"
+              />
 
-          <div style={sectionCardStyle}>
-            <SectionHeader
-              eyebrow="CASE COST"
-              title="Top Time-Consuming Cases"
-              subtitle="5 คดีที่ใช้เวลาทำงานมากที่สุดตามช่วงเวลาที่เลือก"
-            />
-
-            {topTimeConsumingCases.length === 0 ? (
-              <div style={emptyStyle}>No time logs found.</div>
-            ) : (
-              <TopTimeConsumingCaseList items={topTimeConsumingCases} />
-            )}
-          </div>
+              {topTimeConsumingCases.length === 0 ? (
+                <div style={emptyStyle}>No time logs found.</div>
+              ) : (
+                <TopTimeConsumingCaseList items={topTimeConsumingCases} />
+              )}
+            </div>
+          )}
         </section>
       </main>
     </AuthGuard>
@@ -1818,6 +1873,7 @@ function DailyStaffTimeTable({
             <th style={thStyle}>Support Time</th>
             <th style={thStyle}>Total</th>
             <th style={thStyle}>Signal</th>
+            <th style={thStyle}>Cases / Work Details</th>
           </tr>
         </thead>
 
@@ -1830,6 +1886,9 @@ function DailyStaffTimeTable({
               <td style={tdStrongStyle}>{formatDuration(item.totalMinutes)}</td>
               <td style={tdStyle}>
                 <DailySignalBadge item={item} />
+              </td>
+              <td style={tdWideStyle}>
+                <DailyCaseDetailList details={item.details} />
               </td>
             </tr>
           ))}
@@ -1857,6 +1916,43 @@ function DailyStaffTimeCardList({
           <InfoLine label="Total" value={formatDuration(item.totalMinutes)} />
           <div style={dailySignalWrapStyle}>
             <DailySignalBadge item={item} />
+          </div>
+          <DailyCaseDetailList details={item.details} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DailyCaseDetailList({
+  details,
+}: {
+  details: DailyStaffTimeDetail[];
+}) {
+  if (details.length === 0) {
+    return <span style={mutedTextStyle}>-</span>;
+  }
+
+  return (
+    <div style={dailyDetailListStyle}>
+      {details.map((detail) => (
+        <div key={detail.id} style={dailyDetailItemStyle}>
+          <div style={dailyDetailTopStyle}>
+            <Link href={`/cases/${detail.caseId}#timelogs`} style={miniOpenLinkStyle}>
+              {detail.fileNo} · {detail.title}
+            </Link>
+            <span style={dailyDetailTotalStyle}>
+              {formatDuration(detail.totalMinutes)}
+            </span>
+          </div>
+
+          <div style={dailyDetailMetaStyle}>
+            {detail.clientName} · {detail.workText}
+          </div>
+
+          <div style={dailyDetailSplitStyle}>
+            <span>Core {formatDuration(detail.coreMinutes)}</span>
+            <span>Support {formatDuration(detail.supportMinutes)}</span>
           </div>
         </div>
       ))}
@@ -1947,7 +2043,7 @@ function TopTimeConsumingCaseList({ items }: { items: CaseTimeSummary[] }) {
             <div style={timeCaseFooterStyle}>
               <span>Core {formatDuration(item.coreMinutes)}</span>
               <span>Support {formatDuration(item.supportMinutes)}</span>
-              <Link href={`/cases/${item.caseId}`} style={miniOpenLinkStyle}>
+              <Link href={`/cases/${item.caseId}#timelogs`} style={miniOpenLinkStyle}>
                 Open
               </Link>
             </div>
@@ -2326,6 +2422,12 @@ function renderPhase(value?: string | null) {
   if (value === "enforcement") return "Enforcement";
   if (value === "closed") return "Closed";
   return value;
+}
+
+function renderWorkType(workType?: string | null, workOther?: string | null) {
+  if (!workType) return "-";
+  if (workType === "อื่นๆ") return workOther || "อื่นๆ";
+  return workType;
 }
 
 function formatDateTime(value?: string | null) {
@@ -2796,7 +2898,7 @@ const ghostButtonStyle: CSSProperties = {
 const tableStyle: CSSProperties = {
   width: "100%",
   borderCollapse: "collapse",
-  minWidth: 760,
+  minWidth: 860,
 };
 
 const thStyle: CSSProperties = {
@@ -2822,6 +2924,12 @@ const tdStyle: CSSProperties = {
 const tdStrongStyle: CSSProperties = {
   ...tdStyle,
   fontWeight: 950,
+};
+
+const tdWideStyle: CSSProperties = {
+  ...tdStyle,
+  whiteSpace: "normal",
+  minWidth: 360,
 };
 
 const rowStyle: CSSProperties = {
@@ -3144,6 +3252,7 @@ const dailySummaryValueStyle: CSSProperties = {
 
 const dailySignalWrapStyle: CSSProperties = {
   marginTop: 8,
+  marginBottom: 10,
 };
 
 const dailySignalSuccessStyle: CSSProperties = {
@@ -3173,6 +3282,56 @@ const dailySignalNeutralStyle: CSSProperties = {
   ...dailySignalSuccessStyle,
   background: "#f1f5f9",
   color: "#475467",
+};
+
+const dailyDetailListStyle: CSSProperties = {
+  display: "grid",
+  gap: 8,
+  minWidth: 0,
+};
+
+const dailyDetailItemStyle: CSSProperties = {
+  border: "1px solid #eeeeee",
+  borderRadius: 12,
+  padding: 10,
+  background: "#ffffff",
+};
+
+const dailyDetailTopStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 10,
+  alignItems: "flex-start",
+  flexWrap: "wrap",
+};
+
+const dailyDetailTotalStyle: CSSProperties = {
+  fontWeight: 950,
+  color: "#111111",
+  whiteSpace: "nowrap",
+};
+
+const dailyDetailMetaStyle: CSSProperties = {
+  marginTop: 4,
+  color: "#555555",
+  fontSize: 12,
+  fontWeight: 700,
+  lineHeight: 1.45,
+};
+
+const dailyDetailSplitStyle: CSSProperties = {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
+  marginTop: 6,
+  color: "#64748b",
+  fontSize: 12,
+  fontWeight: 800,
+};
+
+const mutedTextStyle: CSSProperties = {
+  color: "#777777",
+  fontWeight: 700,
 };
 
 const timeCaseListStyle: CSSProperties = {

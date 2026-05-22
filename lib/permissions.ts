@@ -57,7 +57,6 @@ export function isViewer(role?: string | null) {
 
 export function isPartnerUp(role?: string | null) {
   const normalizedRole = normalizeRole(role);
-
   return normalizedRole === "admin" || normalizedRole === "partner";
 }
 
@@ -122,8 +121,25 @@ export function canViewFees(
 }
 
 /* =========================================================
+   MANAGEMENT / WORKLOAD VIEW PERMISSIONS
+   ข้อมูลเวลาทำงานรายคน รายวัน และต้นทุนคดี
+   จำกัดให้ระดับ Partner/Admin เท่านั้น
+========================================================= */
+
+export function canViewTeamWorkload(role?: string | null) {
+  return isPartnerUp(role);
+}
+
+export function canViewDailyStaffWorkload(role?: string | null) {
+  return isPartnerUp(role);
+}
+
+export function canViewCaseCost(role?: string | null) {
+  return isPartnerUp(role);
+}
+
+/* =========================================================
    CASE CREATION PERMISSION
-   การเปิดแฟ้มคดีใหม่ให้เฉพาะระดับทนายหลักขึ้นไป
 ========================================================= */
 
 export function canCreateCase(role?: string | null) {
@@ -231,6 +247,10 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
     canViewAlerts: canViewAlerts(role),
     canViewHistory: canViewHistory(role),
     canViewFees: canViewFees(role, financialAccess),
+
+    canViewTeamWorkload: canViewTeamWorkload(role),
+    canViewDailyStaffWorkload: canViewDailyStaffWorkload(role),
+    canViewCaseCost: canViewCaseCost(role),
 
     canCreateCase: canCreateCase(role),
 
