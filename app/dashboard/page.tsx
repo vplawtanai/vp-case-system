@@ -82,6 +82,20 @@ type CaseEnforcement = {
   status?: string | null;
 };
 
+type CaseTimeLog = {
+  id: string;
+  case_id: number;
+  work_date?: string | null;
+  staff_name?: string | null;
+  work_type?: string | null;
+  work_other?: string | null;
+  minutes?: number | null;
+  billable?: boolean | null;
+  note?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
 type AlertCandidate = {
   id: string;
   case_id: number;
@@ -98,6 +112,26 @@ type EnrichedCase = CaseItem & {
   next_alert_text: string;
   next_alert_date: string;
   next_alert_hash: string;
+};
+
+type StaffTimeSummary = {
+  staff: string;
+  totalMinutes: number;
+  todayMinutes: number;
+  weekMinutes: number;
+  monthMinutes: number;
+  coreMinutes: number;
+  supportMinutes: number;
+};
+
+type CaseTimeSummary = {
+  caseId: number;
+  fileNo: string;
+  title: string;
+  clientName: string;
+  totalMinutes: number;
+  coreMinutes: number;
+  supportMinutes: number;
 };
 
 type SortMode =
@@ -122,6 +156,8 @@ export default function DashboardPage() {
 
   const [cases, setCases] = useState<EnrichedCase[]>([]);
   const [alertItems, setAlertItems] = useState<AlertCandidate[]>([]);
+  const [timeLogs, setTimeLogs] = useState<CaseTimeLog[]>([]);
+
   const [loading, setLoading] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [isCompact, setIsCompact] = useState(false);
@@ -218,10 +254,11 @@ export default function DashboardPage() {
       if (caseIds.length === 0) {
         setCases([]);
         setAlertItems([]);
+        setTimeLogs([]);
         return;
       }
 
-      const [tasksRes, deadlinesRes, timelineRes, enforcementRes] =
+      const [tasksRes, deadlinesRes, timelineRes, enforcementRes, timeLogsRes] =
         await Promise.all([
           supabase
             .from("case_tasks")
@@ -254,12 +291,18 @@ export default function DashboardPage() {
             )
             .in("case_id", caseIds)
             .is("deleted_at", null),
+
+          supabase
+            .from("case_time_logs")
+            .select(
+              "id, case_id, work_date, staff_name, work_type, work_other, minutes, billable, note, created_at, updated_at"
+            )
+            .in("case_id", caseIds)
+            .is("deleted_at", null),
         ]);
 
       if (tasksRes.error) {
-        alert(
-          "Load tasks failed:\n" + JSON.stringify(tasksRes.error, null, 2)
-        );
+        alert("Load tasks failed:\n" + JSON.stringify(tasksRes.error, null, 2));
         return;
       }
 
@@ -287,10 +330,19 @@ export default function DashboardPage() {
         return;
       }
 
+      if (timeLogsRes.error) {
+        alert(
+          "Load time logs failed:\n" +
+            JSON.stringify(timeLogsRes.error, null, 2)
+        );
+        return;
+      }
+
       const tasks = (tasksRes.data || []) as CaseTask[];
       const deadlines = (deadlinesRes.data || []) as CaseDeadline[];
       const timeline = (timelineRes.data || []) as CaseTimeline[];
       const enforcements = (enforcementRes.data || []) as CaseEnforcement[];
+      const loadedTimeLogs = (timeLogsRes.data || []) as CaseTimeLog[];
 
       const allAlerts = buildAlertCandidates(
         tasks,
@@ -325,6 +377,7 @@ export default function DashboardPage() {
 
       setCases(enrichedCases);
       setAlertItems(allAlerts);
+      setTimeLogs(loadedTimeLogs);
     } finally {
       setLoading(false);
     }
@@ -448,6 +501,14 @@ export default function DashboardPage() {
     sortMode,
   ]);
 
+  const filteredCaseIds = useMemo(() => {
+    return new Set(filteredCases.map((item) => item.id));
+  }, [filteredCases]);
+
+  const filteredTimeLogs = useMemo(() => {
+    return timeLogs.filter((item) => filteredCaseIds.has(item.case_id));
+  }, [timeLogs, filteredCaseIds]);
+
   /* =========================================================
      SUMMARY
   ========================================================= */
@@ -481,6 +542,7 @@ export default function DashboardPage() {
 
     const enforcementReady = alertItems.filter(
       (item) =>
+        filteredCaseIds.has(item.case_id) &&
         item.sourceType === "enforcement" &&
         (item.level === "overdue" || item.level === "today")
     ).length;
@@ -496,7 +558,128 @@ export default function DashboardPage() {
       done,
       enforcementReady,
     };
-  }, [filteredCases, alertItems]);
+  }, [filteredCases, alertItems, filteredCaseIds]);
+
+  const timeSummary = useMemo(() => {
+    const today = getTodayDateString();
+    const weekStart = getWeekStartDateString();
+    const monthStart = getMonthStartDateString();
+
+    const totalMinutes = filteredTimeLogs.reduce(
+      (sum, item) => sum + (item.minutes || 0),
+      0
+    );
+
+    const todayMinutes = filteredTimeLogs
+      .filter((item) => item.work_date === today)
+      .reduce((sum, item) => sum + (item.minutes || 0), 0);
+
+    const weekMinutes = filteredTimeLogs
+      .filter((item) => !!item.work_date && item.work_date >= weekStart)
+      .reduce((sum, item) => sum + (item.minutes || 0), 0);
+
+    const monthMinutes = filteredTimeLogs
+      .filter((item) => !!item.work_date && item.work_date >= monthStart)
+      .reduce((sum, item) => sum + (item.minutes || 0), 0);
+
+    const coreMinutes = filteredTimeLogs
+      .filter((item) => item.billable !== false)
+      .reduce((sum, item) => sum + (item.minutes || 0), 0);
+
+    const supportMinutes = totalMinutes - coreMinutes;
+
+    return {
+      totalMinutes,
+      todayMinutes,
+      weekMinutes,
+      monthMinutes,
+      coreMinutes,
+      supportMinutes,
+    };
+  }, [filteredTimeLogs]);
+
+  const staffTimeSummary = useMemo(() => {
+    const today = getTodayDateString();
+    const weekStart = getWeekStartDateString();
+    const monthStart = getMonthStartDateString();
+
+    const map = new Map<string, StaffTimeSummary>();
+
+    filteredTimeLogs.forEach((item) => {
+      const staff = item.staff_name || "-";
+      const minutes = item.minutes || 0;
+      const isCore = item.billable !== false;
+
+      const existing = map.get(staff) || {
+        staff,
+        totalMinutes: 0,
+        todayMinutes: 0,
+        weekMinutes: 0,
+        monthMinutes: 0,
+        coreMinutes: 0,
+        supportMinutes: 0,
+      };
+
+      existing.totalMinutes += minutes;
+
+      if (item.work_date === today) existing.todayMinutes += minutes;
+      if (item.work_date && item.work_date >= weekStart) {
+        existing.weekMinutes += minutes;
+      }
+      if (item.work_date && item.work_date >= monthStart) {
+        existing.monthMinutes += minutes;
+      }
+
+      if (isCore) {
+        existing.coreMinutes += minutes;
+      } else {
+        existing.supportMinutes += minutes;
+      }
+
+      map.set(staff, existing);
+    });
+
+    return Array.from(map.values()).sort(
+      (a, b) => b.totalMinutes - a.totalMinutes
+    );
+  }, [filteredTimeLogs]);
+
+  const caseTimeSummary = useMemo(() => {
+    const caseMap = new Map<number, EnrichedCase>();
+    filteredCases.forEach((item) => caseMap.set(item.id, item));
+
+    const map = new Map<number, CaseTimeSummary>();
+
+    filteredTimeLogs.forEach((item) => {
+      const caseData = caseMap.get(item.case_id);
+      const minutes = item.minutes || 0;
+      const isCore = item.billable !== false;
+
+      const existing = map.get(item.case_id) || {
+        caseId: item.case_id,
+        fileNo: caseData?.file_no || "-",
+        title: caseData?.title || "-",
+        clientName: caseData?.client_name || "-",
+        totalMinutes: 0,
+        coreMinutes: 0,
+        supportMinutes: 0,
+      };
+
+      existing.totalMinutes += minutes;
+
+      if (isCore) {
+        existing.coreMinutes += minutes;
+      } else {
+        existing.supportMinutes += minutes;
+      }
+
+      map.set(item.case_id, existing);
+    });
+
+    return Array.from(map.values())
+      .sort((a, b) => b.totalMinutes - a.totalMinutes)
+      .slice(0, 8);
+  }, [filteredTimeLogs, filteredCases]);
 
   const topRiskCases = useMemo(() => {
     return filteredCases
@@ -514,6 +697,7 @@ export default function DashboardPage() {
 
   const enforcementAlerts = useMemo(() => {
     return alertItems
+      .filter((item) => filteredCaseIds.has(item.case_id))
       .filter((item) => item.sourceType === "enforcement")
       .filter((item) => item.level === "overdue" || item.level === "today")
       .sort((a, b) => {
@@ -523,7 +707,7 @@ export default function DashboardPage() {
         return a.date.localeCompare(b.date);
       })
       .slice(0, 8);
-  }, [alertItems]);
+  }, [alertItems, filteredCaseIds]);
 
   const caseMap = useMemo(() => {
     const map = new Map<number, EnrichedCase>();
@@ -612,7 +796,7 @@ export default function DashboardPage() {
             <div style={eyebrowStyle}>VP CASE SYSTEM</div>
             <h1 style={heroTitleStyle}>Executive Dashboard</h1>
             <div style={heroSubtitleStyle}>
-              ภาพรวมคดี ความเสี่ยง กำหนดเวลา งานเร่งด่วน และสถานะการบังคับคดี
+              ภาพรวมคดี ความเสี่ยง กำหนดเวลา งานเร่งด่วน บังคับคดี และเวลาทำงานของทีม
             </div>
           </div>
 
@@ -767,6 +951,52 @@ export default function DashboardPage() {
           </div>
         </section>
 
+        <section style={blockStyle}>
+          <div style={isCompact ? compactSummaryGridStyle : timeSummaryGridStyle}>
+            <SummaryCard
+              label="Time Today"
+              subLabel="เวลาทำงานวันนี้"
+              countText={formatDuration(timeSummary.todayMinutes)}
+              background="#edf4ff"
+            />
+
+            <SummaryCard
+              label="This Week"
+              subLabel="เวลาทำงานสัปดาห์นี้"
+              countText={formatDuration(timeSummary.weekMinutes)}
+              background="#f5f3ff"
+            />
+
+            <SummaryCard
+              label="This Month"
+              subLabel="เวลาทำงานเดือนนี้"
+              countText={formatDuration(timeSummary.monthMinutes)}
+              background="#fff7ed"
+            />
+
+            <SummaryCard
+              label="Total Time"
+              subLabel="เวลารวมทั้งหมด"
+              countText={formatDuration(timeSummary.totalMinutes)}
+              background="#f8fafc"
+            />
+
+            <SummaryCard
+              label="Core Work"
+              subLabel="เนื้องานหลัก"
+              countText={formatDuration(timeSummary.coreMinutes)}
+              background="#e6f4ea"
+            />
+
+            <SummaryCard
+              label="Support Time"
+              subLabel="เวลาสนับสนุน"
+              countText={formatDuration(timeSummary.supportMinutes)}
+              background="#f1f5f9"
+            />
+          </div>
+        </section>
+
         <section style={miniGridStyle}>
           <MiniSummaryCard
             title="Case Status"
@@ -787,6 +1017,52 @@ export default function DashboardPage() {
             rows={ownerSummary.map(([label, value]) => ({ label, value }))}
           />
         </section>
+
+        {permissions.canEditTimeLogs && (
+          <section style={sectionGridStyle}>
+            <div style={sectionCardStyle}>
+              <div style={sectionHeaderStyle}>
+                <div>
+                  <h3 style={sectionTitleStyle}>Time by Staff</h3>
+                  <div style={sectionSubtitleStyle}>
+                    เวลาทำงานแยกตามรายชื่อ วันนี้ / สัปดาห์นี้ / เดือนนี้ / รวมทั้งหมด
+                  </div>
+                </div>
+              </div>
+
+              {loading ? (
+                <div style={loadingBoxStyle}>Loading time by staff...</div>
+              ) : staffTimeSummary.length === 0 ? (
+                <div style={emptyStyle}>No time logs found.</div>
+              ) : isCompact ? (
+                <StaffTimeCardList items={staffTimeSummary} />
+              ) : (
+                <StaffTimeTable items={staffTimeSummary} />
+              )}
+            </div>
+
+            <div style={sectionCardStyle}>
+              <div style={sectionHeaderStyle}>
+                <div>
+                  <h3 style={sectionTitleStyle}>Top Time-Consuming Cases</h3>
+                  <div style={sectionSubtitleStyle}>
+                    คดีที่ใช้เวลาทำงานมากที่สุด เพื่อใช้ดูภาระงานและประเมินต้นทุนเวลา
+                  </div>
+                </div>
+              </div>
+
+              {loading ? (
+                <div style={loadingBoxStyle}>Loading case time summary...</div>
+              ) : caseTimeSummary.length === 0 ? (
+                <div style={emptyStyle}>No case time data found.</div>
+              ) : isCompact ? (
+                <CaseTimeCardList items={caseTimeSummary} />
+              ) : (
+                <CaseTimeTable items={caseTimeSummary} />
+              )}
+            </div>
+          </section>
+        )}
 
         <section style={sectionGridStyle}>
           <div style={sectionCardStyle}>
@@ -846,9 +1122,7 @@ export default function DashboardPage() {
           <div style={sectionHeaderStyle}>
             <div>
               <h3 style={sectionTitleStyle}>Recently Updated Cases</h3>
-              <div style={sectionSubtitleStyle}>
-                แฟ้มที่มีการแก้ไขล่าสุด
-              </div>
+              <div style={sectionSubtitleStyle}>แฟ้มที่มีการแก้ไขล่าสุด</div>
             </div>
 
             <Link href="/cases" style={sectionLinkStyle}>
@@ -879,16 +1153,20 @@ function SummaryCard({
   label,
   subLabel,
   count,
+  countText,
   background,
 }: {
   label: string;
   subLabel: string;
-  count: number;
+  count?: number;
+  countText?: string;
   background: string;
 }) {
   return (
     <div style={{ ...summaryCardStyle, background }}>
-      <div style={summaryNumberStyle}>{count}</div>
+      <div style={summaryNumberStyle}>
+        {countText !== undefined ? countText : count}
+      </div>
       <div style={summaryLabelStyle}>{label}</div>
       <div style={summarySubLabelStyle}>{subLabel}</div>
     </div>
@@ -916,6 +1194,135 @@ function MiniSummaryCard({
           </div>
         ))
       )}
+    </div>
+  );
+}
+
+function StaffTimeTable({ items }: { items: StaffTimeSummary[] }) {
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table style={tableStyle}>
+        <thead>
+          <tr>
+            <th style={thStyle}>Staff</th>
+            <th style={thStyle}>Today</th>
+            <th style={thStyle}>This Week</th>
+            <th style={thStyle}>This Month</th>
+            <th style={thStyle}>Core</th>
+            <th style={thStyle}>Support</th>
+            <th style={thStyle}>Total</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {items.map((item) => (
+            <tr key={item.staff} style={rowStyle}>
+              <td style={tdStyle}>{item.staff}</td>
+              <td style={tdStyle}>{formatDuration(item.todayMinutes)}</td>
+              <td style={tdStyle}>{formatDuration(item.weekMinutes)}</td>
+              <td style={tdStyle}>{formatDuration(item.monthMinutes)}</td>
+              <td style={tdStyle}>{formatDuration(item.coreMinutes)}</td>
+              <td style={tdStyle}>{formatDuration(item.supportMinutes)}</td>
+              <td style={tdStyle}>
+                <strong>{formatDuration(item.totalMinutes)}</strong>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function StaffTimeCardList({ items }: { items: StaffTimeSummary[] }) {
+  return (
+    <div style={cardListStyle}>
+      {items.map((item) => (
+        <div key={item.staff} style={mobileCardStyle}>
+          <div style={mobileCardHeaderStyle}>
+            <div>
+              <div style={fileNoStyle}>{item.staff}</div>
+              <div style={mobileTitleStyle}>
+                Total: {formatDuration(item.totalMinutes)}
+              </div>
+            </div>
+          </div>
+
+          <InfoLine label="Today" value={formatDuration(item.todayMinutes)} />
+          <InfoLine label="This Week" value={formatDuration(item.weekMinutes)} />
+          <InfoLine label="This Month" value={formatDuration(item.monthMinutes)} />
+          <InfoLine label="Core" value={formatDuration(item.coreMinutes)} />
+          <InfoLine label="Support" value={formatDuration(item.supportMinutes)} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CaseTimeTable({ items }: { items: CaseTimeSummary[] }) {
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table style={tableStyle}>
+        <thead>
+          <tr>
+            <th style={thStyle}>File No</th>
+            <th style={thStyle}>Title</th>
+            <th style={thStyle}>Client</th>
+            <th style={thStyle}>Core</th>
+            <th style={thStyle}>Support</th>
+            <th style={thStyle}>Total</th>
+            <th style={thStyle}>Open</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {items.map((item) => (
+            <tr key={item.caseId} style={rowStyle}>
+              <td style={tdStyle}>{item.fileNo}</td>
+              <td style={tdStyle}>{item.title}</td>
+              <td style={tdStyle}>{item.clientName}</td>
+              <td style={tdStyle}>{formatDuration(item.coreMinutes)}</td>
+              <td style={tdStyle}>{formatDuration(item.supportMinutes)}</td>
+              <td style={tdStyle}>
+                <strong>{formatDuration(item.totalMinutes)}</strong>
+              </td>
+              <td style={tdStyle}>
+                <Link href={`/cases/${item.caseId}#timelogs`} style={openButtonLinkStyle}>
+                  Open
+                </Link>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function CaseTimeCardList({ items }: { items: CaseTimeSummary[] }) {
+  return (
+    <div style={cardListStyle}>
+      {items.map((item) => (
+        <div key={item.caseId} style={mobileCardStyle}>
+          <div style={mobileCardHeaderStyle}>
+            <div>
+              <div style={fileNoStyle}>{item.fileNo}</div>
+              <div style={mobileTitleStyle}>{item.title}</div>
+            </div>
+          </div>
+
+          <InfoLine label="Client" value={item.clientName} />
+          <InfoLine label="Core" value={formatDuration(item.coreMinutes)} />
+          <InfoLine label="Support" value={formatDuration(item.supportMinutes)} />
+          <InfoLine label="Total" value={formatDuration(item.totalMinutes)} />
+
+          <div style={cardActionStyle}>
+            <Link href={`/cases/${item.caseId}#timelogs`} style={openButtonLinkStyle}>
+              Open
+            </Link>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -1365,6 +1772,40 @@ function getTodayDateString() {
   return `${year}-${month}-${day}`;
 }
 
+function getWeekStartDateString() {
+  const today = new Date();
+  const day = today.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+
+  const monday = new Date(today);
+  monday.setDate(today.getDate() + diffToMonday);
+
+  const year = monday.getFullYear();
+  const month = String(monday.getMonth() + 1).padStart(2, "0");
+  const date = String(monday.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${date}`;
+}
+
+function getMonthStartDateString() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+
+  return `${year}-${month}-01`;
+}
+
+function formatDuration(totalMinutes: number) {
+  const safeMinutes = Number.isFinite(totalMinutes) ? totalMinutes : 0;
+  const hours = Math.floor(safeMinutes / 60);
+  const minutes = safeMinutes % 60;
+
+  if (hours <= 0) return `${minutes} นาที`;
+  if (minutes <= 0) return `${hours} ชม.`;
+
+  return `${hours} ชม. ${minutes} นาที`;
+}
+
 function isDoneStatus(status?: string | null) {
   const value = (status || "").toLowerCase();
 
@@ -1557,6 +1998,12 @@ const summaryGridStyle: React.CSSProperties = {
   gap: 12,
 };
 
+const timeSummaryGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(6, minmax(130px, 1fr))",
+  gap: 12,
+};
+
 const compactSummaryGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(2, minmax(120px, 1fr))",
@@ -1573,10 +2020,11 @@ const summaryCardStyle: React.CSSProperties = {
 };
 
 const summaryNumberStyle: React.CSSProperties = {
-  fontSize: 30,
+  fontSize: 24,
   fontWeight: 950,
   marginBottom: 8,
   color: "#111111",
+  lineHeight: 1.15,
 };
 
 const summaryLabelStyle: React.CSSProperties = {
