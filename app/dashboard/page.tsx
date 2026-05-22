@@ -1221,84 +1221,6 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section style={riskSectionGridStyle}>
-          <div style={sectionCardStyle}>
-            <div style={sectionHeaderStyle}>
-              <div>
-                <div style={sectionEyebrowStyle}>RISK</div>
-                <h3 style={sectionTitleStyle}>Top Risk Cases</h3>
-                <div style={sectionSubtitleStyle}>
-                  5 แฟ้มที่มี Deadline / Task / Timeline / Enforcement
-                  ใกล้หรือเกินกำหนด
-                </div>
-              </div>
-
-              <Link href="/cases" style={sectionLinkStyle}>
-                View cases
-              </Link>
-            </div>
-
-            {loading ? (
-              <div style={loadingBoxStyle}>Loading risk cases...</div>
-            ) : topRiskCases.length === 0 ? (
-              <div style={allClearStyle}>✓ No risk cases</div>
-            ) : isCompact ? (
-              <RiskCardList items={topRiskCases} />
-            ) : (
-              <RiskTable items={topRiskCases} />
-            )}
-          </div>
-
-          <div style={sectionCardStyle}>
-            <div style={sectionHeaderStyle}>
-              <div>
-                <div style={sectionEyebrowStyle}>ENFORCEMENT</div>
-                <h3 style={sectionTitleStyle}>Enforcement Ready</h3>
-                <div style={sectionSubtitleStyle}>
-                  งานบังคับคดีที่ครบกำหนดหรือควรดำเนินการต่อ
-                </div>
-              </div>
-
-              <Link href="/cases" style={sectionLinkStyle}>
-                View cases
-              </Link>
-            </div>
-
-            {loading ? (
-              <div style={loadingBoxStyle}>Loading enforcement queue...</div>
-            ) : enforcementAlerts.length === 0 ? (
-              <CompactAllClearBox text="All clear — no enforcement action required" />
-            ) : isCompact ? (
-              <EnforcementCardList items={enforcementAlerts} caseMap={caseMap} />
-            ) : (
-              <EnforcementTable items={enforcementAlerts} caseMap={caseMap} />
-            )}
-          </div>
-        </section>
-
-        <section style={sectionCardStyle}>
-          <div style={sectionHeaderStyle}>
-            <div>
-              <div style={sectionEyebrowStyle}>ACTIVITY</div>
-              <h3 style={sectionTitleStyle}>Recently Updated Cases</h3>
-              <div style={sectionSubtitleStyle}>แฟ้มที่มีการแก้ไขล่าสุด</div>
-            </div>
-
-            <Link href="/cases" style={sectionLinkStyle}>
-              View all cases
-            </Link>
-          </div>
-
-          {loading ? (
-            <div style={loadingBoxStyle}>Loading recent cases...</div>
-          ) : recentCases.length === 0 ? (
-            <div style={emptyStyle}>No cases found.</div>
-          ) : isCompact ? (
-            <RecentCaseCardList items={recentCases} />
-          ) : (
-            <RecentCaseTable items={recentCases} />
-          )}
-        </section>
       </main>
     </AuthGuard>
   );
@@ -2702,8 +2624,8 @@ function getToneByIndex(index: number): Tone {
 ========================================================= */
 
 const pageStyle: CSSProperties = {
-  padding: 24,
-  maxWidth: 1440,
+  padding: "22px 24px 40px",
+  maxWidth: 1280,
   margin: "0 auto",
   color: "#111111",
 };
@@ -2808,11 +2730,11 @@ const compactSummaryGridStyle: CSSProperties = {
 
 const metricCardStyle: CSSProperties = {
   position: "relative",
-  borderRadius: 16,
-  padding: 16,
-  minHeight: 118,
+  borderRadius: 14,
+  padding: 14,
+  minHeight: 96,
   color: "#111111",
-  boxShadow: "0 8px 22px rgba(15, 23, 42, 0.06)",
+  boxShadow: "0 6px 18px rgba(15, 23, 42, 0.045)",
   overflow: "hidden",
 };
 
@@ -2824,9 +2746,9 @@ const metricTopLineStyle: CSSProperties = {
 };
 
 const metricNumberStyle: CSSProperties = {
-  fontSize: 30,
+  fontSize: 26,
   fontWeight: 950,
-  marginBottom: 8,
+  marginBottom: 6,
   color: "#111111",
   lineHeight: 1.1,
 };
@@ -2957,20 +2879,20 @@ const riskSectionGridStyle: CSSProperties = {
 
 const sectionCardStyle: CSSProperties = {
   border: "1px solid #eeeeee",
-  borderRadius: 18,
-  padding: 18,
+  borderRadius: 16,
+  padding: 16,
   background: "#ffffff",
-  marginBottom: 18,
-  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.045)",
+  marginBottom: 14,
+  boxShadow: "0 6px 18px rgba(15, 23, 42, 0.04)",
 };
 
 const compactSectionCardStyle: CSSProperties = {
   border: "1px solid #eeeeee",
-  borderRadius: 18,
-  padding: 18,
+  borderRadius: 16,
+  padding: 16,
   background: "#ffffff",
-  marginBottom: 18,
-  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.045)",
+  marginBottom: 14,
+  boxShadow: "0 6px 18px rgba(15, 23, 42, 0.04)",
   minHeight: 0,
 };
 
@@ -3063,22 +2985,22 @@ const tableStyle: CSSProperties = {
 
 const thStyle: CSSProperties = {
   textAlign: "left",
-  padding: "11px 10px",
+  padding: "9px 10px",
   borderBottom: "1px solid #eeeeee",
   whiteSpace: "nowrap",
   color: "#111111",
-  fontSize: 13,
+  fontSize: 12,
   fontWeight: 900,
   background: "#fafafa",
 };
 
 const tdStyle: CSSProperties = {
-  padding: "12px 10px",
+  padding: "10px 10px",
   verticalAlign: "top",
   borderTop: "1px solid #eeeeee",
   whiteSpace: "nowrap",
   color: "#111111",
-  fontSize: 14,
+  fontSize: 13,
 };
 
 const rowStyle: CSSProperties = {
@@ -3634,10 +3556,10 @@ const actionSummaryGridStyle: CSSProperties = {
 };
 
 const actionMiniCardStyle: CSSProperties = {
-  borderRadius: 16,
-  padding: 14,
-  minHeight: 105,
-  boxShadow: "0 8px 22px rgba(15, 23, 42, 0.055)",
+  borderRadius: 14,
+  padding: 12,
+  minHeight: 86,
+  boxShadow: "0 6px 18px rgba(15, 23, 42, 0.045)",
 };
 
 const actionMiniTopLineStyle: CSSProperties = {
@@ -3648,11 +3570,11 @@ const actionMiniTopLineStyle: CSSProperties = {
 };
 
 const actionMiniNumberStyle: CSSProperties = {
-  fontSize: 28,
+  fontSize: 24,
   fontWeight: 950,
   color: "#111111",
   lineHeight: 1,
-  marginBottom: 8,
+  marginBottom: 6,
 };
 
 const actionMiniLabelStyle: CSSProperties = {
