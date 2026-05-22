@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../../../lib/supabase";
 import { createAuditLog } from "../../../../lib/auditLog";
@@ -100,6 +100,23 @@ export default function TimeLogsSection({
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<TimeLogForm>(emptyForm);
+
+  const formRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollToForm = () => {
+    window.setTimeout(() => {
+      if (!formRef.current) return;
+
+      const offset = 130;
+      const y =
+        formRef.current.getBoundingClientRect().top + window.scrollY - offset;
+
+      window.scrollTo({
+        top: y,
+        behavior: "smooth",
+      });
+    }, 80);
+  };
 
   const loadTimeLogs = async () => {
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) return;
@@ -215,6 +232,7 @@ export default function TimeLogsSection({
       work_date: getTodayDateString(),
     });
     setShowForm(true);
+    scrollToForm();
   };
 
   const startEdit = (item: TimeLogItem) => {
@@ -241,6 +259,8 @@ export default function TimeLogsSection({
       billable: item.billable !== false,
       note: item.note || "",
     });
+
+    scrollToForm();
   };
 
   const cancelForm = () => {
@@ -538,10 +558,23 @@ export default function TimeLogsSection({
       )}
 
       {showForm && (
-        <div style={formCardStyle}>
-          <h4 style={formTitleStyle}>
-            {editingId ? "Edit Time Log" : "Add Time Log"}
-          </h4>
+        <div ref={formRef} style={formCardStyle}>
+          <div style={formTopBarStyle}>
+            <div>
+              <h4 style={formTitleStyle}>
+                {editingId ? "Edit Time Log" : "Add Time Log"}
+              </h4>
+              <div style={formHintStyle}>
+                {editingId
+                  ? "กำลังแก้ไขรายการเวลาเดิม ระบบจะบันทึกประวัติการแก้ไขไว้ใน History"
+                  : "เพิ่มเวลาทำงานใหม่ เพื่อใช้วิเคราะห์ต้นทุนเวลาและประสิทธิภาพของคดี"}
+              </div>
+            </div>
+
+            <span style={editingId ? editModeBadgeStyle : addModeBadgeStyle}>
+              {editingId ? "EDIT MODE" : "ADD MODE"}
+            </span>
+          </div>
 
           <div style={formGridStyle}>
             <Input
@@ -1037,17 +1070,53 @@ const staffTimeLineStyle: CSSProperties = {
 };
 
 const formCardStyle: CSSProperties = {
-  border: "1px solid #dddddd",
-  borderRadius: 12,
+  border: "1px solid #c9d7ef",
+  borderLeft: "5px solid #000000",
+  borderRadius: 14,
   padding: 16,
-  background: "#fafafa",
+  background: "#fbfcff",
   marginBottom: 18,
+  boxShadow: "0 8px 24px rgba(15, 39, 67, 0.08)",
+};
+
+const formTopBarStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: 12,
+  marginBottom: 14,
+  flexWrap: "wrap",
 };
 
 const formTitleStyle: CSSProperties = {
   marginTop: 0,
-  marginBottom: 12,
+  marginBottom: 4,
   color: "#111111",
+};
+
+const formHintStyle: CSSProperties = {
+  color: "#555555",
+  fontSize: 13,
+  lineHeight: 1.5,
+};
+
+const addModeBadgeStyle: CSSProperties = {
+  display: "inline-flex",
+  padding: "6px 10px",
+  borderRadius: 999,
+  background: "#e6f4ea",
+  color: "#067647",
+  border: "1px solid #b9dfc3",
+  fontSize: 12,
+  fontWeight: 900,
+  whiteSpace: "nowrap",
+};
+
+const editModeBadgeStyle: CSSProperties = {
+  ...addModeBadgeStyle,
+  background: "#fff3cd",
+  color: "#b54708",
+  border: "1px solid #f0d58a",
 };
 
 const formGridStyle: CSSProperties = {
