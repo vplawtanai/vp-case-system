@@ -445,8 +445,8 @@ export default function DashboardPage() {
   }, [cases]);
 
   const monthOptions = useMemo(() => {
-  return getMonthKeysFromJune2026();
-}, []);
+    return getMonthKeysFromJune2026();
+  }, []);
 
   const trendMonthOptions = useMemo(() => {
     return getMonthKeysFromJune2026();
@@ -600,33 +600,6 @@ export default function DashboardPage() {
     };
   }, [filteredCases, alertItems, totalLoggedMinutes]);
 
-  const topRiskCases = useMemo(() => {
-    return filteredCases
-      .filter((item) => item.risk_level !== "clear")
-      .sort((a, b) => {
-        const riskDiff = getRiskScore(a.risk_level) - getRiskScore(b.risk_level);
-        if (riskDiff !== 0) return riskDiff;
-
-        return (a.next_alert_date || "9999-12-31").localeCompare(
-          b.next_alert_date || "9999-12-31"
-        );
-      })
-      .slice(0, 5);
-  }, [filteredCases]);
-
-  const enforcementAlerts = useMemo(() => {
-    return alertItems
-      .filter((item) => item.sourceType === "enforcement")
-      .filter((item) => item.level === "overdue" || item.level === "today")
-      .sort((a, b) => {
-        const riskDiff = getRiskScore(a.level) - getRiskScore(b.level);
-        if (riskDiff !== 0) return riskDiff;
-
-        return a.date.localeCompare(b.date);
-      })
-      .slice(0, 5);
-  }, [alertItems]);
-
   const caseMap = useMemo(() => {
     const map = new Map<number, EnrichedCase>();
     cases.forEach((item) => map.set(item.id, item));
@@ -653,12 +626,6 @@ export default function DashboardPage() {
     });
 
     return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
-  }, [filteredCases]);
-
-  const recentCases = useMemo(() => {
-    return [...filteredCases]
-      .sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""))
-      .slice(0, 5);
   }, [filteredCases]);
 
   const workloadSummary = useMemo(() => {
@@ -1020,39 +987,39 @@ export default function DashboardPage() {
             />
 
             <SelectFilter
-             label="Time Period"
-             value={timeRange}
-             onChange={(value) => {
-               const nextRange = value as TimeRange;
-               setTimeRange(nextRange);
+              label="Time Period"
+              value={timeRange}
+              onChange={(value) => {
+                const nextRange = value as TimeRange;
+                setTimeRange(nextRange);
 
-              if (nextRange === "selectedMonth") {
-              setSelectedTrendMonth(selectedMonth);
-              }
-            }}
-            options={[
-             { value: "today", label: "Today" },
-             { value: "thisWeek", label: "This Week" },
-             { value: "thisMonth", label: "This Month" },
-             { value: "selectedMonth", label: "Selected Month" },
-             { value: "all", label: "All Time" },
-            ]}
-          />
+                if (nextRange === "selectedMonth") {
+                  setSelectedTrendMonth(selectedMonth);
+                }
+              }}
+              options={[
+                { value: "today", label: "Today" },
+                { value: "thisWeek", label: "This Week" },
+                { value: "thisMonth", label: "This Month" },
+                { value: "selectedMonth", label: "Selected Month" },
+                { value: "all", label: "All Time" },
+              ]}
+            />
 
-          <SelectFilter
-            label="Month / Year"
-            value={selectedMonth}
-            onChange={(value) => {
-              setSelectedMonth(value);
-              setSelectedTrendMonth(value);
-              setTimeRange("selectedMonth");
-            }}
-            disabled={timeRange !== "selectedMonth"}
-            options={monthOptions.map((item) => ({
-             value: item,
-             label: renderMonthKey(item),
-            }))}
-          />
+            <SelectFilter
+              label="Month / Year"
+              value={selectedMonth}
+              onChange={(value) => {
+                setSelectedMonth(value);
+                setSelectedTrendMonth(value);
+                setTimeRange("selectedMonth");
+              }}
+              disabled={timeRange !== "selectedMonth"}
+              options={monthOptions.map((item) => ({
+                value: item,
+                label: renderMonthKey(item),
+              }))}
+            />
           </div>
         </section>
 
@@ -1220,7 +1187,6 @@ export default function DashboardPage() {
             )}
           </div>
         </section>
-
       </main>
     </AuthGuard>
   );
@@ -1537,48 +1503,53 @@ function WorkloadOverview({
     return <div style={emptyStyle}>No time logs found.</div>;
   }
 
-  const donutStyle: CSSProperties = {
-    ...donutRingStyle,
-    background: `conic-gradient(#175cd3 0 ${summary.corePercent}%, #7e22ce ${summary.corePercent}% 100%)`,
-  };
-
   return (
-    <div style={workloadDashboardStyle}>
-      <div style={donutWrapStyle}>
-        <div style={donutStyle}>
-          <div style={donutCenterStyle}>
-            <div style={donutNumberStyle}>
-              {formatDuration(summary.totalMinutes)}
-            </div>
-            <div style={donutLabelStyle}>Total</div>
+    <div style={workloadCompactBoxStyle}>
+      <div style={workloadTotalRowStyle}>
+        <div>
+          <div style={workloadTotalLabelStyle}>Total Workload</div>
+          <div style={workloadTotalValueStyle}>
+            {formatDuration(summary.totalMinutes)}
           </div>
+        </div>
+
+        <div style={workloadPercentBadgeStyle}>
+          Core {summary.corePercent}% / Support {summary.supportPercent}%
         </div>
       </div>
 
-      <div style={workloadSideStyle}>
-        <div style={workloadHeadlineStyle}>Workload Composition</div>
-        <div style={workloadCaptionStyle}>
-          Core Work / Support Time ในช่วงเวลาที่เลือก
+      <div style={workloadStackBarStyle}>
+        <div
+          style={{
+            ...workloadCoreStackStyle,
+            width: `${summary.corePercent}%`,
+          }}
+        />
+        <div
+          style={{
+            ...workloadSupportStackStyle,
+            width: `${summary.supportPercent}%`,
+          }}
+        />
+      </div>
+
+      <div style={workloadMiniGridStyle}>
+        <div style={workloadMiniCardStyle}>
+          <div style={workloadMiniTopStyle}>
+            <span style={{ ...legendDotStyle, background: "#175cd3" }} />
+            <span>Core Work</span>
+          </div>
+          <strong>{formatDuration(summary.coreMinutes)}</strong>
+          <div style={legendPercentStyle}>{summary.corePercent}%</div>
         </div>
 
-        <div style={compactLegendGridStyle}>
-          <div style={compactLegendCardStyle}>
-            <div style={legendTopStyle}>
-              <span style={{ ...legendDotStyle, background: "#175cd3" }} />
-              <span>Core</span>
-            </div>
-            <strong>{formatDuration(summary.coreMinutes)}</strong>
-            <div style={legendPercentStyle}>{summary.corePercent}%</div>
+        <div style={workloadMiniCardStyle}>
+          <div style={workloadMiniTopStyle}>
+            <span style={{ ...legendDotStyle, background: "#7e22ce" }} />
+            <span>Support Time</span>
           </div>
-
-          <div style={compactLegendCardStyle}>
-            <div style={legendTopStyle}>
-              <span style={{ ...legendDotStyle, background: "#7e22ce" }} />
-              <span>Support</span>
-            </div>
-            <strong>{formatDuration(summary.supportMinutes)}</strong>
-            <div style={legendPercentStyle}>{summary.supportPercent}%</div>
-          </div>
+          <strong>{formatDuration(summary.supportMinutes)}</strong>
+          <div style={legendPercentStyle}>{summary.supportPercent}%</div>
         </div>
       </div>
     </div>
@@ -1593,7 +1564,7 @@ function StaffWorkloadChart({ items }: { items: StaffTimeSummary[] }) {
   const maxMinutes = Math.max(1, ...items.map((item) => item.periodMinutes));
 
   return (
-    <div style={staffCompactListStyle}>
+    <div style={staffSlimListStyle}>
       {items.map((item, index) => {
         const targetMinutes = item.periodMinutes;
 
@@ -1613,28 +1584,29 @@ function StaffWorkloadChart({ items }: { items: StaffTimeSummary[] }) {
             : 0;
 
         return (
-          <div key={item.staff} style={staffCompactRowStyle}>
-            <div style={staffCompactHeaderStyle}>
-              <div style={staffCompactLeftStyle}>
-                <span style={staffCompactRankStyle}>#{index + 1}</span>
+          <div key={item.staff} style={staffSlimRowStyle}>
+            <div style={staffSlimHeaderStyle}>
+              <div style={staffSlimNameWrapStyle}>
+                <span style={staffSlimRankStyle}>#{index + 1}</span>
+
                 <div>
-                  <div style={staffCompactNameStyle}>{item.staff}</div>
-                  <div style={staffCompactMetaStyle}>
+                  <div style={staffSlimNameStyle}>{item.staff}</div>
+                  <div style={staffSlimMetaStyle}>
                     Core {formatDuration(item.coreMinutes)} · Support{" "}
                     {formatDuration(item.supportMinutes)}
                   </div>
                 </div>
               </div>
 
-              <div style={staffCompactTotalStyle}>
+              <div style={staffSlimTotalStyle}>
                 {formatDuration(targetMinutes)}
               </div>
             </div>
 
-            <div style={staffCompactTrackStyle}>
+            <div style={staffSlimTrackStyle}>
               <div
                 style={{
-                  ...staffCompactTotalBarStyle,
+                  ...staffSlimTotalBarStyle,
                   width: `${totalWidth}%`,
                 }}
               >
@@ -1651,13 +1623,6 @@ function StaffWorkloadChart({ items }: { items: StaffTimeSummary[] }) {
                   }}
                 />
               </div>
-            </div>
-
-            <div style={staffCompactFooterStyle}>
-              <span>{totalWidth}% of top staff</span>
-              <span>
-                Core {corePercent}% · Support {supportPercent}%
-              </span>
             </div>
           </div>
         );
@@ -1870,239 +1835,6 @@ function TopTimeConsumingCaseList({ items }: { items: CaseTimeSummary[] }) {
   );
 }
 
-function RiskTable({ items }: { items: EnrichedCase[] }) {
-  return (
-    <div style={{ overflowX: "auto" }}>
-      <table style={tableStyle}>
-        <thead>
-          <tr>
-            <th style={thStyle}>File No</th>
-            <th style={thStyle}>Client</th>
-            <th style={thStyle}>Risk</th>
-            <th style={thStyle}>Next Alert</th>
-            <th style={thStyle}>Date</th>
-            <th style={thStyle}>Action</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {items.map((item) => (
-            <tr key={item.id} style={rowStyle}>
-              <td style={tdStyle}>{item.file_no || "-"}</td>
-              <td style={tdStyle}>{item.client_name || "-"}</td>
-              <td style={tdStyle}>
-                <RiskBadge level={item.risk_level} />
-              </td>
-              <td style={tdStyle}>
-                <div style={alertTextStyle}>{item.next_alert_text || "-"}</div>
-              </td>
-              <td style={tdStyle}>{formatDisplayDate(item.next_alert_date)}</td>
-              <td style={tdStyle}>
-                <Link
-                  href={`/cases/${item.id}${item.next_alert_hash || ""}`}
-                  style={openButtonLinkStyle}
-                >
-                  Open & Fix
-                </Link>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function RiskCardList({ items }: { items: EnrichedCase[] }) {
-  return (
-    <div style={cardListStyle}>
-      {items.map((item) => (
-        <div key={item.id} style={mobileCardStyle}>
-          <div style={mobileCardHeaderStyle}>
-            <div>
-              <div style={fileNoStyle}>{item.file_no || "-"}</div>
-              <div style={mobileTitleStyle}>{item.title || "-"}</div>
-            </div>
-            <RiskBadge level={item.risk_level} />
-          </div>
-
-          <InfoLine label="Client" value={item.client_name || "-"} />
-          <InfoLine label="Next Alert" value={item.next_alert_text || "-"} />
-          <InfoLine
-            label="Date"
-            value={formatDisplayDate(item.next_alert_date)}
-          />
-
-          <div style={cardActionStyle}>
-            <Link
-              href={`/cases/${item.id}${item.next_alert_hash || ""}`}
-              style={openButtonLinkStyle}
-            >
-              Open & Fix
-            </Link>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function EnforcementTable({
-  items,
-  caseMap,
-}: {
-  items: AlertCandidate[];
-  caseMap: Map<number, EnrichedCase>;
-}) {
-  return (
-    <div style={{ overflowX: "auto" }}>
-      <table style={tableStyle}>
-        <thead>
-          <tr>
-            <th style={thStyle}>File No</th>
-            <th style={thStyle}>Client</th>
-            <th style={thStyle}>Status</th>
-            <th style={thStyle}>Date</th>
-            <th style={thStyle}>Action</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {items.map((item) => {
-            const caseItem = caseMap.get(item.case_id);
-
-            return (
-              <tr key={item.id} style={rowStyle}>
-                <td style={tdStyle}>{caseItem?.file_no || "-"}</td>
-                <td style={tdStyle}>{caseItem?.client_name || "-"}</td>
-                <td style={tdStyle}>{item.text}</td>
-                <td style={tdStyle}>{formatDisplayDate(item.date)}</td>
-                <td style={tdStyle}>
-                  <Link
-                    href={`/cases/${item.case_id}${item.sourceHash}`}
-                    style={openButtonLinkStyle}
-                  >
-                    Open
-                  </Link>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function EnforcementCardList({
-  items,
-  caseMap,
-}: {
-  items: AlertCandidate[];
-  caseMap: Map<number, EnrichedCase>;
-}) {
-  return (
-    <div style={cardListStyle}>
-      {items.map((item) => {
-        const caseItem = caseMap.get(item.case_id);
-
-        return (
-          <div key={item.id} style={mobileCardStyle}>
-            <div style={mobileCardHeaderStyle}>
-              <div>
-                <div style={fileNoStyle}>{caseItem?.file_no || "-"}</div>
-                <div style={mobileTitleStyle}>{caseItem?.title || "-"}</div>
-              </div>
-              <RiskBadge level={item.level} />
-            </div>
-
-            <InfoLine label="Client" value={caseItem?.client_name || "-"} />
-            <InfoLine label="Status" value={item.text} />
-            <InfoLine label="Date" value={formatDisplayDate(item.date)} />
-
-            <div style={cardActionStyle}>
-              <Link
-                href={`/cases/${item.case_id}${item.sourceHash}`}
-                style={openButtonLinkStyle}
-              >
-                Open
-              </Link>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function RecentCaseTable({ items }: { items: EnrichedCase[] }) {
-  return (
-    <div style={{ overflowX: "auto" }}>
-      <table style={tableStyle}>
-        <thead>
-          <tr>
-            <th style={thStyle}>File No</th>
-            <th style={thStyle}>Title</th>
-            <th style={thStyle}>Client</th>
-            <th style={thStyle}>Owner</th>
-            <th style={thStyle}>Risk</th>
-            <th style={thStyle}>Last Updated</th>
-            <th style={thStyle}>Open</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {items.map((item) => (
-            <tr key={item.id} style={rowStyle}>
-              <td style={tdStyle}>{item.file_no || "-"}</td>
-              <td style={tdStyle}>{item.title || "-"}</td>
-              <td style={tdStyle}>{item.client_name || "-"}</td>
-              <td style={tdStyle}>{item.owner_name || "-"}</td>
-              <td style={tdStyle}>
-                <RiskBadge level={item.risk_level} />
-              </td>
-              <td style={tdStyle}>{formatDateTime(item.updated_at)}</td>
-              <td style={tdStyle}>
-                <Link href={`/cases/${item.id}`} style={openButtonLinkStyle}>
-                  Open
-                </Link>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function RecentCaseCardList({ items }: { items: EnrichedCase[] }) {
-  return (
-    <div style={cardListStyle}>
-      {items.map((item) => (
-        <div key={item.id} style={mobileCardStyle}>
-          <div style={mobileCardHeaderStyle}>
-            <div>
-              <div style={fileNoStyle}>{item.file_no || "-"}</div>
-              <div style={mobileTitleStyle}>{item.title || "-"}</div>
-            </div>
-            <RiskBadge level={item.risk_level} />
-          </div>
-
-          <InfoLine label="Client" value={item.client_name || "-"} />
-          <InfoLine label="Owner" value={item.owner_name || "-"} />
-          <InfoLine label="Updated" value={formatDateTime(item.updated_at)} />
-
-          <div style={cardActionStyle}>
-            <Link href={`/cases/${item.id}`} style={openButtonLinkStyle}>
-              Open
-            </Link>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function CompactAllClearBox({ text }: { text: string }) {
   return (
     <div style={compactAllClearStyle}>
@@ -2115,28 +1847,6 @@ function CompactAllClearBox({ text }: { text: string }) {
       </div>
     </div>
   );
-}
-
-function RiskBadge({ level }: { level: RiskLevel }) {
-  const text =
-    level === "overdue"
-      ? "Overdue"
-      : level === "today"
-        ? "Today"
-        : level === "dueSoon"
-          ? "Due Soon"
-          : "Clear";
-
-  const style =
-    level === "overdue"
-      ? riskOverdueStyle
-      : level === "today"
-        ? riskTodayStyle
-        : level === "dueSoon"
-          ? riskDueSoonStyle
-          : riskClearStyle;
-
-  return <span style={{ ...riskBadgeBaseStyle, ...style }}>{text}</span>;
 }
 
 function InfoLine({ label, value }: { label: string; value: string }) {
@@ -2335,14 +2045,6 @@ function getTodayDateString() {
   const day = String(today.getDate()).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
-}
-
-function getCurrentMonthKey() {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, "0");
-
-  return `${year}-${month}`;
 }
 
 function getMonthKeysFromJune2026() {
@@ -2864,17 +2566,10 @@ const sectionGridStyle: CSSProperties = {
 
 const compactWorkloadGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))",
+  gridTemplateColumns: "0.9fr 1.1fr",
   gap: 12,
-  marginBottom: 18,
-  alignItems: "stretch",
-};
-
-const riskSectionGridStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))",
-  gap: 12,
-  marginBottom: 18,
+  marginBottom: 14,
+  alignItems: "start",
 };
 
 const sectionCardStyle: CSSProperties = {
@@ -2893,7 +2588,7 @@ const compactSectionCardStyle: CSSProperties = {
   background: "#ffffff",
   marginBottom: 14,
   boxShadow: "0 6px 18px rgba(15, 23, 42, 0.04)",
-  minHeight: 0,
+  minHeight: "auto",
 };
 
 const sectionHeaderStyle: CSSProperties = {
@@ -3007,42 +2702,6 @@ const rowStyle: CSSProperties = {
   borderTop: "1px solid #eeeeee",
 };
 
-const alertTextStyle: CSSProperties = {
-  maxWidth: 320,
-  whiteSpace: "normal",
-  fontWeight: 700,
-  lineHeight: 1.45,
-};
-
-const riskBadgeBaseStyle: CSSProperties = {
-  display: "inline-flex",
-  padding: "5px 10px",
-  borderRadius: 999,
-  fontSize: 13,
-  fontWeight: 900,
-  whiteSpace: "nowrap",
-};
-
-const riskOverdueStyle: CSSProperties = {
-  background: "#ffe0e0",
-  color: "#c0392b",
-};
-
-const riskTodayStyle: CSSProperties = {
-  background: "#fff0c2",
-  color: "#b26a00",
-};
-
-const riskDueSoonStyle: CSSProperties = {
-  background: "#fff4d9",
-  color: "#c96b00",
-};
-
-const riskClearStyle: CSSProperties = {
-  background: "#e8f5ec",
-  color: "#18794e",
-};
-
 const openButtonLinkStyle: CSSProperties = {
   display: "inline-flex",
   padding: "7px 11px",
@@ -3058,15 +2717,6 @@ const miniOpenLinkStyle: CSSProperties = {
   color: "#0f2743",
   textDecoration: "none",
   fontWeight: 900,
-};
-
-const allClearStyle: CSSProperties = {
-  color: "#067647",
-  fontWeight: 800,
-  padding: 12,
-  border: "1px solid #b9dfc3",
-  borderRadius: 12,
-  background: "#e6f4ea",
 };
 
 const emptyStyle: CSSProperties = {
@@ -3101,20 +2751,6 @@ const mobileCardStyle: CSSProperties = {
   boxShadow: "0 1px 8px rgba(0,0,0,0.04)",
 };
 
-const mobileCardHeaderStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: 12,
-  alignItems: "flex-start",
-  marginBottom: 12,
-};
-
-const fileNoStyle: CSSProperties = {
-  fontWeight: 950,
-  fontSize: 15,
-  color: "#12355b",
-};
-
 const mobileTitleStyle: CSSProperties = {
   marginTop: 4,
   color: "#333333",
@@ -3139,12 +2775,6 @@ const infoValueStyle: CSSProperties = {
   lineHeight: 1.45,
 };
 
-const cardActionStyle: CSSProperties = {
-  marginTop: 12,
-  paddingTop: 10,
-  borderTop: "1px solid #eeeeee",
-};
-
 const noAccessBoxStyle: CSSProperties = {
   padding: 18,
   borderRadius: 12,
@@ -3159,75 +2789,6 @@ const noAccessSubTextStyle: CSSProperties = {
   color: "#555555",
   fontSize: 13,
   fontWeight: 700,
-};
-
-const workloadDashboardStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "170px 1fr",
-  gap: 18,
-  alignItems: "center",
-};
-
-const donutWrapStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-};
-
-const donutRingStyle: CSSProperties = {
-  width: 155,
-  height: 155,
-  borderRadius: "50%",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  boxShadow: "inset 0 0 0 1px rgba(15, 23, 42, 0.06)",
-};
-
-const donutCenterStyle: CSSProperties = {
-  width: 96,
-  height: 96,
-  borderRadius: "50%",
-  background: "#ffffff",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  flexDirection: "column",
-  boxShadow: "0 8px 22px rgba(15, 23, 42, 0.10)",
-  textAlign: "center",
-  padding: 10,
-};
-
-const donutNumberStyle: CSSProperties = {
-  fontSize: 20,
-  fontWeight: 950,
-  color: "#111111",
-  lineHeight: 1.15,
-};
-
-const donutLabelStyle: CSSProperties = {
-  marginTop: 3,
-  color: "#64748b",
-  fontSize: 11,
-  fontWeight: 900,
-};
-
-const workloadSideStyle: CSSProperties = {
-  minWidth: 0,
-};
-
-const workloadHeadlineStyle: CSSProperties = {
-  fontSize: 16,
-  fontWeight: 950,
-  color: "#111111",
-};
-
-const workloadCaptionStyle: CSSProperties = {
-  marginTop: 4,
-  marginBottom: 10,
-  color: "#666666",
-  fontWeight: 800,
-  fontSize: 12,
 };
 
 const compactLegendGridStyle: CSSProperties = {
@@ -3266,37 +2827,120 @@ const legendPercentStyle: CSSProperties = {
   fontWeight: 800,
 };
 
-const staffCompactListStyle: CSSProperties = {
+const workloadCompactBoxStyle: CSSProperties = {
+  display: "grid",
+  gap: 12,
+  padding: 14,
+  border: "1px solid #eeeeee",
+  borderRadius: 14,
+  background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+};
+
+const workloadTotalRowStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  alignItems: "center",
+  flexWrap: "wrap",
+};
+
+const workloadTotalLabelStyle: CSSProperties = {
+  fontSize: 12,
+  fontWeight: 900,
+  color: "#64748b",
+};
+
+const workloadTotalValueStyle: CSSProperties = {
+  marginTop: 2,
+  fontSize: 28,
+  fontWeight: 950,
+  color: "#111111",
+  lineHeight: 1.1,
+};
+
+const workloadPercentBadgeStyle: CSSProperties = {
+  display: "inline-flex",
+  padding: "7px 10px",
+  borderRadius: 999,
+  background: "#eef2f7",
+  color: "#334155",
+  fontSize: 12,
+  fontWeight: 900,
+  whiteSpace: "nowrap",
+};
+
+const workloadStackBarStyle: CSSProperties = {
+  display: "flex",
+  width: "100%",
+  height: 18,
+  borderRadius: 999,
+  background: "#eef2f7",
+  overflow: "hidden",
+};
+
+const workloadCoreStackStyle: CSSProperties = {
+  height: "100%",
+  background: "#175cd3",
+};
+
+const workloadSupportStackStyle: CSSProperties = {
+  height: "100%",
+  background: "#7e22ce",
+};
+
+const workloadMiniGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: 10,
+};
+
+const workloadMiniCardStyle: CSSProperties = {
+  border: "1px solid #eeeeee",
+  borderRadius: 12,
+  padding: 12,
+  background: "#ffffff",
+};
+
+const workloadMiniTopStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  color: "#333333",
+  fontWeight: 900,
+  marginBottom: 6,
+};
+
+const staffSlimListStyle: CSSProperties = {
   display: "grid",
   gap: 8,
 };
 
-const staffCompactRowStyle: CSSProperties = {
+const staffSlimRowStyle: CSSProperties = {
   border: "1px solid #eeeeee",
-  borderRadius: 13,
-  padding: 10,
+  borderRadius: 12,
+  padding: "9px 10px",
   background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
 };
 
-const staffCompactHeaderStyle: CSSProperties = {
+const staffSlimHeaderStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   gap: 10,
   alignItems: "flex-start",
-  marginBottom: 8,
+  marginBottom: 7,
 };
 
-const staffCompactLeftStyle: CSSProperties = {
+const staffSlimNameWrapStyle: CSSProperties = {
   display: "flex",
   alignItems: "flex-start",
-  gap: 9,
+  gap: 8,
   minWidth: 0,
 };
 
-const staffCompactRankStyle: CSSProperties = {
-  width: 28,
-  height: 28,
-  borderRadius: 10,
+const staffSlimRankStyle: CSSProperties = {
+  width: 26,
+  height: 26,
+  borderRadius: 9,
   background: "#0f2743",
   color: "#ffffff",
   display: "inline-flex",
@@ -3304,38 +2948,39 @@ const staffCompactRankStyle: CSSProperties = {
   justifyContent: "center",
   fontWeight: 950,
   flex: "0 0 auto",
-  fontSize: 13,
+  fontSize: 12,
 };
 
-const staffCompactNameStyle: CSSProperties = {
+const staffSlimNameStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 950,
   color: "#111111",
+  lineHeight: 1.2,
 };
 
-const staffCompactMetaStyle: CSSProperties = {
+const staffSlimMetaStyle: CSSProperties = {
   marginTop: 2,
   fontSize: 12,
   color: "#666666",
   fontWeight: 800,
 };
 
-const staffCompactTotalStyle: CSSProperties = {
+const staffSlimTotalStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 950,
   color: "#111111",
   whiteSpace: "nowrap",
 };
 
-const staffCompactTrackStyle: CSSProperties = {
+const staffSlimTrackStyle: CSSProperties = {
   width: "100%",
-  height: 14,
+  height: 12,
   borderRadius: 999,
   background: "#eef2f7",
   overflow: "hidden",
 };
 
-const staffCompactTotalBarStyle: CSSProperties = {
+const staffSlimTotalBarStyle: CSSProperties = {
   height: "100%",
   display: "flex",
   borderRadius: 999,
@@ -3351,17 +2996,6 @@ const staffSegmentCoreStyle: CSSProperties = {
 const staffSegmentSupportStyle: CSSProperties = {
   height: "100%",
   background: "#7e22ce",
-};
-
-const staffCompactFooterStyle: CSSProperties = {
-  marginTop: 6,
-  display: "flex",
-  justifyContent: "space-between",
-  gap: 10,
-  flexWrap: "wrap",
-  color: "#64748b",
-  fontSize: 11,
-  fontWeight: 900,
 };
 
 const monthlyHeaderGridStyle: CSSProperties = {
