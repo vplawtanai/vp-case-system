@@ -10,6 +10,7 @@ export type UserRole =
 export type UserPermissionProfile = {
   role?: UserRole | string | null;
   financial_access?: boolean | null;
+  staff_name?: string | null;
 };
 
 /* =========================================================
@@ -93,6 +94,10 @@ export function isStaffUp(role?: string | null) {
   );
 }
 
+export function isInternalUser(role?: string | null) {
+  return isStaffUp(role);
+}
+
 /* =========================================================
    PAGE / MODULE VIEW PERMISSIONS
 ========================================================= */
@@ -121,21 +126,31 @@ export function canViewFees(
 }
 
 /* =========================================================
-   MANAGEMENT / WORKLOAD VIEW PERMISSIONS
-   ข้อมูลเวลาทำงานรายคน รายวัน และต้นทุนคดี
-   จำกัดให้ระดับ Partner/Admin เท่านั้น
+   TIME / WORKLOAD VIEW PERMISSIONS
 ========================================================= */
 
-export function canViewTeamWorkload(role?: string | null) {
+export function canViewTimeOverview(role?: string | null) {
+  return isStaffUp(role);
+}
+
+export function canViewOwnTimeDetail(role?: string | null) {
+  return isInternalUser(role);
+}
+
+export function canViewTeamTimeDetail(role?: string | null) {
   return isPartnerUp(role);
+}
+
+export function canViewTeamWorkload(role?: string | null) {
+  return canViewTeamTimeDetail(role);
 }
 
 export function canViewDailyStaffWorkload(role?: string | null) {
-  return isPartnerUp(role);
+  return canViewTeamTimeDetail(role);
 }
 
 export function canViewCaseCost(role?: string | null) {
-  return isPartnerUp(role);
+  return canViewTeamTimeDetail(role);
 }
 
 /* =========================================================
@@ -237,16 +252,22 @@ export function renderRoleLabel(role?: string | null) {
 export function buildPermissions(profile?: UserPermissionProfile | null) {
   const role = normalizeRole(profile?.role || "");
   const financialAccess = profile?.financial_access === true;
+  const staffName = profile?.staff_name || "";
 
   return {
     role,
     financialAccess,
+    staffName,
 
     canViewCases: canViewCases(role),
     canViewDashboard: canViewDashboard(role),
     canViewAlerts: canViewAlerts(role),
     canViewHistory: canViewHistory(role),
     canViewFees: canViewFees(role, financialAccess),
+
+    canViewTimeOverview: canViewTimeOverview(role),
+    canViewOwnTimeDetail: canViewOwnTimeDetail(role),
+    canViewTeamTimeDetail: canViewTeamTimeDetail(role),
 
     canViewTeamWorkload: canViewTeamWorkload(role),
     canViewDailyStaffWorkload: canViewDailyStaffWorkload(role),

@@ -29,6 +29,7 @@ type Tone =
 type UserProfile = {
   role?: UserRole | string | null;
   financial_access?: boolean | null;
+  staff_name?: string | null;
 };
 
 type CaseItem = {
@@ -192,17 +193,29 @@ export default function DashboardPage() {
   const [profile, setProfile] = useState<UserProfile>({
     role: "",
     financial_access: false,
+    staff_name: "",
   });
 
   const permissions: UserPermissions = useMemo(() => {
     return buildPermissions(profile);
   }, [profile]);
 
+  const currentStaffName = (profile.staff_name || "").trim();
+
+  const canSeeTimeOverview = permissions.canViewTimeOverview;
+  const canSeeOwnTimeDetail = permissions.canViewOwnTimeDetail;
+  const canSeeTeamTimeDetail = permissions.canViewTeamTimeDetail;
   const canSeeTeamWorkload = permissions.canViewTeamWorkload;
   const canSeeDailyStaffWorkload = permissions.canViewDailyStaffWorkload;
   const canSeeCaseCost = permissions.canViewCaseCost;
+
   const canSeeAnyWorkloadData =
-    canSeeTeamWorkload || canSeeDailyStaffWorkload || canSeeCaseCost;
+    canSeeTimeOverview ||
+    canSeeOwnTimeDetail ||
+    canSeeTeamTimeDetail ||
+    canSeeTeamWorkload ||
+    canSeeDailyStaffWorkload ||
+    canSeeCaseCost;
 
   const [cases, setCases] = useState<EnrichedCase[]>([]);
   const [alertItems, setAlertItems] = useState<AlertCandidate[]>([]);
@@ -222,6 +235,7 @@ export default function DashboardPage() {
   const [timeRange, setTimeRange] = useState<TimeRange>("selectedMonth");
   const [selectedMonth, setSelectedMonth] = useState("2026-06");
   const [selectedDailyDate, setSelectedDailyDate] = useState(getTodayDateString());
+  const [selectedOwnDailyDate, setSelectedOwnDailyDate] = useState(getTodayDateString());
 
   useEffect(() => {
     const updateSize = () => {
@@ -246,13 +260,14 @@ export default function DashboardPage() {
           setProfile({
             role: "",
             financial_access: false,
+            staff_name: "",
           });
           return;
         }
 
         const { data, error } = await supabase
           .from("user_profiles")
-          .select("role, financial_access")
+          .select("role, financial_access, staff_name")
           .eq("id", userData.user.id)
           .single();
 
@@ -260,6 +275,7 @@ export default function DashboardPage() {
           setProfile({
             role: "",
             financial_access: false,
+            staff_name: "",
           });
           return;
         }
@@ -267,6 +283,7 @@ export default function DashboardPage() {
         setProfile({
           role: data.role || "",
           financial_access: data.financial_access === true,
+          staff_name: data.staff_name || "",
         });
       } finally {
         setLoadingProfile(false);
@@ -473,6 +490,7 @@ export default function DashboardPage() {
     setTimeRange("selectedMonth");
     setSelectedMonth("2026-06");
     setSelectedDailyDate(getTodayDateString());
+    setSelectedOwnDailyDate(getTodayDateString());
   };
 
   const filteredCases = useMemo(() => {
@@ -558,6 +576,15 @@ export default function DashboardPage() {
     );
   }, [filteredTimeLogsAllTime, timeRange, selectedMonth]);
 
+  const ownTimeLogsByPeriod = useMemo(() => {
+    if (!canSeeOwnTimeDetail) return [];
+    if (!currentStaffName) return [];
+
+    return filteredTimeLogsByPeriod.filter(
+      (item) => (item.staff_name || "").trim() === currentStaffName
+    );
+  }, [filteredTimeLogsByPeriod, canSeeOwnTimeDetail, currentStaffName]);
+
   const dailyDateOptions = useMemo(() => {
     const values = filteredTimeLogsByPeriod
       .map((item) => item.work_date)
@@ -565,6 +592,14 @@ export default function DashboardPage() {
 
     return Array.from(new Set(values)).sort((a, b) => b.localeCompare(a));
   }, [filteredTimeLogsByPeriod]);
+
+  const ownDailyDateOptions = useMemo(() => {
+    const values = ownTimeLogsByPeriod
+      .map((item) => item.work_date)
+      .filter((value): value is string => !!value && value.trim() !== "");
+
+    return Array.from(new Set(values)).sort((a, b) => b.localeCompare(a));
+  }, [ownTimeLogsByPeriod]);
 
   useEffect(() => {
     if (dailyDateOptions.length === 0) return;
@@ -574,14 +609,22 @@ export default function DashboardPage() {
     }
   }, [dailyDateOptions, selectedDailyDate]);
 
+  useEffect(() => {
+    if (ownDailyDateOptions.length === 0) return;
+
+    if (!ownDailyDateOptions.includes(selectedOwnDailyDate)) {
+      setSelectedOwnDailyDate(ownDailyDateOptions[0]);
+    }
+  }, [ownDailyDateOptions, selectedOwnDailyDate]);
+
   const totalLoggedMinutes = useMemo(() => {
-    if (!canSeeTeamWorkload) return 0;
+    if (!canSeeTimeOverview) return 0;
 
     return filteredTimeLogsByPeriod.reduce(
       (sum, item) => sum + safeMinutes(item.minutes),
       0
     );
-  }, [filteredTimeLogsByPeriod, canSeeTeamWorkload]);
+  }, [filteredTimeLogsByPeriod, canSeeTimeOverview]);
 
   const summary = useMemo(() => {
     const overdue = filteredCases.filter(
@@ -737,73 +780,30 @@ export default function DashboardPage() {
   }, [filteredTimeLogsAllTime, timeRange, selectedMonth]);
 
   const dailyStaffSummary = useMemo<DailyStaffTimeSummary[]>(() => {
-    const map = new Map<string, DailyStaffTimeSummary>();
-
-    filteredTimeLogsByPeriod
-      .filter((item) => item.work_date === selectedDailyDate)
-      .forEach((item) => {
-        const staff = item.staff_name || "-";
-        const minutes = safeMinutes(item.minutes);
-        const isCore = item.billable !== false;
-        const caseItem = caseMap.get(item.case_id);
-
-        const current = map.get(staff) || {
-          staff,
-          coreMinutes: 0,
-          supportMinutes: 0,
-          totalMinutes: 0,
-          details: [],
-        };
-
-        const detail: DailyStaffTimeDetail = {
-          id: item.id,
-          caseId: item.case_id,
-          fileNo: caseItem?.file_no || "-",
-          title: caseItem?.title || "-",
-          clientName: caseItem?.client_name || "-",
-          workText: renderWorkType(item.work_type, item.work_other),
-          coreMinutes: isCore ? minutes : 0,
-          supportMinutes: isCore ? 0 : minutes,
-          totalMinutes: minutes,
-        };
-
-        if (isCore) {
-          current.coreMinutes += minutes;
-        } else {
-          current.supportMinutes += minutes;
-        }
-
-        current.totalMinutes += minutes;
-        current.details.push(detail);
-
-        map.set(staff, current);
-      });
-
-    return Array.from(map.values())
-      .map((item) => ({
-        ...item,
-        details: item.details.sort((a, b) => b.totalMinutes - a.totalMinutes),
-      }))
-      .sort((a, b) => b.totalMinutes - a.totalMinutes);
+    return buildDailyStaffSummary({
+      logs: filteredTimeLogsByPeriod.filter(
+        (item) => item.work_date === selectedDailyDate
+      ),
+      caseMap,
+    });
   }, [filteredTimeLogsByPeriod, selectedDailyDate, caseMap]);
 
+  const ownDailyStaffSummary = useMemo<DailyStaffTimeSummary[]>(() => {
+    return buildDailyStaffSummary({
+      logs: ownTimeLogsByPeriod.filter(
+        (item) => item.work_date === selectedOwnDailyDate
+      ),
+      caseMap,
+    });
+  }, [ownTimeLogsByPeriod, selectedOwnDailyDate, caseMap]);
+
   const dailySummary = useMemo(() => {
-    const coreMinutes = dailyStaffSummary.reduce(
-      (sum, item) => sum + item.coreMinutes,
-      0
-    );
-
-    const supportMinutes = dailyStaffSummary.reduce(
-      (sum, item) => sum + item.supportMinutes,
-      0
-    );
-
-    return {
-      coreMinutes,
-      supportMinutes,
-      totalMinutes: coreMinutes + supportMinutes,
-    };
+    return buildDailyTotalSummary(dailyStaffSummary);
   }, [dailyStaffSummary]);
+
+  const ownDailySummary = useMemo(() => {
+    return buildDailyTotalSummary(ownDailyStaffSummary);
+  }, [ownDailyStaffSummary]);
 
   const topTimeConsumingCases = useMemo<CaseTimeSummary[]>(() => {
     const map = new Map<number, CaseTimeSummary>();
@@ -1125,7 +1125,7 @@ export default function DashboardPage() {
               tone="blue"
             />
 
-            {canSeeTeamWorkload && (
+            {canSeeTimeOverview && (
               <MetricCard
                 label="Total Logged Time"
                 subLabel={renderTimeRangeLabel(timeRange, selectedMonth)}
@@ -1183,7 +1183,7 @@ export default function DashboardPage() {
           />
         </section>
 
-        {canSeeTeamWorkload && (
+        {canSeeTimeOverview && (
           <section style={workloadStackSectionStyle}>
             <div style={sectionCardStyle}>
               <div style={workloadHeaderGridStyle}>
@@ -1210,18 +1210,62 @@ export default function DashboardPage() {
               <WorkloadOverview summary={workloadSummary} />
             </div>
 
-            <div style={sectionCardStyle}>
-              <SectionHeader
-                eyebrow="TEAM"
-                title="Staff Core / Support Split"
-                subtitle="อันดับภาระงานของแต่ละคน แยก Core Work และ Support Time ตามเดือนที่เลือก"
-              />
-              <StaffWorkloadChart items={staffTimeSummary} />
-            </div>
+            {canSeeTeamWorkload && (
+              <div style={sectionCardStyle}>
+                <SectionHeader
+                  eyebrow="TEAM"
+                  title="Staff Core / Support Split"
+                  subtitle="อันดับภาระงานของแต่ละคน แยก Core Work และ Support Time ตามเดือนที่เลือก"
+                />
+                <StaffWorkloadChart items={staffTimeSummary} />
+              </div>
+            )}
           </section>
         )}
 
         <section style={singleColumnSectionStyle}>
+          {canSeeOwnTimeDetail && !canSeeTeamTimeDetail && (
+           <div style={sectionCardStyle}>
+            <div style={dailyHeaderGridStyle}>
+             <SectionHeader
+               eyebrow="MY TIME DETAIL"
+               title="My Daily Case Work"
+                  subtitle="ดูว่าวันที่เลือก คุณบันทึกเวลาทำคดีอะไรบ้าง แยก Core Work / Support Time"
+                />
+
+                <SelectFilter
+                  label="Select Date"
+                  value={ownDailyDateOptions.length > 0 ? selectedOwnDailyDate : ""}
+                  onChange={setSelectedOwnDailyDate}
+                  disabled={!currentStaffName || ownDailyDateOptions.length === 0}
+                  options={
+                    ownDailyDateOptions.length > 0
+                      ? ownDailyDateOptions.map((item) => ({
+                          value: item,
+                          label: formatDisplayDate(item),
+                        }))
+                      : [{ value: "", label: "No date" }]
+                  }
+                />
+              </div>
+
+              {!currentStaffName ? (
+                <div style={emptyStyle}>
+                  ยังไม่ได้ตั้งค่า staff_name ใน user_profiles ของผู้ใช้นี้
+                  จึงยังไม่สามารถจับคู่กับ Time Log ของตัวเองได้
+                </div>
+              ) : (
+                <DailyStaffTimeCheck
+                  selectedDate={selectedOwnDailyDate}
+                  items={ownDailyStaffSummary}
+                  summary={ownDailySummary}
+                  isCompact={isCompact}
+                  detailMode="own"
+                />
+              )}
+            </div>
+          )}
+
           {canSeeTeamWorkload && (
             <div style={sectionCardStyle}>
               <SectionHeader
@@ -1270,6 +1314,7 @@ export default function DashboardPage() {
                 items={dailyStaffSummary}
                 summary={dailySummary}
                 isCompact={isCompact}
+                detailMode="team"
               />
             </div>
           )}
@@ -1793,6 +1838,7 @@ function DailyStaffTimeCheck({
   items,
   summary,
   isCompact,
+  detailMode,
 }: {
   selectedDate: string;
   items: DailyStaffTimeSummary[];
@@ -1802,6 +1848,7 @@ function DailyStaffTimeCheck({
     totalMinutes: number;
   };
   isCompact: boolean;
+  detailMode: "own" | "team";
 }) {
   if (!selectedDate || items.length === 0) {
     return <div style={emptyStyle}>No time logs found for selected date.</div>;
@@ -1833,9 +1880,9 @@ function DailyStaffTimeCheck({
       </div>
 
       {isCompact ? (
-        <DailyStaffTimeCardList items={items} />
+        <DailyStaffTimeCardList items={items} detailMode={detailMode} />
       ) : (
-        <DailyStaffTimeTable items={items} />
+        <DailyStaffTimeTable items={items} detailMode={detailMode} />
       )}
     </div>
   );
@@ -1860,15 +1907,17 @@ function DailySummaryCard({
 
 function DailyStaffTimeTable({
   items,
+  detailMode,
 }: {
   items: DailyStaffTimeSummary[];
+  detailMode: "own" | "team";
 }) {
   return (
     <div style={{ overflowX: "auto" }}>
       <table style={tableStyle}>
         <thead>
           <tr>
-            <th style={thStyle}>Staff</th>
+            {detailMode === "team" && <th style={thStyle}>Staff</th>}
             <th style={thStyle}>Core Work</th>
             <th style={thStyle}>Support Time</th>
             <th style={thStyle}>Total</th>
@@ -1880,7 +1929,9 @@ function DailyStaffTimeTable({
         <tbody>
           {items.map((item) => (
             <tr key={item.staff} style={rowStyle}>
-              <td style={tdStrongStyle}>{item.staff}</td>
+              {detailMode === "team" && (
+                <td style={tdStrongStyle}>{item.staff}</td>
+              )}
               <td style={tdStyle}>{formatDuration(item.coreMinutes)}</td>
               <td style={tdStyle}>{formatDuration(item.supportMinutes)}</td>
               <td style={tdStrongStyle}>{formatDuration(item.totalMinutes)}</td>
@@ -1900,14 +1951,18 @@ function DailyStaffTimeTable({
 
 function DailyStaffTimeCardList({
   items,
+  detailMode,
 }: {
   items: DailyStaffTimeSummary[];
+  detailMode: "own" | "team";
 }) {
   return (
     <div style={cardListStyle}>
       {items.map((item) => (
         <div key={item.staff} style={mobileCardStyle}>
-          <div style={mobileTitleStyle}>{item.staff}</div>
+          {detailMode === "team" && (
+            <div style={mobileTitleStyle}>{item.staff}</div>
+          )}
           <InfoLine label="Core Work" value={formatDuration(item.coreMinutes)} />
           <InfoLine
             label="Support Time"
@@ -1938,7 +1993,10 @@ function DailyCaseDetailList({
       {details.map((detail) => (
         <div key={detail.id} style={dailyDetailItemStyle}>
           <div style={dailyDetailTopStyle}>
-            <Link href={`/cases/${detail.caseId}#timelogs`} style={miniOpenLinkStyle}>
+            <Link
+              href={`/cases/${detail.caseId}#timelogs`}
+              style={miniOpenLinkStyle}
+            >
               {detail.fileNo} · {detail.title}
             </Link>
             <span style={dailyDetailTotalStyle}>
@@ -2043,7 +2101,10 @@ function TopTimeConsumingCaseList({ items }: { items: CaseTimeSummary[] }) {
             <div style={timeCaseFooterStyle}>
               <span>Core {formatDuration(item.coreMinutes)}</span>
               <span>Support {formatDuration(item.supportMinutes)}</span>
-              <Link href={`/cases/${item.caseId}#timelogs`} style={miniOpenLinkStyle}>
+              <Link
+                href={`/cases/${item.caseId}#timelogs`}
+                style={miniOpenLinkStyle}
+              >
                 Open
               </Link>
             </div>
@@ -2212,6 +2273,79 @@ function buildAlertMapFromCandidates(candidates: AlertCandidate[]) {
   });
 
   return map;
+}
+
+/* =========================================================
+   DAILY TIME HELPERS
+========================================================= */
+
+function buildDailyStaffSummary({
+  logs,
+  caseMap,
+}: {
+  logs: CaseTimeLog[];
+  caseMap: Map<number, EnrichedCase>;
+}) {
+  const map = new Map<string, DailyStaffTimeSummary>();
+
+  logs.forEach((item) => {
+    const staff = item.staff_name || "-";
+    const minutes = safeMinutes(item.minutes);
+    const isCore = item.billable !== false;
+    const caseItem = caseMap.get(item.case_id);
+
+    const current = map.get(staff) || {
+      staff,
+      coreMinutes: 0,
+      supportMinutes: 0,
+      totalMinutes: 0,
+      details: [],
+    };
+
+    const detail: DailyStaffTimeDetail = {
+      id: item.id,
+      caseId: item.case_id,
+      fileNo: caseItem?.file_no || "-",
+      title: caseItem?.title || "-",
+      clientName: caseItem?.client_name || "-",
+      workText: renderWorkType(item.work_type, item.work_other),
+      coreMinutes: isCore ? minutes : 0,
+      supportMinutes: isCore ? 0 : minutes,
+      totalMinutes: minutes,
+    };
+
+    if (isCore) {
+      current.coreMinutes += minutes;
+    } else {
+      current.supportMinutes += minutes;
+    }
+
+    current.totalMinutes += minutes;
+    current.details.push(detail);
+
+    map.set(staff, current);
+  });
+
+  return Array.from(map.values())
+    .map((item) => ({
+      ...item,
+      details: item.details.sort((a, b) => b.totalMinutes - a.totalMinutes),
+    }))
+    .sort((a, b) => b.totalMinutes - a.totalMinutes);
+}
+
+function buildDailyTotalSummary(items: DailyStaffTimeSummary[]) {
+  const coreMinutes = items.reduce((sum, item) => sum + item.coreMinutes, 0);
+  const supportMinutes = items.reduce(
+    (sum, item) => sum + item.supportMinutes,
+    0
+  );
+
+  return {
+    coreMinutes,
+    supportMinutes,
+    totalMinutes: coreMinutes + supportMinutes,
+  };
 }
 
 /* =========================================================
