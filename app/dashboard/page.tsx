@@ -1000,7 +1000,7 @@ export default function DashboardPage() {
         </section>
 
         <section style={miniGridStyle}>
-          <ChartSummaryCard
+          <DistributionCard
             title="Case Status"
             rows={[
               { label: "Active", value: summary.active },
@@ -1009,12 +1009,12 @@ export default function DashboardPage() {
             ]}
           />
 
-          <ChartSummaryCard
+          <DistributionCard
             title="Phase Distribution"
             rows={phaseSummary.map(([label, value]) => ({ label, value }))}
           />
 
-          <ChartSummaryCard
+          <DistributionCard
             title="Owner Distribution"
             rows={ownerSummary.map(([label, value]) => ({ label, value }))}
           />
@@ -1034,7 +1034,7 @@ export default function DashboardPage() {
             <SectionHeader
               eyebrow="TEAM"
               title="Staff Core / Support Split"
-              subtitle="เปรียบเทียบเวลาหลักและเวลาสนับสนุนของแต่ละคน"
+              subtitle="อันดับภาระงานของแต่ละคน แยก Core Work และ Support Time"
             />
             <StaffWorkloadChart items={staffTimeSummary} />
           </div>
@@ -1276,37 +1276,54 @@ function MetricCard({
   );
 }
 
-function ChartSummaryCard({
+function DistributionCard({
   title,
   rows,
 }: {
   title: string;
   rows: { label: string; value: number }[];
 }) {
+  const total = rows.reduce((sum, row) => sum + row.value, 0);
   const max = Math.max(1, ...rows.map((row) => row.value));
 
   return (
-    <div style={miniCardStyle}>
-      <div style={miniTitleStyle}>{title}</div>
+    <div style={distributionCardStyle}>
+      <div style={distributionTitleWrapStyle}>
+        <div style={distributionTitleStyle}>{title}</div>
+        <div style={distributionTotalStyle}>{total} total</div>
+      </div>
 
       {rows.length === 0 ? (
         <div style={emptyMiniStyle}>No data</div>
       ) : (
         rows.map((row, index) => {
           const width = Math.max(3, Math.round((row.value / max) * 100));
+          const percent = total > 0 ? Math.round((row.value / total) * 100) : 0;
           const tone = getToneByIndex(index);
 
           return (
-            <div key={row.label} style={chartRowStyle}>
-              <div style={chartRowTopStyle}>
-                <span>{row.label}</span>
-                <strong>{row.value}</strong>
+            <div key={row.label} style={distributionRowStyle}>
+              <div style={distributionRowTopStyle}>
+                <div style={distributionNameWrapStyle}>
+                  <span
+                    style={{
+                      ...distributionDotStyle,
+                      ...getBarToneStyle(tone),
+                    }}
+                  />
+                  <span>{row.label}</span>
+                </div>
+
+                <div style={distributionValueStyle}>
+                  <strong>{row.value}</strong>
+                  <span>{percent}%</span>
+                </div>
               </div>
 
-              <div style={barTrackStyle}>
+              <div style={distributionTrackStyle}>
                 <div
                   style={{
-                    ...barFillStyle,
+                    ...distributionFillStyle,
                     ...getBarToneStyle(tone),
                     width: `${width}%`,
                   }}
@@ -1335,46 +1352,48 @@ function WorkloadOverview({
     return <div style={emptyStyle}>No time logs found.</div>;
   }
 
+  const donutStyle: CSSProperties = {
+    ...donutRingStyle,
+    background: `conic-gradient(#175cd3 0 ${summary.corePercent}%, #7e22ce ${summary.corePercent}% 100%)`,
+  };
+
   return (
-    <div>
-      <div style={workloadBigNumberStyle}>
-        {formatDuration(summary.totalMinutes)}
-      </div>
-
-      <div style={workloadCaptionStyle}>Total Logged Time</div>
-
-      <div style={stackedBarStyle}>
-        <div
-          style={{
-            ...stackedCoreStyle,
-            width: `${summary.corePercent}%`,
-          }}
-        />
-        <div
-          style={{
-            ...stackedSupportStyle,
-            width: `${summary.supportPercent}%`,
-          }}
-        />
-      </div>
-
-      <div style={workloadLegendGridStyle}>
-        <div style={workloadLegendCardStyle}>
-          <div style={legendTopStyle}>
-            <span style={{ ...legendDotStyle, background: "#175cd3" }} />
-            <span>Core Work</span>
+    <div style={workloadDashboardStyle}>
+      <div style={donutWrapStyle}>
+        <div style={donutStyle}>
+          <div style={donutCenterStyle}>
+            <div style={donutNumberStyle}>
+              {formatDuration(summary.totalMinutes)}
+            </div>
+            <div style={donutLabelStyle}>Total</div>
           </div>
-          <strong>{formatDuration(summary.coreMinutes)}</strong>
-          <div style={legendPercentStyle}>{summary.corePercent}%</div>
+        </div>
+      </div>
+
+      <div style={workloadSideStyle}>
+        <div style={workloadHeadlineStyle}>Workload Composition</div>
+        <div style={workloadCaptionStyle}>
+          แยกเวลาทำงานหลักกับเวลาสนับสนุนในช่วงเวลาที่เลือก
         </div>
 
-        <div style={workloadLegendCardStyle}>
-          <div style={legendTopStyle}>
-            <span style={{ ...legendDotStyle, background: "#7e22ce" }} />
-            <span>Support Time</span>
+        <div style={workloadLegendGridStyle}>
+          <div style={workloadLegendCardStyle}>
+            <div style={legendTopStyle}>
+              <span style={{ ...legendDotStyle, background: "#175cd3" }} />
+              <span>Core Work</span>
+            </div>
+            <strong>{formatDuration(summary.coreMinutes)}</strong>
+            <div style={legendPercentStyle}>{summary.corePercent}%</div>
           </div>
-          <strong>{formatDuration(summary.supportMinutes)}</strong>
-          <div style={legendPercentStyle}>{summary.supportPercent}%</div>
+
+          <div style={workloadLegendCardStyle}>
+            <div style={legendTopStyle}>
+              <span style={{ ...legendDotStyle, background: "#7e22ce" }} />
+              <span>Support Time</span>
+            </div>
+            <strong>{formatDuration(summary.supportMinutes)}</strong>
+            <div style={legendPercentStyle}>{summary.supportPercent}%</div>
+          </div>
         </div>
       </div>
     </div>
@@ -1386,11 +1405,9 @@ function StaffWorkloadChart({ items }: { items: StaffTimeSummary[] }) {
     return <div style={emptyStyle}>No time logs found.</div>;
   }
 
-  const maxMinutes = Math.max(1, ...items.map((item) => item.periodMinutes));
-
   return (
-    <div style={staffChartListStyle}>
-      {items.map((item) => {
+    <div style={staffRankGridStyle}>
+      {items.map((item, index) => {
         const targetMinutes = item.periodMinutes;
 
         const corePercent =
@@ -1403,43 +1420,42 @@ function StaffWorkloadChart({ items }: { items: StaffTimeSummary[] }) {
             ? Math.round((item.supportMinutes / targetMinutes) * 100)
             : 0;
 
-        const totalWidth = Math.max(
-          4,
-          Math.round((targetMinutes / maxMinutes) * 100)
-        );
-
         return (
-          <div key={item.staff} style={staffChartRowStyle}>
-            <div style={staffChartHeaderStyle}>
-              <strong>{item.staff}</strong>
-              <span>{formatDuration(targetMinutes)}</span>
-            </div>
+          <div key={item.staff} style={staffRankCardStyle}>
+            <div style={staffRankHeaderStyle}>
+              <div style={staffRankBadgeStyle}>#{index + 1}</div>
 
-            <div style={staffOuterBarStyle}>
-              <div
-                style={{
-                  ...staffInnerBarStyle,
-                  width: `${totalWidth}%`,
-                }}
-              >
-                <div
-                  style={{
-                    ...staffCorePartStyle,
-                    width: `${corePercent}%`,
-                  }}
-                />
-                <div
-                  style={{
-                    ...staffSupportPartStyle,
-                    width: `${supportPercent}%`,
-                  }}
-                />
+              <div style={staffRankMainStyle}>
+                <div style={staffRankNameStyle}>{item.staff}</div>
+                <div style={staffRankMetaStyle}>
+                  Core {formatDuration(item.coreMinutes)} · Support{" "}
+                  {formatDuration(item.supportMinutes)}
+                </div>
+              </div>
+
+              <div style={staffRankTotalStyle}>
+                {formatDuration(targetMinutes)}
               </div>
             </div>
 
-            <div style={staffChartMetaStyle}>
-              Core {formatDuration(item.coreMinutes)} · Support{" "}
-              {formatDuration(item.supportMinutes)}
+            <div style={staffSegmentTrackStyle}>
+              <div
+                style={{
+                  ...staffSegmentCoreStyle,
+                  width: `${corePercent}%`,
+                }}
+              />
+              <div
+                style={{
+                  ...staffSegmentSupportStyle,
+                  width: `${supportPercent}%`,
+                }}
+              />
+            </div>
+
+            <div style={staffRankFooterStyle}>
+              <span>Core {corePercent}%</span>
+              <span>Support {supportPercent}%</span>
             </div>
           </div>
         );
@@ -1508,16 +1524,16 @@ function SelectedMonthWorkload({ item }: { item: MonthlyTimeSummary }) {
         <div style={emptyStyle}>เดือนนี้ยังไม่มี Time Log</div>
       ) : (
         <>
-          <div style={stackedBarStyle}>
+          <div style={monthWorkloadVisualStyle}>
             <div
               style={{
-                ...stackedCoreStyle,
+                ...monthCorePillStyle,
                 width: `${corePercent}%`,
               }}
             />
             <div
               style={{
-                ...stackedSupportStyle,
+                ...monthSupportPillStyle,
                 width: `${supportPercent}%`,
               }}
             />
@@ -1657,13 +1673,13 @@ function TopTimeConsumingCaseList({ items }: { items: CaseTimeSummary[] }) {
               >
                 <div
                   style={{
-                    ...staffCorePartStyle,
+                    ...timeCaseCorePartStyle,
                     width: `${corePercent}%`,
                   }}
                 />
                 <div
                   style={{
-                    ...staffSupportPartStyle,
+                    ...timeCaseSupportPartStyle,
                     width: `${supportPercent}%`,
                   }}
                 />
@@ -1923,7 +1939,9 @@ function CompactAllClearBox({ text }: { text: string }) {
       <div style={compactAllClearIconStyle}>✓</div>
       <div>
         <div style={compactAllClearTitleStyle}>{text}</div>
-        <div style={compactAllClearSubStyle}>ไม่มีรายการที่ต้องดำเนินการในขณะนี้</div>
+        <div style={compactAllClearSubStyle}>
+          ไม่มีรายการที่ต้องดำเนินการในขณะนี้
+        </div>
       </div>
     </div>
   );
@@ -2570,44 +2588,80 @@ const miniGridStyle: CSSProperties = {
   marginBottom: 18,
 };
 
-const miniCardStyle: CSSProperties = {
+const distributionCardStyle: CSSProperties = {
   border: "1px solid #eeeeee",
-  borderRadius: 16,
-  padding: 16,
-  background: "#ffffff",
-  boxShadow: "0 3px 16px rgba(15, 23, 42, 0.04)",
+  borderRadius: 18,
+  padding: 18,
+  background: "linear-gradient(135deg, #ffffff 0%, #fbfcff 100%)",
+  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.045)",
 };
 
-const miniTitleStyle: CSSProperties = {
-  fontSize: 15,
-  fontWeight: 900,
-  marginBottom: 12,
-  color: "#111111",
-};
-
-const chartRowStyle: CSSProperties = {
-  padding: "8px 0",
-  borderTop: "1px solid #f0f0f0",
-};
-
-const chartRowTopStyle: CSSProperties = {
+const distributionTitleWrapStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   gap: 12,
-  marginBottom: 7,
-  color: "#333333",
-  fontWeight: 800,
+  alignItems: "center",
+  marginBottom: 14,
 };
 
-const barTrackStyle: CSSProperties = {
-  width: "100%",
-  height: 7,
+const distributionTitleStyle: CSSProperties = {
+  fontSize: 16,
+  fontWeight: 950,
+  color: "#111111",
+};
+
+const distributionTotalStyle: CSSProperties = {
+  fontSize: 12,
+  fontWeight: 900,
+  color: "#64748b",
+};
+
+const distributionRowStyle: CSSProperties = {
+  padding: "10px 0",
+  borderTop: "1px solid #f1f5f9",
+};
+
+const distributionRowTopStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  alignItems: "center",
+  marginBottom: 8,
+};
+
+const distributionNameWrapStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  fontWeight: 900,
+  color: "#222222",
+};
+
+const distributionDotStyle: CSSProperties = {
+  width: 10,
+  height: 10,
   borderRadius: 999,
-  background: "#f1f5f9",
+  display: "inline-block",
+};
+
+const distributionValueStyle: CSSProperties = {
+  display: "flex",
+  gap: 8,
+  alignItems: "center",
+  color: "#334155",
+  fontSize: 13,
+  fontWeight: 900,
+};
+
+const distributionTrackStyle: CSSProperties = {
+  width: "100%",
+  height: 9,
+  borderRadius: 999,
+  background: "#eef2f7",
   overflow: "hidden",
 };
 
-const barFillStyle: CSSProperties = {
+const distributionFillStyle: CSSProperties = {
   height: "100%",
   borderRadius: 999,
 };
@@ -2633,11 +2687,11 @@ const riskSectionGridStyle: CSSProperties = {
 
 const sectionCardStyle: CSSProperties = {
   border: "1px solid #eeeeee",
-  borderRadius: 16,
-  padding: 16,
+  borderRadius: 18,
+  padding: 18,
   background: "#ffffff",
   marginBottom: 18,
-  boxShadow: "0 3px 16px rgba(15, 23, 42, 0.04)",
+  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.045)",
 };
 
 const sectionHeaderStyle: CSSProperties = {
@@ -2646,7 +2700,7 @@ const sectionHeaderStyle: CSSProperties = {
   gap: 12,
   alignItems: "flex-start",
   flexWrap: "wrap",
-  marginBottom: 12,
+  marginBottom: 14,
 };
 
 const sectionEyebrowStyle: CSSProperties = {
@@ -2905,11 +2959,65 @@ const noAccessSubTextStyle: CSSProperties = {
   fontWeight: 700,
 };
 
-const workloadBigNumberStyle: CSSProperties = {
-  fontSize: 34,
+const workloadDashboardStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "220px 1fr",
+  gap: 18,
+  alignItems: "center",
+};
+
+const donutWrapStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+};
+
+const donutRingStyle: CSSProperties = {
+  width: 190,
+  height: 190,
+  borderRadius: "50%",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  boxShadow: "inset 0 0 0 1px rgba(15, 23, 42, 0.06)",
+};
+
+const donutCenterStyle: CSSProperties = {
+  width: 126,
+  height: 126,
+  borderRadius: "50%",
+  background: "#ffffff",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexDirection: "column",
+  boxShadow: "0 10px 28px rgba(15, 23, 42, 0.10)",
+  textAlign: "center",
+  padding: 10,
+};
+
+const donutNumberStyle: CSSProperties = {
+  fontSize: 22,
   fontWeight: 950,
   color: "#111111",
-  lineHeight: 1.1,
+  lineHeight: 1.2,
+};
+
+const donutLabelStyle: CSSProperties = {
+  marginTop: 4,
+  color: "#64748b",
+  fontSize: 12,
+  fontWeight: 900,
+};
+
+const workloadSideStyle: CSSProperties = {
+  minWidth: 0,
+};
+
+const workloadHeadlineStyle: CSSProperties = {
+  fontSize: 18,
+  fontWeight: 950,
+  color: "#111111",
 };
 
 const workloadCaptionStyle: CSSProperties = {
@@ -2918,26 +3026,6 @@ const workloadCaptionStyle: CSSProperties = {
   color: "#666666",
   fontWeight: 800,
   fontSize: 13,
-};
-
-const stackedBarStyle: CSSProperties = {
-  display: "flex",
-  width: "100%",
-  height: 18,
-  borderRadius: 999,
-  overflow: "hidden",
-  background: "#f1f5f9",
-  marginBottom: 14,
-};
-
-const stackedCoreStyle: CSSProperties = {
-  height: "100%",
-  background: "#175cd3",
-};
-
-const stackedSupportStyle: CSSProperties = {
-  height: "100%",
-  background: "#7e22ce",
 };
 
 const workloadLegendGridStyle: CSSProperties = {
@@ -2976,53 +3064,90 @@ const legendPercentStyle: CSSProperties = {
   fontWeight: 800,
 };
 
-const staffChartListStyle: CSSProperties = {
+const staffRankGridStyle: CSSProperties = {
   display: "grid",
-  gap: 14,
-};
-
-const staffChartRowStyle: CSSProperties = {
-  display: "grid",
-  gap: 6,
-};
-
-const staffChartHeaderStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
   gap: 12,
-  color: "#222222",
-  fontSize: 14,
 };
 
-const staffOuterBarStyle: CSSProperties = {
-  width: "100%",
-  height: 16,
-  borderRadius: 999,
-  background: "#f1f5f9",
-  overflow: "hidden",
+const staffRankCardStyle: CSSProperties = {
+  border: "1px solid #eeeeee",
+  borderRadius: 16,
+  padding: 14,
+  background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
 };
 
-const staffInnerBarStyle: CSSProperties = {
-  height: "100%",
+const staffRankHeaderStyle: CSSProperties = {
   display: "flex",
+  alignItems: "flex-start",
+  gap: 12,
+  marginBottom: 12,
+};
+
+const staffRankBadgeStyle: CSSProperties = {
+  width: 34,
+  height: 34,
+  borderRadius: 12,
+  background: "#0f2743",
+  color: "#ffffff",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontWeight: 950,
+  flex: "0 0 auto",
+};
+
+const staffRankMainStyle: CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+};
+
+const staffRankNameStyle: CSSProperties = {
+  fontSize: 15,
+  fontWeight: 950,
+  color: "#111111",
+};
+
+const staffRankMetaStyle: CSSProperties = {
+  marginTop: 3,
+  fontSize: 12,
+  color: "#666666",
+  fontWeight: 800,
+};
+
+const staffRankTotalStyle: CSSProperties = {
+  fontWeight: 950,
+  color: "#111111",
+  whiteSpace: "nowrap",
+};
+
+const staffSegmentTrackStyle: CSSProperties = {
+  display: "flex",
+  width: "100%",
+  height: 18,
   borderRadius: 999,
+  background: "#eef2f7",
   overflow: "hidden",
 };
 
-const staffCorePartStyle: CSSProperties = {
+const staffSegmentCoreStyle: CSSProperties = {
   height: "100%",
   background: "#175cd3",
 };
 
-const staffSupportPartStyle: CSSProperties = {
+const staffSegmentSupportStyle: CSSProperties = {
   height: "100%",
   background: "#7e22ce",
 };
 
-const staffChartMetaStyle: CSSProperties = {
+const staffRankFooterStyle: CSSProperties = {
+  marginTop: 8,
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 10,
+  flexWrap: "wrap",
+  color: "#64748b",
   fontSize: 12,
-  color: "#666666",
-  fontWeight: 700,
+  fontWeight: 900,
 };
 
 const monthSelectorWrapStyle: CSSProperties = {
@@ -3084,6 +3209,26 @@ const selectedMonthTotalStyle: CSSProperties = {
   color: "#111111",
 };
 
+const monthWorkloadVisualStyle: CSSProperties = {
+  display: "flex",
+  width: "100%",
+  height: 22,
+  borderRadius: 999,
+  overflow: "hidden",
+  background: "#eef2f7",
+  marginBottom: 14,
+};
+
+const monthCorePillStyle: CSSProperties = {
+  height: "100%",
+  background: "#175cd3",
+};
+
+const monthSupportPillStyle: CSSProperties = {
+  height: "100%",
+  background: "#7e22ce",
+};
+
 const timeCaseListStyle: CSSProperties = {
   display: "grid",
   gap: 12,
@@ -3091,9 +3236,9 @@ const timeCaseListStyle: CSSProperties = {
 
 const timeCaseItemStyle: CSSProperties = {
   border: "1px solid #eeeeee",
-  borderRadius: 14,
-  padding: 12,
-  background: "#fafafa",
+  borderRadius: 16,
+  padding: 14,
+  background: "linear-gradient(135deg, #ffffff 0%, #fafafa 100%)",
 };
 
 const timeCaseHeaderStyle: CSSProperties = {
@@ -3105,10 +3250,14 @@ const timeCaseHeaderStyle: CSSProperties = {
 };
 
 const timeCaseRankStyle: CSSProperties = {
+  display: "inline-flex",
+  padding: "3px 8px",
+  borderRadius: 999,
+  background: "#edf4ff",
+  color: "#175cd3",
   fontSize: 12,
-  color: "#666666",
-  fontWeight: 900,
-  marginBottom: 2,
+  fontWeight: 950,
+  marginBottom: 6,
 };
 
 const timeCaseTitleStyle: CSSProperties = {
@@ -3132,8 +3281,8 @@ const timeCaseTotalStyle: CSSProperties = {
 
 const timeCaseBarTrackStyle: CSSProperties = {
   width: "100%",
-  height: 14,
-  background: "#f1f5f9",
+  height: 16,
+  background: "#eef2f7",
   borderRadius: 999,
   overflow: "hidden",
 };
@@ -3143,6 +3292,16 @@ const timeCaseBarOuterStyle: CSSProperties = {
   display: "flex",
   borderRadius: 999,
   overflow: "hidden",
+};
+
+const timeCaseCorePartStyle: CSSProperties = {
+  height: "100%",
+  background: "#175cd3",
+};
+
+const timeCaseSupportPartStyle: CSSProperties = {
+  height: "100%",
+  background: "#7e22ce",
 };
 
 const timeCaseFooterStyle: CSSProperties = {
