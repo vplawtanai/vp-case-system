@@ -445,12 +445,12 @@ export default function DashboardPage() {
   }, [cases]);
 
   const monthOptions = useMemo(() => {
-    return getMonthKeysFromJune2026();
-  }, []);
+  return getMonthKeysFromMay2026();
+}, []);
 
   const trendMonthOptions = useMemo(() => {
-    return getMonthKeysFromJune2026();
-  }, []);
+  return getMonthKeysFromMay2026();
+}, []);
 
   const clearFilters = () => {
     setSearchText("");
@@ -2047,9 +2047,9 @@ function getTodayDateString() {
   return `${year}-${month}-${day}`;
 }
 
-function getMonthKeysFromJune2026() {
+function getMonthKeysFromMay2026() {
   const result: string[] = [];
-  const start = new Date(2026, 5, 1);
+  const start = new Date(2026, 4, 1);
   const end = new Date(2031, 4, 1);
 
   const current = new Date(start);
