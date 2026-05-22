@@ -1708,7 +1708,6 @@ function StaffTimeTable({ items }: { items: StaffTimeSummary[] }) {
             <th style={thStyle}>Staff</th>
             <th style={thStyle}>Today</th>
             <th style={thStyle}>This Week</th>
-            <th style={thStyle}>This Month</th>
             <th style={thStyle}>Selected Period</th>
             <th style={thStyle}>Core</th>
             <th style={thStyle}>Support</th>
@@ -1722,7 +1721,6 @@ function StaffTimeTable({ items }: { items: StaffTimeSummary[] }) {
               <td style={tdStyle}>{item.staff}</td>
               <td style={tdStyle}>{formatDuration(item.todayMinutes)}</td>
               <td style={tdStyle}>{formatDuration(item.weekMinutes)}</td>
-              <td style={tdStyle}>{formatDuration(item.monthMinutes)}</td>
               <td style={tdStyle}>
                 <strong>{formatDuration(item.periodMinutes)}</strong>
               </td>
@@ -1746,10 +1744,6 @@ function StaffTimeCardList({ items }: { items: StaffTimeSummary[] }) {
           <InfoLine label="Selected" value={formatDuration(item.periodMinutes)} />
           <InfoLine label="Today" value={formatDuration(item.todayMinutes)} />
           <InfoLine label="This Week" value={formatDuration(item.weekMinutes)} />
-          <InfoLine
-            label="This Month"
-            value={formatDuration(item.monthMinutes)}
-          />
           <InfoLine label="Core" value={formatDuration(item.coreMinutes)} />
           <InfoLine
             label="Support"
