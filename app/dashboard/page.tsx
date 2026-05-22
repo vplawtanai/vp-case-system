@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   collection,
@@ -14,12 +15,21 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { supabase } from "../../lib/supabase";
+import AuthGuard from "../components/AuthGuard";
 import AppTopNav from "../components/AppTopNav";
+import { buildPermissions } from "../../lib/permissions";
+import type { UserPermissions, UserRole } from "../../lib/permissions";
 
 type FirestoreTimestampLike = {
   seconds?: number;
   nanoseconds?: number;
   toDate?: () => Date;
+};
+
+type UserProfile = {
+  role?: UserRole | string | null;
+  financial_access?: boolean | null;
 };
 
 type CaseItem = {
@@ -102,6 +112,19 @@ type ActionRow = {
 };
 
 export default function DashboardPage() {
+  const router = useRouter();
+
+  const [profile, setProfile] = useState<UserProfile>({
+    role: "",
+    financial_access: false,
+  });
+
+  const [checkingPermission, setCheckingPermission] = useState(true);
+
+  const permissions: UserPermissions = useMemo(() => {
+    return buildPermissions(profile);
+  }, [profile]);
+
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [deadlines, setDeadlines] = useState<DeadlineItem[]>([]);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -111,6 +134,57 @@ export default function DashboardPage() {
   const [loadingSubData, setLoadingSubData] = useState(true);
 
   useEffect(() => {
+    const loadCurrentUserProfile = async () => {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+
+      if (userError || !userData.user) {
+        setProfile({
+          role: "",
+          financial_access: false,
+        });
+        setCheckingPermission(false);
+        router.replace("/login");
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("user_profiles")
+        .select("role, financial_access")
+        .eq("id", userData.user.id)
+        .single();
+
+      if (error || !data) {
+        setProfile({
+          role: "",
+          financial_access: false,
+        });
+        setCheckingPermission(false);
+        router.replace("/cases");
+        return;
+      }
+
+      const loadedProfile = {
+        role: data.role || "",
+        financial_access: data.financial_access === true,
+      };
+
+      const loadedPermissions = buildPermissions(loadedProfile);
+
+      setProfile(loadedProfile);
+      setCheckingPermission(false);
+
+      if (!loadedPermissions.canViewDashboard) {
+        router.replace("/cases");
+      }
+    };
+
+    loadCurrentUserProfile();
+  }, [router]);
+
+  useEffect(() => {
+    if (checkingPermission) return;
+    if (!permissions.canViewDashboard) return;
+
     const q = query(collection(db, "cases"), orderBy("updatedAt", "desc"));
 
     const unsub = onSnapshot(q, (snapshot) => {
@@ -123,9 +197,12 @@ export default function DashboardPage() {
     });
 
     return () => unsub();
-  }, []);
+  }, [checkingPermission, permissions.canViewDashboard]);
 
   useEffect(() => {
+    if (checkingPermission) return;
+    if (!permissions.canViewDashboard) return;
+
     const loadSubcollections = async () => {
       if (cases.length === 0) {
         setDeadlines([]);
@@ -203,7 +280,7 @@ export default function DashboardPage() {
     };
 
     loadSubcollections();
-  }, [cases]);
+  }, [cases, checkingPermission, permissions.canViewDashboard]);
 
   const casesMap = useMemo(() => {
     const map = new Map<string, CaseItem>();
@@ -530,6 +607,14 @@ export default function DashboardPage() {
     });
   };
 
+  const canRunAction = (row: ActionRow) => {
+    if (row.sourceType === "deadline") return permissions.canEditDeadlines;
+    if (row.sourceType === "task") return permissions.canEditTasks;
+    if (row.sourceType === "timeline") return permissions.canEditTimeline;
+    if (row.sourceType === "enforcement") return permissions.canEditEnforcement;
+    return false;
+  };
+
   const markDeadlineDone = async (row: ActionRow) => {
     if (!row.sourceId) return;
     setActingId(row.id);
@@ -601,6 +686,11 @@ export default function DashboardPage() {
   };
 
   const runAction = async (row: ActionRow) => {
+    if (!canRunAction(row)) {
+      alert("คุณไม่มีสิทธิ์ดำเนินการรายการนี้");
+      return;
+    }
+
     const confirmed = window.confirm("Confirm this action?");
     if (!confirmed) return;
 
@@ -965,213 +1055,295 @@ export default function DashboardPage() {
     return `/cases/${row.caseId}${row.hash}`;
   };
 
+  if (checkingPermission) {
+    return (
+      <AuthGuard>
+        <main style={{ padding: 24 }}>Checking permission...</main>
+      </AuthGuard>
+    );
+  }
+
+  if (!permissions.canViewDashboard) {
+    return (
+      <AuthGuard>
+        <main style={{ padding: 24 }}>Redirecting...</main>
+      </AuthGuard>
+    );
+  }
+
   if (loadingSubData) {
-    return <main style={{ padding: 24 }}>Loading dashboard...</main>;
+    return (
+      <AuthGuard>
+        <main style={{ padding: 24 }}>Loading dashboard...</main>
+      </AuthGuard>
+    );
   }
 
   return (
-    <main style={pageStyle}>
-      <AppTopNav
-        title="Dashboard"
-        subtitle="Executive overview across all cases"
-        activePage="dashboard"
-      />
-
-      <div style={searchWrapStyle}>
-        <input
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-          placeholder="Search file no, title, client, owner, alert text"
-          style={searchInputStyle}
+    <AuthGuard>
+      <main style={pageStyle}>
+        <AppTopNav
+          title="Dashboard"
+          subtitle="Executive overview across all cases"
+          activePage="dashboard"
         />
-      </div>
 
-      <div style={heroGridStyle}>
-        <div style={{ ...heroCardStyle, background: "#f8f9fa" }}>
-          <div style={heroNumberStyle}>{summary.total}</div>
-          <div>Total Cases</div>
+        <div style={searchWrapStyle}>
+          <input
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            placeholder="Search file no, title, client, owner, alert text"
+            style={searchInputStyle}
+          />
         </div>
 
-        <div style={{ ...heroCardStyle, background: "#ffe5e5" }}>
-          <div style={heroNumberStyle}>{summary.overdue}</div>
-          <div>Overdue</div>
-        </div>
-
-        <div style={{ ...heroCardStyle, background: "#fff3cd" }}>
-          <div style={heroNumberStyle}>{summary.today}</div>
-          <div>Today</div>
-        </div>
-
-        <div style={{ ...heroCardStyle, background: "#fff8e1" }}>
-          <div style={heroNumberStyle}>{summary.dueSoon}</div>
-          <div>Due Soon</div>
-        </div>
-
-        <div style={{ ...heroCardStyle, background: "#e0f2fe" }}>
-          <div style={heroNumberStyle}>{summary.enforcementReady}</div>
-          <div>Enforcement Ready</div>
-        </div>
-
-        <div style={{ ...heroCardStyle, background: "#e6f4ea" }}>
-          <div style={heroNumberStyle}>{summary.clear}</div>
-          <div>Clear</div>
-        </div>
-      </div>
-
-      <div style={miniGridStyle}>
-        <div style={miniCardStyle}>
-          <div style={miniTitleStyle}>Case Status</div>
-          <div style={miniRowStyle}>
-            <span>Active</span>
-            <strong>{summary.active}</strong>
+        <div style={heroGridStyle}>
+          <div style={{ ...heroCardStyle, background: "#f8f9fa" }}>
+            <div style={heroNumberStyle}>{summary.total}</div>
+            <div>Total Cases</div>
           </div>
-          <div style={miniRowStyle}>
-            <span>Waiting</span>
-            <strong>{summary.waiting}</strong>
+
+          <div style={{ ...heroCardStyle, background: "#ffe5e5" }}>
+            <div style={heroNumberStyle}>{summary.overdue}</div>
+            <div>Overdue</div>
           </div>
-          <div style={miniRowStyle}>
-            <span>Done</span>
-            <strong>{summary.done}</strong>
+
+          <div style={{ ...heroCardStyle, background: "#fff3cd" }}>
+            <div style={heroNumberStyle}>{summary.today}</div>
+            <div>Today</div>
+          </div>
+
+          <div style={{ ...heroCardStyle, background: "#fff8e1" }}>
+            <div style={heroNumberStyle}>{summary.dueSoon}</div>
+            <div>Due Soon</div>
+          </div>
+
+          <div style={{ ...heroCardStyle, background: "#e0f2fe" }}>
+            <div style={heroNumberStyle}>{summary.enforcementReady}</div>
+            <div>Enforcement Ready</div>
+          </div>
+
+          <div style={{ ...heroCardStyle, background: "#e6f4ea" }}>
+            <div style={heroNumberStyle}>{summary.clear}</div>
+            <div>Clear</div>
           </div>
         </div>
 
-        <div style={miniCardStyle}>
-          <div style={miniTitleStyle}>Phase Distribution</div>
-          {phaseSummary.length === 0 ? (
-            <div style={{ color: "#666" }}>No data</div>
-          ) : (
-            phaseSummary.map(([label, count]) => (
-              <div key={label} style={miniRowStyle}>
-                <span>{label}</span>
-                <strong>{count}</strong>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div style={miniCardStyle}>
-          <div style={miniTitleStyle}>Owner Distribution</div>
-          {ownerSummary.length === 0 ? (
-            <div style={{ color: "#666" }}>No data</div>
-          ) : (
-            ownerSummary.map(([label, count]) => (
-              <div key={label} style={miniRowStyle}>
-                <span>{label}</span>
-                <strong>{count}</strong>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      <div style={sectionGridStyle}>
-        <section style={sectionCardStyle}>
-          <div style={sectionHeaderStyle}>
-            <h3 style={{ margin: 0 }}>Top Risk Cases</h3>
-            <Link href="/alerts" style={sectionLinkStyle}>
-              View all alerts
-            </Link>
-          </div>
-
-          {topRiskRows.length === 0 ? (
-            <div style={{ color: "#666" }}>No risk cases</div>
-          ) : (
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <th style={thStyle}>File No</th>
-                  <th style={thStyle}>Client</th>
-                  <th style={thStyle}>Risk</th>
-                  <th style={thStyle}>Next Alert</th>
-                  <th style={thStyle}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topRiskRows.map((row) => (
-                  <tr key={row.id} style={rowStyle}>
-                    <td style={tdStyle}>{row.fileNo}</td>
-                    <td style={tdStyle}>{row.clientName}</td>
-                    <td style={tdStyle}>
-                      <span style={getRiskBadgeStyle(row.level)}>
-                        {row.level === "overdue"
-                          ? "Overdue"
-                          : row.level === "today"
-                            ? "Today"
-                            : "Due Soon"}
-                      </span>
-                    </td>
-                    <td style={tdStyle}>
-                      {row.text}
-                      {row.date ? ` • ${row.date}` : ""}
-                    </td>
-                    <td style={tdStyle}>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <Link href={getActionHref(row)} style={openLinkStyle}>
-                          Open & Fix
-                        </Link>
-                        <button
-                          onClick={() => runAction(row)}
-                          disabled={actingId === row.id}
-                          style={actionButtonStyle}
-                        >
-                          {actingId === row.id
-                            ? "Working..."
-                            : getActionLabel(row)}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
-
-        <section style={sectionCardStyle}>
-          <div style={sectionHeaderStyle}>
-            <h3 style={{ margin: 0 }}>Enforcement Ready</h3>
-            <Link href="/alerts" style={sectionLinkStyle}>
-              View queue
-            </Link>
-          </div>
-
-          {enforcementRows.length === 0 ? (
-            <div style={allClearStyle}>
-              ✓ All clear — no enforcement action required
+        <div style={miniGridStyle}>
+          <div style={miniCardStyle}>
+            <div style={miniTitleStyle}>Case Status</div>
+            <div style={miniRowStyle}>
+              <span>Active</span>
+              <strong>{summary.active}</strong>
             </div>
+            <div style={miniRowStyle}>
+              <span>Waiting</span>
+              <strong>{summary.waiting}</strong>
+            </div>
+            <div style={miniRowStyle}>
+              <span>Done</span>
+              <strong>{summary.done}</strong>
+            </div>
+          </div>
+
+          <div style={miniCardStyle}>
+            <div style={miniTitleStyle}>Phase Distribution</div>
+            {phaseSummary.length === 0 ? (
+              <div style={{ color: "#666" }}>No data</div>
+            ) : (
+              phaseSummary.map(([label, count]) => (
+                <div key={label} style={miniRowStyle}>
+                  <span>{label}</span>
+                  <strong>{count}</strong>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div style={miniCardStyle}>
+            <div style={miniTitleStyle}>Owner Distribution</div>
+            {ownerSummary.length === 0 ? (
+              <div style={{ color: "#666" }}>No data</div>
+            ) : (
+              ownerSummary.map(([label, count]) => (
+                <div key={label} style={miniRowStyle}>
+                  <span>{label}</span>
+                  <strong>{count}</strong>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div style={sectionGridStyle}>
+          <section style={sectionCardStyle}>
+            <div style={sectionHeaderStyle}>
+              <h3 style={{ margin: 0 }}>Top Risk Cases</h3>
+              <Link href="/cases" style={sectionLinkStyle}>
+                View cases
+              </Link>
+            </div>
+
+            {topRiskRows.length === 0 ? (
+              <div style={{ color: "#666" }}>No risk cases</div>
+            ) : (
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={thStyle}>File No</th>
+                    <th style={thStyle}>Client</th>
+                    <th style={thStyle}>Risk</th>
+                    <th style={thStyle}>Next Alert</th>
+                    <th style={thStyle}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topRiskRows.map((row) => (
+                    <tr key={row.id} style={rowStyle}>
+                      <td style={tdStyle}>{row.fileNo}</td>
+                      <td style={tdStyle}>{row.clientName}</td>
+                      <td style={tdStyle}>
+                        <span style={getRiskBadgeStyle(row.level)}>
+                          {row.level === "overdue"
+                            ? "Overdue"
+                            : row.level === "today"
+                              ? "Today"
+                              : "Due Soon"}
+                        </span>
+                      </td>
+                      <td style={tdStyle}>
+                        {row.text}
+                        {row.date ? ` • ${row.date}` : ""}
+                      </td>
+                      <td style={tdStyle}>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 8,
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <Link href={getActionHref(row)} style={openLinkStyle}>
+                            Open & Fix
+                          </Link>
+
+                          {canRunAction(row) && (
+                            <button
+                              onClick={() => runAction(row)}
+                              disabled={actingId === row.id}
+                              style={actionButtonStyle}
+                            >
+                              {actingId === row.id
+                                ? "Working..."
+                                : getActionLabel(row)}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+
+          <section style={sectionCardStyle}>
+            <div style={sectionHeaderStyle}>
+              <h3 style={{ margin: 0 }}>Enforcement Ready</h3>
+              <Link href="/cases" style={sectionLinkStyle}>
+                View cases
+              </Link>
+            </div>
+
+            {enforcementRows.length === 0 ? (
+              <div style={allClearStyle}>
+                ✓ All clear — no enforcement action required
+              </div>
+            ) : (
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={thStyle}>File No</th>
+                    <th style={thStyle}>Client</th>
+                    <th style={thStyle}>Status</th>
+                    <th style={thStyle}>Date</th>
+                    <th style={thStyle}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {enforcementRows.map((row) => (
+                    <tr key={row.id} style={rowStyle}>
+                      <td style={tdStyle}>{row.fileNo}</td>
+                      <td style={tdStyle}>{row.clientName}</td>
+                      <td style={tdStyle}>{row.text}</td>
+                      <td style={tdStyle}>{row.date || "-"}</td>
+                      <td style={tdStyle}>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 8,
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <Link href={getActionHref(row)} style={openLinkStyle}>
+                            Open & Fix
+                          </Link>
+
+                          {canRunAction(row) && (
+                            <button
+                              onClick={() => runAction(row)}
+                              disabled={actingId === row.id}
+                              style={actionButtonStyle}
+                            >
+                              {actingId === row.id
+                                ? "Working..."
+                                : getActionLabel(row)}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+        </div>
+
+        <section style={sectionCardStyle}>
+          <div style={sectionHeaderStyle}>
+            <h3 style={{ margin: 0 }}>Recently Updated Cases</h3>
+            <Link href="/cases" style={sectionLinkStyle}>
+              View all cases
+            </Link>
+          </div>
+
+          {recentCases.length === 0 ? (
+            <div style={{ color: "#666" }}>No cases found</div>
           ) : (
             <table style={tableStyle}>
               <thead>
                 <tr>
                   <th style={thStyle}>File No</th>
+                  <th style={thStyle}>Title</th>
                   <th style={thStyle}>Client</th>
-                  <th style={thStyle}>Status</th>
-                  <th style={thStyle}>Date</th>
-                  <th style={thStyle}>Actions</th>
+                  <th style={thStyle}>Owner</th>
+                  <th style={thStyle}>Last Updated</th>
+                  <th style={thStyle}>Open</th>
                 </tr>
               </thead>
               <tbody>
-                {enforcementRows.map((row) => (
-                  <tr key={row.id} style={rowStyle}>
-                    <td style={tdStyle}>{row.fileNo}</td>
-                    <td style={tdStyle}>{row.clientName}</td>
-                    <td style={tdStyle}>{row.text}</td>
-                    <td style={tdStyle}>{row.date || "-"}</td>
+                {recentCases.map((c) => (
+                  <tr key={c.id} style={rowStyle}>
+                    <td style={tdStyle}>{c.fileNo || "-"}</td>
+                    <td style={tdStyle}>{c.title || "-"}</td>
+                    <td style={tdStyle}>{c.clientName || "-"}</td>
+                    <td style={tdStyle}>{c.ownerName || "-"}</td>
+                    <td style={tdStyle}>{formatDateTime(c.updatedAt)}</td>
                     <td style={tdStyle}>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <Link href={getActionHref(row)} style={openLinkStyle}>
-                          Open & Fix
-                        </Link>
-                        <button
-                          onClick={() => runAction(row)}
-                          disabled={actingId === row.id}
-                          style={actionButtonStyle}
-                        >
-                          {actingId === row.id
-                            ? "Working..."
-                            : getActionLabel(row)}
-                        </button>
-                      </div>
+                      <Link href={`/cases/${c.id}`} style={openLinkStyle}>
+                        Open
+                      </Link>
                     </td>
                   </tr>
                 ))}
@@ -1179,50 +1351,8 @@ export default function DashboardPage() {
             </table>
           )}
         </section>
-      </div>
-
-      <section style={sectionCardStyle}>
-        <div style={sectionHeaderStyle}>
-          <h3 style={{ margin: 0 }}>Recently Updated Cases</h3>
-          <Link href="/cases" style={sectionLinkStyle}>
-            View all cases
-          </Link>
-        </div>
-
-        {recentCases.length === 0 ? (
-          <div style={{ color: "#666" }}>No cases found</div>
-        ) : (
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>File No</th>
-                <th style={thStyle}>Title</th>
-                <th style={thStyle}>Client</th>
-                <th style={thStyle}>Owner</th>
-                <th style={thStyle}>Last Updated</th>
-                <th style={thStyle}>Open</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentCases.map((c) => (
-                <tr key={c.id} style={rowStyle}>
-                  <td style={tdStyle}>{c.fileNo || "-"}</td>
-                  <td style={tdStyle}>{c.title || "-"}</td>
-                  <td style={tdStyle}>{c.clientName || "-"}</td>
-                  <td style={tdStyle}>{c.ownerName || "-"}</td>
-                  <td style={tdStyle}>{formatDateTime(c.updatedAt)}</td>
-                  <td style={tdStyle}>
-                    <Link href={`/cases/${c.id}`} style={openLinkStyle}>
-                      Open
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
-    </main>
+      </main>
+    </AuthGuard>
   );
 }
 
@@ -1313,6 +1443,7 @@ const sectionLinkStyle: React.CSSProperties = {
   color: "#111",
   textDecoration: "none",
   fontSize: 14,
+  fontWeight: 700,
 };
 
 const tableStyle: React.CSSProperties = {
