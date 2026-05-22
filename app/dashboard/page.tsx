@@ -134,6 +134,13 @@ type StaffTimeSummary = {
   totalMinutes: number;
 };
 
+type DailyStaffTimeSummary = {
+  staff: string;
+  coreMinutes: number;
+  supportMinutes: number;
+  totalMinutes: number;
+};
+
 type CaseTimeSummary = {
   caseId: number;
   fileNo: string;
@@ -195,6 +202,7 @@ export default function DashboardPage() {
 
   const [timeRange, setTimeRange] = useState<TimeRange>("selectedMonth");
   const [selectedMonth, setSelectedMonth] = useState("2026-06");
+  const [selectedDailyDate, setSelectedDailyDate] = useState(getTodayDateString());
 
   useEffect(() => {
     const updateSize = () => {
@@ -443,6 +451,7 @@ export default function DashboardPage() {
     setSortMode("highestRisk");
     setTimeRange("selectedMonth");
     setSelectedMonth("2026-06");
+    setSelectedDailyDate(getTodayDateString());
   };
 
   const filteredCases = useMemo(() => {
@@ -526,6 +535,76 @@ export default function DashboardPage() {
       isDateInTimeRange(item.work_date, timeRange, selectedMonth)
     );
   }, [filteredTimeLogsAllTime, timeRange, selectedMonth]);
+
+  const dailyDateOptions = useMemo(() => {
+    const values = filteredTimeLogsByPeriod
+      .map((item) => item.work_date)
+      .filter((value): value is string => !!value && value.trim() !== "");
+
+    const uniqueValues = Array.from(new Set(values)).sort((a, b) =>
+      b.localeCompare(a)
+    );
+
+    return uniqueValues;
+  }, [filteredTimeLogsByPeriod]);
+
+  useEffect(() => {
+    if (dailyDateOptions.length === 0) return;
+
+    if (!dailyDateOptions.includes(selectedDailyDate)) {
+      setSelectedDailyDate(dailyDateOptions[0]);
+    }
+  }, [dailyDateOptions, selectedDailyDate]);
+
+  const dailyStaffSummary = useMemo<DailyStaffTimeSummary[]>(() => {
+    const map = new Map<string, DailyStaffTimeSummary>();
+
+    filteredTimeLogsByPeriod
+      .filter((item) => item.work_date === selectedDailyDate)
+      .forEach((item) => {
+        const staff = item.staff_name || "-";
+        const minutes = safeMinutes(item.minutes);
+        const isCore = item.billable !== false;
+
+        const current = map.get(staff) || {
+          staff,
+          coreMinutes: 0,
+          supportMinutes: 0,
+          totalMinutes: 0,
+        };
+
+        if (isCore) {
+          current.coreMinutes += minutes;
+        } else {
+          current.supportMinutes += minutes;
+        }
+
+        current.totalMinutes += minutes;
+        map.set(staff, current);
+      });
+
+    return Array.from(map.values()).sort(
+      (a, b) => b.totalMinutes - a.totalMinutes
+    );
+  }, [filteredTimeLogsByPeriod, selectedDailyDate]);
+
+  const dailySummary = useMemo(() => {
+    const coreMinutes = dailyStaffSummary.reduce(
+      (sum, item) => sum + item.coreMinutes,
+      0
+    );
+
+    const supportMinutes = dailyStaffSummary.reduce(
+      (sum, item) => sum + item.supportMinutes,
+      0
+    );
+
+    return {
+      coreMinutes,
+      supportMinutes,
+      totalMinutes: coreMinutes + supportMinutes,
+    };
+  }, [dailyStaffSummary]);
 
   const totalLoggedMinutes = useMemo(() => {
     return filteredTimeLogsByPeriod.reduce(
@@ -1098,7 +1177,7 @@ export default function DashboardPage() {
             <SectionHeader
               eyebrow="TEAM TIME"
               title="Time by Staff"
-              subtitle="เวลาทำงานแยกตามรายชื่อ สัปดาห์นี้ / ช่วงเวลาที่เลือก / Core / Support / รวมทั้งหมด"
+              subtitle="ภาพรวมเวลาทำงานรายคนตามช่วงเวลาที่เลือก"
             />
 
             {staffTimeSummary.length === 0 ? (
@@ -1108,6 +1187,38 @@ export default function DashboardPage() {
             ) : (
               <StaffTimeTable items={staffTimeSummary} />
             )}
+          </div>
+
+          <div style={sectionCardStyle}>
+            <div style={dailyHeaderGridStyle}>
+              <SectionHeader
+                eyebrow="DAILY TIME CHECK"
+                title="Daily Core / Support by Staff"
+                subtitle="เลือกวันที่เพื่อดูว่าในวันนั้นแต่ละคนทำ Core Work และ Support Time เท่าไร"
+              />
+
+              <SelectFilter
+                label="Select Date"
+                value={dailyDateOptions.length > 0 ? selectedDailyDate : ""}
+                onChange={setSelectedDailyDate}
+                disabled={dailyDateOptions.length === 0}
+                options={
+                  dailyDateOptions.length > 0
+                    ? dailyDateOptions.map((item) => ({
+                        value: item,
+                        label: formatDisplayDate(item),
+                      }))
+                    : [{ value: "", label: "No date" }]
+                }
+              />
+            </div>
+
+            <DailyStaffTimeCheck
+              selectedDate={selectedDailyDate}
+              items={dailyStaffSummary}
+              summary={dailySummary}
+              isCompact={isCompact}
+            />
           </div>
 
           <div style={sectionCardStyle}>
@@ -1620,6 +1731,158 @@ function StaffTimeCardList({ items }: { items: StaffTimeSummary[] }) {
       ))}
     </div>
   );
+}
+
+function DailyStaffTimeCheck({
+  selectedDate,
+  items,
+  summary,
+  isCompact,
+}: {
+  selectedDate: string;
+  items: DailyStaffTimeSummary[];
+  summary: {
+    coreMinutes: number;
+    supportMinutes: number;
+    totalMinutes: number;
+  };
+  isCompact: boolean;
+}) {
+  if (!selectedDate || items.length === 0) {
+    return <div style={emptyStyle}>No time logs found for selected date.</div>;
+  }
+
+  return (
+    <div>
+      <div style={dailySummaryGridStyle}>
+        <DailySummaryCard
+          label="Selected Date"
+          value={formatDisplayDate(selectedDate)}
+          tone="neutral"
+        />
+        <DailySummaryCard
+          label="Total Time"
+          value={formatDuration(summary.totalMinutes)}
+          tone="neutral"
+        />
+        <DailySummaryCard
+          label="Core Work"
+          value={formatDuration(summary.coreMinutes)}
+          tone="blue"
+        />
+        <DailySummaryCard
+          label="Support Time"
+          value={formatDuration(summary.supportMinutes)}
+          tone="purple"
+        />
+      </div>
+
+      {isCompact ? (
+        <DailyStaffTimeCardList items={items} />
+      ) : (
+        <DailyStaffTimeTable items={items} />
+      )}
+    </div>
+  );
+}
+
+function DailySummaryCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: Tone;
+}) {
+  return (
+    <div style={{ ...dailySummaryCardStyle, ...getMetricToneStyle(tone) }}>
+      <div style={dailySummaryLabelStyle}>{label}</div>
+      <div style={dailySummaryValueStyle}>{value}</div>
+    </div>
+  );
+}
+
+function DailyStaffTimeTable({
+  items,
+}: {
+  items: DailyStaffTimeSummary[];
+}) {
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table style={tableStyle}>
+        <thead>
+          <tr>
+            <th style={thStyle}>Staff</th>
+            <th style={thStyle}>Core Work</th>
+            <th style={thStyle}>Support Time</th>
+            <th style={thStyle}>Total</th>
+            <th style={thStyle}>Signal</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {items.map((item) => (
+            <tr key={item.staff} style={rowStyle}>
+              <td style={tdStrongStyle}>{item.staff}</td>
+              <td style={tdStyle}>{formatDuration(item.coreMinutes)}</td>
+              <td style={tdStyle}>{formatDuration(item.supportMinutes)}</td>
+              <td style={tdStrongStyle}>{formatDuration(item.totalMinutes)}</td>
+              <td style={tdStyle}>
+                <DailySignalBadge item={item} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function DailyStaffTimeCardList({
+  items,
+}: {
+  items: DailyStaffTimeSummary[];
+}) {
+  return (
+    <div style={cardListStyle}>
+      {items.map((item) => (
+        <div key={item.staff} style={mobileCardStyle}>
+          <div style={mobileTitleStyle}>{item.staff}</div>
+          <InfoLine label="Core Work" value={formatDuration(item.coreMinutes)} />
+          <InfoLine
+            label="Support Time"
+            value={formatDuration(item.supportMinutes)}
+          />
+          <InfoLine label="Total" value={formatDuration(item.totalMinutes)} />
+          <div style={dailySignalWrapStyle}>
+            <DailySignalBadge item={item} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DailySignalBadge({ item }: { item: DailyStaffTimeSummary }) {
+  const supportPercent =
+    item.totalMinutes > 0
+      ? Math.round((item.supportMinutes / item.totalMinutes) * 100)
+      : 0;
+
+  if (item.totalMinutes <= 0) {
+    return <span style={dailySignalNeutralStyle}>No Time</span>;
+  }
+
+  if (supportPercent >= 80) {
+    return <span style={dailySignalPurpleStyle}>Support สูง</span>;
+  }
+
+  if (item.coreMinutes <= 0 && item.supportMinutes > 0) {
+    return <span style={dailySignalWarningStyle}>ไม่มี Core</span>;
+  }
+
+  return <span style={dailySignalSuccessStyle}>ปกติ</span>;
 }
 
 function TopTimeConsumingCaseList({ items }: { items: CaseTimeSummary[] }) {
@@ -2432,6 +2695,14 @@ const workloadHeaderGridStyle: CSSProperties = {
   marginBottom: 12,
 };
 
+const dailyHeaderGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr minmax(180px, 240px)",
+  gap: 14,
+  alignItems: "start",
+  marginBottom: 12,
+};
+
 const sectionCardStyle: CSSProperties = {
   border: "1px solid #eeeeee",
   borderRadius: 16,
@@ -2548,6 +2819,11 @@ const tdStyle: CSSProperties = {
   fontSize: 13,
 };
 
+const tdStrongStyle: CSSProperties = {
+  ...tdStyle,
+  fontWeight: 950,
+};
+
 const rowStyle: CSSProperties = {
   borderTop: "1px solid #eeeeee",
 };
@@ -2639,12 +2915,6 @@ const noAccessSubTextStyle: CSSProperties = {
   color: "#555555",
   fontSize: 13,
   fontWeight: 700,
-};
-
-const compactLegendGridStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
-  gap: 8,
 };
 
 const legendDotStyle: CSSProperties = {
@@ -2844,6 +3114,65 @@ const staffSegmentCoreStyle: CSSProperties = {
 const staffSegmentSupportStyle: CSSProperties = {
   height: "100%",
   background: "#7e22ce",
+};
+
+const dailySummaryGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+  gap: 10,
+  marginBottom: 14,
+};
+
+const dailySummaryCardStyle: CSSProperties = {
+  borderRadius: 12,
+  padding: 12,
+  boxShadow: "0 4px 14px rgba(15, 23, 42, 0.035)",
+};
+
+const dailySummaryLabelStyle: CSSProperties = {
+  fontSize: 12,
+  color: "#64748b",
+  fontWeight: 900,
+  marginBottom: 5,
+};
+
+const dailySummaryValueStyle: CSSProperties = {
+  fontSize: 18,
+  color: "#111111",
+  fontWeight: 950,
+};
+
+const dailySignalWrapStyle: CSSProperties = {
+  marginTop: 8,
+};
+
+const dailySignalSuccessStyle: CSSProperties = {
+  display: "inline-flex",
+  padding: "5px 10px",
+  borderRadius: 999,
+  background: "#e6f4ea",
+  color: "#067647",
+  fontSize: 12,
+  fontWeight: 950,
+  whiteSpace: "nowrap",
+};
+
+const dailySignalWarningStyle: CSSProperties = {
+  ...dailySignalSuccessStyle,
+  background: "#fff3cd",
+  color: "#b54708",
+};
+
+const dailySignalPurpleStyle: CSSProperties = {
+  ...dailySignalSuccessStyle,
+  background: "#f1e4ff",
+  color: "#7e22ce",
+};
+
+const dailySignalNeutralStyle: CSSProperties = {
+  ...dailySignalSuccessStyle,
+  background: "#f1f5f9",
+  color: "#475467",
 };
 
 const timeCaseListStyle: CSSProperties = {
