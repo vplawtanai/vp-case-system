@@ -1405,10 +1405,17 @@ function StaffWorkloadChart({ items }: { items: StaffTimeSummary[] }) {
     return <div style={emptyStyle}>No time logs found.</div>;
   }
 
+  const maxMinutes = Math.max(1, ...items.map((item) => item.periodMinutes));
+
   return (
     <div style={staffRankGridStyle}>
       {items.map((item, index) => {
         const targetMinutes = item.periodMinutes;
+
+        const totalWidth =
+          targetMinutes > 0
+            ? Math.max(5, Math.round((targetMinutes / maxMinutes) * 100))
+            : 0;
 
         const corePercent =
           targetMinutes > 0
@@ -1441,21 +1448,30 @@ function StaffWorkloadChart({ items }: { items: StaffTimeSummary[] }) {
             <div style={staffSegmentTrackStyle}>
               <div
                 style={{
-                  ...staffSegmentCoreStyle,
-                  width: `${corePercent}%`,
+                  ...staffSegmentTotalStyle,
+                  width: `${totalWidth}%`,
                 }}
-              />
-              <div
-                style={{
-                  ...staffSegmentSupportStyle,
-                  width: `${supportPercent}%`,
-                }}
-              />
+              >
+                <div
+                  style={{
+                    ...staffSegmentCoreStyle,
+                    width: `${corePercent}%`,
+                  }}
+                />
+                <div
+                  style={{
+                    ...staffSegmentSupportStyle,
+                    width: `${supportPercent}%`,
+                  }}
+                />
+              </div>
             </div>
 
             <div style={staffRankFooterStyle}>
-              <span>Core {corePercent}%</span>
-              <span>Support {supportPercent}%</span>
+              <span>Workload {totalWidth}% of top staff</span>
+              <span>
+                Core {corePercent}% · Support {supportPercent}%
+              </span>
             </div>
           </div>
         );
@@ -2177,12 +2193,10 @@ function getCurrentMonthKey() {
 
 function getMonthKeysFromJune2026() {
   const result: string[] = [];
-  const startYear = 2026;
-  const startMonthIndex = 5;
-  const today = new Date();
+  const start = new Date(2026, 5, 1);
+  const end = new Date(2027, 11, 1);
 
-  const current = new Date(startYear, startMonthIndex, 1);
-  const end = new Date(today.getFullYear(), today.getMonth(), 1);
+  const current = new Date(start);
 
   while (current <= end) {
     const year = current.getFullYear();
@@ -2193,7 +2207,7 @@ function getMonthKeysFromJune2026() {
     current.setMonth(current.getMonth() + 1);
   }
 
-  return result.reverse();
+  return result;
 }
 
 function getMonthKeyFromDate(dateText?: string | null) {
@@ -2680,7 +2694,7 @@ const sectionGridStyle: CSSProperties = {
 
 const riskSectionGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "minmax(0, 1.25fr) minmax(320px, 0.75fr)",
+  gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))",
   gap: 12,
   marginBottom: 18,
 };
@@ -2961,8 +2975,8 @@ const noAccessSubTextStyle: CSSProperties = {
 
 const workloadDashboardStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "220px 1fr",
-  gap: 18,
+  gridTemplateColumns: "300px 1fr",
+  gap: 24,
   alignItems: "center",
 };
 
@@ -2973,8 +2987,8 @@ const donutWrapStyle: CSSProperties = {
 };
 
 const donutRingStyle: CSSProperties = {
-  width: 190,
-  height: 190,
+  width: 250,
+  height: 250,
   borderRadius: "50%",
   display: "flex",
   alignItems: "center",
@@ -2983,8 +2997,8 @@ const donutRingStyle: CSSProperties = {
 };
 
 const donutCenterStyle: CSSProperties = {
-  width: 126,
-  height: 126,
+  width: 160,
+  height: 160,
   borderRadius: "50%",
   background: "#ffffff",
   display: "flex",
@@ -2993,14 +3007,14 @@ const donutCenterStyle: CSSProperties = {
   flexDirection: "column",
   boxShadow: "0 10px 28px rgba(15, 23, 42, 0.10)",
   textAlign: "center",
-  padding: 10,
+  padding: 12,
 };
 
 const donutNumberStyle: CSSProperties = {
-  fontSize: 22,
+  fontSize: 28,
   fontWeight: 950,
   color: "#111111",
-  lineHeight: 1.2,
+  lineHeight: 1.15,
 };
 
 const donutLabelStyle: CSSProperties = {
@@ -3121,12 +3135,19 @@ const staffRankTotalStyle: CSSProperties = {
 };
 
 const staffSegmentTrackStyle: CSSProperties = {
-  display: "flex",
   width: "100%",
-  height: 18,
+  height: 20,
   borderRadius: 999,
   background: "#eef2f7",
   overflow: "hidden",
+};
+
+const staffSegmentTotalStyle: CSSProperties = {
+  height: "100%",
+  display: "flex",
+  borderRadius: 999,
+  overflow: "hidden",
+  minWidth: 0,
 };
 
 const staffSegmentCoreStyle: CSSProperties = {
