@@ -471,8 +471,8 @@ export default function DashboardPage() {
     setPhaseFilter("All");
     setStatusFilter("All");
     setSortMode("highestRisk");
-    setTimeRange("thisMonth");
-    setSelectedMonth(getCurrentMonthKey());
+    setTimeRange("selectedMonth");
+    setSelectedMonth("2026-06");
     setSelectedTrendMonth("2026-06");
   };
 
@@ -1175,7 +1175,11 @@ export default function DashboardPage() {
             <SelectFilter
               label="Select Month"
               value={selectedTrendMonth}
-              onChange={setSelectedTrendMonth}
+              onChange={(value) => {
+                setSelectedTrendMonth(value);
+                setSelectedMonth(value);
+                setTimeRange("selectedMonth");
+              }}
               options={trendMonthOptions.map((item) => ({
                 value: item,
                 label: renderMonthKey(item),
