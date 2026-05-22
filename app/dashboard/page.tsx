@@ -1156,29 +1156,37 @@ export default function DashboardPage() {
           <SelectedMonthWorkload item={selectedMonthWorkload} />
         </section>
 
-        <section style={sectionGridStyle}>
-          <div style={sectionCardStyle}>
-            <SectionHeader
-              eyebrow="TEAM TIME"
-              title="Time by Staff"
-              subtitle="เวลาทำงานแยกตามรายชื่อ วันนี้ / สัปดาห์นี้ / เดือนนี้ / ช่วงเวลาที่เลือก / รวมทั้งหมด"
-            />
+        <section style={singleColumnSectionStyle}>
+  <div style={sectionCardStyle}>
+    <SectionHeader
+      eyebrow="TEAM TIME"
+      title="Time by Staff"
+      subtitle="เวลาทำงานแยกตามรายชื่อ สัปดาห์นี้ / ช่วงเวลาที่เลือก / Core / Support / รวมทั้งหมด"
+    />
 
-            {staffTimeSummary.length === 0 ? (
-              <div style={emptyStyle}>No time logs found.</div>
-            ) : isCompact ? (
-              <StaffTimeCardList items={staffTimeSummary} />
-            ) : (
-              <StaffTimeTable items={staffTimeSummary} />
-            )}
-          </div>
+    {staffTimeSummary.length === 0 ? (
+      <div style={emptyStyle}>No time logs found.</div>
+    ) : isCompact ? (
+      <StaffTimeCardList items={staffTimeSummary} />
+    ) : (
+      <StaffTimeTable items={staffTimeSummary} />
+    )}
+  </div>
 
-          <div style={sectionCardStyle}>
-            <SectionHeader
-              eyebrow="CASE COST"
-              title="Top Time-Consuming Cases"
-              subtitle="5 คดีที่ใช้เวลาทำงานมากที่สุดตามช่วงเวลาที่เลือก"
-            />
+  <div style={sectionCardStyle}>
+    <SectionHeader
+      eyebrow="CASE COST"
+      title="Top Time-Consuming Cases"
+      subtitle="5 คดีที่ใช้เวลาทำงานมากที่สุดตามช่วงเวลาที่เลือก"
+    />
+
+    {topTimeConsumingCases.length === 0 ? (
+      <div style={emptyStyle}>No time logs found.</div>
+    ) : (
+      <TopTimeConsumingCaseList items={topTimeConsumingCases} />
+    )}
+  </div>
+</section>
 
             {topTimeConsumingCases.length === 0 ? (
               <div style={emptyStyle}>No time logs found.</div>
@@ -1711,7 +1719,7 @@ function StaffTimeTable({ items }: { items: StaffTimeSummary[] }) {
             <th style={thStyle}>Selected Period</th>
             <th style={thStyle}>Core</th>
             <th style={thStyle}>Support</th>
-            <th style={thStyle}>All Time</th>
+            <th style={thStyle}>All Time(ทุกเดือน)</th>
           </tr>
         </thead>
 
@@ -1749,7 +1757,7 @@ function StaffTimeCardList({ items }: { items: StaffTimeSummary[] }) {
             label="Support"
             value={formatDuration(item.supportMinutes)}
           />
-          <InfoLine label="All Time" value={formatDuration(item.totalMinutes)} />
+          <InfoLine label="All Time (ทุกเดือน)" value={formatDuration(item.totalMinutes)} />
         </div>
       ))}
     </div>
@@ -3298,4 +3306,11 @@ const actionBadgeSoonStyle: CSSProperties = {
 const actionBadgePurpleStyle: CSSProperties = {
   background: "#f1e4ff",
   color: "#7e22ce",
+};
+
+const singleColumnSectionStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr",
+  gap: 14,
+  marginBottom: 18,
 };
