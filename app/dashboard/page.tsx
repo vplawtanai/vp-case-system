@@ -14,7 +14,6 @@ import type { UserPermissions, UserRole } from "../../lib/permissions";
 
 type RiskLevel = "overdue" | "today" | "dueSoon" | "clear";
 type RiskFilter = "all" | RiskLevel;
-
 type Tone =
   | "neutral"
   | "danger"
@@ -39,10 +38,8 @@ type CaseItem = {
   phase?: string | null;
   status?: string | null;
   owner_name?: string | null;
-
   physical_storage_type?: string | null;
   physical_storage_detail?: string | null;
-
   created_at?: string | null;
   updated_at?: string | null;
 };
@@ -91,7 +88,7 @@ type CaseEnforcement = {
   status?: string | null;
 };
 
-type TimeLogItem = {
+type CaseTimeLog = {
   id: string;
   case_id: number;
   work_date?: string | null;
@@ -165,7 +162,7 @@ export default function DashboardPage() {
 
   const [cases, setCases] = useState<EnrichedCase[]>([]);
   const [alertItems, setAlertItems] = useState<AlertCandidate[]>([]);
-  const [timeLogs, setTimeLogs] = useState<TimeLogItem[]>([]);
+  const [timeLogs, setTimeLogs] = useState<CaseTimeLog[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
@@ -267,48 +264,53 @@ export default function DashboardPage() {
         return;
       }
 
-      const [tasksRes, deadlinesRes, timelineRes, enforcementRes, timeLogsRes] =
-        await Promise.all([
-          supabase
-            .from("case_tasks")
-            .select(
-              "id, case_id, task_type, task_other, assignee_name, due_date, status"
-            )
-            .in("case_id", caseIds)
-            .is("deleted_at", null),
+      const [
+        tasksRes,
+        deadlinesRes,
+        timelineRes,
+        enforcementRes,
+        timeLogsRes,
+      ] = await Promise.all([
+        supabase
+          .from("case_tasks")
+          .select(
+            "id, case_id, task_type, task_other, assignee_name, due_date, status"
+          )
+          .in("case_id", caseIds)
+          .is("deleted_at", null),
 
-          supabase
-            .from("case_deadlines")
-            .select(
-              "id, case_id, deadline_type, deadline_other, party_label, party_other, current_due_date, status"
-            )
-            .in("case_id", caseIds)
-            .is("deleted_at", null),
+        supabase
+          .from("case_deadlines")
+          .select(
+            "id, case_id, deadline_type, deadline_other, party_label, party_other, current_due_date, status"
+          )
+          .in("case_id", caseIds)
+          .is("deleted_at", null),
 
-          supabase
-            .from("case_timeline")
-            .select(
-              "id, case_id, event_type, event_date, event_time, appointment_type, appointment_other, order_no, status"
-            )
-            .in("case_id", caseIds)
-            .is("deleted_at", null),
+        supabase
+          .from("case_timeline")
+          .select(
+            "id, case_id, event_type, event_date, event_time, appointment_type, appointment_other, order_no, status"
+          )
+          .in("case_id", caseIds)
+          .is("deleted_at", null),
 
-          supabase
-            .from("case_enforcements")
-            .select(
-              "id, case_id, party_label, party_other, final_due_date, writ_request_date, writ_issued_date, status"
-            )
-            .in("case_id", caseIds)
-            .is("deleted_at", null),
+        supabase
+          .from("case_enforcements")
+          .select(
+            "id, case_id, party_label, party_other, final_due_date, writ_request_date, writ_issued_date, status"
+          )
+          .in("case_id", caseIds)
+          .is("deleted_at", null),
 
-          supabase
-            .from("case_time_logs")
-            .select(
-              "id, case_id, work_date, staff_name, work_type, work_other, minutes, billable, note, created_at, updated_at"
-            )
-            .in("case_id", caseIds)
-            .is("deleted_at", null),
-        ]);
+        supabase
+          .from("case_time_logs")
+          .select(
+            "id, case_id, work_date, staff_name, work_type, work_other, minutes, billable, note, created_at, updated_at"
+          )
+          .in("case_id", caseIds)
+          .is("deleted_at", null),
+      ]);
 
       if (tasksRes.error) {
         alert("Load tasks failed:\n" + JSON.stringify(tasksRes.error, null, 2));
@@ -351,7 +353,7 @@ export default function DashboardPage() {
       const deadlines = (deadlinesRes.data || []) as CaseDeadline[];
       const timeline = (timelineRes.data || []) as CaseTimeline[];
       const enforcements = (enforcementRes.data || []) as CaseEnforcement[];
-      const loadedTimeLogs = (timeLogsRes.data || []) as TimeLogItem[];
+      const loadedTimeLogs = (timeLogsRes.data || []) as CaseTimeLog[];
 
       const allAlerts = buildAlertCandidates(
         tasks,
@@ -460,11 +462,15 @@ export default function DashboardPage() {
 
       const matchSearch = !keyword || searchableText.includes(keyword);
       const matchRisk = riskFilter === "all" || item.risk_level === riskFilter;
-      const matchOwner = ownerFilter === "All" || item.owner_name === ownerFilter;
+      const matchOwner =
+        ownerFilter === "All" || item.owner_name === ownerFilter;
       const matchPhase = phaseFilter === "All" || item.phase === phaseFilter;
-      const matchStatus = statusFilter === "All" || item.status === statusFilter;
+      const matchStatus =
+        statusFilter === "All" || item.status === statusFilter;
 
-      return matchSearch && matchRisk && matchOwner && matchPhase && matchStatus;
+      return (
+        matchSearch && matchRisk && matchOwner && matchPhase && matchStatus
+      );
     });
 
     result = [...result].sort((a, b) => {
@@ -513,15 +519,16 @@ export default function DashboardPage() {
     return timeLogs.filter((item) => filteredCaseIds.has(item.case_id));
   }, [timeLogs, filteredCaseIds]);
 
-  const caseMap = useMemo(() => {
-    const map = new Map<number, EnrichedCase>();
-    cases.forEach((item) => map.set(item.id, item));
-    return map;
-  }, [cases]);
-
   /* =========================================================
      SUMMARY
   ========================================================= */
+
+  const totalLoggedMinutes = useMemo(() => {
+    return filteredTimeLogs.reduce(
+      (sum, item) => sum + safeMinutes(item.minutes),
+      0
+    );
+  }, [filteredTimeLogs]);
 
   const summary = useMemo(() => {
     const overdue = filteredCases.filter(
@@ -552,15 +559,9 @@ export default function DashboardPage() {
 
     const enforcementReady = alertItems.filter(
       (item) =>
-        filteredCaseIds.has(item.case_id) &&
         item.sourceType === "enforcement" &&
         (item.level === "overdue" || item.level === "today")
     ).length;
-
-    const totalLoggedMinutes = filteredTimeLogs.reduce(
-      (sum, item) => sum + safeMinutes(item.minutes),
-      0
-    );
 
     return {
       total: filteredCases.length,
@@ -574,7 +575,7 @@ export default function DashboardPage() {
       enforcementReady,
       totalLoggedMinutes,
     };
-  }, [filteredCases, alertItems, filteredCaseIds, filteredTimeLogs]);
+  }, [filteredCases, alertItems, totalLoggedMinutes]);
 
   const topRiskCases = useMemo(() => {
     return filteredCases
@@ -592,7 +593,6 @@ export default function DashboardPage() {
 
   const enforcementAlerts = useMemo(() => {
     return alertItems
-      .filter((item) => filteredCaseIds.has(item.case_id))
       .filter((item) => item.sourceType === "enforcement")
       .filter((item) => item.level === "overdue" || item.level === "today")
       .sort((a, b) => {
@@ -602,7 +602,13 @@ export default function DashboardPage() {
         return a.date.localeCompare(b.date);
       })
       .slice(0, 5);
-  }, [alertItems, filteredCaseIds]);
+  }, [alertItems]);
+
+  const caseMap = useMemo(() => {
+    const map = new Map<number, EnrichedCase>();
+    cases.forEach((item) => map.set(item.id, item));
+    return map;
+  }, [cases]);
 
   const phaseSummary = useMemo(() => {
     const map = new Map<string, number>();
@@ -626,6 +632,38 @@ export default function DashboardPage() {
     return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
   }, [filteredCases]);
 
+  const recentCases = useMemo(() => {
+    return [...filteredCases]
+      .sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""))
+      .slice(0, 5);
+  }, [filteredCases]);
+
+  const workloadSummary = useMemo(() => {
+    const coreMinutes = filteredTimeLogs
+      .filter((item) => item.billable !== false)
+      .reduce((sum, item) => sum + safeMinutes(item.minutes), 0);
+
+    const supportMinutes = filteredTimeLogs
+      .filter((item) => item.billable === false)
+      .reduce((sum, item) => sum + safeMinutes(item.minutes), 0);
+
+    const totalMinutes = coreMinutes + supportMinutes;
+
+    const corePercent =
+      totalMinutes > 0 ? Math.round((coreMinutes / totalMinutes) * 100) : 0;
+
+    const supportPercent =
+      totalMinutes > 0 ? Math.round((supportMinutes / totalMinutes) * 100) : 0;
+
+    return {
+      coreMinutes,
+      supportMinutes,
+      totalMinutes,
+      corePercent,
+      supportPercent,
+    };
+  }, [filteredTimeLogs]);
+
   const staffTimeSummary = useMemo<StaffTimeSummary[]>(() => {
     const today = getTodayDateString();
     const weekStart = getWeekStartDateString();
@@ -634,35 +672,34 @@ export default function DashboardPage() {
     const map = new Map<string, StaffTimeSummary>();
 
     filteredTimeLogs.forEach((item) => {
-      const staff = (item.staff_name || "ไม่ระบุ").trim() || "ไม่ระบุ";
+      const staff = item.staff_name || "-";
       const minutes = safeMinutes(item.minutes);
       const workDate = item.work_date || "";
       const isCore = item.billable !== false;
 
-      const existing =
-        map.get(staff) ||
-        ({
-          staff,
-          todayMinutes: 0,
-          weekMinutes: 0,
-          monthMinutes: 0,
-          coreMinutes: 0,
-          supportMinutes: 0,
-          totalMinutes: 0,
-        } satisfies StaffTimeSummary);
+      const current = map.get(staff) || {
+        staff,
+        todayMinutes: 0,
+        weekMinutes: 0,
+        monthMinutes: 0,
+        coreMinutes: 0,
+        supportMinutes: 0,
+        totalMinutes: 0,
+      };
 
-      if (workDate === today) existing.todayMinutes += minutes;
-      if (workDate >= weekStart) existing.weekMinutes += minutes;
-      if (workDate >= monthStart) existing.monthMinutes += minutes;
+      if (workDate === today) current.todayMinutes += minutes;
+      if (workDate >= weekStart) current.weekMinutes += minutes;
+      if (workDate >= monthStart) current.monthMinutes += minutes;
 
       if (isCore) {
-        existing.coreMinutes += minutes;
+        current.coreMinutes += minutes;
       } else {
-        existing.supportMinutes += minutes;
+        current.supportMinutes += minutes;
       }
 
-      existing.totalMinutes += minutes;
-      map.set(staff, existing);
+      current.totalMinutes += minutes;
+
+      map.set(staff, current);
     });
 
     return Array.from(map.values()).sort(
@@ -675,49 +712,35 @@ export default function DashboardPage() {
 
     filteredTimeLogs.forEach((item) => {
       const caseItem = caseMap.get(item.case_id);
+      if (!caseItem) return;
+
       const minutes = safeMinutes(item.minutes);
       const isCore = item.billable !== false;
 
-      const existing =
-        map.get(item.case_id) ||
-        ({
-          caseId: item.case_id,
-          fileNo: caseItem?.file_no || "-",
-          title: caseItem?.title || "-",
-          clientName: caseItem?.client_name || "-",
-          coreMinutes: 0,
-          supportMinutes: 0,
-          totalMinutes: 0,
-        } satisfies CaseTimeSummary);
+      const current = map.get(item.case_id) || {
+        caseId: item.case_id,
+        fileNo: caseItem.file_no || "-",
+        title: caseItem.title || "-",
+        clientName: caseItem.client_name || "-",
+        coreMinutes: 0,
+        supportMinutes: 0,
+        totalMinutes: 0,
+      };
 
       if (isCore) {
-        existing.coreMinutes += minutes;
+        current.coreMinutes += minutes;
       } else {
-        existing.supportMinutes += minutes;
+        current.supportMinutes += minutes;
       }
 
-      existing.totalMinutes += minutes;
-      map.set(item.case_id, existing);
+      current.totalMinutes += minutes;
+      map.set(item.case_id, current);
     });
 
     return Array.from(map.values())
       .sort((a, b) => b.totalMinutes - a.totalMinutes)
       .slice(0, 5);
   }, [filteredTimeLogs, caseMap]);
-
-  const recentCases = useMemo(() => {
-    return [...filteredCases]
-      .sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""))
-      .slice(0, 8);
-  }, [filteredCases]);
-
-  const maxOwnerCount = useMemo(() => {
-    return Math.max(1, ...ownerSummary.map(([, value]) => value));
-  }, [ownerSummary]);
-
-  const maxPhaseCount = useMemo(() => {
-    return Math.max(1, ...phaseSummary.map(([, value]) => value));
-  }, [phaseSummary]);
 
   /* =========================================================
      ACCESS GUARD
@@ -886,84 +909,101 @@ export default function DashboardPage() {
             <MetricCard
               label="Total Cases"
               subLabel="แฟ้มที่แสดง"
-              count={summary.total}
+              count={String(summary.total)}
               tone="neutral"
             />
 
             <MetricCard
               label="Overdue"
               subLabel="เกินกำหนด"
-              count={summary.overdue}
+              count={String(summary.overdue)}
               tone="danger"
             />
 
             <MetricCard
               label="Today"
               subLabel="ครบกำหนดวันนี้"
-              count={summary.today}
+              count={String(summary.today)}
               tone="warning"
             />
 
             <MetricCard
               label="Due Soon"
               subLabel="ใกล้ครบกำหนด"
-              count={summary.dueSoon}
+              count={String(summary.dueSoon)}
               tone="soon"
             />
 
             <MetricCard
               label="Enforcement Ready"
               subLabel="พร้อมดำเนินการบังคับคดี"
-              count={summary.enforcementReady}
+              count={String(summary.enforcementReady)}
               tone="blue"
             />
 
             <MetricCard
               label="Total Logged Time"
               subLabel="เวลาทำงานรวม"
-              value={formatDuration(summary.totalLoggedMinutes)}
+              count={formatDuration(summary.totalLoggedMinutes)}
               tone="purple"
             />
 
             <MetricCard
               label="Clear"
               subLabel="ยังไม่มี Alert"
-              count={summary.clear}
+              count={String(summary.clear)}
               tone="success"
             />
           </div>
         </section>
 
         <section style={miniGridStyle}>
-          <ProgressSummaryCard
+          <ChartSummaryCard
             title="Case Status"
             rows={[
-              { label: "Active", value: summary.active, tone: "blue" },
-              { label: "Waiting", value: summary.waiting, tone: "warning" },
-              { label: "Done", value: summary.done, tone: "success" },
+              { label: "Active", value: summary.active },
+              { label: "Waiting", value: summary.waiting },
+              { label: "Done", value: summary.done },
             ]}
-            maxValue={Math.max(1, summary.total)}
           />
 
-          <ProgressSummaryCard
+          <ChartSummaryCard
             title="Phase Distribution"
-            rows={phaseSummary.map(([label, value], index) => ({
-              label,
-              value,
-              tone: getToneByIndex(index),
-            }))}
-            maxValue={maxPhaseCount}
+            rows={phaseSummary.map(([label, value]) => ({ label, value }))}
           />
 
-          <ProgressSummaryCard
+          <ChartSummaryCard
             title="Owner Distribution"
-            rows={ownerSummary.map(([label, value], index) => ({
-              label,
-              value,
-              tone: getToneByIndex(index),
-            }))}
-            maxValue={maxOwnerCount}
+            rows={ownerSummary.map(([label, value]) => ({ label, value }))}
           />
+        </section>
+
+        <section style={sectionGridStyle}>
+          <div style={sectionCardStyle}>
+            <div style={sectionHeaderStyle}>
+              <div>
+                <h3 style={sectionTitleStyle}>Core vs Support Workload</h3>
+                <div style={sectionSubtitleStyle}>
+                  ภาพรวมเวลาทำงานหลักและเวลาสนับสนุนของแฟ้มที่แสดง
+                </div>
+              </div>
+            </div>
+
+            <WorkloadOverview summary={workloadSummary} />
+          </div>
+
+          <div style={sectionCardStyle}>
+            <div style={sectionHeaderStyle}>
+              <div>
+                <h3 style={sectionTitleStyle}>Staff Core / Support Split</h3>
+                <div style={sectionSubtitleStyle}>
+                  เปรียบเทียบเวลาหลักและเวลาสนับสนุนของแต่ละคน
+                </div>
+              </div>
+            </div>
+
+            <StaffWorkloadChart items={staffTimeSummary} />
+          </div>
         </section>
 
         <section style={sectionGridStyle}>
@@ -999,9 +1039,9 @@ export default function DashboardPage() {
             {topTimeConsumingCases.length === 0 ? (
               <div style={emptyStyle}>No time logs found.</div>
             ) : isCompact ? (
-              <TopTimeCaseCardList items={topTimeConsumingCases} />
+              <CaseTimeCardList items={topTimeConsumingCases} />
             ) : (
-              <TopTimeCaseTable items={topTimeConsumingCases} />
+              <CaseTimeTable items={topTimeConsumingCases} />
             )}
           </div>
         </section>
@@ -1095,36 +1135,32 @@ function MetricCard({
   label,
   subLabel,
   count,
-  value,
   tone,
 }: {
   label: string;
   subLabel: string;
-  count?: number;
-  value?: string;
+  count: string;
   tone: Tone;
 }) {
   return (
     <div style={{ ...metricCardStyle, ...getMetricToneStyle(tone) }}>
-      <div style={metricTopLineStyle}>
-        <div style={{ ...metricAccentStyle, ...getBarToneStyle(tone) }} />
-      </div>
-      <div style={metricNumberStyle}>{value || String(count ?? 0)}</div>
+      <div style={{ ...metricTopLineStyle, ...getBarToneStyle(tone) }} />
+      <div style={metricNumberStyle}>{count}</div>
       <div style={metricLabelStyle}>{label}</div>
       <div style={metricSubLabelStyle}>{subLabel}</div>
     </div>
   );
 }
 
-function ProgressSummaryCard({
+function ChartSummaryCard({
   title,
   rows,
-  maxValue,
 }: {
   title: string;
-  rows: { label: string; value: number; tone: Tone }[];
-  maxValue: number;
+  rows: { label: string; value: number }[];
 }) {
+  const max = Math.max(1, ...rows.map((row) => row.value));
+
   return (
     <div style={miniCardStyle}>
       <div style={miniTitleStyle}>{title}</div>
@@ -1132,13 +1168,13 @@ function ProgressSummaryCard({
       {rows.length === 0 ? (
         <div style={emptyMiniStyle}>No data</div>
       ) : (
-        rows.map((row) => {
-          const percent =
-            maxValue <= 0 ? 0 : Math.min(100, (row.value / maxValue) * 100);
+        rows.map((row, index) => {
+          const width = Math.max(3, Math.round((row.value / max) * 100));
+          const tone = getToneByIndex(index);
 
           return (
-            <div key={row.label} style={progressRowStyle}>
-              <div style={progressTopStyle}>
+            <div key={row.label} style={chartRowStyle}>
+              <div style={chartRowTopStyle}>
                 <span>{row.label}</span>
                 <strong>{row.value}</strong>
               </div>
@@ -1147,8 +1183,8 @@ function ProgressSummaryCard({
                 <div
                   style={{
                     ...barFillStyle,
-                    ...getBarToneStyle(row.tone),
-                    width: `${percent}%`,
+                    ...getBarToneStyle(tone),
+                    width: `${width}%`,
                   }}
                 />
               </div>
@@ -1156,6 +1192,134 @@ function ProgressSummaryCard({
           );
         })
       )}
+    </div>
+  );
+}
+
+function WorkloadOverview({
+  summary,
+}: {
+  summary: {
+    coreMinutes: number;
+    supportMinutes: number;
+    totalMinutes: number;
+    corePercent: number;
+    supportPercent: number;
+  };
+}) {
+  if (summary.totalMinutes <= 0) {
+    return <div style={emptyStyle}>No time logs found.</div>;
+  }
+
+  return (
+    <div>
+      <div style={workloadBigNumberStyle}>
+        {formatDuration(summary.totalMinutes)}
+      </div>
+
+      <div style={workloadCaptionStyle}>Total Logged Time</div>
+
+      <div style={stackedBarStyle}>
+        <div
+          style={{
+            ...stackedCoreStyle,
+            width: `${summary.corePercent}%`,
+          }}
+          title={`Core ${summary.corePercent}%`}
+        />
+        <div
+          style={{
+            ...stackedSupportStyle,
+            width: `${summary.supportPercent}%`,
+          }}
+          title={`Support ${summary.supportPercent}%`}
+        />
+      </div>
+
+      <div style={workloadLegendGridStyle}>
+        <div style={workloadLegendCardStyle}>
+          <div style={legendTopStyle}>
+            <span style={{ ...legendDotStyle, background: "#175cd3" }} />
+            <span>Core Work</span>
+          </div>
+          <strong>{formatDuration(summary.coreMinutes)}</strong>
+          <div style={legendPercentStyle}>{summary.corePercent}%</div>
+        </div>
+
+        <div style={workloadLegendCardStyle}>
+          <div style={legendTopStyle}>
+            <span style={{ ...legendDotStyle, background: "#7e22ce" }} />
+            <span>Support Time</span>
+          </div>
+          <strong>{formatDuration(summary.supportMinutes)}</strong>
+          <div style={legendPercentStyle}>{summary.supportPercent}%</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StaffWorkloadChart({ items }: { items: StaffTimeSummary[] }) {
+  if (items.length === 0) {
+    return <div style={emptyStyle}>No time logs found.</div>;
+  }
+
+  const maxMinutes = Math.max(1, ...items.map((item) => item.totalMinutes));
+
+  return (
+    <div style={staffChartListStyle}>
+      {items.map((item) => {
+        const corePercent =
+          item.totalMinutes > 0
+            ? Math.round((item.coreMinutes / item.totalMinutes) * 100)
+            : 0;
+
+        const supportPercent =
+          item.totalMinutes > 0
+            ? Math.round((item.supportMinutes / item.totalMinutes) * 100)
+            : 0;
+
+        const totalWidth = Math.max(
+          4,
+          Math.round((item.totalMinutes / maxMinutes) * 100)
+        );
+
+        return (
+          <div key={item.staff} style={staffChartRowStyle}>
+            <div style={staffChartHeaderStyle}>
+              <strong>{item.staff}</strong>
+              <span>{formatDuration(item.totalMinutes)}</span>
+            </div>
+
+            <div style={staffOuterBarStyle}>
+              <div
+                style={{
+                  ...staffInnerBarStyle,
+                  width: `${totalWidth}%`,
+                }}
+              >
+                <div
+                  style={{
+                    ...staffCorePartStyle,
+                    width: `${corePercent}%`,
+                  }}
+                />
+                <div
+                  style={{
+                    ...staffSupportPartStyle,
+                    width: `${supportPercent}%`,
+                  }}
+                />
+              </div>
+            </div>
+
+            <div style={staffChartMetaStyle}>
+              Core {formatDuration(item.coreMinutes)} · Support{" "}
+              {formatDuration(item.supportMinutes)}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1185,7 +1349,9 @@ function StaffTimeTable({ items }: { items: StaffTimeSummary[] }) {
               <td style={tdStyle}>{formatDuration(item.monthMinutes)}</td>
               <td style={tdStyle}>{formatDuration(item.coreMinutes)}</td>
               <td style={tdStyle}>{formatDuration(item.supportMinutes)}</td>
-              <td style={tdStrongStyle}>{formatDuration(item.totalMinutes)}</td>
+              <td style={tdStyle}>
+                <strong>{formatDuration(item.totalMinutes)}</strong>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -1201,18 +1367,15 @@ function StaffTimeCardList({ items }: { items: StaffTimeSummary[] }) {
         <div key={item.staff} style={mobileCardStyle}>
           <div style={mobileCardHeaderStyle}>
             <div>
-              <div style={fileNoStyle}>{item.staff}</div>
-              <div style={mobileTitleStyle}>
-                Total: {formatDuration(item.totalMinutes)}
+              <div style={mobileTitleStyle}>{item.staff}</div>
+              <div style={infoValueStyle}>
+                Total {formatDuration(item.totalMinutes)}
               </div>
             </div>
           </div>
 
           <InfoLine label="Today" value={formatDuration(item.todayMinutes)} />
-          <InfoLine
-            label="This Week"
-            value={formatDuration(item.weekMinutes)}
-          />
+          <InfoLine label="This Week" value={formatDuration(item.weekMinutes)} />
           <InfoLine
             label="This Month"
             value={formatDuration(item.monthMinutes)}
@@ -1228,7 +1391,7 @@ function StaffTimeCardList({ items }: { items: StaffTimeSummary[] }) {
   );
 }
 
-function TopTimeCaseTable({ items }: { items: CaseTimeSummary[] }) {
+function CaseTimeTable({ items }: { items: CaseTimeSummary[] }) {
   return (
     <div style={{ overflowX: "auto" }}>
       <table style={tableStyle}>
@@ -1252,9 +1415,11 @@ function TopTimeCaseTable({ items }: { items: CaseTimeSummary[] }) {
               <td style={tdStyle}>{item.clientName}</td>
               <td style={tdStyle}>{formatDuration(item.coreMinutes)}</td>
               <td style={tdStyle}>{formatDuration(item.supportMinutes)}</td>
-              <td style={tdStrongStyle}>{formatDuration(item.totalMinutes)}</td>
               <td style={tdStyle}>
-                <Link href={`/cases/${item.caseId}#timelogs`} style={openButtonLinkStyle}>
+                <strong>{formatDuration(item.totalMinutes)}</strong>
+              </td>
+              <td style={tdStyle}>
+                <Link href={`/cases/${item.caseId}`} style={openButtonLinkStyle}>
                   Open
                 </Link>
               </td>
@@ -1266,7 +1431,7 @@ function TopTimeCaseTable({ items }: { items: CaseTimeSummary[] }) {
   );
 }
 
-function TopTimeCaseCardList({ items }: { items: CaseTimeSummary[] }) {
+function CaseTimeCardList({ items }: { items: CaseTimeSummary[] }) {
   return (
     <div style={cardListStyle}>
       {items.map((item) => (
@@ -1287,7 +1452,7 @@ function TopTimeCaseCardList({ items }: { items: CaseTimeSummary[] }) {
           <InfoLine label="Total" value={formatDuration(item.totalMinutes)} />
 
           <div style={cardActionStyle}>
-            <Link href={`/cases/${item.caseId}#timelogs`} style={openButtonLinkStyle}>
+            <Link href={`/cases/${item.caseId}`} style={openButtonLinkStyle}>
               Open
             </Link>
           </div>
@@ -1744,16 +1909,13 @@ function parseLocalDate(dateText: string) {
   return new Date(year, month - 1, day);
 }
 
-function formatLocalDate(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
+function getTodayDateString() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
-}
-
-function getTodayDateString() {
-  return formatLocalDate(new Date());
 }
 
 function getWeekStartDateString() {
@@ -1763,14 +1925,19 @@ function getWeekStartDateString() {
 
   today.setDate(today.getDate() + diffToMonday);
 
-  return formatLocalDate(today);
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 function getMonthStartDateString() {
   const today = parseLocalDate(getTodayDateString());
-  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
 
-  return formatLocalDate(monthStart);
+  return `${year}-${month}-01`;
 }
 
 function isDoneStatus(status?: string | null) {
@@ -1863,13 +2030,13 @@ function formatDisplayDate(value?: string | null) {
 }
 
 function formatDuration(totalMinutes?: number | null) {
-  const minutesValue =
+  const safeValue =
     typeof totalMinutes === "number" && Number.isFinite(totalMinutes)
       ? totalMinutes
       : 0;
 
-  const hours = Math.floor(minutesValue / 60);
-  const minutes = minutesValue % 60;
+  const hours = Math.floor(safeValue / 60);
+  const minutes = safeValue % 60;
 
   if (hours <= 0) return `${minutes} นาที`;
   if (minutes <= 0) return `${hours} ชม.`;
@@ -1915,8 +2082,8 @@ function getMetricToneStyle(tone: Tone): React.CSSProperties {
 
   if (tone === "purple") {
     return {
-      background: "linear-gradient(135deg, #faf5ff 0%, #eef4ff 100%)",
-      border: "1px solid #c7d7fe",
+      background: "linear-gradient(135deg, #faf5ff 0%, #f1e4ff 100%)",
+      border: "1px solid #d8b4fe",
     };
   }
 
@@ -2041,7 +2208,7 @@ const compactFilterGridStyle: React.CSSProperties = {
 
 const summaryGridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
   gap: 12,
 };
 
@@ -2053,8 +2220,8 @@ const compactSummaryGridStyle: React.CSSProperties = {
 
 const metricCardStyle: React.CSSProperties = {
   position: "relative",
-  borderRadius: 18,
-  padding: 18,
+  borderRadius: 16,
+  padding: 16,
   minHeight: 118,
   color: "#111111",
   boxShadow: "0 8px 22px rgba(15, 23, 42, 0.06)",
@@ -2062,15 +2229,10 @@ const metricCardStyle: React.CSSProperties = {
 };
 
 const metricTopLineStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "flex-start",
-  marginBottom: 14,
-};
-
-const metricAccentStyle: React.CSSProperties = {
-  width: 42,
+  width: 38,
   height: 5,
   borderRadius: 999,
+  marginBottom: 14,
 };
 
 const metricNumberStyle: React.CSSProperties = {
@@ -2102,40 +2264,36 @@ const miniGridStyle: React.CSSProperties = {
 
 const miniCardStyle: React.CSSProperties = {
   border: "1px solid #eeeeee",
-  borderRadius: 18,
+  borderRadius: 16,
   padding: 16,
   background: "#ffffff",
-  boxShadow: "0 4px 18px rgba(15, 23, 42, 0.035)",
+  boxShadow: "0 3px 16px rgba(15, 23, 42, 0.04)",
 };
 
 const miniTitleStyle: React.CSSProperties = {
-  fontSize: 16,
-  fontWeight: 950,
+  fontSize: 15,
+  fontWeight: 900,
   marginBottom: 12,
   color: "#111111",
 };
 
-const emptyMiniStyle: React.CSSProperties = {
-  color: "#666666",
-  fontWeight: 600,
-};
-
-const progressRowStyle: React.CSSProperties = {
+const chartRowStyle: React.CSSProperties = {
   padding: "8px 0",
   borderTop: "1px solid #f0f0f0",
 };
 
-const progressTopStyle: React.CSSProperties = {
+const chartRowTopStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   gap: 12,
+  marginBottom: 7,
   color: "#333333",
   fontWeight: 800,
-  marginBottom: 6,
 };
 
 const barTrackStyle: React.CSSProperties = {
-  height: 8,
+  width: "100%",
+  height: 7,
   borderRadius: 999,
   background: "#f1f5f9",
   overflow: "hidden",
@@ -2144,7 +2302,11 @@ const barTrackStyle: React.CSSProperties = {
 const barFillStyle: React.CSSProperties = {
   height: "100%",
   borderRadius: 999,
-  minWidth: 3,
+};
+
+const emptyMiniStyle: React.CSSProperties = {
+  color: "#666666",
+  fontWeight: 600,
 };
 
 const sectionGridStyle: React.CSSProperties = {
@@ -2156,11 +2318,11 @@ const sectionGridStyle: React.CSSProperties = {
 
 const sectionCardStyle: React.CSSProperties = {
   border: "1px solid #eeeeee",
-  borderRadius: 18,
+  borderRadius: 16,
   padding: 16,
   background: "#ffffff",
   marginBottom: 18,
-  boxShadow: "0 4px 18px rgba(15, 23, 42, 0.035)",
+  boxShadow: "0 3px 16px rgba(15, 23, 42, 0.04)",
 };
 
 const sectionHeaderStyle: React.CSSProperties = {
@@ -2175,7 +2337,7 @@ const sectionHeaderStyle: React.CSSProperties = {
 const sectionTitleStyle: React.CSSProperties = {
   margin: 0,
   fontSize: 17,
-  fontWeight: 950,
+  fontWeight: 900,
   color: "#111111",
 };
 
@@ -2260,11 +2422,6 @@ const tdStyle: React.CSSProperties = {
   whiteSpace: "nowrap",
   color: "#111111",
   fontSize: 14,
-};
-
-const tdStrongStyle: React.CSSProperties = {
-  ...tdStyle,
-  fontWeight: 950,
 };
 
 const rowStyle: React.CSSProperties = {
@@ -2416,5 +2573,125 @@ const noAccessSubTextStyle: React.CSSProperties = {
   marginTop: 6,
   color: "#555555",
   fontSize: 13,
+  fontWeight: 700,
+};
+
+const workloadBigNumberStyle: React.CSSProperties = {
+  fontSize: 34,
+  fontWeight: 950,
+  color: "#111111",
+  lineHeight: 1.1,
+};
+
+const workloadCaptionStyle: React.CSSProperties = {
+  marginTop: 4,
+  marginBottom: 14,
+  color: "#666666",
+  fontWeight: 800,
+  fontSize: 13,
+};
+
+const stackedBarStyle: React.CSSProperties = {
+  display: "flex",
+  width: "100%",
+  height: 18,
+  borderRadius: 999,
+  overflow: "hidden",
+  background: "#f1f5f9",
+  marginBottom: 14,
+};
+
+const stackedCoreStyle: React.CSSProperties = {
+  height: "100%",
+  background: "#175cd3",
+};
+
+const stackedSupportStyle: React.CSSProperties = {
+  height: "100%",
+  background: "#7e22ce",
+};
+
+const workloadLegendGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: 10,
+};
+
+const workloadLegendCardStyle: React.CSSProperties = {
+  border: "1px solid #eeeeee",
+  borderRadius: 14,
+  padding: 12,
+  background: "#fafafa",
+};
+
+const legendTopStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  color: "#333333",
+  fontWeight: 900,
+  marginBottom: 6,
+};
+
+const legendDotStyle: React.CSSProperties = {
+  width: 10,
+  height: 10,
+  borderRadius: 999,
+  display: "inline-block",
+};
+
+const legendPercentStyle: React.CSSProperties = {
+  marginTop: 4,
+  fontSize: 12,
+  color: "#666666",
+  fontWeight: 800,
+};
+
+const staffChartListStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 14,
+};
+
+const staffChartRowStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 6,
+};
+
+const staffChartHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  color: "#222222",
+  fontSize: 14,
+};
+
+const staffOuterBarStyle: React.CSSProperties = {
+  width: "100%",
+  height: 16,
+  borderRadius: 999,
+  background: "#f1f5f9",
+  overflow: "hidden",
+};
+
+const staffInnerBarStyle: React.CSSProperties = {
+  height: "100%",
+  display: "flex",
+  borderRadius: 999,
+  overflow: "hidden",
+};
+
+const staffCorePartStyle: React.CSSProperties = {
+  height: "100%",
+  background: "#175cd3",
+};
+
+const staffSupportPartStyle: React.CSSProperties = {
+  height: "100%",
+  background: "#7e22ce",
+};
+
+const staffChartMetaStyle: React.CSSProperties = {
+  fontSize: 12,
+  color: "#666666",
   fontWeight: 700,
 };
