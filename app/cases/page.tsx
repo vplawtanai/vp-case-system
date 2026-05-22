@@ -12,6 +12,7 @@ import AppTopNav from "../components/AppTopNav";
 ========================================================= */
 
 type RiskLevel = "overdue" | "today" | "dueSoon" | "clear";
+type RiskFilter = "all" | RiskLevel;
 
 type CaseItem = {
   id: number;
@@ -96,6 +97,7 @@ export default function CasesPage() {
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [alertItems, setAlertItems] = useState<AlertCandidate[]>([]);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [isCompact, setIsCompact] = useState(false);
 
   const [searchText, setSearchText] = useState("");
@@ -103,6 +105,7 @@ export default function CasesPage() {
   const [phaseFilter, setPhaseFilter] = useState("All");
   const [ownerFilter, setOwnerFilter] = useState("All");
   const [storageFilter, setStorageFilter] = useState("All");
+  const [riskFilter, setRiskFilter] = useState<RiskFilter>("all");
   const [sortMode, setSortMode] = useState<SortMode>("highestRisk");
 
   /* =========================================================
@@ -125,125 +128,136 @@ export default function CasesPage() {
   ========================================================= */
 
   const fetchCases = async () => {
-    const { data: caseData, error: caseError } = await supabase
-      .from("cases")
-      .select("*")
-      .order("created_at", { ascending: false });
+    try {
+      setLoading(true);
 
-    console.log("CASES DATA:", caseData);
-    console.log("CASES ERROR:", caseError);
+      const { data: caseData, error: caseError } = await supabase
+        .from("cases")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-    if (caseError) {
-      alert("SUPABASE ERROR:\n" + JSON.stringify(caseError, null, 2));
-      return;
-    }
+      console.log("CASES DATA:", caseData);
+      console.log("CASES ERROR:", caseError);
 
-    const baseCases = (caseData || []) as CaseItem[];
-    const caseIds = baseCases.map((c) => c.id);
-
-    if (caseIds.length === 0) {
-      setCases([]);
-      setAlertItems([]);
-      return;
-    }
-
-    const [tasksRes, deadlinesRes, timelineRes, enforcementRes] =
-      await Promise.all([
-        supabase
-          .from("case_tasks")
-          .select("case_id, task_type, task_other, due_date, status")
-          .in("case_id", caseIds),
-
-        supabase
-          .from("case_deadlines")
-          .select(
-            "case_id, deadline_type, deadline_other, current_due_date, status"
-          )
-          .in("case_id", caseIds),
-
-        supabase
-          .from("case_timeline")
-          .select(
-            "case_id, event_type, event_date, event_time, appointment_type, appointment_other, order_no, status"
-          )
-          .in("case_id", caseIds),
-
-        supabase
-          .from("case_enforcements")
-          .select(
-            "case_id, party_label, party_other, final_due_date, writ_request_date, writ_issued_date, status"
-          )
-          .in("case_id", caseIds),
-      ]);
-
-    if (tasksRes.error) {
-      alert(
-        "Load tasks for alerts failed:\n" +
-          JSON.stringify(tasksRes.error, null, 2)
-      );
-      return;
-    }
-
-    if (deadlinesRes.error) {
-      alert(
-        "Load deadlines for alerts failed:\n" +
-          JSON.stringify(deadlinesRes.error, null, 2)
-      );
-      return;
-    }
-
-    if (timelineRes.error) {
-      alert(
-        "Load timeline for alerts failed:\n" +
-          JSON.stringify(timelineRes.error, null, 2)
-      );
-      return;
-    }
-
-    if (enforcementRes.error) {
-      alert(
-        "Load enforcement for alerts failed:\n" +
-          JSON.stringify(enforcementRes.error, null, 2)
-      );
-      return;
-    }
-
-    const tasks = (tasksRes.data || []) as CaseTask[];
-    const deadlines = (deadlinesRes.data || []) as CaseDeadline[];
-    const timeline = (timelineRes.data || []) as CaseTimeline[];
-    const enforcements = (enforcementRes.data || []) as CaseEnforcement[];
-
-    const allAlerts = buildAlertCandidates(
-      tasks,
-      deadlines,
-      timeline,
-      enforcements
-    );
-    const alertMap = buildAlertMapFromCandidates(allAlerts);
-
-    setAlertItems(allAlerts);
-
-    const enrichedCases = baseCases.map((item) => {
-      const alert = alertMap.get(item.id);
-
-      if (!alert) {
-        return {
-          ...item,
-          risk_level: "clear" as RiskLevel,
-          next_alert_text: "-",
-          next_alert_date: "",
-        };
+      if (caseError) {
+        alert("SUPABASE ERROR:\n" + JSON.stringify(caseError, null, 2));
+        return;
       }
 
-      return {
-        ...item,
-        risk_level: alert.level,
-        next_alert_text: alert.text,
-        next_alert_date: alert.date,
-      };
-    });
+      const baseCases = (caseData || []) as CaseItem[];
+      const caseIds = baseCases.map((c) => c.id);
 
-    setCases(enrichedCases);
+      if (caseIds.length === 0) {
+        setCases([]);
+        setAlertItems([]);
+        return;
+      }
+
+      const [tasksRes, deadlinesRes, timelineRes, enforcementRes] =
+        await Promise.all([
+          supabase
+            .from("case_tasks")
+            .select("case_id, task_type, task_other, due_date, status")
+            .in("case_id", caseIds)
+            .is("deleted_at", null),
+
+          supabase
+            .from("case_deadlines")
+            .select(
+              "case_id, deadline_type, deadline_other, current_due_date, status"
+            )
+            .in("case_id", caseIds)
+            .is("deleted_at", null),
+
+          supabase
+            .from("case_timeline")
+            .select(
+              "case_id, event_type, event_date, event_time, appointment_type, appointment_other, order_no, status"
+            )
+            .in("case_id", caseIds)
+            .is("deleted_at", null),
+
+          supabase
+            .from("case_enforcements")
+            .select(
+              "case_id, party_label, party_other, final_due_date, writ_request_date, writ_issued_date, status"
+            )
+            .in("case_id", caseIds)
+            .is("deleted_at", null),
+        ]);
+
+      if (tasksRes.error) {
+        alert(
+          "Load tasks for alerts failed:\n" +
+            JSON.stringify(tasksRes.error, null, 2)
+        );
+        return;
+      }
+
+      if (deadlinesRes.error) {
+        alert(
+          "Load deadlines for alerts failed:\n" +
+            JSON.stringify(deadlinesRes.error, null, 2)
+        );
+        return;
+      }
+
+      if (timelineRes.error) {
+        alert(
+          "Load timeline for alerts failed:\n" +
+            JSON.stringify(timelineRes.error, null, 2)
+        );
+        return;
+      }
+
+      if (enforcementRes.error) {
+        alert(
+          "Load enforcement for alerts failed:\n" +
+            JSON.stringify(enforcementRes.error, null, 2)
+        );
+        return;
+      }
+
+      const tasks = (tasksRes.data || []) as CaseTask[];
+      const deadlines = (deadlinesRes.data || []) as CaseDeadline[];
+      const timeline = (timelineRes.data || []) as CaseTimeline[];
+      const enforcements = (enforcementRes.data || []) as CaseEnforcement[];
+
+      const allAlerts = buildAlertCandidates(
+        tasks,
+        deadlines,
+        timeline,
+        enforcements
+      );
+
+      const alertMap = buildAlertMapFromCandidates(allAlerts);
+
+      setAlertItems(allAlerts);
+
+      const enrichedCases = baseCases.map((item) => {
+        const alert = alertMap.get(item.id);
+
+        if (!alert) {
+          return {
+            ...item,
+            risk_level: "clear" as RiskLevel,
+            next_alert_text: "-",
+            next_alert_date: "",
+          };
+        }
+
+        return {
+          ...item,
+          risk_level: alert.level,
+          next_alert_text: alert.text,
+          next_alert_date: alert.date,
+        };
+      });
+
+      setCases(enrichedCases);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -259,9 +273,7 @@ export default function CasesPage() {
       "ต้องการสร้างแฟ้มคดีใหม่หรือไม่?\nระบบจะออก File No ให้อัตโนมัติ"
     );
 
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmed) return;
 
     try {
       setSaving(true);
@@ -377,6 +389,16 @@ export default function CasesPage() {
     return ["All", ...Array.from(new Set(values))];
   }, [cases]);
 
+  const clearFilters = () => {
+    setSearchText("");
+    setStatusFilter("All");
+    setPhaseFilter("All");
+    setOwnerFilter("All");
+    setStorageFilter("All");
+    setRiskFilter("all");
+    setSortMode("highestRisk");
+  };
+
   /* =========================================================
      FILTERED CASES
   ========================================================= */
@@ -404,13 +426,15 @@ export default function CasesPage() {
       const matchOwner = ownerFilter === "All" || c.owner_name === ownerFilter;
       const matchStorage =
         storageFilter === "All" || c.physical_storage_type === storageFilter;
+      const matchRisk = riskFilter === "all" || getRiskLevel(c) === riskFilter;
 
       return (
         matchSearch &&
         matchStatus &&
         matchPhase &&
         matchOwner &&
-        matchStorage
+        matchStorage &&
+        matchRisk
       );
     });
 
@@ -449,13 +473,12 @@ export default function CasesPage() {
     phaseFilter,
     ownerFilter,
     storageFilter,
+    riskFilter,
     sortMode,
   ]);
 
   /* =========================================================
      SUMMARY
-     - Overdue / Today / Due Soon = จำนวน Alert จริง
-     - Clear = จำนวนคดีที่ไม่มี Alert
   ========================================================= */
 
   const summary = useMemo(() => {
@@ -465,8 +488,11 @@ export default function CasesPage() {
 
     const caseIdsWithAlert = new Set(alertItems.map((item) => item.case_id));
     const clear = cases.filter((item) => !caseIdsWithAlert.has(item.id)).length;
+    const active = cases.filter((item) => item.status === "Active").length;
 
     return {
+      total: cases.length,
+      active,
       overdue,
       today,
       dueSoon,
@@ -481,34 +507,100 @@ export default function CasesPage() {
   return (
     <AuthGuard>
       <main style={pageStyle}>
-        <AppTopNav title="Cases" subtitle="Case list" activePage="cases" />
+        <AppTopNav title="Cases" subtitle="Case Command Center" activePage="cases" />
 
-        <section style={blockStyle}>
-          <div style={isCompact ? compactSummaryGridStyle : summaryGridStyle}>
-            <SummaryCard
-              count={summary.overdue}
-              label="Overdue"
-              background="#fde2e2"
-            />
-            <SummaryCard
-              count={summary.today}
-              label="Today"
-              background="#fff3c4"
-            />
-            <SummaryCard
-              count={summary.dueSoon}
-              label="Due Soon"
-              background="#fff8df"
-            />
-            <SummaryCard
-              count={summary.clear}
-              label="Clear"
-              background="#e4f4e9"
-            />
+        <section style={heroPanelStyle}>
+          <div>
+            <div style={eyebrowStyle}>VP CASE SYSTEM</div>
+            <h1 style={heroTitleStyle}>Case Command Center</h1>
+            <div style={heroSubtitleStyle}>
+              ศูนย์รวมแฟ้มคดี สถานะ ความเสี่ยง กำหนดเวลา และงานที่ต้องติดตาม
+            </div>
+          </div>
+
+          <div style={heroActionWrapStyle}>
+            <button
+              type="button"
+              onClick={fetchCases}
+              style={secondaryButtonStyle}
+              disabled={loading}
+            >
+              {loading ? "Refreshing..." : "Refresh"}
+            </button>
+
+            <button
+              onClick={createCase}
+              style={primaryButtonStyle}
+              disabled={saving}
+            >
+              {saving ? "Creating..." : "+ Add Case"}
+            </button>
           </div>
         </section>
 
         <section style={blockStyle}>
+          <div style={isCompact ? compactSummaryGridStyle : summaryGridStyle}>
+            <SummaryCard
+              count={summary.total}
+              label="Total Cases"
+              subLabel="แฟ้มทั้งหมด"
+              background="#f8fafc"
+              active={riskFilter === "all"}
+              onClick={() => setRiskFilter("all")}
+            />
+
+            <SummaryCard
+              count={summary.overdue}
+              label="Overdue"
+              subLabel="เกินกำหนด"
+              background="#fde2e2"
+              active={riskFilter === "overdue"}
+              onClick={() => setRiskFilter("overdue")}
+            />
+
+            <SummaryCard
+              count={summary.today}
+              label="Today"
+              subLabel="ครบกำหนดวันนี้"
+              background="#fff3c4"
+              active={riskFilter === "today"}
+              onClick={() => setRiskFilter("today")}
+            />
+
+            <SummaryCard
+              count={summary.dueSoon}
+              label="Due Soon"
+              subLabel="ใกล้ครบกำหนด"
+              background="#fff8df"
+              active={riskFilter === "dueSoon"}
+              onClick={() => setRiskFilter("dueSoon")}
+            />
+
+            <SummaryCard
+              count={summary.clear}
+              label="Clear"
+              subLabel="ยังไม่มี Alert"
+              background="#e4f4e9"
+              active={riskFilter === "clear"}
+              onClick={() => setRiskFilter("clear")}
+            />
+          </div>
+        </section>
+
+        <section style={filterPanelStyle}>
+          <div style={filterHeaderStyle}>
+            <div>
+              <h3 style={filterTitleStyle}>Search & Filters</h3>
+              <div style={filterSubtitleStyle}>
+                ค้นหา กรอง และเรียงลำดับแฟ้มคดีตามความเสี่ยง
+              </div>
+            </div>
+
+            <button type="button" onClick={clearFilters} style={ghostButtonStyle}>
+              Clear Filters
+            </button>
+          </div>
+
           <div style={isCompact ? compactFilterGridStyle : filterGridStyle}>
             <div>
               <label style={labelStyle}>Search</label>
@@ -518,6 +610,21 @@ export default function CasesPage() {
                 placeholder="Search file no, title, client, black case number"
                 style={inputStyle}
               />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Risk</label>
+              <select
+                value={riskFilter}
+                onChange={(e) => setRiskFilter(e.target.value as RiskFilter)}
+                style={inputStyle}
+              >
+                <option value="all">All</option>
+                <option value="overdue">Overdue</option>
+                <option value="today">Today</option>
+                <option value="dueSoon">Due Soon</option>
+                <option value="clear">Clear</option>
+              </select>
             </div>
 
             <div>
@@ -585,28 +692,28 @@ export default function CasesPage() {
                 <option value="nextAlertDate">Next Alert Date</option>
               </select>
             </div>
-
-            <div style={{ display: "flex", alignItems: "flex-end" }}>
-              <button
-                onClick={createCase}
-                style={{
-                  ...primaryButtonStyle,
-                  width: isCompact ? "100%" : undefined,
-                }}
-                disabled={saving}
-              >
-                {saving ? "Creating..." : "+ Add Case"}
-              </button>
-            </div>
           </div>
         </section>
 
-        <section style={blockStyle}>
-          <div style={resultTextStyle}>
-            Showing {filteredCases.length} of {cases.length} case(s)
+        <section style={listPanelStyle}>
+          <div style={listHeaderStyle}>
+            <div>
+              <h3 style={listTitleStyle}>Case List</h3>
+              <div style={resultTextStyle}>
+                Showing {filteredCases.length} of {cases.length} case(s)
+              </div>
+            </div>
+
+            {riskFilter !== "all" && (
+              <div style={activeFilterBadgeStyle}>
+                Risk Filter: {renderRiskFilterLabel(riskFilter)}
+              </div>
+            )}
           </div>
 
-          {isCompact ? (
+          {loading ? (
+            <div style={loadingBoxStyle}>Loading cases and alerts...</div>
+          ) : isCompact ? (
             <CaseCardList cases={filteredCases} getRiskLevel={getRiskLevel} />
           ) : (
             <CaseTable cases={filteredCases} getRiskLevel={getRiskLevel} />
@@ -755,8 +862,7 @@ function renderDeadlineTypeForAlert(
   if (deadlineType === "appeal_answer") return "ครบกำหนดแก้อุทธรณ์";
   if (deadlineType === "supreme") return "ครบกำหนดฎีกา";
   if (deadlineType === "supreme_answer") return "ครบกำหนดแก้ฎีกา";
-
-  if (deadlineType === "อื่นๆ") return deadlineOther || "กำหนดเวลาอื่นๆ";
+  if (deadlineType === "other") return deadlineOther || "กำหนดเวลาอื่นๆ";
 
   return deadlineType;
 }
@@ -892,7 +998,9 @@ function CaseTable({
           {cases.map((c) => (
             <tr key={c.id} style={rowStyle}>
               <td style={tdStyle}>
-                <Link href={`/cases/${c.id}`}>{c.file_no || "-"}</Link>
+                <Link href={`/cases/${c.id}`} style={fileNoLinkStyle}>
+                  {c.file_no || "-"}
+                </Link>
               </td>
               <td style={tdStyle}>{c.title || "-"}</td>
               <td style={tdStyle}>{c.client_name || "-"}</td>
@@ -905,7 +1013,7 @@ function CaseTable({
                 <RiskBadge level={getRiskLevel(c)} />
               </td>
               <td style={tdStyle}>
-                <div>{c.next_alert_text || "-"}</div>
+                <div style={alertTextStyle}>{c.next_alert_text || "-"}</div>
                 {c.next_alert_date && (
                   <div style={subTextStyle}>
                     {formatDisplayDate(c.next_alert_date)}
@@ -914,14 +1022,16 @@ function CaseTable({
               </td>
               <td style={tdStyle}>{formatDateTime(c.updated_at)}</td>
               <td style={tdStyle}>
-                <Link href={`/cases/${c.id}`}>Open</Link>
+                <Link href={`/cases/${c.id}`} style={openButtonLinkStyle}>
+                  Open
+                </Link>
               </td>
             </tr>
           ))}
 
           {cases.length === 0 && (
             <tr>
-              <td colSpan={12} style={{ padding: 16, color: "#666" }}>
+              <td colSpan={12} style={emptyTableCellStyle}>
                 No cases found.
               </td>
             </tr>
@@ -990,7 +1100,9 @@ function CaseCardList({
           </div>
 
           <div style={cardActionStyle}>
-            <Link href={`/cases/${c.id}`}>Open case</Link>
+            <Link href={`/cases/${c.id}`} style={openButtonLinkStyle}>
+              Open case
+            </Link>
           </div>
         </div>
       ))}
@@ -1005,17 +1117,32 @@ function CaseCardList({
 function SummaryCard({
   count,
   label,
+  subLabel,
   background,
+  active,
+  onClick,
 }: {
   count: number;
   label: string;
+  subLabel: string;
   background: string;
+  active: boolean;
+  onClick: () => void;
 }) {
   return (
-    <div style={{ ...summaryCardStyle, background }}>
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        ...summaryCardStyle,
+        background,
+        ...(active ? summaryCardActiveStyle : {}),
+      }}
+    >
       <div style={summaryNumberStyle}>{count}</div>
       <div style={summaryLabelTextStyle}>{label}</div>
-    </div>
+      <div style={summarySubLabelStyle}>{subLabel}</div>
+    </button>
   );
 }
 
@@ -1053,6 +1180,15 @@ function InfoLine({ label, value }: { label: string; value: string }) {
 /* =========================================================
    HELPERS
 ========================================================= */
+
+function renderRiskFilterLabel(value: RiskFilter) {
+  if (value === "all") return "All";
+  if (value === "overdue") return "Overdue";
+  if (value === "today") return "Today";
+  if (value === "dueSoon") return "Due Soon";
+  if (value === "clear") return "Clear";
+  return value;
+}
 
 function renderPhase(phase?: string | null) {
   if (!phase) return "-";
@@ -1093,46 +1229,136 @@ const pageStyle: React.CSSProperties = {
 };
 
 const blockStyle: React.CSSProperties = {
-  marginBottom: 20,
+  marginBottom: 18,
+};
+
+const heroPanelStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 16,
+  alignItems: "flex-start",
+  flexWrap: "wrap",
+  border: "1px solid #e5e7eb",
+  borderRadius: 18,
+  padding: 20,
+  marginTop: 18,
+  marginBottom: 18,
+  background:
+    "linear-gradient(135deg, #ffffff 0%, #f8fafc 48%, #eef6f0 100%)",
+  boxShadow: "0 8px 28px rgba(15, 23, 42, 0.06)",
+};
+
+const eyebrowStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 900,
+  letterSpacing: 1.2,
+  color: "#0f2743",
+  marginBottom: 6,
+};
+
+const heroTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 28,
+  fontWeight: 950,
+  color: "#111111",
+};
+
+const heroSubtitleStyle: React.CSSProperties = {
+  marginTop: 8,
+  color: "#555555",
+  fontSize: 14,
+  fontWeight: 600,
+  lineHeight: 1.6,
+};
+
+const heroActionWrapStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
 };
 
 const summaryGridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(4, minmax(160px, 1fr))",
+  gridTemplateColumns: "repeat(5, minmax(140px, 1fr))",
   gap: 12,
-  marginTop: 20,
 };
 
 const compactSummaryGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(2, minmax(120px, 1fr))",
   gap: 10,
-  marginTop: 20,
 };
 
 const summaryCardStyle: React.CSSProperties = {
-  border: "1px solid #ddd",
-  borderRadius: 10,
-  padding: 18,
-  minHeight: 86,
+  border: "1px solid #dddddd",
+  borderRadius: 14,
+  padding: 16,
+  minHeight: 104,
   color: "#111111",
+  textAlign: "left",
+  cursor: "pointer",
+  boxShadow: "0 1px 8px rgba(0,0,0,0.04)",
+};
+
+const summaryCardActiveStyle: React.CSSProperties = {
+  outline: "3px solid rgba(15, 39, 67, 0.18)",
+  border: "1px solid #0f2743",
+  transform: "translateY(-1px)",
 };
 
 const summaryNumberStyle: React.CSSProperties = {
-  fontSize: 28,
-  fontWeight: 900,
+  fontSize: 30,
+  fontWeight: 950,
   marginBottom: 8,
   color: "#111111",
 };
 
 const summaryLabelTextStyle: React.CSSProperties = {
+  fontWeight: 900,
+  color: "#222222",
+};
+
+const summarySubLabelStyle: React.CSSProperties = {
+  marginTop: 4,
+  fontSize: 12,
   fontWeight: 700,
-  color: "#333333",
+  color: "#666666",
+};
+
+const filterPanelStyle: React.CSSProperties = {
+  border: "1px solid #eeeeee",
+  borderRadius: 16,
+  padding: 16,
+  background: "#ffffff",
+  marginBottom: 18,
+};
+
+const filterHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  alignItems: "flex-start",
+  flexWrap: "wrap",
+  marginBottom: 14,
+};
+
+const filterTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 17,
+  fontWeight: 900,
+  color: "#111111",
+};
+
+const filterSubtitleStyle: React.CSSProperties = {
+  marginTop: 4,
+  fontSize: 13,
+  color: "#666666",
+  fontWeight: 600,
 };
 
 const filterGridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr auto",
+  gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 1.2fr",
   gap: 12,
   alignItems: "end",
 };
@@ -1147,14 +1373,15 @@ const labelStyle: React.CSSProperties = {
   display: "block",
   marginBottom: 4,
   color: "#222222",
-  fontWeight: 700,
+  fontWeight: 800,
+  fontSize: 13,
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "10px 12px",
-  border: "1px solid #ccc",
-  borderRadius: 6,
+  border: "1px solid #cccccc",
+  borderRadius: 8,
   fontSize: 14,
   boxSizing: "border-box",
   background: "white",
@@ -1164,45 +1391,122 @@ const inputStyle: React.CSSProperties = {
 
 const primaryButtonStyle: React.CSSProperties = {
   padding: "10px 16px",
-  background: "black",
-  color: "white",
-  borderRadius: 8,
+  background: "#000000",
+  color: "#ffffff",
+  borderRadius: 10,
   border: "none",
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+  fontWeight: 900,
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  padding: "10px 16px",
+  background: "#ffffff",
+  color: "#111111",
+  borderRadius: 10,
+  border: "1px solid #cccccc",
   cursor: "pointer",
   whiteSpace: "nowrap",
   fontWeight: 800,
 };
 
+const ghostButtonStyle: React.CSSProperties = {
+  padding: "9px 13px",
+  background: "#f8fafc",
+  color: "#111111",
+  borderRadius: 10,
+  border: "1px solid #dddddd",
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+  fontWeight: 800,
+};
+
+const listPanelStyle: React.CSSProperties = {
+  border: "1px solid #eeeeee",
+  borderRadius: 16,
+  padding: 16,
+  background: "#ffffff",
+};
+
+const listHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  alignItems: "flex-start",
+  flexWrap: "wrap",
+  marginBottom: 12,
+};
+
+const listTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 17,
+  fontWeight: 900,
+  color: "#111111",
+};
+
 const resultTextStyle: React.CSSProperties = {
-  marginBottom: 14,
+  marginTop: 4,
   color: "#555555",
-  fontWeight: 600,
+  fontWeight: 700,
+  fontSize: 13,
+};
+
+const activeFilterBadgeStyle: React.CSSProperties = {
+  display: "inline-flex",
+  padding: "7px 12px",
+  borderRadius: 999,
+  background: "#edf4ff",
+  color: "#175cd3",
+  border: "1px solid #b2ccff",
+  fontSize: 13,
+  fontWeight: 900,
+};
+
+const loadingBoxStyle: React.CSSProperties = {
+  padding: 18,
+  border: "1px dashed #cccccc",
+  borderRadius: 12,
+  background: "#fafafa",
+  color: "#555555",
+  fontWeight: 800,
 };
 
 const tableStyle: React.CSSProperties = {
   width: "100%",
   borderCollapse: "collapse",
-  minWidth: 1100,
+  minWidth: 1120,
 };
 
 const thStyle: React.CSSProperties = {
   textAlign: "left",
-  padding: 10,
-  borderBottom: "1px solid #eee",
+  padding: "11px 10px",
+  borderBottom: "1px solid #eeeeee",
   whiteSpace: "nowrap",
   color: "#111111",
+  fontSize: 13,
+  fontWeight: 900,
+  background: "#fafafa",
 };
 
 const tdStyle: React.CSSProperties = {
-  padding: 10,
+  padding: "12px 10px",
   verticalAlign: "top",
-  borderTop: "1px solid #eee",
+  borderTop: "1px solid #eeeeee",
   whiteSpace: "nowrap",
   color: "#111111",
+  fontSize: 14,
 };
 
 const rowStyle: React.CSSProperties = {
-  borderTop: "1px solid #eee",
+  borderTop: "1px solid #eeeeee",
+};
+
+const alertTextStyle: React.CSSProperties = {
+  maxWidth: 300,
+  whiteSpace: "normal",
+  fontWeight: 700,
+  lineHeight: 1.45,
 };
 
 const subTextStyle: React.CSSProperties = {
@@ -1212,11 +1516,12 @@ const subTextStyle: React.CSSProperties = {
 };
 
 const riskBadgeBaseStyle: React.CSSProperties = {
-  display: "inline-block",
+  display: "inline-flex",
   padding: "5px 10px",
   borderRadius: 999,
   fontSize: 13,
-  fontWeight: 800,
+  fontWeight: 900,
+  whiteSpace: "nowrap",
 };
 
 const riskOverdueStyle: React.CSSProperties = {
@@ -1239,6 +1544,23 @@ const riskClearStyle: React.CSSProperties = {
   color: "#18794e",
 };
 
+const openButtonLinkStyle: React.CSSProperties = {
+  display: "inline-flex",
+  padding: "7px 11px",
+  borderRadius: 999,
+  background: "#0f2743",
+  color: "#ffffff",
+  textDecoration: "none",
+  fontSize: 13,
+  fontWeight: 900,
+};
+
+const emptyTableCellStyle: React.CSSProperties = {
+  padding: 18,
+  color: "#666666",
+  fontWeight: 700,
+};
+
 const caseCardListStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "1fr",
@@ -1246,11 +1568,12 @@ const caseCardListStyle: React.CSSProperties = {
 };
 
 const caseCardStyle: React.CSSProperties = {
-  border: "1px solid #ddd",
-  borderRadius: 12,
+  border: "1px solid #dddddd",
+  borderRadius: 14,
   padding: 14,
-  background: "#fff",
+  background: "#ffffff",
   color: "#111111",
+  boxShadow: "0 1px 8px rgba(0,0,0,0.04)",
 };
 
 const caseCardHeaderStyle: React.CSSProperties = {
@@ -1262,15 +1585,16 @@ const caseCardHeaderStyle: React.CSSProperties = {
 };
 
 const fileNoLinkStyle: React.CSSProperties = {
-  fontWeight: 900,
-  fontSize: 16,
+  fontWeight: 950,
+  fontSize: 15,
   color: "#12355b",
+  textDecoration: "none",
 };
 
 const cardTitleStyle: React.CSSProperties = {
   marginTop: 4,
   color: "#333333",
-  fontWeight: 800,
+  fontWeight: 900,
 };
 
 const caseCardGridStyle: React.CSSProperties = {
@@ -1290,7 +1614,7 @@ const mobileAlertBoxStyle: React.CSSProperties = {
 const infoLabelStyle: React.CSSProperties = {
   fontSize: 12,
   color: "#666666",
-  fontWeight: 700,
+  fontWeight: 800,
 };
 
 const infoValueStyle: React.CSSProperties = {
@@ -1303,13 +1627,15 @@ const infoValueStyle: React.CSSProperties = {
 const cardActionStyle: React.CSSProperties = {
   marginTop: 12,
   paddingTop: 10,
-  borderTop: "1px solid #eee",
-  fontWeight: 800,
+  borderTop: "1px solid #eeeeee",
+  fontWeight: 900,
 };
 
 const emptyCardStyle: React.CSSProperties = {
-  border: "1px solid #ddd",
+  border: "1px solid #dddddd",
   borderRadius: 12,
   padding: 16,
-  color: "#666",
+  color: "#666666",
+  background: "#ffffff",
+  fontWeight: 700,
 };
