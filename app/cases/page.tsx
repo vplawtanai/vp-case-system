@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase";
 import Link from "next/link";
 import AppTopNav from "../components/AppTopNav";
+import { buildPermissions } from "../../lib/permissions";
+import type { UserPermissions, UserRole } from "../../lib/permissions";
 
 /* =========================================================
    TYPES
@@ -87,6 +89,11 @@ type SortMode =
   | "fileNo"
   | "nextAlertDate";
 
+type UserProfile = {
+  role?: UserRole | string | null;
+  financial_access?: boolean | null;
+};
+
 /* =========================================================
    MAIN PAGE
 ========================================================= */
@@ -99,6 +106,15 @@ export default function CasesPage() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isCompact, setIsCompact] = useState(false);
+
+  const [profile, setProfile] = useState<UserProfile>({
+    role: "",
+    financial_access: false,
+  });
+
+  const permissions: UserPermissions = useMemo(() => {
+    return buildPermissions(profile);
+  }, [profile]);
 
   const [searchText, setSearchText] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -121,6 +137,45 @@ export default function CasesPage() {
     window.addEventListener("resize", updateSize);
 
     return () => window.removeEventListener("resize", updateSize);
+  }, []);
+
+  /* =========================================================
+     LOAD CURRENT USER PROFILE / PERMISSIONS
+  ========================================================= */
+
+  useEffect(() => {
+    const loadCurrentUserProfile = async () => {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+
+      if (userError || !userData.user) {
+        setProfile({
+          role: "",
+          financial_access: false,
+        });
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("user_profiles")
+        .select("role, financial_access")
+        .eq("id", userData.user.id)
+        .single();
+
+      if (error || !data) {
+        setProfile({
+          role: "",
+          financial_access: false,
+        });
+        return;
+      }
+
+      setProfile({
+        role: data.role || "",
+        financial_access: data.financial_access === true,
+      });
+    };
+
+    loadCurrentUserProfile();
   }, []);
 
   /* =========================================================
@@ -269,6 +324,11 @@ export default function CasesPage() {
   ========================================================= */
 
   const createCase = async () => {
+    if (!permissions.canCreateCase) {
+      alert("คุณไม่มีสิทธิ์สร้างแฟ้มคดีใหม่");
+      return;
+    }
+
     const confirmed = window.confirm(
       "ต้องการสร้างแฟ้มคดีใหม่หรือไม่?\nระบบจะออก File No ให้อัตโนมัติ"
     );
@@ -528,13 +588,16 @@ export default function CasesPage() {
               {loading ? "Refreshing..." : "Refresh"}
             </button>
 
-            <button
-              onClick={createCase}
-              style={primaryButtonStyle}
-              disabled={saving}
-            >
-              {saving ? "Creating..." : "+ Add Case"}
-            </button>
+            {permissions.canCreateCase && (
+              <button
+                type="button"
+                onClick={createCase}
+                style={primaryButtonStyle}
+                disabled={saving}
+              >
+                {saving ? "Creating..." : "+ Add Case"}
+              </button>
+            )}
           </div>
         </section>
 

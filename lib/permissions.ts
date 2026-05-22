@@ -122,6 +122,15 @@ export function canViewFees(
 }
 
 /* =========================================================
+   CASE CREATION PERMISSION
+   การเปิดแฟ้มคดีใหม่ควรให้เฉพาะระดับทนายหลักขึ้นไป
+========================================================= */
+
+export function canCreateCase(role?: string | null) {
+  return isLawyerUp(role);
+}
+
+/* =========================================================
    CASE DETAIL EDIT PERMISSIONS
 ========================================================= */
 
@@ -207,7 +216,6 @@ export function renderRoleLabel(role?: string | null) {
 
 /* =========================================================
    ONE-SHOT PERMISSION OBJECT
-   ใช้ใน page/component ที่อยากส่ง permissions เข้า child components
 ========================================================= */
 
 export function buildPermissions(profile?: UserPermissionProfile | null) {
@@ -223,6 +231,8 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
     canViewAlerts: canViewAlerts(role),
     canViewHistory: canViewHistory(role),
     canViewFees: canViewFees(role, financialAccess),
+
+    canCreateCase: canCreateCase(role),
 
     canEditCaseInfo: canEditCaseInfo(role),
     canEditParties: canEditParties(role),
