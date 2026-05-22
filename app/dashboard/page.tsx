@@ -201,8 +201,8 @@ export default function DashboardPage() {
   const [statusFilter, setStatusFilter] = useState("All");
   const [sortMode, setSortMode] = useState<SortMode>("highestRisk");
 
-  const [timeRange, setTimeRange] = useState<TimeRange>("thisMonth");
-  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthKey());
+  const [timeRange, setTimeRange] = useState<TimeRange>("selectedMonth");
+  const [selectedMonth, setSelectedMonth] = useState("2026-06");
   const [selectedTrendMonth, setSelectedTrendMonth] = useState("2026-06");
 
   useEffect(() => {
@@ -445,20 +445,8 @@ export default function DashboardPage() {
   }, [cases]);
 
   const monthOptions = useMemo(() => {
-    const values = timeLogs
-      .map((item) => getMonthKeyFromDate(item.work_date))
-      .filter((value): value is string => !!value);
-
-    const uniqueValues = Array.from(new Set(values)).sort((a, b) =>
-      b.localeCompare(a)
-    );
-
-    if (uniqueValues.length === 0) {
-      return [getCurrentMonthKey()];
-    }
-
-    return uniqueValues;
-  }, [timeLogs]);
+  return getMonthKeysFromJune2026();
+}, []);
 
   const trendMonthOptions = useMemo(() => {
     return getMonthKeysFromJune2026();
@@ -1032,28 +1020,39 @@ export default function DashboardPage() {
             />
 
             <SelectFilter
-              label="Time Period"
-              value={timeRange}
-              onChange={(value) => setTimeRange(value as TimeRange)}
-              options={[
-                { value: "today", label: "Today" },
-                { value: "thisWeek", label: "This Week" },
-                { value: "thisMonth", label: "This Month" },
-                { value: "selectedMonth", label: "Selected Month" },
-                { value: "all", label: "All Time" },
-              ]}
-            />
+             label="Time Period"
+             value={timeRange}
+             onChange={(value) => {
+               const nextRange = value as TimeRange;
+               setTimeRange(nextRange);
 
-            <SelectFilter
-              label="Month / Year"
-              value={selectedMonth}
-              onChange={setSelectedMonth}
-              disabled={timeRange !== "selectedMonth"}
-              options={monthOptions.map((item) => ({
-                value: item,
-                label: renderMonthKey(item),
-              }))}
-            />
+              if (nextRange === "selectedMonth") {
+              setSelectedTrendMonth(selectedMonth);
+              }
+            }}
+            options={[
+             { value: "today", label: "Today" },
+             { value: "thisWeek", label: "This Week" },
+             { value: "thisMonth", label: "This Month" },
+             { value: "selectedMonth", label: "Selected Month" },
+             { value: "all", label: "All Time" },
+            ]}
+          />
+
+          <SelectFilter
+            label="Month / Year"
+            value={selectedMonth}
+            onChange={(value) => {
+              setSelectedMonth(value);
+              setSelectedTrendMonth(value);
+              setTimeRange("selectedMonth");
+            }}
+            disabled={timeRange !== "selectedMonth"}
+            options={monthOptions.map((item) => ({
+             value: item,
+             label: renderMonthKey(item),
+            }))}
+          />
           </div>
         </section>
 
