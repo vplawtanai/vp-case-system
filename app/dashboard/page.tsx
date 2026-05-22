@@ -14,6 +14,8 @@ import type { UserPermissions, UserRole } from "../../lib/permissions";
 
 type RiskLevel = "overdue" | "today" | "dueSoon" | "clear";
 type RiskFilter = "all" | RiskLevel;
+type TimeRange = "today" | "thisWeek" | "thisMonth" | "selectedMonth" | "all";
+
 type Tone =
   | "neutral"
   | "danger"
@@ -125,6 +127,7 @@ type StaffTimeSummary = {
   todayMinutes: number;
   weekMinutes: number;
   monthMinutes: number;
+  periodMinutes: number;
   coreMinutes: number;
   supportMinutes: number;
   totalMinutes: number;
@@ -135,6 +138,14 @@ type CaseTimeSummary = {
   fileNo: string;
   title: string;
   clientName: string;
+  coreMinutes: number;
+  supportMinutes: number;
+  totalMinutes: number;
+};
+
+type MonthlyTimeSummary = {
+  monthKey: string;
+  label: string;
   coreMinutes: number;
   supportMinutes: number;
   totalMinutes: number;
@@ -174,6 +185,9 @@ export default function DashboardPage() {
   const [phaseFilter, setPhaseFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [sortMode, setSortMode] = useState<SortMode>("highestRisk");
+
+  const [timeRange, setTimeRange] = useState<TimeRange>("thisMonth");
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthKey());
 
   /* =========================================================
      RESPONSIVE
@@ -430,6 +444,22 @@ export default function DashboardPage() {
     return ["All", ...Array.from(new Set(values))];
   }, [cases]);
 
+  const monthOptions = useMemo(() => {
+    const values = timeLogs
+      .map((item) => getMonthKeyFromDate(item.work_date))
+      .filter((value): value is string => !!value);
+
+    const uniqueValues = Array.from(new Set(values)).sort((a, b) =>
+      b.localeCompare(a)
+    );
+
+    if (uniqueValues.length === 0) {
+      return [getCurrentMonthKey()];
+    }
+
+    return uniqueValues;
+  }, [timeLogs]);
+
   const clearFilters = () => {
     setSearchText("");
     setRiskFilter("all");
@@ -437,6 +467,8 @@ export default function DashboardPage() {
     setPhaseFilter("All");
     setStatusFilter("All");
     setSortMode("highestRisk");
+    setTimeRange("thisMonth");
+    setSelectedMonth(getCurrentMonthKey());
   };
 
   /* =========================================================
@@ -515,20 +547,26 @@ export default function DashboardPage() {
     return new Set(filteredCases.map((item) => item.id));
   }, [filteredCases]);
 
-  const filteredTimeLogs = useMemo(() => {
+  const filteredTimeLogsAllTime = useMemo(() => {
     return timeLogs.filter((item) => filteredCaseIds.has(item.case_id));
   }, [timeLogs, filteredCaseIds]);
+
+  const filteredTimeLogsByPeriod = useMemo(() => {
+    return filteredTimeLogsAllTime.filter((item) =>
+      isDateInTimeRange(item.work_date, timeRange, selectedMonth)
+    );
+  }, [filteredTimeLogsAllTime, timeRange, selectedMonth]);
 
   /* =========================================================
      SUMMARY
   ========================================================= */
 
   const totalLoggedMinutes = useMemo(() => {
-    return filteredTimeLogs.reduce(
+    return filteredTimeLogsByPeriod.reduce(
       (sum, item) => sum + safeMinutes(item.minutes),
       0
     );
-  }, [filteredTimeLogs]);
+  }, [filteredTimeLogsByPeriod]);
 
   const summary = useMemo(() => {
     const overdue = filteredCases.filter(
@@ -639,11 +677,11 @@ export default function DashboardPage() {
   }, [filteredCases]);
 
   const workloadSummary = useMemo(() => {
-    const coreMinutes = filteredTimeLogs
+    const coreMinutes = filteredTimeLogsByPeriod
       .filter((item) => item.billable !== false)
       .reduce((sum, item) => sum + safeMinutes(item.minutes), 0);
 
-    const supportMinutes = filteredTimeLogs
+    const supportMinutes = filteredTimeLogsByPeriod
       .filter((item) => item.billable === false)
       .reduce((sum, item) => sum + safeMinutes(item.minutes), 0);
 
@@ -662,7 +700,7 @@ export default function DashboardPage() {
       corePercent,
       supportPercent,
     };
-  }, [filteredTimeLogs]);
+  }, [filteredTimeLogsByPeriod]);
 
   const staffTimeSummary = useMemo<StaffTimeSummary[]>(() => {
     const today = getTodayDateString();
@@ -671,30 +709,38 @@ export default function DashboardPage() {
 
     const map = new Map<string, StaffTimeSummary>();
 
-    filteredTimeLogs.forEach((item) => {
+    filteredTimeLogsAllTime.forEach((item) => {
       const staff = item.staff_name || "-";
       const minutes = safeMinutes(item.minutes);
       const workDate = item.work_date || "";
       const isCore = item.billable !== false;
+      const isInPeriod = isDateInTimeRange(workDate, timeRange, selectedMonth);
 
       const current = map.get(staff) || {
         staff,
         todayMinutes: 0,
         weekMinutes: 0,
         monthMinutes: 0,
+        periodMinutes: 0,
         coreMinutes: 0,
         supportMinutes: 0,
         totalMinutes: 0,
       };
 
       if (workDate === today) current.todayMinutes += minutes;
-      if (workDate >= weekStart) current.weekMinutes += minutes;
-      if (workDate >= monthStart) current.monthMinutes += minutes;
+      if (workDate >= weekStart && workDate <= today)
+        current.weekMinutes += minutes;
+      if (workDate >= monthStart && workDate <= today)
+        current.monthMinutes += minutes;
 
-      if (isCore) {
-        current.coreMinutes += minutes;
-      } else {
-        current.supportMinutes += minutes;
+      if (isInPeriod) {
+        current.periodMinutes += minutes;
+
+        if (isCore) {
+          current.coreMinutes += minutes;
+        } else {
+          current.supportMinutes += minutes;
+        }
       }
 
       current.totalMinutes += minutes;
@@ -703,14 +749,14 @@ export default function DashboardPage() {
     });
 
     return Array.from(map.values()).sort(
-      (a, b) => b.totalMinutes - a.totalMinutes
+      (a, b) => b.periodMinutes - a.periodMinutes
     );
-  }, [filteredTimeLogs]);
+  }, [filteredTimeLogsAllTime, timeRange, selectedMonth]);
 
   const topTimeConsumingCases = useMemo<CaseTimeSummary[]>(() => {
     const map = new Map<number, CaseTimeSummary>();
 
-    filteredTimeLogs.forEach((item) => {
+    filteredTimeLogsByPeriod.forEach((item) => {
       const caseItem = caseMap.get(item.case_id);
       if (!caseItem) return;
 
@@ -740,7 +786,40 @@ export default function DashboardPage() {
     return Array.from(map.values())
       .sort((a, b) => b.totalMinutes - a.totalMinutes)
       .slice(0, 5);
-  }, [filteredTimeLogs, caseMap]);
+  }, [filteredTimeLogsByPeriod, caseMap]);
+
+  const monthlyTimeSummary = useMemo<MonthlyTimeSummary[]>(() => {
+    const map = new Map<string, MonthlyTimeSummary>();
+
+    filteredTimeLogsAllTime.forEach((item) => {
+      const monthKey = getMonthKeyFromDate(item.work_date);
+      if (!monthKey) return;
+
+      const minutes = safeMinutes(item.minutes);
+      const isCore = item.billable !== false;
+
+      const current = map.get(monthKey) || {
+        monthKey,
+        label: renderMonthKey(monthKey),
+        coreMinutes: 0,
+        supportMinutes: 0,
+        totalMinutes: 0,
+      };
+
+      if (isCore) {
+        current.coreMinutes += minutes;
+      } else {
+        current.supportMinutes += minutes;
+      }
+
+      current.totalMinutes += minutes;
+      map.set(monthKey, current);
+    });
+
+    return Array.from(map.values()).sort((a, b) =>
+      b.monthKey.localeCompare(a.monthKey)
+    );
+  }, [filteredTimeLogsAllTime]);
 
   /* =========================================================
      ACCESS GUARD
@@ -814,7 +893,8 @@ export default function DashboardPage() {
             <div>
               <h3 style={filterTitleStyle}>Search & Filters</h3>
               <div style={filterSubtitleStyle}>
-                ค้นหาและกรอง Dashboard ตามแฟ้มคดี ผู้รับผิดชอบ สถานะ และความเสี่ยง
+                ค้นหาและกรอง Dashboard ตามแฟ้มคดี ผู้รับผิดชอบ สถานะ ความเสี่ยง
+                และช่วงเวลาทำงาน
               </div>
             </div>
 
@@ -901,6 +981,37 @@ export default function DashboardPage() {
                 <option value="nextAlertDate">Next Alert Date</option>
               </select>
             </div>
+
+            <div>
+              <label style={labelStyle}>Time Period</label>
+              <select
+                value={timeRange}
+                onChange={(e) => setTimeRange(e.target.value as TimeRange)}
+                style={inputStyle}
+              >
+                <option value="today">Today</option>
+                <option value="thisWeek">This Week</option>
+                <option value="thisMonth">This Month</option>
+                <option value="selectedMonth">Selected Month</option>
+                <option value="all">All Time</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Month / Year</label>
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                style={inputStyle}
+                disabled={timeRange !== "selectedMonth"}
+              >
+                {monthOptions.map((monthKey) => (
+                  <option key={monthKey} value={monthKey}>
+                    {renderMonthKey(monthKey)}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </section>
 
@@ -943,7 +1054,7 @@ export default function DashboardPage() {
 
             <MetricCard
               label="Total Logged Time"
-              subLabel="เวลาทำงานรวม"
+              subLabel={renderTimeRangeLabel(timeRange, selectedMonth)}
               count={formatDuration(summary.totalLoggedMinutes)}
               tone="purple"
             />
@@ -984,7 +1095,7 @@ export default function DashboardPage() {
               <div>
                 <h3 style={sectionTitleStyle}>Core vs Support Workload</h3>
                 <div style={sectionSubtitleStyle}>
-                  ภาพรวมเวลาทำงานหลักและเวลาสนับสนุนของแฟ้มที่แสดง
+                  ภาพรวมเวลาทำงานหลักและเวลาสนับสนุนตามช่วงเวลาที่เลือก
                 </div>
               </div>
             </div>
@@ -997,7 +1108,7 @@ export default function DashboardPage() {
               <div>
                 <h3 style={sectionTitleStyle}>Staff Core / Support Split</h3>
                 <div style={sectionSubtitleStyle}>
-                  เปรียบเทียบเวลาหลักและเวลาสนับสนุนของแต่ละคน
+                  เปรียบเทียบเวลาหลักและเวลาสนับสนุนของแต่ละคนตามช่วงเวลาที่เลือก
                 </div>
               </div>
             </div>
@@ -1006,13 +1117,27 @@ export default function DashboardPage() {
           </div>
         </section>
 
+        <section style={sectionCardStyle}>
+          <div style={sectionHeaderStyle}>
+            <div>
+              <h3 style={sectionTitleStyle}>Monthly Workload Trend</h3>
+              <div style={sectionSubtitleStyle}>
+                เวลาทำงานแยกรายเดือนและรายปีจาก Time Logs ทั้งหมดของแฟ้มที่แสดง
+              </div>
+            </div>
+          </div>
+
+          <MonthlyWorkloadChart items={monthlyTimeSummary} />
+        </section>
+
         <section style={sectionGridStyle}>
           <div style={sectionCardStyle}>
             <div style={sectionHeaderStyle}>
               <div>
                 <h3 style={sectionTitleStyle}>Time by Staff</h3>
                 <div style={sectionSubtitleStyle}>
-                  เวลาทำงานแยกตามรายชื่อ วันนี้ / สัปดาห์นี้ / เดือนนี้ / รวมทั้งหมด
+                  เวลาทำงานแยกตามรายชื่อ วันนี้ / สัปดาห์นี้ / เดือนนี้ /
+                  ช่วงเวลาที่เลือก / รวมทั้งหมด
                 </div>
               </div>
             </div>
@@ -1031,7 +1156,7 @@ export default function DashboardPage() {
               <div>
                 <h3 style={sectionTitleStyle}>Top Time-Consuming Cases</h3>
                 <div style={sectionSubtitleStyle}>
-                  5 คดีที่ใช้เวลาทำงานมากที่สุด เพื่อใช้ดูภาระงานและประเมินต้นทุนเวลา
+                  5 คดีที่ใช้เวลาทำงานมากที่สุดตามช่วงเวลาที่เลือก
                 </div>
               </div>
             </div>
@@ -1052,7 +1177,8 @@ export default function DashboardPage() {
               <div>
                 <h3 style={sectionTitleStyle}>Top Risk Cases</h3>
                 <div style={sectionSubtitleStyle}>
-                  5 แฟ้มที่มี Deadline / Task / Timeline / Enforcement ใกล้หรือเกินกำหนด
+                  5 แฟ้มที่มี Deadline / Task / Timeline / Enforcement
+                  ใกล้หรือเกินกำหนด
                 </div>
               </div>
 
@@ -1264,11 +1390,82 @@ function StaffWorkloadChart({ items }: { items: StaffTimeSummary[] }) {
     return <div style={emptyStyle}>No time logs found.</div>;
   }
 
-  const maxMinutes = Math.max(1, ...items.map((item) => item.totalMinutes));
+  const maxMinutes = Math.max(1, ...items.map((item) => item.periodMinutes));
 
   return (
     <div style={staffChartListStyle}>
       {items.map((item) => {
+        const targetMinutes = item.periodMinutes;
+        const corePercent =
+          targetMinutes > 0
+            ? Math.round((item.coreMinutes / targetMinutes) * 100)
+            : 0;
+
+        const supportPercent =
+          targetMinutes > 0
+            ? Math.round((item.supportMinutes / targetMinutes) * 100)
+            : 0;
+
+        const totalWidth = Math.max(
+          4,
+          Math.round((targetMinutes / maxMinutes) * 100)
+        );
+
+        return (
+          <div key={item.staff} style={staffChartRowStyle}>
+            <div style={staffChartHeaderStyle}>
+              <strong>{item.staff}</strong>
+              <span>{formatDuration(targetMinutes)}</span>
+            </div>
+
+            <div style={staffOuterBarStyle}>
+              <div
+                style={{
+                  ...staffInnerBarStyle,
+                  width: `${totalWidth}%`,
+                }}
+              >
+                <div
+                  style={{
+                    ...staffCorePartStyle,
+                    width: `${corePercent}%`,
+                  }}
+                />
+                <div
+                  style={{
+                    ...staffSupportPartStyle,
+                    width: `${supportPercent}%`,
+                  }}
+                />
+              </div>
+            </div>
+
+            <div style={staffChartMetaStyle}>
+              Core {formatDuration(item.coreMinutes)} · Support{" "}
+              {formatDuration(item.supportMinutes)}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function MonthlyWorkloadChart({ items }: { items: MonthlyTimeSummary[] }) {
+  if (items.length === 0) {
+    return <div style={emptyStyle}>No monthly time logs found.</div>;
+  }
+
+  const maxMinutes = Math.max(1, ...items.map((item) => item.totalMinutes));
+
+  return (
+    <div style={monthlyChartGridStyle}>
+      {items.map((item) => {
+        const totalWidth = Math.max(
+          4,
+          Math.round((item.totalMinutes / maxMinutes) * 100)
+        );
+
         const corePercent =
           item.totalMinutes > 0
             ? Math.round((item.coreMinutes / item.totalMinutes) * 100)
@@ -1279,22 +1476,17 @@ function StaffWorkloadChart({ items }: { items: StaffTimeSummary[] }) {
             ? Math.round((item.supportMinutes / item.totalMinutes) * 100)
             : 0;
 
-        const totalWidth = Math.max(
-          4,
-          Math.round((item.totalMinutes / maxMinutes) * 100)
-        );
-
         return (
-          <div key={item.staff} style={staffChartRowStyle}>
-            <div style={staffChartHeaderStyle}>
-              <strong>{item.staff}</strong>
+          <div key={item.monthKey} style={monthlyChartRowStyle}>
+            <div style={monthlyChartLabelStyle}>
+              <strong>{item.label}</strong>
               <span>{formatDuration(item.totalMinutes)}</span>
             </div>
 
-            <div style={staffOuterBarStyle}>
+            <div style={monthlyOuterTrackStyle}>
               <div
                 style={{
-                  ...staffInnerBarStyle,
+                  ...monthlyInnerBarStyle,
                   width: `${totalWidth}%`,
                 }}
               >
@@ -1334,9 +1526,10 @@ function StaffTimeTable({ items }: { items: StaffTimeSummary[] }) {
             <th style={thStyle}>Today</th>
             <th style={thStyle}>This Week</th>
             <th style={thStyle}>This Month</th>
+            <th style={thStyle}>Selected Period</th>
             <th style={thStyle}>Core</th>
             <th style={thStyle}>Support</th>
-            <th style={thStyle}>Total</th>
+            <th style={thStyle}>All Time</th>
           </tr>
         </thead>
 
@@ -1347,11 +1540,12 @@ function StaffTimeTable({ items }: { items: StaffTimeSummary[] }) {
               <td style={tdStyle}>{formatDuration(item.todayMinutes)}</td>
               <td style={tdStyle}>{formatDuration(item.weekMinutes)}</td>
               <td style={tdStyle}>{formatDuration(item.monthMinutes)}</td>
+              <td style={tdStyle}>
+                <strong>{formatDuration(item.periodMinutes)}</strong>
+              </td>
               <td style={tdStyle}>{formatDuration(item.coreMinutes)}</td>
               <td style={tdStyle}>{formatDuration(item.supportMinutes)}</td>
-              <td style={tdStyle}>
-                <strong>{formatDuration(item.totalMinutes)}</strong>
-              </td>
+              <td style={tdStyle}>{formatDuration(item.totalMinutes)}</td>
             </tr>
           ))}
         </tbody>
@@ -1369,7 +1563,7 @@ function StaffTimeCardList({ items }: { items: StaffTimeSummary[] }) {
             <div>
               <div style={mobileTitleStyle}>{item.staff}</div>
               <div style={infoValueStyle}>
-                Total {formatDuration(item.totalMinutes)}
+                Selected {formatDuration(item.periodMinutes)}
               </div>
             </div>
           </div>
@@ -1385,6 +1579,7 @@ function StaffTimeCardList({ items }: { items: StaffTimeSummary[] }) {
             label="Support"
             value={formatDuration(item.supportMinutes)}
           />
+          <InfoLine label="All Time" value={formatDuration(item.totalMinutes)} />
         </div>
       ))}
     </div>
@@ -1918,6 +2113,19 @@ function getTodayDateString() {
   return `${year}-${month}-${day}`;
 }
 
+function getCurrentMonthKey() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+
+  return `${year}-${month}`;
+}
+
+function getMonthKeyFromDate(dateText?: string | null) {
+  if (!dateText || dateText.length < 7) return "";
+  return dateText.slice(0, 7);
+}
+
 function getWeekStartDateString() {
   const today = parseLocalDate(getTodayDateString());
   const dayOfWeek = today.getDay();
@@ -1938,6 +2146,49 @@ function getMonthStartDateString() {
   const month = String(today.getMonth() + 1).padStart(2, "0");
 
   return `${year}-${month}-01`;
+}
+
+function isDateInTimeRange(
+  dateText?: string | null,
+  range?: TimeRange,
+  selectedMonth?: string
+) {
+  if (!dateText) return false;
+
+  const today = getTodayDateString();
+
+  if (range === "today") {
+    return dateText === today;
+  }
+
+  if (range === "thisWeek") {
+    return dateText >= getWeekStartDateString() && dateText <= today;
+  }
+
+  if (range === "thisMonth") {
+    return dateText >= getMonthStartDateString() && dateText <= today;
+  }
+
+  if (range === "selectedMonth") {
+    return getMonthKeyFromDate(dateText) === selectedMonth;
+  }
+
+  return true;
+}
+
+function renderTimeRangeLabel(range: TimeRange, selectedMonth: string) {
+  if (range === "today") return "วันนี้";
+  if (range === "thisWeek") return "สัปดาห์นี้";
+  if (range === "thisMonth") return "เดือนนี้";
+  if (range === "selectedMonth") return renderMonthKey(selectedMonth);
+  return "รวมทั้งหมด";
+}
+
+function renderMonthKey(monthKey: string) {
+  const [year, month] = monthKey.split("-");
+  if (!year || !month) return monthKey;
+
+  return `${month}/${year}`;
 }
 
 function isDoneStatus(status?: string | null) {
@@ -2195,7 +2446,7 @@ const filterSubtitleStyle: React.CSSProperties = {
 
 const filterGridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1.2fr",
+  gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1.2fr 1.1fr 1.1fr",
   gap: 12,
   alignItems: "end",
 };
@@ -2694,4 +2945,38 @@ const staffChartMetaStyle: React.CSSProperties = {
   fontSize: 12,
   color: "#666666",
   fontWeight: 700,
+};
+
+const monthlyChartGridStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 14,
+};
+
+const monthlyChartRowStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 7,
+  padding: "10px 0",
+  borderTop: "1px solid #f0f0f0",
+};
+
+const monthlyChartLabelStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  color: "#222222",
+};
+
+const monthlyOuterTrackStyle: React.CSSProperties = {
+  width: "100%",
+  height: 18,
+  borderRadius: 999,
+  background: "#f1f5f9",
+  overflow: "hidden",
+};
+
+const monthlyInnerBarStyle: React.CSSProperties = {
+  height: "100%",
+  display: "flex",
+  borderRadius: 999,
+  overflow: "hidden",
 };
