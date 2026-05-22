@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../../../lib/supabase";
 import { createAuditLog } from "../../../../lib/auditLog";
@@ -57,6 +57,25 @@ export default function AuditLogSection({ caseId, canRestore = false }: Props) {
   const [actionFilter, setActionFilter] = useState("All");
   const [tableFilter, setTableFilter] = useState("All");
 
+  const historyBodyRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollToHistoryBody = () => {
+    window.setTimeout(() => {
+      if (!historyBodyRef.current) return;
+
+      const offset = 130;
+      const y =
+        historyBodyRef.current.getBoundingClientRect().top +
+        window.scrollY -
+        offset;
+
+      window.scrollTo({
+        top: y,
+        behavior: "smooth",
+      });
+    }, 100);
+  };
+
   const loadAuditLogs = async () => {
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) return;
 
@@ -86,11 +105,21 @@ export default function AuditLogSection({ caseId, canRestore = false }: Props) {
     if (!isOpen) return;
 
     loadAuditLogs();
+    scrollToHistoryBody();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [caseId, isOpen]);
 
+  const handleToggleOpen = () => {
+    const nextOpen = !isOpen;
+    setIsOpen(nextOpen);
+
+    if (nextOpen) {
+      scrollToHistoryBody();
+    }
+  };
+
   const restoreRecord = async (item: AuditLogItem) => {
-        if (!canRestore) {
+    if (!canRestore) {
       alert("คุณไม่มีสิทธิ์กู้คืนข้อมูลนี้");
       return;
     }
@@ -203,6 +232,23 @@ export default function AuditLogSection({ caseId, canRestore = false }: Props) {
     return ["All", ...Array.from(new Set(values))];
   }, [items]);
 
+  const summary = useMemo(() => {
+    const createCount = items.filter((item) => item.action === "create").length;
+    const updateCount = items.filter((item) => item.action === "update").length;
+    const softDeleteCount = items.filter(
+      (item) => item.action === "soft_delete"
+    ).length;
+    const restoreCount = items.filter((item) => item.action === "restore").length;
+
+    return {
+      total: items.length,
+      createCount,
+      updateCount,
+      softDeleteCount,
+      restoreCount,
+    };
+  }, [items]);
+
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
       const matchAction = actionFilter === "All" || item.action === actionFilter;
@@ -235,7 +281,7 @@ export default function AuditLogSection({ caseId, canRestore = false }: Props) {
 
           <button
             type="button"
-            onClick={() => setIsOpen(!isOpen)}
+            onClick={handleToggleOpen}
             style={primaryButtonStyle}
           >
             {isOpen ? "Hide History" : "Show History"}
@@ -248,36 +294,64 @@ export default function AuditLogSection({ caseId, canRestore = false }: Props) {
           History ถูกพับไว้ กด “Show History” เพื่อดูประวัติการแก้ไขข้อมูล
         </div>
       ) : (
-        <>
-          <div style={filterGridStyle}>
+        <div ref={historyBodyRef} style={historyBodyStyle}>
+          <div style={historyTopBarStyle}>
             <div>
-              <label style={labelStyle}>Table</label>
-              <select
-                value={tableFilter}
-                onChange={(e) => setTableFilter(e.target.value)}
-                style={inputStyle}
-              >
-                {tableOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {renderTableName(option)}
-                  </option>
-                ))}
-              </select>
+              <div style={historyTopTitleStyle}>Audit Trail</div>
+              <div style={historyTopHintStyle}>
+                แสดงรายการล่าสุดไม่เกิน 100 รายการ ใช้ตรวจสอบว่าใครเพิ่ม แก้ไข ลบ หรือกู้คืนข้อมูลใดในคดีนี้
+              </div>
             </div>
 
-            <div>
-              <label style={labelStyle}>Action</label>
-              <select
-                value={actionFilter}
-                onChange={(e) => setActionFilter(e.target.value)}
-                style={inputStyle}
-              >
-                {actionOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {renderAction(option)}
-                  </option>
-                ))}
-              </select>
+            <span style={canRestore ? restoreAccessBadgeStyle : viewOnlyBadgeStyle}>
+              {canRestore ? "RESTORE ENABLED" : "VIEW ONLY"}
+            </span>
+          </div>
+
+          <div style={summaryGridStyle}>
+            <SummaryCard label="Total Logs" value={String(summary.total)} />
+            <SummaryCard label="Create" value={String(summary.createCount)} />
+            <SummaryCard label="Update" value={String(summary.updateCount)} />
+            <SummaryCard
+              label="Soft Delete"
+              value={String(summary.softDeleteCount)}
+            />
+            <SummaryCard label="Restore" value={String(summary.restoreCount)} />
+          </div>
+
+          <div style={filterBoxStyle}>
+            <div style={filterTitleStyle}>Filter History</div>
+
+            <div style={filterGridStyle}>
+              <div>
+                <label style={labelStyle}>Table</label>
+                <select
+                  value={tableFilter}
+                  onChange={(e) => setTableFilter(e.target.value)}
+                  style={inputStyle}
+                >
+                  {tableOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {renderTableName(option)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={labelStyle}>Action</label>
+                <select
+                  value={actionFilter}
+                  onChange={(e) => setActionFilter(e.target.value)}
+                  style={inputStyle}
+                >
+                  {actionOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {renderAction(option)}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 
@@ -288,7 +362,7 @@ export default function AuditLogSection({ caseId, canRestore = false }: Props) {
           ) : (
             <div style={logListStyle}>
               {filteredItems.map((item) => (
-                 <AuditLogCard
+                <AuditLogCard
                   key={item.id}
                   item={item}
                   restoring={restoringId === item.id}
@@ -298,8 +372,21 @@ export default function AuditLogSection({ caseId, canRestore = false }: Props) {
               ))}
             </div>
           )}
-        </>
+        </div>
       )}
+    </div>
+  );
+}
+
+/* =========================================================
+   SUB COMPONENTS
+========================================================= */
+
+function SummaryCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={summaryCardStyle}>
+      <div style={summaryLabelStyle}>{label}</div>
+      <div style={summaryValueStyle}>{value}</div>
     </div>
   );
 }
@@ -316,7 +403,7 @@ function AuditLogCard({
   onRestore: (item: AuditLogItem) => void;
 }) {
   const changedFields = getChangedFields(item.old_data, item.new_data);
-    const canShowRestoreButton =
+  const canShowRestoreButton =
     canRestore &&
     item.action === "soft_delete" &&
     !!item.record_id &&
@@ -343,7 +430,7 @@ function AuditLogCard({
             {item.action || "-"}
           </span>
 
-           {canShowRestoreButton && (
+          {canShowRestoreButton && (
             <button
               type="button"
               onClick={() => onRestore(item)}
@@ -650,11 +737,101 @@ const collapsedBoxStyle: CSSProperties = {
   fontWeight: 600,
 };
 
+const historyBodyStyle: CSSProperties = {
+  border: "1px solid #c9d7ef",
+  borderLeft: "5px solid #000000",
+  borderRadius: 14,
+  padding: 16,
+  background: "#fbfcff",
+  boxShadow: "0 8px 24px rgba(15, 39, 67, 0.08)",
+};
+
+const historyTopBarStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: 12,
+  marginBottom: 14,
+  flexWrap: "wrap",
+};
+
+const historyTopTitleStyle: CSSProperties = {
+  fontSize: 16,
+  fontWeight: 900,
+  color: "#111111",
+};
+
+const historyTopHintStyle: CSSProperties = {
+  marginTop: 4,
+  color: "#555555",
+  fontSize: 13,
+  lineHeight: 1.5,
+};
+
+const restoreAccessBadgeStyle: CSSProperties = {
+  display: "inline-flex",
+  padding: "6px 10px",
+  borderRadius: 999,
+  background: "#edf4ff",
+  color: "#175cd3",
+  border: "1px solid #b2ccff",
+  fontSize: 12,
+  fontWeight: 900,
+  whiteSpace: "nowrap",
+};
+
+const viewOnlyBadgeStyle: CSSProperties = {
+  ...restoreAccessBadgeStyle,
+  background: "#f1f5f9",
+  color: "#475467",
+  border: "1px solid #d0d5dd",
+};
+
+const summaryGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+  gap: 12,
+  marginBottom: 14,
+};
+
+const summaryCardStyle: CSSProperties = {
+  border: "1px solid #eeeeee",
+  borderRadius: 12,
+  padding: 14,
+  background: "#ffffff",
+};
+
+const summaryLabelStyle: CSSProperties = {
+  fontSize: 12,
+  color: "#666666",
+  marginBottom: 6,
+  fontWeight: 700,
+};
+
+const summaryValueStyle: CSSProperties = {
+  fontSize: 22,
+  fontWeight: 900,
+  color: "#111111",
+};
+
+const filterBoxStyle: CSSProperties = {
+  border: "1px solid #eeeeee",
+  borderRadius: 12,
+  padding: 12,
+  background: "#ffffff",
+  marginBottom: 14,
+};
+
+const filterTitleStyle: CSSProperties = {
+  fontWeight: 900,
+  color: "#111111",
+  marginBottom: 10,
+};
+
 const filterGridStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
   gap: 12,
-  marginBottom: 14,
 };
 
 const labelStyle: CSSProperties = {
