@@ -2,6 +2,7 @@
 
 import AuthGuard from "../components/AuthGuard";
 import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import { supabase } from "../../lib/supabase";
 import AppTopNav from "../components/AppTopNav";
@@ -189,10 +190,6 @@ export default function DashboardPage() {
   const [timeRange, setTimeRange] = useState<TimeRange>("thisMonth");
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthKey());
 
-  /* =========================================================
-     RESPONSIVE
-  ========================================================= */
-
   useEffect(() => {
     const updateSize = () => {
       setIsCompact(window.innerWidth < 900);
@@ -203,10 +200,6 @@ export default function DashboardPage() {
 
     return () => window.removeEventListener("resize", updateSize);
   }, []);
-
-  /* =========================================================
-     LOAD PROFILE
-  ========================================================= */
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -249,10 +242,6 @@ export default function DashboardPage() {
 
     loadProfile();
   }, []);
-
-  /* =========================================================
-     LOAD DASHBOARD DATA FROM SUPABASE
-  ========================================================= */
 
   const fetchDashboard = async () => {
     try {
@@ -416,10 +405,6 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadingProfile, permissions.canViewDashboard]);
 
-  /* =========================================================
-     OPTIONS
-  ========================================================= */
-
   const owners = useMemo(() => {
     const values = cases
       .map((item) => item.owner_name)
@@ -470,10 +455,6 @@ export default function DashboardPage() {
     setTimeRange("thisMonth");
     setSelectedMonth(getCurrentMonthKey());
   };
-
-  /* =========================================================
-     FILTERED CASES
-  ========================================================= */
 
   const filteredCases = useMemo(() => {
     const keyword = searchText.trim().toLowerCase();
@@ -556,10 +537,6 @@ export default function DashboardPage() {
       isDateInTimeRange(item.work_date, timeRange, selectedMonth)
     );
   }, [filteredTimeLogsAllTime, timeRange, selectedMonth]);
-
-  /* =========================================================
-     SUMMARY
-  ========================================================= */
 
   const totalLoggedMinutes = useMemo(() => {
     return filteredTimeLogsByPeriod.reduce(
@@ -744,7 +721,6 @@ export default function DashboardPage() {
       }
 
       current.totalMinutes += minutes;
-
       map.set(staff, current);
     });
 
@@ -789,22 +765,29 @@ export default function DashboardPage() {
   }, [filteredTimeLogsByPeriod, caseMap]);
 
   const monthlyTimeSummary = useMemo<MonthlyTimeSummary[]>(() => {
+    const monthKeys = getLast12MonthKeys();
     const map = new Map<string, MonthlyTimeSummary>();
 
-    filteredTimeLogsAllTime.forEach((item) => {
-      const monthKey = getMonthKeyFromDate(item.work_date);
-      if (!monthKey) return;
-
-      const minutes = safeMinutes(item.minutes);
-      const isCore = item.billable !== false;
-
-      const current = map.get(monthKey) || {
+    monthKeys.forEach((monthKey) => {
+      map.set(monthKey, {
         monthKey,
         label: renderMonthKey(monthKey),
         coreMinutes: 0,
         supportMinutes: 0,
         totalMinutes: 0,
-      };
+      });
+    });
+
+    filteredTimeLogsAllTime.forEach((item) => {
+      const monthKey = getMonthKeyFromDate(item.work_date);
+      if (!monthKey) return;
+      if (!map.has(monthKey)) return;
+
+      const minutes = safeMinutes(item.minutes);
+      const isCore = item.billable !== false;
+      const current = map.get(monthKey);
+
+      if (!current) return;
 
       if (isCore) {
         current.coreMinutes += minutes;
@@ -816,14 +799,10 @@ export default function DashboardPage() {
       map.set(monthKey, current);
     });
 
-    return Array.from(map.values()).sort((a, b) =>
-      b.monthKey.localeCompare(a.monthKey)
-    );
+    return monthKeys
+      .map((monthKey) => map.get(monthKey))
+      .filter((item): item is MonthlyTimeSummary => !!item);
   }, [filteredTimeLogsAllTime]);
-
-  /* =========================================================
-     ACCESS GUARD
-  ========================================================= */
 
   if (loadingProfile) {
     return (
@@ -855,10 +834,6 @@ export default function DashboardPage() {
       </AuthGuard>
     );
   }
-
-  /* =========================================================
-     RENDER
-  ========================================================= */
 
   return (
     <AuthGuard>
@@ -904,114 +879,82 @@ export default function DashboardPage() {
           </div>
 
           <div style={isCompact ? compactFilterGridStyle : filterGridStyle}>
-            <div>
-              <label style={labelStyle}>Search</label>
-              <input
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                placeholder="Search file no, title, client, owner, alert text"
-                style={inputStyle}
-              />
-            </div>
+            <InputFilter
+              label="Search"
+              value={searchText}
+              onChange={setSearchText}
+              placeholder="Search file no, title, client, owner, alert text"
+            />
 
-            <div>
-              <label style={labelStyle}>Risk</label>
-              <select
-                value={riskFilter}
-                onChange={(e) => setRiskFilter(e.target.value as RiskFilter)}
-                style={inputStyle}
-              >
-                <option value="all">All</option>
-                <option value="overdue">Overdue</option>
-                <option value="today">Today</option>
-                <option value="dueSoon">Due Soon</option>
-                <option value="clear">Clear</option>
-              </select>
-            </div>
+            <SelectFilter
+              label="Risk"
+              value={riskFilter}
+              onChange={(value) => setRiskFilter(value as RiskFilter)}
+              options={[
+                { value: "all", label: "All" },
+                { value: "overdue", label: "Overdue" },
+                { value: "today", label: "Today" },
+                { value: "dueSoon", label: "Due Soon" },
+                { value: "clear", label: "Clear" },
+              ]}
+            />
 
-            <div>
-              <label style={labelStyle}>Owner</label>
-              <select
-                value={ownerFilter}
-                onChange={(e) => setOwnerFilter(e.target.value)}
-                style={inputStyle}
-              >
-                {owners.map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </select>
-            </div>
+            <SelectFilter
+              label="Owner"
+              value={ownerFilter}
+              onChange={setOwnerFilter}
+              options={owners.map((item) => ({ value: item, label: item }))}
+            />
 
-            <div>
-              <label style={labelStyle}>Phase</label>
-              <select
-                value={phaseFilter}
-                onChange={(e) => setPhaseFilter(e.target.value)}
-                style={inputStyle}
-              >
-                {phases.map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </select>
-            </div>
+            <SelectFilter
+              label="Phase"
+              value={phaseFilter}
+              onChange={setPhaseFilter}
+              options={phases.map((item) => ({ value: item, label: item }))}
+            />
 
-            <div>
-              <label style={labelStyle}>Status</label>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                style={inputStyle}
-              >
-                {statuses.map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </select>
-            </div>
+            <SelectFilter
+              label="Status"
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={statuses.map((item) => ({ value: item, label: item }))}
+            />
 
-            <div>
-              <label style={labelStyle}>Sort By</label>
-              <select
-                value={sortMode}
-                onChange={(e) => setSortMode(e.target.value as SortMode)}
-                style={inputStyle}
-              >
-                <option value="highestRisk">Highest Risk First</option>
-                <option value="latestUpdated">Latest Updated</option>
-                <option value="fileNo">File No</option>
-                <option value="nextAlertDate">Next Alert Date</option>
-              </select>
-            </div>
+            <SelectFilter
+              label="Sort By"
+              value={sortMode}
+              onChange={(value) => setSortMode(value as SortMode)}
+              options={[
+                { value: "highestRisk", label: "Highest Risk First" },
+                { value: "latestUpdated", label: "Latest Updated" },
+                { value: "fileNo", label: "File No" },
+                { value: "nextAlertDate", label: "Next Alert Date" },
+              ]}
+            />
 
-            <div>
-              <label style={labelStyle}>Time Period</label>
-              <select
-                value={timeRange}
-                onChange={(e) => setTimeRange(e.target.value as TimeRange)}
-                style={inputStyle}
-              >
-                <option value="today">Today</option>
-                <option value="thisWeek">This Week</option>
-                <option value="thisMonth">This Month</option>
-                <option value="selectedMonth">Selected Month</option>
-                <option value="all">All Time</option>
-              </select>
-            </div>
+            <SelectFilter
+              label="Time Period"
+              value={timeRange}
+              onChange={(value) => setTimeRange(value as TimeRange)}
+              options={[
+                { value: "today", label: "Today" },
+                { value: "thisWeek", label: "This Week" },
+                { value: "thisMonth", label: "This Month" },
+                { value: "selectedMonth", label: "Selected Month" },
+                { value: "all", label: "All Time" },
+              ]}
+            />
 
-            <div>
-              <label style={labelStyle}>Month / Year</label>
-              <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                style={inputStyle}
-                disabled={timeRange !== "selectedMonth"}
-              >
-                {monthOptions.map((monthKey) => (
-                  <option key={monthKey} value={monthKey}>
-                    {renderMonthKey(monthKey)}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <SelectFilter
+              label="Month / Year"
+              value={selectedMonth}
+              onChange={setSelectedMonth}
+              disabled={timeRange !== "selectedMonth"}
+              options={monthOptions.map((item) => ({
+                value: item,
+                label: renderMonthKey(item),
+              }))}
+            />
           </div>
         </section>
 
@@ -1023,42 +966,36 @@ export default function DashboardPage() {
               count={String(summary.total)}
               tone="neutral"
             />
-
             <MetricCard
               label="Overdue"
               subLabel="เกินกำหนด"
               count={String(summary.overdue)}
               tone="danger"
             />
-
             <MetricCard
               label="Today"
               subLabel="ครบกำหนดวันนี้"
               count={String(summary.today)}
               tone="warning"
             />
-
             <MetricCard
               label="Due Soon"
               subLabel="ใกล้ครบกำหนด"
               count={String(summary.dueSoon)}
               tone="soon"
             />
-
             <MetricCard
               label="Enforcement Ready"
               subLabel="พร้อมดำเนินการบังคับคดี"
               count={String(summary.enforcementReady)}
               tone="blue"
             />
-
             <MetricCard
               label="Total Logged Time"
               subLabel={renderTimeRangeLabel(timeRange, selectedMonth)}
               count={formatDuration(summary.totalLoggedMinutes)}
               tone="purple"
             />
-
             <MetricCard
               label="Clear"
               subLabel="ยังไม่มี Alert"
@@ -1091,56 +1028,36 @@ export default function DashboardPage() {
 
         <section style={sectionGridStyle}>
           <div style={sectionCardStyle}>
-            <div style={sectionHeaderStyle}>
-              <div>
-                <h3 style={sectionTitleStyle}>Core vs Support Workload</h3>
-                <div style={sectionSubtitleStyle}>
-                  ภาพรวมเวลาทำงานหลักและเวลาสนับสนุนตามช่วงเวลาที่เลือก
-                </div>
-              </div>
-            </div>
-
+            <SectionHeader
+              title="Core vs Support Workload"
+              subtitle="ภาพรวมเวลาทำงานหลักและเวลาสนับสนุนตามช่วงเวลาที่เลือก"
+            />
             <WorkloadOverview summary={workloadSummary} />
           </div>
 
           <div style={sectionCardStyle}>
-            <div style={sectionHeaderStyle}>
-              <div>
-                <h3 style={sectionTitleStyle}>Staff Core / Support Split</h3>
-                <div style={sectionSubtitleStyle}>
-                  เปรียบเทียบเวลาหลักและเวลาสนับสนุนของแต่ละคนตามช่วงเวลาที่เลือก
-                </div>
-              </div>
-            </div>
-
+            <SectionHeader
+              title="Staff Core / Support Split"
+              subtitle="เปรียบเทียบเวลาหลักและเวลาสนับสนุนของแต่ละคนตามช่วงเวลาที่เลือก"
+            />
             <StaffWorkloadChart items={staffTimeSummary} />
           </div>
         </section>
 
         <section style={sectionCardStyle}>
-          <div style={sectionHeaderStyle}>
-            <div>
-              <h3 style={sectionTitleStyle}>Monthly Workload Trend</h3>
-              <div style={sectionSubtitleStyle}>
-                เวลาทำงานแยกรายเดือนและรายปีจาก Time Logs ทั้งหมดของแฟ้มที่แสดง
-              </div>
-            </div>
-          </div>
-
+          <SectionHeader
+            title="Monthly Workload Trend"
+            subtitle="แนวโน้มเวลาทำงานย้อนหลัง 12 เดือน แยก Core Work และ Support Time"
+          />
           <MonthlyWorkloadChart items={monthlyTimeSummary} />
         </section>
 
         <section style={sectionGridStyle}>
           <div style={sectionCardStyle}>
-            <div style={sectionHeaderStyle}>
-              <div>
-                <h3 style={sectionTitleStyle}>Time by Staff</h3>
-                <div style={sectionSubtitleStyle}>
-                  เวลาทำงานแยกตามรายชื่อ วันนี้ / สัปดาห์นี้ / เดือนนี้ /
-                  ช่วงเวลาที่เลือก / รวมทั้งหมด
-                </div>
-              </div>
-            </div>
+            <SectionHeader
+              title="Time by Staff"
+              subtitle="เวลาทำงานแยกตามรายชื่อ วันนี้ / สัปดาห์นี้ / เดือนนี้ / ช่วงเวลาที่เลือก / รวมทั้งหมด"
+            />
 
             {staffTimeSummary.length === 0 ? (
               <div style={emptyStyle}>No time logs found.</div>
@@ -1152,14 +1069,10 @@ export default function DashboardPage() {
           </div>
 
           <div style={sectionCardStyle}>
-            <div style={sectionHeaderStyle}>
-              <div>
-                <h3 style={sectionTitleStyle}>Top Time-Consuming Cases</h3>
-                <div style={sectionSubtitleStyle}>
-                  5 คดีที่ใช้เวลาทำงานมากที่สุดตามช่วงเวลาที่เลือก
-                </div>
-              </div>
-            </div>
+            <SectionHeader
+              title="Top Time-Consuming Cases"
+              subtitle="5 คดีที่ใช้เวลาทำงานมากที่สุดตามช่วงเวลาที่เลือก"
+            />
 
             {topTimeConsumingCases.length === 0 ? (
               <div style={emptyStyle}>No time logs found.</div>
@@ -1254,8 +1167,79 @@ export default function DashboardPage() {
 }
 
 /* =========================================================
+   SMALL FORM COMPONENTS
+========================================================= */
+
+function InputFilter({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <div>
+      <label style={labelStyle}>{label}</label>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={inputStyle}
+      />
+    </div>
+  );
+}
+
+function SelectFilter({
+  label,
+  value,
+  onChange,
+  options,
+  disabled = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  disabled?: boolean;
+}) {
+  return (
+    <div>
+      <label style={labelStyle}>{label}</label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={inputStyle}
+        disabled={disabled}
+      >
+        {options.map((item) => (
+          <option key={item.value} value={item.value}>
+            {item.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+/* =========================================================
    SUB COMPONENTS
 ========================================================= */
+
+function SectionHeader({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <div style={sectionHeaderStyle}>
+      <div>
+        <h3 style={sectionTitleStyle}>{title}</h3>
+        <div style={sectionSubtitleStyle}>{subtitle}</div>
+      </div>
+    </div>
+  );
+}
 
 function MetricCard({
   label,
@@ -1351,14 +1335,12 @@ function WorkloadOverview({
             ...stackedCoreStyle,
             width: `${summary.corePercent}%`,
           }}
-          title={`Core ${summary.corePercent}%`}
         />
         <div
           style={{
             ...stackedSupportStyle,
             width: `${summary.supportPercent}%`,
           }}
-          title={`Support ${summary.supportPercent}%`}
         />
       </div>
 
@@ -1396,6 +1378,7 @@ function StaffWorkloadChart({ items }: { items: StaffTimeSummary[] }) {
     <div style={staffChartListStyle}>
       {items.map((item) => {
         const targetMinutes = item.periodMinutes;
+
         const corePercent =
           targetMinutes > 0
             ? Math.round((item.coreMinutes / targetMinutes) * 100)
@@ -1462,7 +1445,7 @@ function MonthlyWorkloadChart({ items }: { items: MonthlyTimeSummary[] }) {
     <div style={monthlyChartGridStyle}>
       {items.map((item) => {
         const totalWidth = Math.max(
-          4,
+          3,
           Math.round((item.totalMinutes / maxMinutes) * 100)
         );
 
@@ -1559,15 +1542,8 @@ function StaffTimeCardList({ items }: { items: StaffTimeSummary[] }) {
     <div style={cardListStyle}>
       {items.map((item) => (
         <div key={item.staff} style={mobileCardStyle}>
-          <div style={mobileCardHeaderStyle}>
-            <div>
-              <div style={mobileTitleStyle}>{item.staff}</div>
-              <div style={infoValueStyle}>
-                Selected {formatDuration(item.periodMinutes)}
-              </div>
-            </div>
-          </div>
-
+          <div style={mobileTitleStyle}>{item.staff}</div>
+          <InfoLine label="Selected" value={formatDuration(item.periodMinutes)} />
           <InfoLine label="Today" value={formatDuration(item.todayMinutes)} />
           <InfoLine label="This Week" value={formatDuration(item.weekMinutes)} />
           <InfoLine
@@ -1631,13 +1607,8 @@ function CaseTimeCardList({ items }: { items: CaseTimeSummary[] }) {
     <div style={cardListStyle}>
       {items.map((item) => (
         <div key={item.caseId} style={mobileCardStyle}>
-          <div style={mobileCardHeaderStyle}>
-            <div>
-              <div style={fileNoStyle}>{item.fileNo}</div>
-              <div style={mobileTitleStyle}>{item.title}</div>
-            </div>
-          </div>
-
+          <div style={fileNoStyle}>{item.fileNo}</div>
+          <div style={mobileTitleStyle}>{item.title}</div>
           <InfoLine label="Client" value={item.clientName} />
           <InfoLine label="Core" value={formatDuration(item.coreMinutes)} />
           <InfoLine
@@ -1710,7 +1681,6 @@ function RiskCardList({ items }: { items: EnrichedCase[] }) {
               <div style={fileNoStyle}>{item.file_no || "-"}</div>
               <div style={mobileTitleStyle}>{item.title || "-"}</div>
             </div>
-
             <RiskBadge level={item.risk_level} />
           </div>
 
@@ -1801,7 +1771,6 @@ function EnforcementCardList({
                 <div style={fileNoStyle}>{caseItem?.file_no || "-"}</div>
                 <div style={mobileTitleStyle}>{caseItem?.title || "-"}</div>
               </div>
-
               <RiskBadge level={item.level} />
             </div>
 
@@ -1874,7 +1843,6 @@ function RecentCaseCardList({ items }: { items: EnrichedCase[] }) {
               <div style={fileNoStyle}>{item.file_no || "-"}</div>
               <div style={mobileTitleStyle}>{item.title || "-"}</div>
             </div>
-
             <RiskBadge level={item.risk_level} />
           </div>
 
@@ -2121,6 +2089,22 @@ function getCurrentMonthKey() {
   return `${year}-${month}`;
 }
 
+function getLast12MonthKeys() {
+  const result: string[] = [];
+  const today = new Date();
+
+  for (let i = 11; i >= 0; i -= 1) {
+    const target = new Date(today.getFullYear(), today.getMonth() - i, 1);
+
+    const year = target.getFullYear();
+    const month = String(target.getMonth() + 1).padStart(2, "0");
+
+    result.push(`${year}-${month}`);
+  }
+
+  return result;
+}
+
 function getMonthKeyFromDate(dateText?: string | null) {
   if (!dateText || dateText.length < 7) return "";
   return dateText.slice(0, 7);
@@ -2295,7 +2279,7 @@ function formatDuration(totalMinutes?: number | null) {
   return `${hours} ชม. ${minutes} นาที`;
 }
 
-function getMetricToneStyle(tone: Tone): React.CSSProperties {
+function getMetricToneStyle(tone: Tone): CSSProperties {
   if (tone === "danger") {
     return {
       background: "linear-gradient(135deg, #fff5f5 0%, #ffe0e0 100%)",
@@ -2344,7 +2328,7 @@ function getMetricToneStyle(tone: Tone): React.CSSProperties {
   };
 }
 
-function getBarToneStyle(tone: Tone): React.CSSProperties {
+function getBarToneStyle(tone: Tone): CSSProperties {
   if (tone === "danger") return { background: "#c0392b" };
   if (tone === "warning") return { background: "#b54708" };
   if (tone === "soon") return { background: "#c96b00" };
@@ -2364,18 +2348,18 @@ function getToneByIndex(index: number): Tone {
    STYLES
 ========================================================= */
 
-const pageStyle: React.CSSProperties = {
+const pageStyle: CSSProperties = {
   padding: 24,
   maxWidth: 1440,
   margin: "0 auto",
   color: "#111111",
 };
 
-const blockStyle: React.CSSProperties = {
+const blockStyle: CSSProperties = {
   marginBottom: 18,
 };
 
-const heroPanelStyle: React.CSSProperties = {
+const heroPanelStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   gap: 16,
@@ -2390,7 +2374,7 @@ const heroPanelStyle: React.CSSProperties = {
   boxShadow: "0 8px 28px rgba(15, 23, 42, 0.06)",
 };
 
-const eyebrowStyle: React.CSSProperties = {
+const eyebrowStyle: CSSProperties = {
   fontSize: 12,
   fontWeight: 900,
   letterSpacing: 1.2,
@@ -2398,14 +2382,14 @@ const eyebrowStyle: React.CSSProperties = {
   marginBottom: 6,
 };
 
-const heroTitleStyle: React.CSSProperties = {
+const heroTitleStyle: CSSProperties = {
   margin: 0,
   fontSize: 28,
   fontWeight: 950,
   color: "#111111",
 };
 
-const heroSubtitleStyle: React.CSSProperties = {
+const heroSubtitleStyle: CSSProperties = {
   marginTop: 8,
   color: "#555555",
   fontSize: 14,
@@ -2413,7 +2397,7 @@ const heroSubtitleStyle: React.CSSProperties = {
   lineHeight: 1.6,
 };
 
-const filterPanelStyle: React.CSSProperties = {
+const filterPanelStyle: CSSProperties = {
   border: "1px solid #eeeeee",
   borderRadius: 16,
   padding: 16,
@@ -2421,7 +2405,7 @@ const filterPanelStyle: React.CSSProperties = {
   marginBottom: 18,
 };
 
-const filterHeaderStyle: React.CSSProperties = {
+const filterHeaderStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   gap: 12,
@@ -2430,46 +2414,46 @@ const filterHeaderStyle: React.CSSProperties = {
   marginBottom: 14,
 };
 
-const filterTitleStyle: React.CSSProperties = {
+const filterTitleStyle: CSSProperties = {
   margin: 0,
   fontSize: 17,
   fontWeight: 900,
   color: "#111111",
 };
 
-const filterSubtitleStyle: React.CSSProperties = {
+const filterSubtitleStyle: CSSProperties = {
   marginTop: 4,
   fontSize: 13,
   color: "#666666",
   fontWeight: 600,
 };
 
-const filterGridStyle: React.CSSProperties = {
+const filterGridStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1.2fr 1.1fr 1.1fr",
   gap: 12,
   alignItems: "end",
 };
 
-const compactFilterGridStyle: React.CSSProperties = {
+const compactFilterGridStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "1fr",
   gap: 10,
 };
 
-const summaryGridStyle: React.CSSProperties = {
+const summaryGridStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
   gap: 12,
 };
 
-const compactSummaryGridStyle: React.CSSProperties = {
+const compactSummaryGridStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(2, minmax(120px, 1fr))",
   gap: 10,
 };
 
-const metricCardStyle: React.CSSProperties = {
+const metricCardStyle: CSSProperties = {
   position: "relative",
   borderRadius: 16,
   padding: 16,
@@ -2479,14 +2463,14 @@ const metricCardStyle: React.CSSProperties = {
   overflow: "hidden",
 };
 
-const metricTopLineStyle: React.CSSProperties = {
+const metricTopLineStyle: CSSProperties = {
   width: 38,
   height: 5,
   borderRadius: 999,
   marginBottom: 14,
 };
 
-const metricNumberStyle: React.CSSProperties = {
+const metricNumberStyle: CSSProperties = {
   fontSize: 30,
   fontWeight: 950,
   marginBottom: 8,
@@ -2494,26 +2478,26 @@ const metricNumberStyle: React.CSSProperties = {
   lineHeight: 1.1,
 };
 
-const metricLabelStyle: React.CSSProperties = {
+const metricLabelStyle: CSSProperties = {
   fontWeight: 900,
   color: "#222222",
 };
 
-const metricSubLabelStyle: React.CSSProperties = {
+const metricSubLabelStyle: CSSProperties = {
   marginTop: 4,
   fontSize: 12,
   fontWeight: 700,
   color: "#666666",
 };
 
-const miniGridStyle: React.CSSProperties = {
+const miniGridStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
   gap: 12,
   marginBottom: 18,
 };
 
-const miniCardStyle: React.CSSProperties = {
+const miniCardStyle: CSSProperties = {
   border: "1px solid #eeeeee",
   borderRadius: 16,
   padding: 16,
@@ -2521,19 +2505,19 @@ const miniCardStyle: React.CSSProperties = {
   boxShadow: "0 3px 16px rgba(15, 23, 42, 0.04)",
 };
 
-const miniTitleStyle: React.CSSProperties = {
+const miniTitleStyle: CSSProperties = {
   fontSize: 15,
   fontWeight: 900,
   marginBottom: 12,
   color: "#111111",
 };
 
-const chartRowStyle: React.CSSProperties = {
+const chartRowStyle: CSSProperties = {
   padding: "8px 0",
   borderTop: "1px solid #f0f0f0",
 };
 
-const chartRowTopStyle: React.CSSProperties = {
+const chartRowTopStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   gap: 12,
@@ -2542,7 +2526,7 @@ const chartRowTopStyle: React.CSSProperties = {
   fontWeight: 800,
 };
 
-const barTrackStyle: React.CSSProperties = {
+const barTrackStyle: CSSProperties = {
   width: "100%",
   height: 7,
   borderRadius: 999,
@@ -2550,24 +2534,24 @@ const barTrackStyle: React.CSSProperties = {
   overflow: "hidden",
 };
 
-const barFillStyle: React.CSSProperties = {
+const barFillStyle: CSSProperties = {
   height: "100%",
   borderRadius: 999,
 };
 
-const emptyMiniStyle: React.CSSProperties = {
+const emptyMiniStyle: CSSProperties = {
   color: "#666666",
   fontWeight: 600,
 };
 
-const sectionGridStyle: React.CSSProperties = {
+const sectionGridStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))",
   gap: 12,
   marginBottom: 18,
 };
 
-const sectionCardStyle: React.CSSProperties = {
+const sectionCardStyle: CSSProperties = {
   border: "1px solid #eeeeee",
   borderRadius: 16,
   padding: 16,
@@ -2576,7 +2560,7 @@ const sectionCardStyle: React.CSSProperties = {
   boxShadow: "0 3px 16px rgba(15, 23, 42, 0.04)",
 };
 
-const sectionHeaderStyle: React.CSSProperties = {
+const sectionHeaderStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   gap: 12,
@@ -2585,14 +2569,14 @@ const sectionHeaderStyle: React.CSSProperties = {
   marginBottom: 12,
 };
 
-const sectionTitleStyle: React.CSSProperties = {
+const sectionTitleStyle: CSSProperties = {
   margin: 0,
   fontSize: 17,
   fontWeight: 900,
   color: "#111111",
 };
 
-const sectionSubtitleStyle: React.CSSProperties = {
+const sectionSubtitleStyle: CSSProperties = {
   marginTop: 4,
   fontSize: 13,
   color: "#666666",
@@ -2600,14 +2584,14 @@ const sectionSubtitleStyle: React.CSSProperties = {
   lineHeight: 1.5,
 };
 
-const sectionLinkStyle: React.CSSProperties = {
+const sectionLinkStyle: CSSProperties = {
   color: "#0f2743",
   textDecoration: "none",
   fontSize: 14,
   fontWeight: 900,
 };
 
-const labelStyle: React.CSSProperties = {
+const labelStyle: CSSProperties = {
   display: "block",
   marginBottom: 4,
   color: "#222222",
@@ -2615,7 +2599,7 @@ const labelStyle: React.CSSProperties = {
   fontSize: 13,
 };
 
-const inputStyle: React.CSSProperties = {
+const inputStyle: CSSProperties = {
   width: "100%",
   padding: "10px 12px",
   border: "1px solid #cccccc",
@@ -2627,7 +2611,7 @@ const inputStyle: React.CSSProperties = {
   colorScheme: "light",
 };
 
-const secondaryButtonStyle: React.CSSProperties = {
+const secondaryButtonStyle: CSSProperties = {
   padding: "10px 16px",
   background: "#ffffff",
   color: "#111111",
@@ -2638,7 +2622,7 @@ const secondaryButtonStyle: React.CSSProperties = {
   fontWeight: 800,
 };
 
-const ghostButtonStyle: React.CSSProperties = {
+const ghostButtonStyle: CSSProperties = {
   padding: "9px 13px",
   background: "#f8fafc",
   color: "#111111",
@@ -2649,13 +2633,13 @@ const ghostButtonStyle: React.CSSProperties = {
   fontWeight: 800,
 };
 
-const tableStyle: React.CSSProperties = {
+const tableStyle: CSSProperties = {
   width: "100%",
   borderCollapse: "collapse",
   minWidth: 760,
 };
 
-const thStyle: React.CSSProperties = {
+const thStyle: CSSProperties = {
   textAlign: "left",
   padding: "11px 10px",
   borderBottom: "1px solid #eeeeee",
@@ -2666,7 +2650,7 @@ const thStyle: React.CSSProperties = {
   background: "#fafafa",
 };
 
-const tdStyle: React.CSSProperties = {
+const tdStyle: CSSProperties = {
   padding: "12px 10px",
   verticalAlign: "top",
   borderTop: "1px solid #eeeeee",
@@ -2675,18 +2659,18 @@ const tdStyle: React.CSSProperties = {
   fontSize: 14,
 };
 
-const rowStyle: React.CSSProperties = {
+const rowStyle: CSSProperties = {
   borderTop: "1px solid #eeeeee",
 };
 
-const alertTextStyle: React.CSSProperties = {
+const alertTextStyle: CSSProperties = {
   maxWidth: 320,
   whiteSpace: "normal",
   fontWeight: 700,
   lineHeight: 1.45,
 };
 
-const riskBadgeBaseStyle: React.CSSProperties = {
+const riskBadgeBaseStyle: CSSProperties = {
   display: "inline-flex",
   padding: "5px 10px",
   borderRadius: 999,
@@ -2695,27 +2679,27 @@ const riskBadgeBaseStyle: React.CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-const riskOverdueStyle: React.CSSProperties = {
+const riskOverdueStyle: CSSProperties = {
   background: "#ffe0e0",
   color: "#c0392b",
 };
 
-const riskTodayStyle: React.CSSProperties = {
+const riskTodayStyle: CSSProperties = {
   background: "#fff0c2",
   color: "#b26a00",
 };
 
-const riskDueSoonStyle: React.CSSProperties = {
+const riskDueSoonStyle: CSSProperties = {
   background: "#fff4d9",
   color: "#c96b00",
 };
 
-const riskClearStyle: React.CSSProperties = {
+const riskClearStyle: CSSProperties = {
   background: "#e8f5ec",
   color: "#18794e",
 };
 
-const openButtonLinkStyle: React.CSSProperties = {
+const openButtonLinkStyle: CSSProperties = {
   display: "inline-flex",
   padding: "7px 11px",
   borderRadius: 999,
@@ -2726,7 +2710,7 @@ const openButtonLinkStyle: React.CSSProperties = {
   fontWeight: 900,
 };
 
-const allClearStyle: React.CSSProperties = {
+const allClearStyle: CSSProperties = {
   color: "#067647",
   fontWeight: 800,
   padding: 12,
@@ -2735,7 +2719,7 @@ const allClearStyle: React.CSSProperties = {
   background: "#e6f4ea",
 };
 
-const emptyStyle: React.CSSProperties = {
+const emptyStyle: CSSProperties = {
   padding: 16,
   border: "1px dashed #cccccc",
   borderRadius: 12,
@@ -2744,7 +2728,7 @@ const emptyStyle: React.CSSProperties = {
   fontWeight: 700,
 };
 
-const loadingBoxStyle: React.CSSProperties = {
+const loadingBoxStyle: CSSProperties = {
   padding: 18,
   border: "1px dashed #cccccc",
   borderRadius: 12,
@@ -2753,12 +2737,12 @@ const loadingBoxStyle: React.CSSProperties = {
   fontWeight: 800,
 };
 
-const cardListStyle: React.CSSProperties = {
+const cardListStyle: CSSProperties = {
   display: "grid",
   gap: 12,
 };
 
-const mobileCardStyle: React.CSSProperties = {
+const mobileCardStyle: CSSProperties = {
   border: "1px solid #dddddd",
   borderRadius: 14,
   padding: 14,
@@ -2767,7 +2751,7 @@ const mobileCardStyle: React.CSSProperties = {
   boxShadow: "0 1px 8px rgba(0,0,0,0.04)",
 };
 
-const mobileCardHeaderStyle: React.CSSProperties = {
+const mobileCardHeaderStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   gap: 12,
@@ -2775,29 +2759,29 @@ const mobileCardHeaderStyle: React.CSSProperties = {
   marginBottom: 12,
 };
 
-const fileNoStyle: React.CSSProperties = {
+const fileNoStyle: CSSProperties = {
   fontWeight: 950,
   fontSize: 15,
   color: "#12355b",
 };
 
-const mobileTitleStyle: React.CSSProperties = {
+const mobileTitleStyle: CSSProperties = {
   marginTop: 4,
   color: "#333333",
   fontWeight: 900,
 };
 
-const infoLineStyle: React.CSSProperties = {
+const infoLineStyle: CSSProperties = {
   marginBottom: 8,
 };
 
-const infoLabelStyle: React.CSSProperties = {
+const infoLabelStyle: CSSProperties = {
   fontSize: 12,
   color: "#666666",
   fontWeight: 800,
 };
 
-const infoValueStyle: React.CSSProperties = {
+const infoValueStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 800,
   color: "#111111",
@@ -2805,13 +2789,13 @@ const infoValueStyle: React.CSSProperties = {
   lineHeight: 1.45,
 };
 
-const cardActionStyle: React.CSSProperties = {
+const cardActionStyle: CSSProperties = {
   marginTop: 12,
   paddingTop: 10,
   borderTop: "1px solid #eeeeee",
 };
 
-const noAccessBoxStyle: React.CSSProperties = {
+const noAccessBoxStyle: CSSProperties = {
   padding: 18,
   borderRadius: 12,
   border: "1px solid #f0c4c4",
@@ -2820,21 +2804,21 @@ const noAccessBoxStyle: React.CSSProperties = {
   fontWeight: 900,
 };
 
-const noAccessSubTextStyle: React.CSSProperties = {
+const noAccessSubTextStyle: CSSProperties = {
   marginTop: 6,
   color: "#555555",
   fontSize: 13,
   fontWeight: 700,
 };
 
-const workloadBigNumberStyle: React.CSSProperties = {
+const workloadBigNumberStyle: CSSProperties = {
   fontSize: 34,
   fontWeight: 950,
   color: "#111111",
   lineHeight: 1.1,
 };
 
-const workloadCaptionStyle: React.CSSProperties = {
+const workloadCaptionStyle: CSSProperties = {
   marginTop: 4,
   marginBottom: 14,
   color: "#666666",
@@ -2842,7 +2826,7 @@ const workloadCaptionStyle: React.CSSProperties = {
   fontSize: 13,
 };
 
-const stackedBarStyle: React.CSSProperties = {
+const stackedBarStyle: CSSProperties = {
   display: "flex",
   width: "100%",
   height: 18,
@@ -2852,30 +2836,30 @@ const stackedBarStyle: React.CSSProperties = {
   marginBottom: 14,
 };
 
-const stackedCoreStyle: React.CSSProperties = {
+const stackedCoreStyle: CSSProperties = {
   height: "100%",
   background: "#175cd3",
 };
 
-const stackedSupportStyle: React.CSSProperties = {
+const stackedSupportStyle: CSSProperties = {
   height: "100%",
   background: "#7e22ce",
 };
 
-const workloadLegendGridStyle: React.CSSProperties = {
+const workloadLegendGridStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
   gap: 10,
 };
 
-const workloadLegendCardStyle: React.CSSProperties = {
+const workloadLegendCardStyle: CSSProperties = {
   border: "1px solid #eeeeee",
   borderRadius: 14,
   padding: 12,
   background: "#fafafa",
 };
 
-const legendTopStyle: React.CSSProperties = {
+const legendTopStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 8,
@@ -2884,31 +2868,31 @@ const legendTopStyle: React.CSSProperties = {
   marginBottom: 6,
 };
 
-const legendDotStyle: React.CSSProperties = {
+const legendDotStyle: CSSProperties = {
   width: 10,
   height: 10,
   borderRadius: 999,
   display: "inline-block",
 };
 
-const legendPercentStyle: React.CSSProperties = {
+const legendPercentStyle: CSSProperties = {
   marginTop: 4,
   fontSize: 12,
   color: "#666666",
   fontWeight: 800,
 };
 
-const staffChartListStyle: React.CSSProperties = {
+const staffChartListStyle: CSSProperties = {
   display: "grid",
   gap: 14,
 };
 
-const staffChartRowStyle: React.CSSProperties = {
+const staffChartRowStyle: CSSProperties = {
   display: "grid",
   gap: 6,
 };
 
-const staffChartHeaderStyle: React.CSSProperties = {
+const staffChartHeaderStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   gap: 12,
@@ -2916,7 +2900,7 @@ const staffChartHeaderStyle: React.CSSProperties = {
   fontSize: 14,
 };
 
-const staffOuterBarStyle: React.CSSProperties = {
+const staffOuterBarStyle: CSSProperties = {
   width: "100%",
   height: 16,
   borderRadius: 999,
@@ -2924,49 +2908,49 @@ const staffOuterBarStyle: React.CSSProperties = {
   overflow: "hidden",
 };
 
-const staffInnerBarStyle: React.CSSProperties = {
+const staffInnerBarStyle: CSSProperties = {
   height: "100%",
   display: "flex",
   borderRadius: 999,
   overflow: "hidden",
 };
 
-const staffCorePartStyle: React.CSSProperties = {
+const staffCorePartStyle: CSSProperties = {
   height: "100%",
   background: "#175cd3",
 };
 
-const staffSupportPartStyle: React.CSSProperties = {
+const staffSupportPartStyle: CSSProperties = {
   height: "100%",
   background: "#7e22ce",
 };
 
-const staffChartMetaStyle: React.CSSProperties = {
+const staffChartMetaStyle: CSSProperties = {
   fontSize: 12,
   color: "#666666",
   fontWeight: 700,
 };
 
-const monthlyChartGridStyle: React.CSSProperties = {
+const monthlyChartGridStyle: CSSProperties = {
   display: "grid",
   gap: 14,
 };
 
-const monthlyChartRowStyle: React.CSSProperties = {
+const monthlyChartRowStyle: CSSProperties = {
   display: "grid",
   gap: 7,
   padding: "10px 0",
   borderTop: "1px solid #f0f0f0",
 };
 
-const monthlyChartLabelStyle: React.CSSProperties = {
+const monthlyChartLabelStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   gap: 12,
   color: "#222222",
 };
 
-const monthlyOuterTrackStyle: React.CSSProperties = {
+const monthlyOuterTrackStyle: CSSProperties = {
   width: "100%",
   height: 18,
   borderRadius: 999,
@@ -2974,7 +2958,7 @@ const monthlyOuterTrackStyle: React.CSSProperties = {
   overflow: "hidden",
 };
 
-const monthlyInnerBarStyle: React.CSSProperties = {
+const monthlyInnerBarStyle: CSSProperties = {
   height: "100%",
   display: "flex",
   borderRadius: 999,
