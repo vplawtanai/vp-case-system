@@ -152,6 +152,20 @@ type MonthlyTimeSummary = {
   totalMinutes: number;
 };
 
+type ActionRequiredItem = {
+  id: string;
+  caseId: number;
+  fileNo: string;
+  title: string;
+  clientName: string;
+  level: "overdue" | "today" | "dueSoon" | "stale";
+  label: string;
+  text: string;
+  dateText: string;
+  href: string;
+  score: number;
+};
+
 type SortMode =
   | "highestRisk"
   | "latestUpdated"
@@ -798,6 +812,97 @@ export default function DashboardPage() {
     return result;
   }, [filteredTimeLogsAllTime, selectedTrendMonth]);
 
+  const actionRequired = useMemo(() => {
+    const filteredAlerts = alertItems.filter((item) =>
+      filteredCaseIds.has(item.case_id)
+    );
+
+    const overdueItems = filteredAlerts.filter(
+      (item) => item.level === "overdue"
+    );
+
+    const todayItems = filteredAlerts.filter((item) => item.level === "today");
+
+    const dueSoonItems = filteredAlerts.filter(
+      (item) => item.level === "dueSoon"
+    );
+
+    const staleCases = filteredCases.filter((item) => {
+      if (item.status !== "Active") return false;
+      return getDaysSinceDateTime(item.updated_at) >= 14;
+    });
+
+    const rows: ActionRequiredItem[] = [];
+
+    filteredAlerts.forEach((item) => {
+      if (
+        item.level !== "overdue" &&
+        item.level !== "today" &&
+        item.level !== "dueSoon"
+      ) {
+        return;
+      }
+
+      const caseItem = caseMap.get(item.case_id);
+      if (!caseItem) return;
+
+      rows.push({
+        id: item.id,
+        caseId: item.case_id,
+        fileNo: caseItem.file_no || "-",
+        title: caseItem.title || "-",
+        clientName: caseItem.client_name || "-",
+        level: item.level,
+        label:
+          item.level === "overdue"
+            ? "Overdue"
+            : item.level === "today"
+              ? "Due Today"
+              : "Due Soon",
+        text: item.text,
+        dateText: formatDisplayDate(item.date),
+        href: `/cases/${item.case_id}${item.sourceHash}`,
+        score: item.level === "overdue" ? 1 : item.level === "today" ? 2 : 3,
+      });
+    });
+
+    staleCases.forEach((item) => {
+      const staleDays = getDaysSinceDateTime(item.updated_at);
+
+      rows.push({
+        id: `stale-${item.id}`,
+        caseId: item.id,
+        fileNo: item.file_no || "-",
+        title: item.title || "-",
+        clientName: item.client_name || "-",
+        level: "stale",
+        label: "Stale Case",
+        text: `ไม่มีการอัปเดต ${staleDays} วัน`,
+        dateText: formatDateTime(item.updated_at),
+        href: `/cases/${item.id}`,
+        score: 4,
+      });
+    });
+
+    rows.sort((a, b) => {
+      if (a.score !== b.score) return a.score - b.score;
+      return a.fileNo.localeCompare(b.fileNo);
+    });
+
+    return {
+      overdue: overdueItems.length,
+      today: todayItems.length,
+      dueSoon: dueSoonItems.length,
+      stale: staleCases.length,
+      total:
+        overdueItems.length +
+        todayItems.length +
+        dueSoonItems.length +
+        staleCases.length,
+      rows: rows.slice(0, 5),
+    };
+  }, [alertItems, filteredCaseIds, filteredCases, caseMap]);
+
   if (loadingProfile) {
     return (
       <AuthGuard>
@@ -997,6 +1102,25 @@ export default function DashboardPage() {
               tone="success"
             />
           </div>
+        </section>
+
+        <section style={sectionCardStyle}>
+          <div style={sectionHeaderStyle}>
+            <div>
+              <div style={sectionEyebrowStyle}>COMMAND CENTER</div>
+              <h3 style={sectionTitleStyle}>Action Required</h3>
+              <div style={sectionSubtitleStyle}>
+                รายการที่ควรสั่งการก่อน: เกินกำหนด ครบกำหนดวันนี้ ใกล้ครบกำหนด
+                และคดีที่ไม่ได้อัปเดตนานผิดปกติ
+              </div>
+            </div>
+
+            <Link href="/cases" style={sectionLinkStyle}>
+              View cases
+            </Link>
+          </div>
+
+          <ActionRequiredPanel data={actionRequired} />
         </section>
 
         <section style={miniGridStyle}>
@@ -1335,6 +1459,132 @@ function DistributionCard({
       )}
     </div>
   );
+}
+
+function ActionRequiredPanel({
+  data,
+}: {
+  data: {
+    overdue: number;
+    today: number;
+    dueSoon: number;
+    stale: number;
+    total: number;
+    rows: ActionRequiredItem[];
+  };
+}) {
+  return (
+    <div>
+      <div style={actionSummaryGridStyle}>
+        <ActionMiniCard
+          label="Overdue"
+          value={data.overdue}
+          tone="danger"
+          description="รายการเกินกำหนด"
+        />
+
+        <ActionMiniCard
+          label="Due Today"
+          value={data.today}
+          tone="warning"
+          description="ครบกำหนดวันนี้"
+        />
+
+        <ActionMiniCard
+          label="Due Soon"
+          value={data.dueSoon}
+          tone="soon"
+          description="ใกล้ครบกำหนด"
+        />
+
+        <ActionMiniCard
+          label="Stale Cases"
+          value={data.stale}
+          tone="purple"
+          description="ไม่ได้อัปเดตเกิน 14 วัน"
+        />
+      </div>
+
+      {data.rows.length === 0 ? (
+        <CompactAllClearBox text="No action required right now" />
+      ) : (
+        <div style={actionListStyle}>
+          {data.rows.map((item) => (
+            <div key={item.id} style={actionRowStyle}>
+              <div style={actionRowLeftStyle}>
+                <ActionLevelBadge level={item.level} />
+
+                <div>
+                  <div style={actionCaseTitleStyle}>
+                    {item.fileNo} · {item.title}
+                  </div>
+
+                  <div style={actionMetaStyle}>
+                    {item.clientName} · {item.text}
+                  </div>
+                </div>
+              </div>
+
+              <div style={actionRowRightStyle}>
+                <div style={actionDateStyle}>{item.dateText || "-"}</div>
+
+                <Link href={item.href} style={openButtonLinkStyle}>
+                  Open
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ActionMiniCard({
+  label,
+  value,
+  description,
+  tone,
+}: {
+  label: string;
+  value: number;
+  description: string;
+  tone: Tone;
+}) {
+  return (
+    <div style={{ ...actionMiniCardStyle, ...getMetricToneStyle(tone) }}>
+      <div style={{ ...actionMiniTopLineStyle, ...getBarToneStyle(tone) }} />
+      <div style={actionMiniNumberStyle}>{value}</div>
+      <div style={actionMiniLabelStyle}>{label}</div>
+      <div style={actionMiniDescriptionStyle}>{description}</div>
+    </div>
+  );
+}
+
+function ActionLevelBadge({
+  level,
+}: {
+  level: "overdue" | "today" | "dueSoon" | "stale";
+}) {
+  const label =
+    level === "overdue"
+      ? "Overdue"
+      : level === "today"
+        ? "Today"
+        : level === "dueSoon"
+          ? "Due Soon"
+          : "Stale";
+
+  const style =
+    level === "overdue"
+      ? actionBadgeDangerStyle
+      : level === "today"
+        ? actionBadgeWarningStyle
+        : level === "dueSoon"
+          ? actionBadgeSoonStyle
+          : actionBadgePurpleStyle;
+
+  return <span style={{ ...actionBadgeBaseStyle, ...style }}>{label}</span>;
 }
 
 function WorkloadOverview({
@@ -2194,7 +2444,7 @@ function getCurrentMonthKey() {
 function getMonthKeysFromJune2026() {
   const result: string[] = [];
   const start = new Date(2026, 5, 1);
-  const end = new Date(2027, 11, 1);
+  const end = new Date(2031, 4, 1);
 
   const current = new Date(start);
 
@@ -2357,6 +2607,22 @@ function formatDateTime(value?: string | null) {
   } catch {
     return value;
   }
+}
+
+function getDaysSinceDateTime(value?: string | null) {
+  if (!value) return 9999;
+
+  const target = new Date(value);
+  if (Number.isNaN(target.getTime())) return 9999;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  target.setHours(0, 0, 0, 0);
+
+  return Math.floor(
+    (today.getTime() - target.getTime()) / (1000 * 60 * 60 * 24)
+  );
 }
 
 function formatDisplayDate(value?: string | null) {
@@ -3369,4 +3635,128 @@ const compactAllClearSubStyle: CSSProperties = {
   color: "#555555",
   fontSize: 13,
   fontWeight: 700,
+};
+
+const actionSummaryGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: 12,
+  marginBottom: 14,
+};
+
+const actionMiniCardStyle: CSSProperties = {
+  borderRadius: 16,
+  padding: 14,
+  minHeight: 105,
+  boxShadow: "0 8px 22px rgba(15, 23, 42, 0.055)",
+};
+
+const actionMiniTopLineStyle: CSSProperties = {
+  width: 34,
+  height: 5,
+  borderRadius: 999,
+  marginBottom: 12,
+};
+
+const actionMiniNumberStyle: CSSProperties = {
+  fontSize: 28,
+  fontWeight: 950,
+  color: "#111111",
+  lineHeight: 1,
+  marginBottom: 8,
+};
+
+const actionMiniLabelStyle: CSSProperties = {
+  fontSize: 14,
+  fontWeight: 950,
+  color: "#111111",
+};
+
+const actionMiniDescriptionStyle: CSSProperties = {
+  marginTop: 4,
+  fontSize: 12,
+  fontWeight: 700,
+  color: "#666666",
+};
+
+const actionListStyle: CSSProperties = {
+  display: "grid",
+  gap: 10,
+};
+
+const actionRowStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  alignItems: "center",
+  border: "1px solid #eeeeee",
+  borderRadius: 14,
+  padding: 12,
+  background: "linear-gradient(135deg, #ffffff 0%, #fafafa 100%)",
+};
+
+const actionRowLeftStyle: CSSProperties = {
+  display: "flex",
+  gap: 12,
+  alignItems: "flex-start",
+  minWidth: 0,
+};
+
+const actionRowRightStyle: CSSProperties = {
+  display: "flex",
+  gap: 10,
+  alignItems: "center",
+  flexWrap: "wrap",
+  justifyContent: "flex-end",
+};
+
+const actionCaseTitleStyle: CSSProperties = {
+  fontSize: 14,
+  fontWeight: 950,
+  color: "#111111",
+  lineHeight: 1.4,
+};
+
+const actionMetaStyle: CSSProperties = {
+  marginTop: 3,
+  fontSize: 13,
+  fontWeight: 700,
+  color: "#555555",
+  lineHeight: 1.45,
+};
+
+const actionDateStyle: CSSProperties = {
+  fontSize: 13,
+  color: "#555555",
+  fontWeight: 800,
+  whiteSpace: "nowrap",
+};
+
+const actionBadgeBaseStyle: CSSProperties = {
+  display: "inline-flex",
+  padding: "5px 10px",
+  borderRadius: 999,
+  fontSize: 12,
+  fontWeight: 950,
+  whiteSpace: "nowrap",
+};
+
+const actionBadgeDangerStyle: CSSProperties = {
+  background: "#ffe0e0",
+  color: "#c0392b",
+};
+
+const actionBadgeWarningStyle: CSSProperties = {
+  background: "#fff0c2",
+  color: "#b26a00",
+};
+
+const actionBadgeSoonStyle: CSSProperties = {
+  background: "#fff4d9",
+  color: "#c96b00",
+};
+
+const actionBadgePurpleStyle: CSSProperties = {
+  background: "#f1e4ff",
+  color: "#7e22ce",
 };
