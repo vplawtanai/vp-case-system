@@ -144,14 +144,6 @@ type CaseTimeSummary = {
   totalMinutes: number;
 };
 
-type MonthlyTimeSummary = {
-  monthKey: string;
-  label: string;
-  coreMinutes: number;
-  supportMinutes: number;
-  totalMinutes: number;
-};
-
 type ActionRequiredItem = {
   id: string;
   caseId: number;
@@ -203,7 +195,6 @@ export default function DashboardPage() {
 
   const [timeRange, setTimeRange] = useState<TimeRange>("selectedMonth");
   const [selectedMonth, setSelectedMonth] = useState("2026-06");
-  const [selectedTrendMonth, setSelectedTrendMonth] = useState("2026-06");
 
   useEffect(() => {
     const updateSize = () => {
@@ -221,7 +212,8 @@ export default function DashboardPage() {
       try {
         setLoadingProfile(true);
 
-        const { data: userData, error: userError } = await supabase.auth.getUser();
+        const { data: userData, error: userError } =
+          await supabase.auth.getUser();
 
         if (userError || !userData.user) {
           setProfile({
@@ -281,37 +273,48 @@ export default function DashboardPage() {
         return;
       }
 
-      const [tasksRes, deadlinesRes, timelineRes, enforcementRes, timeLogsRes] = await Promise.all([
-        supabase
-          .from("case_tasks")
-          .select("id, case_id, task_type, task_other, assignee_name, due_date, status")
-          .in("case_id", caseIds)
-          .is("deleted_at", null),
+      const [tasksRes, deadlinesRes, timelineRes, enforcementRes, timeLogsRes] =
+        await Promise.all([
+          supabase
+            .from("case_tasks")
+            .select(
+              "id, case_id, task_type, task_other, assignee_name, due_date, status"
+            )
+            .in("case_id", caseIds)
+            .is("deleted_at", null),
 
-        supabase
-          .from("case_deadlines")
-          .select("id, case_id, deadline_type, deadline_other, party_label, party_other, current_due_date, status")
-          .in("case_id", caseIds)
-          .is("deleted_at", null),
+          supabase
+            .from("case_deadlines")
+            .select(
+              "id, case_id, deadline_type, deadline_other, party_label, party_other, current_due_date, status"
+            )
+            .in("case_id", caseIds)
+            .is("deleted_at", null),
 
-        supabase
-          .from("case_timeline")
-          .select("id, case_id, event_type, event_date, event_time, appointment_type, appointment_other, order_no, status")
-          .in("case_id", caseIds)
-          .is("deleted_at", null),
+          supabase
+            .from("case_timeline")
+            .select(
+              "id, case_id, event_type, event_date, event_time, appointment_type, appointment_other, order_no, status"
+            )
+            .in("case_id", caseIds)
+            .is("deleted_at", null),
 
-        supabase
-          .from("case_enforcements")
-          .select("id, case_id, party_label, party_other, final_due_date, writ_request_date, writ_issued_date, status")
-          .in("case_id", caseIds)
-          .is("deleted_at", null),
+          supabase
+            .from("case_enforcements")
+            .select(
+              "id, case_id, party_label, party_other, final_due_date, writ_request_date, writ_issued_date, status"
+            )
+            .in("case_id", caseIds)
+            .is("deleted_at", null),
 
-        supabase
-          .from("case_time_logs")
-          .select("id, case_id, work_date, staff_name, work_type, work_other, minutes, billable, note, created_at, updated_at")
-          .in("case_id", caseIds)
-          .is("deleted_at", null),
-      ]);
+          supabase
+            .from("case_time_logs")
+            .select(
+              "id, case_id, work_date, staff_name, work_type, work_other, minutes, billable, note, created_at, updated_at"
+            )
+            .in("case_id", caseIds)
+            .is("deleted_at", null),
+        ]);
 
       if (tasksRes.error) {
         alert("Load tasks failed:\n" + JSON.stringify(tasksRes.error, null, 2));
@@ -319,22 +322,34 @@ export default function DashboardPage() {
       }
 
       if (deadlinesRes.error) {
-        alert("Load deadlines failed:\n" + JSON.stringify(deadlinesRes.error, null, 2));
+        alert(
+          "Load deadlines failed:\n" +
+            JSON.stringify(deadlinesRes.error, null, 2)
+        );
         return;
       }
 
       if (timelineRes.error) {
-        alert("Load timeline failed:\n" + JSON.stringify(timelineRes.error, null, 2));
+        alert(
+          "Load timeline failed:\n" +
+            JSON.stringify(timelineRes.error, null, 2)
+        );
         return;
       }
 
       if (enforcementRes.error) {
-        alert("Load enforcement failed:\n" + JSON.stringify(enforcementRes.error, null, 2));
+        alert(
+          "Load enforcement failed:\n" +
+            JSON.stringify(enforcementRes.error, null, 2)
+        );
         return;
       }
 
       if (timeLogsRes.error) {
-        alert("Load time logs failed:\n" + JSON.stringify(timeLogsRes.error, null, 2));
+        alert(
+          "Load time logs failed:\n" +
+            JSON.stringify(timeLogsRes.error, null, 2)
+        );
         return;
       }
 
@@ -344,7 +359,13 @@ export default function DashboardPage() {
       const enforcements = (enforcementRes.data || []) as CaseEnforcement[];
       const loadedTimeLogs = (timeLogsRes.data || []) as CaseTimeLog[];
 
-      const allAlerts = buildAlertCandidates(tasks, deadlines, timeline, enforcements);
+      const allAlerts = buildAlertCandidates(
+        tasks,
+        deadlines,
+        timeline,
+        enforcements
+      );
+
       const alertMap = buildAlertMapFromCandidates(allAlerts);
 
       const enrichedCases = baseCases.map((item) => {
@@ -413,10 +434,6 @@ export default function DashboardPage() {
     return getMonthKeysFromMay2026();
   }, []);
 
-  const trendMonthOptions = useMemo(() => {
-    return getMonthKeysFromMay2026();
-  }, []);
-
   const clearFilters = () => {
     setSearchText("");
     setRiskFilter("all");
@@ -426,7 +443,6 @@ export default function DashboardPage() {
     setSortMode("highestRisk");
     setTimeRange("selectedMonth");
     setSelectedMonth("2026-06");
-    setSelectedTrendMonth("2026-06");
   };
 
   const filteredCases = useMemo(() => {
@@ -448,11 +464,15 @@ export default function DashboardPage() {
 
       const matchSearch = !keyword || searchableText.includes(keyword);
       const matchRisk = riskFilter === "all" || item.risk_level === riskFilter;
-      const matchOwner = ownerFilter === "All" || item.owner_name === ownerFilter;
+      const matchOwner =
+        ownerFilter === "All" || item.owner_name === ownerFilter;
       const matchPhase = phaseFilter === "All" || item.phase === phaseFilter;
-      const matchStatus = statusFilter === "All" || item.status === statusFilter;
+      const matchStatus =
+        statusFilter === "All" || item.status === statusFilter;
 
-      return matchSearch && matchRisk && matchOwner && matchPhase && matchStatus;
+      return (
+        matchSearch && matchRisk && matchOwner && matchPhase && matchStatus
+      );
     });
 
     result = [...result].sort((a, b) => {
@@ -460,7 +480,9 @@ export default function DashboardPage() {
         const riskDiff = getRiskScore(a.risk_level) - getRiskScore(b.risk_level);
         if (riskDiff !== 0) return riskDiff;
 
-        return (a.next_alert_date || "9999-12-31").localeCompare(b.next_alert_date || "9999-12-31");
+        return (a.next_alert_date || "9999-12-31").localeCompare(
+          b.next_alert_date || "9999-12-31"
+        );
       }
 
       if (sortMode === "latestUpdated") {
@@ -472,14 +494,24 @@ export default function DashboardPage() {
       }
 
       if (sortMode === "nextAlertDate") {
-        return (a.next_alert_date || "9999-12-31").localeCompare(b.next_alert_date || "9999-12-31");
+        return (a.next_alert_date || "9999-12-31").localeCompare(
+          b.next_alert_date || "9999-12-31"
+        );
       }
 
       return 0;
     });
 
     return result;
-  }, [cases, searchText, riskFilter, ownerFilter, phaseFilter, statusFilter, sortMode]);
+  }, [
+    cases,
+    searchText,
+    riskFilter,
+    ownerFilter,
+    phaseFilter,
+    statusFilter,
+    sortMode,
+  ]);
 
   const filteredCaseIds = useMemo(() => {
     return new Set(filteredCases.map((item) => item.id));
@@ -490,23 +522,49 @@ export default function DashboardPage() {
   }, [timeLogs, filteredCaseIds]);
 
   const filteredTimeLogsByPeriod = useMemo(() => {
-    return filteredTimeLogsAllTime.filter((item) => isDateInTimeRange(item.work_date, timeRange, selectedMonth));
+    return filteredTimeLogsAllTime.filter((item) =>
+      isDateInTimeRange(item.work_date, timeRange, selectedMonth)
+    );
   }, [filteredTimeLogsAllTime, timeRange, selectedMonth]);
 
   const totalLoggedMinutes = useMemo(() => {
-    return filteredTimeLogsByPeriod.reduce((sum, item) => sum + safeMinutes(item.minutes), 0);
+    return filteredTimeLogsByPeriod.reduce(
+      (sum, item) => sum + safeMinutes(item.minutes),
+      0
+    );
   }, [filteredTimeLogsByPeriod]);
 
   const summary = useMemo(() => {
-    const overdue = filteredCases.filter((item) => item.risk_level === "overdue").length;
-    const today = filteredCases.filter((item) => item.risk_level === "today").length;
-    const dueSoon = filteredCases.filter((item) => item.risk_level === "dueSoon").length;
-    const clear = filteredCases.filter((item) => item.risk_level === "clear").length;
-    const active = filteredCases.filter((item) => item.status === "Active").length;
-    const waiting = filteredCases.filter((item) => item.status === "Waiting").length;
+    const overdue = filteredCases.filter(
+      (item) => item.risk_level === "overdue"
+    ).length;
+
+    const today = filteredCases.filter(
+      (item) => item.risk_level === "today"
+    ).length;
+
+    const dueSoon = filteredCases.filter(
+      (item) => item.risk_level === "dueSoon"
+    ).length;
+
+    const clear = filteredCases.filter(
+      (item) => item.risk_level === "clear"
+    ).length;
+
+    const active = filteredCases.filter(
+      (item) => item.status === "Active"
+    ).length;
+
+    const waiting = filteredCases.filter(
+      (item) => item.status === "Waiting"
+    ).length;
+
     const done = filteredCases.filter((item) => item.status === "Done").length;
+
     const enforcementReady = alertItems.filter(
-      (item) => item.sourceType === "enforcement" && (item.level === "overdue" || item.level === "today")
+      (item) =>
+        item.sourceType === "enforcement" &&
+        (item.level === "overdue" || item.level === "today")
     ).length;
 
     return {
@@ -561,8 +619,12 @@ export default function DashboardPage() {
       .reduce((sum, item) => sum + safeMinutes(item.minutes), 0);
 
     const totalMinutes = coreMinutes + supportMinutes;
-    const corePercent = totalMinutes > 0 ? Math.round((coreMinutes / totalMinutes) * 100) : 0;
-    const supportPercent = totalMinutes > 0 ? Math.round((supportMinutes / totalMinutes) * 100) : 0;
+
+    const corePercent =
+      totalMinutes > 0 ? Math.round((coreMinutes / totalMinutes) * 100) : 0;
+
+    const supportPercent =
+      totalMinutes > 0 ? Math.round((supportMinutes / totalMinutes) * 100) : 0;
 
     return {
       coreMinutes,
@@ -599,8 +661,12 @@ export default function DashboardPage() {
       };
 
       if (workDate === today) current.todayMinutes += minutes;
-      if (workDate >= weekStart && workDate <= today) current.weekMinutes += minutes;
-      if (workDate >= monthStart && workDate <= today) current.monthMinutes += minutes;
+      if (workDate >= weekStart && workDate <= today) {
+        current.weekMinutes += minutes;
+      }
+      if (workDate >= monthStart && workDate <= today) {
+        current.monthMinutes += minutes;
+      }
 
       if (isInPeriod) {
         current.periodMinutes += minutes;
@@ -616,7 +682,9 @@ export default function DashboardPage() {
       map.set(staff, current);
     });
 
-    return Array.from(map.values()).sort((a, b) => b.periodMinutes - a.periodMinutes);
+    return Array.from(map.values()).sort(
+      (a, b) => b.periodMinutes - a.periodMinutes
+    );
   }, [filteredTimeLogsAllTime, timeRange, selectedMonth]);
 
   const topTimeConsumingCases = useMemo<CaseTimeSummary[]>(() => {
@@ -654,39 +722,21 @@ export default function DashboardPage() {
       .slice(0, 5);
   }, [filteredTimeLogsByPeriod, caseMap]);
 
-  const selectedMonthWorkload = useMemo<MonthlyTimeSummary>(() => {
-    const result: MonthlyTimeSummary = {
-      monthKey: selectedTrendMonth,
-      label: renderMonthKey(selectedTrendMonth),
-      coreMinutes: 0,
-      supportMinutes: 0,
-      totalMinutes: 0,
-    };
-
-    filteredTimeLogsAllTime.forEach((item) => {
-      const monthKey = getMonthKeyFromDate(item.work_date);
-      if (monthKey !== selectedTrendMonth) return;
-
-      const minutes = safeMinutes(item.minutes);
-      const isCore = item.billable !== false;
-
-      if (isCore) {
-        result.coreMinutes += minutes;
-      } else {
-        result.supportMinutes += minutes;
-      }
-
-      result.totalMinutes += minutes;
-    });
-
-    return result;
-  }, [filteredTimeLogsAllTime, selectedTrendMonth]);
-
   const actionRequired = useMemo(() => {
-    const filteredAlerts = alertItems.filter((item) => filteredCaseIds.has(item.case_id));
-    const overdueItems = filteredAlerts.filter((item) => item.level === "overdue");
+    const filteredAlerts = alertItems.filter((item) =>
+      filteredCaseIds.has(item.case_id)
+    );
+
+    const overdueItems = filteredAlerts.filter(
+      (item) => item.level === "overdue"
+    );
+
     const todayItems = filteredAlerts.filter((item) => item.level === "today");
-    const dueSoonItems = filteredAlerts.filter((item) => item.level === "dueSoon");
+
+    const dueSoonItems = filteredAlerts.filter(
+      (item) => item.level === "dueSoon"
+    );
+
     const staleCases = filteredCases.filter((item) => {
       if (item.status !== "Active") return false;
       return getDaysSinceDateTime(item.updated_at) >= 14;
@@ -695,7 +745,11 @@ export default function DashboardPage() {
     const rows: ActionRequiredItem[] = [];
 
     filteredAlerts.forEach((item) => {
-      if (item.level !== "overdue" && item.level !== "today" && item.level !== "dueSoon") {
+      if (
+        item.level !== "overdue" &&
+        item.level !== "today" &&
+        item.level !== "dueSoon"
+      ) {
         return;
       }
 
@@ -709,7 +763,12 @@ export default function DashboardPage() {
         title: caseItem.title || "-",
         clientName: caseItem.client_name || "-",
         level: item.level,
-        label: item.level === "overdue" ? "Overdue" : item.level === "today" ? "Due Today" : "Due Soon",
+        label:
+          item.level === "overdue"
+            ? "Overdue"
+            : item.level === "today"
+              ? "Due Today"
+              : "Due Soon",
         text: item.text,
         dateText: formatDisplayDate(item.date),
         href: `/cases/${item.case_id}${item.sourceHash}`,
@@ -745,7 +804,11 @@ export default function DashboardPage() {
       today: todayItems.length,
       dueSoon: dueSoonItems.length,
       stale: staleCases.length,
-      total: overdueItems.length + todayItems.length + dueSoonItems.length + staleCases.length,
+      total:
+        overdueItems.length +
+        todayItems.length +
+        dueSoonItems.length +
+        staleCases.length,
       rows: rows.slice(0, 5),
     };
   }, [alertItems, filteredCaseIds, filteredCases, caseMap]);
@@ -764,11 +827,17 @@ export default function DashboardPage() {
     return (
       <AuthGuard>
         <main style={pageStyle}>
-          <AppTopNav title="Dashboard" subtitle="Executive overview across all cases" activePage="dashboard" />
+          <AppTopNav
+            title="Dashboard"
+            subtitle="Executive overview across all cases"
+            activePage="dashboard"
+          />
 
           <div style={noAccessBoxStyle}>
             คุณไม่มีสิทธิ์ดู Dashboard นี้
-            <div style={noAccessSubTextStyle}>หากต้องการดูภาพรวมคดี ต้องใช้สิทธิ์ Staff ขึ้นไป</div>
+            <div style={noAccessSubTextStyle}>
+              หากต้องการดูภาพรวมคดี ต้องใช้สิทธิ์ Staff ขึ้นไป
+            </div>
           </div>
         </main>
       </AuthGuard>
@@ -778,16 +847,27 @@ export default function DashboardPage() {
   return (
     <AuthGuard>
       <main style={pageStyle}>
-        <AppTopNav title="Dashboard" subtitle="Executive overview across all cases" activePage="dashboard" />
+        <AppTopNav
+          title="Dashboard"
+          subtitle="Executive overview across all cases"
+          activePage="dashboard"
+        />
 
         <section style={heroPanelStyle}>
           <div>
             <div style={eyebrowStyle}>VP CASE SYSTEM</div>
             <h1 style={heroTitleStyle}>Executive Dashboard</h1>
-            <div style={heroSubtitleStyle}>ภาพรวมคดี ความเสี่ยง กำหนดเวลา เวลาทำงาน และสถานะการบังคับคดี</div>
+            <div style={heroSubtitleStyle}>
+              ภาพรวมคดี ความเสี่ยง กำหนดเวลา เวลาทำงาน และสถานะการบังคับคดี
+            </div>
           </div>
 
-          <button type="button" onClick={fetchDashboard} disabled={loading} style={secondaryButtonStyle}>
+          <button
+            type="button"
+            onClick={fetchDashboard}
+            disabled={loading}
+            style={secondaryButtonStyle}
+          >
             {loading ? "Refreshing..." : "Refresh"}
           </button>
         </section>
@@ -796,7 +876,10 @@ export default function DashboardPage() {
           <div style={filterHeaderStyle}>
             <div>
               <h3 style={filterTitleStyle}>Search & Filters</h3>
-              <div style={filterSubtitleStyle}>ค้นหาและกรอง Dashboard ตามแฟ้มคดี ผู้รับผิดชอบ สถานะ ความเสี่ยง และช่วงเวลาทำงาน</div>
+              <div style={filterSubtitleStyle}>
+                ค้นหาและกรอง Dashboard ตามแฟ้มคดี ผู้รับผิดชอบ สถานะ
+                ความเสี่ยง และช่วงเวลาทำงาน
+              </div>
             </div>
 
             <button type="button" onClick={clearFilters} style={ghostButtonStyle}>
@@ -805,7 +888,12 @@ export default function DashboardPage() {
           </div>
 
           <div style={isCompact ? compactFilterGridStyle : filterGridStyle}>
-            <InputFilter label="Search" value={searchText} onChange={setSearchText} placeholder="Search file no, title, client, owner, alert text" />
+            <InputFilter
+              label="Search"
+              value={searchText}
+              onChange={setSearchText}
+              placeholder="Search file no, title, client, owner, alert text"
+            />
 
             <SelectFilter
               label="Risk"
@@ -820,9 +908,26 @@ export default function DashboardPage() {
               ]}
             />
 
-            <SelectFilter label="Owner" value={ownerFilter} onChange={setOwnerFilter} options={owners.map((item) => ({ value: item, label: item }))} />
-            <SelectFilter label="Phase" value={phaseFilter} onChange={setPhaseFilter} options={phases.map((item) => ({ value: item, label: item }))} />
-            <SelectFilter label="Status" value={statusFilter} onChange={setStatusFilter} options={statuses.map((item) => ({ value: item, label: item }))} />
+            <SelectFilter
+              label="Owner"
+              value={ownerFilter}
+              onChange={setOwnerFilter}
+              options={owners.map((item) => ({ value: item, label: item }))}
+            />
+
+            <SelectFilter
+              label="Phase"
+              value={phaseFilter}
+              onChange={setPhaseFilter}
+              options={phases.map((item) => ({ value: item, label: item }))}
+            />
+
+            <SelectFilter
+              label="Status"
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={statuses.map((item) => ({ value: item, label: item }))}
+            />
 
             <SelectFilter
               label="Sort By"
@@ -839,14 +944,7 @@ export default function DashboardPage() {
             <SelectFilter
               label="Time Period"
               value={timeRange}
-              onChange={(value) => {
-                const nextRange = value as TimeRange;
-                setTimeRange(nextRange);
-
-                if (nextRange === "selectedMonth") {
-                  setSelectedTrendMonth(selectedMonth);
-                }
-              }}
+              onChange={(value) => setTimeRange(value as TimeRange)}
               options={[
                 { value: "today", label: "Today" },
                 { value: "thisWeek", label: "This Week" },
@@ -861,7 +959,6 @@ export default function DashboardPage() {
               value={selectedMonth}
               onChange={(value) => {
                 setSelectedMonth(value);
-                setSelectedTrendMonth(value);
                 setTimeRange("selectedMonth");
               }}
               disabled={timeRange !== "selectedMonth"}
@@ -875,13 +972,48 @@ export default function DashboardPage() {
 
         <section style={blockStyle}>
           <div style={isCompact ? compactSummaryGridStyle : summaryGridStyle}>
-            <MetricCard label="Total Cases" subLabel="แฟ้มที่แสดง" count={String(summary.total)} tone="neutral" />
-            <MetricCard label="Overdue" subLabel="เกินกำหนด" count={String(summary.overdue)} tone="danger" />
-            <MetricCard label="Today" subLabel="ครบกำหนดวันนี้" count={String(summary.today)} tone="warning" />
-            <MetricCard label="Due Soon" subLabel="ใกล้ครบกำหนด" count={String(summary.dueSoon)} tone="soon" />
-            <MetricCard label="Enforcement Ready" subLabel="พร้อมดำเนินการบังคับคดี" count={String(summary.enforcementReady)} tone="blue" />
-            <MetricCard label="Total Logged Time" subLabel={renderTimeRangeLabel(timeRange, selectedMonth)} count={formatDuration(summary.totalLoggedMinutes)} tone="purple" />
-            <MetricCard label="Clear" subLabel="ยังไม่มี Alert" count={String(summary.clear)} tone="success" />
+            <MetricCard
+              label="Total Cases"
+              subLabel="แฟ้มที่แสดง"
+              count={String(summary.total)}
+              tone="neutral"
+            />
+            <MetricCard
+              label="Overdue"
+              subLabel="เกินกำหนด"
+              count={String(summary.overdue)}
+              tone="danger"
+            />
+            <MetricCard
+              label="Today"
+              subLabel="ครบกำหนดวันนี้"
+              count={String(summary.today)}
+              tone="warning"
+            />
+            <MetricCard
+              label="Due Soon"
+              subLabel="ใกล้ครบกำหนด"
+              count={String(summary.dueSoon)}
+              tone="soon"
+            />
+            <MetricCard
+              label="Enforcement Ready"
+              subLabel="พร้อมดำเนินการบังคับคดี"
+              count={String(summary.enforcementReady)}
+              tone="blue"
+            />
+            <MetricCard
+              label="Total Logged Time"
+              subLabel={renderTimeRangeLabel(timeRange, selectedMonth)}
+              count={formatDuration(summary.totalLoggedMinutes)}
+              tone="purple"
+            />
+            <MetricCard
+              label="Clear"
+              subLabel="ยังไม่มี Alert"
+              count={String(summary.clear)}
+              tone="success"
+            />
           </div>
         </section>
 
@@ -890,7 +1022,10 @@ export default function DashboardPage() {
             <div>
               <div style={sectionEyebrowStyle}>COMMAND CENTER</div>
               <h3 style={sectionTitleStyle}>Action Required</h3>
-              <div style={sectionSubtitleStyle}>รายการที่ควรสั่งการก่อน: เกินกำหนด ครบกำหนดวันนี้ ใกล้ครบกำหนด และคดีที่ไม่ได้อัปเดตนานผิดปกติ</div>
+              <div style={sectionSubtitleStyle}>
+                รายการที่ควรสั่งการก่อน: เกินกำหนด ครบกำหนดวันนี้
+                ใกล้ครบกำหนด และคดีที่ไม่ได้อัปเดตนานผิดปกติ
+              </div>
             </div>
 
             <Link href="/cases" style={sectionLinkStyle}>
@@ -911,42 +1046,51 @@ export default function DashboardPage() {
             ]}
           />
 
-          <DistributionCard title="Phase Distribution" rows={phaseSummary.map(([label, value]) => ({ label, value }))} />
-          <DistributionCard title="Owner Distribution" rows={ownerSummary.map(([label, value]) => ({ label, value }))} />
+          <DistributionCard
+            title="Phase Distribution"
+            rows={phaseSummary.map(([label, value]) => ({ label, value }))}
+          />
+
+          <DistributionCard
+            title="Owner Distribution"
+            rows={ownerSummary.map(([label, value]) => ({ label, value }))}
+          />
         </section>
 
-        <section style={compactWorkloadGridStyle}>
-          <div style={compactSectionCardStyle}>
-            <SectionHeader eyebrow="WORKLOAD" title="Core vs Support Workload" subtitle="ภาพรวมเวลาทำงานหลักและเวลาสนับสนุนตามช่วงเวลาที่เลือก" />
+        <section style={workloadStackSectionStyle}>
+          <div style={sectionCardStyle}>
+            <div style={workloadHeaderGridStyle}>
+              <SectionHeader
+                eyebrow="WORKLOAD"
+                title="Core vs Support Workload"
+                subtitle="ภาพรวมเวลาทำงานหลักและเวลาสนับสนุนตามเดือนที่เลือก"
+              />
+
+              <SelectFilter
+                label="Select Month"
+                value={selectedMonth}
+                onChange={(value) => {
+                  setSelectedMonth(value);
+                  setTimeRange("selectedMonth");
+                }}
+                options={monthOptions.map((item) => ({
+                  value: item,
+                  label: renderMonthKey(item),
+                }))}
+              />
+            </div>
+
             <WorkloadOverview summary={workloadSummary} />
           </div>
 
-          <div style={compactSectionCardStyle}>
-            <SectionHeader eyebrow="TEAM" title="Staff Core / Support Split" subtitle="อันดับภาระงานของแต่ละคน แยก Core Work และ Support Time" />
+          <div style={sectionCardStyle}>
+            <SectionHeader
+              eyebrow="TEAM"
+              title="Staff Core / Support Split"
+              subtitle="อันดับภาระงานของแต่ละคน แยก Core Work และ Support Time ตามเดือนที่เลือก"
+            />
             <StaffWorkloadChart items={staffTimeSummary} />
           </div>
-        </section>
-
-        <section style={sectionCardStyle}>
-          <div style={monthlyHeaderGridStyle}>
-            <SectionHeader eyebrow="MONTHLY WORKLOAD" title="Monthly Workload" subtitle="เลือกเดือนที่ต้องการดูเวลาทำงาน เริ่มตั้งแต่ 05/2026 เป็นต้นไป" />
-
-            <SelectFilter
-              label="Select Month"
-              value={selectedTrendMonth}
-              onChange={(value) => {
-                setSelectedTrendMonth(value);
-                setSelectedMonth(value);
-                setTimeRange("selectedMonth");
-              }}
-              options={trendMonthOptions.map((item) => ({
-                value: item,
-                label: renderMonthKey(item),
-              }))}
-            />
-          </div>
-
-          <SelectedMonthWorkload item={selectedMonthWorkload} />
         </section>
 
         <section style={singleColumnSectionStyle}>
@@ -1003,7 +1147,12 @@ function InputFilter({
   return (
     <div>
       <label style={labelStyle}>{label}</label>
-      <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={inputStyle} />
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={inputStyle}
+      />
     </div>
   );
 }
@@ -1118,7 +1267,12 @@ function DistributionCard({
             <div key={row.label} style={distributionRowStyle}>
               <div style={distributionRowTopStyle}>
                 <div style={distributionNameWrapStyle}>
-                  <span style={{ ...distributionDotStyle, ...getBarToneStyle(tone) }} />
+                  <span
+                    style={{
+                      ...distributionDotStyle,
+                      ...getBarToneStyle(tone),
+                    }}
+                  />
                   <span>{row.label}</span>
                 </div>
 
@@ -1160,10 +1314,30 @@ function ActionRequiredPanel({
   return (
     <div>
       <div style={actionSummaryGridStyle}>
-        <ActionMiniCard label="Overdue" value={data.overdue} tone="danger" description="รายการเกินกำหนด" />
-        <ActionMiniCard label="Due Today" value={data.today} tone="warning" description="ครบกำหนดวันนี้" />
-        <ActionMiniCard label="Due Soon" value={data.dueSoon} tone="soon" description="ใกล้ครบกำหนด" />
-        <ActionMiniCard label="Stale Cases" value={data.stale} tone="purple" description="ไม่ได้อัปเดตเกิน 14 วัน" />
+        <ActionMiniCard
+          label="Overdue"
+          value={data.overdue}
+          tone="danger"
+          description="รายการเกินกำหนด"
+        />
+        <ActionMiniCard
+          label="Due Today"
+          value={data.today}
+          tone="warning"
+          description="ครบกำหนดวันนี้"
+        />
+        <ActionMiniCard
+          label="Due Soon"
+          value={data.dueSoon}
+          tone="soon"
+          description="ใกล้ครบกำหนด"
+        />
+        <ActionMiniCard
+          label="Stale Cases"
+          value={data.stale}
+          tone="purple"
+          description="ไม่ได้อัปเดตเกิน 14 วัน"
+        />
       </div>
 
       {data.rows.length === 0 ? (
@@ -1227,7 +1401,14 @@ function ActionLevelBadge({
 }: {
   level: "overdue" | "today" | "dueSoon" | "stale";
 }) {
-  const label = level === "overdue" ? "Overdue" : level === "today" ? "Today" : level === "dueSoon" ? "Due Soon" : "Stale";
+  const label =
+    level === "overdue"
+      ? "Overdue"
+      : level === "today"
+        ? "Today"
+        : level === "dueSoon"
+          ? "Due Soon"
+          : "Stale";
 
   const style =
     level === "overdue"
@@ -1256,51 +1437,50 @@ function WorkloadOverview({
     return <div style={emptyStyle}>No time logs found.</div>;
   }
 
+  const donutStyle: CSSProperties = {
+    ...workloadDonutRingStyle,
+    background: `conic-gradient(#175cd3 0 ${summary.corePercent}%, #7e22ce ${summary.corePercent}% 100%)`,
+  };
+
   return (
-    <div style={workloadCompactBoxStyle}>
-      <div style={workloadTotalRowStyle}>
+    <div style={workloadDonutBoxStyle}>
+      <div style={workloadDonutWrapStyle}>
+        <div style={donutStyle}>
+          <div style={workloadDonutCenterStyle}>
+            <div style={workloadDonutValueStyle}>
+              {formatDuration(summary.totalMinutes)}
+            </div>
+            <div style={workloadDonutLabelStyle}>Total</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={workloadDonutSideStyle}>
         <div>
-          <div style={workloadTotalLabelStyle}>Total Workload</div>
-          <div style={workloadTotalValueStyle}>{formatDuration(summary.totalMinutes)}</div>
-        </div>
-
-        <div style={workloadPercentBadgeStyle}>
-          Core {summary.corePercent}% / Support {summary.supportPercent}%
-        </div>
-      </div>
-
-      <div style={workloadStackBarStyle}>
-        <div
-          style={{
-            ...workloadCoreStackStyle,
-            width: `${summary.corePercent}%`,
-          }}
-        />
-        <div
-          style={{
-            ...workloadSupportStackStyle,
-            width: `${summary.supportPercent}%`,
-          }}
-        />
-      </div>
-
-      <div style={workloadMiniGridStyle}>
-        <div style={workloadMiniCardStyle}>
-          <div style={workloadMiniTopStyle}>
-            <span style={{ ...legendDotStyle, background: "#175cd3" }} />
-            <span>Core Work</span>
+          <div style={workloadTotalLabelStyle}>Workload Composition</div>
+          <div style={workloadTotalValueStyle}>
+            Core {summary.corePercent}% / Support {summary.supportPercent}%
           </div>
-          <strong>{formatDuration(summary.coreMinutes)}</strong>
-          <div style={legendPercentStyle}>{summary.corePercent}%</div>
         </div>
 
-        <div style={workloadMiniCardStyle}>
-          <div style={workloadMiniTopStyle}>
-            <span style={{ ...legendDotStyle, background: "#7e22ce" }} />
-            <span>Support Time</span>
+        <div style={workloadMiniGridStyle}>
+          <div style={workloadMiniCardStyle}>
+            <div style={workloadMiniTopStyle}>
+              <span style={{ ...legendDotStyle, background: "#175cd3" }} />
+              <span>Core Work</span>
+            </div>
+            <strong>{formatDuration(summary.coreMinutes)}</strong>
+            <div style={legendPercentStyle}>{summary.corePercent}%</div>
           </div>
-          <strong>{formatDuration(summary.supportMinutes)}</strong>
-          <div style={legendPercentStyle}>{summary.supportPercent}%</div>
+
+          <div style={workloadMiniCardStyle}>
+            <div style={workloadMiniTopStyle}>
+              <span style={{ ...legendDotStyle, background: "#7e22ce" }} />
+              <span>Support Time</span>
+            </div>
+            <strong>{formatDuration(summary.supportMinutes)}</strong>
+            <div style={legendPercentStyle}>{summary.supportPercent}%</div>
+          </div>
         </div>
       </div>
     </div>
@@ -1318,9 +1498,21 @@ function StaffWorkloadChart({ items }: { items: StaffTimeSummary[] }) {
     <div style={staffSlimListStyle}>
       {items.map((item, index) => {
         const targetMinutes = item.periodMinutes;
-        const totalWidth = targetMinutes > 0 ? Math.max(4, Math.round((targetMinutes / maxMinutes) * 100)) : 0;
-        const corePercent = targetMinutes > 0 ? Math.round((item.coreMinutes / targetMinutes) * 100) : 0;
-        const supportPercent = targetMinutes > 0 ? Math.round((item.supportMinutes / targetMinutes) * 100) : 0;
+
+        const totalWidth =
+          targetMinutes > 0
+            ? Math.max(4, Math.round((targetMinutes / maxMinutes) * 100))
+            : 0;
+
+        const corePercent =
+          targetMinutes > 0
+            ? Math.round((item.coreMinutes / targetMinutes) * 100)
+            : 0;
+
+        const supportPercent =
+          targetMinutes > 0
+            ? Math.round((item.supportMinutes / targetMinutes) * 100)
+            : 0;
 
         return (
           <div key={item.staff} style={staffSlimRowStyle}>
@@ -1331,12 +1523,15 @@ function StaffWorkloadChart({ items }: { items: StaffTimeSummary[] }) {
                 <div>
                   <div style={staffSlimNameStyle}>{item.staff}</div>
                   <div style={staffSlimMetaStyle}>
-                    Core {formatDuration(item.coreMinutes)} · Support {formatDuration(item.supportMinutes)}
+                    Core {formatDuration(item.coreMinutes)} · Support{" "}
+                    {formatDuration(item.supportMinutes)}
                   </div>
                 </div>
               </div>
 
-              <div style={staffSlimTotalStyle}>{formatDuration(targetMinutes)}</div>
+              <div style={staffSlimTotalStyle}>
+                {formatDuration(targetMinutes)}
+              </div>
             </div>
 
             <div style={staffSlimTrackStyle}>
@@ -1363,65 +1558,6 @@ function StaffWorkloadChart({ items }: { items: StaffTimeSummary[] }) {
           </div>
         );
       })}
-    </div>
-  );
-}
-
-function SelectedMonthWorkload({ item }: { item: MonthlyTimeSummary }) {
-  const corePercent = item.totalMinutes > 0 ? Math.round((item.coreMinutes / item.totalMinutes) * 100) : 0;
-  const supportPercent = item.totalMinutes > 0 ? Math.round((item.supportMinutes / item.totalMinutes) * 100) : 0;
-
-  return (
-    <div style={selectedMonthPanelStyle}>
-      <div style={selectedMonthHeaderStyle}>
-        <div>
-          <div style={selectedMonthLabelStyle}>{item.label}</div>
-          <div style={selectedMonthSubLabelStyle}>Selected Month</div>
-        </div>
-
-        <div style={selectedMonthTotalStyle}>{formatDuration(item.totalMinutes)}</div>
-      </div>
-
-      {item.totalMinutes <= 0 ? (
-        <div style={emptyStyle}>เดือนนี้ยังไม่มี Time Log</div>
-      ) : (
-        <>
-          <div style={monthWorkloadVisualStyle}>
-            <div
-              style={{
-                ...monthCorePillStyle,
-                width: `${corePercent}%`,
-              }}
-            />
-            <div
-              style={{
-                ...monthSupportPillStyle,
-                width: `${supportPercent}%`,
-              }}
-            />
-          </div>
-
-          <div style={compactLegendGridStyle}>
-            <div style={compactLegendCardStyle}>
-              <div style={legendTopStyle}>
-                <span style={{ ...legendDotStyle, background: "#175cd3" }} />
-                <span>Core Work</span>
-              </div>
-              <strong>{formatDuration(item.coreMinutes)}</strong>
-              <div style={legendPercentStyle}>{corePercent}%</div>
-            </div>
-
-            <div style={compactLegendCardStyle}>
-              <div style={legendTopStyle}>
-                <span style={{ ...legendDotStyle, background: "#7e22ce" }} />
-                <span>Support Time</span>
-              </div>
-              <strong>{formatDuration(item.supportMinutes)}</strong>
-              <div style={legendPercentStyle}>{supportPercent}%</div>
-            </div>
-          </div>
-        </>
-      )}
     </div>
   );
 }
@@ -1472,8 +1608,14 @@ function StaffTimeCardList({ items }: { items: StaffTimeSummary[] }) {
           <InfoLine label="Today" value={formatDuration(item.todayMinutes)} />
           <InfoLine label="This Week" value={formatDuration(item.weekMinutes)} />
           <InfoLine label="Core" value={formatDuration(item.coreMinutes)} />
-          <InfoLine label="Support" value={formatDuration(item.supportMinutes)} />
-          <InfoLine label="All Time (ทุกเดือน)" value={formatDuration(item.totalMinutes)} />
+          <InfoLine
+            label="Support"
+            value={formatDuration(item.supportMinutes)}
+          />
+          <InfoLine
+            label="All Time (ทุกเดือน)"
+            value={formatDuration(item.totalMinutes)}
+          />
         </div>
       ))}
     </div>
@@ -1486,9 +1628,20 @@ function TopTimeConsumingCaseList({ items }: { items: CaseTimeSummary[] }) {
   return (
     <div style={timeCaseListStyle}>
       {items.map((item, index) => {
-        const width = Math.max(4, Math.round((item.totalMinutes / maxMinutes) * 100));
-        const corePercent = item.totalMinutes > 0 ? Math.round((item.coreMinutes / item.totalMinutes) * 100) : 0;
-        const supportPercent = item.totalMinutes > 0 ? Math.round((item.supportMinutes / item.totalMinutes) * 100) : 0;
+        const width = Math.max(
+          4,
+          Math.round((item.totalMinutes / maxMinutes) * 100)
+        );
+
+        const corePercent =
+          item.totalMinutes > 0
+            ? Math.round((item.coreMinutes / item.totalMinutes) * 100)
+            : 0;
+
+        const supportPercent =
+          item.totalMinutes > 0
+            ? Math.round((item.supportMinutes / item.totalMinutes) * 100)
+            : 0;
 
         return (
           <div key={item.caseId} style={timeCaseItemStyle}>
@@ -1501,7 +1654,9 @@ function TopTimeConsumingCaseList({ items }: { items: CaseTimeSummary[] }) {
                 <div style={timeCaseClientStyle}>{item.clientName}</div>
               </div>
 
-              <div style={timeCaseTotalStyle}>{formatDuration(item.totalMinutes)}</div>
+              <div style={timeCaseTotalStyle}>
+                {formatDuration(item.totalMinutes)}
+              </div>
             </div>
 
             <div style={timeCaseBarTrackStyle}>
@@ -1546,7 +1701,9 @@ function CompactAllClearBox({ text }: { text: string }) {
       <div style={compactAllClearIconStyle}>✓</div>
       <div>
         <div style={compactAllClearTitleStyle}>{text}</div>
-        <div style={compactAllClearSubStyle}>ไม่มีรายการที่ต้องดำเนินการในขณะนี้</div>
+        <div style={compactAllClearSubStyle}>
+          ไม่มีรายการที่ต้องดำเนินการในขณะนี้
+        </div>
       </div>
     </div>
   );
@@ -1580,7 +1737,10 @@ function buildAlertCandidates(
     const level = getDateRiskLevel(task.due_date);
     if (level === "clear") return;
 
-    const taskText = task.task_type === "อื่นๆ" ? task.task_other || "งานที่ต้องทำ" : task.task_type || "งานที่ต้องทำ";
+    const taskText =
+      task.task_type === "อื่นๆ"
+        ? task.task_other || "งานที่ต้องทำ"
+        : task.task_type || "งานที่ต้องทำ";
 
     candidates.push({
       id: `task-${task.id}`,
@@ -1605,7 +1765,10 @@ function buildAlertCandidates(
       id: `deadline-${deadline.id}`,
       case_id: deadline.case_id,
       level,
-      text: `Deadline: ${renderDeadlineType(deadline.deadline_type, deadline.deadline_other)}`,
+      text: `Deadline: ${renderDeadlineType(
+        deadline.deadline_type,
+        deadline.deadline_other
+      )}`,
       date: deadline.current_due_date,
       score: getRiskScore(level),
       sourceType: "deadline",
@@ -1621,7 +1784,10 @@ function buildAlertCandidates(
     const level = getDateRiskLevel(event.event_date);
     if (level === "clear") return;
 
-    const appointmentText = event.appointment_type === "นัดอื่นๆ" ? event.appointment_other || "นัดศาล" : event.appointment_type || "นัดศาล";
+    const appointmentText =
+      event.appointment_type === "นัดอื่นๆ"
+        ? event.appointment_other || "นัดศาล"
+        : event.appointment_type || "นัดศาล";
 
     candidates.push({
       id: `timeline-${event.id}`,
@@ -1642,7 +1808,10 @@ function buildAlertCandidates(
     const level = getDateRiskLevel(item.final_due_date);
     if (level === "clear") return;
 
-    const partyText = renderEnforcementPartyLabel(item.party_label, item.party_other);
+    const partyText = renderEnforcementPartyLabel(
+      item.party_label,
+      item.party_other
+    );
 
     candidates.push({
       id: `enforcement-${item.id}`,
@@ -1719,7 +1888,9 @@ function diffDaysFromToday(dateText: string) {
   const today = parseLocalDate(getTodayDateString());
   const target = parseLocalDate(dateText);
 
-  return Math.floor((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  return Math.floor(
+    (target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+  );
 }
 
 function parseLocalDate(dateText: string) {
@@ -1782,7 +1953,11 @@ function getMonthStartDateString() {
   return `${year}-${month}-01`;
 }
 
-function isDateInTimeRange(dateText?: string | null, range?: TimeRange, selectedMonth?: string) {
+function isDateInTimeRange(
+  dateText?: string | null,
+  range?: TimeRange,
+  selectedMonth?: string
+) {
   if (!dateText) return false;
 
   const today = getTodayDateString();
@@ -1824,7 +1999,12 @@ function renderMonthKey(monthKey: string) {
 function isDoneStatus(status?: string | null) {
   const value = (status || "").toLowerCase();
 
-  return value === "done" || value === "cancelled" || value === "filed" || value === "submitted";
+  return (
+    value === "done" ||
+    value === "cancelled" ||
+    value === "filed" ||
+    value === "submitted"
+  );
 }
 
 function isEnforcementDone(item: CaseEnforcement) {
@@ -1846,7 +2026,10 @@ function isEnforcementDone(item: CaseEnforcement) {
   );
 }
 
-function renderDeadlineType(deadlineType?: string | null, deadlineOther?: string | null) {
+function renderDeadlineType(
+  deadlineType?: string | null,
+  deadlineOther?: string | null
+) {
   if (!deadlineType) return "Deadline";
 
   if (deadlineType === "answer") return "ครบกำหนดยื่นคำให้การ";
@@ -1859,7 +2042,10 @@ function renderDeadlineType(deadlineType?: string | null, deadlineOther?: string
   return deadlineType;
 }
 
-function renderEnforcementPartyLabel(value?: string | null, other?: string | null) {
+function renderEnforcementPartyLabel(
+  value?: string | null,
+  other?: string | null
+) {
   if (value === "defendant") return "จำเลย";
   if (value === "defendant_1") return "จำเลยที่ 1";
   if (value === "defendant_2") return "จำเลยที่ 2";
@@ -1900,7 +2086,9 @@ function getDaysSinceDateTime(value?: string | null) {
 
   target.setHours(0, 0, 0, 0);
 
-  return Math.floor((today.getTime() - target.getTime()) / (1000 * 60 * 60 * 24));
+  return Math.floor(
+    (today.getTime() - target.getTime()) / (1000 * 60 * 60 * 24)
+  );
 }
 
 function formatDisplayDate(value?: string | null) {
@@ -1914,7 +2102,11 @@ function formatDisplayDate(value?: string | null) {
 }
 
 function formatDuration(totalMinutes?: number | null) {
-  const safeValue = typeof totalMinutes === "number" && Number.isFinite(totalMinutes) ? totalMinutes : 0;
+  const safeValue =
+    typeof totalMinutes === "number" && Number.isFinite(totalMinutes)
+      ? totalMinutes
+      : 0;
+
   const hours = Math.floor(safeValue / 60);
   const minutes = safeValue % 60;
 
@@ -2014,7 +2206,8 @@ const heroPanelStyle: CSSProperties = {
   borderRadius: 18,
   padding: 20,
   marginBottom: 18,
-  background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 48%, #eef6f0 100%)",
+  background:
+    "linear-gradient(135deg, #ffffff 0%, #f8fafc 48%, #eef6f0 100%)",
   boxShadow: "0 8px 28px rgba(15, 23, 42, 0.06)",
 };
 
@@ -2224,12 +2417,19 @@ const emptyMiniStyle: CSSProperties = {
   fontWeight: 600,
 };
 
-const compactWorkloadGridStyle: CSSProperties = {
+const workloadStackSectionStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "0.9fr 1.1fr",
-  gap: 12,
-  marginBottom: 14,
+  gridTemplateColumns: "1fr",
+  gap: 14,
+  marginBottom: 18,
+};
+
+const workloadHeaderGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr minmax(180px, 240px)",
+  gap: 14,
   alignItems: "start",
+  marginBottom: 12,
 };
 
 const sectionCardStyle: CSSProperties = {
@@ -2239,16 +2439,6 @@ const sectionCardStyle: CSSProperties = {
   background: "#ffffff",
   marginBottom: 14,
   boxShadow: "0 6px 18px rgba(15, 23, 42, 0.04)",
-};
-
-const compactSectionCardStyle: CSSProperties = {
-  border: "1px solid #eeeeee",
-  borderRadius: 16,
-  padding: 16,
-  background: "#ffffff",
-  marginBottom: 14,
-  boxShadow: "0 6px 18px rgba(15, 23, 42, 0.04)",
-  minHeight: "auto",
 };
 
 const sectionHeaderStyle: CSSProperties = {
@@ -2457,22 +2647,6 @@ const compactLegendGridStyle: CSSProperties = {
   gap: 8,
 };
 
-const compactLegendCardStyle: CSSProperties = {
-  border: "1px solid #eeeeee",
-  borderRadius: 12,
-  padding: 10,
-  background: "#fafafa",
-};
-
-const legendTopStyle: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 8,
-  color: "#333333",
-  fontWeight: 900,
-  marginBottom: 4,
-};
-
 const legendDotStyle: CSSProperties = {
   width: 10,
   height: 10,
@@ -2487,21 +2661,65 @@ const legendPercentStyle: CSSProperties = {
   fontWeight: 800,
 };
 
-const workloadCompactBoxStyle: CSSProperties = {
+const workloadDonutBoxStyle: CSSProperties = {
   display: "grid",
-  gap: 12,
-  padding: 14,
+  gridTemplateColumns: "220px 1fr",
+  gap: 18,
+  alignItems: "center",
+  padding: 16,
   border: "1px solid #eeeeee",
-  borderRadius: 14,
+  borderRadius: 16,
   background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
 };
 
-const workloadTotalRowStyle: CSSProperties = {
+const workloadDonutWrapStyle: CSSProperties = {
   display: "flex",
-  justifyContent: "space-between",
-  gap: 12,
+  justifyContent: "center",
   alignItems: "center",
-  flexWrap: "wrap",
+};
+
+const workloadDonutRingStyle: CSSProperties = {
+  width: 175,
+  height: 175,
+  borderRadius: "50%",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  boxShadow: "inset 0 0 0 1px rgba(15, 23, 42, 0.06)",
+};
+
+const workloadDonutCenterStyle: CSSProperties = {
+  width: 108,
+  height: 108,
+  borderRadius: "50%",
+  background: "#ffffff",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexDirection: "column",
+  boxShadow: "0 8px 22px rgba(15, 23, 42, 0.10)",
+  textAlign: "center",
+  padding: 10,
+};
+
+const workloadDonutValueStyle: CSSProperties = {
+  fontSize: 20,
+  fontWeight: 950,
+  color: "#111111",
+  lineHeight: 1.2,
+};
+
+const workloadDonutLabelStyle: CSSProperties = {
+  marginTop: 3,
+  color: "#64748b",
+  fontSize: 12,
+  fontWeight: 900,
+};
+
+const workloadDonutSideStyle: CSSProperties = {
+  display: "grid",
+  gap: 12,
+  minWidth: 0,
 };
 
 const workloadTotalLabelStyle: CSSProperties = {
@@ -2512,40 +2730,10 @@ const workloadTotalLabelStyle: CSSProperties = {
 
 const workloadTotalValueStyle: CSSProperties = {
   marginTop: 2,
-  fontSize: 28,
+  fontSize: 26,
   fontWeight: 950,
   color: "#111111",
-  lineHeight: 1.1,
-};
-
-const workloadPercentBadgeStyle: CSSProperties = {
-  display: "inline-flex",
-  padding: "7px 10px",
-  borderRadius: 999,
-  background: "#eef2f7",
-  color: "#334155",
-  fontSize: 12,
-  fontWeight: 900,
-  whiteSpace: "nowrap",
-};
-
-const workloadStackBarStyle: CSSProperties = {
-  display: "flex",
-  width: "100%",
-  height: 18,
-  borderRadius: 999,
-  background: "#eef2f7",
-  overflow: "hidden",
-};
-
-const workloadCoreStackStyle: CSSProperties = {
-  height: "100%",
-  background: "#175cd3",
-};
-
-const workloadSupportStackStyle: CSSProperties = {
-  height: "100%",
-  background: "#7e22ce",
+  lineHeight: 1.15,
 };
 
 const workloadMiniGridStyle: CSSProperties = {
@@ -2654,69 +2842,6 @@ const staffSegmentCoreStyle: CSSProperties = {
 };
 
 const staffSegmentSupportStyle: CSSProperties = {
-  height: "100%",
-  background: "#7e22ce",
-};
-
-const monthlyHeaderGridStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "1fr minmax(180px, 240px)",
-  gap: 14,
-  alignItems: "start",
-  marginBottom: 12,
-};
-
-const selectedMonthPanelStyle: CSSProperties = {
-  border: "1px solid #eeeeee",
-  borderRadius: 16,
-  padding: 16,
-  background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-};
-
-const selectedMonthHeaderStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: 12,
-  alignItems: "flex-start",
-  flexWrap: "wrap",
-  marginBottom: 14,
-};
-
-const selectedMonthLabelStyle: CSSProperties = {
-  fontSize: 18,
-  fontWeight: 950,
-  color: "#111111",
-};
-
-const selectedMonthSubLabelStyle: CSSProperties = {
-  marginTop: 3,
-  fontSize: 12,
-  color: "#666666",
-  fontWeight: 800,
-};
-
-const selectedMonthTotalStyle: CSSProperties = {
-  fontSize: 26,
-  fontWeight: 950,
-  color: "#111111",
-};
-
-const monthWorkloadVisualStyle: CSSProperties = {
-  display: "flex",
-  width: "100%",
-  height: 18,
-  borderRadius: 999,
-  overflow: "hidden",
-  background: "#eef2f7",
-  marginBottom: 12,
-};
-
-const monthCorePillStyle: CSSProperties = {
-  height: "100%",
-  background: "#175cd3",
-};
-
-const monthSupportPillStyle: CSSProperties = {
   height: "100%",
   background: "#7e22ce",
 };
