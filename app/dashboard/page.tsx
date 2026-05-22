@@ -1,31 +1,19 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  updateDoc,
-} from "firebase/firestore";
-import { db } from "../../lib/firebase";
-import { supabase } from "../../lib/supabase";
 import AuthGuard from "../components/AuthGuard";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { supabase } from "../../lib/supabase";
 import AppTopNav from "../components/AppTopNav";
 import { buildPermissions } from "../../lib/permissions";
 import type { UserPermissions, UserRole } from "../../lib/permissions";
 
-type FirestoreTimestampLike = {
-  seconds?: number;
-  nanoseconds?: number;
-  toDate?: () => Date;
-};
+/* =========================================================
+   TYPES
+========================================================= */
+
+type RiskLevel = "overdue" | "today" | "dueSoon" | "clear";
+type RiskFilter = "all" | RiskLevel;
 
 type UserProfile = {
   role?: UserRole | string | null;
@@ -33,937 +21,469 @@ type UserProfile = {
 };
 
 type CaseItem = {
-  id: string;
-  fileNo?: string;
-  title?: string;
-  clientName?: string;
-  courtName?: string;
-  caseNumber?: string;
-  phase?: string;
-  caseStatus?: string;
-  ownerName?: string;
-  riskLevel?: "overdue" | "today" | "dueSoon" | "clear";
-  nextAlertText?: string;
-  nextAlertDate?: string;
-  enforcementPeriodDays?: string;
-  enforcementNoticeResult?: string;
-  enforcementNoticeMethod?: string;
-  enforcementNoticeDate?: string;
-  enforcementDueDate?: string;
-  enforcementReady?: boolean;
-  enforcementReadyText?: string;
-  enforcementReadyDate?: string;
-  enforcementIssued?: boolean;
-  enforcementIssuedDate?: string;
-  updatedAt?: FirestoreTimestampLike;
+  id: number;
+  file_no?: string | null;
+  title?: string | null;
+  client_name?: string | null;
+  court_name?: string | null;
+  case_number?: string | null;
+  phase?: string | null;
+  status?: string | null;
+  owner_name?: string | null;
+
+  physical_storage_type?: string | null;
+  physical_storage_detail?: string | null;
+
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
-type DeadlineItem = {
+type CaseTask = {
   id: string;
-  caseId: string;
-  deadlineType?: string;
-  dueDate?: string;
-  status?: string;
-  note?: string;
-  done?: boolean;
-  updatedAt?: FirestoreTimestampLike;
+  case_id: number;
+  task_type?: string | null;
+  task_other?: string | null;
+  assignee_name?: string | null;
+  due_date?: string | null;
+  status?: string | null;
 };
 
-type TaskItem = {
+type CaseDeadline = {
   id: string;
-  caseId: string;
-  title?: string;
-  assigneeName?: string;
-  startDate?: string;
-  dueDate?: string;
-  priority?: string;
-  status?: string;
-  done?: boolean;
-  updatedAt?: FirestoreTimestampLike;
+  case_id: number;
+  deadline_type?: string | null;
+  deadline_other?: string | null;
+  party_label?: string | null;
+  party_other?: string | null;
+  current_due_date?: string | null;
+  status?: string | null;
 };
 
-type TimelineItem = {
+type CaseTimeline = {
   id: string;
-  caseId: string;
-  eventDate?: string;
-  startTime?: string;
-  endTime?: string;
-  appointment?: string;
-  done?: boolean;
-  updatedAt?: FirestoreTimestampLike;
+  case_id: number;
+  event_type?: string | null;
+  event_date?: string | null;
+  event_time?: string | null;
+  appointment_type?: string | null;
+  appointment_other?: string | null;
+  order_no?: number | null;
+  status?: string | null;
 };
 
-type ActionRow = {
+type CaseEnforcement = {
   id: string;
-  caseId: string;
-  sourceId?: string;
-  sourceType: "deadline" | "task" | "timeline" | "enforcement";
-  fileNo: string;
-  title: string;
-  clientName: string;
-  ownerName: string;
-  phase: string;
-  category: "risk" | "enforcement";
-  level: "overdue" | "today" | "dueSoon" | "ready";
+  case_id: number;
+  party_label?: string | null;
+  party_other?: string | null;
+  final_due_date?: string | null;
+  writ_request_date?: string | null;
+  writ_issued_date?: string | null;
+  status?: string | null;
+};
+
+type AlertCandidate = {
+  id: string;
+  case_id: number;
+  level: RiskLevel;
   text: string;
   date: string;
-  hash: string;
-  updatedAt?: FirestoreTimestampLike;
+  score: number;
+  sourceType: "task" | "deadline" | "timeline" | "enforcement";
+  sourceHash: string;
 };
 
-export default function DashboardPage() {
-  const router = useRouter();
+type EnrichedCase = CaseItem & {
+  risk_level: RiskLevel;
+  next_alert_text: string;
+  next_alert_date: string;
+  next_alert_hash: string;
+};
 
+type SortMode =
+  | "highestRisk"
+  | "latestUpdated"
+  | "fileNo"
+  | "nextAlertDate";
+
+/* =========================================================
+   MAIN PAGE
+========================================================= */
+
+export default function DashboardPage() {
   const [profile, setProfile] = useState<UserProfile>({
     role: "",
     financial_access: false,
   });
 
-  const [checkingPermission, setCheckingPermission] = useState(true);
-
   const permissions: UserPermissions = useMemo(() => {
     return buildPermissions(profile);
   }, [profile]);
 
-  const [cases, setCases] = useState<CaseItem[]>([]);
-  const [deadlines, setDeadlines] = useState<DeadlineItem[]>([]);
-  const [tasks, setTasks] = useState<TaskItem[]>([]);
-  const [timeline, setTimeline] = useState<TimelineItem[]>([]);
+  const [cases, setCases] = useState<EnrichedCase[]>([]);
+  const [alertItems, setAlertItems] = useState<AlertCandidate[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [isCompact, setIsCompact] = useState(false);
+
   const [searchText, setSearchText] = useState("");
-  const [actingId, setActingId] = useState<string | null>(null);
-  const [loadingSubData, setLoadingSubData] = useState(true);
+  const [riskFilter, setRiskFilter] = useState<RiskFilter>("all");
+  const [ownerFilter, setOwnerFilter] = useState("All");
+  const [phaseFilter, setPhaseFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [sortMode, setSortMode] = useState<SortMode>("highestRisk");
+
+  /* =========================================================
+     RESPONSIVE
+  ========================================================= */
 
   useEffect(() => {
-    const loadCurrentUserProfile = async () => {
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-
-      if (userError || !userData.user) {
-        setProfile({
-          role: "",
-          financial_access: false,
-        });
-        setCheckingPermission(false);
-        router.replace("/login");
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("user_profiles")
-        .select("role, financial_access")
-        .eq("id", userData.user.id)
-        .single();
-
-      if (error || !data) {
-        setProfile({
-          role: "",
-          financial_access: false,
-        });
-        setCheckingPermission(false);
-        router.replace("/cases");
-        return;
-      }
-
-      const loadedProfile = {
-        role: data.role || "",
-        financial_access: data.financial_access === true,
-      };
-
-      const loadedPermissions = buildPermissions(loadedProfile);
-
-      setProfile(loadedProfile);
-      setCheckingPermission(false);
-
-      if (!loadedPermissions.canViewDashboard) {
-        router.replace("/cases");
-      }
+    const updateSize = () => {
+      setIsCompact(window.innerWidth < 900);
     };
 
-    loadCurrentUserProfile();
-  }, [router]);
+    updateSize();
+    window.addEventListener("resize", updateSize);
+
+    return () => window.removeEventListener("resize", updateSize);
+  }, []);
+
+  /* =========================================================
+     LOAD PROFILE
+  ========================================================= */
 
   useEffect(() => {
-    if (checkingPermission) return;
-    if (!permissions.canViewDashboard) return;
-
-    const q = query(collection(db, "cases"), orderBy("updatedAt", "desc"));
-
-    const unsub = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((docSnap) => ({
-        id: docSnap.id,
-        ...(docSnap.data() as any),
-      })) as CaseItem[];
-
-      setCases(data);
-    });
-
-    return () => unsub();
-  }, [checkingPermission, permissions.canViewDashboard]);
-
-  useEffect(() => {
-    if (checkingPermission) return;
-    if (!permissions.canViewDashboard) return;
-
-    const loadSubcollections = async () => {
-      if (cases.length === 0) {
-        setDeadlines([]);
-        setTasks([]);
-        setTimeline([]);
-        setLoadingSubData(false);
-        return;
-      }
-
-      setLoadingSubData(true);
-
+    const loadProfile = async () => {
       try {
-        const deadlineResults = await Promise.all(
-          cases.map(async (caseItem) => {
-            const snap = await getDocs(
-              query(
-                collection(db, "cases", caseItem.id, "deadlines"),
-                orderBy("dueDate", "asc")
-              )
-            );
+        setLoadingProfile(true);
 
-            return snap.docs.map((d) => ({
-              id: d.id,
-              caseId: caseItem.id,
-              ...(d.data() as any),
-            })) as DeadlineItem[];
-          })
-        );
+        const { data: userData, error: userError } =
+          await supabase.auth.getUser();
 
-        const taskResults = await Promise.all(
-          cases.map(async (caseItem) => {
-            const snap = await getDocs(
-              query(
-                collection(db, "cases", caseItem.id, "tasks"),
-                orderBy("createdAt", "desc")
-              )
-            );
+        if (userError || !userData.user) {
+          setProfile({
+            role: "",
+            financial_access: false,
+          });
+          return;
+        }
 
-            return snap.docs.map((d) => ({
-              id: d.id,
-              caseId: caseItem.id,
-              ...(d.data() as any),
-            })) as TaskItem[];
-          })
-        );
+        const { data, error } = await supabase
+          .from("user_profiles")
+          .select("role, financial_access")
+          .eq("id", userData.user.id)
+          .single();
 
-        const timelineResults = await Promise.all(
-          cases.map(async (caseItem) => {
-            const snap = await getDocs(
-              query(
-                collection(db, "cases", caseItem.id, "timeline"),
-                orderBy("eventDate", "asc")
-              )
-            );
+        if (error || !data) {
+          setProfile({
+            role: "",
+            financial_access: false,
+          });
+          return;
+        }
 
-            return snap.docs.map((d) => ({
-              id: d.id,
-              caseId: caseItem.id,
-              ...(d.data() as any),
-            })) as TimelineItem[];
-          })
-        );
-
-        setDeadlines(deadlineResults.flat());
-        setTasks(taskResults.flat());
-        setTimeline(timelineResults.flat());
-      } catch (error) {
-        console.error(error);
-        setDeadlines([]);
-        setTasks([]);
-        setTimeline([]);
+        setProfile({
+          role: data.role || "",
+          financial_access: data.financial_access === true,
+        });
       } finally {
-        setLoadingSubData(false);
+        setLoadingProfile(false);
       }
     };
 
-    loadSubcollections();
-  }, [cases, checkingPermission, permissions.canViewDashboard]);
+    loadProfile();
+  }, []);
 
-  const casesMap = useMemo(() => {
-    const map = new Map<string, CaseItem>();
-    cases.forEach((item) => map.set(item.id, item));
-    return map;
+  /* =========================================================
+     LOAD DASHBOARD DATA FROM SUPABASE
+  ========================================================= */
+
+  const fetchDashboard = async () => {
+    try {
+      setLoading(true);
+
+      const { data: caseData, error: caseError } = await supabase
+        .from("cases")
+        .select("*")
+        .order("updated_at", { ascending: false });
+
+      if (caseError) {
+        alert("Load cases failed:\n" + JSON.stringify(caseError, null, 2));
+        return;
+      }
+
+      const baseCases = (caseData || []) as CaseItem[];
+      const caseIds = baseCases.map((item) => item.id);
+
+      if (caseIds.length === 0) {
+        setCases([]);
+        setAlertItems([]);
+        return;
+      }
+
+      const [tasksRes, deadlinesRes, timelineRes, enforcementRes] =
+        await Promise.all([
+          supabase
+            .from("case_tasks")
+            .select(
+              "id, case_id, task_type, task_other, assignee_name, due_date, status"
+            )
+            .in("case_id", caseIds)
+            .is("deleted_at", null),
+
+          supabase
+            .from("case_deadlines")
+            .select(
+              "id, case_id, deadline_type, deadline_other, party_label, party_other, current_due_date, status"
+            )
+            .in("case_id", caseIds)
+            .is("deleted_at", null),
+
+          supabase
+            .from("case_timeline")
+            .select(
+              "id, case_id, event_type, event_date, event_time, appointment_type, appointment_other, order_no, status"
+            )
+            .in("case_id", caseIds)
+            .is("deleted_at", null),
+
+          supabase
+            .from("case_enforcements")
+            .select(
+              "id, case_id, party_label, party_other, final_due_date, writ_request_date, writ_issued_date, status"
+            )
+            .in("case_id", caseIds)
+            .is("deleted_at", null),
+        ]);
+
+      if (tasksRes.error) {
+        alert(
+          "Load tasks failed:\n" + JSON.stringify(tasksRes.error, null, 2)
+        );
+        return;
+      }
+
+      if (deadlinesRes.error) {
+        alert(
+          "Load deadlines failed:\n" +
+            JSON.stringify(deadlinesRes.error, null, 2)
+        );
+        return;
+      }
+
+      if (timelineRes.error) {
+        alert(
+          "Load timeline failed:\n" +
+            JSON.stringify(timelineRes.error, null, 2)
+        );
+        return;
+      }
+
+      if (enforcementRes.error) {
+        alert(
+          "Load enforcement failed:\n" +
+            JSON.stringify(enforcementRes.error, null, 2)
+        );
+        return;
+      }
+
+      const tasks = (tasksRes.data || []) as CaseTask[];
+      const deadlines = (deadlinesRes.data || []) as CaseDeadline[];
+      const timeline = (timelineRes.data || []) as CaseTimeline[];
+      const enforcements = (enforcementRes.data || []) as CaseEnforcement[];
+
+      const allAlerts = buildAlertCandidates(
+        tasks,
+        deadlines,
+        timeline,
+        enforcements
+      );
+
+      const alertMap = buildAlertMapFromCandidates(allAlerts);
+
+      const enrichedCases = baseCases.map((item) => {
+        const alert = alertMap.get(item.id);
+
+        if (!alert) {
+          return {
+            ...item,
+            risk_level: "clear" as RiskLevel,
+            next_alert_text: "-",
+            next_alert_date: "",
+            next_alert_hash: "",
+          };
+        }
+
+        return {
+          ...item,
+          risk_level: alert.level,
+          next_alert_text: alert.text,
+          next_alert_date: alert.date,
+          next_alert_hash: alert.sourceHash,
+        };
+      });
+
+      setCases(enrichedCases);
+      setAlertItems(allAlerts);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (loadingProfile) return;
+    if (!permissions.canViewDashboard) return;
+
+    fetchDashboard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingProfile, permissions.canViewDashboard]);
+
+  /* =========================================================
+     OPTIONS
+  ========================================================= */
+
+  const owners = useMemo(() => {
+    const values = cases
+      .map((item) => item.owner_name)
+      .filter((value): value is string => !!value && value.trim() !== "");
+
+    return ["All", ...Array.from(new Set(values))];
   }, [cases]);
 
-  const toMillis = (value?: FirestoreTimestampLike) => {
-    if (!value) return 0;
-    if (typeof value.toDate === "function") return value.toDate().getTime();
-    if (typeof value.seconds === "number") return value.seconds * 1000;
-    return 0;
+  const phases = useMemo(() => {
+    const values = cases
+      .map((item) => item.phase)
+      .filter((value): value is string => !!value && value.trim() !== "");
+
+    return ["All", ...Array.from(new Set(values))];
+  }, [cases]);
+
+  const statuses = useMemo(() => {
+    const values = cases
+      .map((item) => item.status)
+      .filter((value): value is string => !!value && value.trim() !== "");
+
+    return ["All", ...Array.from(new Set(values))];
+  }, [cases]);
+
+  const clearFilters = () => {
+    setSearchText("");
+    setRiskFilter("all");
+    setOwnerFilter("All");
+    setPhaseFilter("All");
+    setStatusFilter("All");
+    setSortMode("highestRisk");
   };
 
-  const formatDateTime = (value?: FirestoreTimestampLike) => {
-    const ms = toMillis(value);
-    if (!ms) return "-";
-
-    return new Date(ms).toLocaleString("th-TH", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  const renderPhase = (phase?: string) => {
-    if (!phase) return "-";
-    if (phase === "litigation") return "Litigation";
-    if (phase === "judgment") return "Judgment";
-    if (phase === "enforcement") return "Enforcement";
-    if (phase === "closed") return "Closed";
-    return phase;
-  };
-
-  const getRiskBadgeStyle = (risk?: string): React.CSSProperties => {
-    if (risk === "overdue") return badgeDangerStyle;
-    if (risk === "today") return badgeWarningStyle;
-    if (risk === "dueSoon") return badgeSoonStyle;
-    return badgeClearStyle;
-  };
-
-  const renderDeadlineType = (deadlineType?: string) => {
-    if (!deadlineType) return "Deadline";
-    if (deadlineType === "appeal") return "Appeal";
-    if (deadlineType === "supreme") return "Supreme Court";
-    if (deadlineType === "submission") return "Submission";
-    if (deadlineType === "payment") return "Payment";
-    return deadlineType;
-  };
-
-  const todayDateString = () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const day = String(now.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  };
-
-  const getLevelScore = (level: "overdue" | "today" | "dueSoon" | "ready") => {
-    if (level === "overdue") return 0;
-    if (level === "today") return 1;
-    if (level === "ready") return 2;
-    return 3;
-  };
-
-  const getDeadlineUrgency = (item: DeadlineItem) => {
-    if (item.done || item.status === "done") return "Done";
-    if (!item.dueDate) return "-";
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const due = new Date(item.dueDate);
-    due.setHours(0, 0, 0, 0);
-
-    const diffDays = Math.floor(
-      (due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    if (diffDays < 0) return "Overdue";
-    if (diffDays === 0) return "Today";
-    if (diffDays <= 3) return "Due Soon";
-    return "Normal";
-  };
-
-  const getTaskUrgency = (item: TaskItem) => {
-    if (item.done || item.status === "done") return "Done";
-    if (!item.dueDate) return "No Due Date";
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const due = new Date(item.dueDate);
-    due.setHours(0, 0, 0, 0);
-
-    const diffDays = Math.floor(
-      (due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    if (diffDays < 0) return "Overdue";
-    if (diffDays === 0) return "Today";
-    if (diffDays <= 3) return "Due Soon";
-    return "Normal";
-  };
-
-  const getTimelineUrgency = (item: TimelineItem) => {
-    if (item.done) return "Done";
-    if (!item.eventDate) return "-";
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const eventDate = new Date(item.eventDate);
-    eventDate.setHours(0, 0, 0, 0);
-
-    const diffDays = Math.floor(
-      (eventDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    if (diffDays < 0) return "Overdue";
-    if (diffDays === 0) return "Today";
-    if (diffDays <= 3) return "Upcoming";
-    return "Normal";
-  };
-
-  const calculateEnforcementState = (caseData: CaseItem) => {
-    const dueDate = caseData.enforcementDueDate || "";
-
-    if (caseData.enforcementIssued) {
-      return {
-        enforcementReady: false,
-        enforcementReadyText: "Enforcement issued",
-        enforcementReadyDate: caseData.enforcementIssuedDate || dueDate || "",
-      };
-    }
-
-    if (!dueDate) {
-      return {
-        enforcementReady: false,
-        enforcementReadyText: "-",
-        enforcementReadyDate: "",
-      };
-    }
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const due = new Date(dueDate);
-    due.setHours(0, 0, 0, 0);
-
-    const diffDays = Math.floor(
-      (due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    if (diffDays < 0) {
-      return {
-        enforcementReady: true,
-        enforcementReadyText: "Can apply for enforcement",
-        enforcementReadyDate: dueDate,
-      };
-    }
-
-    if (diffDays === 0) {
-      return {
-        enforcementReady: true,
-        enforcementReadyText: "Can apply for enforcement today",
-        enforcementReadyDate: dueDate,
-      };
-    }
-
-    if (diffDays <= 3) {
-      return {
-        enforcementReady: false,
-        enforcementReadyText: "Due soon",
-        enforcementReadyDate: dueDate,
-      };
-    }
-
-    return {
-      enforcementReady: false,
-      enforcementReadyText: "Not yet due",
-      enforcementReadyDate: dueDate,
-    };
-  };
-
-  const recomputeCaseState = async (caseId: string) => {
-    const [caseSnap, deadlineSnap, taskSnap, timelineSnap] = await Promise.all([
-      getDoc(doc(db, "cases", caseId)),
-      getDocs(collection(db, "cases", caseId, "deadlines")),
-      getDocs(collection(db, "cases", caseId, "tasks")),
-      getDocs(collection(db, "cases", caseId, "timeline")),
-    ]);
-
-    if (!caseSnap.exists()) return;
-    const caseData = caseSnap.data() as CaseItem;
-
-    const caseDeadlines = deadlineSnap.docs.map((d) => ({
-      id: d.id,
-      caseId,
-      ...(d.data() as any),
-    })) as DeadlineItem[];
-
-    const caseTasks = taskSnap.docs.map((d) => ({
-      id: d.id,
-      caseId,
-      ...(d.data() as any),
-    })) as TaskItem[];
-
-    const caseTimeline = timelineSnap.docs.map((d) => ({
-      id: d.id,
-      caseId,
-      ...(d.data() as any),
-    })) as TimelineItem[];
-
-    const candidates: {
-      level: "overdue" | "today" | "dueSoon";
-      text: string;
-      date: string;
-      score: number;
-    }[] = [];
-
-    caseDeadlines.forEach((item) => {
-      const urgency = getDeadlineUrgency(item);
-      if (!item.dueDate) return;
-
-      if (urgency === "Overdue") {
-        candidates.push({
-          level: "overdue",
-          text: `Deadline overdue: ${renderDeadlineType(item.deadlineType)}`,
-          date: item.dueDate,
-          score: 0,
-        });
-      } else if (urgency === "Today") {
-        candidates.push({
-          level: "today",
-          text: `Deadline today: ${renderDeadlineType(item.deadlineType)}`,
-          date: item.dueDate,
-          score: 1,
-        });
-      } else if (urgency === "Due Soon") {
-        candidates.push({
-          level: "dueSoon",
-          text: `Deadline due soon: ${renderDeadlineType(item.deadlineType)}`,
-          date: item.dueDate,
-          score: 2,
-        });
-      }
-    });
-
-    caseTasks.forEach((item) => {
-      const urgency = getTaskUrgency(item);
-      if (!item.dueDate) return;
-
-      if (urgency === "Overdue") {
-        candidates.push({
-          level: "overdue",
-          text: `Task overdue: ${item.title || "Task"}`,
-          date: item.dueDate,
-          score: 0,
-        });
-      } else if (urgency === "Today") {
-        candidates.push({
-          level: "today",
-          text: `Task today: ${item.title || "Task"}`,
-          date: item.dueDate,
-          score: 1,
-        });
-      } else if (urgency === "Due Soon") {
-        candidates.push({
-          level: "dueSoon",
-          text: `Task due soon: ${item.title || "Task"}`,
-          date: item.dueDate,
-          score: 2,
-        });
-      }
-    });
-
-    caseTimeline.forEach((item) => {
-      const urgency = getTimelineUrgency(item);
-      if (!item.eventDate) return;
-
-      if (urgency === "Overdue") {
-        candidates.push({
-          level: "overdue",
-          text: `Timeline overdue: ${item.appointment || "Appointment"}`,
-          date: item.eventDate,
-          score: 0,
-        });
-      } else if (urgency === "Today") {
-        candidates.push({
-          level: "today",
-          text: `Timeline today: ${item.appointment || "Appointment"}`,
-          date: item.eventDate,
-          score: 1,
-        });
-      } else if (urgency === "Upcoming") {
-        candidates.push({
-          level: "dueSoon",
-          text: `Timeline upcoming: ${item.appointment || "Appointment"}`,
-          date: item.eventDate,
-          score: 2,
-        });
-      }
-    });
-
-    candidates.sort((a, b) => {
-      if (a.score !== b.score) return a.score - b.score;
-      return a.date.localeCompare(b.date);
-    });
-
-    const top = candidates[0];
-    const enforcementState = calculateEnforcementState(caseData);
-
-    await updateDoc(doc(db, "cases", caseId), {
-      riskLevel: top?.level || "clear",
-      nextAlertText: top?.text || "-",
-      nextAlertDate: top?.date || "",
-      enforcementReady: enforcementState.enforcementReady,
-      enforcementReadyText: enforcementState.enforcementReadyText,
-      enforcementReadyDate: enforcementState.enforcementReadyDate,
-      updatedAt: serverTimestamp(),
-    });
-  };
-
-  const canRunAction = (row: ActionRow) => {
-    if (row.sourceType === "deadline") return permissions.canEditDeadlines;
-    if (row.sourceType === "task") return permissions.canEditTasks;
-    if (row.sourceType === "timeline") return permissions.canEditTimeline;
-    if (row.sourceType === "enforcement") return permissions.canEditEnforcement;
-    return false;
-  };
-
-  const markDeadlineDone = async (row: ActionRow) => {
-    if (!row.sourceId) return;
-    setActingId(row.id);
-    try {
-      await updateDoc(doc(db, "cases", row.caseId, "deadlines", row.sourceId), {
-        done: true,
-        status: "done",
-        updatedAt: serverTimestamp(),
-      });
-      await recomputeCaseState(row.caseId);
-    } catch (error) {
-      console.error(error);
-      alert("Update deadline failed.");
-    } finally {
-      setActingId(null);
-    }
-  };
-
-  const markTaskDone = async (row: ActionRow) => {
-    if (!row.sourceId) return;
-    setActingId(row.id);
-    try {
-      await updateDoc(doc(db, "cases", row.caseId, "tasks", row.sourceId), {
-        done: true,
-        status: "done",
-        updatedAt: serverTimestamp(),
-      });
-      await recomputeCaseState(row.caseId);
-    } catch (error) {
-      console.error(error);
-      alert("Update task failed.");
-    } finally {
-      setActingId(null);
-    }
-  };
-
-  const markTimelineDone = async (row: ActionRow) => {
-    if (!row.sourceId) return;
-    setActingId(row.id);
-    try {
-      await updateDoc(doc(db, "cases", row.caseId, "timeline", row.sourceId), {
-        done: true,
-        updatedAt: serverTimestamp(),
-      });
-      await recomputeCaseState(row.caseId);
-    } catch (error) {
-      console.error(error);
-      alert("Update timeline failed.");
-    } finally {
-      setActingId(null);
-    }
-  };
-
-  const issueEnforcement = async (row: ActionRow) => {
-    setActingId(row.id);
-    try {
-      await updateDoc(doc(db, "cases", row.caseId), {
-        enforcementIssued: true,
-        enforcementIssuedDate: todayDateString(),
-        updatedAt: serverTimestamp(),
-      });
-      await recomputeCaseState(row.caseId);
-    } catch (error) {
-      console.error(error);
-      alert("Issue enforcement failed.");
-    } finally {
-      setActingId(null);
-    }
-  };
-
-  const runAction = async (row: ActionRow) => {
-    if (!canRunAction(row)) {
-      alert("คุณไม่มีสิทธิ์ดำเนินการรายการนี้");
-      return;
-    }
-
-    const confirmed = window.confirm("Confirm this action?");
-    if (!confirmed) return;
-
-    if (row.sourceType === "deadline") {
-      await markDeadlineDone(row);
-      return;
-    }
-
-    if (row.sourceType === "task") {
-      await markTaskDone(row);
-      return;
-    }
-
-    if (row.sourceType === "timeline") {
-      await markTimelineDone(row);
-      return;
-    }
-
-    if (row.sourceType === "enforcement") {
-      await issueEnforcement(row);
-    }
-  };
-
-  const getActionLabel = (row: ActionRow) => {
-    if (row.sourceType === "enforcement") return "Issue Enforcement";
-    return "Done";
-  };
+  /* =========================================================
+     FILTERED CASES
+  ========================================================= */
 
   const filteredCases = useMemo(() => {
     const keyword = searchText.trim().toLowerCase();
 
-    return cases.filter((c) => {
-      if (!keyword) return true;
+    let result = cases.filter((item) => {
+      const searchableText = [
+        item.file_no,
+        item.title,
+        item.client_name,
+        item.owner_name,
+        item.court_name,
+        item.case_number,
+        item.next_alert_text,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      const matchSearch = !keyword || searchableText.includes(keyword);
+      const matchRisk =
+        riskFilter === "all" || item.risk_level === riskFilter;
+      const matchOwner =
+        ownerFilter === "All" || item.owner_name === ownerFilter;
+      const matchPhase = phaseFilter === "All" || item.phase === phaseFilter;
+      const matchStatus =
+        statusFilter === "All" || item.status === statusFilter;
 
       return (
-        (c.fileNo || "").toLowerCase().includes(keyword) ||
-        (c.title || "").toLowerCase().includes(keyword) ||
-        (c.clientName || "").toLowerCase().includes(keyword) ||
-        (c.ownerName || "").toLowerCase().includes(keyword) ||
-        (c.nextAlertText || "").toLowerCase().includes(keyword)
+        matchSearch && matchRisk && matchOwner && matchPhase && matchStatus
       );
     });
-  }, [cases, searchText]);
 
-  const filteredCaseIds = useMemo(
-    () => new Set(filteredCases.map((c) => c.id)),
-    [filteredCases]
-  );
+    result = [...result].sort((a, b) => {
+      if (sortMode === "highestRisk") {
+        const riskDiff = getRiskScore(a.risk_level) - getRiskScore(b.risk_level);
+        if (riskDiff !== 0) return riskDiff;
 
-  const allRiskRows = useMemo(() => {
-    const rows: ActionRow[] = [];
-
-    deadlines.forEach((item) => {
-      if (!filteredCaseIds.has(item.caseId)) return;
-
-      const urgency = getDeadlineUrgency(item);
-      if (
-        urgency !== "Overdue" &&
-        urgency !== "Today" &&
-        urgency !== "Due Soon"
-      ) {
-        return;
+        return (a.next_alert_date || "9999-12-31").localeCompare(
+          b.next_alert_date || "9999-12-31"
+        );
       }
 
-      const caseData = casesMap.get(item.caseId);
-      if (!caseData) return;
-
-      rows.push({
-        id: `deadline-${item.id}`,
-        caseId: item.caseId,
-        sourceId: item.id,
-        sourceType: "deadline",
-        fileNo: caseData.fileNo || "-",
-        title: caseData.title || "-",
-        clientName: caseData.clientName || "-",
-        ownerName: caseData.ownerName || "-",
-        phase: renderPhase(caseData.phase),
-        category: "risk",
-        level:
-          urgency === "Overdue"
-            ? "overdue"
-            : urgency === "Today"
-              ? "today"
-              : "dueSoon",
-        text: `Deadline ${
-          urgency === "Overdue"
-            ? "overdue"
-            : urgency === "Today"
-              ? "today"
-              : "due soon"
-        }: ${renderDeadlineType(item.deadlineType)}`,
-        date: item.dueDate || "",
-        hash: "#deadlines",
-        updatedAt: item.updatedAt || caseData.updatedAt,
-      });
-    });
-
-    tasks.forEach((item) => {
-      if (!filteredCaseIds.has(item.caseId)) return;
-
-      const urgency = getTaskUrgency(item);
-      if (
-        urgency !== "Overdue" &&
-        urgency !== "Today" &&
-        urgency !== "Due Soon"
-      ) {
-        return;
+      if (sortMode === "latestUpdated") {
+        return (b.updated_at || "").localeCompare(a.updated_at || "");
       }
 
-      const caseData = casesMap.get(item.caseId);
-      if (!caseData) return;
-
-      rows.push({
-        id: `task-${item.id}`,
-        caseId: item.caseId,
-        sourceId: item.id,
-        sourceType: "task",
-        fileNo: caseData.fileNo || "-",
-        title: caseData.title || "-",
-        clientName: caseData.clientName || "-",
-        ownerName: caseData.ownerName || "-",
-        phase: renderPhase(caseData.phase),
-        category: "risk",
-        level:
-          urgency === "Overdue"
-            ? "overdue"
-            : urgency === "Today"
-              ? "today"
-              : "dueSoon",
-        text: `Task ${
-          urgency === "Overdue"
-            ? "overdue"
-            : urgency === "Today"
-              ? "today"
-              : "due soon"
-        }: ${item.title || "Task"}`,
-        date: item.dueDate || "",
-        hash: "#tasks",
-        updatedAt: item.updatedAt || caseData.updatedAt,
-      });
-    });
-
-    timeline.forEach((item) => {
-      if (!filteredCaseIds.has(item.caseId)) return;
-
-      const urgency = getTimelineUrgency(item);
-      if (
-        urgency !== "Overdue" &&
-        urgency !== "Today" &&
-        urgency !== "Upcoming"
-      ) {
-        return;
+      if (sortMode === "fileNo") {
+        return (a.file_no || "").localeCompare(b.file_no || "");
       }
 
-      const caseData = casesMap.get(item.caseId);
-      if (!caseData) return;
-
-      rows.push({
-        id: `timeline-${item.id}`,
-        caseId: item.caseId,
-        sourceId: item.id,
-        sourceType: "timeline",
-        fileNo: caseData.fileNo || "-",
-        title: caseData.title || "-",
-        clientName: caseData.clientName || "-",
-        ownerName: caseData.ownerName || "-",
-        phase: renderPhase(caseData.phase),
-        category: "risk",
-        level:
-          urgency === "Overdue"
-            ? "overdue"
-            : urgency === "Today"
-              ? "today"
-              : "dueSoon",
-        text: `Timeline ${
-          urgency === "Overdue"
-            ? "overdue"
-            : urgency === "Today"
-              ? "today"
-              : "upcoming"
-        }: ${item.appointment || "Appointment"}`,
-        date: item.eventDate || "",
-        hash: "#timeline",
-        updatedAt: item.updatedAt || caseData.updatedAt,
-      });
-    });
-
-    rows.sort((a, b) => {
-      const scoreCompare = getLevelScore(a.level) - getLevelScore(b.level);
-      if (scoreCompare !== 0) return scoreCompare;
-
-      const dateA = a.date || "9999-99-99";
-      const dateB = b.date || "9999-99-99";
-      const dateCompare = dateA.localeCompare(dateB);
-      if (dateCompare !== 0) return dateCompare;
-
-      return toMillis(b.updatedAt) - toMillis(a.updatedAt);
-    });
-
-    return rows;
-  }, [deadlines, tasks, timeline, casesMap, filteredCaseIds]);
-
-  const riskRowsByCase = useMemo(() => {
-    const map = new Map<string, ActionRow>();
-
-    allRiskRows.forEach((row) => {
-      const existing = map.get(row.caseId);
-      if (!existing) {
-        map.set(row.caseId, row);
-        return;
+      if (sortMode === "nextAlertDate") {
+        return (a.next_alert_date || "9999-12-31").localeCompare(
+          b.next_alert_date || "9999-12-31"
+        );
       }
 
-      const scoreCompare =
-        getLevelScore(row.level) - getLevelScore(existing.level);
-      if (scoreCompare < 0) {
-        map.set(row.caseId, row);
-        return;
-      }
-
-      if (scoreCompare === 0) {
-        const dateA = row.date || "9999-99-99";
-        const dateB = existing.date || "9999-99-99";
-        if (dateA.localeCompare(dateB) < 0) {
-          map.set(row.caseId, row);
-        }
-      }
+      return 0;
     });
 
-    return Array.from(map.values()).sort((a, b) => {
-      const scoreCompare = getLevelScore(a.level) - getLevelScore(b.level);
-      if (scoreCompare !== 0) return scoreCompare;
+    return result;
+  }, [
+    cases,
+    searchText,
+    riskFilter,
+    ownerFilter,
+    phaseFilter,
+    statusFilter,
+    sortMode,
+  ]);
 
-      const dateA = a.date || "9999-99-99";
-      const dateB = b.date || "9999-99-99";
-      const dateCompare = dateA.localeCompare(dateB);
-      if (dateCompare !== 0) return dateCompare;
-
-      return toMillis(b.updatedAt) - toMillis(a.updatedAt);
-    });
-  }, [allRiskRows]);
+  /* =========================================================
+     SUMMARY
+  ========================================================= */
 
   const summary = useMemo(() => {
-    let overdue = 0;
-    let today = 0;
-    let dueSoon = 0;
-    let clear = 0;
-    let enforcementReady = 0;
-    let active = 0;
-    let waiting = 0;
-    let done = 0;
+    const overdue = filteredCases.filter(
+      (item) => item.risk_level === "overdue"
+    ).length;
 
-    const riskMap = new Map<string, "overdue" | "today" | "dueSoon">();
+    const today = filteredCases.filter(
+      (item) => item.risk_level === "today"
+    ).length;
 
-    riskRowsByCase.forEach((row) => {
-      riskMap.set(row.caseId, row.level as "overdue" | "today" | "dueSoon");
-    });
+    const dueSoon = filteredCases.filter(
+      (item) => item.risk_level === "dueSoon"
+    ).length;
 
-    filteredCases.forEach((c) => {
-      const risk = riskMap.get(c.id);
+    const clear = filteredCases.filter(
+      (item) => item.risk_level === "clear"
+    ).length;
 
-      if (risk === "overdue") overdue += 1;
-      else if (risk === "today") today += 1;
-      else if (risk === "dueSoon") dueSoon += 1;
-      else clear += 1;
+    const active = filteredCases.filter(
+      (item) => item.status === "Active"
+    ).length;
 
-      if (c.enforcementReady && !c.enforcementIssued) {
-        enforcementReady += 1;
-      }
+    const waiting = filteredCases.filter(
+      (item) => item.status === "Waiting"
+    ).length;
 
-      if (c.caseStatus === "Active") active += 1;
-      else if (c.caseStatus === "Waiting") waiting += 1;
-      else if (c.caseStatus === "Done") done += 1;
-    });
+    const done = filteredCases.filter((item) => item.status === "Done").length;
+
+    const enforcementReady = alertItems.filter(
+      (item) =>
+        item.sourceType === "enforcement" &&
+        (item.level === "overdue" || item.level === "today")
+    ).length;
 
     return {
       total: filteredCases.length,
@@ -971,63 +491,51 @@ export default function DashboardPage() {
       today,
       dueSoon,
       clear,
-      enforcementReady,
       active,
       waiting,
       done,
+      enforcementReady,
     };
-  }, [filteredCases, riskRowsByCase]);
+  }, [filteredCases, alertItems]);
 
-  const topRiskRows = useMemo(() => {
-    return riskRowsByCase.slice(0, 8);
-  }, [riskRowsByCase]);
+  const topRiskCases = useMemo(() => {
+    return filteredCases
+      .filter((item) => item.risk_level !== "clear")
+      .sort((a, b) => {
+        const riskDiff = getRiskScore(a.risk_level) - getRiskScore(b.risk_level);
+        if (riskDiff !== 0) return riskDiff;
 
-  const enforcementRows = useMemo(() => {
-    const rows: ActionRow[] = [];
-
-    filteredCases.forEach((c) => {
-      const readyText =
-        c.enforcementReadyText && c.enforcementReadyText !== "-"
-          ? c.enforcementReadyText
-          : "";
-
-      if (!c.enforcementIssued && c.enforcementReady && readyText) {
-        rows.push({
-          id: `enforcement-${c.id}`,
-          caseId: c.id,
-          sourceType: "enforcement",
-          fileNo: c.fileNo || "-",
-          title: c.title || "-",
-          clientName: c.clientName || "-",
-          ownerName: c.ownerName || "-",
-          phase: renderPhase(c.phase),
-          category: "enforcement",
-          level: "ready",
-          text: readyText,
-          date: c.enforcementReadyDate || c.enforcementDueDate || "",
-          hash: "#case-info",
-          updatedAt: c.updatedAt,
-        });
-      }
-    });
-
-    rows.sort((a, b) => {
-      const dateA = a.date || "9999-99-99";
-      const dateB = b.date || "9999-99-99";
-      const dateCompare = dateA.localeCompare(dateB);
-      if (dateCompare !== 0) return dateCompare;
-
-      return toMillis(b.updatedAt) - toMillis(a.updatedAt);
-    });
-
-    return rows.slice(0, 8);
+        return (a.next_alert_date || "9999-12-31").localeCompare(
+          b.next_alert_date || "9999-12-31"
+        );
+      })
+      .slice(0, 8);
   }, [filteredCases]);
+
+  const enforcementAlerts = useMemo(() => {
+    return alertItems
+      .filter((item) => item.sourceType === "enforcement")
+      .filter((item) => item.level === "overdue" || item.level === "today")
+      .sort((a, b) => {
+        const riskDiff = getRiskScore(a.level) - getRiskScore(b.level);
+        if (riskDiff !== 0) return riskDiff;
+
+        return a.date.localeCompare(b.date);
+      })
+      .slice(0, 8);
+  }, [alertItems]);
+
+  const caseMap = useMemo(() => {
+    const map = new Map<number, EnrichedCase>();
+    cases.forEach((item) => map.set(item.id, item));
+    return map;
+  }, [cases]);
 
   const phaseSummary = useMemo(() => {
     const map = new Map<string, number>();
 
-    filteredCases.forEach((c) => {
-      const label = renderPhase(c.phase);
+    filteredCases.forEach((item) => {
+      const label = renderPhase(item.phase);
       map.set(label, (map.get(label) || 0) + 1);
     });
 
@@ -1037,8 +545,8 @@ export default function DashboardPage() {
   const ownerSummary = useMemo(() => {
     const map = new Map<string, number>();
 
-    filteredCases.forEach((c) => {
-      const label = (c.ownerName || "-").trim() || "-";
+    filteredCases.forEach((item) => {
+      const label = item.owner_name || "-";
       map.set(label, (map.get(label) || 0) + 1);
     });
 
@@ -1047,18 +555,20 @@ export default function DashboardPage() {
 
   const recentCases = useMemo(() => {
     return [...filteredCases]
-      .sort((a, b) => toMillis(b.updatedAt) - toMillis(a.updatedAt))
+      .sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""))
       .slice(0, 8);
   }, [filteredCases]);
 
-  const getActionHref = (row: ActionRow) => {
-    return `/cases/${row.caseId}${row.hash}`;
-  };
+  /* =========================================================
+     ACCESS GUARD
+  ========================================================= */
 
-  if (checkingPermission) {
+  if (loadingProfile) {
     return (
       <AuthGuard>
-        <main style={{ padding: 24 }}>Checking permission...</main>
+        <main style={pageStyle}>
+          <div style={loadingBoxStyle}>Loading dashboard permission...</div>
+        </main>
       </AuthGuard>
     );
   }
@@ -1066,18 +576,27 @@ export default function DashboardPage() {
   if (!permissions.canViewDashboard) {
     return (
       <AuthGuard>
-        <main style={{ padding: 24 }}>Redirecting...</main>
+        <main style={pageStyle}>
+          <AppTopNav
+            title="Dashboard"
+            subtitle="Executive overview across all cases"
+            activePage="dashboard"
+          />
+
+          <div style={noAccessBoxStyle}>
+            คุณไม่มีสิทธิ์ดู Dashboard นี้
+            <div style={noAccessSubTextStyle}>
+              หากต้องการดูภาพรวมคดี ต้องใช้สิทธิ์ Staff ขึ้นไป
+            </div>
+          </div>
+        </main>
       </AuthGuard>
     );
   }
 
-  if (loadingSubData) {
-    return (
-      <AuthGuard>
-        <main style={{ padding: 24 }}>Loading dashboard...</main>
-      </AuthGuard>
-    );
-  }
+  /* =========================================================
+     RENDER
+  ========================================================= */
 
   return (
     <AuthGuard>
@@ -1088,267 +607,263 @@ export default function DashboardPage() {
           activePage="dashboard"
         />
 
-        <div style={searchWrapStyle}>
-          <input
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            placeholder="Search file no, title, client, owner, alert text"
-            style={searchInputStyle}
+        <section style={heroPanelStyle}>
+          <div>
+            <div style={eyebrowStyle}>VP CASE SYSTEM</div>
+            <h1 style={heroTitleStyle}>Executive Dashboard</h1>
+            <div style={heroSubtitleStyle}>
+              ภาพรวมคดี ความเสี่ยง กำหนดเวลา งานเร่งด่วน และสถานะการบังคับคดี
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={fetchDashboard}
+            disabled={loading}
+            style={secondaryButtonStyle}
+          >
+            {loading ? "Refreshing..." : "Refresh"}
+          </button>
+        </section>
+
+        <section style={filterPanelStyle}>
+          <div style={filterHeaderStyle}>
+            <div>
+              <h3 style={filterTitleStyle}>Search & Filters</h3>
+              <div style={filterSubtitleStyle}>
+                ค้นหาและกรอง Dashboard ตามแฟ้มคดี ผู้รับผิดชอบ สถานะ และความเสี่ยง
+              </div>
+            </div>
+
+            <button type="button" onClick={clearFilters} style={ghostButtonStyle}>
+              Clear Filters
+            </button>
+          </div>
+
+          <div style={isCompact ? compactFilterGridStyle : filterGridStyle}>
+            <div>
+              <label style={labelStyle}>Search</label>
+              <input
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                placeholder="Search file no, title, client, owner, alert text"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Risk</label>
+              <select
+                value={riskFilter}
+                onChange={(e) => setRiskFilter(e.target.value as RiskFilter)}
+                style={inputStyle}
+              >
+                <option value="all">All</option>
+                <option value="overdue">Overdue</option>
+                <option value="today">Today</option>
+                <option value="dueSoon">Due Soon</option>
+                <option value="clear">Clear</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Owner</label>
+              <select
+                value={ownerFilter}
+                onChange={(e) => setOwnerFilter(e.target.value)}
+                style={inputStyle}
+              >
+                {owners.map((item) => (
+                  <option key={item}>{item}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Phase</label>
+              <select
+                value={phaseFilter}
+                onChange={(e) => setPhaseFilter(e.target.value)}
+                style={inputStyle}
+              >
+                {phases.map((item) => (
+                  <option key={item}>{item}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Status</label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                style={inputStyle}
+              >
+                {statuses.map((item) => (
+                  <option key={item}>{item}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Sort By</label>
+              <select
+                value={sortMode}
+                onChange={(e) => setSortMode(e.target.value as SortMode)}
+                style={inputStyle}
+              >
+                <option value="highestRisk">Highest Risk First</option>
+                <option value="latestUpdated">Latest Updated</option>
+                <option value="fileNo">File No</option>
+                <option value="nextAlertDate">Next Alert Date</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <section style={blockStyle}>
+          <div style={isCompact ? compactSummaryGridStyle : summaryGridStyle}>
+            <SummaryCard
+              label="Total Cases"
+              subLabel="แฟ้มที่แสดง"
+              count={summary.total}
+              background="#f8fafc"
+            />
+
+            <SummaryCard
+              label="Overdue"
+              subLabel="เกินกำหนด"
+              count={summary.overdue}
+              background="#fde2e2"
+            />
+
+            <SummaryCard
+              label="Today"
+              subLabel="ครบกำหนดวันนี้"
+              count={summary.today}
+              background="#fff3c4"
+            />
+
+            <SummaryCard
+              label="Due Soon"
+              subLabel="ใกล้ครบกำหนด"
+              count={summary.dueSoon}
+              background="#fff8df"
+            />
+
+            <SummaryCard
+              label="Enforcement Ready"
+              subLabel="พร้อมดำเนินการบังคับคดี"
+              count={summary.enforcementReady}
+              background="#e0f2fe"
+            />
+
+            <SummaryCard
+              label="Clear"
+              subLabel="ยังไม่มี Alert"
+              count={summary.clear}
+              background="#e4f4e9"
+            />
+          </div>
+        </section>
+
+        <section style={miniGridStyle}>
+          <MiniSummaryCard
+            title="Case Status"
+            rows={[
+              { label: "Active", value: summary.active },
+              { label: "Waiting", value: summary.waiting },
+              { label: "Done", value: summary.done },
+            ]}
           />
-        </div>
 
-        <div style={heroGridStyle}>
-          <div style={{ ...heroCardStyle, background: "#f8f9fa" }}>
-            <div style={heroNumberStyle}>{summary.total}</div>
-            <div>Total Cases</div>
-          </div>
+          <MiniSummaryCard
+            title="Phase Distribution"
+            rows={phaseSummary.map(([label, value]) => ({ label, value }))}
+          />
 
-          <div style={{ ...heroCardStyle, background: "#ffe5e5" }}>
-            <div style={heroNumberStyle}>{summary.overdue}</div>
-            <div>Overdue</div>
-          </div>
+          <MiniSummaryCard
+            title="Owner Distribution"
+            rows={ownerSummary.map(([label, value]) => ({ label, value }))}
+          />
+        </section>
 
-          <div style={{ ...heroCardStyle, background: "#fff3cd" }}>
-            <div style={heroNumberStyle}>{summary.today}</div>
-            <div>Today</div>
-          </div>
-
-          <div style={{ ...heroCardStyle, background: "#fff8e1" }}>
-            <div style={heroNumberStyle}>{summary.dueSoon}</div>
-            <div>Due Soon</div>
-          </div>
-
-          <div style={{ ...heroCardStyle, background: "#e0f2fe" }}>
-            <div style={heroNumberStyle}>{summary.enforcementReady}</div>
-            <div>Enforcement Ready</div>
-          </div>
-
-          <div style={{ ...heroCardStyle, background: "#e6f4ea" }}>
-            <div style={heroNumberStyle}>{summary.clear}</div>
-            <div>Clear</div>
-          </div>
-        </div>
-
-        <div style={miniGridStyle}>
-          <div style={miniCardStyle}>
-            <div style={miniTitleStyle}>Case Status</div>
-            <div style={miniRowStyle}>
-              <span>Active</span>
-              <strong>{summary.active}</strong>
-            </div>
-            <div style={miniRowStyle}>
-              <span>Waiting</span>
-              <strong>{summary.waiting}</strong>
-            </div>
-            <div style={miniRowStyle}>
-              <span>Done</span>
-              <strong>{summary.done}</strong>
-            </div>
-          </div>
-
-          <div style={miniCardStyle}>
-            <div style={miniTitleStyle}>Phase Distribution</div>
-            {phaseSummary.length === 0 ? (
-              <div style={{ color: "#666" }}>No data</div>
-            ) : (
-              phaseSummary.map(([label, count]) => (
-                <div key={label} style={miniRowStyle}>
-                  <span>{label}</span>
-                  <strong>{count}</strong>
-                </div>
-              ))
-            )}
-          </div>
-
-          <div style={miniCardStyle}>
-            <div style={miniTitleStyle}>Owner Distribution</div>
-            {ownerSummary.length === 0 ? (
-              <div style={{ color: "#666" }}>No data</div>
-            ) : (
-              ownerSummary.map(([label, count]) => (
-                <div key={label} style={miniRowStyle}>
-                  <span>{label}</span>
-                  <strong>{count}</strong>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        <div style={sectionGridStyle}>
-          <section style={sectionCardStyle}>
+        <section style={sectionGridStyle}>
+          <div style={sectionCardStyle}>
             <div style={sectionHeaderStyle}>
-              <h3 style={{ margin: 0 }}>Top Risk Cases</h3>
+              <div>
+                <h3 style={sectionTitleStyle}>Top Risk Cases</h3>
+                <div style={sectionSubtitleStyle}>
+                  แฟ้มที่มี Deadline / Task / Timeline / Enforcement ใกล้หรือเกินกำหนด
+                </div>
+              </div>
+
               <Link href="/cases" style={sectionLinkStyle}>
                 View cases
               </Link>
             </div>
 
-            {topRiskRows.length === 0 ? (
-              <div style={{ color: "#666" }}>No risk cases</div>
+            {loading ? (
+              <div style={loadingBoxStyle}>Loading risk cases...</div>
+            ) : topRiskCases.length === 0 ? (
+              <div style={allClearStyle}>✓ No risk cases</div>
+            ) : isCompact ? (
+              <RiskCardList items={topRiskCases} />
             ) : (
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={thStyle}>File No</th>
-                    <th style={thStyle}>Client</th>
-                    <th style={thStyle}>Risk</th>
-                    <th style={thStyle}>Next Alert</th>
-                    <th style={thStyle}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {topRiskRows.map((row) => (
-                    <tr key={row.id} style={rowStyle}>
-                      <td style={tdStyle}>{row.fileNo}</td>
-                      <td style={tdStyle}>{row.clientName}</td>
-                      <td style={tdStyle}>
-                        <span style={getRiskBadgeStyle(row.level)}>
-                          {row.level === "overdue"
-                            ? "Overdue"
-                            : row.level === "today"
-                              ? "Today"
-                              : "Due Soon"}
-                        </span>
-                      </td>
-                      <td style={tdStyle}>
-                        {row.text}
-                        {row.date ? ` • ${row.date}` : ""}
-                      </td>
-                      <td style={tdStyle}>
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: 8,
-                            flexWrap: "wrap",
-                          }}
-                        >
-                          <Link href={getActionHref(row)} style={openLinkStyle}>
-                            Open & Fix
-                          </Link>
-
-                          {canRunAction(row) && (
-                            <button
-                              onClick={() => runAction(row)}
-                              disabled={actingId === row.id}
-                              style={actionButtonStyle}
-                            >
-                              {actingId === row.id
-                                ? "Working..."
-                                : getActionLabel(row)}
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <RiskTable items={topRiskCases} />
             )}
-          </section>
+          </div>
 
-          <section style={sectionCardStyle}>
+          <div style={sectionCardStyle}>
             <div style={sectionHeaderStyle}>
-              <h3 style={{ margin: 0 }}>Enforcement Ready</h3>
+              <div>
+                <h3 style={sectionTitleStyle}>Enforcement Ready</h3>
+                <div style={sectionSubtitleStyle}>
+                  งานบังคับคดีที่ครบกำหนดหรือควรดำเนินการต่อ
+                </div>
+              </div>
+
               <Link href="/cases" style={sectionLinkStyle}>
                 View cases
               </Link>
             </div>
 
-            {enforcementRows.length === 0 ? (
+            {loading ? (
+              <div style={loadingBoxStyle}>Loading enforcement queue...</div>
+            ) : enforcementAlerts.length === 0 ? (
               <div style={allClearStyle}>
                 ✓ All clear — no enforcement action required
               </div>
+            ) : isCompact ? (
+              <EnforcementCardList items={enforcementAlerts} caseMap={caseMap} />
             ) : (
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={thStyle}>File No</th>
-                    <th style={thStyle}>Client</th>
-                    <th style={thStyle}>Status</th>
-                    <th style={thStyle}>Date</th>
-                    <th style={thStyle}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {enforcementRows.map((row) => (
-                    <tr key={row.id} style={rowStyle}>
-                      <td style={tdStyle}>{row.fileNo}</td>
-                      <td style={tdStyle}>{row.clientName}</td>
-                      <td style={tdStyle}>{row.text}</td>
-                      <td style={tdStyle}>{row.date || "-"}</td>
-                      <td style={tdStyle}>
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: 8,
-                            flexWrap: "wrap",
-                          }}
-                        >
-                          <Link href={getActionHref(row)} style={openLinkStyle}>
-                            Open & Fix
-                          </Link>
-
-                          {canRunAction(row) && (
-                            <button
-                              onClick={() => runAction(row)}
-                              disabled={actingId === row.id}
-                              style={actionButtonStyle}
-                            >
-                              {actingId === row.id
-                                ? "Working..."
-                                : getActionLabel(row)}
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <EnforcementTable items={enforcementAlerts} caseMap={caseMap} />
             )}
-          </section>
-        </div>
+          </div>
+        </section>
 
         <section style={sectionCardStyle}>
           <div style={sectionHeaderStyle}>
-            <h3 style={{ margin: 0 }}>Recently Updated Cases</h3>
+            <div>
+              <h3 style={sectionTitleStyle}>Recently Updated Cases</h3>
+              <div style={sectionSubtitleStyle}>
+                แฟ้มที่มีการแก้ไขล่าสุด
+              </div>
+            </div>
+
             <Link href="/cases" style={sectionLinkStyle}>
               View all cases
             </Link>
           </div>
 
-          {recentCases.length === 0 ? (
-            <div style={{ color: "#666" }}>No cases found</div>
+          {loading ? (
+            <div style={loadingBoxStyle}>Loading recent cases...</div>
+          ) : recentCases.length === 0 ? (
+            <div style={emptyStyle}>No cases found.</div>
+          ) : isCompact ? (
+            <RecentCaseCardList items={recentCases} />
           ) : (
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <th style={thStyle}>File No</th>
-                  <th style={thStyle}>Title</th>
-                  <th style={thStyle}>Client</th>
-                  <th style={thStyle}>Owner</th>
-                  <th style={thStyle}>Last Updated</th>
-                  <th style={thStyle}>Open</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentCases.map((c) => (
-                  <tr key={c.id} style={rowStyle}>
-                    <td style={tdStyle}>{c.fileNo || "-"}</td>
-                    <td style={tdStyle}>{c.title || "-"}</td>
-                    <td style={tdStyle}>{c.clientName || "-"}</td>
-                    <td style={tdStyle}>{c.ownerName || "-"}</td>
-                    <td style={tdStyle}>{formatDateTime(c.updatedAt)}</td>
-                    <td style={tdStyle}>
-                      <Link href={`/cases/${c.id}`} style={openLinkStyle}>
-                        Open
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <RecentCaseTable items={recentCases} />
           )}
         </section>
       </main>
@@ -1356,169 +871,1024 @@ export default function DashboardPage() {
   );
 }
 
+/* =========================================================
+   SUB COMPONENTS
+========================================================= */
+
+function SummaryCard({
+  label,
+  subLabel,
+  count,
+  background,
+}: {
+  label: string;
+  subLabel: string;
+  count: number;
+  background: string;
+}) {
+  return (
+    <div style={{ ...summaryCardStyle, background }}>
+      <div style={summaryNumberStyle}>{count}</div>
+      <div style={summaryLabelStyle}>{label}</div>
+      <div style={summarySubLabelStyle}>{subLabel}</div>
+    </div>
+  );
+}
+
+function MiniSummaryCard({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: { label: string; value: number }[];
+}) {
+  return (
+    <div style={miniCardStyle}>
+      <div style={miniTitleStyle}>{title}</div>
+
+      {rows.length === 0 ? (
+        <div style={emptyMiniStyle}>No data</div>
+      ) : (
+        rows.map((row) => (
+          <div key={row.label} style={miniRowStyle}>
+            <span>{row.label}</span>
+            <strong>{row.value}</strong>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+function RiskTable({ items }: { items: EnrichedCase[] }) {
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table style={tableStyle}>
+        <thead>
+          <tr>
+            <th style={thStyle}>File No</th>
+            <th style={thStyle}>Client</th>
+            <th style={thStyle}>Risk</th>
+            <th style={thStyle}>Next Alert</th>
+            <th style={thStyle}>Date</th>
+            <th style={thStyle}>Action</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {items.map((item) => (
+            <tr key={item.id} style={rowStyle}>
+              <td style={tdStyle}>{item.file_no || "-"}</td>
+              <td style={tdStyle}>{item.client_name || "-"}</td>
+              <td style={tdStyle}>
+                <RiskBadge level={item.risk_level} />
+              </td>
+              <td style={tdStyle}>
+                <div style={alertTextStyle}>{item.next_alert_text || "-"}</div>
+              </td>
+              <td style={tdStyle}>{formatDisplayDate(item.next_alert_date)}</td>
+              <td style={tdStyle}>
+                <Link
+                  href={`/cases/${item.id}${item.next_alert_hash || ""}`}
+                  style={openButtonLinkStyle}
+                >
+                  Open & Fix
+                </Link>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function RiskCardList({ items }: { items: EnrichedCase[] }) {
+  return (
+    <div style={cardListStyle}>
+      {items.map((item) => (
+        <div key={item.id} style={mobileCardStyle}>
+          <div style={mobileCardHeaderStyle}>
+            <div>
+              <div style={fileNoStyle}>{item.file_no || "-"}</div>
+              <div style={mobileTitleStyle}>{item.title || "-"}</div>
+            </div>
+
+            <RiskBadge level={item.risk_level} />
+          </div>
+
+          <InfoLine label="Client" value={item.client_name || "-"} />
+          <InfoLine label="Next Alert" value={item.next_alert_text || "-"} />
+          <InfoLine
+            label="Date"
+            value={formatDisplayDate(item.next_alert_date)}
+          />
+
+          <div style={cardActionStyle}>
+            <Link
+              href={`/cases/${item.id}${item.next_alert_hash || ""}`}
+              style={openButtonLinkStyle}
+            >
+              Open & Fix
+            </Link>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EnforcementTable({
+  items,
+  caseMap,
+}: {
+  items: AlertCandidate[];
+  caseMap: Map<number, EnrichedCase>;
+}) {
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table style={tableStyle}>
+        <thead>
+          <tr>
+            <th style={thStyle}>File No</th>
+            <th style={thStyle}>Client</th>
+            <th style={thStyle}>Status</th>
+            <th style={thStyle}>Date</th>
+            <th style={thStyle}>Action</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {items.map((item) => {
+            const caseItem = caseMap.get(item.case_id);
+
+            return (
+              <tr key={item.id} style={rowStyle}>
+                <td style={tdStyle}>{caseItem?.file_no || "-"}</td>
+                <td style={tdStyle}>{caseItem?.client_name || "-"}</td>
+                <td style={tdStyle}>{item.text}</td>
+                <td style={tdStyle}>{formatDisplayDate(item.date)}</td>
+                <td style={tdStyle}>
+                  <Link
+                    href={`/cases/${item.case_id}${item.sourceHash}`}
+                    style={openButtonLinkStyle}
+                  >
+                    Open
+                  </Link>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function EnforcementCardList({
+  items,
+  caseMap,
+}: {
+  items: AlertCandidate[];
+  caseMap: Map<number, EnrichedCase>;
+}) {
+  return (
+    <div style={cardListStyle}>
+      {items.map((item) => {
+        const caseItem = caseMap.get(item.case_id);
+
+        return (
+          <div key={item.id} style={mobileCardStyle}>
+            <div style={mobileCardHeaderStyle}>
+              <div>
+                <div style={fileNoStyle}>{caseItem?.file_no || "-"}</div>
+                <div style={mobileTitleStyle}>{caseItem?.title || "-"}</div>
+              </div>
+
+              <RiskBadge level={item.level} />
+            </div>
+
+            <InfoLine label="Client" value={caseItem?.client_name || "-"} />
+            <InfoLine label="Status" value={item.text} />
+            <InfoLine label="Date" value={formatDisplayDate(item.date)} />
+
+            <div style={cardActionStyle}>
+              <Link
+                href={`/cases/${item.case_id}${item.sourceHash}`}
+                style={openButtonLinkStyle}
+              >
+                Open
+              </Link>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function RecentCaseTable({ items }: { items: EnrichedCase[] }) {
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table style={tableStyle}>
+        <thead>
+          <tr>
+            <th style={thStyle}>File No</th>
+            <th style={thStyle}>Title</th>
+            <th style={thStyle}>Client</th>
+            <th style={thStyle}>Owner</th>
+            <th style={thStyle}>Risk</th>
+            <th style={thStyle}>Last Updated</th>
+            <th style={thStyle}>Open</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {items.map((item) => (
+            <tr key={item.id} style={rowStyle}>
+              <td style={tdStyle}>{item.file_no || "-"}</td>
+              <td style={tdStyle}>{item.title || "-"}</td>
+              <td style={tdStyle}>{item.client_name || "-"}</td>
+              <td style={tdStyle}>{item.owner_name || "-"}</td>
+              <td style={tdStyle}>
+                <RiskBadge level={item.risk_level} />
+              </td>
+              <td style={tdStyle}>{formatDateTime(item.updated_at)}</td>
+              <td style={tdStyle}>
+                <Link href={`/cases/${item.id}`} style={openButtonLinkStyle}>
+                  Open
+                </Link>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function RecentCaseCardList({ items }: { items: EnrichedCase[] }) {
+  return (
+    <div style={cardListStyle}>
+      {items.map((item) => (
+        <div key={item.id} style={mobileCardStyle}>
+          <div style={mobileCardHeaderStyle}>
+            <div>
+              <div style={fileNoStyle}>{item.file_no || "-"}</div>
+              <div style={mobileTitleStyle}>{item.title || "-"}</div>
+            </div>
+
+            <RiskBadge level={item.risk_level} />
+          </div>
+
+          <InfoLine label="Client" value={item.client_name || "-"} />
+          <InfoLine label="Owner" value={item.owner_name || "-"} />
+          <InfoLine label="Updated" value={formatDateTime(item.updated_at)} />
+
+          <div style={cardActionStyle}>
+            <Link href={`/cases/${item.id}`} style={openButtonLinkStyle}>
+              Open
+            </Link>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RiskBadge({ level }: { level: RiskLevel }) {
+  const text =
+    level === "overdue"
+      ? "Overdue"
+      : level === "today"
+        ? "Today"
+        : level === "dueSoon"
+          ? "Due Soon"
+          : "Clear";
+
+  const style =
+    level === "overdue"
+      ? riskOverdueStyle
+      : level === "today"
+        ? riskTodayStyle
+        : level === "dueSoon"
+          ? riskDueSoonStyle
+          : riskClearStyle;
+
+  return <span style={{ ...riskBadgeBaseStyle, ...style }}>{text}</span>;
+}
+
+function InfoLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={infoLineStyle}>
+      <div style={infoLabelStyle}>{label}</div>
+      <div style={infoValueStyle}>{value}</div>
+    </div>
+  );
+}
+
+/* =========================================================
+   ALERT BUILDER
+========================================================= */
+
+function buildAlertCandidates(
+  tasks: CaseTask[],
+  deadlines: CaseDeadline[],
+  timeline: CaseTimeline[],
+  enforcements: CaseEnforcement[]
+) {
+  const candidates: AlertCandidate[] = [];
+
+  tasks.forEach((task) => {
+    if (!task.due_date) return;
+    if (isDoneStatus(task.status)) return;
+
+    const level = getDateRiskLevel(task.due_date);
+    if (level === "clear") return;
+
+    const taskText =
+      task.task_type === "อื่นๆ"
+        ? task.task_other || "งานที่ต้องทำ"
+        : task.task_type || "งานที่ต้องทำ";
+
+    candidates.push({
+      id: `task-${task.id}`,
+      case_id: task.case_id,
+      level,
+      text: `Task: ${taskText}`,
+      date: task.due_date,
+      score: getRiskScore(level),
+      sourceType: "task",
+      sourceHash: "#tasks",
+    });
+  });
+
+  deadlines.forEach((deadline) => {
+    if (!deadline.current_due_date) return;
+    if (isDoneStatus(deadline.status)) return;
+
+    const level = getDateRiskLevel(deadline.current_due_date);
+    if (level === "clear") return;
+
+    candidates.push({
+      id: `deadline-${deadline.id}`,
+      case_id: deadline.case_id,
+      level,
+      text: `Deadline: ${renderDeadlineType(deadline.deadline_type, deadline.deadline_other)}`,
+      date: deadline.current_due_date,
+      score: getRiskScore(level),
+      sourceType: "deadline",
+      sourceHash: "#deadlines",
+    });
+  });
+
+  timeline.forEach((event) => {
+    if (event.event_type !== "hearing") return;
+    if (!event.event_date) return;
+    if (isDoneStatus(event.status)) return;
+
+    const level = getDateRiskLevel(event.event_date);
+    if (level === "clear") return;
+
+    const appointmentText =
+      event.appointment_type === "นัดอื่นๆ"
+        ? event.appointment_other || "นัดศาล"
+        : event.appointment_type || "นัดศาล";
+
+    candidates.push({
+      id: `timeline-${event.id}`,
+      case_id: event.case_id,
+      level,
+      text: `Timeline: นัดที่ ${event.order_no || "-"} ${appointmentText}`,
+      date: event.event_date,
+      score: getRiskScore(level),
+      sourceType: "timeline",
+      sourceHash: "#timeline",
+    });
+  });
+
+  enforcements.forEach((item) => {
+    if (!item.final_due_date) return;
+    if (isEnforcementDone(item)) return;
+
+    const level = getDateRiskLevel(item.final_due_date);
+    if (level === "clear") return;
+
+    const partyText = renderEnforcementPartyLabel(
+      item.party_label,
+      item.party_other
+    );
+
+    candidates.push({
+      id: `enforcement-${item.id}`,
+      case_id: item.case_id,
+      level,
+      text: `Enforcement: ขอออกหมายบังคับคดี (${partyText})`,
+      date: item.final_due_date,
+      score: getRiskScore(level),
+      sourceType: "enforcement",
+      sourceHash: "#enforcement",
+    });
+  });
+
+  return candidates.sort((a, b) => {
+    if (a.score !== b.score) return a.score - b.score;
+    return a.date.localeCompare(b.date);
+  });
+}
+
+function buildAlertMapFromCandidates(candidates: AlertCandidate[]) {
+  const map = new Map<number, AlertCandidate>();
+
+  candidates.forEach((candidate) => {
+    const existing = map.get(candidate.case_id);
+
+    if (!existing) {
+      map.set(candidate.case_id, candidate);
+      return;
+    }
+
+    if (candidate.score < existing.score) {
+      map.set(candidate.case_id, candidate);
+      return;
+    }
+
+    if (candidate.score === existing.score && candidate.date < existing.date) {
+      map.set(candidate.case_id, candidate);
+    }
+  });
+
+  return map;
+}
+
+/* =========================================================
+   HELPERS
+========================================================= */
+
+function getDateRiskLevel(dateText: string): RiskLevel {
+  const diffDays = diffDaysFromToday(dateText);
+
+  if (diffDays < 0) return "overdue";
+  if (diffDays === 0) return "today";
+  if (diffDays <= 3) return "dueSoon";
+
+  return "clear";
+}
+
+function getRiskScore(level: RiskLevel) {
+  if (level === "overdue") return 1;
+  if (level === "today") return 2;
+  if (level === "dueSoon") return 3;
+  return 5;
+}
+
+function diffDaysFromToday(dateText: string) {
+  const today = parseLocalDate(getTodayDateString());
+  const target = parseLocalDate(dateText);
+
+  return Math.floor(
+    (target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+  );
+}
+
+function parseLocalDate(dateText: string) {
+  const [year, month, day] = dateText.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function getTodayDateString() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function isDoneStatus(status?: string | null) {
+  const value = (status || "").toLowerCase();
+
+  return (
+    value === "done" ||
+    value === "cancelled" ||
+    value === "filed" ||
+    value === "submitted"
+  );
+}
+
+function isEnforcementDone(item: CaseEnforcement) {
+  if (item.writ_request_date || item.writ_issued_date) return true;
+
+  const value = (item.status || "").toLowerCase();
+
+  return (
+    value === "writ_requested" ||
+    value === "writ_issued" ||
+    value === "asset_searching" ||
+    value === "no_asset_found" ||
+    value === "asset_found_waiting_approval" ||
+    value === "client_rejected" ||
+    value === "approved_waiting_seizure" ||
+    value === "seized_waiting_auction" ||
+    value === "sold" ||
+    value === "closed"
+  );
+}
+
+function renderDeadlineType(
+  deadlineType?: string | null,
+  deadlineOther?: string | null
+) {
+  if (!deadlineType) return "Deadline";
+
+  if (deadlineType === "answer") return "ครบกำหนดยื่นคำให้การ";
+  if (deadlineType === "appeal") return "ครบกำหนดอุทธรณ์";
+  if (deadlineType === "appeal_answer") return "ครบกำหนดแก้อุทธรณ์";
+  if (deadlineType === "supreme") return "ครบกำหนดฎีกา";
+  if (deadlineType === "supreme_answer") return "ครบกำหนดแก้ฎีกา";
+  if (deadlineType === "other") return deadlineOther || "กำหนดเวลาอื่นๆ";
+
+  return deadlineType;
+}
+
+function renderEnforcementPartyLabel(
+  value?: string | null,
+  other?: string | null
+) {
+  if (value === "defendant") return "จำเลย";
+  if (value === "defendant_1") return "จำเลยที่ 1";
+  if (value === "defendant_2") return "จำเลยที่ 2";
+  if (value === "defendant_3") return "จำเลยที่ 3";
+  if (value === "defendant_4") return "จำเลยที่ 4";
+  if (value === "other") return other || "อื่นๆ";
+
+  return value || "-";
+}
+
+function renderPhase(value?: string | null) {
+  if (!value) return "-";
+  if (value === "litigation") return "Litigation";
+  if (value === "judgment") return "Judgment";
+  if (value === "enforcement") return "Enforcement";
+  if (value === "closed") return "Closed";
+  return value;
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "-";
+
+  try {
+    return new Date(value).toLocaleString("th-TH");
+  } catch {
+    return value;
+  }
+}
+
+function formatDisplayDate(value?: string | null) {
+  if (!value) return "-";
+
+  const parts = value.split("-");
+  if (parts.length !== 3) return value;
+
+  const [year, month, day] = parts;
+  return `${day}/${month}/${year}`;
+}
+
+/* =========================================================
+   STYLES
+========================================================= */
+
 const pageStyle: React.CSSProperties = {
   padding: 24,
-  fontFamily: "system-ui",
+  maxWidth: 1440,
+  margin: "0 auto",
+  color: "#111111",
 };
 
-const searchWrapStyle: React.CSSProperties = {
-  marginBottom: 20,
+const blockStyle: React.CSSProperties = {
+  marginBottom: 18,
 };
 
-const searchInputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: 10,
-  borderRadius: 8,
-  border: "1px solid #ccc",
+const heroPanelStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 16,
+  alignItems: "flex-start",
+  flexWrap: "wrap",
+  border: "1px solid #e5e7eb",
+  borderRadius: 18,
+  padding: 20,
+  marginBottom: 18,
+  background:
+    "linear-gradient(135deg, #ffffff 0%, #f8fafc 48%, #eef6f0 100%)",
+  boxShadow: "0 8px 28px rgba(15, 23, 42, 0.06)",
 };
 
-const heroGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(6, 1fr)",
+const eyebrowStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 900,
+  letterSpacing: 1.2,
+  color: "#0f2743",
+  marginBottom: 6,
+};
+
+const heroTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 28,
+  fontWeight: 950,
+  color: "#111111",
+};
+
+const heroSubtitleStyle: React.CSSProperties = {
+  marginTop: 8,
+  color: "#555555",
+  fontSize: 14,
+  fontWeight: 600,
+  lineHeight: 1.6,
+};
+
+const filterPanelStyle: React.CSSProperties = {
+  border: "1px solid #eeeeee",
+  borderRadius: 16,
+  padding: 16,
+  background: "#ffffff",
+  marginBottom: 18,
+};
+
+const filterHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
   gap: 12,
-  marginBottom: 20,
+  alignItems: "flex-start",
+  flexWrap: "wrap",
+  marginBottom: 14,
 };
 
-const heroCardStyle: React.CSSProperties = {
-  padding: 18,
-  borderRadius: 12,
-  border: "1px solid #ddd",
+const filterTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 17,
+  fontWeight: 900,
+  color: "#111111",
 };
 
-const heroNumberStyle: React.CSSProperties = {
-  fontSize: 32,
-  fontWeight: 700,
+const filterSubtitleStyle: React.CSSProperties = {
+  marginTop: 4,
+  fontSize: 13,
+  color: "#666666",
+  fontWeight: 600,
+};
+
+const filterGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1.2fr",
+  gap: 12,
+  alignItems: "end",
+};
+
+const compactFilterGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr",
+  gap: 10,
+};
+
+const summaryGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(6, minmax(130px, 1fr))",
+  gap: 12,
+};
+
+const compactSummaryGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(120px, 1fr))",
+  gap: 10,
+};
+
+const summaryCardStyle: React.CSSProperties = {
+  border: "1px solid #dddddd",
+  borderRadius: 14,
+  padding: 16,
+  minHeight: 104,
+  color: "#111111",
+  boxShadow: "0 1px 8px rgba(0,0,0,0.04)",
+};
+
+const summaryNumberStyle: React.CSSProperties = {
+  fontSize: 30,
+  fontWeight: 950,
   marginBottom: 8,
+  color: "#111111",
+};
+
+const summaryLabelStyle: React.CSSProperties = {
+  fontWeight: 900,
+  color: "#222222",
+};
+
+const summarySubLabelStyle: React.CSSProperties = {
+  marginTop: 4,
+  fontSize: 12,
+  fontWeight: 700,
+  color: "#666666",
 };
 
 const miniGridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(3, 1fr)",
+  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
   gap: 12,
-  marginBottom: 20,
+  marginBottom: 18,
 };
 
 const miniCardStyle: React.CSSProperties = {
+  border: "1px solid #eeeeee",
+  borderRadius: 16,
   padding: 16,
-  borderRadius: 12,
-  border: "1px solid #ddd",
-  background: "#fff",
+  background: "#ffffff",
 };
 
 const miniTitleStyle: React.CSSProperties = {
-  fontWeight: 700,
+  fontSize: 15,
+  fontWeight: 900,
   marginBottom: 10,
+  color: "#111111",
 };
 
 const miniRowStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   gap: 12,
-  padding: "6px 0",
+  padding: "7px 0",
   borderTop: "1px solid #f0f0f0",
+  color: "#333333",
+  fontWeight: 700,
+};
+
+const emptyMiniStyle: React.CSSProperties = {
+  color: "#666666",
+  fontWeight: 600,
 };
 
 const sectionGridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "1fr 1fr",
+  gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))",
   gap: 12,
-  marginBottom: 20,
+  marginBottom: 18,
 };
 
 const sectionCardStyle: React.CSSProperties = {
+  border: "1px solid #eeeeee",
+  borderRadius: 16,
   padding: 16,
-  borderRadius: 12,
-  border: "1px solid #ddd",
-  background: "#fff",
+  background: "#ffffff",
+  marginBottom: 18,
 };
 
 const sectionHeaderStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  alignItems: "center",
+  gap: 12,
+  alignItems: "flex-start",
+  flexWrap: "wrap",
   marginBottom: 12,
 };
 
+const sectionTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 17,
+  fontWeight: 900,
+  color: "#111111",
+};
+
+const sectionSubtitleStyle: React.CSSProperties = {
+  marginTop: 4,
+  fontSize: 13,
+  color: "#666666",
+  fontWeight: 600,
+  lineHeight: 1.5,
+};
+
 const sectionLinkStyle: React.CSSProperties = {
-  color: "#111",
+  color: "#0f2743",
   textDecoration: "none",
   fontSize: 14,
-  fontWeight: 700,
+  fontWeight: 900,
+};
+
+const labelStyle: React.CSSProperties = {
+  display: "block",
+  marginBottom: 4,
+  color: "#222222",
+  fontWeight: 800,
+  fontSize: 13,
+};
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "10px 12px",
+  border: "1px solid #cccccc",
+  borderRadius: 8,
+  fontSize: 14,
+  boxSizing: "border-box",
+  background: "white",
+  color: "#111111",
+  colorScheme: "light",
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  padding: "10px 16px",
+  background: "#ffffff",
+  color: "#111111",
+  borderRadius: 10,
+  border: "1px solid #cccccc",
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+  fontWeight: 800,
+};
+
+const ghostButtonStyle: React.CSSProperties = {
+  padding: "9px 13px",
+  background: "#f8fafc",
+  color: "#111111",
+  borderRadius: 10,
+  border: "1px solid #dddddd",
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+  fontWeight: 800,
 };
 
 const tableStyle: React.CSSProperties = {
   width: "100%",
   borderCollapse: "collapse",
+  minWidth: 760,
 };
 
 const thStyle: React.CSSProperties = {
   textAlign: "left",
-  padding: "10px 8px",
-  borderBottom: "1px solid #eee",
+  padding: "11px 10px",
+  borderBottom: "1px solid #eeeeee",
+  whiteSpace: "nowrap",
+  color: "#111111",
+  fontSize: 13,
+  fontWeight: 900,
+  background: "#fafafa",
 };
 
 const tdStyle: React.CSSProperties = {
-  padding: "10px 8px",
+  padding: "12px 10px",
   verticalAlign: "top",
+  borderTop: "1px solid #eeeeee",
+  whiteSpace: "nowrap",
+  color: "#111111",
+  fontSize: 14,
 };
 
 const rowStyle: React.CSSProperties = {
-  borderTop: "1px solid #f3f3f3",
+  borderTop: "1px solid #eeeeee",
 };
 
-const badgeDangerStyle: React.CSSProperties = {
-  background: "#ffe5e5",
-  color: "#b42318",
-  fontWeight: 600,
+const alertTextStyle: React.CSSProperties = {
+  maxWidth: 320,
+  whiteSpace: "normal",
+  fontWeight: 700,
+  lineHeight: 1.45,
+};
+
+const riskBadgeBaseStyle: React.CSSProperties = {
+  display: "inline-flex",
+  padding: "5px 10px",
   borderRadius: 999,
-  padding: "4px 10px",
-  display: "inline-block",
+  fontSize: 13,
+  fontWeight: 900,
+  whiteSpace: "nowrap",
 };
 
-const badgeWarningStyle: React.CSSProperties = {
-  background: "#fff3cd",
-  color: "#b54708",
-  fontWeight: 600,
+const riskOverdueStyle: React.CSSProperties = {
+  background: "#ffe0e0",
+  color: "#c0392b",
+};
+
+const riskTodayStyle: React.CSSProperties = {
+  background: "#fff0c2",
+  color: "#b26a00",
+};
+
+const riskDueSoonStyle: React.CSSProperties = {
+  background: "#fff4d9",
+  color: "#c96b00",
+};
+
+const riskClearStyle: React.CSSProperties = {
+  background: "#e8f5ec",
+  color: "#18794e",
+};
+
+const openButtonLinkStyle: React.CSSProperties = {
+  display: "inline-flex",
+  padding: "7px 11px",
   borderRadius: 999,
-  padding: "4px 10px",
-  display: "inline-block",
-};
-
-const badgeSoonStyle: React.CSSProperties = {
-  background: "#fff8e1",
-  color: "#b54708",
-  fontWeight: 600,
-  borderRadius: 999,
-  padding: "4px 10px",
-  display: "inline-block",
-};
-
-const badgeClearStyle: React.CSSProperties = {
-  background: "#e6f4ea",
-  color: "#067647",
-  fontWeight: 600,
-  borderRadius: 999,
-  padding: "4px 10px",
-  display: "inline-block",
-};
-
-const openLinkStyle: React.CSSProperties = {
-  color: "#111",
+  background: "#0f2743",
+  color: "#ffffff",
   textDecoration: "none",
-  fontWeight: 600,
-};
-
-const actionButtonStyle: React.CSSProperties = {
-  padding: "6px 10px",
-  borderRadius: 6,
-  background: "black",
-  color: "white",
-  border: "none",
-  cursor: "pointer",
+  fontSize: 13,
+  fontWeight: 900,
 };
 
 const allClearStyle: React.CSSProperties = {
   color: "#067647",
-  fontWeight: 600,
-  padding: "6px 0",
+  fontWeight: 800,
+  padding: 12,
+  border: "1px solid #b9dfc3",
+  borderRadius: 12,
+  background: "#e6f4ea",
+};
+
+const emptyStyle: React.CSSProperties = {
+  padding: 16,
+  border: "1px dashed #cccccc",
+  borderRadius: 12,
+  color: "#666666",
+  background: "#ffffff",
+  fontWeight: 700,
+};
+
+const loadingBoxStyle: React.CSSProperties = {
+  padding: 18,
+  border: "1px dashed #cccccc",
+  borderRadius: 12,
+  background: "#fafafa",
+  color: "#555555",
+  fontWeight: 800,
+};
+
+const cardListStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 12,
+};
+
+const mobileCardStyle: React.CSSProperties = {
+  border: "1px solid #dddddd",
+  borderRadius: 14,
+  padding: 14,
+  background: "#ffffff",
+  color: "#111111",
+  boxShadow: "0 1px 8px rgba(0,0,0,0.04)",
+};
+
+const mobileCardHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  alignItems: "flex-start",
+  marginBottom: 12,
+};
+
+const fileNoStyle: React.CSSProperties = {
+  fontWeight: 950,
+  fontSize: 15,
+  color: "#12355b",
+};
+
+const mobileTitleStyle: React.CSSProperties = {
+  marginTop: 4,
+  color: "#333333",
+  fontWeight: 900,
+};
+
+const infoLineStyle: React.CSSProperties = {
+  marginBottom: 8,
+};
+
+const infoLabelStyle: React.CSSProperties = {
+  fontSize: 12,
+  color: "#666666",
+  fontWeight: 800,
+};
+
+const infoValueStyle: React.CSSProperties = {
+  fontSize: 14,
+  fontWeight: 800,
+  color: "#111111",
+  wordBreak: "break-word",
+  lineHeight: 1.45,
+};
+
+const cardActionStyle: React.CSSProperties = {
+  marginTop: 12,
+  paddingTop: 10,
+  borderTop: "1px solid #eeeeee",
+};
+
+const noAccessBoxStyle: React.CSSProperties = {
+  padding: 18,
+  borderRadius: 12,
+  border: "1px solid #f0c4c4",
+  background: "#fff5f5",
+  color: "#a40000",
+  fontWeight: 900,
+};
+
+const noAccessSubTextStyle: React.CSSProperties = {
+  marginTop: 6,
+  color: "#555555",
+  fontSize: 13,
+  fontWeight: 700,
 };
