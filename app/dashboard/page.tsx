@@ -15,6 +15,15 @@ import type { UserPermissions, UserRole } from "../../lib/permissions";
 type RiskLevel = "overdue" | "today" | "dueSoon" | "clear";
 type RiskFilter = "all" | RiskLevel;
 
+type Tone =
+  | "neutral"
+  | "danger"
+  | "warning"
+  | "soon"
+  | "success"
+  | "blue"
+  | "purple";
+
 type UserProfile = {
   role?: UserRole | string | null;
   financial_access?: boolean | null;
@@ -89,7 +98,7 @@ type TimeLogItem = {
   staff_name?: string | null;
   work_type?: string | null;
   work_other?: string | null;
-  minutes?: number | null;
+  minutes?: number | string | null;
   billable?: boolean | null;
   note?: string | null;
   created_at?: string | null;
@@ -115,10 +124,10 @@ type EnrichedCase = CaseItem & {
 };
 
 type StaffTimeSummary = {
-  staffName: string;
+  staff: string;
   todayMinutes: number;
-  thisWeekMinutes: number;
-  thisMonthMinutes: number;
+  weekMinutes: number;
+  monthMinutes: number;
   coreMinutes: number;
   supportMinutes: number;
   totalMinutes: number;
@@ -157,6 +166,7 @@ export default function DashboardPage() {
   const [cases, setCases] = useState<EnrichedCase[]>([]);
   const [alertItems, setAlertItems] = useState<AlertCandidate[]>([]);
   const [timeLogs, setTimeLogs] = useState<TimeLogItem[]>([]);
+
   const [loading, setLoading] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [isCompact, setIsCompact] = useState(false);
@@ -315,7 +325,8 @@ export default function DashboardPage() {
 
       if (timelineRes.error) {
         alert(
-          "Load timeline failed:\n" + JSON.stringify(timelineRes.error, null, 2)
+          "Load timeline failed:\n" +
+            JSON.stringify(timelineRes.error, null, 2)
         );
         return;
       }
@@ -448,17 +459,12 @@ export default function DashboardPage() {
         .toLowerCase();
 
       const matchSearch = !keyword || searchableText.includes(keyword);
-      const matchRisk =
-        riskFilter === "all" || item.risk_level === riskFilter;
-      const matchOwner =
-        ownerFilter === "All" || item.owner_name === ownerFilter;
+      const matchRisk = riskFilter === "all" || item.risk_level === riskFilter;
+      const matchOwner = ownerFilter === "All" || item.owner_name === ownerFilter;
       const matchPhase = phaseFilter === "All" || item.phase === phaseFilter;
-      const matchStatus =
-        statusFilter === "All" || item.status === statusFilter;
+      const matchStatus = statusFilter === "All" || item.status === statusFilter;
 
-      return (
-        matchSearch && matchRisk && matchOwner && matchPhase && matchStatus
-      );
+      return matchSearch && matchRisk && matchOwner && matchPhase && matchStatus;
     });
 
     result = [...result].sort((a, b) => {
@@ -507,6 +513,12 @@ export default function DashboardPage() {
     return timeLogs.filter((item) => filteredCaseIds.has(item.case_id));
   }, [timeLogs, filteredCaseIds]);
 
+  const caseMap = useMemo(() => {
+    const map = new Map<number, EnrichedCase>();
+    cases.forEach((item) => map.set(item.id, item));
+    return map;
+  }, [cases]);
+
   /* =========================================================
      SUMMARY
   ========================================================= */
@@ -538,16 +550,15 @@ export default function DashboardPage() {
 
     const done = filteredCases.filter((item) => item.status === "Done").length;
 
-    const enforcementReady = alertItems
-      .filter((item) => filteredCaseIds.has(item.case_id))
-      .filter(
-        (item) =>
-          item.sourceType === "enforcement" &&
-          (item.level === "overdue" || item.level === "today")
-      ).length;
+    const enforcementReady = alertItems.filter(
+      (item) =>
+        filteredCaseIds.has(item.case_id) &&
+        item.sourceType === "enforcement" &&
+        (item.level === "overdue" || item.level === "today")
+    ).length;
 
     const totalLoggedMinutes = filteredTimeLogs.reduce(
-      (sum, item) => sum + (item.minutes || 0),
+      (sum, item) => sum + safeMinutes(item.minutes),
       0
     );
 
@@ -593,12 +604,6 @@ export default function DashboardPage() {
       .slice(0, 5);
   }, [alertItems, filteredCaseIds]);
 
-  const caseMap = useMemo(() => {
-    const map = new Map<number, EnrichedCase>();
-    cases.forEach((item) => map.set(item.id, item));
-    return map;
-  }, [cases]);
-
   const phaseSummary = useMemo(() => {
     const map = new Map<string, number>();
 
@@ -621,40 +626,34 @@ export default function DashboardPage() {
     return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
   }, [filteredCases]);
 
-  const staffTimeSummary = useMemo(() => {
+  const staffTimeSummary = useMemo<StaffTimeSummary[]>(() => {
     const today = getTodayDateString();
-    const weekStart = getStartOfWeekString();
-    const monthStart = getStartOfMonthString();
+    const weekStart = getWeekStartDateString();
+    const monthStart = getMonthStartDateString();
 
     const map = new Map<string, StaffTimeSummary>();
 
     filteredTimeLogs.forEach((item) => {
-      const staffName = item.staff_name || "-";
-      const minutes = item.minutes || 0;
+      const staff = (item.staff_name || "ไม่ระบุ").trim() || "ไม่ระบุ";
+      const minutes = safeMinutes(item.minutes);
       const workDate = item.work_date || "";
       const isCore = item.billable !== false;
 
-      const existing = map.get(staffName) || {
-        staffName,
-        todayMinutes: 0,
-        thisWeekMinutes: 0,
-        thisMonthMinutes: 0,
-        coreMinutes: 0,
-        supportMinutes: 0,
-        totalMinutes: 0,
-      };
+      const existing =
+        map.get(staff) ||
+        ({
+          staff,
+          todayMinutes: 0,
+          weekMinutes: 0,
+          monthMinutes: 0,
+          coreMinutes: 0,
+          supportMinutes: 0,
+          totalMinutes: 0,
+        } satisfies StaffTimeSummary);
 
-      if (workDate === today) {
-        existing.todayMinutes += minutes;
-      }
-
-      if (workDate >= weekStart && workDate <= today) {
-        existing.thisWeekMinutes += minutes;
-      }
-
-      if (workDate >= monthStart && workDate <= today) {
-        existing.thisMonthMinutes += minutes;
-      }
+      if (workDate === today) existing.todayMinutes += minutes;
+      if (workDate >= weekStart) existing.weekMinutes += minutes;
+      if (workDate >= monthStart) existing.monthMinutes += minutes;
 
       if (isCore) {
         existing.coreMinutes += minutes;
@@ -663,8 +662,7 @@ export default function DashboardPage() {
       }
 
       existing.totalMinutes += minutes;
-
-      map.set(staffName, existing);
+      map.set(staff, existing);
     });
 
     return Array.from(map.values()).sort(
@@ -672,23 +670,25 @@ export default function DashboardPage() {
     );
   }, [filteredTimeLogs]);
 
-  const topTimeConsumingCases = useMemo(() => {
+  const topTimeConsumingCases = useMemo<CaseTimeSummary[]>(() => {
     const map = new Map<number, CaseTimeSummary>();
 
     filteredTimeLogs.forEach((item) => {
       const caseItem = caseMap.get(item.case_id);
-      const minutes = item.minutes || 0;
+      const minutes = safeMinutes(item.minutes);
       const isCore = item.billable !== false;
 
-      const existing = map.get(item.case_id) || {
-        caseId: item.case_id,
-        fileNo: caseItem?.file_no || "-",
-        title: caseItem?.title || "-",
-        clientName: caseItem?.client_name || "-",
-        coreMinutes: 0,
-        supportMinutes: 0,
-        totalMinutes: 0,
-      };
+      const existing =
+        map.get(item.case_id) ||
+        ({
+          caseId: item.case_id,
+          fileNo: caseItem?.file_no || "-",
+          title: caseItem?.title || "-",
+          clientName: caseItem?.client_name || "-",
+          coreMinutes: 0,
+          supportMinutes: 0,
+          totalMinutes: 0,
+        } satisfies CaseTimeSummary);
 
       if (isCore) {
         existing.coreMinutes += minutes;
@@ -697,12 +697,10 @@ export default function DashboardPage() {
       }
 
       existing.totalMinutes += minutes;
-
       map.set(item.case_id, existing);
     });
 
     return Array.from(map.values())
-      .filter((item) => item.totalMinutes > 0)
       .sort((a, b) => b.totalMinutes - a.totalMinutes)
       .slice(0, 5);
   }, [filteredTimeLogs, caseMap]);
@@ -712,6 +710,14 @@ export default function DashboardPage() {
       .sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""))
       .slice(0, 8);
   }, [filteredCases]);
+
+  const maxOwnerCount = useMemo(() => {
+    return Math.max(1, ...ownerSummary.map(([, value]) => value));
+  }, [ownerSummary]);
+
+  const maxPhaseCount = useMemo(() => {
+    return Math.max(1, ...phaseSummary.map(([, value]) => value));
+  }, [phaseSummary]);
 
   /* =========================================================
      ACCESS GUARD
@@ -877,75 +883,86 @@ export default function DashboardPage() {
 
         <section style={blockStyle}>
           <div style={isCompact ? compactSummaryGridStyle : summaryGridStyle}>
-            <SummaryCard
+            <MetricCard
               label="Total Cases"
               subLabel="แฟ้มที่แสดง"
               count={summary.total}
-              background="#f8fafc"
+              tone="neutral"
             />
 
-            <SummaryCard
+            <MetricCard
               label="Overdue"
               subLabel="เกินกำหนด"
               count={summary.overdue}
-              background="#fde2e2"
+              tone="danger"
             />
 
-            <SummaryCard
+            <MetricCard
               label="Today"
               subLabel="ครบกำหนดวันนี้"
               count={summary.today}
-              background="#fff3c4"
+              tone="warning"
             />
 
-            <SummaryCard
+            <MetricCard
               label="Due Soon"
               subLabel="ใกล้ครบกำหนด"
               count={summary.dueSoon}
-              background="#fff8df"
+              tone="soon"
             />
 
-            <SummaryCard
+            <MetricCard
               label="Enforcement Ready"
               subLabel="พร้อมดำเนินการบังคับคดี"
               count={summary.enforcementReady}
-              background="#e0f2fe"
+              tone="blue"
             />
 
-            <SummaryCard
+            <MetricCard
               label="Total Logged Time"
               subLabel="เวลาทำงานรวม"
-              countText={formatDuration(summary.totalLoggedMinutes)}
-              background="#edf4ff"
+              value={formatDuration(summary.totalLoggedMinutes)}
+              tone="purple"
             />
 
-            <SummaryCard
+            <MetricCard
               label="Clear"
               subLabel="ยังไม่มี Alert"
               count={summary.clear}
-              background="#e4f4e9"
+              tone="success"
             />
           </div>
         </section>
 
         <section style={miniGridStyle}>
-          <MiniSummaryCard
+          <ProgressSummaryCard
             title="Case Status"
             rows={[
-              { label: "Active", value: summary.active },
-              { label: "Waiting", value: summary.waiting },
-              { label: "Done", value: summary.done },
+              { label: "Active", value: summary.active, tone: "blue" },
+              { label: "Waiting", value: summary.waiting, tone: "warning" },
+              { label: "Done", value: summary.done, tone: "success" },
             ]}
+            maxValue={Math.max(1, summary.total)}
           />
 
-          <MiniSummaryCard
+          <ProgressSummaryCard
             title="Phase Distribution"
-            rows={phaseSummary.map(([label, value]) => ({ label, value }))}
+            rows={phaseSummary.map(([label, value], index) => ({
+              label,
+              value,
+              tone: getToneByIndex(index),
+            }))}
+            maxValue={maxPhaseCount}
           />
 
-          <MiniSummaryCard
+          <ProgressSummaryCard
             title="Owner Distribution"
-            rows={ownerSummary.map(([label, value]) => ({ label, value }))}
+            rows={ownerSummary.map(([label, value], index) => ({
+              label,
+              value,
+              tone: getToneByIndex(index),
+            }))}
+            maxValue={maxOwnerCount}
           />
         </section>
 
@@ -960,10 +977,10 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {loading ? (
-              <div style={loadingBoxStyle}>Loading time summary...</div>
-            ) : staffTimeSummary.length === 0 ? (
+            {staffTimeSummary.length === 0 ? (
               <div style={emptyStyle}>No time logs found.</div>
+            ) : isCompact ? (
+              <StaffTimeCardList items={staffTimeSummary} />
             ) : (
               <StaffTimeTable items={staffTimeSummary} />
             )}
@@ -979,12 +996,12 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {loading ? (
-              <div style={loadingBoxStyle}>Loading case time summary...</div>
-            ) : topTimeConsumingCases.length === 0 ? (
+            {topTimeConsumingCases.length === 0 ? (
               <div style={emptyStyle}>No time logs found.</div>
+            ) : isCompact ? (
+              <TopTimeCaseCardList items={topTimeConsumingCases} />
             ) : (
-              <CaseTimeTable items={topTimeConsumingCases} />
+              <TopTimeCaseTable items={topTimeConsumingCases} />
             )}
           </div>
         </section>
@@ -995,7 +1012,7 @@ export default function DashboardPage() {
               <div>
                 <h3 style={sectionTitleStyle}>Top Risk Cases</h3>
                 <div style={sectionSubtitleStyle}>
-                  5 แฟ้มที่มี Deadline / Task / Timeline / Enforcement ใกล้หรือเกินกำหนดที่สุด
+                  5 แฟ้มที่มี Deadline / Task / Timeline / Enforcement ใกล้หรือเกินกำหนด
                 </div>
               </div>
 
@@ -1074,34 +1091,39 @@ export default function DashboardPage() {
    SUB COMPONENTS
 ========================================================= */
 
-function SummaryCard({
+function MetricCard({
   label,
   subLabel,
   count,
-  countText,
-  background,
+  value,
+  tone,
 }: {
   label: string;
   subLabel: string;
   count?: number;
-  countText?: string;
-  background: string;
+  value?: string;
+  tone: Tone;
 }) {
   return (
-    <div style={{ ...summaryCardStyle, background }}>
-      <div style={summaryNumberStyle}>{countText || count || 0}</div>
-      <div style={summaryLabelStyle}>{label}</div>
-      <div style={summarySubLabelStyle}>{subLabel}</div>
+    <div style={{ ...metricCardStyle, ...getMetricToneStyle(tone) }}>
+      <div style={metricTopLineStyle}>
+        <div style={{ ...metricAccentStyle, ...getBarToneStyle(tone) }} />
+      </div>
+      <div style={metricNumberStyle}>{value || String(count ?? 0)}</div>
+      <div style={metricLabelStyle}>{label}</div>
+      <div style={metricSubLabelStyle}>{subLabel}</div>
     </div>
   );
 }
 
-function MiniSummaryCard({
+function ProgressSummaryCard({
   title,
   rows,
+  maxValue,
 }: {
   title: string;
-  rows: { label: string; value: number }[];
+  rows: { label: string; value: number; tone: Tone }[];
+  maxValue: number;
 }) {
   return (
     <div style={miniCardStyle}>
@@ -1110,12 +1132,29 @@ function MiniSummaryCard({
       {rows.length === 0 ? (
         <div style={emptyMiniStyle}>No data</div>
       ) : (
-        rows.map((row) => (
-          <div key={row.label} style={miniRowStyle}>
-            <span>{row.label}</span>
-            <strong>{row.value}</strong>
-          </div>
-        ))
+        rows.map((row) => {
+          const percent =
+            maxValue <= 0 ? 0 : Math.min(100, (row.value / maxValue) * 100);
+
+          return (
+            <div key={row.label} style={progressRowStyle}>
+              <div style={progressTopStyle}>
+                <span>{row.label}</span>
+                <strong>{row.value}</strong>
+              </div>
+
+              <div style={barTrackStyle}>
+                <div
+                  style={{
+                    ...barFillStyle,
+                    ...getBarToneStyle(row.tone),
+                    width: `${percent}%`,
+                  }}
+                />
+              </div>
+            </div>
+          );
+        })
       )}
     </div>
   );
@@ -1124,7 +1163,7 @@ function MiniSummaryCard({
 function StaffTimeTable({ items }: { items: StaffTimeSummary[] }) {
   return (
     <div style={{ overflowX: "auto" }}>
-      <table style={staffTimeTableStyle}>
+      <table style={tableStyle}>
         <thead>
           <tr>
             <th style={thStyle}>Staff</th>
@@ -1139,18 +1178,14 @@ function StaffTimeTable({ items }: { items: StaffTimeSummary[] }) {
 
         <tbody>
           {items.map((item) => (
-            <tr key={item.staffName} style={rowStyle}>
-              <td style={tdStyle}>
-                <strong>{item.staffName}</strong>
-              </td>
+            <tr key={item.staff} style={rowStyle}>
+              <td style={tdStyle}>{item.staff}</td>
               <td style={tdStyle}>{formatDuration(item.todayMinutes)}</td>
-              <td style={tdStyle}>{formatDuration(item.thisWeekMinutes)}</td>
-              <td style={tdStyle}>{formatDuration(item.thisMonthMinutes)}</td>
+              <td style={tdStyle}>{formatDuration(item.weekMinutes)}</td>
+              <td style={tdStyle}>{formatDuration(item.monthMinutes)}</td>
               <td style={tdStyle}>{formatDuration(item.coreMinutes)}</td>
               <td style={tdStyle}>{formatDuration(item.supportMinutes)}</td>
-              <td style={tdStyle}>
-                <strong>{formatDuration(item.totalMinutes)}</strong>
-              </td>
+              <td style={tdStrongStyle}>{formatDuration(item.totalMinutes)}</td>
             </tr>
           ))}
         </tbody>
@@ -1159,10 +1194,44 @@ function StaffTimeTable({ items }: { items: StaffTimeSummary[] }) {
   );
 }
 
-function CaseTimeTable({ items }: { items: CaseTimeSummary[] }) {
+function StaffTimeCardList({ items }: { items: StaffTimeSummary[] }) {
+  return (
+    <div style={cardListStyle}>
+      {items.map((item) => (
+        <div key={item.staff} style={mobileCardStyle}>
+          <div style={mobileCardHeaderStyle}>
+            <div>
+              <div style={fileNoStyle}>{item.staff}</div>
+              <div style={mobileTitleStyle}>
+                Total: {formatDuration(item.totalMinutes)}
+              </div>
+            </div>
+          </div>
+
+          <InfoLine label="Today" value={formatDuration(item.todayMinutes)} />
+          <InfoLine
+            label="This Week"
+            value={formatDuration(item.weekMinutes)}
+          />
+          <InfoLine
+            label="This Month"
+            value={formatDuration(item.monthMinutes)}
+          />
+          <InfoLine label="Core" value={formatDuration(item.coreMinutes)} />
+          <InfoLine
+            label="Support"
+            value={formatDuration(item.supportMinutes)}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TopTimeCaseTable({ items }: { items: CaseTimeSummary[] }) {
   return (
     <div style={{ overflowX: "auto" }}>
-      <table style={timeCaseTableStyle}>
+      <table style={tableStyle}>
         <thead>
           <tr>
             <th style={thStyle}>File No</th>
@@ -1178,21 +1247,14 @@ function CaseTimeTable({ items }: { items: CaseTimeSummary[] }) {
         <tbody>
           {items.map((item) => (
             <tr key={item.caseId} style={rowStyle}>
-              <td style={{ ...tdStyle, fontWeight: 900, color: "#12355b" }}>
-                {item.fileNo}
-              </td>
+              <td style={tdStyle}>{item.fileNo}</td>
               <td style={tdStyle}>{item.title}</td>
               <td style={tdStyle}>{item.clientName}</td>
               <td style={tdStyle}>{formatDuration(item.coreMinutes)}</td>
               <td style={tdStyle}>{formatDuration(item.supportMinutes)}</td>
+              <td style={tdStrongStyle}>{formatDuration(item.totalMinutes)}</td>
               <td style={tdStyle}>
-                <strong>{formatDuration(item.totalMinutes)}</strong>
-              </td>
-              <td style={tdStyle}>
-                <Link
-                  href={`/cases/${item.caseId}#timelogs`}
-                  style={openButtonLinkStyle}
-                >
+                <Link href={`/cases/${item.caseId}#timelogs`} style={openButtonLinkStyle}>
                   Open
                 </Link>
               </td>
@@ -1200,6 +1262,37 @@ function CaseTimeTable({ items }: { items: CaseTimeSummary[] }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function TopTimeCaseCardList({ items }: { items: CaseTimeSummary[] }) {
+  return (
+    <div style={cardListStyle}>
+      {items.map((item) => (
+        <div key={item.caseId} style={mobileCardStyle}>
+          <div style={mobileCardHeaderStyle}>
+            <div>
+              <div style={fileNoStyle}>{item.fileNo}</div>
+              <div style={mobileTitleStyle}>{item.title}</div>
+            </div>
+          </div>
+
+          <InfoLine label="Client" value={item.clientName} />
+          <InfoLine label="Core" value={formatDuration(item.coreMinutes)} />
+          <InfoLine
+            label="Support"
+            value={formatDuration(item.supportMinutes)}
+          />
+          <InfoLine label="Total" value={formatDuration(item.totalMinutes)} />
+
+          <div style={cardActionStyle}>
+            <Link href={`/cases/${item.caseId}#timelogs`} style={openButtonLinkStyle}>
+              Open
+            </Link>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -1518,7 +1611,10 @@ function buildAlertCandidates(
       id: `deadline-${deadline.id}`,
       case_id: deadline.case_id,
       level,
-      text: `Deadline: ${renderDeadlineType(deadline.deadline_type, deadline.deadline_other)}`,
+      text: `Deadline: ${renderDeadlineType(
+        deadline.deadline_type,
+        deadline.deadline_other
+      )}`,
       date: deadline.current_due_date,
       score: getRiskScore(level),
       sourceType: "deadline",
@@ -1619,6 +1715,14 @@ function getDateRiskLevel(dateText: string): RiskLevel {
   return "clear";
 }
 
+function safeMinutes(value?: number | string | null) {
+  if (value === null || value === undefined || value === "") return 0;
+
+  const parsed = Number(value);
+
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function getRiskScore(level: RiskLevel) {
   if (level === "overdue") return 1;
   if (level === "today") return 2;
@@ -1640,35 +1744,33 @@ function parseLocalDate(dateText: string) {
   return new Date(year, month - 1, day);
 }
 
-function getTodayDateString() {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, "0");
-  const day = String(today.getDate()).padStart(2, "0");
+function formatLocalDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
 }
 
-function getStartOfWeekString() {
-  const today = new Date();
-  const day = today.getDay();
-  const diffToMonday = day === 0 ? -6 : 1 - day;
+function getTodayDateString() {
+  return formatLocalDate(new Date());
+}
+
+function getWeekStartDateString() {
+  const today = parseLocalDate(getTodayDateString());
+  const dayOfWeek = today.getDay();
+  const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
 
   today.setDate(today.getDate() + diffToMonday);
 
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, "0");
-  const date = String(today.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${date}`;
+  return formatLocalDate(today);
 }
 
-function getStartOfMonthString() {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, "0");
+function getMonthStartDateString() {
+  const today = parseLocalDate(getTodayDateString());
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
-  return `${year}-${month}-01`;
+  return formatLocalDate(monthStart);
 }
 
 function isDoneStatus(status?: string | null) {
@@ -1760,15 +1862,84 @@ function formatDisplayDate(value?: string | null) {
   return `${day}/${month}/${year}`;
 }
 
-function formatDuration(totalMinutes: number) {
-  const safeMinutes = Number.isFinite(totalMinutes) ? totalMinutes : 0;
-  const hours = Math.floor(safeMinutes / 60);
-  const minutes = safeMinutes % 60;
+function formatDuration(totalMinutes?: number | null) {
+  const minutesValue =
+    typeof totalMinutes === "number" && Number.isFinite(totalMinutes)
+      ? totalMinutes
+      : 0;
+
+  const hours = Math.floor(minutesValue / 60);
+  const minutes = minutesValue % 60;
 
   if (hours <= 0) return `${minutes} นาที`;
   if (minutes <= 0) return `${hours} ชม.`;
 
   return `${hours} ชม. ${minutes} นาที`;
+}
+
+function getMetricToneStyle(tone: Tone): React.CSSProperties {
+  if (tone === "danger") {
+    return {
+      background: "linear-gradient(135deg, #fff5f5 0%, #ffe0e0 100%)",
+      border: "1px solid #f1b5b5",
+    };
+  }
+
+  if (tone === "warning") {
+    return {
+      background: "linear-gradient(135deg, #fffaf0 0%, #fff0c2 100%)",
+      border: "1px solid #f0d58a",
+    };
+  }
+
+  if (tone === "soon") {
+    return {
+      background: "linear-gradient(135deg, #fffdf2 0%, #fff8df 100%)",
+      border: "1px solid #eedc9a",
+    };
+  }
+
+  if (tone === "success") {
+    return {
+      background: "linear-gradient(135deg, #f0fff4 0%, #e4f4e9 100%)",
+      border: "1px solid #b9dfc3",
+    };
+  }
+
+  if (tone === "blue") {
+    return {
+      background: "linear-gradient(135deg, #f0f7ff 0%, #e0f2fe 100%)",
+      border: "1px solid #b2ccff",
+    };
+  }
+
+  if (tone === "purple") {
+    return {
+      background: "linear-gradient(135deg, #faf5ff 0%, #eef4ff 100%)",
+      border: "1px solid #c7d7fe",
+    };
+  }
+
+  return {
+    background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+    border: "1px solid #dddddd",
+  };
+}
+
+function getBarToneStyle(tone: Tone): React.CSSProperties {
+  if (tone === "danger") return { background: "#c0392b" };
+  if (tone === "warning") return { background: "#b54708" };
+  if (tone === "soon") return { background: "#c96b00" };
+  if (tone === "success") return { background: "#18794e" };
+  if (tone === "blue") return { background: "#175cd3" };
+  if (tone === "purple") return { background: "#7e22ce" };
+
+  return { background: "#0f2743" };
+}
+
+function getToneByIndex(index: number): Tone {
+  const tones: Tone[] = ["blue", "success", "warning", "purple", "neutral"];
+  return tones[index % tones.length];
 }
 
 /* =========================================================
@@ -1870,7 +2041,7 @@ const compactFilterGridStyle: React.CSSProperties = {
 
 const summaryGridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(7, minmax(120px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
   gap: 12,
 };
 
@@ -1880,29 +2051,42 @@ const compactSummaryGridStyle: React.CSSProperties = {
   gap: 10,
 };
 
-const summaryCardStyle: React.CSSProperties = {
-  border: "1px solid #dddddd",
-  borderRadius: 14,
-  padding: 16,
-  minHeight: 104,
+const metricCardStyle: React.CSSProperties = {
+  position: "relative",
+  borderRadius: 18,
+  padding: 18,
+  minHeight: 118,
   color: "#111111",
-  boxShadow: "0 1px 8px rgba(0,0,0,0.04)",
+  boxShadow: "0 8px 22px rgba(15, 23, 42, 0.06)",
+  overflow: "hidden",
 };
 
-const summaryNumberStyle: React.CSSProperties = {
-  fontSize: 26,
+const metricTopLineStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "flex-start",
+  marginBottom: 14,
+};
+
+const metricAccentStyle: React.CSSProperties = {
+  width: 42,
+  height: 5,
+  borderRadius: 999,
+};
+
+const metricNumberStyle: React.CSSProperties = {
+  fontSize: 30,
   fontWeight: 950,
   marginBottom: 8,
   color: "#111111",
-  whiteSpace: "nowrap",
+  lineHeight: 1.1,
 };
 
-const summaryLabelStyle: React.CSSProperties = {
+const metricLabelStyle: React.CSSProperties = {
   fontWeight: 900,
   color: "#222222",
 };
 
-const summarySubLabelStyle: React.CSSProperties = {
+const metricSubLabelStyle: React.CSSProperties = {
   marginTop: 4,
   fontSize: 12,
   fontWeight: 700,
@@ -1918,26 +2102,17 @@ const miniGridStyle: React.CSSProperties = {
 
 const miniCardStyle: React.CSSProperties = {
   border: "1px solid #eeeeee",
-  borderRadius: 16,
+  borderRadius: 18,
   padding: 16,
   background: "#ffffff",
+  boxShadow: "0 4px 18px rgba(15, 23, 42, 0.035)",
 };
 
 const miniTitleStyle: React.CSSProperties = {
-  fontSize: 15,
-  fontWeight: 900,
-  marginBottom: 10,
+  fontSize: 16,
+  fontWeight: 950,
+  marginBottom: 12,
   color: "#111111",
-};
-
-const miniRowStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: 12,
-  padding: "7px 0",
-  borderTop: "1px solid #f0f0f0",
-  color: "#333333",
-  fontWeight: 700,
 };
 
 const emptyMiniStyle: React.CSSProperties = {
@@ -1945,19 +2120,47 @@ const emptyMiniStyle: React.CSSProperties = {
   fontWeight: 600,
 };
 
+const progressRowStyle: React.CSSProperties = {
+  padding: "8px 0",
+  borderTop: "1px solid #f0f0f0",
+};
+
+const progressTopStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  color: "#333333",
+  fontWeight: 800,
+  marginBottom: 6,
+};
+
+const barTrackStyle: React.CSSProperties = {
+  height: 8,
+  borderRadius: 999,
+  background: "#f1f5f9",
+  overflow: "hidden",
+};
+
+const barFillStyle: React.CSSProperties = {
+  height: "100%",
+  borderRadius: 999,
+  minWidth: 3,
+};
+
 const sectionGridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(480px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))",
   gap: 12,
   marginBottom: 18,
 };
 
 const sectionCardStyle: React.CSSProperties = {
   border: "1px solid #eeeeee",
-  borderRadius: 16,
+  borderRadius: 18,
   padding: 16,
   background: "#ffffff",
   marginBottom: 18,
+  boxShadow: "0 4px 18px rgba(15, 23, 42, 0.035)",
 };
 
 const sectionHeaderStyle: React.CSSProperties = {
@@ -1972,7 +2175,7 @@ const sectionHeaderStyle: React.CSSProperties = {
 const sectionTitleStyle: React.CSSProperties = {
   margin: 0,
   fontSize: 17,
-  fontWeight: 900,
+  fontWeight: 950,
   color: "#111111",
 };
 
@@ -2039,18 +2242,6 @@ const tableStyle: React.CSSProperties = {
   minWidth: 760,
 };
 
-const staffTimeTableStyle: React.CSSProperties = {
-  width: "100%",
-  borderCollapse: "collapse",
-  minWidth: 760,
-};
-
-const timeCaseTableStyle: React.CSSProperties = {
-  width: "100%",
-  borderCollapse: "collapse",
-  minWidth: 860,
-};
-
 const thStyle: React.CSSProperties = {
   textAlign: "left",
   padding: "11px 10px",
@@ -2069,6 +2260,11 @@ const tdStyle: React.CSSProperties = {
   whiteSpace: "nowrap",
   color: "#111111",
   fontSize: 14,
+};
+
+const tdStrongStyle: React.CSSProperties = {
+  ...tdStyle,
+  fontWeight: 950,
 };
 
 const rowStyle: React.CSSProperties = {
