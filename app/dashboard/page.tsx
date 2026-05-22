@@ -115,10 +115,10 @@ type EnrichedCase = CaseItem & {
 };
 
 type StaffTimeSummary = {
-  staff: string;
+  staffName: string;
   todayMinutes: number;
-  weekMinutes: number;
-  monthMinutes: number;
+  thisWeekMinutes: number;
+  thisMonthMinutes: number;
   coreMinutes: number;
   supportMinutes: number;
   totalMinutes: number;
@@ -157,7 +157,6 @@ export default function DashboardPage() {
   const [cases, setCases] = useState<EnrichedCase[]>([]);
   const [alertItems, setAlertItems] = useState<AlertCandidate[]>([]);
   const [timeLogs, setTimeLogs] = useState<TimeLogItem[]>([]);
-
   const [loading, setLoading] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [isCompact, setIsCompact] = useState(false);
@@ -258,53 +257,48 @@ export default function DashboardPage() {
         return;
       }
 
-      const [
-        tasksRes,
-        deadlinesRes,
-        timelineRes,
-        enforcementRes,
-        timeLogsRes,
-      ] = await Promise.all([
-        supabase
-          .from("case_tasks")
-          .select(
-            "id, case_id, task_type, task_other, assignee_name, due_date, status"
-          )
-          .in("case_id", caseIds)
-          .is("deleted_at", null),
+      const [tasksRes, deadlinesRes, timelineRes, enforcementRes, timeLogsRes] =
+        await Promise.all([
+          supabase
+            .from("case_tasks")
+            .select(
+              "id, case_id, task_type, task_other, assignee_name, due_date, status"
+            )
+            .in("case_id", caseIds)
+            .is("deleted_at", null),
 
-        supabase
-          .from("case_deadlines")
-          .select(
-            "id, case_id, deadline_type, deadline_other, party_label, party_other, current_due_date, status"
-          )
-          .in("case_id", caseIds)
-          .is("deleted_at", null),
+          supabase
+            .from("case_deadlines")
+            .select(
+              "id, case_id, deadline_type, deadline_other, party_label, party_other, current_due_date, status"
+            )
+            .in("case_id", caseIds)
+            .is("deleted_at", null),
 
-        supabase
-          .from("case_timeline")
-          .select(
-            "id, case_id, event_type, event_date, event_time, appointment_type, appointment_other, order_no, status"
-          )
-          .in("case_id", caseIds)
-          .is("deleted_at", null),
+          supabase
+            .from("case_timeline")
+            .select(
+              "id, case_id, event_type, event_date, event_time, appointment_type, appointment_other, order_no, status"
+            )
+            .in("case_id", caseIds)
+            .is("deleted_at", null),
 
-        supabase
-          .from("case_enforcements")
-          .select(
-            "id, case_id, party_label, party_other, final_due_date, writ_request_date, writ_issued_date, status"
-          )
-          .in("case_id", caseIds)
-          .is("deleted_at", null),
+          supabase
+            .from("case_enforcements")
+            .select(
+              "id, case_id, party_label, party_other, final_due_date, writ_request_date, writ_issued_date, status"
+            )
+            .in("case_id", caseIds)
+            .is("deleted_at", null),
 
-        supabase
-          .from("case_time_logs")
-          .select(
-            "id, case_id, work_date, staff_name, work_type, work_other, minutes, billable, note, created_at, updated_at"
-          )
-          .in("case_id", caseIds)
-          .is("deleted_at", null),
-      ]);
+          supabase
+            .from("case_time_logs")
+            .select(
+              "id, case_id, work_date, staff_name, work_type, work_other, minutes, billable, note, created_at, updated_at"
+            )
+            .in("case_id", caseIds)
+            .is("deleted_at", null),
+        ]);
 
       if (tasksRes.error) {
         alert("Load tasks failed:\n" + JSON.stringify(tasksRes.error, null, 2));
@@ -321,8 +315,7 @@ export default function DashboardPage() {
 
       if (timelineRes.error) {
         alert(
-          "Load timeline failed:\n" +
-            JSON.stringify(timelineRes.error, null, 2)
+          "Load timeline failed:\n" + JSON.stringify(timelineRes.error, null, 2)
         );
         return;
       }
@@ -455,10 +448,13 @@ export default function DashboardPage() {
         .toLowerCase();
 
       const matchSearch = !keyword || searchableText.includes(keyword);
-      const matchRisk = riskFilter === "all" || item.risk_level === riskFilter;
-      const matchOwner = ownerFilter === "All" || item.owner_name === ownerFilter;
+      const matchRisk =
+        riskFilter === "all" || item.risk_level === riskFilter;
+      const matchOwner =
+        ownerFilter === "All" || item.owner_name === ownerFilter;
       const matchPhase = phaseFilter === "All" || item.phase === phaseFilter;
-      const matchStatus = statusFilter === "All" || item.status === statusFilter;
+      const matchStatus =
+        statusFilter === "All" || item.status === statusFilter;
 
       return (
         matchSearch && matchRisk && matchOwner && matchPhase && matchStatus
@@ -542,12 +538,13 @@ export default function DashboardPage() {
 
     const done = filteredCases.filter((item) => item.status === "Done").length;
 
-    const enforcementReady = alertItems.filter(
-      (item) =>
-        filteredCaseIds.has(item.case_id) &&
-        item.sourceType === "enforcement" &&
-        (item.level === "overdue" || item.level === "today")
-    ).length;
+    const enforcementReady = alertItems
+      .filter((item) => filteredCaseIds.has(item.case_id))
+      .filter(
+        (item) =>
+          item.sourceType === "enforcement" &&
+          (item.level === "overdue" || item.level === "today")
+      ).length;
 
     const totalLoggedMinutes = filteredTimeLogs.reduce(
       (sum, item) => sum + (item.minutes || 0),
@@ -579,7 +576,7 @@ export default function DashboardPage() {
           b.next_alert_date || "9999-12-31"
         );
       })
-      .slice(0, 8);
+      .slice(0, 5);
   }, [filteredCases]);
 
   const enforcementAlerts = useMemo(() => {
@@ -593,7 +590,7 @@ export default function DashboardPage() {
 
         return a.date.localeCompare(b.date);
       })
-      .slice(0, 8);
+      .slice(0, 5);
   }, [alertItems, filteredCaseIds]);
 
   const caseMap = useMemo(() => {
@@ -626,22 +623,22 @@ export default function DashboardPage() {
 
   const staffTimeSummary = useMemo(() => {
     const today = getTodayDateString();
-    const weekStart = getWeekStartDateString(today);
-    const monthStart = getMonthStartDateString(today);
+    const weekStart = getStartOfWeekString();
+    const monthStart = getStartOfMonthString();
 
     const map = new Map<string, StaffTimeSummary>();
 
     filteredTimeLogs.forEach((item) => {
-      const staff = item.staff_name || "-";
+      const staffName = item.staff_name || "-";
       const minutes = item.minutes || 0;
       const workDate = item.work_date || "";
       const isCore = item.billable !== false;
 
-      const existing = map.get(staff) || {
-        staff,
+      const existing = map.get(staffName) || {
+        staffName,
         todayMinutes: 0,
-        weekMinutes: 0,
-        monthMinutes: 0,
+        thisWeekMinutes: 0,
+        thisMonthMinutes: 0,
         coreMinutes: 0,
         supportMinutes: 0,
         totalMinutes: 0,
@@ -652,11 +649,11 @@ export default function DashboardPage() {
       }
 
       if (workDate >= weekStart && workDate <= today) {
-        existing.weekMinutes += minutes;
+        existing.thisWeekMinutes += minutes;
       }
 
       if (workDate >= monthStart && workDate <= today) {
-        existing.monthMinutes += minutes;
+        existing.thisMonthMinutes += minutes;
       }
 
       if (isCore) {
@@ -667,7 +664,7 @@ export default function DashboardPage() {
 
       existing.totalMinutes += minutes;
 
-      map.set(staff, existing);
+      map.set(staffName, existing);
     });
 
     return Array.from(map.values()).sort(
@@ -675,7 +672,7 @@ export default function DashboardPage() {
     );
   }, [filteredTimeLogs]);
 
-  const caseTimeSummary = useMemo(() => {
+  const topTimeConsumingCases = useMemo(() => {
     const map = new Map<number, CaseTimeSummary>();
 
     filteredTimeLogs.forEach((item) => {
@@ -705,6 +702,7 @@ export default function DashboardPage() {
     });
 
     return Array.from(map.values())
+      .filter((item) => item.totalMinutes > 0)
       .sort((a, b) => b.totalMinutes - a.totalMinutes)
       .slice(0, 5);
   }, [filteredTimeLogs, caseMap]);
@@ -768,7 +766,7 @@ export default function DashboardPage() {
             <div style={eyebrowStyle}>VP CASE SYSTEM</div>
             <h1 style={heroTitleStyle}>Executive Dashboard</h1>
             <div style={heroSubtitleStyle}>
-              ภาพรวมคดี ความเสี่ยง กำหนดเวลา งานเร่งด่วน เวลาทำงาน และสถานะการบังคับคดี
+              ภาพรวมคดี ความเสี่ยง กำหนดเวลา เวลาทำงาน และสถานะการบังคับคดี
             </div>
           </div>
 
@@ -963,11 +961,9 @@ export default function DashboardPage() {
             </div>
 
             {loading ? (
-              <div style={loadingBoxStyle}>Loading time by staff...</div>
+              <div style={loadingBoxStyle}>Loading time summary...</div>
             ) : staffTimeSummary.length === 0 ? (
               <div style={emptyStyle}>No time logs found.</div>
-            ) : isCompact ? (
-              <StaffTimeCardList items={staffTimeSummary} />
             ) : (
               <StaffTimeTable items={staffTimeSummary} />
             )}
@@ -984,13 +980,11 @@ export default function DashboardPage() {
             </div>
 
             {loading ? (
-              <div style={loadingBoxStyle}>Loading time-consuming cases...</div>
-            ) : caseTimeSummary.length === 0 ? (
+              <div style={loadingBoxStyle}>Loading case time summary...</div>
+            ) : topTimeConsumingCases.length === 0 ? (
               <div style={emptyStyle}>No time logs found.</div>
-            ) : isCompact ? (
-              <CaseTimeCardList items={caseTimeSummary} />
             ) : (
-              <CaseTimeTable items={caseTimeSummary} />
+              <CaseTimeTable items={topTimeConsumingCases} />
             )}
           </div>
         </section>
@@ -1001,7 +995,7 @@ export default function DashboardPage() {
               <div>
                 <h3 style={sectionTitleStyle}>Top Risk Cases</h3>
                 <div style={sectionSubtitleStyle}>
-                  แฟ้มที่มี Deadline / Task / Timeline / Enforcement ใกล้หรือเกินกำหนด
+                  5 แฟ้มที่มี Deadline / Task / Timeline / Enforcement ใกล้หรือเกินกำหนดที่สุด
                 </div>
               </div>
 
@@ -1130,24 +1124,30 @@ function MiniSummaryCard({
 function StaffTimeTable({ items }: { items: StaffTimeSummary[] }) {
   return (
     <div style={{ overflowX: "auto" }}>
-      <table style={tableStyle}>
+      <table style={staffTimeTableStyle}>
         <thead>
           <tr>
             <th style={thStyle}>Staff</th>
             <th style={thStyle}>Today</th>
             <th style={thStyle}>This Week</th>
             <th style={thStyle}>This Month</th>
+            <th style={thStyle}>Core</th>
+            <th style={thStyle}>Support</th>
             <th style={thStyle}>Total</th>
           </tr>
         </thead>
 
         <tbody>
           {items.map((item) => (
-            <tr key={item.staff} style={rowStyle}>
-              <td style={tdStyle}>{item.staff}</td>
+            <tr key={item.staffName} style={rowStyle}>
+              <td style={tdStyle}>
+                <strong>{item.staffName}</strong>
+              </td>
               <td style={tdStyle}>{formatDuration(item.todayMinutes)}</td>
-              <td style={tdStyle}>{formatDuration(item.weekMinutes)}</td>
-              <td style={tdStyle}>{formatDuration(item.monthMinutes)}</td>
+              <td style={tdStyle}>{formatDuration(item.thisWeekMinutes)}</td>
+              <td style={tdStyle}>{formatDuration(item.thisMonthMinutes)}</td>
+              <td style={tdStyle}>{formatDuration(item.coreMinutes)}</td>
+              <td style={tdStyle}>{formatDuration(item.supportMinutes)}</td>
               <td style={tdStyle}>
                 <strong>{formatDuration(item.totalMinutes)}</strong>
               </td>
@@ -1159,35 +1159,10 @@ function StaffTimeTable({ items }: { items: StaffTimeSummary[] }) {
   );
 }
 
-function StaffTimeCardList({ items }: { items: StaffTimeSummary[] }) {
-  return (
-    <div style={cardListStyle}>
-      {items.map((item) => (
-        <div key={item.staff} style={mobileCardStyle}>
-          <div style={mobileCardHeaderStyle}>
-            <div style={mobileTitleStyle}>{item.staff}</div>
-            <strong>{formatDuration(item.totalMinutes)}</strong>
-          </div>
-
-          <InfoLine label="Today" value={formatDuration(item.todayMinutes)} />
-          <InfoLine
-            label="This Week"
-            value={formatDuration(item.weekMinutes)}
-          />
-          <InfoLine
-            label="This Month"
-            value={formatDuration(item.monthMinutes)}
-          />
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function CaseTimeTable({ items }: { items: CaseTimeSummary[] }) {
   return (
     <div style={{ overflowX: "auto" }}>
-      <table style={tableStyle}>
+      <table style={timeCaseTableStyle}>
         <thead>
           <tr>
             <th style={thStyle}>File No</th>
@@ -1203,7 +1178,9 @@ function CaseTimeTable({ items }: { items: CaseTimeSummary[] }) {
         <tbody>
           {items.map((item) => (
             <tr key={item.caseId} style={rowStyle}>
-              <td style={tdStyle}>{item.fileNo}</td>
+              <td style={{ ...tdStyle, fontWeight: 900, color: "#12355b" }}>
+                {item.fileNo}
+              </td>
               <td style={tdStyle}>{item.title}</td>
               <td style={tdStyle}>{item.clientName}</td>
               <td style={tdStyle}>{formatDuration(item.coreMinutes)}</td>
@@ -1212,7 +1189,10 @@ function CaseTimeTable({ items }: { items: CaseTimeSummary[] }) {
                 <strong>{formatDuration(item.totalMinutes)}</strong>
               </td>
               <td style={tdStyle}>
-                <Link href={`/cases/${item.caseId}#timelogs`} style={openButtonLinkStyle}>
+                <Link
+                  href={`/cases/${item.caseId}#timelogs`}
+                  style={openButtonLinkStyle}
+                >
                   Open
                 </Link>
               </td>
@@ -1220,35 +1200,6 @@ function CaseTimeTable({ items }: { items: CaseTimeSummary[] }) {
           ))}
         </tbody>
       </table>
-    </div>
-  );
-}
-
-function CaseTimeCardList({ items }: { items: CaseTimeSummary[] }) {
-  return (
-    <div style={cardListStyle}>
-      {items.map((item) => (
-        <div key={item.caseId} style={mobileCardStyle}>
-          <div style={mobileCardHeaderStyle}>
-            <div>
-              <div style={fileNoStyle}>{item.fileNo}</div>
-              <div style={mobileTitleStyle}>{item.title}</div>
-            </div>
-
-            <strong>{formatDuration(item.totalMinutes)}</strong>
-          </div>
-
-          <InfoLine label="Client" value={item.clientName} />
-          <InfoLine label="Core" value={formatDuration(item.coreMinutes)} />
-          <InfoLine label="Support" value={formatDuration(item.supportMinutes)} />
-
-          <div style={cardActionStyle}>
-            <Link href={`/cases/${item.caseId}#timelogs`} style={openButtonLinkStyle}>
-              Open
-            </Link>
-          </div>
-        </div>
-      ))}
     </div>
   );
 }
@@ -1698,30 +1649,26 @@ function getTodayDateString() {
   return `${year}-${month}-${day}`;
 }
 
-function getWeekStartDateString(dateText: string) {
-  const date = parseLocalDate(dateText);
-  const day = date.getDay();
+function getStartOfWeekString() {
+  const today = new Date();
+  const day = today.getDay();
   const diffToMonday = day === 0 ? -6 : 1 - day;
 
-  date.setDate(date.getDate() + diffToMonday);
+  today.setDate(today.getDate() + diffToMonday);
 
-  return formatDateInput(date);
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const date = String(today.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${date}`;
 }
 
-function getMonthStartDateString(dateText: string) {
-  const date = parseLocalDate(dateText);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
-    2,
-    "0"
-  )}-01`;
-}
+function getStartOfMonthString() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
 
-function formatDateInput(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
+  return `${year}-${month}-01`;
 }
 
 function isDoneStatus(status?: string | null) {
@@ -1815,13 +1762,13 @@ function formatDisplayDate(value?: string | null) {
 
 function formatDuration(totalMinutes: number) {
   const safeMinutes = Number.isFinite(totalMinutes) ? totalMinutes : 0;
-  const h = Math.floor(safeMinutes / 60);
-  const m = safeMinutes % 60;
+  const hours = Math.floor(safeMinutes / 60);
+  const minutes = safeMinutes % 60;
 
-  if (h <= 0) return `${m} นาที`;
-  if (m <= 0) return `${h} ชม.`;
+  if (hours <= 0) return `${minutes} นาที`;
+  if (minutes <= 0) return `${hours} ชม.`;
 
-  return `${h} ชม. ${m} นาที`;
+  return `${hours} ชม. ${minutes} นาที`;
 }
 
 /* =========================================================
@@ -1923,7 +1870,7 @@ const compactFilterGridStyle: React.CSSProperties = {
 
 const summaryGridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+  gridTemplateColumns: "repeat(7, minmax(120px, 1fr))",
   gap: 12,
 };
 
@@ -1943,7 +1890,7 @@ const summaryCardStyle: React.CSSProperties = {
 };
 
 const summaryNumberStyle: React.CSSProperties = {
-  fontSize: 28,
+  fontSize: 26,
   fontWeight: 950,
   marginBottom: 8,
   color: "#111111",
@@ -2000,7 +1947,7 @@ const emptyMiniStyle: React.CSSProperties = {
 
 const sectionGridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(480px, 1fr))",
   gap: 12,
   marginBottom: 18,
 };
@@ -2089,7 +2036,19 @@ const ghostButtonStyle: React.CSSProperties = {
 const tableStyle: React.CSSProperties = {
   width: "100%",
   borderCollapse: "collapse",
-  minWidth: 720,
+  minWidth: 760,
+};
+
+const staffTimeTableStyle: React.CSSProperties = {
+  width: "100%",
+  borderCollapse: "collapse",
+  minWidth: 760,
+};
+
+const timeCaseTableStyle: React.CSSProperties = {
+  width: "100%",
+  borderCollapse: "collapse",
+  minWidth: 860,
 };
 
 const thStyle: React.CSSProperties = {
