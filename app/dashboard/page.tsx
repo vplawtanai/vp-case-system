@@ -460,7 +460,7 @@ export default function DashboardPage() {
     return uniqueValues;
   }, [timeLogs]);
 
-  const monthButtonOptions = useMemo(() => {
+  const trendMonthOptions = useMemo(() => {
     return getMonthKeysFromJune2026();
   }, []);
 
@@ -1144,8 +1144,8 @@ export default function DashboardPage() {
           />
         </section>
 
-        <section style={sectionGridStyle}>
-          <div style={sectionCardStyle}>
+        <section style={compactWorkloadGridStyle}>
+          <div style={compactSectionCardStyle}>
             <SectionHeader
               eyebrow="WORKLOAD"
               title="Core vs Support Workload"
@@ -1154,7 +1154,7 @@ export default function DashboardPage() {
             <WorkloadOverview summary={workloadSummary} />
           </div>
 
-          <div style={sectionCardStyle}>
+          <div style={compactSectionCardStyle}>
             <SectionHeader
               eyebrow="TEAM"
               title="Staff Core / Support Split"
@@ -1165,17 +1165,23 @@ export default function DashboardPage() {
         </section>
 
         <section style={sectionCardStyle}>
-          <SectionHeader
-            eyebrow="MONTHLY WORKLOAD"
-            title="Monthly Workload"
-            subtitle="เลือกเดือนที่ต้องการดูเวลาทำงาน เริ่มตั้งแต่ 06/2026 เป็นต้นไป"
-          />
+          <div style={monthlyHeaderGridStyle}>
+            <SectionHeader
+              eyebrow="MONTHLY WORKLOAD"
+              title="Monthly Workload"
+              subtitle="เลือกเดือนที่ต้องการดูเวลาทำงาน เริ่มตั้งแต่ 06/2026 เป็นต้นไป"
+            />
 
-          <MonthSelector
-            months={monthButtonOptions}
-            selectedMonth={selectedTrendMonth}
-            onSelect={setSelectedTrendMonth}
-          />
+            <SelectFilter
+              label="Select Month"
+              value={selectedTrendMonth}
+              onChange={setSelectedTrendMonth}
+              options={trendMonthOptions.map((item) => ({
+                value: item,
+                label: renderMonthKey(item),
+              }))}
+            />
+          </div>
 
           <SelectedMonthWorkload item={selectedMonthWorkload} />
         </section>
@@ -1342,7 +1348,11 @@ function SelectFilter({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        style={inputStyle}
+        style={{
+          ...inputStyle,
+          opacity: disabled ? 0.55 : 1,
+          cursor: disabled ? "not-allowed" : "pointer",
+        }}
         disabled={disabled}
       >
         {options.map((item) => (
@@ -1623,23 +1633,23 @@ function WorkloadOverview({
       <div style={workloadSideStyle}>
         <div style={workloadHeadlineStyle}>Workload Composition</div>
         <div style={workloadCaptionStyle}>
-          แยกเวลาทำงานหลักกับเวลาสนับสนุนในช่วงเวลาที่เลือก
+          Core Work / Support Time ในช่วงเวลาที่เลือก
         </div>
 
-        <div style={workloadLegendGridStyle}>
-          <div style={workloadLegendCardStyle}>
+        <div style={compactLegendGridStyle}>
+          <div style={compactLegendCardStyle}>
             <div style={legendTopStyle}>
               <span style={{ ...legendDotStyle, background: "#175cd3" }} />
-              <span>Core Work</span>
+              <span>Core</span>
             </div>
             <strong>{formatDuration(summary.coreMinutes)}</strong>
             <div style={legendPercentStyle}>{summary.corePercent}%</div>
           </div>
 
-          <div style={workloadLegendCardStyle}>
+          <div style={compactLegendCardStyle}>
             <div style={legendTopStyle}>
               <span style={{ ...legendDotStyle, background: "#7e22ce" }} />
-              <span>Support Time</span>
+              <span>Support</span>
             </div>
             <strong>{formatDuration(summary.supportMinutes)}</strong>
             <div style={legendPercentStyle}>{summary.supportPercent}%</div>
@@ -1658,13 +1668,13 @@ function StaffWorkloadChart({ items }: { items: StaffTimeSummary[] }) {
   const maxMinutes = Math.max(1, ...items.map((item) => item.periodMinutes));
 
   return (
-    <div style={staffRankGridStyle}>
+    <div style={staffCompactListStyle}>
       {items.map((item, index) => {
         const targetMinutes = item.periodMinutes;
 
         const totalWidth =
           targetMinutes > 0
-            ? Math.max(5, Math.round((targetMinutes / maxMinutes) * 100))
+            ? Math.max(4, Math.round((targetMinutes / maxMinutes) * 100))
             : 0;
 
         const corePercent =
@@ -1678,27 +1688,28 @@ function StaffWorkloadChart({ items }: { items: StaffTimeSummary[] }) {
             : 0;
 
         return (
-          <div key={item.staff} style={staffRankCardStyle}>
-            <div style={staffRankHeaderStyle}>
-              <div style={staffRankBadgeStyle}>#{index + 1}</div>
-
-              <div style={staffRankMainStyle}>
-                <div style={staffRankNameStyle}>{item.staff}</div>
-                <div style={staffRankMetaStyle}>
-                  Core {formatDuration(item.coreMinutes)} · Support{" "}
-                  {formatDuration(item.supportMinutes)}
+          <div key={item.staff} style={staffCompactRowStyle}>
+            <div style={staffCompactHeaderStyle}>
+              <div style={staffCompactLeftStyle}>
+                <span style={staffCompactRankStyle}>#{index + 1}</span>
+                <div>
+                  <div style={staffCompactNameStyle}>{item.staff}</div>
+                  <div style={staffCompactMetaStyle}>
+                    Core {formatDuration(item.coreMinutes)} · Support{" "}
+                    {formatDuration(item.supportMinutes)}
+                  </div>
                 </div>
               </div>
 
-              <div style={staffRankTotalStyle}>
+              <div style={staffCompactTotalStyle}>
                 {formatDuration(targetMinutes)}
               </div>
             </div>
 
-            <div style={staffSegmentTrackStyle}>
+            <div style={staffCompactTrackStyle}>
               <div
                 style={{
-                  ...staffSegmentTotalStyle,
+                  ...staffCompactTotalBarStyle,
                   width: `${totalWidth}%`,
                 }}
               >
@@ -1717,45 +1728,13 @@ function StaffWorkloadChart({ items }: { items: StaffTimeSummary[] }) {
               </div>
             </div>
 
-            <div style={staffRankFooterStyle}>
-              <span>Workload {totalWidth}% of top staff</span>
+            <div style={staffCompactFooterStyle}>
+              <span>{totalWidth}% of top staff</span>
               <span>
                 Core {corePercent}% · Support {supportPercent}%
               </span>
             </div>
           </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function MonthSelector({
-  months,
-  selectedMonth,
-  onSelect,
-}: {
-  months: string[];
-  selectedMonth: string;
-  onSelect: (monthKey: string) => void;
-}) {
-  return (
-    <div style={monthSelectorWrapStyle}>
-      {months.map((monthKey) => {
-        const isActive = selectedMonth === monthKey;
-
-        return (
-          <button
-            key={monthKey}
-            type="button"
-            onClick={() => onSelect(monthKey)}
-            style={{
-              ...monthButtonStyle,
-              ...(isActive ? monthButtonActiveStyle : {}),
-            }}
-          >
-            {renderMonthKey(monthKey)}
-          </button>
         );
       })}
     </div>
@@ -1805,8 +1784,8 @@ function SelectedMonthWorkload({ item }: { item: MonthlyTimeSummary }) {
             />
           </div>
 
-          <div style={workloadLegendGridStyle}>
-            <div style={workloadLegendCardStyle}>
+          <div style={compactLegendGridStyle}>
+            <div style={compactLegendCardStyle}>
               <div style={legendTopStyle}>
                 <span style={{ ...legendDotStyle, background: "#175cd3" }} />
                 <span>Core Work</span>
@@ -1815,7 +1794,7 @@ function SelectedMonthWorkload({ item }: { item: MonthlyTimeSummary }) {
               <div style={legendPercentStyle}>{corePercent}%</div>
             </div>
 
-            <div style={workloadLegendCardStyle}>
+            <div style={compactLegendCardStyle}>
               <div style={legendTopStyle}>
                 <span style={{ ...legendDotStyle, background: "#7e22ce" }} />
                 <span>Support Time</span>
@@ -2958,6 +2937,14 @@ const sectionGridStyle: CSSProperties = {
   marginBottom: 18,
 };
 
+const compactWorkloadGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))",
+  gap: 12,
+  marginBottom: 18,
+  alignItems: "stretch",
+};
+
 const riskSectionGridStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))",
@@ -2972,6 +2959,16 @@ const sectionCardStyle: CSSProperties = {
   background: "#ffffff",
   marginBottom: 18,
   boxShadow: "0 8px 24px rgba(15, 23, 42, 0.045)",
+};
+
+const compactSectionCardStyle: CSSProperties = {
+  border: "1px solid #eeeeee",
+  borderRadius: 18,
+  padding: 18,
+  background: "#ffffff",
+  marginBottom: 18,
+  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.045)",
+  minHeight: 0,
 };
 
 const sectionHeaderStyle: CSSProperties = {
@@ -3241,8 +3238,8 @@ const noAccessSubTextStyle: CSSProperties = {
 
 const workloadDashboardStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "300px 1fr",
-  gap: 24,
+  gridTemplateColumns: "170px 1fr",
+  gap: 18,
   alignItems: "center",
 };
 
@@ -3253,8 +3250,8 @@ const donutWrapStyle: CSSProperties = {
 };
 
 const donutRingStyle: CSSProperties = {
-  width: 250,
-  height: 250,
+  width: 155,
+  height: 155,
   borderRadius: "50%",
   display: "flex",
   alignItems: "center",
@@ -3263,30 +3260,30 @@ const donutRingStyle: CSSProperties = {
 };
 
 const donutCenterStyle: CSSProperties = {
-  width: 160,
-  height: 160,
+  width: 96,
+  height: 96,
   borderRadius: "50%",
   background: "#ffffff",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   flexDirection: "column",
-  boxShadow: "0 10px 28px rgba(15, 23, 42, 0.10)",
+  boxShadow: "0 8px 22px rgba(15, 23, 42, 0.10)",
   textAlign: "center",
-  padding: 12,
+  padding: 10,
 };
 
 const donutNumberStyle: CSSProperties = {
-  fontSize: 28,
+  fontSize: 20,
   fontWeight: 950,
   color: "#111111",
   lineHeight: 1.15,
 };
 
 const donutLabelStyle: CSSProperties = {
-  marginTop: 4,
+  marginTop: 3,
   color: "#64748b",
-  fontSize: 12,
+  fontSize: 11,
   fontWeight: 900,
 };
 
@@ -3295,29 +3292,29 @@ const workloadSideStyle: CSSProperties = {
 };
 
 const workloadHeadlineStyle: CSSProperties = {
-  fontSize: 18,
+  fontSize: 16,
   fontWeight: 950,
   color: "#111111",
 };
 
 const workloadCaptionStyle: CSSProperties = {
   marginTop: 4,
-  marginBottom: 14,
+  marginBottom: 10,
   color: "#666666",
   fontWeight: 800,
-  fontSize: 13,
+  fontSize: 12,
 };
 
-const workloadLegendGridStyle: CSSProperties = {
+const compactLegendGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  gap: 10,
+  gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+  gap: 8,
 };
 
-const workloadLegendCardStyle: CSSProperties = {
+const compactLegendCardStyle: CSSProperties = {
   border: "1px solid #eeeeee",
-  borderRadius: 14,
-  padding: 12,
+  borderRadius: 12,
+  padding: 10,
   background: "#fafafa",
 };
 
@@ -3327,7 +3324,7 @@ const legendTopStyle: CSSProperties = {
   gap: 8,
   color: "#333333",
   fontWeight: 900,
-  marginBottom: 6,
+  marginBottom: 4,
 };
 
 const legendDotStyle: CSSProperties = {
@@ -3338,35 +3335,43 @@ const legendDotStyle: CSSProperties = {
 };
 
 const legendPercentStyle: CSSProperties = {
-  marginTop: 4,
+  marginTop: 3,
   fontSize: 12,
   color: "#666666",
   fontWeight: 800,
 };
 
-const staffRankGridStyle: CSSProperties = {
+const staffCompactListStyle: CSSProperties = {
   display: "grid",
-  gap: 12,
+  gap: 8,
 };
 
-const staffRankCardStyle: CSSProperties = {
+const staffCompactRowStyle: CSSProperties = {
   border: "1px solid #eeeeee",
-  borderRadius: 16,
-  padding: 14,
+  borderRadius: 13,
+  padding: 10,
   background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
 };
 
-const staffRankHeaderStyle: CSSProperties = {
+const staffCompactHeaderStyle: CSSProperties = {
   display: "flex",
+  justifyContent: "space-between",
+  gap: 10,
   alignItems: "flex-start",
-  gap: 12,
-  marginBottom: 12,
+  marginBottom: 8,
 };
 
-const staffRankBadgeStyle: CSSProperties = {
-  width: 34,
-  height: 34,
-  borderRadius: 12,
+const staffCompactLeftStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  gap: 9,
+  minWidth: 0,
+};
+
+const staffCompactRankStyle: CSSProperties = {
+  width: 28,
+  height: 28,
+  borderRadius: 10,
   background: "#0f2743",
   color: "#ffffff",
   display: "inline-flex",
@@ -3374,41 +3379,38 @@ const staffRankBadgeStyle: CSSProperties = {
   justifyContent: "center",
   fontWeight: 950,
   flex: "0 0 auto",
+  fontSize: 13,
 };
 
-const staffRankMainStyle: CSSProperties = {
-  flex: 1,
-  minWidth: 0,
-};
-
-const staffRankNameStyle: CSSProperties = {
-  fontSize: 15,
+const staffCompactNameStyle: CSSProperties = {
+  fontSize: 14,
   fontWeight: 950,
   color: "#111111",
 };
 
-const staffRankMetaStyle: CSSProperties = {
-  marginTop: 3,
+const staffCompactMetaStyle: CSSProperties = {
+  marginTop: 2,
   fontSize: 12,
   color: "#666666",
   fontWeight: 800,
 };
 
-const staffRankTotalStyle: CSSProperties = {
+const staffCompactTotalStyle: CSSProperties = {
+  fontSize: 14,
   fontWeight: 950,
   color: "#111111",
   whiteSpace: "nowrap",
 };
 
-const staffSegmentTrackStyle: CSSProperties = {
+const staffCompactTrackStyle: CSSProperties = {
   width: "100%",
-  height: 20,
+  height: 14,
   borderRadius: 999,
   background: "#eef2f7",
   overflow: "hidden",
 };
 
-const staffSegmentTotalStyle: CSSProperties = {
+const staffCompactTotalBarStyle: CSSProperties = {
   height: "100%",
   display: "flex",
   borderRadius: 999,
@@ -3426,39 +3428,23 @@ const staffSegmentSupportStyle: CSSProperties = {
   background: "#7e22ce",
 };
 
-const staffRankFooterStyle: CSSProperties = {
-  marginTop: 8,
+const staffCompactFooterStyle: CSSProperties = {
+  marginTop: 6,
   display: "flex",
   justifyContent: "space-between",
   gap: 10,
   flexWrap: "wrap",
   color: "#64748b",
-  fontSize: 12,
+  fontSize: 11,
   fontWeight: 900,
 };
 
-const monthSelectorWrapStyle: CSSProperties = {
-  display: "flex",
-  gap: 8,
-  flexWrap: "wrap",
-  marginBottom: 16,
-};
-
-const monthButtonStyle: CSSProperties = {
-  padding: "8px 12px",
-  borderRadius: 999,
-  border: "1px solid #dddddd",
-  background: "#ffffff",
-  color: "#111111",
-  cursor: "pointer",
-  fontWeight: 800,
-  fontSize: 13,
-};
-
-const monthButtonActiveStyle: CSSProperties = {
-  background: "#0f2743",
-  color: "#ffffff",
-  border: "1px solid #0f2743",
+const monthlyHeaderGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr minmax(180px, 240px)",
+  gap: 14,
+  alignItems: "start",
+  marginBottom: 12,
 };
 
 const selectedMonthPanelStyle: CSSProperties = {
@@ -3499,11 +3485,11 @@ const selectedMonthTotalStyle: CSSProperties = {
 const monthWorkloadVisualStyle: CSSProperties = {
   display: "flex",
   width: "100%",
-  height: 22,
+  height: 18,
   borderRadius: 999,
   overflow: "hidden",
   background: "#eef2f7",
-  marginBottom: 14,
+  marginBottom: 12,
 };
 
 const monthCorePillStyle: CSSProperties = {
