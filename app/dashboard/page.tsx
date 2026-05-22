@@ -189,6 +189,7 @@ export default function DashboardPage() {
 
   const [timeRange, setTimeRange] = useState<TimeRange>("thisMonth");
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthKey());
+  const [selectedTrendMonth, setSelectedTrendMonth] = useState("2026-06");
 
   useEffect(() => {
     const updateSize = () => {
@@ -445,6 +446,10 @@ export default function DashboardPage() {
     return uniqueValues;
   }, [timeLogs]);
 
+  const monthButtonOptions = useMemo(() => {
+    return getMonthKeysFromJune2026();
+  }, []);
+
   const clearFilters = () => {
     setSearchText("");
     setRiskFilter("all");
@@ -454,6 +459,7 @@ export default function DashboardPage() {
     setSortMode("highestRisk");
     setTimeRange("thisMonth");
     setSelectedMonth(getCurrentMonthKey());
+    setSelectedTrendMonth("2026-06");
   };
 
   const filteredCases = useMemo(() => {
@@ -764,45 +770,33 @@ export default function DashboardPage() {
       .slice(0, 5);
   }, [filteredTimeLogsByPeriod, caseMap]);
 
-  const monthlyTimeSummary = useMemo<MonthlyTimeSummary[]>(() => {
-    const monthKeys = getLast12MonthKeys();
-    const map = new Map<string, MonthlyTimeSummary>();
-
-    monthKeys.forEach((monthKey) => {
-      map.set(monthKey, {
-        monthKey,
-        label: renderMonthKey(monthKey),
-        coreMinutes: 0,
-        supportMinutes: 0,
-        totalMinutes: 0,
-      });
-    });
+  const selectedMonthWorkload = useMemo<MonthlyTimeSummary>(() => {
+    const result: MonthlyTimeSummary = {
+      monthKey: selectedTrendMonth,
+      label: renderMonthKey(selectedTrendMonth),
+      coreMinutes: 0,
+      supportMinutes: 0,
+      totalMinutes: 0,
+    };
 
     filteredTimeLogsAllTime.forEach((item) => {
       const monthKey = getMonthKeyFromDate(item.work_date);
-      if (!monthKey) return;
-      if (!map.has(monthKey)) return;
+      if (monthKey !== selectedTrendMonth) return;
 
       const minutes = safeMinutes(item.minutes);
       const isCore = item.billable !== false;
-      const current = map.get(monthKey);
-
-      if (!current) return;
 
       if (isCore) {
-        current.coreMinutes += minutes;
+        result.coreMinutes += minutes;
       } else {
-        current.supportMinutes += minutes;
+        result.supportMinutes += minutes;
       }
 
-      current.totalMinutes += minutes;
-      map.set(monthKey, current);
+      result.totalMinutes += minutes;
     });
 
-    return monthKeys
-      .map((monthKey) => map.get(monthKey))
-      .filter((item): item is MonthlyTimeSummary => !!item);
-  }, [filteredTimeLogsAllTime]);
+    return result;
+  }, [filteredTimeLogsAllTime, selectedTrendMonth]);
 
   if (loadingProfile) {
     return (
@@ -1029,6 +1023,7 @@ export default function DashboardPage() {
         <section style={sectionGridStyle}>
           <div style={sectionCardStyle}>
             <SectionHeader
+              eyebrow="WORKLOAD"
               title="Core vs Support Workload"
               subtitle="ภาพรวมเวลาทำงานหลักและเวลาสนับสนุนตามช่วงเวลาที่เลือก"
             />
@@ -1037,8 +1032,9 @@ export default function DashboardPage() {
 
           <div style={sectionCardStyle}>
             <SectionHeader
+              eyebrow="TEAM"
               title="Staff Core / Support Split"
-              subtitle="เปรียบเทียบเวลาหลักและเวลาสนับสนุนของแต่ละคนตามช่วงเวลาที่เลือก"
+              subtitle="เปรียบเทียบเวลาหลักและเวลาสนับสนุนของแต่ละคน"
             />
             <StaffWorkloadChart items={staffTimeSummary} />
           </div>
@@ -1046,15 +1042,24 @@ export default function DashboardPage() {
 
         <section style={sectionCardStyle}>
           <SectionHeader
-            title="Monthly Workload Trend"
-            subtitle="แนวโน้มเวลาทำงานย้อนหลัง 12 เดือน แยก Core Work และ Support Time"
+            eyebrow="MONTHLY WORKLOAD"
+            title="Monthly Workload"
+            subtitle="เลือกเดือนที่ต้องการดูเวลาทำงาน เริ่มตั้งแต่ 06/2026 เป็นต้นไป"
           />
-          <MonthlyWorkloadChart items={monthlyTimeSummary} />
+
+          <MonthSelector
+            months={monthButtonOptions}
+            selectedMonth={selectedTrendMonth}
+            onSelect={setSelectedTrendMonth}
+          />
+
+          <SelectedMonthWorkload item={selectedMonthWorkload} />
         </section>
 
         <section style={sectionGridStyle}>
           <div style={sectionCardStyle}>
             <SectionHeader
+              eyebrow="TEAM TIME"
               title="Time by Staff"
               subtitle="เวลาทำงานแยกตามรายชื่อ วันนี้ / สัปดาห์นี้ / เดือนนี้ / ช่วงเวลาที่เลือก / รวมทั้งหมด"
             />
@@ -1070,24 +1075,24 @@ export default function DashboardPage() {
 
           <div style={sectionCardStyle}>
             <SectionHeader
+              eyebrow="CASE COST"
               title="Top Time-Consuming Cases"
               subtitle="5 คดีที่ใช้เวลาทำงานมากที่สุดตามช่วงเวลาที่เลือก"
             />
 
             {topTimeConsumingCases.length === 0 ? (
               <div style={emptyStyle}>No time logs found.</div>
-            ) : isCompact ? (
-              <CaseTimeCardList items={topTimeConsumingCases} />
             ) : (
-              <CaseTimeTable items={topTimeConsumingCases} />
+              <TopTimeConsumingCaseList items={topTimeConsumingCases} />
             )}
           </div>
         </section>
 
-        <section style={sectionGridStyle}>
+        <section style={riskSectionGridStyle}>
           <div style={sectionCardStyle}>
             <div style={sectionHeaderStyle}>
               <div>
+                <div style={sectionEyebrowStyle}>RISK</div>
                 <h3 style={sectionTitleStyle}>Top Risk Cases</h3>
                 <div style={sectionSubtitleStyle}>
                   5 แฟ้มที่มี Deadline / Task / Timeline / Enforcement
@@ -1114,6 +1119,7 @@ export default function DashboardPage() {
           <div style={sectionCardStyle}>
             <div style={sectionHeaderStyle}>
               <div>
+                <div style={sectionEyebrowStyle}>ENFORCEMENT</div>
                 <h3 style={sectionTitleStyle}>Enforcement Ready</h3>
                 <div style={sectionSubtitleStyle}>
                   งานบังคับคดีที่ครบกำหนดหรือควรดำเนินการต่อ
@@ -1128,9 +1134,7 @@ export default function DashboardPage() {
             {loading ? (
               <div style={loadingBoxStyle}>Loading enforcement queue...</div>
             ) : enforcementAlerts.length === 0 ? (
-              <div style={allClearStyle}>
-                ✓ All clear — no enforcement action required
-              </div>
+              <CompactAllClearBox text="All clear — no enforcement action required" />
             ) : isCompact ? (
               <EnforcementCardList items={enforcementAlerts} caseMap={caseMap} />
             ) : (
@@ -1142,6 +1146,7 @@ export default function DashboardPage() {
         <section style={sectionCardStyle}>
           <div style={sectionHeaderStyle}>
             <div>
+              <div style={sectionEyebrowStyle}>ACTIVITY</div>
               <h3 style={sectionTitleStyle}>Recently Updated Cases</h3>
               <div style={sectionSubtitleStyle}>แฟ้มที่มีการแก้ไขล่าสุด</div>
             </div>
@@ -1230,10 +1235,19 @@ function SelectFilter({
    SUB COMPONENTS
 ========================================================= */
 
-function SectionHeader({ title, subtitle }: { title: string; subtitle: string }) {
+function SectionHeader({
+  eyebrow,
+  title,
+  subtitle,
+}: {
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+}) {
   return (
     <div style={sectionHeaderStyle}>
       <div>
+        <div style={sectionEyebrowStyle}>{eyebrow}</div>
         <h3 style={sectionTitleStyle}>{title}</h3>
         <div style={sectionSubtitleStyle}>{subtitle}</div>
       </div>
@@ -1434,67 +1448,102 @@ function StaffWorkloadChart({ items }: { items: StaffTimeSummary[] }) {
   );
 }
 
-function MonthlyWorkloadChart({ items }: { items: MonthlyTimeSummary[] }) {
-  if (items.length === 0) {
-    return <div style={emptyStyle}>No monthly time logs found.</div>;
-  }
-
-  const maxMinutes = Math.max(1, ...items.map((item) => item.totalMinutes));
-
+function MonthSelector({
+  months,
+  selectedMonth,
+  onSelect,
+}: {
+  months: string[];
+  selectedMonth: string;
+  onSelect: (monthKey: string) => void;
+}) {
   return (
-    <div style={monthlyChartGridStyle}>
-      {items.map((item) => {
-        const totalWidth = Math.max(
-          3,
-          Math.round((item.totalMinutes / maxMinutes) * 100)
-        );
-
-        const corePercent =
-          item.totalMinutes > 0
-            ? Math.round((item.coreMinutes / item.totalMinutes) * 100)
-            : 0;
-
-        const supportPercent =
-          item.totalMinutes > 0
-            ? Math.round((item.supportMinutes / item.totalMinutes) * 100)
-            : 0;
+    <div style={monthSelectorWrapStyle}>
+      {months.map((monthKey) => {
+        const isActive = selectedMonth === monthKey;
 
         return (
-          <div key={item.monthKey} style={monthlyChartRowStyle}>
-            <div style={monthlyChartLabelStyle}>
-              <strong>{item.label}</strong>
-              <span>{formatDuration(item.totalMinutes)}</span>
-            </div>
-
-            <div style={monthlyOuterTrackStyle}>
-              <div
-                style={{
-                  ...monthlyInnerBarStyle,
-                  width: `${totalWidth}%`,
-                }}
-              >
-                <div
-                  style={{
-                    ...staffCorePartStyle,
-                    width: `${corePercent}%`,
-                  }}
-                />
-                <div
-                  style={{
-                    ...staffSupportPartStyle,
-                    width: `${supportPercent}%`,
-                  }}
-                />
-              </div>
-            </div>
-
-            <div style={staffChartMetaStyle}>
-              Core {formatDuration(item.coreMinutes)} · Support{" "}
-              {formatDuration(item.supportMinutes)}
-            </div>
-          </div>
+          <button
+            key={monthKey}
+            type="button"
+            onClick={() => onSelect(monthKey)}
+            style={{
+              ...monthButtonStyle,
+              ...(isActive ? monthButtonActiveStyle : {}),
+            }}
+          >
+            {renderMonthKey(monthKey)}
+          </button>
         );
       })}
+    </div>
+  );
+}
+
+function SelectedMonthWorkload({ item }: { item: MonthlyTimeSummary }) {
+  const corePercent =
+    item.totalMinutes > 0
+      ? Math.round((item.coreMinutes / item.totalMinutes) * 100)
+      : 0;
+
+  const supportPercent =
+    item.totalMinutes > 0
+      ? Math.round((item.supportMinutes / item.totalMinutes) * 100)
+      : 0;
+
+  return (
+    <div style={selectedMonthPanelStyle}>
+      <div style={selectedMonthHeaderStyle}>
+        <div>
+          <div style={selectedMonthLabelStyle}>{item.label}</div>
+          <div style={selectedMonthSubLabelStyle}>Selected Month</div>
+        </div>
+
+        <div style={selectedMonthTotalStyle}>
+          {formatDuration(item.totalMinutes)}
+        </div>
+      </div>
+
+      {item.totalMinutes <= 0 ? (
+        <div style={emptyStyle}>เดือนนี้ยังไม่มี Time Log</div>
+      ) : (
+        <>
+          <div style={stackedBarStyle}>
+            <div
+              style={{
+                ...stackedCoreStyle,
+                width: `${corePercent}%`,
+              }}
+            />
+            <div
+              style={{
+                ...stackedSupportStyle,
+                width: `${supportPercent}%`,
+              }}
+            />
+          </div>
+
+          <div style={workloadLegendGridStyle}>
+            <div style={workloadLegendCardStyle}>
+              <div style={legendTopStyle}>
+                <span style={{ ...legendDotStyle, background: "#175cd3" }} />
+                <span>Core Work</span>
+              </div>
+              <strong>{formatDuration(item.coreMinutes)}</strong>
+              <div style={legendPercentStyle}>{corePercent}%</div>
+            </div>
+
+            <div style={workloadLegendCardStyle}>
+              <div style={legendTopStyle}>
+                <span style={{ ...legendDotStyle, background: "#7e22ce" }} />
+                <span>Support Time</span>
+              </div>
+              <strong>{formatDuration(item.supportMinutes)}</strong>
+              <div style={legendPercentStyle}>{supportPercent}%</div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -1562,68 +1611,75 @@ function StaffTimeCardList({ items }: { items: StaffTimeSummary[] }) {
   );
 }
 
-function CaseTimeTable({ items }: { items: CaseTimeSummary[] }) {
+function TopTimeConsumingCaseList({ items }: { items: CaseTimeSummary[] }) {
+  const maxMinutes = Math.max(1, ...items.map((item) => item.totalMinutes));
+
   return (
-    <div style={{ overflowX: "auto" }}>
-      <table style={tableStyle}>
-        <thead>
-          <tr>
-            <th style={thStyle}>File No</th>
-            <th style={thStyle}>Title</th>
-            <th style={thStyle}>Client</th>
-            <th style={thStyle}>Core</th>
-            <th style={thStyle}>Support</th>
-            <th style={thStyle}>Total</th>
-            <th style={thStyle}>Open</th>
-          </tr>
-        </thead>
+    <div style={timeCaseListStyle}>
+      {items.map((item, index) => {
+        const width = Math.max(
+          4,
+          Math.round((item.totalMinutes / maxMinutes) * 100)
+        );
 
-        <tbody>
-          {items.map((item) => (
-            <tr key={item.caseId} style={rowStyle}>
-              <td style={tdStyle}>{item.fileNo}</td>
-              <td style={tdStyle}>{item.title}</td>
-              <td style={tdStyle}>{item.clientName}</td>
-              <td style={tdStyle}>{formatDuration(item.coreMinutes)}</td>
-              <td style={tdStyle}>{formatDuration(item.supportMinutes)}</td>
-              <td style={tdStyle}>
-                <strong>{formatDuration(item.totalMinutes)}</strong>
-              </td>
-              <td style={tdStyle}>
-                <Link href={`/cases/${item.caseId}`} style={openButtonLinkStyle}>
-                  Open
-                </Link>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
+        const corePercent =
+          item.totalMinutes > 0
+            ? Math.round((item.coreMinutes / item.totalMinutes) * 100)
+            : 0;
 
-function CaseTimeCardList({ items }: { items: CaseTimeSummary[] }) {
-  return (
-    <div style={cardListStyle}>
-      {items.map((item) => (
-        <div key={item.caseId} style={mobileCardStyle}>
-          <div style={fileNoStyle}>{item.fileNo}</div>
-          <div style={mobileTitleStyle}>{item.title}</div>
-          <InfoLine label="Client" value={item.clientName} />
-          <InfoLine label="Core" value={formatDuration(item.coreMinutes)} />
-          <InfoLine
-            label="Support"
-            value={formatDuration(item.supportMinutes)}
-          />
-          <InfoLine label="Total" value={formatDuration(item.totalMinutes)} />
+        const supportPercent =
+          item.totalMinutes > 0
+            ? Math.round((item.supportMinutes / item.totalMinutes) * 100)
+            : 0;
 
-          <div style={cardActionStyle}>
-            <Link href={`/cases/${item.caseId}`} style={openButtonLinkStyle}>
-              Open
-            </Link>
+        return (
+          <div key={item.caseId} style={timeCaseItemStyle}>
+            <div style={timeCaseHeaderStyle}>
+              <div>
+                <div style={timeCaseRankStyle}>#{index + 1}</div>
+                <div style={timeCaseTitleStyle}>
+                  {item.fileNo} · {item.title}
+                </div>
+                <div style={timeCaseClientStyle}>{item.clientName}</div>
+              </div>
+
+              <div style={timeCaseTotalStyle}>
+                {formatDuration(item.totalMinutes)}
+              </div>
+            </div>
+
+            <div style={timeCaseBarTrackStyle}>
+              <div
+                style={{
+                  ...timeCaseBarOuterStyle,
+                  width: `${width}%`,
+                }}
+              >
+                <div
+                  style={{
+                    ...staffCorePartStyle,
+                    width: `${corePercent}%`,
+                  }}
+                />
+                <div
+                  style={{
+                    ...staffSupportPartStyle,
+                    width: `${supportPercent}%`,
+                  }}
+                />
+              </div>
+            </div>
+
+            <div style={timeCaseFooterStyle}>
+              <span>Core {formatDuration(item.coreMinutes)}</span>
+              <span>Support {formatDuration(item.supportMinutes)}</span>
+              <Link href={`/cases/${item.caseId}`} style={miniOpenLinkStyle}>
+                Open
+              </Link>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -1861,6 +1917,18 @@ function RecentCaseCardList({ items }: { items: EnrichedCase[] }) {
   );
 }
 
+function CompactAllClearBox({ text }: { text: string }) {
+  return (
+    <div style={compactAllClearStyle}>
+      <div style={compactAllClearIconStyle}>✓</div>
+      <div>
+        <div style={compactAllClearTitleStyle}>{text}</div>
+        <div style={compactAllClearSubStyle}>ไม่มีรายการที่ต้องดำเนินการในขณะนี้</div>
+      </div>
+    </div>
+  );
+}
+
 function RiskBadge({ level }: { level: RiskLevel }) {
   const text =
     level === "overdue"
@@ -2089,20 +2157,25 @@ function getCurrentMonthKey() {
   return `${year}-${month}`;
 }
 
-function getLast12MonthKeys() {
+function getMonthKeysFromJune2026() {
   const result: string[] = [];
+  const startYear = 2026;
+  const startMonthIndex = 5;
   const today = new Date();
 
-  for (let i = 11; i >= 0; i -= 1) {
-    const target = new Date(today.getFullYear(), today.getMonth() - i, 1);
+  const current = new Date(startYear, startMonthIndex, 1);
+  const end = new Date(today.getFullYear(), today.getMonth(), 1);
 
-    const year = target.getFullYear();
-    const month = String(target.getMonth() + 1).padStart(2, "0");
+  while (current <= end) {
+    const year = current.getFullYear();
+    const month = String(current.getMonth() + 1).padStart(2, "0");
 
     result.push(`${year}-${month}`);
+
+    current.setMonth(current.getMonth() + 1);
   }
 
-  return result;
+  return result.reverse();
 }
 
 function getMonthKeyFromDate(dateText?: string | null) {
@@ -2551,6 +2624,13 @@ const sectionGridStyle: CSSProperties = {
   marginBottom: 18,
 };
 
+const riskSectionGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1.25fr) minmax(320px, 0.75fr)",
+  gap: 12,
+  marginBottom: 18,
+};
+
 const sectionCardStyle: CSSProperties = {
   border: "1px solid #eeeeee",
   borderRadius: 16,
@@ -2567,6 +2647,14 @@ const sectionHeaderStyle: CSSProperties = {
   alignItems: "flex-start",
   flexWrap: "wrap",
   marginBottom: 12,
+};
+
+const sectionEyebrowStyle: CSSProperties = {
+  fontSize: 11,
+  letterSpacing: 1,
+  fontWeight: 950,
+  color: "#0f2743",
+  marginBottom: 4,
 };
 
 const sectionTitleStyle: CSSProperties = {
@@ -2707,6 +2795,12 @@ const openButtonLinkStyle: CSSProperties = {
   color: "#ffffff",
   textDecoration: "none",
   fontSize: 13,
+  fontWeight: 900,
+};
+
+const miniOpenLinkStyle: CSSProperties = {
+  color: "#0f2743",
+  textDecoration: "none",
   fontWeight: 900,
 };
 
@@ -2931,36 +3025,168 @@ const staffChartMetaStyle: CSSProperties = {
   fontWeight: 700,
 };
 
-const monthlyChartGridStyle: CSSProperties = {
-  display: "grid",
-  gap: 14,
+const monthSelectorWrapStyle: CSSProperties = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+  marginBottom: 16,
 };
 
-const monthlyChartRowStyle: CSSProperties = {
-  display: "grid",
-  gap: 7,
-  padding: "10px 0",
-  borderTop: "1px solid #f0f0f0",
+const monthButtonStyle: CSSProperties = {
+  padding: "8px 12px",
+  borderRadius: 999,
+  border: "1px solid #dddddd",
+  background: "#ffffff",
+  color: "#111111",
+  cursor: "pointer",
+  fontWeight: 800,
+  fontSize: 13,
 };
 
-const monthlyChartLabelStyle: CSSProperties = {
+const monthButtonActiveStyle: CSSProperties = {
+  background: "#0f2743",
+  color: "#ffffff",
+  border: "1px solid #0f2743",
+};
+
+const selectedMonthPanelStyle: CSSProperties = {
+  border: "1px solid #eeeeee",
+  borderRadius: 16,
+  padding: 16,
+  background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+};
+
+const selectedMonthHeaderStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   gap: 12,
-  color: "#222222",
+  alignItems: "flex-start",
+  flexWrap: "wrap",
+  marginBottom: 14,
 };
 
-const monthlyOuterTrackStyle: CSSProperties = {
+const selectedMonthLabelStyle: CSSProperties = {
+  fontSize: 18,
+  fontWeight: 950,
+  color: "#111111",
+};
+
+const selectedMonthSubLabelStyle: CSSProperties = {
+  marginTop: 3,
+  fontSize: 12,
+  color: "#666666",
+  fontWeight: 800,
+};
+
+const selectedMonthTotalStyle: CSSProperties = {
+  fontSize: 26,
+  fontWeight: 950,
+  color: "#111111",
+};
+
+const timeCaseListStyle: CSSProperties = {
+  display: "grid",
+  gap: 12,
+};
+
+const timeCaseItemStyle: CSSProperties = {
+  border: "1px solid #eeeeee",
+  borderRadius: 14,
+  padding: 12,
+  background: "#fafafa",
+};
+
+const timeCaseHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  alignItems: "flex-start",
+  marginBottom: 10,
+};
+
+const timeCaseRankStyle: CSSProperties = {
+  fontSize: 12,
+  color: "#666666",
+  fontWeight: 900,
+  marginBottom: 2,
+};
+
+const timeCaseTitleStyle: CSSProperties = {
+  fontWeight: 950,
+  color: "#111111",
+  lineHeight: 1.4,
+};
+
+const timeCaseClientStyle: CSSProperties = {
+  marginTop: 3,
+  color: "#555555",
+  fontWeight: 700,
+  fontSize: 13,
+};
+
+const timeCaseTotalStyle: CSSProperties = {
+  fontWeight: 950,
+  color: "#111111",
+  whiteSpace: "nowrap",
+};
+
+const timeCaseBarTrackStyle: CSSProperties = {
   width: "100%",
-  height: 18,
-  borderRadius: 999,
+  height: 14,
   background: "#f1f5f9",
+  borderRadius: 999,
   overflow: "hidden",
 };
 
-const monthlyInnerBarStyle: CSSProperties = {
+const timeCaseBarOuterStyle: CSSProperties = {
   height: "100%",
   display: "flex",
   borderRadius: 999,
   overflow: "hidden",
+};
+
+const timeCaseFooterStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 10,
+  flexWrap: "wrap",
+  marginTop: 8,
+  color: "#666666",
+  fontSize: 12,
+  fontWeight: 800,
+};
+
+const compactAllClearStyle: CSSProperties = {
+  display: "flex",
+  gap: 12,
+  alignItems: "flex-start",
+  padding: 14,
+  borderRadius: 14,
+  border: "1px solid #b9dfc3",
+  background: "linear-gradient(135deg, #f0fff4 0%, #e6f4ea 100%)",
+};
+
+const compactAllClearIconStyle: CSSProperties = {
+  width: 28,
+  height: 28,
+  borderRadius: 999,
+  background: "#18794e",
+  color: "#ffffff",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontWeight: 950,
+  flex: "0 0 auto",
+};
+
+const compactAllClearTitleStyle: CSSProperties = {
+  color: "#067647",
+  fontWeight: 950,
+};
+
+const compactAllClearSubStyle: CSSProperties = {
+  marginTop: 3,
+  color: "#555555",
+  fontSize: 13,
+  fontWeight: 700,
 };
