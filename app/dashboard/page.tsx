@@ -3512,15 +3512,15 @@ const staffSlimListStyle: CSSProperties = {
 
 const staffSlimRowStyle: CSSProperties = {
   border: "1px solid #eeeeee",
-  borderRadius: 12,
-  padding: "9px 10px",
-  background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+  borderRadius: 10,
+  padding: "6px 8px",
+  background: "#ffffff",
 };
 
 const mobileStaffSlimRowStyle: CSSProperties = {
   ...staffSlimRowStyle,
-  padding: "8px 9px",
-  borderRadius: 11,
+  padding: "6px 8px",
+  borderRadius: 10,
 };
 
 const staffSlimHeaderStyle: CSSProperties = {
@@ -3575,7 +3575,7 @@ const staffSlimTotalStyle: CSSProperties = {
 
 const staffSlimTrackStyle: CSSProperties = {
   width: "100%",
-  height: 12,
+  height: 6,
   borderRadius: 999,
   background: "#eef2f7",
   overflow: "hidden",
@@ -3583,7 +3583,7 @@ const staffSlimTrackStyle: CSSProperties = {
 
 const mobileStaffSlimTrackStyle: CSSProperties = {
   ...staffSlimTrackStyle,
-  height: 9,
+  height: 6,
 };
 
 const staffSlimTotalBarStyle: CSSProperties = {
