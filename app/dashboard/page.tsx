@@ -224,6 +224,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [isCompact, setIsCompact] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   const [searchText, setSearchText] = useState("");
   const [riskFilter, setRiskFilter] = useState<RiskFilter>("all");
@@ -240,6 +241,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const updateSize = () => {
       setIsCompact(window.innerWidth < 900);
+      setIsMobile(window.innerWidth < 640);
     };
 
     updateSize();
@@ -934,7 +936,7 @@ export default function DashboardPage() {
   if (loadingProfile) {
     return (
       <AuthGuard>
-        <main style={pageStyle}>
+        <main style={isMobile ? mobilePageStyle : pageStyle}>
           <div style={loadingBoxStyle}>Loading dashboard permission...</div>
         </main>
       </AuthGuard>
@@ -944,7 +946,7 @@ export default function DashboardPage() {
   if (!permissions.canViewDashboard) {
     return (
       <AuthGuard>
-        <main style={pageStyle}>
+        <main style={isMobile ? mobilePageStyle : pageStyle}>
           <AppTopNav
             title="Dashboard"
             subtitle="Executive overview across all cases"
@@ -964,17 +966,19 @@ export default function DashboardPage() {
 
   return (
     <AuthGuard>
-      <main style={pageStyle}>
+      <main style={isMobile ? mobilePageStyle : pageStyle}>
         <AppTopNav
           title="Dashboard"
           subtitle="Executive overview across all cases"
           activePage="dashboard"
         />
 
-        <section style={heroPanelStyle}>
+        <section style={isMobile ? mobileHeroPanelStyle : heroPanelStyle}>
           <div>
             <div style={eyebrowStyle}>VP CASE SYSTEM</div>
-            <h1 style={heroTitleStyle}>Executive Dashboard</h1>
+            <h1 style={isMobile ? mobileHeroTitleStyle : heroTitleStyle}>
+              Executive Dashboard
+            </h1>
             <div style={heroSubtitleStyle}>
               ภาพรวมคดี ความเสี่ยง กำหนดเวลา เวลาทำงาน และสถานะการบังคับคดี
             </div>
@@ -984,13 +988,13 @@ export default function DashboardPage() {
             type="button"
             onClick={fetchDashboard}
             disabled={loading}
-            style={secondaryButtonStyle}
+            style={isMobile ? mobileSecondaryButtonStyle : secondaryButtonStyle}
           >
             {loading ? "Refreshing..." : "Refresh"}
           </button>
         </section>
 
-        <section style={filterPanelStyle}>
+        <section style={isMobile ? mobileFilterPanelStyle : filterPanelStyle}>
           <div style={filterHeaderStyle}>
             <div>
               <h3 style={filterTitleStyle}>Search & Filters</h3>
@@ -1000,7 +1004,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <button type="button" onClick={clearFilters} style={ghostButtonStyle}>
+            <button type="button" onClick={clearFilters} style={isMobile ? mobileGhostButtonStyle : ghostButtonStyle}>
               Clear Filters
             </button>
           </div>
@@ -1093,36 +1097,41 @@ export default function DashboardPage() {
         </section>
 
         <section style={blockStyle}>
-          <div style={isCompact ? compactSummaryGridStyle : summaryGridStyle}>
+          <div style={isMobile ? mobileSummaryGridStyle : isCompact ? compactSummaryGridStyle : summaryGridStyle}>
             <MetricCard
               label="Total Cases"
               subLabel="แฟ้มที่แสดง"
               count={String(summary.total)}
               tone="neutral"
+              isMobile={isMobile}
             />
             <MetricCard
               label="Overdue"
               subLabel="เกินกำหนด"
               count={String(summary.overdue)}
               tone="danger"
+              isMobile={isMobile}
             />
             <MetricCard
               label="Today"
               subLabel="ครบกำหนดวันนี้"
               count={String(summary.today)}
               tone="warning"
+              isMobile={isMobile}
             />
             <MetricCard
               label="Due Soon"
               subLabel="ใกล้ครบกำหนด"
               count={String(summary.dueSoon)}
               tone="soon"
+              isMobile={isMobile}
             />
             <MetricCard
               label="Enforcement Ready"
               subLabel="พร้อมดำเนินการบังคับคดี"
               count={String(summary.enforcementReady)}
               tone="blue"
+              isMobile={isMobile}
             />
 
             {canSeeTimeOverview && (
@@ -1131,6 +1140,7 @@ export default function DashboardPage() {
                 subLabel={renderTimeRangeLabel(timeRange, selectedMonth)}
                 count={formatDuration(summary.totalLoggedMinutes)}
                 tone="purple"
+                isMobile={isMobile}
               />
             )}
 
@@ -1139,11 +1149,12 @@ export default function DashboardPage() {
               subLabel="ยังไม่มี Alert"
               count={String(summary.clear)}
               tone="success"
+              isMobile={isMobile}
             />
           </div>
         </section>
 
-        <section style={sectionCardStyle}>
+        <section style={isMobile ? mobileSectionCardStyle : sectionCardStyle}>
           <div style={sectionHeaderStyle}>
             <div>
               <div style={sectionEyebrowStyle}>COMMAND CENTER</div>
@@ -1159,10 +1170,10 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          <ActionRequiredPanel data={actionRequired} />
+          <ActionRequiredPanel data={actionRequired} isMobile={isMobile} />
         </section>
 
-        <section style={miniGridStyle}>
+        <section style={isMobile ? mobileMiniGridStyle : miniGridStyle}>
           <DistributionCard
             title="Case Status"
             rows={[
@@ -1170,23 +1181,26 @@ export default function DashboardPage() {
               { label: "Waiting", value: summary.waiting },
               { label: "Done", value: summary.done },
             ]}
+            isMobile={isMobile}
           />
 
           <DistributionCard
             title="Phase Distribution"
             rows={phaseSummary.map(([label, value]) => ({ label, value }))}
+            isMobile={isMobile}
           />
 
           <DistributionCard
             title="Owner Distribution"
             rows={ownerSummary.map(([label, value]) => ({ label, value }))}
+            isMobile={isMobile}
           />
         </section>
 
         {canSeeTimeOverview && (
           <section style={workloadStackSectionStyle}>
-            <div style={sectionCardStyle}>
-              <div style={workloadHeaderGridStyle}>
+            <div style={isMobile ? mobileSectionCardStyle : sectionCardStyle}>
+              <div style={isMobile ? mobileHeaderGridStyle : workloadHeaderGridStyle}>
                 <SectionHeader
                   eyebrow="WORKLOAD"
                   title="Core vs Support Workload"
@@ -1207,17 +1221,17 @@ export default function DashboardPage() {
                 />
               </div>
 
-              <WorkloadOverview summary={workloadSummary} />
+              <WorkloadOverview summary={workloadSummary} isMobile={isMobile} />
             </div>
 
             {canSeeTeamWorkload && (
-              <div style={sectionCardStyle}>
+              <div style={isMobile ? mobileSectionCardStyle : sectionCardStyle}>
                 <SectionHeader
                   eyebrow="TEAM"
                   title="Staff Core / Support Split"
                   subtitle="อันดับภาระงานของแต่ละคน แยก Core Work และ Support Time ตามเดือนที่เลือก"
                 />
-                <StaffWorkloadChart items={staffTimeSummary} />
+                <StaffWorkloadChart items={staffTimeSummary} isMobile={isMobile} />
               </div>
             )}
           </section>
@@ -1225,11 +1239,11 @@ export default function DashboardPage() {
 
         <section style={singleColumnSectionStyle}>
           {canSeeOwnTimeDetail && !canSeeTeamTimeDetail && (
-           <div style={sectionCardStyle}>
-            <div style={dailyHeaderGridStyle}>
-             <SectionHeader
-               eyebrow="MY TIME DETAIL"
-               title="My Daily Case Work"
+            <div style={isMobile ? mobileSectionCardStyle : sectionCardStyle}>
+              <div style={isMobile ? mobileHeaderGridStyle : dailyHeaderGridStyle}>
+                <SectionHeader
+                  eyebrow="MY TIME DETAIL"
+                  title="My Daily Case Work"
                   subtitle="ดูว่าวันที่เลือก คุณบันทึกเวลาทำคดีอะไรบ้าง แยก Core Work / Support Time"
                 />
 
@@ -1260,6 +1274,7 @@ export default function DashboardPage() {
                   items={ownDailyStaffSummary}
                   summary={ownDailySummary}
                   isCompact={isCompact}
+                  isMobile={isMobile}
                   detailMode="own"
                 />
               )}
@@ -1267,7 +1282,7 @@ export default function DashboardPage() {
           )}
 
           {canSeeTeamWorkload && (
-            <div style={sectionCardStyle}>
+            <div style={isMobile ? mobileSectionCardStyle : sectionCardStyle}>
               <SectionHeader
                 eyebrow="TEAM TIME"
                 title="Time by Staff"
@@ -1277,7 +1292,7 @@ export default function DashboardPage() {
               {staffTimeSummary.length === 0 ? (
                 <div style={emptyStyle}>No time logs found.</div>
               ) : isCompact ? (
-                <StaffTimeCardList items={staffTimeSummary} />
+                <StaffTimeCardList items={staffTimeSummary} isMobile={isMobile} />
               ) : (
                 <StaffTimeTable items={staffTimeSummary} />
               )}
@@ -1285,8 +1300,8 @@ export default function DashboardPage() {
           )}
 
           {canSeeDailyStaffWorkload && (
-            <div style={sectionCardStyle}>
-              <div style={dailyHeaderGridStyle}>
+            <div style={isMobile ? mobileSectionCardStyle : sectionCardStyle}>
+              <div style={isMobile ? mobileHeaderGridStyle : dailyHeaderGridStyle}>
                 <SectionHeader
                   eyebrow="DAILY TIME CHECK"
                   title="Daily Core / Support by Staff"
@@ -1314,13 +1329,14 @@ export default function DashboardPage() {
                 items={dailyStaffSummary}
                 summary={dailySummary}
                 isCompact={isCompact}
+                isMobile={isMobile}
                 detailMode="team"
               />
             </div>
           )}
 
           {canSeeCaseCost && (
-            <div style={sectionCardStyle}>
+            <div style={isMobile ? mobileSectionCardStyle : sectionCardStyle}>
               <SectionHeader
                 eyebrow="CASE COST"
                 title="Top Time-Consuming Cases"
@@ -1330,7 +1346,10 @@ export default function DashboardPage() {
               {topTimeConsumingCases.length === 0 ? (
                 <div style={emptyStyle}>No time logs found.</div>
               ) : (
-                <TopTimeConsumingCaseList items={topTimeConsumingCases} />
+                <TopTimeConsumingCaseList
+                  items={topTimeConsumingCases}
+                  isMobile={isMobile}
+                />
               )}
             </div>
           )}
@@ -1433,16 +1452,18 @@ function MetricCard({
   subLabel,
   count,
   tone,
+  isMobile = false,
 }: {
   label: string;
   subLabel: string;
   count: string;
   tone: Tone;
+  isMobile?: boolean;
 }) {
   return (
-    <div style={{ ...metricCardStyle, ...getMetricToneStyle(tone) }}>
+    <div style={{ ...(isMobile ? mobileMetricCardStyle : metricCardStyle), ...getMetricToneStyle(tone) }}>
       <div style={{ ...metricTopLineStyle, ...getBarToneStyle(tone) }} />
-      <div style={metricNumberStyle}>{count}</div>
+      <div style={isMobile ? mobileMetricNumberStyle : metricNumberStyle}>{count}</div>
       <div style={metricLabelStyle}>{label}</div>
       <div style={metricSubLabelStyle}>{subLabel}</div>
     </div>
@@ -1452,15 +1473,17 @@ function MetricCard({
 function DistributionCard({
   title,
   rows,
+  isMobile = false,
 }: {
   title: string;
   rows: { label: string; value: number }[];
+  isMobile?: boolean;
 }) {
   const total = rows.reduce((sum, row) => sum + row.value, 0);
   const max = Math.max(1, ...rows.map((row) => row.value));
 
   return (
-    <div style={distributionCardStyle}>
+    <div style={isMobile ? mobileDistributionCardStyle : distributionCardStyle}>
       <div style={distributionTitleWrapStyle}>
         <div style={distributionTitleStyle}>{title}</div>
         <div style={distributionTotalStyle}>{total} total</div>
@@ -1475,7 +1498,7 @@ function DistributionCard({
           const tone = getToneByIndex(index);
 
           return (
-            <div key={row.label} style={distributionRowStyle}>
+            <div key={row.label} style={isMobile ? mobileDistributionRowStyle : distributionRowStyle}>
               <div style={distributionRowTopStyle}>
                 <div style={distributionNameWrapStyle}>
                   <span
@@ -1512,6 +1535,7 @@ function DistributionCard({
 
 function ActionRequiredPanel({
   data,
+  isMobile = false,
 }: {
   data: {
     overdue: number;
@@ -1521,33 +1545,38 @@ function ActionRequiredPanel({
     total: number;
     rows: ActionRequiredItem[];
   };
+  isMobile?: boolean;
 }) {
   return (
     <div>
-      <div style={actionSummaryGridStyle}>
+      <div style={isMobile ? mobileActionSummaryGridStyle : actionSummaryGridStyle}>
         <ActionMiniCard
           label="Overdue"
           value={data.overdue}
           tone="danger"
           description="รายการเกินกำหนด"
+          isMobile={isMobile}
         />
         <ActionMiniCard
           label="Due Today"
           value={data.today}
           tone="warning"
           description="ครบกำหนดวันนี้"
+          isMobile={isMobile}
         />
         <ActionMiniCard
           label="Due Soon"
           value={data.dueSoon}
           tone="soon"
           description="ใกล้ครบกำหนด"
+          isMobile={isMobile}
         />
         <ActionMiniCard
           label="Stale Cases"
           value={data.stale}
           tone="purple"
           description="ไม่ได้อัปเดตเกิน 14 วัน"
+          isMobile={isMobile}
         />
       </div>
 
@@ -1556,7 +1585,7 @@ function ActionRequiredPanel({
       ) : (
         <div style={actionListStyle}>
           {data.rows.map((item) => (
-            <div key={item.id} style={actionRowStyle}>
+            <div key={item.id} style={isMobile ? mobileActionRowStyle : actionRowStyle}>
               <div style={actionRowLeftStyle}>
                 <ActionLevelBadge level={item.level} />
 
@@ -1571,7 +1600,7 @@ function ActionRequiredPanel({
                 </div>
               </div>
 
-              <div style={actionRowRightStyle}>
+              <div style={isMobile ? mobileActionRowRightStyle : actionRowRightStyle}>
                 <div style={actionDateStyle}>{item.dateText || "-"}</div>
 
                 <Link href={item.href} style={openButtonLinkStyle}>
@@ -1591,16 +1620,18 @@ function ActionMiniCard({
   value,
   description,
   tone,
+  isMobile = false,
 }: {
   label: string;
   value: number;
   description: string;
   tone: Tone;
+  isMobile?: boolean;
 }) {
   return (
-    <div style={{ ...actionMiniCardStyle, ...getMetricToneStyle(tone) }}>
+    <div style={{ ...(isMobile ? mobileActionMiniCardStyle : actionMiniCardStyle), ...getMetricToneStyle(tone) }}>
       <div style={{ ...actionMiniTopLineStyle, ...getBarToneStyle(tone) }} />
-      <div style={actionMiniNumberStyle}>{value}</div>
+      <div style={isMobile ? mobileActionMiniNumberStyle : actionMiniNumberStyle}>{value}</div>
       <div style={actionMiniLabelStyle}>{label}</div>
       <div style={actionMiniDescriptionStyle}>{description}</div>
     </div>
@@ -1635,6 +1666,7 @@ function ActionLevelBadge({
 
 function WorkloadOverview({
   summary,
+  isMobile = false,
 }: {
   summary: {
     coreMinutes: number;
@@ -1643,22 +1675,23 @@ function WorkloadOverview({
     corePercent: number;
     supportPercent: number;
   };
+  isMobile?: boolean;
 }) {
   if (summary.totalMinutes <= 0) {
     return <div style={emptyStyle}>No time logs found.</div>;
   }
 
   const donutStyle: CSSProperties = {
-    ...workloadDonutRingStyle,
+    ...(isMobile ? mobileWorkloadDonutRingStyle : workloadDonutRingStyle),
     background: `conic-gradient(#175cd3 0 ${summary.corePercent}%, #7e22ce ${summary.corePercent}% 100%)`,
   };
 
   return (
-    <div style={workloadDonutBoxStyle}>
+    <div style={isMobile ? mobileWorkloadDonutBoxStyle : workloadDonutBoxStyle}>
       <div style={workloadDonutWrapStyle}>
         <div style={donutStyle}>
-          <div style={workloadDonutCenterStyle}>
-            <div style={workloadDonutValueStyle}>
+          <div style={isMobile ? mobileWorkloadDonutCenterStyle : workloadDonutCenterStyle}>
+            <div style={isMobile ? mobileWorkloadDonutValueStyle : workloadDonutValueStyle}>
               {formatDuration(summary.totalMinutes)}
             </div>
             <div style={workloadDonutLabelStyle}>Total</div>
@@ -1669,12 +1702,12 @@ function WorkloadOverview({
       <div style={workloadDonutSideStyle}>
         <div>
           <div style={workloadTotalLabelStyle}>Workload Composition</div>
-          <div style={workloadTotalValueStyle}>
+          <div style={isMobile ? mobileWorkloadTotalValueStyle : workloadTotalValueStyle}>
             Core {summary.corePercent}% / Support {summary.supportPercent}%
           </div>
         </div>
 
-        <div style={workloadMiniGridStyle}>
+        <div style={isMobile ? mobileWorkloadMiniGridStyle : workloadMiniGridStyle}>
           <div style={workloadMiniCardStyle}>
             <div style={workloadMiniTopStyle}>
               <span style={{ ...legendDotStyle, background: "#175cd3" }} />
@@ -1698,7 +1731,13 @@ function WorkloadOverview({
   );
 }
 
-function StaffWorkloadChart({ items }: { items: StaffTimeSummary[] }) {
+function StaffWorkloadChart({
+  items,
+  isMobile = false,
+}: {
+  items: StaffTimeSummary[];
+  isMobile?: boolean;
+}) {
   if (items.length === 0) {
     return <div style={emptyStyle}>No time logs found.</div>;
   }
@@ -1726,7 +1765,7 @@ function StaffWorkloadChart({ items }: { items: StaffTimeSummary[] }) {
             : 0;
 
         return (
-          <div key={item.staff} style={staffSlimRowStyle}>
+          <div key={item.staff} style={isMobile ? mobileStaffSlimRowStyle : staffSlimRowStyle}>
             <div style={staffSlimHeaderStyle}>
               <div style={staffSlimNameWrapStyle}>
                 <span style={staffSlimRankStyle}>#{index + 1}</span>
@@ -1745,7 +1784,7 @@ function StaffWorkloadChart({ items }: { items: StaffTimeSummary[] }) {
               </div>
             </div>
 
-            <div style={staffSlimTrackStyle}>
+            <div style={isMobile ? mobileStaffSlimTrackStyle : staffSlimTrackStyle}>
               <div
                 style={{
                   ...staffSlimTotalBarStyle,
@@ -1809,11 +1848,17 @@ function StaffTimeTable({ items }: { items: StaffTimeSummary[] }) {
   );
 }
 
-function StaffTimeCardList({ items }: { items: StaffTimeSummary[] }) {
+function StaffTimeCardList({
+  items,
+  isMobile = false,
+}: {
+  items: StaffTimeSummary[];
+  isMobile?: boolean;
+}) {
   return (
     <div style={cardListStyle}>
       {items.map((item) => (
-        <div key={item.staff} style={mobileCardStyle}>
+        <div key={item.staff} style={isMobile ? compactMobileCardStyle : mobileCardStyle}>
           <div style={mobileTitleStyle}>{item.staff}</div>
           <InfoLine label="Selected" value={formatDuration(item.periodMinutes)} />
           <InfoLine label="Today" value={formatDuration(item.todayMinutes)} />
@@ -1838,6 +1883,7 @@ function DailyStaffTimeCheck({
   items,
   summary,
   isCompact,
+  isMobile,
   detailMode,
 }: {
   selectedDate: string;
@@ -1848,6 +1894,7 @@ function DailyStaffTimeCheck({
     totalMinutes: number;
   };
   isCompact: boolean;
+  isMobile: boolean;
   detailMode: "own" | "team";
 }) {
   if (!selectedDate || items.length === 0) {
@@ -1856,31 +1903,35 @@ function DailyStaffTimeCheck({
 
   return (
     <div>
-      <div style={dailySummaryGridStyle}>
+      <div style={isMobile ? mobileDailySummaryGridStyle : dailySummaryGridStyle}>
         <DailySummaryCard
           label="Selected Date"
           value={formatDisplayDate(selectedDate)}
           tone="neutral"
+          isMobile={isMobile}
         />
         <DailySummaryCard
           label="Total Time"
           value={formatDuration(summary.totalMinutes)}
           tone="neutral"
+          isMobile={isMobile}
         />
         <DailySummaryCard
           label="Core Work"
           value={formatDuration(summary.coreMinutes)}
           tone="blue"
+          isMobile={isMobile}
         />
         <DailySummaryCard
           label="Support Time"
           value={formatDuration(summary.supportMinutes)}
           tone="purple"
+          isMobile={isMobile}
         />
       </div>
 
       {isCompact ? (
-        <DailyStaffTimeCardList items={items} detailMode={detailMode} />
+        <DailyStaffTimeCardList items={items} detailMode={detailMode} isMobile={isMobile} />
       ) : (
         <DailyStaffTimeTable items={items} detailMode={detailMode} />
       )}
@@ -1892,15 +1943,17 @@ function DailySummaryCard({
   label,
   value,
   tone,
+  isMobile = false,
 }: {
   label: string;
   value: string;
   tone: Tone;
+  isMobile?: boolean;
 }) {
   return (
-    <div style={{ ...dailySummaryCardStyle, ...getMetricToneStyle(tone) }}>
+    <div style={{ ...(isMobile ? mobileDailySummaryCardStyle : dailySummaryCardStyle), ...getMetricToneStyle(tone) }}>
       <div style={dailySummaryLabelStyle}>{label}</div>
-      <div style={dailySummaryValueStyle}>{value}</div>
+      <div style={isMobile ? mobileDailySummaryValueStyle : dailySummaryValueStyle}>{value}</div>
     </div>
   );
 }
@@ -1939,7 +1992,7 @@ function DailyStaffTimeTable({
                 <DailySignalBadge item={item} />
               </td>
               <td style={tdWideStyle}>
-                <DailyCaseDetailList details={item.details} />
+                <DailyCaseDetailList details={item.details} isMobile={false} />
               </td>
             </tr>
           ))}
@@ -1952,14 +2005,16 @@ function DailyStaffTimeTable({
 function DailyStaffTimeCardList({
   items,
   detailMode,
+  isMobile = false,
 }: {
   items: DailyStaffTimeSummary[];
   detailMode: "own" | "team";
+  isMobile?: boolean;
 }) {
   return (
     <div style={cardListStyle}>
       {items.map((item) => (
-        <div key={item.staff} style={mobileCardStyle}>
+        <div key={item.staff} style={isMobile ? compactMobileCardStyle : mobileCardStyle}>
           {detailMode === "team" && (
             <div style={mobileTitleStyle}>{item.staff}</div>
           )}
@@ -1972,7 +2027,7 @@ function DailyStaffTimeCardList({
           <div style={dailySignalWrapStyle}>
             <DailySignalBadge item={item} />
           </div>
-          <DailyCaseDetailList details={item.details} />
+          <DailyCaseDetailList details={item.details} isMobile={isMobile} />
         </div>
       ))}
     </div>
@@ -1981,8 +2036,10 @@ function DailyStaffTimeCardList({
 
 function DailyCaseDetailList({
   details,
+  isMobile = false,
 }: {
   details: DailyStaffTimeDetail[];
+  isMobile?: boolean;
 }) {
   if (details.length === 0) {
     return <span style={mutedTextStyle}>-</span>;
@@ -1991,7 +2048,7 @@ function DailyCaseDetailList({
   return (
     <div style={dailyDetailListStyle}>
       {details.map((detail) => (
-        <div key={detail.id} style={dailyDetailItemStyle}>
+        <div key={detail.id} style={isMobile ? mobileDailyDetailItemStyle : dailyDetailItemStyle}>
           <div style={dailyDetailTopStyle}>
             <Link
               href={`/cases/${detail.caseId}#timelogs`}
@@ -2039,11 +2096,17 @@ function DailySignalBadge({ item }: { item: DailyStaffTimeSummary }) {
   return <span style={dailySignalSuccessStyle}>ปกติ</span>;
 }
 
-function TopTimeConsumingCaseList({ items }: { items: CaseTimeSummary[] }) {
+function TopTimeConsumingCaseList({
+  items,
+  isMobile = false,
+}: {
+  items: CaseTimeSummary[];
+  isMobile?: boolean;
+}) {
   const maxMinutes = Math.max(1, ...items.map((item) => item.totalMinutes));
 
   return (
-    <div style={timeCaseListStyle}>
+    <div style={isMobile ? compactTimeCaseListStyle : timeCaseListStyle}>
       {items.map((item, index) => {
         const width = Math.max(
           4,
@@ -2061,22 +2124,22 @@ function TopTimeConsumingCaseList({ items }: { items: CaseTimeSummary[] }) {
             : 0;
 
         return (
-          <div key={item.caseId} style={timeCaseItemStyle}>
-            <div style={timeCaseHeaderStyle}>
+          <div key={item.caseId} style={isMobile ? compactTimeCaseItemStyle : timeCaseItemStyle}>
+            <div style={isMobile ? compactTimeCaseHeaderStyle : timeCaseHeaderStyle}>
               <div>
-                <div style={timeCaseRankStyle}>#{index + 1}</div>
-                <div style={timeCaseTitleStyle}>
+                <div style={isMobile ? compactTimeCaseRankStyle : timeCaseRankStyle}>#{index + 1}</div>
+                <div style={isMobile ? compactTimeCaseTitleStyle : timeCaseTitleStyle}>
                   {item.fileNo} · {item.title}
                 </div>
                 <div style={timeCaseClientStyle}>{item.clientName}</div>
               </div>
 
-              <div style={timeCaseTotalStyle}>
+              <div style={isMobile ? compactTimeCaseTotalStyle : timeCaseTotalStyle}>
                 {formatDuration(item.totalMinutes)}
               </div>
             </div>
 
-            <div style={timeCaseBarTrackStyle}>
+            <div style={isMobile ? compactTimeCaseBarTrackStyle : timeCaseBarTrackStyle}>
               <div
                 style={{
                   ...timeCaseBarOuterStyle,
@@ -2098,7 +2161,7 @@ function TopTimeConsumingCaseList({ items }: { items: CaseTimeSummary[] }) {
               </div>
             </div>
 
-            <div style={timeCaseFooterStyle}>
+            <div style={isMobile ? compactTimeCaseFooterStyle : timeCaseFooterStyle}>
               <span>Core {formatDuration(item.coreMinutes)}</span>
               <span>Support {formatDuration(item.supportMinutes)}</span>
               <Link
@@ -2691,6 +2754,13 @@ const pageStyle: CSSProperties = {
   color: "#111111",
 };
 
+const mobilePageStyle: CSSProperties = {
+  padding: "12px 10px 28px",
+  maxWidth: 1280,
+  margin: "0 auto",
+  color: "#111111",
+};
+
 const blockStyle: CSSProperties = {
   marginBottom: 18,
 };
@@ -2710,6 +2780,13 @@ const heroPanelStyle: CSSProperties = {
   boxShadow: "0 8px 28px rgba(15, 23, 42, 0.06)",
 };
 
+const mobileHeroPanelStyle: CSSProperties = {
+  ...heroPanelStyle,
+  padding: 14,
+  borderRadius: 14,
+  marginBottom: 12,
+};
+
 const eyebrowStyle: CSSProperties = {
   fontSize: 12,
   fontWeight: 900,
@@ -2723,6 +2800,11 @@ const heroTitleStyle: CSSProperties = {
   fontSize: 28,
   fontWeight: 950,
   color: "#111111",
+};
+
+const mobileHeroTitleStyle: CSSProperties = {
+  ...heroTitleStyle,
+  fontSize: 22,
 };
 
 const heroSubtitleStyle: CSSProperties = {
@@ -2739,6 +2821,13 @@ const filterPanelStyle: CSSProperties = {
   padding: 16,
   background: "#ffffff",
   marginBottom: 18,
+};
+
+const mobileFilterPanelStyle: CSSProperties = {
+  ...filterPanelStyle,
+  padding: 12,
+  borderRadius: 14,
+  marginBottom: 12,
 };
 
 const filterHeaderStyle: CSSProperties = {
@@ -2789,6 +2878,12 @@ const compactSummaryGridStyle: CSSProperties = {
   gap: 10,
 };
 
+const mobileSummaryGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: 8,
+};
+
 const metricCardStyle: CSSProperties = {
   position: "relative",
   borderRadius: 14,
@@ -2797,6 +2892,13 @@ const metricCardStyle: CSSProperties = {
   color: "#111111",
   boxShadow: "0 6px 18px rgba(15, 23, 42, 0.045)",
   overflow: "hidden",
+};
+
+const mobileMetricCardStyle: CSSProperties = {
+  ...metricCardStyle,
+  padding: 10,
+  minHeight: 78,
+  borderRadius: 12,
 };
 
 const metricTopLineStyle: CSSProperties = {
@@ -2812,6 +2914,12 @@ const metricNumberStyle: CSSProperties = {
   marginBottom: 6,
   color: "#111111",
   lineHeight: 1.1,
+};
+
+const mobileMetricNumberStyle: CSSProperties = {
+  ...metricNumberStyle,
+  fontSize: 21,
+  marginBottom: 4,
 };
 
 const metricLabelStyle: CSSProperties = {
@@ -2833,12 +2941,25 @@ const miniGridStyle: CSSProperties = {
   marginBottom: 18,
 };
 
+const mobileMiniGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr",
+  gap: 10,
+  marginBottom: 12,
+};
+
 const distributionCardStyle: CSSProperties = {
   border: "1px solid #eeeeee",
   borderRadius: 18,
   padding: 18,
   background: "linear-gradient(135deg, #ffffff 0%, #fbfcff 100%)",
   boxShadow: "0 8px 24px rgba(15, 23, 42, 0.045)",
+};
+
+const mobileDistributionCardStyle: CSSProperties = {
+  ...distributionCardStyle,
+  padding: 12,
+  borderRadius: 14,
 };
 
 const distributionTitleWrapStyle: CSSProperties = {
@@ -2864,6 +2985,11 @@ const distributionTotalStyle: CSSProperties = {
 const distributionRowStyle: CSSProperties = {
   padding: "10px 0",
   borderTop: "1px solid #f1f5f9",
+};
+
+const mobileDistributionRowStyle: CSSProperties = {
+  ...distributionRowStyle,
+  padding: "8px 0",
 };
 
 const distributionRowTopStyle: CSSProperties = {
@@ -2939,6 +3065,14 @@ const dailyHeaderGridStyle: CSSProperties = {
   marginBottom: 12,
 };
 
+const mobileHeaderGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr",
+  gap: 10,
+  alignItems: "start",
+  marginBottom: 12,
+};
+
 const sectionCardStyle: CSSProperties = {
   border: "1px solid #eeeeee",
   borderRadius: 16,
@@ -2946,6 +3080,13 @@ const sectionCardStyle: CSSProperties = {
   background: "#ffffff",
   marginBottom: 14,
   boxShadow: "0 6px 18px rgba(15, 23, 42, 0.04)",
+};
+
+const mobileSectionCardStyle: CSSProperties = {
+  ...sectionCardStyle,
+  borderRadius: 14,
+  padding: 12,
+  marginBottom: 10,
 };
 
 const sectionHeaderStyle: CSSProperties = {
@@ -3018,6 +3159,12 @@ const secondaryButtonStyle: CSSProperties = {
   fontWeight: 800,
 };
 
+const mobileSecondaryButtonStyle: CSSProperties = {
+  ...secondaryButtonStyle,
+  width: "100%",
+  justifyContent: "center",
+};
+
 const ghostButtonStyle: CSSProperties = {
   padding: "9px 13px",
   background: "#f8fafc",
@@ -3027,6 +3174,11 @@ const ghostButtonStyle: CSSProperties = {
   cursor: "pointer",
   whiteSpace: "nowrap",
   fontWeight: 800,
+};
+
+const mobileGhostButtonStyle: CSSProperties = {
+  ...ghostButtonStyle,
+  width: "100%",
 };
 
 const tableStyle: CSSProperties = {
@@ -3119,6 +3271,12 @@ const mobileCardStyle: CSSProperties = {
   boxShadow: "0 1px 8px rgba(0,0,0,0.04)",
 };
 
+const compactMobileCardStyle: CSSProperties = {
+  ...mobileCardStyle,
+  padding: 10,
+  borderRadius: 12,
+};
+
 const mobileTitleStyle: CSSProperties = {
   marginTop: 4,
   color: "#333333",
@@ -3184,6 +3342,17 @@ const workloadDonutBoxStyle: CSSProperties = {
   background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
 };
 
+const mobileWorkloadDonutBoxStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr",
+  gap: 12,
+  alignItems: "center",
+  padding: 12,
+  border: "1px solid #eeeeee",
+  borderRadius: 14,
+  background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+};
+
 const workloadDonutWrapStyle: CSSProperties = {
   display: "flex",
   justifyContent: "center",
@@ -3200,6 +3369,12 @@ const workloadDonutRingStyle: CSSProperties = {
   boxShadow: "inset 0 0 0 1px rgba(15, 23, 42, 0.06)",
 };
 
+const mobileWorkloadDonutRingStyle: CSSProperties = {
+  ...workloadDonutRingStyle,
+  width: 132,
+  height: 132,
+};
+
 const workloadDonutCenterStyle: CSSProperties = {
   width: 108,
   height: 108,
@@ -3214,11 +3389,23 @@ const workloadDonutCenterStyle: CSSProperties = {
   padding: 10,
 };
 
+const mobileWorkloadDonutCenterStyle: CSSProperties = {
+  ...workloadDonutCenterStyle,
+  width: 84,
+  height: 84,
+  padding: 8,
+};
+
 const workloadDonutValueStyle: CSSProperties = {
   fontSize: 20,
   fontWeight: 950,
   color: "#111111",
   lineHeight: 1.2,
+};
+
+const mobileWorkloadDonutValueStyle: CSSProperties = {
+  ...workloadDonutValueStyle,
+  fontSize: 16,
 };
 
 const workloadDonutLabelStyle: CSSProperties = {
@@ -3248,10 +3435,21 @@ const workloadTotalValueStyle: CSSProperties = {
   lineHeight: 1.15,
 };
 
+const mobileWorkloadTotalValueStyle: CSSProperties = {
+  ...workloadTotalValueStyle,
+  fontSize: 20,
+};
+
 const workloadMiniGridStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
   gap: 10,
+};
+
+const mobileWorkloadMiniGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr",
+  gap: 8,
 };
 
 const workloadMiniCardStyle: CSSProperties = {
@@ -3280,6 +3478,12 @@ const staffSlimRowStyle: CSSProperties = {
   borderRadius: 12,
   padding: "9px 10px",
   background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+};
+
+const mobileStaffSlimRowStyle: CSSProperties = {
+  ...staffSlimRowStyle,
+  padding: "8px 9px",
+  borderRadius: 11,
 };
 
 const staffSlimHeaderStyle: CSSProperties = {
@@ -3340,6 +3544,11 @@ const staffSlimTrackStyle: CSSProperties = {
   overflow: "hidden",
 };
 
+const mobileStaffSlimTrackStyle: CSSProperties = {
+  ...staffSlimTrackStyle,
+  height: 9,
+};
+
 const staffSlimTotalBarStyle: CSSProperties = {
   height: "100%",
   display: "flex",
@@ -3365,10 +3574,22 @@ const dailySummaryGridStyle: CSSProperties = {
   marginBottom: 14,
 };
 
+const mobileDailySummaryGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: 8,
+  marginBottom: 10,
+};
+
 const dailySummaryCardStyle: CSSProperties = {
   borderRadius: 12,
   padding: 12,
   boxShadow: "0 4px 14px rgba(15, 23, 42, 0.035)",
+};
+
+const mobileDailySummaryCardStyle: CSSProperties = {
+  ...dailySummaryCardStyle,
+  padding: 10,
 };
 
 const dailySummaryLabelStyle: CSSProperties = {
@@ -3382,6 +3603,11 @@ const dailySummaryValueStyle: CSSProperties = {
   fontSize: 18,
   color: "#111111",
   fontWeight: 950,
+};
+
+const mobileDailySummaryValueStyle: CSSProperties = {
+  ...dailySummaryValueStyle,
+  fontSize: 16,
 };
 
 const dailySignalWrapStyle: CSSProperties = {
@@ -3431,6 +3657,12 @@ const dailyDetailItemStyle: CSSProperties = {
   background: "#ffffff",
 };
 
+const mobileDailyDetailItemStyle: CSSProperties = {
+  ...dailyDetailItemStyle,
+  padding: 9,
+  borderRadius: 10,
+};
+
 const dailyDetailTopStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
@@ -3473,10 +3705,22 @@ const timeCaseListStyle: CSSProperties = {
   gap: 12,
 };
 
+const compactTimeCaseListStyle: CSSProperties = {
+  display: "grid",
+  gap: 8,
+};
+
 const timeCaseItemStyle: CSSProperties = {
   border: "1px solid #eeeeee",
   borderRadius: 16,
   padding: 14,
+  background: "linear-gradient(135deg, #ffffff 0%, #fafafa 100%)",
+};
+
+const compactTimeCaseItemStyle: CSSProperties = {
+  border: "1px solid #eeeeee",
+  borderRadius: 12,
+  padding: 10,
   background: "linear-gradient(135deg, #ffffff 0%, #fafafa 100%)",
 };
 
@@ -3486,6 +3730,14 @@ const timeCaseHeaderStyle: CSSProperties = {
   gap: 12,
   alignItems: "flex-start",
   marginBottom: 10,
+};
+
+const compactTimeCaseHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 8,
+  alignItems: "flex-start",
+  marginBottom: 8,
 };
 
 const timeCaseRankStyle: CSSProperties = {
@@ -3499,10 +3751,22 @@ const timeCaseRankStyle: CSSProperties = {
   marginBottom: 6,
 };
 
+const compactTimeCaseRankStyle: CSSProperties = {
+  ...timeCaseRankStyle,
+  padding: "2px 7px",
+  fontSize: 11,
+  marginBottom: 4,
+};
+
 const timeCaseTitleStyle: CSSProperties = {
   fontWeight: 950,
   color: "#111111",
   lineHeight: 1.4,
+};
+
+const compactTimeCaseTitleStyle: CSSProperties = {
+  ...timeCaseTitleStyle,
+  fontSize: 13,
 };
 
 const timeCaseClientStyle: CSSProperties = {
@@ -3518,9 +3782,22 @@ const timeCaseTotalStyle: CSSProperties = {
   whiteSpace: "nowrap",
 };
 
+const compactTimeCaseTotalStyle: CSSProperties = {
+  ...timeCaseTotalStyle,
+  fontSize: 13,
+};
+
 const timeCaseBarTrackStyle: CSSProperties = {
   width: "100%",
   height: 16,
+  background: "#eef2f7",
+  borderRadius: 999,
+  overflow: "hidden",
+};
+
+const compactTimeCaseBarTrackStyle: CSSProperties = {
+  width: "100%",
+  height: 9,
   background: "#eef2f7",
   borderRadius: 999,
   overflow: "hidden",
@@ -3552,6 +3829,13 @@ const timeCaseFooterStyle: CSSProperties = {
   color: "#666666",
   fontSize: 12,
   fontWeight: 800,
+};
+
+const compactTimeCaseFooterStyle: CSSProperties = {
+  ...timeCaseFooterStyle,
+  gap: 8,
+  marginTop: 6,
+  fontSize: 11,
 };
 
 const compactAllClearStyle: CSSProperties = {
@@ -3596,11 +3880,25 @@ const actionSummaryGridStyle: CSSProperties = {
   marginBottom: 14,
 };
 
+const mobileActionSummaryGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: 8,
+  marginBottom: 10,
+};
+
 const actionMiniCardStyle: CSSProperties = {
   borderRadius: 14,
   padding: 12,
   minHeight: 86,
   boxShadow: "0 6px 18px rgba(15, 23, 42, 0.045)",
+};
+
+const mobileActionMiniCardStyle: CSSProperties = {
+  ...actionMiniCardStyle,
+  padding: 10,
+  minHeight: 74,
+  borderRadius: 12,
 };
 
 const actionMiniTopLineStyle: CSSProperties = {
@@ -3616,6 +3914,11 @@ const actionMiniNumberStyle: CSSProperties = {
   color: "#111111",
   lineHeight: 1,
   marginBottom: 6,
+};
+
+const mobileActionMiniNumberStyle: CSSProperties = {
+  ...actionMiniNumberStyle,
+  fontSize: 20,
 };
 
 const actionMiniLabelStyle: CSSProperties = {
@@ -3647,6 +3950,16 @@ const actionRowStyle: CSSProperties = {
   background: "linear-gradient(135deg, #ffffff 0%, #fafafa 100%)",
 };
 
+const mobileActionRowStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr",
+  gap: 10,
+  border: "1px solid #eeeeee",
+  borderRadius: 12,
+  padding: 10,
+  background: "linear-gradient(135deg, #ffffff 0%, #fafafa 100%)",
+};
+
 const actionRowLeftStyle: CSSProperties = {
   display: "flex",
   gap: 12,
@@ -3660,6 +3973,14 @@ const actionRowRightStyle: CSSProperties = {
   alignItems: "center",
   flexWrap: "wrap",
   justifyContent: "flex-end",
+};
+
+const mobileActionRowRightStyle: CSSProperties = {
+  display: "flex",
+  gap: 10,
+  alignItems: "center",
+  flexWrap: "wrap",
+  justifyContent: "space-between",
 };
 
 const actionCaseTitleStyle: CSSProperties = {
