@@ -2106,76 +2106,113 @@ function TopTimeConsumingCaseList({
   const maxMinutes = Math.max(1, ...items.map((item) => item.totalMinutes));
 
   return (
-    <div style={isMobile ? compactTimeCaseListStyle : timeCaseListStyle}>
-      {items.map((item, index) => {
-        const width = Math.max(
-          4,
-          Math.round((item.totalMinutes / maxMinutes) * 100)
-        );
+  <div style={isMobile ? compactTimeCaseListStyle : timeCaseListStyle}>
+    {items.map((item, index) => {
+      const width = Math.max(
+        4,
+        Math.round((item.totalMinutes / maxMinutes) * 100)
+      );
 
-        const corePercent =
-          item.totalMinutes > 0
-            ? Math.round((item.coreMinutes / item.totalMinutes) * 100)
-            : 0;
+      const corePercent =
+        item.totalMinutes > 0
+          ? Math.round((item.coreMinutes / item.totalMinutes) * 100)
+          : 0;
 
-        const supportPercent =
-          item.totalMinutes > 0
-            ? Math.round((item.supportMinutes / item.totalMinutes) * 100)
-            : 0;
+      const supportPercent =
+        item.totalMinutes > 0
+          ? Math.round((item.supportMinutes / item.totalMinutes) * 100)
+          : 0;
 
-        return (
-          <div key={item.caseId} style={isMobile ? compactTimeCaseItemStyle : timeCaseItemStyle}>
-            <div style={isMobile ? compactTimeCaseHeaderStyle : timeCaseHeaderStyle}>
-              <div>
-                <div style={isMobile ? compactTimeCaseRankStyle : timeCaseRankStyle}>#{index + 1}</div>
-                <div style={isMobile ? compactTimeCaseTitleStyle : timeCaseTitleStyle}>
+      return (
+        <div
+          key={item.caseId}
+          style={isMobile ? compactTimeCaseItemStyle : timeCaseItemStyle}
+        >
+          <div
+            style={
+              isMobile ? compactTimeCaseHeaderStyle : timeCaseHeaderStyle
+            }
+          >
+            <div style={timeCaseLeftStyle}>
+              <span
+                style={
+                  isMobile
+                    ? compactTimeCaseRankStyle
+                    : timeCaseRankStyle
+                }
+              >
+                #{index + 1}
+              </span>
+
+              <div style={timeCaseTextWrapStyle}>
+                <div
+                  style={
+                    isMobile
+                      ? compactTimeCaseTitleStyle
+                      : timeCaseTitleStyle
+                  }
+                >
                   {item.fileNo} · {item.title}
                 </div>
+
                 <div style={timeCaseClientStyle}>{item.clientName}</div>
               </div>
-
-              <div style={isMobile ? compactTimeCaseTotalStyle : timeCaseTotalStyle}>
-                {formatDuration(item.totalMinutes)}
-              </div>
             </div>
 
-            <div style={isMobile ? compactTimeCaseBarTrackStyle : timeCaseBarTrackStyle}>
-              <div
-                style={{
-                  ...timeCaseBarOuterStyle,
-                  width: `${width}%`,
-                }}
-              >
-                <div
-                  style={{
-                    ...timeCaseCorePartStyle,
-                    width: `${corePercent}%`,
-                  }}
-                />
-                <div
-                  style={{
-                    ...timeCaseSupportPartStyle,
-                    width: `${supportPercent}%`,
-                  }}
-                />
-              </div>
-            </div>
-
-            <div style={isMobile ? compactTimeCaseFooterStyle : timeCaseFooterStyle}>
-              <span>Core {formatDuration(item.coreMinutes)}</span>
-              <span>Support {formatDuration(item.supportMinutes)}</span>
-              <Link
-                href={`/cases/${item.caseId}#timelogs`}
-                style={miniOpenLinkStyle}
-              >
-                Open
-              </Link>
+            <div
+              style={
+                isMobile
+                  ? compactTimeCaseTotalStyle
+                  : timeCaseTotalStyle
+              }
+            >
+              {formatDuration(item.totalMinutes)}
             </div>
           </div>
-        );
-      })}
-    </div>
-  );
+
+          <div
+            style={
+              isMobile ? compactTimeCaseBarTrackStyle : timeCaseBarTrackStyle
+            }
+          >
+            <div
+              style={{
+                ...timeCaseBarOuterStyle,
+                width: `${width}%`,
+              }}
+            >
+              <div
+                style={{
+                  ...timeCaseCorePartStyle,
+                  width: `${corePercent}%`,
+                }}
+              />
+              <div
+                style={{
+                  ...timeCaseSupportPartStyle,
+                  width: `${supportPercent}%`,
+                }}
+              />
+            </div>
+          </div>
+
+          <div
+            style={isMobile ? compactTimeCaseFooterStyle : timeCaseFooterStyle}
+          >
+            <span>Core {formatDuration(item.coreMinutes)}</span>
+            <span>Support {formatDuration(item.supportMinutes)}</span>
+            <Link
+              href={`/cases/${item.caseId}#timelogs`}
+              style={miniOpenLinkStyle}
+            >
+              Open
+            </Link>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+);
 }
 
 function CompactAllClearBox({ text }: { text: string }) {
@@ -3702,94 +3739,116 @@ const mutedTextStyle: CSSProperties = {
 
 const timeCaseListStyle: CSSProperties = {
   display: "grid",
-  gap: 12,
+  gap: 8,
 };
 
 const compactTimeCaseListStyle: CSSProperties = {
   display: "grid",
-  gap: 8,
+  gap: 6,
 };
 
 const timeCaseItemStyle: CSSProperties = {
   border: "1px solid #eeeeee",
-  borderRadius: 16,
-  padding: 14,
-  background: "linear-gradient(135deg, #ffffff 0%, #fafafa 100%)",
+  borderRadius: 12,
+  padding: "8px 10px",
+  background: "#ffffff",
 };
 
 const compactTimeCaseItemStyle: CSSProperties = {
   border: "1px solid #eeeeee",
-  borderRadius: 12,
-  padding: 10,
-  background: "linear-gradient(135deg, #ffffff 0%, #fafafa 100%)",
+  borderRadius: 10,
+  padding: "7px 8px",
+  background: "#ffffff",
 };
 
 const timeCaseHeaderStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  gap: 12,
-  alignItems: "flex-start",
-  marginBottom: 10,
+  gap: 10,
+  alignItems: "center",
+  marginBottom: 6,
 };
 
 const compactTimeCaseHeaderStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   gap: 8,
-  alignItems: "flex-start",
-  marginBottom: 8,
+  alignItems: "center",
+  marginBottom: 5,
+};
+
+const timeCaseLeftStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  minWidth: 0,
+};
+
+const timeCaseTextWrapStyle: CSSProperties = {
+  minWidth: 0,
 };
 
 const timeCaseRankStyle: CSSProperties = {
   display: "inline-flex",
-  padding: "3px 8px",
+  alignItems: "center",
+  justifyContent: "center",
+  width: 28,
+  height: 22,
   borderRadius: 999,
   background: "#edf4ff",
   color: "#175cd3",
-  fontSize: 12,
+  fontSize: 11,
   fontWeight: 950,
-  marginBottom: 6,
+  flex: "0 0 auto",
 };
 
 const compactTimeCaseRankStyle: CSSProperties = {
   ...timeCaseRankStyle,
-  padding: "2px 7px",
-  fontSize: 11,
-  marginBottom: 4,
+  width: 26,
+  height: 20,
+  fontSize: 10,
 };
 
 const timeCaseTitleStyle: CSSProperties = {
   fontWeight: 950,
   color: "#111111",
-  lineHeight: 1.4,
+  lineHeight: 1.25,
+  fontSize: 14,
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
 };
 
 const compactTimeCaseTitleStyle: CSSProperties = {
   ...timeCaseTitleStyle,
-  fontSize: 13,
+  fontSize: 12,
 };
 
 const timeCaseClientStyle: CSSProperties = {
-  marginTop: 3,
-  color: "#555555",
+  marginTop: 1,
+  color: "#666666",
   fontWeight: 700,
-  fontSize: 13,
+  fontSize: 11,
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
 };
 
 const timeCaseTotalStyle: CSSProperties = {
   fontWeight: 950,
   color: "#111111",
   whiteSpace: "nowrap",
+  fontSize: 13,
 };
 
 const compactTimeCaseTotalStyle: CSSProperties = {
   ...timeCaseTotalStyle,
-  fontSize: 13,
+  fontSize: 12,
 };
 
 const timeCaseBarTrackStyle: CSSProperties = {
   width: "100%",
-  height: 16,
+  height: 6,
   background: "#eef2f7",
   borderRadius: 999,
   overflow: "hidden",
@@ -3797,7 +3856,7 @@ const timeCaseBarTrackStyle: CSSProperties = {
 
 const compactTimeCaseBarTrackStyle: CSSProperties = {
   width: "100%",
-  height: 9,
+  height: 5,
   background: "#eef2f7",
   borderRadius: 999,
   overflow: "hidden",
@@ -3823,19 +3882,19 @@ const timeCaseSupportPartStyle: CSSProperties = {
 const timeCaseFooterStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  gap: 10,
+  gap: 8,
   flexWrap: "wrap",
-  marginTop: 8,
+  marginTop: 5,
   color: "#666666",
-  fontSize: 12,
+  fontSize: 11,
   fontWeight: 800,
 };
 
 const compactTimeCaseFooterStyle: CSSProperties = {
   ...timeCaseFooterStyle,
-  gap: 8,
-  marginTop: 6,
-  fontSize: 11,
+  gap: 6,
+  marginTop: 4,
+  fontSize: 10,
 };
 
 const compactAllClearStyle: CSSProperties = {
