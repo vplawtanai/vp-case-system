@@ -143,6 +143,13 @@ export default function UsersPage() {
   const saveUser = async () => {
     if (!editingUser || !permissions.canManageUsers) return;
 
+    console.log("Updating user profile id:", editingUser.id);
+
+    if (!editingUser.id) {
+      alert("Missing user id");
+      return;
+    }
+
     try {
       setSaving(true);
       setErrorText("");
@@ -158,15 +165,28 @@ export default function UsersPage() {
         })
         .eq("id", editingUser.id)
         .select("id, full_name, staff_name, role, financial_access, active")
-        .single();
+        .maybeSingle();
 
-      if (error || !data) {
+      if (error) {
         console.error("UPDATE USER PROFILE FAILED:", error);
         alert(
           "Update user profile failed:\n" +
-            (error?.message || "No updated row returned from user_profiles")
+            [
+              `message: ${error.message || "-"}`,
+              `details: ${error.details || "-"}`,
+              `hint: ${error.hint || "-"}`,
+              `code: ${error.code || "-"}`,
+            ].join("\n")
         );
-        setErrorText(error?.message || "No updated row returned");
+        setErrorText(error.message || "Save user failed");
+        return;
+      }
+
+      if (!data) {
+        alert(
+          "No user profile was updated. Please check user id or RLS policy."
+        );
+        setErrorText("No user profile was updated");
         return;
       }
 
