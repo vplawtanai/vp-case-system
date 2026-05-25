@@ -159,12 +159,18 @@ export default function UsersPage() {
         .eq("id", editingUser.id);
 
       if (error) {
+        console.error("UPDATE USER PROFILE FAILED:", error);
+        alert(
+          "Update user profile failed:\n" +
+            (error.message || JSON.stringify(error, null, 2))
+        );
         setErrorText(error.message || "Save user failed");
         return;
       }
 
       setEditingUser(null);
       await loadUsers();
+      alert("Updated user profile successfully");
     } finally {
       setSaving(false);
     }
