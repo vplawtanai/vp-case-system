@@ -147,7 +147,7 @@ export default function UsersPage() {
       setSaving(true);
       setErrorText("");
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("user_profiles")
         .update({
           full_name: editingUser.full_name.trim(),
@@ -156,15 +156,17 @@ export default function UsersPage() {
           financial_access: editingUser.financial_access,
           active: editingUser.active,
         })
-        .eq("id", editingUser.id);
+        .eq("id", editingUser.id)
+        .select("id, full_name, staff_name, role, financial_access, active")
+        .single();
 
-      if (error) {
+      if (error || !data) {
         console.error("UPDATE USER PROFILE FAILED:", error);
         alert(
           "Update user profile failed:\n" +
-            (error.message || JSON.stringify(error, null, 2))
+            (error?.message || "No updated row returned from user_profiles")
         );
-        setErrorText(error.message || "Save user failed");
+        setErrorText(error?.message || "No updated row returned");
         return;
       }
 
