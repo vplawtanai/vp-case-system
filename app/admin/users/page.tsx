@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import AuthGuard from "../../components/AuthGuard";
 import AppTopNav from "../../components/AppTopNav";
 import { supabase } from "../../../lib/supabase";
+import { createAuditLog } from "../../../lib/auditLog";
 import { buildPermissions } from "../../../lib/permissions";
 import type { UserPermissions, UserRole } from "../../../lib/permissions";
 
@@ -154,15 +155,52 @@ export default function UsersPage() {
       setSaving(true);
       setErrorText("");
 
+      const oldUser = users.find((user) => user.id === editingUser.id);
+      const payload = {
+        full_name: editingUser.full_name.trim(),
+        staff_name: editingUser.staff_name.trim(),
+        role: editingUser.role,
+        financial_access: editingUser.financial_access,
+        active: editingUser.active,
+      };
+      const oldData: Record<string, unknown> = {};
+      const newData: Record<string, unknown> = {};
+
+      if ((oldUser?.full_name || "") !== payload.full_name) {
+        oldData.full_name = oldUser?.full_name || "";
+        newData.full_name = payload.full_name;
+      }
+
+      if ((oldUser?.staff_name || "") !== payload.staff_name) {
+        oldData.staff_name = oldUser?.staff_name || "";
+        newData.staff_name = payload.staff_name;
+      }
+
+      if (normalizeEditableRole(oldUser?.role) !== payload.role) {
+        oldData.role = normalizeEditableRole(oldUser?.role);
+        newData.role = payload.role;
+      }
+
+      if ((oldUser?.financial_access === true) !== payload.financial_access) {
+        oldData.financial_access = oldUser?.financial_access === true;
+        newData.financial_access = payload.financial_access;
+      }
+
+      if ((oldUser?.active === true) !== payload.active) {
+        oldData.active = oldUser?.active === true;
+        newData.active = payload.active;
+      }
+
+      const changedFields = Object.keys(newData);
+
+      if (changedFields.length === 0) {
+        alert("No changes to save");
+        return;
+      }
+
       const { data, error } = await supabase
         .from("user_profiles")
-        .update({
-          full_name: editingUser.full_name.trim(),
-          staff_name: editingUser.staff_name.trim(),
-          role: editingUser.role,
-          financial_access: editingUser.financial_access,
-          active: editingUser.active,
-        })
+        .update(payload)
         .eq("id", editingUser.id)
         .select("id, full_name, staff_name, role, financial_access, active")
         .maybeSingle();
@@ -188,6 +226,22 @@ export default function UsersPage() {
         );
         setErrorText("No user profile was updated");
         return;
+      }
+
+      try {
+        await createAuditLog({
+          caseId: null,
+          tableName: "user_profiles",
+          recordId: editingUser.id,
+          action: "update",
+          oldData,
+          newData,
+          note: `Admin updated user profile: ${
+            editingUser.email || editingUser.id
+          } | changed: ${changedFields.join(", ")}`,
+        });
+      } catch (auditError) {
+        console.error("CREATE USER PROFILE AUDIT LOG FAILED:", auditError);
       }
 
       setEditingUser(null);
