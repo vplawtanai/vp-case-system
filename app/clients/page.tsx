@@ -71,6 +71,8 @@ const clientTypeOptions = [
   { value: "government_agency", label: "Government Agency" },
   { value: "association", label: "Association / Foundation" },
   { value: "foreign_company", label: "Foreign Company" },
+  { value: "joint_venture", label: "Joint Venture" },
+  { value: "consortium", label: "Consortium" },
   { value: "other", label: "Other" },
 ];
 
