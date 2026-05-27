@@ -10,7 +10,7 @@ import type { UserPermissions, UserRole } from "../../lib/permissions";
 type AppTopNavProps = {
   title: string;
   subtitle?: string;
-  activePage: "dashboard" | "alerts" | "cases" | "users";
+  activePage: "dashboard" | "alerts" | "cases" | "clients" | "users";
 };
 
 type UserProfile = {
@@ -70,7 +70,7 @@ export default function AppTopNav({
   }, []);
 
   const getLinkStyle = (
-    page: "dashboard" | "cases" | "users"
+    page: "dashboard" | "cases" | "clients" | "users"
   ): React.CSSProperties => {
     const isActive = activePage === page;
 
@@ -108,6 +108,12 @@ export default function AppTopNav({
         {permissions.canViewCases && (
           <Link href="/cases" style={getLinkStyle("cases")}>
             Cases
+          </Link>
+        )}
+
+        {permissions.canViewDashboard && (
+          <Link href="/clients" style={getLinkStyle("clients")}>
+            Clients
           </Link>
         )}
 
