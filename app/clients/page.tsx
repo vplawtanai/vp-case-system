@@ -218,16 +218,40 @@ export default function ClientsPage() {
       setErrorText("");
 
       if (isEditing) {
-        const oldData = clients.find((client) => client.id === form.id) || null;
+        const editingClient = { id: form.id };
+        console.log("Updating client id:", editingClient.id);
+
+        if (!editingClient.id) {
+          alert("Missing client id");
+          return;
+        }
+
+        const oldData =
+          clients.find((client) => client.id === editingClient.id) || null;
         const { data, error } = await supabase
           .from("clients")
           .update(payload)
-          .eq("id", form.id)
-          .select("*")
+          .eq("id", editingClient.id)
+          .select(
+            "id, client_type, name, tax_id, contact_name, phone, email, line_id, address, status, note, created_at, updated_at"
+          )
           .maybeSingle();
 
-        if (error || !data) {
-          alert("Update client failed:\n" + (error?.message || "No row updated"));
+        if (error) {
+          alert(
+            "Update client failed:\n" +
+              [
+                `message: ${error.message || "-"}`,
+                `details: ${error.details || "-"}`,
+                `hint: ${error.hint || "-"}`,
+                `code: ${error.code || "-"}`,
+              ].join("\n")
+          );
+          return;
+        }
+
+        if (!data) {
+          alert("No client was updated. Please check client id or RLS policy.");
           return;
         }
 
@@ -244,6 +268,8 @@ export default function ClientsPage() {
         } catch (auditError) {
           console.error("CREATE CLIENT AUDIT LOG FAILED:", auditError);
         }
+
+        alert("Updated client successfully");
       } else {
         const { data, error } = await supabase
           .from("clients")
