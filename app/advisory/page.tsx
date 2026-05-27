@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import AuthGuard from "../components/AuthGuard";
 import AppTopNav from "../components/AppTopNav";
 import { createAuditLog } from "../../lib/auditLog";
@@ -563,7 +564,7 @@ export default function AdvisoryPage() {
                     <th style={thStyle}>Start</th>
                     <th style={thStyle}>End</th>
                     <th style={thStyle}>Monthly</th>
-                    {canEditAdvisory ? <th style={thStyle}>Action</th> : null}
+                    <th style={thStyle}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -594,8 +595,15 @@ export default function AdvisoryPage() {
                       <td style={tdStyle}>
                         {formatAmount(matter.monthly_retainer_amount)}
                       </td>
-                      {canEditAdvisory ? (
-                        <td style={tdStyle}>
+                      <td style={tdStyle}>
+                        <div style={actionWrapStyle}>
+                          <Link
+                            href={`/advisory/${matter.id}`}
+                            style={linkButtonStyle}
+                          >
+                            Open
+                          </Link>
+                          {canEditAdvisory ? (
                           <button
                             type="button"
                             onClick={() => startEdit(matter)}
@@ -603,8 +611,9 @@ export default function AdvisoryPage() {
                           >
                             Edit
                           </button>
-                        </td>
-                      ) : null}
+                          ) : null}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -822,6 +831,18 @@ const smallButtonStyle: React.CSSProperties = {
   color: "#111111",
   cursor: "pointer",
   fontWeight: 800,
+};
+
+const linkButtonStyle: React.CSSProperties = {
+  ...smallButtonStyle,
+  display: "inline-block",
+  textDecoration: "none",
+};
+
+const actionWrapStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
 };
 
 const messageBoxStyle: React.CSSProperties = {
