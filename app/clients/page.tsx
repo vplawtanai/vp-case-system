@@ -43,7 +43,7 @@ type ClientForm = {
 
 const emptyForm: ClientForm = {
   id: "",
-  client_type: "company",
+  client_type: "limited_company",
   name: "",
   tax_id: "",
   contact_name: "",
@@ -60,6 +60,25 @@ const editableRoles: UserRole[] = [
   "partner",
   "lawyer",
   "assistant_lawyer",
+];
+
+const clientTypeOptions = [
+  { value: "limited_company", label: "Limited Company" },
+  { value: "partnership", label: "Partnership" },
+  { value: "limited_partnership", label: "Limited Partnership" },
+  { value: "individual", label: "Individual" },
+  { value: "group_of_persons", label: "Group of Persons" },
+  { value: "government_agency", label: "Government Agency" },
+  { value: "association", label: "Association / Foundation" },
+  { value: "foreign_company", label: "Foreign Company" },
+  { value: "other", label: "Other" },
+];
+
+const statusOptions = [
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" },
+  { value: "prospect", label: "Prospect" },
+  { value: "blacklist", label: "Blacklist" },
 ];
 
 export default function ClientsPage() {
@@ -160,6 +179,10 @@ export default function ClientsPage() {
         client.phone,
         client.email,
         client.tax_id,
+        client.client_type,
+        renderClientType(client.client_type),
+        client.status,
+        renderClientStatus(client.status),
       ]
         .filter(Boolean)
         .join(" ")
@@ -177,7 +200,7 @@ export default function ClientsPage() {
   const startEdit = (client: ClientRow) => {
     setForm({
       id: client.id,
-      client_type: client.client_type || "company",
+      client_type: normalizeOptionValue(client.client_type, clientTypeOptions),
       name: client.name || "",
       tax_id: client.tax_id || "",
       contact_name: client.contact_name || "",
@@ -185,7 +208,7 @@ export default function ClientsPage() {
       email: client.email || "",
       line_id: client.line_id || "",
       address: client.address || "",
-      status: client.status || "active",
+      status: normalizeOptionValue(client.status, statusOptions),
       note: client.note || "",
     });
     setIsEditing(true);
@@ -196,7 +219,7 @@ export default function ClientsPage() {
     if (!canEditClients) return;
 
     const payload = {
-      client_type: form.client_type.trim() || "company",
+      client_type: form.client_type.trim() || "limited_company",
       name: form.name.trim(),
       tax_id: form.tax_id.trim(),
       contact_name: form.contact_name.trim(),
@@ -359,6 +382,7 @@ export default function ClientsPage() {
                 label="Client type"
                 value={form.client_type}
                 onChange={(value) => setForm({ ...form, client_type: value })}
+                options={clientTypeOptions}
               />
               <Field
                 label="Name"
@@ -394,6 +418,7 @@ export default function ClientsPage() {
                 label="Status"
                 value={form.status}
                 onChange={(value) => setForm({ ...form, status: value })}
+                options={statusOptions}
               />
               <Field
                 label="Address"
@@ -451,13 +476,17 @@ export default function ClientsPage() {
                   {filteredClients.map((client) => (
                     <tr key={client.id}>
                       <td style={tdStyle}>{client.name || "-"}</td>
-                      <td style={tdStyle}>{client.client_type || "-"}</td>
+                      <td style={tdStyle}>
+                        {renderClientType(client.client_type)}
+                      </td>
                       <td style={tdStyle}>{client.contact_name || "-"}</td>
                       <td style={tdStyle}>{client.phone || "-"}</td>
                       <td style={tdStyle}>{client.email || "-"}</td>
                       <td style={tdStyle}>{client.line_id || "-"}</td>
                       <td style={tdStyle}>{client.tax_id || "-"}</td>
-                      <td style={tdStyle}>{client.status || "-"}</td>
+                      <td style={tdStyle}>
+                        {renderClientStatus(client.status)}
+                      </td>
                       {canEditClients ? (
                         <td style={tdStyle}>
                           <button
@@ -489,21 +518,61 @@ function Field({
   label,
   value,
   onChange,
+  options,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  options?: { value: string; label: string }[];
 }) {
   return (
     <label style={labelStyle}>
       {label}
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        style={inputStyle}
-      />
+      {options ? (
+        <select
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          style={inputStyle}
+        >
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <input
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          style={inputStyle}
+        />
+      )}
     </label>
   );
+}
+
+function normalizeOptionValue(
+  value: string | null | undefined,
+  options: { value: string; label: string }[]
+) {
+  if (options.some((option) => option.value === value)) return value || "";
+  return options[0]?.value || "";
+}
+
+function renderClientType(value?: string | null) {
+  return renderOptionLabel(value, clientTypeOptions);
+}
+
+function renderClientStatus(value?: string | null) {
+  return renderOptionLabel(value, statusOptions);
+}
+
+function renderOptionLabel(
+  value: string | null | undefined,
+  options: { value: string; label: string }[]
+) {
+  const option = options.find((item) => item.value === value);
+  return option?.label || value || "-";
 }
 
 const pageStyle: React.CSSProperties = {
