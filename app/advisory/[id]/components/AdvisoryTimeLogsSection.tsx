@@ -7,6 +7,7 @@ import { supabase } from "../../../../lib/supabase";
 type AdvisoryTimeLog = {
   id: string;
   advisory_matter_id: string;
+  advisory_issue_id?: string | null;
   client_id?: string | null;
   work_date?: string | null;
   staff_name?: string | null;
@@ -20,6 +21,7 @@ type AdvisoryTimeLog = {
 };
 
 type TimeLogForm = {
+  advisory_issue_id: string;
   work_date: string;
   staff_name: string;
   work_type: string;
@@ -41,6 +43,7 @@ type Props = {
   canEdit: boolean;
   canDelete: boolean;
   actorName: string;
+  issues?: { id: string; issue_no?: string | null; title?: string | null }[];
 };
 
 const workTypeOptions = [
@@ -55,6 +58,7 @@ const workTypeOptions = [
 ];
 
 const emptyForm: TimeLogForm = {
+  advisory_issue_id: "",
   work_date: getTodayDateString(),
   staff_name: "",
   work_type: "Advisory",
@@ -71,6 +75,7 @@ export default function AdvisoryTimeLogsSection({
   canEdit,
   canDelete,
   actorName,
+  issues = [],
 }: Props) {
   const [items, setItems] = useState<AdvisoryTimeLog[]>([]);
   const [loading, setLoading] = useState(false);
@@ -166,6 +171,7 @@ export default function AdvisoryTimeLogsSection({
     setEditingId(null);
     setForm({
       ...emptyForm,
+      advisory_issue_id: "",
       work_date: getTodayDateString(),
       staff_name: actorName || "",
     });
@@ -178,6 +184,7 @@ export default function AdvisoryTimeLogsSection({
     const split = splitMinutes(safeMinutes(item.minutes));
     setEditingId(item.id);
     setForm({
+      advisory_issue_id: item.advisory_issue_id || "",
       work_date: item.work_date || getTodayDateString(),
       staff_name: item.staff_name || actorName || "",
       work_type: item.work_type || "Advisory",
@@ -195,6 +202,7 @@ export default function AdvisoryTimeLogsSection({
     setShowForm(false);
     setForm({
       ...emptyForm,
+      advisory_issue_id: "",
       work_date: getTodayDateString(),
       staff_name: actorName || "",
     });
@@ -249,6 +257,7 @@ export default function AdvisoryTimeLogsSection({
 
   const buildPayload = (validated: ValidatedTimeLogForm) => ({
     advisory_matter_id: advisoryMatterId,
+    advisory_issue_id: form.advisory_issue_id || null,
     client_id: clientId || null,
     work_date: form.work_date,
     staff_name: validated.staffName,
@@ -425,6 +434,20 @@ export default function AdvisoryTimeLogsSection({
             onChange={(value) => setForm({ ...form, staff_name: value })}
           />
           <SelectField
+            label="Issue"
+            value={form.advisory_issue_id}
+            onChange={(value) =>
+              setForm({ ...form, advisory_issue_id: value })
+            }
+            options={[
+              { value: "", label: "No issue" },
+              ...issues.map((issue) => ({
+                value: issue.id,
+                label: renderIssueLabel(issue),
+              })),
+            ]}
+          />
+          <SelectField
             label="Work type"
             value={form.work_type}
             onChange={(value) => setForm({ ...form, work_type: value })}
@@ -498,6 +521,7 @@ export default function AdvisoryTimeLogsSection({
                 <th style={thStyle}>Date</th>
                 <th style={thStyle}>Staff</th>
                 <th style={thStyle}>Work Type</th>
+                <th style={thStyle}>Issue</th>
                 <th style={thStyle}>Time</th>
                 <th style={thStyle}>Category</th>
                 <th style={thStyle}>Note</th>
@@ -513,6 +537,15 @@ export default function AdvisoryTimeLogsSection({
                     {item.work_type === "อื่นๆ"
                       ? item.work_other || "อื่นๆ"
                       : item.work_type || "-"}
+                  </td>
+                  <td style={tdStyle}>
+                    {item.advisory_issue_id
+                      ? `Issue: ${renderIssueLabel(
+                          issues.find(
+                            (issue) => issue.id === item.advisory_issue_id
+                          )
+                        )}`
+                      : "-"}
                   </td>
                   <td style={tdStyle}>{formatDuration(item.minutes || 0)}</td>
                   <td style={tdStyle}>
@@ -616,6 +649,14 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
       <div style={summaryValueStyle}>{value}</div>
     </div>
   );
+}
+
+function renderIssueLabel(
+  issue?: { issue_no?: string | null; title?: string | null } | null
+) {
+  if (!issue) return "-";
+  const prefix = issue.issue_no ? `${issue.issue_no} - ` : "";
+  return `${prefix}${issue.title || "-"}`;
 }
 
 function getTodayDateString() {

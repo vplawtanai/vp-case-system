@@ -8,6 +8,7 @@ import AppTopNav from "../../components/AppTopNav";
 import { buildPermissions } from "../../../lib/permissions";
 import { supabase } from "../../../lib/supabase";
 import type { UserPermissions, UserRole } from "../../../lib/permissions";
+import AdvisoryIssuesSection from "./components/AdvisoryIssuesSection";
 import AdvisoryTimeLogsSection from "./components/AdvisoryTimeLogsSection";
 
 type UserProfile = {
@@ -32,12 +33,25 @@ type AdvisoryMatter = {
   note?: string | null;
 };
 
+type AdvisoryIssueOption = {
+  id: string;
+  issue_no?: string | null;
+  title?: string | null;
+};
+
 const editableRoles: UserRole[] = [
   "admin",
   "partner",
   "lawyer",
   "assistant_lawyer",
   "staff",
+];
+
+const issueEditableRoles: UserRole[] = [
+  "admin",
+  "partner",
+  "lawyer",
+  "assistant_lawyer",
 ];
 
 const deleteRoles: UserRole[] = ["admin", "partner"];
@@ -80,6 +94,7 @@ export default function AdvisoryDetailPage() {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [loadingMatter, setLoadingMatter] = useState(false);
   const [matter, setMatter] = useState<AdvisoryMatter | null>(null);
+  const [issues, setIssues] = useState<AdvisoryIssueOption[]>([]);
   const [clientName, setClientName] = useState("-");
   const [errorText, setErrorText] = useState("");
 
@@ -89,6 +104,7 @@ export default function AdvisoryDetailPage() {
 
   const canViewAdvisory = permissions.canViewDashboard;
   const canEditTimeLogs = editableRoles.includes(permissions.role);
+  const canEditIssues = issueEditableRoles.includes(permissions.role);
   const canDeleteTimeLogs = deleteRoles.includes(permissions.role);
   const actorName = profile.staff_name || actorEmail || "current_user";
 
@@ -252,12 +268,22 @@ export default function AdvisoryDetailPage() {
               </div>
             </section>
 
+            <AdvisoryIssuesSection
+              advisoryMatterId={matter.id}
+              clientId={matter.client_id || ""}
+              canEdit={canEditIssues}
+              canDelete={canDeleteTimeLogs}
+              actorName={actorName}
+              onIssuesChange={setIssues}
+            />
+
             <AdvisoryTimeLogsSection
               advisoryMatterId={matter.id}
               clientId={matter.client_id || ""}
               canEdit={canEditTimeLogs}
               canDelete={canDeleteTimeLogs}
               actorName={actorName}
+              issues={issues}
             />
           </>
         ) : null}
