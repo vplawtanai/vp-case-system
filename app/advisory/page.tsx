@@ -282,7 +282,6 @@ export default function AdvisoryPage() {
 
     const payload = {
       client_id: form.client_id,
-      matter_no: form.matter_no.trim(),
       title: form.title.trim(),
       matter_type: form.matter_type,
       retainer_type: form.retainer_type,
@@ -335,9 +334,30 @@ export default function AdvisoryPage() {
           console.error("CREATE ADVISORY AUDIT LOG FAILED:", auditError);
         }
       } else {
+        const { data: generatedMatterNo, error: matterNoError } =
+          await supabase.rpc("generate_advisory_matter_no");
+
+        if (matterNoError) {
+          alert(
+            "Generate advisory matter no failed:\n" +
+              (matterNoError.message || "Unknown error")
+          );
+          return;
+        }
+
+        if (!generatedMatterNo) {
+          alert("Failed to generate advisory matter no");
+          return;
+        }
+
         const { data, error } = await supabase
           .from("advisory_matters")
-          .insert([payload])
+          .insert([
+            {
+              ...payload,
+              matter_no: generatedMatterNo,
+            },
+          ])
           .select("*")
           .single();
 
@@ -434,11 +454,14 @@ export default function AdvisoryPage() {
                   })),
                 ]}
               />
-              <Field
-                label="Matter no"
-                value={form.matter_no}
-                onChange={(value) => setForm({ ...form, matter_no: value })}
-              />
+              {isEditing ? (
+                <ReadOnlyField label="Matter no" value={form.matter_no} />
+              ) : (
+                <ReadOnlyField
+                  label="Matter no"
+                  value="Auto generated on save"
+                />
+              )}
               <Field
                 label="Title"
                 value={form.title}
@@ -622,6 +645,15 @@ function Field({
   );
 }
 
+function ReadOnlyField({ label, value }: { label: string; value: string }) {
+  return (
+    <label style={labelStyle}>
+      {label}
+      <input value={value || "-"} disabled style={disabledInputStyle} />
+    </label>
+  );
+}
+
 function SelectField({
   label,
   value,
@@ -722,6 +754,12 @@ const inputStyle: React.CSSProperties = {
   borderRadius: 8,
   background: "#ffffff",
   color: "#111111",
+};
+
+const disabledInputStyle: React.CSSProperties = {
+  ...inputStyle,
+  background: "#f3f4f6",
+  color: "#555555",
 };
 
 const buttonRowStyle: React.CSSProperties = {
