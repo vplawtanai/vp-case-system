@@ -106,6 +106,39 @@ type CaseTimeLog = {
   updated_at?: string | null;
 };
 
+type AdvisoryMatter = {
+  id: string;
+  client_id?: string | null;
+  matter_no?: string | null;
+  title?: string | null;
+  status?: string | null;
+  responsible_lawyer?: string | null;
+  updated_at?: string | null;
+};
+
+type AdvisoryIssue = {
+  id: string;
+  advisory_matter_id?: string | null;
+  issue_no?: string | null;
+  title?: string | null;
+  status?: string | null;
+  priority?: string | null;
+  due_date?: string | null;
+};
+
+type AdvisoryTask = {
+  id: string;
+  advisory_matter_id?: string | null;
+  advisory_issue_id?: string | null;
+  client_id?: string | null;
+  title?: string | null;
+  task_type?: string | null;
+  status?: string | null;
+  priority?: string | null;
+  assignee_name?: string | null;
+  due_date?: string | null;
+};
+
 type AlertCandidate = {
   id: string;
   case_id: number;
@@ -167,6 +200,7 @@ type CaseTimeSummary = {
 
 type ActionRequiredItem = {
   id: string;
+  source: "Case" | "Advisory";
   caseId: number;
   fileNo: string;
   title: string;
@@ -177,6 +211,17 @@ type ActionRequiredItem = {
   dateText: string;
   href: string;
   score: number;
+};
+
+type MatterStreamItem = {
+  id: string;
+  source: "Case" | "Advisory";
+  title: string;
+  subtitle: string;
+  status: string;
+  priority: string;
+  dueDate: string;
+  href: string;
 };
 
 type SortMode =
@@ -220,6 +265,9 @@ export default function DashboardPage() {
   const [cases, setCases] = useState<EnrichedCase[]>([]);
   const [alertItems, setAlertItems] = useState<AlertCandidate[]>([]);
   const [timeLogs, setTimeLogs] = useState<CaseTimeLog[]>([]);
+  const [advisoryMatters, setAdvisoryMatters] = useState<AdvisoryMatter[]>([]);
+  const [advisoryIssues, setAdvisoryIssues] = useState<AdvisoryIssue[]>([]);
+  const [advisoryTasks, setAdvisoryTasks] = useState<AdvisoryTask[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
@@ -324,10 +372,58 @@ export default function DashboardPage() {
       const baseCases = (caseData || []) as CaseItem[];
       const caseIds = baseCases.map((item) => item.id);
 
+      const [advisoryMattersRes, advisoryIssuesRes, advisoryTasksRes] =
+        await Promise.all([
+          supabase
+            .from("advisory_matters")
+            .select("id, client_id, matter_no, title, status, responsible_lawyer, updated_at"),
+          supabase
+            .from("advisory_issues")
+            .select("id, advisory_matter_id, issue_no, title, status, priority, due_date")
+            .is("deleted_at", null),
+          supabase
+            .from("advisory_issue_tasks")
+            .select(
+              "id, advisory_matter_id, advisory_issue_id, client_id, title, task_type, status, priority, assignee_name, due_date"
+            )
+            .is("deleted_at", null),
+        ]);
+
+      if (advisoryMattersRes.error) {
+        alert(
+          "Load advisory matters failed:\n" +
+            JSON.stringify(advisoryMattersRes.error, null, 2)
+        );
+        return;
+      }
+
+      if (advisoryIssuesRes.error) {
+        alert(
+          "Load advisory issues failed:\n" +
+            JSON.stringify(advisoryIssuesRes.error, null, 2)
+        );
+        return;
+      }
+
+      if (advisoryTasksRes.error) {
+        alert(
+          "Load advisory tasks failed:\n" +
+            JSON.stringify(advisoryTasksRes.error, null, 2)
+        );
+        return;
+      }
+
+      const loadedAdvisoryMatters = (advisoryMattersRes.data || []) as AdvisoryMatter[];
+      const loadedAdvisoryIssues = (advisoryIssuesRes.data || []) as AdvisoryIssue[];
+      const loadedAdvisoryTasks = (advisoryTasksRes.data || []) as AdvisoryTask[];
+
       if (caseIds.length === 0) {
         setCases([]);
         setAlertItems([]);
         setTimeLogs([]);
+        setAdvisoryMatters(loadedAdvisoryMatters);
+        setAdvisoryIssues(loadedAdvisoryIssues);
+        setAdvisoryTasks(loadedAdvisoryTasks);
         return;
       }
 
@@ -453,6 +549,9 @@ export default function DashboardPage() {
       setCases(enrichedCases);
       setAlertItems(allAlerts);
       setTimeLogs(loadedTimeLogs);
+      setAdvisoryMatters(loadedAdvisoryMatters);
+      setAdvisoryIssues(loadedAdvisoryIssues);
+      setAdvisoryTasks(loadedAdvisoryTasks);
     } finally {
       setLoading(false);
     }
@@ -854,6 +953,109 @@ export default function DashboardPage() {
       .slice(0, 5);
   }, [filteredTimeLogsByPeriod, caseMap]);
 
+  const advisoryMatterMap = useMemo(() => {
+    const map = new Map<string, AdvisoryMatter>();
+    advisoryMatters.forEach((item) => map.set(item.id, item));
+    return map;
+  }, [advisoryMatters]);
+
+  const advisoryIssueMap = useMemo(() => {
+    const map = new Map<string, AdvisoryIssue>();
+    advisoryIssues.forEach((item) => map.set(item.id, item));
+    return map;
+  }, [advisoryIssues]);
+
+  const activeAdvisoryMatters = useMemo(() => {
+    return advisoryMatters.filter((item) => !isClosedStatus(item.status));
+  }, [advisoryMatters]);
+
+  const advisoryUrgentItems = useMemo(() => {
+    return buildAdvisoryUrgentItems({
+      issues: advisoryIssues,
+      tasks: advisoryTasks,
+      matterMap: advisoryMatterMap,
+      issueMap: advisoryIssueMap,
+    });
+  }, [advisoryIssues, advisoryTasks, advisoryMatterMap, advisoryIssueMap]);
+
+  const advisoryTaskSummary = useMemo(() => {
+    return advisoryTasks.filter((item) => !isDoneStatus(item.status)).length;
+  }, [advisoryTasks]);
+
+  const caseMatterStream = useMemo<MatterStreamItem[]>(() => {
+    return filteredCases.slice(0, 6).map((item) => ({
+      id: `case-${item.id}`,
+      source: "Case",
+      title: item.title || "-",
+      subtitle: [item.file_no, item.client_name].filter(Boolean).join(" · ") || "-",
+      status: item.status || "-",
+      priority:
+        item.risk_level === "overdue"
+          ? "Overdue"
+          : item.risk_level === "today"
+            ? "Due Today"
+            : item.risk_level === "dueSoon"
+              ? "Due Soon"
+              : "Normal",
+      dueDate: item.next_alert_date || "",
+      href: `/cases/${item.id}`,
+    }));
+  }, [filteredCases]);
+
+  const advisoryMatterStream = useMemo<MatterStreamItem[]>(() => {
+    const issueItems = advisoryIssues
+      .filter((item) => !isDoneStatus(item.status))
+      .map((item) => {
+        const matter = item.advisory_matter_id
+          ? advisoryMatterMap.get(item.advisory_matter_id)
+          : null;
+        return {
+          id: `advisory-issue-${item.id}`,
+          source: "Advisory" as const,
+          title: [item.issue_no, item.title].filter(Boolean).join(" - ") || "Advisory Issue",
+          subtitle: [matter?.matter_no, matter?.title].filter(Boolean).join(" · ") || "-",
+          status: item.status || "-",
+          priority: item.priority || "-",
+          dueDate: item.due_date || "",
+          href: item.advisory_matter_id
+            ? `/advisory/${item.advisory_matter_id}/issues/${item.id}`
+            : "/advisory",
+        };
+      });
+
+    const taskItems = advisoryTasks
+      .filter((item) => !isDoneStatus(item.status))
+      .map((item) => {
+        const matter = item.advisory_matter_id
+          ? advisoryMatterMap.get(item.advisory_matter_id)
+          : null;
+        const issue = item.advisory_issue_id
+          ? advisoryIssueMap.get(item.advisory_issue_id)
+          : null;
+        return {
+          id: `advisory-task-${item.id}`,
+          source: "Advisory" as const,
+          title: item.title || item.task_type || "Advisory Task",
+          subtitle:
+            [matter?.matter_no, matter?.title, issue?.issue_no].filter(Boolean).join(" · ") ||
+            "-",
+          status: item.status || "-",
+          priority: item.priority || "-",
+          dueDate: item.due_date || "",
+          href:
+            item.advisory_matter_id && item.advisory_issue_id
+              ? `/advisory/${item.advisory_matter_id}/issues/${item.advisory_issue_id}`
+              : item.advisory_matter_id
+                ? `/advisory/${item.advisory_matter_id}`
+                : "/advisory",
+        };
+      });
+
+    return [...issueItems, ...taskItems]
+      .sort((a, b) => (a.dueDate || "9999-12-31").localeCompare(b.dueDate || "9999-12-31"))
+      .slice(0, 6);
+  }, [advisoryIssues, advisoryTasks, advisoryMatterMap, advisoryIssueMap]);
+
   const actionRequired = useMemo(() => {
     const filteredAlerts = alertItems.filter((item) =>
       filteredCaseIds.has(item.case_id)
@@ -866,6 +1068,13 @@ export default function DashboardPage() {
     const todayItems = filteredAlerts.filter((item) => item.level === "today");
 
     const dueSoonItems = filteredAlerts.filter(
+      (item) => item.level === "dueSoon"
+    );
+    const advisoryOverdueItems = advisoryUrgentItems.filter(
+      (item) => item.level === "overdue"
+    );
+    const advisoryTodayItems = advisoryUrgentItems.filter((item) => item.level === "today");
+    const advisoryDueSoonItems = advisoryUrgentItems.filter(
       (item) => item.level === "dueSoon"
     );
 
@@ -890,6 +1099,7 @@ export default function DashboardPage() {
 
       rows.push({
         id: item.id,
+        source: "Case",
         caseId: item.case_id,
         fileNo: caseItem.file_no || "-",
         title: caseItem.title || "-",
@@ -913,6 +1123,7 @@ export default function DashboardPage() {
 
       rows.push({
         id: `stale-${item.id}`,
+        source: "Case",
         caseId: item.id,
         fileNo: item.file_no || "-",
         title: item.title || "-",
@@ -926,24 +1137,29 @@ export default function DashboardPage() {
       });
     });
 
+    advisoryUrgentItems.forEach((item) => {
+      rows.push(item);
+    });
+
     rows.sort((a, b) => {
       if (a.score !== b.score) return a.score - b.score;
       return a.fileNo.localeCompare(b.fileNo);
     });
 
     return {
-      overdue: overdueItems.length,
-      today: todayItems.length,
-      dueSoon: dueSoonItems.length,
+      overdue: overdueItems.length + advisoryOverdueItems.length,
+      today: todayItems.length + advisoryTodayItems.length,
+      dueSoon: dueSoonItems.length + advisoryDueSoonItems.length,
       stale: staleCases.length,
       total:
         overdueItems.length +
         todayItems.length +
         dueSoonItems.length +
-        staleCases.length,
-      rows: rows.slice(0, 5),
+        staleCases.length +
+        advisoryUrgentItems.length,
+      rows: rows.slice(0, 8),
     };
-  }, [alertItems, filteredCaseIds, filteredCases, caseMap]);
+  }, [alertItems, filteredCaseIds, filteredCases, caseMap, advisoryUrgentItems]);
 
   if (loadingProfile) {
     return (
@@ -1024,6 +1240,13 @@ export default function DashboardPage() {
               isMobile={isMobile}
             />
             <MetricCard
+              label="Active Advisory"
+              subLabel="matters in view"
+              count={String(activeAdvisoryMatters.length)}
+              tone="blue"
+              isMobile={isMobile}
+            />
+            <MetricCard
               label="Overdue"
               subLabel="เกินกำหนด"
               count={String(summary.overdue)}
@@ -1053,6 +1276,13 @@ export default function DashboardPage() {
                 isMobile={isMobile}
               />
             )}
+            <MetricCard
+              label="Advisory Tasks"
+              subLabel="pending / due"
+              count={String(advisoryTaskSummary)}
+              tone="purple"
+              isMobile={isMobile}
+            />
           </div>
         </section>
 
@@ -1213,6 +1443,21 @@ export default function DashboardPage() {
               </>
             )}
           </div>
+        </section>
+
+        <section style={isMobile ? mobileMatterStreamGridStyle : matterStreamGridStyle}>
+          <MatterStreamPanel
+            title="Case Stream"
+            items={caseMatterStream}
+            emptyText="No case items."
+            isMobile={isMobile}
+          />
+          <MatterStreamPanel
+            title="Advisory Stream"
+            items={advisoryMatterStream}
+            emptyText="No advisory items."
+            isMobile={isMobile}
+          />
         </section>
 
         <section id="cases" style={isMobile ? mobileMiniGridStyle : miniGridStyle}>
@@ -1610,6 +1855,7 @@ function ActionRequiredPanel({
             <div key={item.id} style={isMobile ? mobileActionRowStyle : actionRowStyle}>
               <div style={actionRowLeftStyle}>
                 <ActionLevelBadge level={item.level} />
+                <SourceBadge source={item.source} />
 
                 <div>
                   <div style={actionCaseTitleStyle}>
@@ -1684,6 +1930,63 @@ function ActionLevelBadge({
           : actionBadgePurpleStyle;
 
   return <span style={{ ...actionBadgeBaseStyle, ...style }}>{label}</span>;
+}
+
+function SourceBadge({ source }: { source: "Case" | "Advisory" }) {
+  return (
+    <span style={source === "Advisory" ? advisorySourceBadgeStyle : caseSourceBadgeStyle}>
+      {source}
+    </span>
+  );
+}
+
+function MatterStreamPanel({
+  title,
+  items,
+  emptyText,
+  isMobile = false,
+}: {
+  title: string;
+  items: MatterStreamItem[];
+  emptyText: string;
+  isMobile?: boolean;
+}) {
+  return (
+    <div style={isMobile ? mobileSectionCardStyle : sectionCardStyle}>
+      <SectionHeader
+        eyebrow="MATTER STREAM"
+        title={title}
+        subtitle="Current operational items from the command center."
+      />
+
+      {items.length === 0 ? (
+        <div style={emptyStyle}>{emptyText}</div>
+      ) : (
+        <div style={matterStreamListStyle}>
+          {items.map((item) => (
+            <div key={item.id} style={matterStreamRowStyle}>
+              <div style={matterStreamMainStyle}>
+                <SourceBadge source={item.source} />
+                <div>
+                  <div style={matterStreamTitleStyle}>{item.title}</div>
+                  <div style={matterStreamMetaStyle}>{item.subtitle}</div>
+                </div>
+              </div>
+              <div style={matterStreamSideStyle}>
+                <div style={matterStreamMetaStyle}>
+                  {item.dueDate ? formatDisplayDate(item.dueDate) : item.status}
+                </div>
+                <div style={matterStreamMetaStyle}>{item.priority}</div>
+                <Link href={item.href} style={openButtonLinkStyle}>
+                  Open
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function WorkloadOverview({
@@ -2397,6 +2700,85 @@ function buildAlertMapFromCandidates(candidates: AlertCandidate[]) {
   return map;
 }
 
+function buildAdvisoryUrgentItems({
+  issues,
+  tasks,
+  matterMap,
+  issueMap,
+}: {
+  issues: AdvisoryIssue[];
+  tasks: AdvisoryTask[];
+  matterMap: Map<string, AdvisoryMatter>;
+  issueMap: Map<string, AdvisoryIssue>;
+}) {
+  const rows: ActionRequiredItem[] = [];
+
+  issues.forEach((issue) => {
+    if (!issue.due_date) return;
+    if (isDoneStatus(issue.status)) return;
+
+    const level = getDateRiskLevel(issue.due_date);
+    if (level === "clear") return;
+
+    const matter = issue.advisory_matter_id
+      ? matterMap.get(issue.advisory_matter_id)
+      : null;
+    rows.push({
+      id: `advisory-issue-${issue.id}`,
+      source: "Advisory",
+      caseId: 0,
+      fileNo: issue.issue_no || matter?.matter_no || "-",
+      title: issue.title || "Advisory Issue",
+      clientName: matter?.title || "-",
+      level,
+      label: renderUrgencyLabel(level),
+      text: "Advisory Issue",
+      dateText: formatDisplayDate(issue.due_date),
+      href: issue.advisory_matter_id
+        ? `/advisory/${issue.advisory_matter_id}/issues/${issue.id}`
+        : "/advisory",
+      score: getRiskScore(level),
+    });
+  });
+
+  tasks.forEach((task) => {
+    if (!task.due_date) return;
+    if (isDoneStatus(task.status)) return;
+
+    const level = getDateRiskLevel(task.due_date);
+    if (level === "clear") return;
+
+    const matter = task.advisory_matter_id
+      ? matterMap.get(task.advisory_matter_id)
+      : null;
+    const issue = task.advisory_issue_id ? issueMap.get(task.advisory_issue_id) : null;
+    rows.push({
+      id: `advisory-task-${task.id}`,
+      source: "Advisory",
+      caseId: 0,
+      fileNo: issue?.issue_no || matter?.matter_no || "-",
+      title: task.title || task.task_type || "Advisory Task",
+      clientName: matter?.title || "-",
+      level,
+      label: renderUrgencyLabel(level),
+      text: task.assignee_name ? `Task: ${task.assignee_name}` : "Advisory Task",
+      dateText: formatDisplayDate(task.due_date),
+      href:
+        task.advisory_matter_id && task.advisory_issue_id
+          ? `/advisory/${task.advisory_matter_id}/issues/${task.advisory_issue_id}`
+          : task.advisory_matter_id
+            ? `/advisory/${task.advisory_matter_id}`
+            : "/advisory",
+      score: getRiskScore(level),
+    });
+  });
+
+  return rows.sort((a, b) => {
+    if (a.score !== b.score) return a.score - b.score;
+    return a.dateText.localeCompare(b.dateText);
+  });
+}
+
 /* =========================================================
    DAILY TIME HELPERS
 ========================================================= */
@@ -2497,6 +2879,13 @@ function getRiskScore(level: RiskLevel) {
   if (level === "today") return 2;
   if (level === "dueSoon") return 3;
   return 5;
+}
+
+function renderUrgencyLabel(level: RiskLevel) {
+  if (level === "overdue") return "Overdue";
+  if (level === "today") return "Due Today";
+  if (level === "dueSoon") return "Due Soon";
+  return "Clear";
 }
 
 function diffDaysFromToday(dateText: string) {
@@ -2620,6 +3009,11 @@ function isDoneStatus(status?: string | null) {
     value === "filed" ||
     value === "submitted"
   );
+}
+
+function isClosedStatus(status?: string | null) {
+  const value = (status || "").toLowerCase();
+  return value === "done" || value === "closed" || value === "cancelled";
 }
 
 function isEnforcementDone(item: CaseEnforcement) {
@@ -3040,6 +3434,83 @@ const mobileMiniGridStyle: CSSProperties = {
   gridTemplateColumns: "1fr",
   gap: 10,
   marginBottom: 12,
+};
+
+const matterStreamGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: 14,
+  marginBottom: 18,
+};
+
+const mobileMatterStreamGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr",
+  gap: 10,
+  marginBottom: 12,
+};
+
+const matterStreamListStyle: CSSProperties = {
+  display: "grid",
+  gap: 10,
+};
+
+const matterStreamRowStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  alignItems: "flex-start",
+  padding: "11px 0",
+  borderTop: "1px solid #eef2f7",
+};
+
+const matterStreamMainStyle: CSSProperties = {
+  display: "flex",
+  gap: 10,
+  alignItems: "flex-start",
+  minWidth: 0,
+};
+
+const matterStreamSideStyle: CSSProperties = {
+  display: "grid",
+  gap: 5,
+  justifyItems: "end",
+  flexShrink: 0,
+};
+
+const matterStreamTitleStyle: CSSProperties = {
+  color: "#111111",
+  fontSize: 14,
+  fontWeight: 950,
+};
+
+const matterStreamMetaStyle: CSSProperties = {
+  color: "#64748b",
+  fontSize: 12,
+  fontWeight: 800,
+};
+
+const sourceBadgeBaseStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  borderRadius: 999,
+  padding: "4px 8px",
+  fontSize: 11,
+  fontWeight: 950,
+  whiteSpace: "nowrap",
+};
+
+const caseSourceBadgeStyle: CSSProperties = {
+  ...sourceBadgeBaseStyle,
+  background: "#eff6ff",
+  color: "#175cd3",
+};
+
+const advisorySourceBadgeStyle: CSSProperties = {
+  ...sourceBadgeBaseStyle,
+  background: "#f3e8ff",
+  color: "#7e22ce",
 };
 
 const distributionCardStyle: CSSProperties = {
