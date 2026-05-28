@@ -10,6 +10,7 @@ import { createAuditLog } from "../../../../../lib/auditLog";
 import { supabase } from "../../../../../lib/supabase";
 import type { UserPermissions, UserRole } from "../../../../../lib/permissions";
 import AdvisoryTimeLogsSection from "../../components/AdvisoryTimeLogsSection";
+import AdvisoryIssueTasksSection from "./components/AdvisoryIssueTasksSection";
 
 type UserProfile = {
   role?: UserRole | string | null;
@@ -612,6 +613,15 @@ export default function AdvisoryIssueDetailPage() {
                 </div>
               ) : null}
             </section>
+
+            <AdvisoryIssueTasksSection
+              advisoryMatterId={matter.id}
+              advisoryIssueId={issue.id}
+              clientId={issue.client_id || matter.client_id || null}
+              canEdit={canEditTimeLogs}
+              canDelete={canDeleteTimeLogs}
+              actorName={actorName}
+            />
 
             <AdvisoryTimeLogsSection
               advisoryMatterId={matter.id}
