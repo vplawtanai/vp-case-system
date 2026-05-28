@@ -94,6 +94,7 @@ export default function AdvisoryReportsPage() {
   }, [profile]);
 
   const canView = permissions.canViewDashboard;
+  const safeMonth = month || getCurrentMonth();
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -135,7 +136,7 @@ export default function AdvisoryReportsPage() {
     const loadData = async () => {
       if (!canView) return;
 
-      const { firstDay, nextMonth } = getMonthRange(month);
+      const { firstDay, nextMonth } = getMonthRange(safeMonth);
 
       try {
         setLoadingData(true);
@@ -220,7 +221,7 @@ export default function AdvisoryReportsPage() {
 
     if (loadingProfile) return;
     loadData();
-  }, [canView, loadingProfile, month]);
+  }, [canView, loadingProfile, safeMonth]);
 
   const report = useMemo(() => {
     const clientMap = new Map(clients.map((item) => [item.id, item.name || "-"]));
@@ -272,7 +273,7 @@ export default function AdvisoryReportsPage() {
     const matterMap = new Map(matters.map((item) => [item.id, item]));
     const issueMap = new Map(issues.map((item) => [item.id, item]));
     const rows = buildCsvRows({
-      month,
+      month: safeMonth,
       report,
       timeLogs,
       tasks,
@@ -287,7 +288,7 @@ export default function AdvisoryReportsPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `advisory-report-${month || getCurrentMonth()}.csv`;
+    link.download = `advisory-report-${safeMonth}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
