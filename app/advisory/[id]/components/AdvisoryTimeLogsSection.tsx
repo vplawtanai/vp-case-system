@@ -16,6 +16,9 @@ type AdvisoryTimeLog = {
   minutes?: number | null;
   billable?: boolean | null;
   note?: string | null;
+  created_by_user_id?: string | null;
+  created_by_email?: string | null;
+  created_by_name?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
@@ -189,7 +192,10 @@ export default function AdvisoryTimeLogsSection({
   };
 
   const startEdit = (item: AdvisoryTimeLog) => {
-    if (!canEdit) return;
+    if (!canEditTimeLogRow(item)) {
+      alert("You can edit only your own time log.");
+      return;
+    }
 
     const split = splitMinutes(safeMinutes(item.minutes));
     setEditingId(item.id);
@@ -289,6 +295,11 @@ export default function AdvisoryTimeLogsSection({
 
       if (editingId) {
         const oldData = items.find((item) => item.id === editingId) || null;
+        if (!oldData || !canEditTimeLogRow(oldData)) {
+          alert("You can edit only your own time log.");
+          return;
+        }
+
         const payload = buildPayload(validated);
         const { data, error } = await supabase
           .from("advisory_time_logs")
@@ -579,7 +590,7 @@ export default function AdvisoryTimeLogsSection({
                   {(canEdit || canDelete) && (
                     <td style={tdStyle}>
                       <div style={actionWrapStyle}>
-                        {canEdit ? (
+                        {canEditTimeLogRow(item) ? (
                           <button
                             type="button"
                             onClick={() => startEdit(item)}
@@ -609,8 +620,16 @@ export default function AdvisoryTimeLogsSection({
           ) : null}
         </div>
       )}
-    </section>
+      </section>
   );
+
+  function canEditTimeLogRow(item: AdvisoryTimeLog) {
+    if (canDelete) return true;
+    if (!canEdit) return false;
+    if (item.created_by_user_id) return item.created_by_user_id === actorUserId;
+    if (item.created_by_email) return item.created_by_email === actorEmail;
+    return false;
+  }
 }
 
 function Field({
