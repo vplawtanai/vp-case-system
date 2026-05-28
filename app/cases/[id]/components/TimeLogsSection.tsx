@@ -19,6 +19,9 @@ type TimeLogItem = {
 
   note?: string | null;
 
+  created_by_user_id?: string | null;
+  created_by_email?: string | null;
+  created_by_name?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 
@@ -360,8 +363,21 @@ export default function TimeLogsSection({
     try {
       setSaving(true);
 
+      const { data: userData } = await supabase.auth.getUser();
+      const payloadBase = buildPayload();
+      const userMetadata = userData.user?.user_metadata || {};
+      const actorName =
+        typeof userMetadata.full_name === "string"
+          ? userMetadata.full_name
+          : typeof userMetadata.name === "string"
+            ? userMetadata.name
+            : payloadBase.staff_name;
+
       const payload = {
-        ...buildPayload(),
+        ...payloadBase,
+        created_by_user_id: userData.user?.id || null,
+        created_by_email: userData.user?.email || null,
+        created_by_name: actorName || payloadBase.staff_name,
         created_at: new Date().toISOString(),
         deleted_at: null,
         deleted_by: null,
