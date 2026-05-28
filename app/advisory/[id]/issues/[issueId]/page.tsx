@@ -11,6 +11,7 @@ import { supabase } from "../../../../../lib/supabase";
 import type { UserPermissions, UserRole } from "../../../../../lib/permissions";
 import AdvisoryTimeLogsSection from "../../components/AdvisoryTimeLogsSection";
 import AdvisoryIssueTasksSection from "./components/AdvisoryIssueTasksSection";
+import AdvisoryAdviceRecordsSection from "./components/AdvisoryAdviceRecordsSection";
 
 type UserProfile = {
   role?: UserRole | string | null;
@@ -620,6 +621,15 @@ export default function AdvisoryIssueDetailPage() {
               clientId={issue.client_id || matter.client_id || null}
               canEdit={canEditTimeLogs}
               canDelete={canDeleteTimeLogs}
+              actorName={actorName}
+            />
+
+            <AdvisoryAdviceRecordsSection
+              advisoryMatterId={matter.id}
+              advisoryIssueId={issue.id}
+              clientId={issue.client_id || matter.client_id || null}
+              canEdit={canEditIssue}
+              canDelete={canDeleteIssue}
               actorName={actorName}
             />
 
