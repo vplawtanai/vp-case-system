@@ -556,7 +556,7 @@ export default function WorkloadSummaryPage() {
   if (!loading && !canView) {
     return (
       <AuthGuard>
-        <AppTopNav activePage="workload" title="Workload Summary" />
+        <AppTopNav activePage="workloadSummary" title="Workload Summary" />
         <main className="min-h-screen bg-gray-50 p-6">
           <div className="rounded-lg border border-gray-200 bg-white p-6 text-gray-700 shadow-sm">
             No access
@@ -568,7 +568,7 @@ export default function WorkloadSummaryPage() {
 
   return (
     <AuthGuard>
-      <AppTopNav activePage="workload" title="Workload Summary" />
+      <AppTopNav activePage="workloadSummary" title="Workload Summary" />
       <main className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6">
         <div className="mx-auto max-w-7xl space-y-6">
           <header className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
