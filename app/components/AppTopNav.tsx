@@ -16,6 +16,7 @@ type AppTopNavProps = {
     | "cases"
     | "clients"
     | "advisory"
+    | "workload"
     | "users";
 };
 
@@ -76,7 +77,7 @@ export default function AppTopNav({
   }, []);
 
   const getLinkStyle = (
-    page: "dashboard" | "cases" | "clients" | "advisory" | "users"
+    page: "dashboard" | "cases" | "clients" | "advisory" | "workload" | "users"
   ): React.CSSProperties => {
     const isActive = activePage === page;
 
@@ -126,6 +127,12 @@ export default function AppTopNav({
         {permissions.canViewDashboard && (
           <Link href="/advisory" style={getLinkStyle("advisory")}>
             Advisory
+          </Link>
+        )}
+
+        {permissions.canViewDashboard && (
+          <Link href="/reports/daily-workload" style={getLinkStyle("workload")}>
+            Workload
           </Link>
         )}
 

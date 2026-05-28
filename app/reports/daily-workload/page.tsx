@@ -483,7 +483,7 @@ export default function DailyWorkloadReportPage() {
   if (!loading && !canView) {
     return (
       <AuthGuard>
-        <AppTopNav activePage="dashboard" title="Daily Time Check" />
+        <AppTopNav activePage="workload" title="Daily Time Check" />
         <main className="p-6">
           <div className="rounded-lg border bg-white p-6 text-gray-700">No access</div>
         </main>
@@ -493,7 +493,7 @@ export default function DailyWorkloadReportPage() {
 
   return (
     <AuthGuard>
-      <AppTopNav activePage="dashboard" title="Daily Time Check" />
+      <AppTopNav activePage="workload" title="Daily Time Check" />
       <main className="min-h-screen bg-gray-50 p-6">
         <div className="mx-auto max-w-7xl space-y-6">
           <header>
