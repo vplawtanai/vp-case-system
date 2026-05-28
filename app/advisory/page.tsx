@@ -428,12 +428,17 @@ export default function AdvisoryPage() {
 
         <section style={panelStyle}>
           <div style={toolbarStyle}>
-            <input
-              value={searchText}
-              onChange={(event) => setSearchText(event.target.value)}
-              placeholder="Search matter no, title, client, lawyer, type, status"
-              style={inputStyle}
-            />
+            <div style={toolbarRowStyle}>
+              <input
+                value={searchText}
+                onChange={(event) => setSearchText(event.target.value)}
+                placeholder="Search matter no, title, client, lawyer, type, status"
+                style={inputStyle}
+              />
+              <Link href="/advisory/reports" style={linkButtonStyle}>
+                Reports
+              </Link>
+            </div>
           </div>
         </section>
 
@@ -735,6 +740,13 @@ const panelStyle: React.CSSProperties = {
 
 const toolbarStyle: React.CSSProperties = {
   padding: 16,
+};
+
+const toolbarRowStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 12,
+  alignItems: "center",
+  flexWrap: "wrap",
 };
 
 const formTitleStyle: React.CSSProperties = {
