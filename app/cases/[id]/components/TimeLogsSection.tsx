@@ -104,8 +104,20 @@ export default function TimeLogsSection({
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<TimeLogForm>(emptyForm);
+  const [actorUserId, setActorUserId] = useState("");
+  const [actorEmail, setActorEmail] = useState("");
 
   const formRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const loadActor = async () => {
+      const { data } = await supabase.auth.getUser();
+      setActorUserId(data.user?.id || "");
+      setActorEmail(data.user?.email || "");
+    };
+
+    void loadActor();
+  }, []);
 
   const scrollToForm = () => {
     window.setTimeout(() => {
@@ -239,9 +251,17 @@ export default function TimeLogsSection({
     scrollToForm();
   };
 
+  const canEditTimeLogRow = (item: TimeLogItem) => {
+    if (canDelete) return true;
+    if (!canEdit) return false;
+    if (item.created_by_user_id) return item.created_by_user_id === actorUserId;
+    if (item.created_by_email) return item.created_by_email === actorEmail;
+    return false;
+  };
+
   const startEdit = (item: TimeLogItem) => {
-    if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์แก้ไข Time Log");
+    if (!canEditTimeLogRow(item)) {
+      alert("You can edit only your own time log.");
       return;
     }
 
@@ -425,6 +445,11 @@ export default function TimeLogsSection({
       setSaving(true);
 
       const oldData = items.find((item) => item.id === editingId) || null;
+      if (!oldData || !canEditTimeLogRow(oldData)) {
+        alert("You can edit only your own time log.");
+        return;
+      }
+
       const payload = buildPayload();
 
       const { data, error } = await supabase
@@ -751,7 +776,7 @@ export default function TimeLogsSection({
             <TimeLogCard
               key={item.id}
               item={item}
-              canEdit={canEdit}
+              canEdit={canEditTimeLogRow(item)}
               canDelete={canDelete}
               onEdit={startEdit}
               onDelete={deleteTimeLog}
