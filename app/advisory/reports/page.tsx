@@ -39,8 +39,10 @@ type TimeLogRow = {
   client_id?: string | null;
   work_date?: string | null;
   staff_name?: string | null;
+  work_type?: string | null;
   minutes?: number | null;
   billable?: boolean | null;
+  note?: string | null;
 };
 
 type TaskRow = {
@@ -48,10 +50,14 @@ type TaskRow = {
   advisory_matter_id?: string | null;
   advisory_issue_id?: string | null;
   client_id?: string | null;
+  title?: string | null;
+  task_type?: string | null;
   status?: string | null;
   priority?: string | null;
+  assignee_name?: string | null;
   due_date?: string | null;
   completed_at?: string | null;
+  note?: string | null;
 };
 
 type AdviceRow = {
@@ -61,6 +67,10 @@ type AdviceRow = {
   client_id?: string | null;
   advice_date?: string | null;
   channel?: string | null;
+  responsible_person?: string | null;
+  question?: string | null;
+  advice_given?: string | null;
+  follow_up?: string | null;
 };
 
 export default function AdvisoryReportsPage() {
@@ -148,21 +158,23 @@ export default function AdvisoryReportsPage() {
           supabase
             .from("advisory_time_logs")
             .select(
-              "id, advisory_matter_id, advisory_issue_id, client_id, work_date, staff_name, minutes, billable"
+              "id, advisory_matter_id, advisory_issue_id, client_id, work_date, staff_name, work_type, minutes, billable, note"
             )
             .gte("work_date", firstDay)
             .lt("work_date", nextMonth)
             .is("deleted_at", null),
           supabase
             .from("advisory_advice_records")
-            .select("id, advisory_matter_id, advisory_issue_id, client_id, advice_date, channel")
+            .select(
+              "id, advisory_matter_id, advisory_issue_id, client_id, advice_date, channel, responsible_person, question, advice_given, follow_up"
+            )
             .gte("advice_date", firstDay)
             .lt("advice_date", nextMonth)
             .is("deleted_at", null),
           supabase
             .from("advisory_issue_tasks")
             .select(
-              "id, advisory_matter_id, advisory_issue_id, client_id, status, priority, due_date, completed_at"
+              "id, advisory_matter_id, advisory_issue_id, client_id, title, task_type, status, priority, assignee_name, due_date, completed_at, note"
             )
             .gte("due_date", firstDay)
             .lt("due_date", nextMonth)
@@ -170,7 +182,7 @@ export default function AdvisoryReportsPage() {
           supabase
             .from("advisory_issue_tasks")
             .select(
-              "id, advisory_matter_id, advisory_issue_id, client_id, status, priority, due_date, completed_at"
+              "id, advisory_matter_id, advisory_issue_id, client_id, title, task_type, status, priority, assignee_name, due_date, completed_at, note"
             )
             .gte("completed_at", firstDay)
             .lt("completed_at", nextMonth)
@@ -255,6 +267,33 @@ export default function AdvisoryReportsPage() {
   const hasReportData =
     timeLogs.length > 0 || tasks.length > 0 || adviceRecords.length > 0;
 
+  const exportCsv = () => {
+    const clientMap = new Map(clients.map((item) => [item.id, item.name || "-"]));
+    const matterMap = new Map(matters.map((item) => [item.id, item]));
+    const issueMap = new Map(issues.map((item) => [item.id, item]));
+    const rows = buildCsvRows({
+      month,
+      report,
+      timeLogs,
+      tasks,
+      adviceRecords,
+      clientMap,
+      matterMap,
+      issueMap,
+      hasReportData,
+    });
+    const csv = rows.map(toCsvLine).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `advisory-report-${month || getCurrentMonth()}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   if (loadingProfile) {
     return (
       <AuthGuard>
@@ -294,15 +333,20 @@ export default function AdvisoryReportsPage() {
         </Link>
 
         <section style={panelStyle}>
-          <label style={labelStyle}>
-            Month
-            <input
-              type="month"
-              value={month}
-              onChange={(event) => setMonth(event.target.value)}
-              style={inputStyle}
-            />
-          </label>
+          <div style={filterRowStyle}>
+            <label style={labelStyle}>
+              Month
+              <input
+                type="month"
+                value={month}
+                onChange={(event) => setMonth(event.target.value)}
+                style={inputStyle}
+              />
+            </label>
+            <button type="button" onClick={exportCsv} style={buttonStyle}>
+              Export CSV
+            </button>
+          </div>
         </section>
 
         {errorText ? <div style={errorBoxStyle}>{errorText}</div> : null}
@@ -351,6 +395,155 @@ export default function AdvisoryReportsPage() {
       </main>
     </AuthGuard>
   );
+}
+
+function buildCsvRows({
+  month,
+  report,
+  timeLogs,
+  tasks,
+  adviceRecords,
+  clientMap,
+  matterMap,
+  issueMap,
+  hasReportData,
+}: {
+  month: string;
+  report: {
+    total: number;
+    core: number;
+    support: number;
+    adviceCount: number;
+    taskTotal: number;
+    taskCompleted: number;
+    taskActive: number;
+    taskImportant: number;
+  };
+  timeLogs: TimeLogRow[];
+  tasks: TaskRow[];
+  adviceRecords: AdviceRow[];
+  clientMap: Map<string, string>;
+  matterMap: Map<string, MatterRow>;
+  issueMap: Map<string, IssueRow>;
+  hasReportData: boolean;
+}) {
+  const rows: string[][] = [
+    ["Summary"],
+    ["Month", month],
+    ["Total Time", formatDuration(report.total)],
+    ["Core Time", formatDuration(report.core)],
+    ["Support Time", formatDuration(report.support)],
+    ["Advice Records", String(report.adviceCount)],
+    ["Tasks Total", String(report.taskTotal)],
+    ["Tasks Completed", String(report.taskCompleted)],
+    ["Tasks Active", String(report.taskActive)],
+    ["Urgent/High Tasks", String(report.taskImportant)],
+  ];
+
+  if (!hasReportData) {
+    rows.push([], ["No report data for selected month."]);
+  }
+
+  rows.push(
+    [],
+    ["Time Logs"],
+    [
+      "Work Date",
+      "Staff",
+      "Client",
+      "Matter",
+      "Issue",
+      "Work Type",
+      "Category",
+      "Minutes",
+      "Duration",
+      "Note",
+    ],
+    ...timeLogs.map((item) => [
+      item.work_date || "",
+      item.staff_name || "",
+      clientMap.get(item.client_id || "") || "",
+      renderMatterLabel(matterMap.get(item.advisory_matter_id || "")),
+      renderIssueLabelOrBlank(issueMap.get(item.advisory_issue_id || "")),
+      item.work_type || "",
+      item.billable === false ? "Support" : "Core",
+      String(item.minutes || 0),
+      formatDuration(Number(item.minutes || 0)),
+      item.note || "",
+    ])
+  );
+
+  rows.push(
+    [],
+    ["Tasks"],
+    [
+      "Due Date",
+      "Completed At",
+      "Client",
+      "Matter",
+      "Issue",
+      "Title",
+      "Task Type",
+      "Status",
+      "Priority",
+      "Assignee",
+      "Note",
+    ],
+    ...tasks.map((item) => [
+      item.due_date || "",
+      item.completed_at || "",
+      clientMap.get(item.client_id || "") || "",
+      renderMatterLabel(matterMap.get(item.advisory_matter_id || "")),
+      renderIssueLabelOrBlank(issueMap.get(item.advisory_issue_id || "")),
+      item.title || "",
+      item.task_type || "",
+      item.status || "",
+      item.priority || "",
+      item.assignee_name || "",
+      item.note || "",
+    ])
+  );
+
+  rows.push(
+    [],
+    ["Advice Records"],
+    [
+      "Advice Date",
+      "Client",
+      "Matter",
+      "Issue",
+      "Channel",
+      "Responsible Person",
+      "Question",
+      "Advice Given",
+      "Follow-up",
+    ],
+    ...adviceRecords.map((item) => [
+      item.advice_date || "",
+      clientMap.get(item.client_id || "") || "",
+      renderMatterLabel(matterMap.get(item.advisory_matter_id || "")),
+      renderIssueLabelOrBlank(issueMap.get(item.advisory_issue_id || "")),
+      item.channel || "",
+      item.responsible_person || "",
+      item.question || "",
+      item.advice_given || "",
+      item.follow_up || "",
+    ])
+  );
+
+  return rows;
+}
+
+function toCsvLine(row: string[]) {
+  return row.map(escapeCsvValue).join(",");
+}
+
+function escapeCsvValue(value: string) {
+  const text = String(value ?? "");
+  if (/[",\n\r]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
 }
 
 function SummaryCard({ label, value }: { label: string; value: string }) {
@@ -455,6 +648,16 @@ function renderIssueLabel(issue: IssueRow) {
   return `${prefix}${issue.title || issue.id}`;
 }
 
+function renderIssueLabelOrBlank(issue?: IssueRow) {
+  return issue ? renderIssueLabel(issue) : "";
+}
+
+function renderMatterLabel(matter?: MatterRow) {
+  if (!matter) return "";
+  const prefix = matter.matter_no ? `${matter.matter_no} - ` : "";
+  return `${prefix}${matter.title || matter.id}`;
+}
+
 function formatDuration(value: number) {
   const minutes = Number(value || 0);
   const hours = Math.floor(minutes / 60);
@@ -513,6 +716,13 @@ const labelStyle: React.CSSProperties = {
   fontWeight: 800,
 };
 
+const filterRowStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 12,
+  alignItems: "end",
+  flexWrap: "wrap",
+};
+
 const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "10px 12px",
@@ -520,6 +730,16 @@ const inputStyle: React.CSSProperties = {
   borderRadius: 8,
   background: "#ffffff",
   color: "#111111",
+};
+
+const buttonStyle: React.CSSProperties = {
+  padding: "10px 14px",
+  border: "1px solid #000000",
+  borderRadius: 8,
+  background: "#000000",
+  color: "#ffffff",
+  cursor: "pointer",
+  fontWeight: 800,
 };
 
 const sectionTitleStyle: React.CSSProperties = {
