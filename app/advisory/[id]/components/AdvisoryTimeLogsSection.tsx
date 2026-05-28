@@ -44,6 +44,7 @@ type Props = {
   canDelete: boolean;
   actorName: string;
   issues?: { id: string; issue_no?: string | null; title?: string | null }[];
+  issueIdFilter?: string | null;
 };
 
 const workTypeOptions = [
@@ -76,6 +77,7 @@ export default function AdvisoryTimeLogsSection({
   canDelete,
   actorName,
   issues = [],
+  issueIdFilter = null,
 }: Props) {
   const [items, setItems] = useState<AdvisoryTimeLog[]>([]);
   const [loading, setLoading] = useState(false);
@@ -103,11 +105,17 @@ export default function AdvisoryTimeLogsSection({
     try {
       setLoading(true);
 
-      const { data, error } = await supabase
+      let query = supabase
         .from("advisory_time_logs")
         .select("*")
         .eq("advisory_matter_id", advisoryMatterId)
-        .is("deleted_at", null)
+        .is("deleted_at", null);
+
+      if (issueIdFilter) {
+        query = query.eq("advisory_issue_id", issueIdFilter);
+      }
+
+      const { data, error } = await query
         .order("work_date", { ascending: false })
         .order("created_at", { ascending: false });
 
@@ -126,7 +134,7 @@ export default function AdvisoryTimeLogsSection({
   useEffect(() => {
     loadTimeLogs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [advisoryMatterId]);
+  }, [advisoryMatterId, issueIdFilter]);
 
   const summary = useMemo(() => {
     const byStaff = new Map<
@@ -171,7 +179,7 @@ export default function AdvisoryTimeLogsSection({
     setEditingId(null);
     setForm({
       ...emptyForm,
-      advisory_issue_id: "",
+      advisory_issue_id: issueIdFilter || "",
       work_date: getTodayDateString(),
       staff_name: actorName || "",
     });
@@ -184,7 +192,7 @@ export default function AdvisoryTimeLogsSection({
     const split = splitMinutes(safeMinutes(item.minutes));
     setEditingId(item.id);
     setForm({
-      advisory_issue_id: item.advisory_issue_id || "",
+      advisory_issue_id: issueIdFilter || item.advisory_issue_id || "",
       work_date: item.work_date || getTodayDateString(),
       staff_name: item.staff_name || actorName || "",
       work_type: item.work_type || "Advisory",
@@ -202,7 +210,7 @@ export default function AdvisoryTimeLogsSection({
     setShowForm(false);
     setForm({
       ...emptyForm,
-      advisory_issue_id: "",
+      advisory_issue_id: issueIdFilter || "",
       work_date: getTodayDateString(),
       staff_name: actorName || "",
     });
@@ -257,7 +265,7 @@ export default function AdvisoryTimeLogsSection({
 
   const buildPayload = (validated: ValidatedTimeLogForm) => ({
     advisory_matter_id: advisoryMatterId,
-    advisory_issue_id: form.advisory_issue_id || null,
+    advisory_issue_id: issueIdFilter || form.advisory_issue_id || null,
     client_id: clientId || null,
     work_date: form.work_date,
     staff_name: validated.staffName,
@@ -433,20 +441,31 @@ export default function AdvisoryTimeLogsSection({
             value={form.staff_name}
             onChange={(value) => setForm({ ...form, staff_name: value })}
           />
-          <SelectField
-            label="Issue"
-            value={form.advisory_issue_id}
-            onChange={(value) =>
-              setForm({ ...form, advisory_issue_id: value })
-            }
-            options={[
-              { value: "", label: "No issue" },
-              ...issues.map((issue) => ({
-                value: issue.id,
-                label: renderIssueLabel(issue),
-              })),
-            ]}
-          />
+          {issueIdFilter ? (
+            <Field
+              label="Issue"
+              value={renderIssueLabel(
+                issues.find((issue) => issue.id === issueIdFilter)
+              )}
+              onChange={() => undefined}
+              readOnly
+            />
+          ) : (
+            <SelectField
+              label="Issue"
+              value={form.advisory_issue_id}
+              onChange={(value) =>
+                setForm({ ...form, advisory_issue_id: value })
+              }
+              options={[
+                { value: "", label: "No issue" },
+                ...issues.map((issue) => ({
+                  value: issue.id,
+                  label: renderIssueLabel(issue),
+                })),
+              ]}
+            />
+          )}
           <SelectField
             label="Work type"
             value={form.work_type}
@@ -594,11 +613,13 @@ function Field({
   value,
   onChange,
   type = "text",
+  readOnly = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
+  readOnly?: boolean;
 }) {
   return (
     <label style={labelStyle}>
@@ -606,6 +627,7 @@ function Field({
       <input
         type={type}
         value={value}
+        readOnly={readOnly}
         onChange={(event) => onChange(event.target.value)}
         style={inputStyle}
       />

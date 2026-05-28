@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { createAuditLog } from "../../../../lib/auditLog";
 import { supabase } from "../../../../lib/supabase";
 
@@ -430,7 +431,7 @@ export default function AdvisoryIssuesSection({
                 <th style={thStyle}>Due</th>
                 <th style={thStyle}>Closed</th>
                 <th style={thStyle}>Next Action</th>
-                {(canEdit || canDelete) && <th style={thStyle}>Action</th>}
+                <th style={thStyle}>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -452,30 +453,34 @@ export default function AdvisoryIssuesSection({
                   <td style={tdStyle}>{item.due_date || "-"}</td>
                   <td style={tdStyle}>{item.closed_at || "-"}</td>
                   <td style={tdStyle}>{item.next_action || "-"}</td>
-                  {(canEdit || canDelete) && (
-                    <td style={tdStyle}>
-                      <div style={actionWrapStyle}>
-                        {canEdit ? (
-                          <button
-                            type="button"
-                            onClick={() => startEdit(item)}
-                            style={smallButtonStyle}
-                          >
-                            Edit
-                          </button>
-                        ) : null}
-                        {canDelete ? (
-                          <button
-                            type="button"
-                            onClick={() => softDeleteIssue(item.id)}
-                            style={dangerButtonStyle}
-                          >
-                            Delete
-                          </button>
-                        ) : null}
-                      </div>
-                    </td>
-                  )}
+                  <td style={tdStyle}>
+                    <div style={actionWrapStyle}>
+                      <Link
+                        href={`/advisory/${advisoryMatterId}/issues/${item.id}`}
+                        style={smallButtonStyle}
+                      >
+                        Open
+                      </Link>
+                      {canEdit ? (
+                        <button
+                          type="button"
+                          onClick={() => startEdit(item)}
+                          style={smallButtonStyle}
+                        >
+                          Edit
+                        </button>
+                      ) : null}
+                      {canDelete ? (
+                        <button
+                          type="button"
+                          onClick={() => softDeleteIssue(item.id)}
+                          style={dangerButtonStyle}
+                        >
+                          Delete
+                        </button>
+                      ) : null}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
