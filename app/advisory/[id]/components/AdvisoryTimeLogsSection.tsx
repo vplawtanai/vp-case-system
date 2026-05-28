@@ -84,6 +84,7 @@ export default function AdvisoryTimeLogsSection({
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [actorUserId, setActorUserId] = useState("");
   const [actorEmail, setActorEmail] = useState("");
   const [form, setForm] = useState<TimeLogForm>({
     ...emptyForm,
@@ -93,6 +94,7 @@ export default function AdvisoryTimeLogsSection({
   useEffect(() => {
     const loadActorEmail = async () => {
       const { data } = await supabase.auth.getUser();
+      setActorUserId(data.user?.id || "");
       setActorEmail(data.user?.email || data.user?.id || "");
     };
 
@@ -308,6 +310,9 @@ export default function AdvisoryTimeLogsSection({
       } else {
         const payload = {
           ...buildPayload(validated),
+          created_by_user_id: actorUserId || null,
+          created_by_email: actorEmail || null,
+          created_by_name: actorName || validated.staffName,
           created_at: new Date().toISOString(),
           deleted_at: null,
           deleted_by: null,
