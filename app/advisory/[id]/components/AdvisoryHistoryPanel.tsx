@@ -30,6 +30,7 @@ export default function AdvisoryHistoryPanel({ matterId }: Props) {
   const [items, setItems] = useState<AuditLogItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorText, setErrorText] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
 
   const totalCount = useMemo(() => items.length, [items]);
 
@@ -133,15 +134,22 @@ export default function AdvisoryHistoryPanel({ matterId }: Props) {
           <h3 style={titleStyle}>Advisory History</h3>
           <div style={subTitleStyle}>{totalCount} history item(s)</div>
         </div>
+        <button
+          type="button"
+          onClick={() => setIsOpen((current) => !current)}
+          style={toggleButtonStyle}
+        >
+          {isOpen ? "Hide" : "Show"}
+        </button>
       </div>
 
-      {errorText ? <div style={errorStyle}>{errorText}</div> : null}
+      {isOpen && errorText ? <div style={errorStyle}>{errorText}</div> : null}
 
-      {loading ? (
+      {isOpen && loading ? (
         <div style={messageStyle}>Loading advisory history...</div>
-      ) : items.length === 0 ? (
+      ) : isOpen && items.length === 0 ? (
         <div style={messageStyle}>No history found.</div>
-      ) : (
+      ) : isOpen ? (
         <div style={tableWrapStyle}>
           <table style={tableStyle}>
             <thead>
@@ -175,7 +183,7 @@ export default function AdvisoryHistoryPanel({ matterId }: Props) {
             </tbody>
           </table>
         </div>
-      )}
+      ) : null}
     </section>
   );
 }
@@ -278,6 +286,16 @@ const errorStyle: React.CSSProperties = {
 };
 
 const summaryStyle: React.CSSProperties = {
+  cursor: "pointer",
+  fontWeight: 800,
+};
+
+const toggleButtonStyle: React.CSSProperties = {
+  padding: "8px 12px",
+  border: "1px solid #cccccc",
+  borderRadius: 8,
+  background: "#ffffff",
+  color: "#111111",
   cursor: "pointer",
   fontWeight: 800,
 };
