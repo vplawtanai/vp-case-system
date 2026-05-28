@@ -225,6 +225,7 @@ export default function DashboardPage() {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [isCompact, setIsCompact] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
   const [searchText, setSearchText] = useState("");
   const [riskFilter, setRiskFilter] = useState<RiskFilter>("all");
@@ -248,6 +249,17 @@ export default function DashboardPage() {
     window.addEventListener("resize", updateSize);
 
     return () => window.removeEventListener("resize", updateSize);
+  }, []);
+
+  useEffect(() => {
+    const updateScrollTop = () => {
+      setShowScrollTop(window.scrollY > 320);
+    };
+
+    updateScrollTop();
+    window.addEventListener("scroll", updateScrollTop, { passive: true });
+
+    return () => window.removeEventListener("scroll", updateScrollTop);
   }, []);
 
   useEffect(() => {
@@ -994,7 +1006,15 @@ export default function DashboardPage() {
           </button>
         </section>
 
-        <section style={blockStyle}>
+        <nav style={isMobile ? mobileStickyNavStyle : stickyNavStyle} aria-label="Dashboard sections">
+          <a href="#overview" style={stickyNavLinkStyle}>Overview</a>
+          <a href="#urgent" style={stickyNavLinkStyle}>Urgent</a>
+          <a href="#workload" style={stickyNavLinkStyle}>Workload</a>
+          <a href="#cases" style={stickyNavLinkStyle}>Cases</a>
+          <a href="#team" style={stickyNavLinkStyle}>Team</a>
+        </nav>
+
+        <section id="overview" style={blockStyle}>
           <div style={isMobile ? mobileSummaryGridStyle : isCompact ? compactSummaryGridStyle : summaryGridStyle}>
             <MetricCard
               label="Active Cases"
@@ -1036,11 +1056,11 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section style={isMobile ? mobileSectionCardStyle : sectionCardStyle}>
+        <section id="urgent" style={isMobile ? mobileUrgentCommandPanelStyle : urgentCommandPanelStyle}>
           <div style={sectionHeaderStyle}>
             <div>
               <div style={sectionEyebrowStyle}>COMMAND CENTER</div>
-              <h3 style={sectionTitleStyle}>Action Required / Urgent Deadlines</h3>
+              <h3 style={sectionTitleStyle}>Urgent Command Panel</h3>
               <div style={sectionSubtitleStyle}>
                 Overdue, due today, due soon, and stale cases that need attention first.
               </div>
@@ -1055,7 +1075,7 @@ export default function DashboardPage() {
         </section>
 
         {canSeeTimeOverview && (
-          <section style={workloadStackSectionStyle}>
+          <section id="workload" style={workloadStackSectionStyle}>
             <div style={isMobile ? mobileSectionCardStyle : sectionCardStyle}>
               <div style={isMobile ? mobileHeaderGridStyle : workloadHeaderGridStyle}>
                 <SectionHeader
@@ -1079,18 +1099,18 @@ export default function DashboardPage() {
               </div>
 
               <WorkloadOverview summary={workloadSummary} isMobile={isMobile} />
-            </div>
 
-            {canSeeTeamWorkload && (
-              <div style={isMobile ? mobileSectionCardStyle : sectionCardStyle}>
-                <SectionHeader
-                  eyebrow="TEAM"
-                  title="Staff Core / Support Split"
-                  subtitle="อันดับภาระงานของแต่ละคน แยก Core Work และ Support Time ตามเดือนที่เลือก"
-                />
-                <StaffWorkloadChart items={staffTimeSummary} isMobile={isMobile} />
-              </div>
-            )}
+              {canSeeTeamWorkload && (
+                <div style={nestedPanelStyle}>
+                  <SectionHeader
+                    eyebrow="TEAM SNAPSHOT"
+                    title="Staff Core / Support Split"
+                    subtitle="Team workload split for the selected period."
+                  />
+                  <StaffWorkloadChart items={staffTimeSummary} isMobile={isMobile} />
+                </div>
+              )}
+            </div>
           </section>
         )}
 
@@ -1195,7 +1215,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section style={isMobile ? mobileMiniGridStyle : miniGridStyle}>
+        <section id="cases" style={isMobile ? mobileMiniGridStyle : miniGridStyle}>
           <DistributionCard
             title="Case Status"
             rows={[
@@ -1228,7 +1248,7 @@ export default function DashboardPage() {
           />
         </section>
 
-        <section style={singleColumnSectionStyle}>
+        <section id="team" style={singleColumnSectionStyle}>
           {canSeeOwnTimeDetail && !canSeeTeamTimeDetail && (
             <div style={isMobile ? mobileSectionCardStyle : sectionCardStyle}>
               <div style={isMobile ? mobileHeaderGridStyle : dailyHeaderGridStyle}>
@@ -1345,6 +1365,17 @@ export default function DashboardPage() {
             </div>
           )}
         </section>
+
+        {showScrollTop && (
+          <button
+            type="button"
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            style={scrollTopButtonStyle}
+            aria-label="Scroll to top"
+          >
+            Top
+          </button>
+        )}
       </main>
     </AuthGuard>
   );
@@ -2842,6 +2873,42 @@ const heroSubtitleStyle: CSSProperties = {
   lineHeight: 1.45,
 };
 
+const stickyNavStyle: CSSProperties = {
+  position: "sticky",
+  top: 0,
+  zIndex: 20,
+  display: "flex",
+  gap: 8,
+  alignItems: "center",
+  overflowX: "auto",
+  padding: "8px 0 12px",
+  marginBottom: 6,
+  background: "rgba(248, 250, 252, 0.94)",
+  backdropFilter: "blur(10px)",
+};
+
+const mobileStickyNavStyle: CSSProperties = {
+  ...stickyNavStyle,
+  gap: 6,
+  padding: "7px 0 10px",
+};
+
+const stickyNavLinkStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "8px 12px",
+  borderRadius: 999,
+  border: "1px solid #d8e0ea",
+  background: "#ffffff",
+  color: "#0f2743",
+  textDecoration: "none",
+  fontSize: 13,
+  fontWeight: 900,
+  whiteSpace: "nowrap",
+  boxShadow: "0 4px 12px rgba(15, 23, 42, 0.04)",
+};
+
 const filterPanelStyle: CSSProperties = {
   border: "1px solid #eeeeee",
   borderRadius: 16,
@@ -3100,6 +3167,12 @@ const mobileHeaderGridStyle: CSSProperties = {
   marginBottom: 12,
 };
 
+const nestedPanelStyle: CSSProperties = {
+  marginTop: 14,
+  paddingTop: 14,
+  borderTop: "1px solid #e5e7eb",
+};
+
 const sectionCardStyle: CSSProperties = {
   border: "1px solid #eeeeee",
   borderRadius: 16,
@@ -3111,6 +3184,19 @@ const sectionCardStyle: CSSProperties = {
 
 const mobileSectionCardStyle: CSSProperties = {
   ...sectionCardStyle,
+  borderRadius: 14,
+  padding: 12,
+  marginBottom: 10,
+};
+
+const urgentCommandPanelStyle: CSSProperties = {
+  ...sectionCardStyle,
+  border: "1px solid #c8d7ea",
+  boxShadow: "0 12px 30px rgba(15, 39, 67, 0.08)",
+};
+
+const mobileUrgentCommandPanelStyle: CSSProperties = {
+  ...urgentCommandPanelStyle,
   borderRadius: 14,
   padding: 12,
   marginBottom: 10,
@@ -3206,6 +3292,22 @@ const ghostButtonStyle: CSSProperties = {
 const mobileGhostButtonStyle: CSSProperties = {
   ...ghostButtonStyle,
   width: "100%",
+};
+
+const scrollTopButtonStyle: CSSProperties = {
+  position: "fixed",
+  right: 24,
+  bottom: 96,
+  zIndex: 40,
+  padding: "10px 14px",
+  borderRadius: 999,
+  border: "1px solid rgba(255, 255, 255, 0.22)",
+  background: "#0f2743",
+  color: "#ffffff",
+  boxShadow: "0 10px 24px rgba(15, 39, 67, 0.22)",
+  cursor: "pointer",
+  fontSize: 13,
+  fontWeight: 900,
 };
 
 const tableStyle: CSSProperties = {
