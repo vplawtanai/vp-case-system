@@ -968,19 +968,19 @@ export default function DashboardPage() {
     <AuthGuard>
       <main style={isMobile ? mobilePageStyle : pageStyle}>
         <AppTopNav
-          title="Dashboard"
-          subtitle="Executive overview across all cases"
+          title="VP Command Center"
+          subtitle="Cases, deadlines, workload, and action items in one view."
           activePage="dashboard"
         />
 
         <section style={isMobile ? mobileHeroPanelStyle : heroPanelStyle}>
           <div>
-            <div style={eyebrowStyle}>VP CASE SYSTEM</div>
+            <div style={eyebrowStyle}>COMMAND CENTER</div>
             <h1 style={isMobile ? mobileHeroTitleStyle : heroTitleStyle}>
-              Executive Dashboard
+              VP Command Center
             </h1>
             <div style={heroSubtitleStyle}>
-              ภาพรวมคดี ความเสี่ยง กำหนดเวลา เวลาทำงาน และสถานะการบังคับคดี
+              Cases, deadlines, workload, and action items in one view.
             </div>
           </div>
 
@@ -994,13 +994,112 @@ export default function DashboardPage() {
           </button>
         </section>
 
+        <section style={blockStyle}>
+          <div style={isMobile ? mobileSummaryGridStyle : isCompact ? compactSummaryGridStyle : summaryGridStyle}>
+            <MetricCard
+              label="Active Cases"
+              subLabel={`${summary.total} cases in view`}
+              count={String(summary.active)}
+              tone="neutral"
+              isMobile={isMobile}
+            />
+            <MetricCard
+              label="Overdue"
+              subLabel="เกินกำหนด"
+              count={String(summary.overdue)}
+              tone="danger"
+              isMobile={isMobile}
+            />
+            <MetricCard
+              label="Today"
+              subLabel="ครบกำหนดวันนี้"
+              count={String(summary.today)}
+              tone="warning"
+              isMobile={isMobile}
+            />
+            <MetricCard
+              label="Due Soon"
+              subLabel="ใกล้ครบกำหนด"
+              count={String(summary.dueSoon)}
+              tone="soon"
+              isMobile={isMobile}
+            />
+            {canSeeTimeOverview && (
+              <MetricCard
+                label="Total Logged Time"
+                subLabel={renderTimeRangeLabel(timeRange, selectedMonth)}
+                count={formatDuration(summary.totalLoggedMinutes)}
+                tone="blue"
+                isMobile={isMobile}
+              />
+            )}
+          </div>
+        </section>
+
+        <section style={isMobile ? mobileSectionCardStyle : sectionCardStyle}>
+          <div style={sectionHeaderStyle}>
+            <div>
+              <div style={sectionEyebrowStyle}>COMMAND CENTER</div>
+              <h3 style={sectionTitleStyle}>Action Required / Urgent Deadlines</h3>
+              <div style={sectionSubtitleStyle}>
+                Overdue, due today, due soon, and stale cases that need attention first.
+              </div>
+            </div>
+
+            <Link href="/cases" style={sectionLinkStyle}>
+              View cases
+            </Link>
+          </div>
+
+          <ActionRequiredPanel data={actionRequired} isMobile={isMobile} />
+        </section>
+
+        {canSeeTimeOverview && (
+          <section style={workloadStackSectionStyle}>
+            <div style={isMobile ? mobileSectionCardStyle : sectionCardStyle}>
+              <div style={isMobile ? mobileHeaderGridStyle : workloadHeaderGridStyle}>
+                <SectionHeader
+                  eyebrow="WORKLOAD"
+                  title="Workload Snapshot"
+                  subtitle="Core and support time for the selected period. Time visibility follows current permissions and RLS."
+                />
+
+                <SelectFilter
+                  label="Select Month"
+                  value={selectedMonth}
+                  onChange={(value) => {
+                    setSelectedMonth(value);
+                    setTimeRange("selectedMonth");
+                  }}
+                  options={monthOptions.map((item) => ({
+                    value: item,
+                    label: renderMonthKey(item),
+                  }))}
+                />
+              </div>
+
+              <WorkloadOverview summary={workloadSummary} isMobile={isMobile} />
+            </div>
+
+            {canSeeTeamWorkload && (
+              <div style={isMobile ? mobileSectionCardStyle : sectionCardStyle}>
+                <SectionHeader
+                  eyebrow="TEAM"
+                  title="Staff Core / Support Split"
+                  subtitle="อันดับภาระงานของแต่ละคน แยก Core Work และ Support Time ตามเดือนที่เลือก"
+                />
+                <StaffWorkloadChart items={staffTimeSummary} isMobile={isMobile} />
+              </div>
+            )}
+          </section>
+        )}
+
         <section style={isMobile ? mobileFilterPanelStyle : filterPanelStyle}>
           <div style={filterHeaderStyle}>
             <div>
               <h3 style={filterTitleStyle}>Search & Filters</h3>
               <div style={filterSubtitleStyle}>
-                ค้นหาและกรอง Dashboard ตามแฟ้มคดี ผู้รับผิดชอบ สถานะ
-                ความเสี่ยง และช่วงเวลาทำงาน
+                Narrow the command center by case, owner, status, risk, and workload period.
               </div>
             </div>
 
@@ -1096,83 +1195,6 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section style={blockStyle}>
-          <div style={isMobile ? mobileSummaryGridStyle : isCompact ? compactSummaryGridStyle : summaryGridStyle}>
-            <MetricCard
-              label="Total Cases"
-              subLabel="แฟ้มที่แสดง"
-              count={String(summary.total)}
-              tone="neutral"
-              isMobile={isMobile}
-            />
-            <MetricCard
-              label="Overdue"
-              subLabel="เกินกำหนด"
-              count={String(summary.overdue)}
-              tone="danger"
-              isMobile={isMobile}
-            />
-            <MetricCard
-              label="Today"
-              subLabel="ครบกำหนดวันนี้"
-              count={String(summary.today)}
-              tone="warning"
-              isMobile={isMobile}
-            />
-            <MetricCard
-              label="Due Soon"
-              subLabel="ใกล้ครบกำหนด"
-              count={String(summary.dueSoon)}
-              tone="soon"
-              isMobile={isMobile}
-            />
-            <MetricCard
-              label="Enforcement Ready"
-              subLabel="พร้อมดำเนินการบังคับคดี"
-              count={String(summary.enforcementReady)}
-              tone="blue"
-              isMobile={isMobile}
-            />
-
-            {canSeeTimeOverview && (
-              <MetricCard
-                label="Total Logged Time"
-                subLabel={renderTimeRangeLabel(timeRange, selectedMonth)}
-                count={formatDuration(summary.totalLoggedMinutes)}
-                tone="purple"
-                isMobile={isMobile}
-              />
-            )}
-
-            <MetricCard
-              label="Clear"
-              subLabel="ยังไม่มี Alert"
-              count={String(summary.clear)}
-              tone="success"
-              isMobile={isMobile}
-            />
-          </div>
-        </section>
-
-        <section style={isMobile ? mobileSectionCardStyle : sectionCardStyle}>
-          <div style={sectionHeaderStyle}>
-            <div>
-              <div style={sectionEyebrowStyle}>COMMAND CENTER</div>
-              <h3 style={sectionTitleStyle}>Action Required</h3>
-              <div style={sectionSubtitleStyle}>
-                รายการที่ควรสั่งการก่อน: เกินกำหนด ครบกำหนดวันนี้
-                ใกล้ครบกำหนด และคดีที่ไม่ได้อัปเดตนานผิดปกติ
-              </div>
-            </div>
-
-            <Link href="/cases" style={sectionLinkStyle}>
-              View cases
-            </Link>
-          </div>
-
-          <ActionRequiredPanel data={actionRequired} isMobile={isMobile} />
-        </section>
-
         <section style={isMobile ? mobileMiniGridStyle : miniGridStyle}>
           <DistributionCard
             title="Case Status"
@@ -1180,6 +1202,7 @@ export default function DashboardPage() {
               { label: "Active", value: summary.active },
               { label: "Waiting", value: summary.waiting },
               { label: "Done", value: summary.done },
+              { label: "Clear", value: summary.clear },
             ]}
             isMobile={isMobile}
           />
@@ -1195,47 +1218,15 @@ export default function DashboardPage() {
             rows={ownerSummary.map(([label, value]) => ({ label, value }))}
             isMobile={isMobile}
           />
+
+          <MetricCard
+            label="Enforcement Ready"
+            subLabel="พร้อมดำเนินการบังคับคดี"
+            count={String(summary.enforcementReady)}
+            tone="blue"
+            isMobile={isMobile}
+          />
         </section>
-
-        {canSeeTimeOverview && (
-          <section style={workloadStackSectionStyle}>
-            <div style={isMobile ? mobileSectionCardStyle : sectionCardStyle}>
-              <div style={isMobile ? mobileHeaderGridStyle : workloadHeaderGridStyle}>
-                <SectionHeader
-                  eyebrow="WORKLOAD"
-                  title="Core vs Support Workload"
-                  subtitle="ภาพรวมเวลาทำงานหลักและเวลาสนับสนุนตามเดือนที่เลือก"
-                />
-
-                <SelectFilter
-                  label="Select Month"
-                  value={selectedMonth}
-                  onChange={(value) => {
-                    setSelectedMonth(value);
-                    setTimeRange("selectedMonth");
-                  }}
-                  options={monthOptions.map((item) => ({
-                    value: item,
-                    label: renderMonthKey(item),
-                  }))}
-                />
-              </div>
-
-              <WorkloadOverview summary={workloadSummary} isMobile={isMobile} />
-            </div>
-
-            {canSeeTeamWorkload && (
-              <div style={isMobile ? mobileSectionCardStyle : sectionCardStyle}>
-                <SectionHeader
-                  eyebrow="TEAM"
-                  title="Staff Core / Support Split"
-                  subtitle="อันดับภาระงานของแต่ละคน แยก Core Work และ Support Time ตามเดือนที่เลือก"
-                />
-                <StaffWorkloadChart items={staffTimeSummary} isMobile={isMobile} />
-              </div>
-            )}
-          </section>
-        )}
 
         <section style={singleColumnSectionStyle}>
           {canSeeOwnTimeDetail && !canSeeTeamTimeDetail && (
@@ -2806,22 +2797,21 @@ const heroPanelStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   gap: 16,
-  alignItems: "flex-start",
+  alignItems: "center",
   flexWrap: "wrap",
   border: "1px solid #e5e7eb",
-  borderRadius: 18,
-  padding: 20,
-  marginBottom: 18,
-  background:
-    "linear-gradient(135deg, #ffffff 0%, #f8fafc 48%, #eef6f0 100%)",
-  boxShadow: "0 8px 28px rgba(15, 23, 42, 0.06)",
+  borderRadius: 14,
+  padding: "14px 16px",
+  marginBottom: 14,
+  background: "#ffffff",
+  boxShadow: "0 6px 18px rgba(15, 23, 42, 0.05)",
 };
 
 const mobileHeroPanelStyle: CSSProperties = {
   ...heroPanelStyle,
-  padding: 14,
-  borderRadius: 14,
-  marginBottom: 12,
+  padding: 12,
+  borderRadius: 12,
+  marginBottom: 10,
 };
 
 const eyebrowStyle: CSSProperties = {
@@ -2834,7 +2824,7 @@ const eyebrowStyle: CSSProperties = {
 
 const heroTitleStyle: CSSProperties = {
   margin: 0,
-  fontSize: 28,
+  fontSize: 24,
   fontWeight: 950,
   color: "#111111",
 };
@@ -2845,11 +2835,11 @@ const mobileHeroTitleStyle: CSSProperties = {
 };
 
 const heroSubtitleStyle: CSSProperties = {
-  marginTop: 8,
+  marginTop: 5,
   color: "#555555",
   fontSize: 14,
   fontWeight: 600,
-  lineHeight: 1.6,
+  lineHeight: 1.45,
 };
 
 const filterPanelStyle: CSSProperties = {
