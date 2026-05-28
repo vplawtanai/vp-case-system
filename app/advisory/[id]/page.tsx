@@ -10,6 +10,7 @@ import { supabase } from "../../../lib/supabase";
 import type { UserPermissions, UserRole } from "../../../lib/permissions";
 import AdvisoryIssuesSection from "./components/AdvisoryIssuesSection";
 import AdvisoryTimeLogsSection from "./components/AdvisoryTimeLogsSection";
+import AdvisoryHistoryPanel from "./components/AdvisoryHistoryPanel";
 
 type UserProfile = {
   role?: UserRole | string | null;
@@ -285,6 +286,8 @@ export default function AdvisoryDetailPage() {
               actorName={actorName}
               issues={issues}
             />
+
+            <AdvisoryHistoryPanel matterId={matter.id} />
           </>
         ) : null}
       </main>
