@@ -1365,8 +1365,8 @@ export default function DashboardPage() {
           <a href="#overview" style={stickyNavLinkStyle}>Overview</a>
           <a href="#urgent" style={stickyNavLinkStyle}>Urgent</a>
           <a href="#workload" style={stickyNavLinkStyle}>Workload</a>
-          <a href="#cases" style={stickyNavLinkStyle}>Cases</a>
-          <a href="#team" style={stickyNavLinkStyle}>Team</a>
+          <a href="#matters" style={stickyNavLinkStyle}>Matters</a>
+          <a href="#analytics" style={stickyNavLinkStyle}>Analytics</a>
         </nav>
 
         <section id="overview" style={blockStyle}>
@@ -1483,7 +1483,7 @@ export default function DashboardPage() {
           </section>
         )}
 
-        <section style={isMobile ? mobileFilterPanelStyle : filterPanelStyle}>
+        <section style={isMobile ? mobileFilterPanelStyle : compactFilterPanelStyle}>
           <div style={filterHeaderStyle}>
             <div>
               <h3 style={filterTitleStyle}>Search & Filters</h3>
@@ -1584,6 +1584,11 @@ export default function DashboardPage() {
           </div>
         </section>
 
+        <div id="matters" style={sectionDividerStyle}>
+          <div style={sectionEyebrowStyle}>MATTERS</div>
+          <h3 style={sectionTitleStyle}>Case and Advisory Streams</h3>
+        </div>
+
         <section style={isMobile ? mobileMatterStreamGridStyle : matterStreamGridStyle}>
           <MatterStreamPanel
             title="Case Stream"
@@ -1599,7 +1604,12 @@ export default function DashboardPage() {
           />
         </section>
 
-        <section id="cases" style={isMobile ? mobileMiniGridStyle : miniGridStyle}>
+        <div id="analytics" style={sectionDividerStyle}>
+          <div style={sectionEyebrowStyle}>ANALYTICS</div>
+          <h3 style={sectionTitleStyle}>Case Analytics</h3>
+        </div>
+
+        <section style={isMobile ? mobileMiniGridStyle : miniGridStyle}>
           <DistributionCard
             title="Case Status"
             rows={[
@@ -1632,6 +1642,11 @@ export default function DashboardPage() {
           />
         </section>
 
+        <div style={sectionDividerStyle}>
+          <div style={sectionEyebrowStyle}>ANALYTICS</div>
+          <h3 style={sectionTitleStyle}>Advisory Analytics</h3>
+        </div>
+
         <section style={isMobile ? mobileMiniGridStyle : miniGridStyle}>
           <DistributionCard
             title="Advisory Status"
@@ -1652,7 +1667,7 @@ export default function DashboardPage() {
           />
         </section>
 
-        <section id="team" style={singleColumnSectionStyle}>
+        <section style={singleColumnSectionStyle}>
           {canSeeOwnTimeDetail && !canSeeTeamTimeDetail && (
             <div style={isMobile ? mobileSectionCardStyle : sectionCardStyle}>
               <div style={isMobile ? mobileHeaderGridStyle : dailyHeaderGridStyle}>
@@ -1700,8 +1715,8 @@ export default function DashboardPage() {
             <div style={isMobile ? mobileSectionCardStyle : sectionCardStyle}>
               <SectionHeader
                 eyebrow="TEAM TIME"
-                title="Time by Staff"
-                subtitle="ภาพรวมเวลาทำงานรายคนตามช่วงเวลาที่เลือก"
+                title="Team Workload Details"
+                subtitle="Staff workload by selected period. Case and advisory time are included according to RLS."
               />
 
               {staffTimeSummary.length === 0 ? (
@@ -1719,7 +1734,7 @@ export default function DashboardPage() {
               <div style={isMobile ? mobileHeaderGridStyle : dailyHeaderGridStyle}>
                 <SectionHeader
                   eyebrow="DAILY TIME CHECK"
-                  title="Daily Core / Support by Staff"
+                  title="Daily Team Workload"
                   subtitle="เลือกวันที่เพื่อดูว่าในวันนั้นแต่ละคนทำ Core Work / Support Time เท่าไร และทำคดีอะไรบ้าง"
                 />
 
@@ -1753,9 +1768,9 @@ export default function DashboardPage() {
           {canSeeCaseCost && (
             <div style={isMobile ? mobileSectionCardStyle : sectionCardStyle}>
               <SectionHeader
-                eyebrow="CASE COST"
-                title="Top Time-Consuming Cases"
-                subtitle="5 คดีที่ใช้เวลาทำงานมากที่สุดตามช่วงเวลาที่เลือก"
+                eyebrow="ANALYTICS"
+                title="Top Time-Consuming Matters"
+                subtitle="Top case and advisory matters by logged time for the selected period."
               />
 
               {topTimeConsumingCases.length === 0 ? (
@@ -3317,8 +3332,8 @@ function getMetricToneStyle(tone: Tone): CSSProperties {
 
   if (tone === "soon") {
     return {
-      background: "linear-gradient(135deg, #fffdf2 0%, #fff8df 100%)",
-      border: "1px solid #eedc9a",
+      background: "linear-gradient(135deg, #effcff 0%, #dff7fb 100%)",
+      border: "1px solid #9bdbe8",
     };
   }
 
@@ -3352,7 +3367,7 @@ function getMetricToneStyle(tone: Tone): CSSProperties {
 function getBarToneStyle(tone: Tone): CSSProperties {
   if (tone === "danger") return { background: "#c0392b" };
   if (tone === "warning") return { background: "#b54708" };
-  if (tone === "soon") return { background: "#c96b00" };
+  if (tone === "soon") return { background: "#0e7490" };
   if (tone === "success") return { background: "#18794e" };
   if (tone === "blue") return { background: "#175cd3" };
   if (tone === "purple") return { background: "#7e22ce" };
@@ -3480,6 +3495,14 @@ const filterPanelStyle: CSSProperties = {
   marginBottom: 18,
 };
 
+const compactFilterPanelStyle: CSSProperties = {
+  ...filterPanelStyle,
+  padding: 12,
+  borderRadius: 12,
+  marginBottom: 14,
+  boxShadow: "0 4px 14px rgba(15, 23, 42, 0.035)",
+};
+
 const mobileFilterPanelStyle: CSSProperties = {
   ...filterPanelStyle,
   padding: 12,
@@ -3493,19 +3516,19 @@ const filterHeaderStyle: CSSProperties = {
   gap: 12,
   alignItems: "flex-start",
   flexWrap: "wrap",
-  marginBottom: 14,
+  marginBottom: 10,
 };
 
 const filterTitleStyle: CSSProperties = {
   margin: 0,
-  fontSize: 17,
+  fontSize: 15,
   fontWeight: 900,
   color: "#111111",
 };
 
 const filterSubtitleStyle: CSSProperties = {
   marginTop: 4,
-  fontSize: 13,
+  fontSize: 12,
   color: "#666666",
   fontWeight: 600,
 };
@@ -3664,7 +3687,7 @@ const sourceBadgeBaseStyle: CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   borderRadius: 999,
-  padding: "4px 8px",
+  padding: "4px 9px",
   fontSize: 11,
   fontWeight: 950,
   whiteSpace: "nowrap",
@@ -3680,6 +3703,11 @@ const advisorySourceBadgeStyle: CSSProperties = {
   ...sourceBadgeBaseStyle,
   background: "#f3e8ff",
   color: "#7e22ce",
+};
+
+const sectionDividerStyle: CSSProperties = {
+  margin: "20px 0 10px",
+  paddingTop: 4,
 };
 
 const distributionCardStyle: CSSProperties = {
@@ -4816,8 +4844,8 @@ const actionBadgeWarningStyle: CSSProperties = {
 };
 
 const actionBadgeSoonStyle: CSSProperties = {
-  background: "#fff4d9",
-  color: "#c96b00",
+  background: "#cffafe",
+  color: "#0e7490",
 };
 
 const actionBadgePurpleStyle: CSSProperties = {
