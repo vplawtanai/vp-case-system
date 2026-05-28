@@ -180,6 +180,11 @@ const signalClass = (signal: StaffSummary["signal"]) => {
   return "bg-emerald-50 text-emerald-700";
 };
 
+const escapeCsvCell = (value: string | number) => {
+  const text = String(value);
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+};
+
 export default function WorkloadSummaryPage() {
   const [mode, setMode] = useState<Mode>("week");
   const [selectedDate, setSelectedDate] = useState(today());
@@ -553,6 +558,109 @@ export default function WorkloadSummaryPage() {
     return Array.from(byDay.values()).sort((a, b) => a.date.localeCompare(b.date));
   }, [rows]);
 
+  const exportCsv = () => {
+    const periodEnd = toDateString(
+      new Date(new Date(`${period.endExclusive}T00:00:00`).getTime() - 86400000),
+    );
+    const csvRows: Array<Array<string | number>> = [
+      ["Summary"],
+      [
+        "Mode",
+        "Period Start",
+        "Period End",
+        "Staff Filter",
+        "Total Time",
+        "Core Time",
+        "Support Time",
+        "Case Time",
+        "Advisory Time",
+        "Staff Count",
+      ],
+      [
+        mode,
+        period.startDate,
+        periodEnd,
+        canViewAll ? selectedStaff || "All Staff" : ownStaffName || "-",
+        formatDuration(summary.total),
+        formatDuration(summary.core),
+        formatDuration(summary.support),
+        formatDuration(summary.caseTime),
+        formatDuration(summary.advisoryTime),
+        summary.staffCount,
+      ],
+      [],
+      ["By Staff"],
+      ["Staff", "Core Time", "Support Time", "Case Time", "Advisory Time", "Total Time", "Signal"],
+      ...staffTable.map((item) => [
+        item.staff,
+        formatDuration(item.core),
+        formatDuration(item.support),
+        formatDuration(item.caseTime),
+        formatDuration(item.advisoryTime),
+        formatDuration(item.total),
+        item.signal,
+      ]),
+      [],
+      ["By Day"],
+      ["Date", "Core Time", "Support Time", "Case Time", "Advisory Time", "Total Time"],
+      ...dayTable.map((item) => [
+        item.date,
+        formatDuration(item.core),
+        formatDuration(item.support),
+        formatDuration(item.caseTime),
+        formatDuration(item.advisoryTime),
+        formatDuration(item.total),
+      ]),
+      [],
+      ["Details"],
+      [
+        "Source",
+        "Date",
+        "Staff",
+        "Client",
+        "Case / Matter",
+        "Issue",
+        "Work Type",
+        "Category",
+        "Minutes",
+        "Duration",
+        "Note",
+      ],
+    ];
+
+    if (rows.length === 0) {
+      csvRows.push(["No workload data for selected period."]);
+    } else {
+      csvRows.push(
+        ...rows.map((row) => [
+          row.source === "case" ? "Case" : "Advisory",
+          row.work_date,
+          row.staff_name,
+          row.client_name,
+          row.matter_or_case,
+          row.issue,
+          row.work_type,
+          row.category,
+          row.minutes,
+          formatDuration(row.minutes),
+          row.note,
+        ]),
+      );
+    }
+
+    const csv = csvRows.map((row) => row.map(escapeCsvCell).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download =
+      mode === "week"
+        ? `workload-summary-week-${period.startDate}.csv`
+        : `workload-summary-month-${selectedMonth}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (!loading && !canView) {
     return (
       <AuthGuard>
@@ -643,6 +751,15 @@ export default function WorkloadSummaryPage() {
                   </select>
                 </label>
               )}
+
+              <button
+                type="button"
+                onClick={exportCsv}
+                disabled={loading}
+                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-slate-400"
+              >
+                Export CSV
+              </button>
             </div>
           </section>
 
