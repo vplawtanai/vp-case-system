@@ -121,8 +121,10 @@ type AdvisoryIssue = {
   advisory_matter_id?: string | null;
   issue_no?: string | null;
   title?: string | null;
+  issue_type?: string | null;
   status?: string | null;
   priority?: string | null;
+  responsible_person?: string | null;
   due_date?: string | null;
 };
 
@@ -137,6 +139,37 @@ type AdvisoryTask = {
   priority?: string | null;
   assignee_name?: string | null;
   due_date?: string | null;
+};
+
+type AdvisoryTimeLog = {
+  id: string;
+  advisory_matter_id?: string | null;
+  advisory_issue_id?: string | null;
+  client_id?: string | null;
+  work_date?: string | null;
+  staff_name?: string | null;
+  work_type?: string | null;
+  work_other?: string | null;
+  minutes?: number | string | null;
+  billable?: boolean | null;
+  note?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+type UnifiedTimeLog = {
+  id: string;
+  source: "Case" | "Advisory";
+  work_date?: string | null;
+  staff_name?: string | null;
+  client_name: string;
+  matter_or_case: string;
+  issue: string;
+  work_type?: string | null;
+  minutes?: number | string | null;
+  billable?: boolean | null;
+  note?: string | null;
+  href: string;
 };
 
 type AlertCandidate = {
@@ -170,7 +203,7 @@ type StaffTimeSummary = {
 
 type DailyStaffTimeDetail = {
   id: string;
-  caseId: number;
+  source: "Case" | "Advisory";
   fileNo: string;
   title: string;
   clientName: string;
@@ -178,6 +211,7 @@ type DailyStaffTimeDetail = {
   coreMinutes: number;
   supportMinutes: number;
   totalMinutes: number;
+  href: string;
 };
 
 type DailyStaffTimeSummary = {
@@ -189,7 +223,8 @@ type DailyStaffTimeSummary = {
 };
 
 type CaseTimeSummary = {
-  caseId: number;
+  id: string;
+  source: "Case" | "Advisory";
   fileNo: string;
   title: string;
   clientName: string;
@@ -265,6 +300,7 @@ export default function DashboardPage() {
   const [cases, setCases] = useState<EnrichedCase[]>([]);
   const [alertItems, setAlertItems] = useState<AlertCandidate[]>([]);
   const [timeLogs, setTimeLogs] = useState<CaseTimeLog[]>([]);
+  const [advisoryTimeLogs, setAdvisoryTimeLogs] = useState<AdvisoryTimeLog[]>([]);
   const [advisoryMatters, setAdvisoryMatters] = useState<AdvisoryMatter[]>([]);
   const [advisoryIssues, setAdvisoryIssues] = useState<AdvisoryIssue[]>([]);
   const [advisoryTasks, setAdvisoryTasks] = useState<AdvisoryTask[]>([]);
@@ -379,7 +415,7 @@ export default function DashboardPage() {
             .select("id, client_id, matter_no, title, status, responsible_lawyer, updated_at"),
           supabase
             .from("advisory_issues")
-            .select("id, advisory_matter_id, issue_no, title, status, priority, due_date")
+            .select("id, advisory_matter_id, issue_no, title, issue_type, status, priority, responsible_person, due_date")
             .is("deleted_at", null),
           supabase
             .from("advisory_issue_tasks")
@@ -418,9 +454,24 @@ export default function DashboardPage() {
       const loadedAdvisoryTasks = (advisoryTasksRes.data || []) as AdvisoryTask[];
 
       if (caseIds.length === 0) {
+        let loadedAdvisoryTimeLogs: AdvisoryTimeLog[] = [];
+        if (canSeeAnyWorkloadData) {
+          const { data, error } = await supabase
+            .from("advisory_time_logs")
+            .select(
+              "id, advisory_matter_id, advisory_issue_id, client_id, work_date, staff_name, work_type, work_other, minutes, billable, note, created_at, updated_at"
+            )
+            .is("deleted_at", null);
+          if (error) {
+            alert("Load advisory time logs failed:\n" + JSON.stringify(error, null, 2));
+            return;
+          }
+          loadedAdvisoryTimeLogs = (data || []) as AdvisoryTimeLog[];
+        }
         setCases([]);
         setAlertItems([]);
         setTimeLogs([]);
+        setAdvisoryTimeLogs(loadedAdvisoryTimeLogs);
         setAdvisoryMatters(loadedAdvisoryMatters);
         setAdvisoryIssues(loadedAdvisoryIssues);
         setAdvisoryTasks(loadedAdvisoryTasks);
@@ -492,22 +543,40 @@ export default function DashboardPage() {
       }
 
       let loadedTimeLogs: CaseTimeLog[] = [];
+      let loadedAdvisoryTimeLogs: AdvisoryTimeLog[] = [];
 
       if (canSeeAnyWorkloadData) {
-        const { data, error } = await supabase
-          .from("case_time_logs")
-          .select(
-            "id, case_id, work_date, staff_name, work_type, work_other, minutes, billable, note, created_at, updated_at"
-          )
-          .in("case_id", caseIds)
-          .is("deleted_at", null);
+        const [caseTimeLogsRes, advisoryTimeLogsRes] = await Promise.all([
+          supabase
+            .from("case_time_logs")
+            .select(
+              "id, case_id, work_date, staff_name, work_type, work_other, minutes, billable, note, created_at, updated_at"
+            )
+            .in("case_id", caseIds)
+            .is("deleted_at", null),
+          supabase
+            .from("advisory_time_logs")
+            .select(
+              "id, advisory_matter_id, advisory_issue_id, client_id, work_date, staff_name, work_type, work_other, minutes, billable, note, created_at, updated_at"
+            )
+            .is("deleted_at", null),
+        ]);
 
-        if (error) {
-          alert("Load time logs failed:\n" + JSON.stringify(error, null, 2));
+        if (caseTimeLogsRes.error) {
+          alert("Load time logs failed:\n" + JSON.stringify(caseTimeLogsRes.error, null, 2));
           return;
         }
 
-        loadedTimeLogs = (data || []) as CaseTimeLog[];
+        if (advisoryTimeLogsRes.error) {
+          alert(
+            "Load advisory time logs failed:\n" +
+              JSON.stringify(advisoryTimeLogsRes.error, null, 2)
+          );
+          return;
+        }
+
+        loadedTimeLogs = (caseTimeLogsRes.data || []) as CaseTimeLog[];
+        loadedAdvisoryTimeLogs = (advisoryTimeLogsRes.data || []) as AdvisoryTimeLog[];
       }
 
       const tasks = (tasksRes.data || []) as CaseTask[];
@@ -549,6 +618,7 @@ export default function DashboardPage() {
       setCases(enrichedCases);
       setAlertItems(allAlerts);
       setTimeLogs(loadedTimeLogs);
+      setAdvisoryTimeLogs(loadedAdvisoryTimeLogs);
       setAdvisoryMatters(loadedAdvisoryMatters);
       setAdvisoryIssues(loadedAdvisoryIssues);
       setAdvisoryTasks(loadedAdvisoryTasks);
@@ -678,10 +748,85 @@ export default function DashboardPage() {
     return new Set(filteredCases.map((item) => item.id));
   }, [filteredCases]);
 
+  const caseMap = useMemo(() => {
+    const map = new Map<number, EnrichedCase>();
+    cases.forEach((item) => map.set(item.id, item));
+    return map;
+  }, [cases]);
+
+  const advisoryMatterMap = useMemo(() => {
+    const map = new Map<string, AdvisoryMatter>();
+    advisoryMatters.forEach((item) => map.set(item.id, item));
+    return map;
+  }, [advisoryMatters]);
+
+  const advisoryIssueMap = useMemo(() => {
+    const map = new Map<string, AdvisoryIssue>();
+    advisoryIssues.forEach((item) => map.set(item.id, item));
+    return map;
+  }, [advisoryIssues]);
+
+  const normalizedTimeLogs = useMemo<UnifiedTimeLog[]>(() => {
+    const caseRows = timeLogs
+      .filter((item) => filteredCaseIds.has(item.case_id))
+      .map((item): UnifiedTimeLog => {
+        const caseItem = caseMap.get(item.case_id);
+        const caseLabel = [caseItem?.file_no, caseItem?.title].filter(Boolean).join(" - ");
+        return {
+          id: `case-${item.id}`,
+          source: "Case",
+          work_date: item.work_date,
+          staff_name: item.staff_name,
+          client_name: caseItem?.client_name || "-",
+          matter_or_case: caseLabel || "Case",
+          issue: "-",
+          work_type:
+            item.work_type === "อื่นๆ" || item.work_type === "other"
+              ? item.work_other || item.work_type
+              : item.work_type,
+          minutes: item.minutes,
+          billable: item.billable,
+          note: item.note,
+          href: `/cases/${item.case_id}#timelogs`,
+        };
+      });
+
+    const advisoryRows = advisoryTimeLogs.map((item): UnifiedTimeLog => {
+      const matter = item.advisory_matter_id
+        ? advisoryMatterMap.get(item.advisory_matter_id)
+        : null;
+      const issue = item.advisory_issue_id ? advisoryIssueMap.get(item.advisory_issue_id) : null;
+      return {
+        id: `advisory-${item.id}`,
+        source: "Advisory",
+        work_date: item.work_date,
+        staff_name: item.staff_name,
+        client_name: "-",
+        matter_or_case: [matter?.matter_no, matter?.title].filter(Boolean).join(" - ") || "Advisory",
+        issue: [issue?.issue_no, issue?.title].filter(Boolean).join(" - ") || "-",
+        work_type:
+          item.work_type === "อื่นๆ" || item.work_type === "other"
+            ? item.work_other || item.work_type
+            : item.work_type,
+        minutes: item.minutes,
+        billable: item.billable,
+        note: item.note,
+        href:
+          item.advisory_matter_id && item.advisory_issue_id
+            ? `/advisory/${item.advisory_matter_id}/issues/${item.advisory_issue_id}`
+            : item.advisory_matter_id
+              ? `/advisory/${item.advisory_matter_id}`
+              : "/advisory",
+      };
+    });
+
+    return [...caseRows, ...advisoryRows];
+  }, [advisoryIssueMap, advisoryMatterMap, advisoryTimeLogs, caseMap, filteredCaseIds, timeLogs]);
+
   const filteredTimeLogsAllTime = useMemo(() => {
     if (!canSeeAnyWorkloadData) return [];
-    return timeLogs.filter((item) => filteredCaseIds.has(item.case_id));
-  }, [timeLogs, filteredCaseIds, canSeeAnyWorkloadData]);
+    return normalizedTimeLogs;
+  }, [normalizedTimeLogs, canSeeAnyWorkloadData]);
 
   const filteredTimeLogsByPeriod = useMemo(() => {
     return filteredTimeLogsAllTime.filter((item) =>
@@ -785,12 +930,6 @@ export default function DashboardPage() {
       totalLoggedMinutes,
     };
   }, [filteredCases, alertItems, totalLoggedMinutes]);
-
-  const caseMap = useMemo(() => {
-    const map = new Map<number, EnrichedCase>();
-    cases.forEach((item) => map.set(item.id, item));
-    return map;
-  }, [cases]);
 
   const phaseSummary = useMemo(() => {
     const map = new Map<string, number>();
@@ -897,18 +1036,16 @@ export default function DashboardPage() {
       logs: filteredTimeLogsByPeriod.filter(
         (item) => item.work_date === selectedDailyDate
       ),
-      caseMap,
     });
-  }, [filteredTimeLogsByPeriod, selectedDailyDate, caseMap]);
+  }, [filteredTimeLogsByPeriod, selectedDailyDate]);
 
   const ownDailyStaffSummary = useMemo<DailyStaffTimeSummary[]>(() => {
     return buildDailyStaffSummary({
       logs: ownTimeLogsByPeriod.filter(
         (item) => item.work_date === selectedOwnDailyDate
       ),
-      caseMap,
     });
-  }, [ownTimeLogsByPeriod, selectedOwnDailyDate, caseMap]);
+  }, [ownTimeLogsByPeriod, selectedOwnDailyDate]);
 
   const dailySummary = useMemo(() => {
     return buildDailyTotalSummary(dailyStaffSummary);
@@ -919,20 +1056,19 @@ export default function DashboardPage() {
   }, [ownDailyStaffSummary]);
 
   const topTimeConsumingCases = useMemo<CaseTimeSummary[]>(() => {
-    const map = new Map<number, CaseTimeSummary>();
+    const map = new Map<string, CaseTimeSummary>();
 
     filteredTimeLogsByPeriod.forEach((item) => {
-      const caseItem = caseMap.get(item.case_id);
-      if (!caseItem) return;
-
       const minutes = safeMinutes(item.minutes);
       const isCore = item.billable !== false;
+      const key = `${item.source}-${item.matter_or_case}`;
 
-      const current = map.get(item.case_id) || {
-        caseId: item.case_id,
-        fileNo: caseItem.file_no || "-",
-        title: caseItem.title || "-",
-        clientName: caseItem.client_name || "-",
+      const current = map.get(key) || {
+        id: key,
+        source: item.source,
+        fileNo: item.source,
+        title: item.matter_or_case || "-",
+        clientName: item.client_name || "-",
         coreMinutes: 0,
         supportMinutes: 0,
         totalMinutes: 0,
@@ -945,25 +1081,13 @@ export default function DashboardPage() {
       }
 
       current.totalMinutes += minutes;
-      map.set(item.case_id, current);
+      map.set(key, current);
     });
 
     return Array.from(map.values())
       .sort((a, b) => b.totalMinutes - a.totalMinutes)
       .slice(0, 5);
-  }, [filteredTimeLogsByPeriod, caseMap]);
-
-  const advisoryMatterMap = useMemo(() => {
-    const map = new Map<string, AdvisoryMatter>();
-    advisoryMatters.forEach((item) => map.set(item.id, item));
-    return map;
-  }, [advisoryMatters]);
-
-  const advisoryIssueMap = useMemo(() => {
-    const map = new Map<string, AdvisoryIssue>();
-    advisoryIssues.forEach((item) => map.set(item.id, item));
-    return map;
-  }, [advisoryIssues]);
+  }, [filteredTimeLogsByPeriod]);
 
   const activeAdvisoryMatters = useMemo(() => {
     return advisoryMatters.filter((item) => !isClosedStatus(item.status));
@@ -981,6 +1105,21 @@ export default function DashboardPage() {
   const advisoryTaskSummary = useMemo(() => {
     return advisoryTasks.filter((item) => !isDoneStatus(item.status)).length;
   }, [advisoryTasks]);
+
+  const advisoryStatusSummary = useMemo(() => {
+    return buildDistributionRows(advisoryIssues.map((item) => item.status || "Open"));
+  }, [advisoryIssues]);
+
+  const advisoryIssueTypeSummary = useMemo(() => {
+    return buildDistributionRows(advisoryIssues.map((item) => item.issue_type || "General"));
+  }, [advisoryIssues]);
+
+  const advisoryResponsibleSummary = useMemo(() => {
+    return buildDistributionRows([
+      ...advisoryIssues.map((item) => item.responsible_person || ""),
+      ...advisoryMatters.map((item) => item.responsible_lawyer || ""),
+    ]);
+  }, [advisoryIssues, advisoryMatters]);
 
   const caseMatterStream = useMemo<MatterStreamItem[]>(() => {
     return filteredCases.slice(0, 6).map((item) => ({
@@ -1489,6 +1628,26 @@ export default function DashboardPage() {
             subLabel="พร้อมดำเนินการบังคับคดี"
             count={String(summary.enforcementReady)}
             tone="blue"
+            isMobile={isMobile}
+          />
+        </section>
+
+        <section style={isMobile ? mobileMiniGridStyle : miniGridStyle}>
+          <DistributionCard
+            title="Advisory Status"
+            rows={advisoryStatusSummary}
+            isMobile={isMobile}
+          />
+
+          <DistributionCard
+            title="Advisory Issue Type"
+            rows={advisoryIssueTypeSummary}
+            isMobile={isMobile}
+          />
+
+          <DistributionCard
+            title="Advisory Responsible"
+            rows={advisoryResponsibleSummary}
             isMobile={isMobile}
           />
         </section>
@@ -2376,11 +2535,12 @@ function DailyCaseDetailList({
         <div key={detail.id} style={isMobile ? mobileDailyDetailItemStyle : dailyDetailItemStyle}>
           <div style={dailyDetailTopStyle}>
             <Link
-              href={`/cases/${detail.caseId}#timelogs`}
+              href={detail.href}
               style={miniOpenLinkStyle}
             >
               {detail.fileNo} · {detail.title}
             </Link>
+            <SourceBadge source={detail.source} />
             <span style={dailyDetailTotalStyle}>
               {formatDuration(detail.totalMinutes)}
             </span>
@@ -2450,7 +2610,7 @@ function TopTimeConsumingCaseList({
 
       return (
         <div
-          key={item.caseId}
+          key={item.id}
           style={isMobile ? compactTimeCaseItemStyle : timeCaseItemStyle}
         >
           <div
@@ -2480,6 +2640,7 @@ function TopTimeConsumingCaseList({
                   {item.fileNo} · {item.title}
                 </div>
 
+                <SourceBadge source={item.source} />
                 <div style={timeCaseClientStyle}>{item.clientName}</div>
               </div>
             </div>
@@ -2526,12 +2687,6 @@ function TopTimeConsumingCaseList({
           >
             <span>Core {formatDuration(item.coreMinutes)}</span>
             <span>Support {formatDuration(item.supportMinutes)}</span>
-            <Link
-              href={`/cases/${item.caseId}#timelogs`}
-              style={miniOpenLinkStyle}
-            >
-              Open
-            </Link>
           </div>
         </div>
       );
@@ -2785,10 +2940,8 @@ function buildAdvisoryUrgentItems({
 
 function buildDailyStaffSummary({
   logs,
-  caseMap,
 }: {
-  logs: CaseTimeLog[];
-  caseMap: Map<number, EnrichedCase>;
+  logs: UnifiedTimeLog[];
 }) {
   const map = new Map<string, DailyStaffTimeSummary>();
 
@@ -2796,7 +2949,6 @@ function buildDailyStaffSummary({
     const staff = item.staff_name || "-";
     const minutes = safeMinutes(item.minutes);
     const isCore = item.billable !== false;
-    const caseItem = caseMap.get(item.case_id);
 
     const current = map.get(staff) || {
       staff,
@@ -2808,14 +2960,18 @@ function buildDailyStaffSummary({
 
     const detail: DailyStaffTimeDetail = {
       id: item.id,
-      caseId: item.case_id,
-      fileNo: caseItem?.file_no || "-",
-      title: caseItem?.title || "-",
-      clientName: caseItem?.client_name || "-",
-      workText: renderWorkType(item.work_type, item.work_other),
+      source: item.source,
+      fileNo: item.source,
+      title: item.matter_or_case || "-",
+      clientName: item.client_name || "-",
+      workText:
+        [item.issue !== "-" ? item.issue : "", renderWorkType(item.work_type)]
+          .filter(Boolean)
+          .join(" · ") || "-",
       coreMinutes: isCore ? minutes : 0,
       supportMinutes: isCore ? 0 : minutes,
       totalMinutes: minutes,
+      href: item.href,
     };
 
     if (isCore) {
@@ -2886,6 +3042,19 @@ function renderUrgencyLabel(level: RiskLevel) {
   if (level === "today") return "Due Today";
   if (level === "dueSoon") return "Due Soon";
   return "Clear";
+}
+
+function buildDistributionRows(values: Array<string | null | undefined>) {
+  const map = new Map<string, number>();
+
+  values.forEach((value) => {
+    const label = value && value.trim() ? value : "-";
+    map.set(label, (map.get(label) || 0) + 1);
+  });
+
+  return Array.from(map.entries())
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value);
 }
 
 function diffDaysFromToday(dateText: string) {
