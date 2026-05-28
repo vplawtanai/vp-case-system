@@ -81,6 +81,8 @@ export default function AdvisoryReportsPage() {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
   const [month, setMonth] = useState(getCurrentMonth());
+  const [selectedClientId, setSelectedClientId] = useState("");
+  const [selectedStaffName, setSelectedStaffName] = useState("");
   const [errorText, setErrorText] = useState("");
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [matters, setMatters] = useState<MatterRow[]>([]);
@@ -95,6 +97,30 @@ export default function AdvisoryReportsPage() {
 
   const canView = permissions.canViewDashboard;
   const safeMonth = month || getCurrentMonth();
+
+  const staffOptions = useMemo(() => {
+    return Array.from(
+      new Set(timeLogs.map((item) => item.staff_name || "").filter(Boolean))
+    ).sort();
+  }, [timeLogs]);
+
+  const filteredTimeLogs = useMemo(() => {
+    return timeLogs.filter((item) => {
+      if (selectedClientId && item.client_id !== selectedClientId) return false;
+      if (selectedStaffName && item.staff_name !== selectedStaffName) return false;
+      return true;
+    });
+  }, [selectedClientId, selectedStaffName, timeLogs]);
+
+  const filteredTasks = useMemo(() => {
+    if (!selectedClientId) return tasks;
+    return tasks.filter((item) => item.client_id === selectedClientId);
+  }, [selectedClientId, tasks]);
+
+  const filteredAdviceRecords = useMemo(() => {
+    if (!selectedClientId) return adviceRecords;
+    return adviceRecords.filter((item) => item.client_id === selectedClientId);
+  }, [adviceRecords, selectedClientId]);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -228,45 +254,62 @@ export default function AdvisoryReportsPage() {
     const matterMap = new Map(matters.map((item) => [item.id, item]));
     const issueMap = new Map(issues.map((item) => [item.id, item]));
 
-    const total = sumMinutes(timeLogs);
-    const core = sumMinutes(timeLogs.filter((item) => item.billable !== false));
-    const support = sumMinutes(timeLogs.filter((item) => item.billable === false));
+    const total = sumMinutes(filteredTimeLogs);
+    const core = sumMinutes(
+      filteredTimeLogs.filter((item) => item.billable !== false)
+    );
+    const support = sumMinutes(
+      filteredTimeLogs.filter((item) => item.billable === false)
+    );
 
     return {
       total,
       core,
       support,
-      adviceCount: adviceRecords.length,
-      taskTotal: tasks.length,
-      taskCompleted: tasks.filter((item) => item.status === "completed").length,
-      taskActive: tasks.filter((item) =>
+      adviceCount: filteredAdviceRecords.length,
+      taskTotal: filteredTasks.length,
+      taskCompleted: filteredTasks.filter((item) => item.status === "completed")
+        .length,
+      taskActive: filteredTasks.filter((item) =>
         ["pending", "in_progress", "waiting"].includes(item.status || "")
       ).length,
-      taskImportant: tasks.filter((item) =>
+      taskImportant: filteredTasks.filter((item) =>
         ["urgent", "high"].includes(item.priority || "")
       ).length,
-      timeByStaff: groupTime(timeLogs, (item) => item.staff_name || "-"),
-      timeByClient: groupTime(timeLogs, (item) =>
+      timeByStaff: groupTime(filteredTimeLogs, (item) => item.staff_name || "-"),
+      timeByClient: groupTime(filteredTimeLogs, (item) =>
         clientMap.get(item.client_id || "") || "-"
       ),
-      timeByIssue: groupTime(timeLogs, (item) => {
+      timeByIssue: groupTime(filteredTimeLogs, (item) => {
         const issue = issueMap.get(item.advisory_issue_id || "");
         return issue ? renderIssueLabel(issue) : "-";
       }),
-      timeByMatterIssue: groupTime(timeLogs, (item) => {
+      timeByMatterIssue: groupTime(filteredTimeLogs, (item) => {
         const matter = matterMap.get(item.advisory_matter_id || "");
         const issue = issueMap.get(item.advisory_issue_id || "");
         return `${matter?.matter_no || matter?.title || "-"} / ${
           issue ? renderIssueLabel(issue) : "-"
         }`;
       }),
-      taskStatus: countBy(tasks, (item) => item.status || "-"),
-      adviceByChannel: countBy(adviceRecords, (item) => item.channel || "-"),
+      taskStatus: countBy(filteredTasks, (item) => item.status || "-"),
+      adviceByChannel: countBy(
+        filteredAdviceRecords,
+        (item) => item.channel || "-"
+      ),
     };
-  }, [adviceRecords, clients, issues, matters, tasks, timeLogs]);
+  }, [
+    clients,
+    filteredAdviceRecords,
+    filteredTasks,
+    filteredTimeLogs,
+    issues,
+    matters,
+  ]);
 
   const hasReportData =
-    timeLogs.length > 0 || tasks.length > 0 || adviceRecords.length > 0;
+    filteredTimeLogs.length > 0 ||
+    filteredTasks.length > 0 ||
+    filteredAdviceRecords.length > 0;
 
   const exportCsv = () => {
     const clientMap = new Map(clients.map((item) => [item.id, item.name || "-"]));
@@ -274,10 +317,14 @@ export default function AdvisoryReportsPage() {
     const issueMap = new Map(issues.map((item) => [item.id, item]));
     const rows = buildCsvRows({
       month: safeMonth,
+      clientFilterLabel: selectedClientId
+        ? clientMap.get(selectedClientId) || selectedClientId
+        : "All Clients",
+      staffFilterLabel: selectedStaffName || "All Staff",
       report,
-      timeLogs,
-      tasks,
-      adviceRecords,
+      timeLogs: filteredTimeLogs,
+      tasks: filteredTasks,
+      adviceRecords: filteredAdviceRecords,
       clientMap,
       matterMap,
       issueMap,
@@ -344,6 +391,36 @@ export default function AdvisoryReportsPage() {
                 style={inputStyle}
               />
             </label>
+            <label style={labelStyle}>
+              Client
+              <select
+                value={selectedClientId}
+                onChange={(event) => setSelectedClientId(event.target.value)}
+                style={inputStyle}
+              >
+                <option value="">All Clients</option>
+                {clients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.name || client.id}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={labelStyle}>
+              Staff
+              <select
+                value={selectedStaffName}
+                onChange={(event) => setSelectedStaffName(event.target.value)}
+                style={inputStyle}
+              >
+                <option value="">All Staff</option>
+                {staffOptions.map((staffName) => (
+                  <option key={staffName} value={staffName}>
+                    {staffName}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button type="button" onClick={exportCsv} style={buttonStyle}>
               Export CSV
             </button>
@@ -354,7 +431,7 @@ export default function AdvisoryReportsPage() {
         {loadingData ? <div style={messageBoxStyle}>Loading report...</div> : null}
 
         {!loadingData && !hasReportData ? (
-          <div style={messageBoxStyle}>No report data for selected month.</div>
+          <div style={messageBoxStyle}>No report data for selected filters.</div>
         ) : null}
 
         <div style={summaryGridStyle}>
@@ -400,6 +477,8 @@ export default function AdvisoryReportsPage() {
 
 function buildCsvRows({
   month,
+  clientFilterLabel,
+  staffFilterLabel,
   report,
   timeLogs,
   tasks,
@@ -410,6 +489,8 @@ function buildCsvRows({
   hasReportData,
 }: {
   month: string;
+  clientFilterLabel: string;
+  staffFilterLabel: string;
   report: {
     total: number;
     core: number;
@@ -431,6 +512,8 @@ function buildCsvRows({
   const rows: string[][] = [
     ["Summary"],
     ["Month", month],
+    ["Client Filter", clientFilterLabel],
+    ["Staff Filter", staffFilterLabel],
     ["Total Time", formatDuration(report.total)],
     ["Core Time", formatDuration(report.core)],
     ["Support Time", formatDuration(report.support)],
@@ -442,7 +525,7 @@ function buildCsvRows({
   ];
 
   if (!hasReportData) {
-    rows.push([], ["No report data for selected month."]);
+    rows.push([], ["No report data for selected filters."]);
   }
 
   rows.push(
