@@ -134,6 +134,13 @@ const signalClass = (signal: StaffSummary["signal"]) => {
   return "bg-emerald-50 text-emerald-700";
 };
 
+const csvCell = (value: string | number) => {
+  const text = String(value);
+  return `"${text.replace(/"/g, '""')}"`;
+};
+
+const csvRow = (values: Array<string | number>) => values.map(csvCell).join(",");
+
 export default function DailyWorkloadReportPage() {
   const [selectedDate, setSelectedDate] = useState(today());
   const [selectedStaff, setSelectedStaff] = useState("");
@@ -480,6 +487,66 @@ export default function DailyWorkloadReportPage() {
     });
   }, [canViewAll, ownStaffName, rows, selectedStaff, staffOptions]);
 
+  const exportCsv = () => {
+    const staffFilter = canViewAll ? selectedStaff || "All Staff" : ownStaffName || "My Workload";
+    const lines = [
+      csvRow(["Summary"]),
+      csvRow(["Date", selectedDate]),
+      csvRow(["Staff Filter", staffFilter]),
+      csvRow(["Total Time", formatDuration(summary.total)]),
+      csvRow(["Core Time", formatDuration(summary.core)]),
+      csvRow(["Support Time", formatDuration(summary.support)]),
+      csvRow(["Case Time", formatDuration(summary.caseTime)]),
+      csvRow(["Advisory Time", formatDuration(summary.advisoryTime)]),
+      csvRow(["Staff Count", canViewAll ? summary.staffCount : ""]),
+      "",
+      csvRow(["Details"]),
+      csvRow([
+        "Source",
+        "Staff",
+        "Client",
+        "Case / Matter",
+        "Issue",
+        "Work Type",
+        "Category",
+        "Minutes",
+        "Duration",
+        "Note",
+      ]),
+    ];
+
+    if (rows.length === 0) {
+      lines.push(csvRow(["No workload data for selected date."]));
+    } else {
+      rows.forEach((row) => {
+        lines.push(
+          csvRow([
+            row.source,
+            row.staff_name,
+            row.client_name,
+            row.matter_or_case,
+            row.issue,
+            row.work_type,
+            row.category,
+            row.minutes,
+            formatDuration(row.minutes),
+            row.note,
+          ]),
+        );
+      });
+    }
+
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `daily-workload-${selectedDate}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   if (!loading && !canView) {
     return (
       <AuthGuard>
@@ -530,6 +597,14 @@ export default function DailyWorkloadReportPage() {
                   </select>
                 </label>
               )}
+
+              <button
+                type="button"
+                onClick={exportCsv}
+                className="self-end rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700"
+              >
+                Export CSV
+              </button>
             </div>
           </section>
 
