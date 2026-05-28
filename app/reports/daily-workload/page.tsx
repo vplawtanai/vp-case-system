@@ -551,8 +551,10 @@ export default function DailyWorkloadReportPage() {
     return (
       <AuthGuard>
         <AppTopNav activePage="workload" title="Daily Time Check" />
-        <main className="p-6">
-          <div className="rounded-lg border bg-white p-6 text-gray-700">No access</div>
+        <main className="min-h-screen bg-gray-50 p-6">
+          <div className="rounded-lg border border-gray-200 bg-white p-6 text-gray-700 shadow-sm">
+            No access
+          </div>
         </main>
       </AuthGuard>
     );
@@ -561,19 +563,30 @@ export default function DailyWorkloadReportPage() {
   return (
     <AuthGuard>
       <AppTopNav activePage="workload" title="Daily Time Check" />
-      <main className="min-h-screen bg-gray-50 p-6">
+      <main className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6">
         <div className="mx-auto max-w-7xl space-y-6">
-          <header>
-            <h1 className="text-2xl font-semibold text-gray-900">Daily Time Check</h1>
-            <p className="text-sm text-gray-500">Case and advisory workload for the selected day.</p>
+          <header className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-semibold text-slate-950">Daily Time Check</h1>
+              <p className="mt-1 text-sm text-slate-500">
+                Case and advisory workload for the selected day.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={exportCsv}
+              className="rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 shadow-sm hover:bg-blue-100"
+            >
+              Export CSV
+            </button>
           </header>
 
-          <section className="rounded-lg border bg-white p-4">
-            <div className="flex flex-wrap gap-4">
-              <label className="text-sm font-medium text-gray-700">
-                Date
+          <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+              <label className="w-full text-sm font-medium text-slate-700 sm:w-56">
+                <span>Date</span>
                 <input
-                  className="mt-1 block rounded-md border px-3 py-2 text-sm"
+                  className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm"
                   type="date"
                   value={selectedDate}
                   onChange={(event) => setSelectedDate(event.target.value || today())}
@@ -581,10 +594,10 @@ export default function DailyWorkloadReportPage() {
               </label>
 
               {canViewAll && (
-                <label className="text-sm font-medium text-gray-700">
-                  Staff
+                <label className="w-full text-sm font-medium text-slate-700 sm:w-72">
+                  <span>Staff</span>
                   <select
-                    className="mt-1 block rounded-md border px-3 py-2 text-sm"
+                    className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm"
                     value={selectedStaff}
                     onChange={(event) => setSelectedStaff(event.target.value)}
                   >
@@ -597,97 +610,89 @@ export default function DailyWorkloadReportPage() {
                   </select>
                 </label>
               )}
-
-              <button
-                type="button"
-                onClick={exportCsv}
-                className="self-end rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700"
-              >
-                Export CSV
-              </button>
             </div>
           </section>
 
           {errorText && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-sm">
               {errorText}
             </div>
           )}
 
-          <section className="grid gap-4 md:grid-cols-4">
-            <div className="rounded-lg border bg-white p-4">
-              <div className="text-sm text-gray-500">Selected Date</div>
-              <div className="mt-2 text-xl font-semibold text-gray-900">{selectedDate}</div>
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Selected Date</div>
+              <div className="mt-3 text-2xl font-semibold text-slate-950">{selectedDate}</div>
             </div>
-            <div className="rounded-lg border bg-white p-4">
-              <div className="text-sm text-gray-500">Total Time</div>
-              <div className="mt-2 text-xl font-semibold text-blue-700">
+            <div className="rounded-lg border border-blue-100 bg-white p-5 shadow-sm">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Time</div>
+              <div className="mt-3 text-2xl font-semibold text-blue-800">
                 {formatDuration(summary.total)}
               </div>
             </div>
-            <div className="rounded-lg border bg-white p-4">
-              <div className="text-sm text-gray-500">Core Work</div>
-              <div className="mt-2 text-xl font-semibold text-purple-700">
+            <div className="rounded-lg border border-purple-100 bg-white p-5 shadow-sm">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Core Work</div>
+              <div className="mt-3 text-2xl font-semibold text-purple-800">
                 {formatDuration(summary.core)}
               </div>
             </div>
-            <div className="rounded-lg border bg-white p-4">
-              <div className="text-sm text-gray-500">Support Time</div>
-              <div className="mt-2 text-xl font-semibold text-gray-800">
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Support Time</div>
+              <div className="mt-3 text-2xl font-semibold text-slate-800">
                 {formatDuration(summary.support)}
               </div>
             </div>
           </section>
 
-          <section className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-lg border bg-white p-4">
-              <div className="text-sm text-gray-500">Case Time</div>
-              <div className="mt-2 text-lg font-semibold text-gray-900">
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Case Time</div>
+              <div className="mt-3 text-xl font-semibold text-slate-950">
                 {formatDuration(summary.caseTime)}
               </div>
             </div>
-            <div className="rounded-lg border bg-white p-4">
-              <div className="text-sm text-gray-500">Advisory Time</div>
-              <div className="mt-2 text-lg font-semibold text-gray-900">
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Advisory Time</div>
+              <div className="mt-3 text-xl font-semibold text-slate-950">
                 {formatDuration(summary.advisoryTime)}
               </div>
             </div>
             {canViewAll && (
-              <div className="rounded-lg border bg-white p-4">
-                <div className="text-sm text-gray-500">Staff Count</div>
-                <div className="mt-2 text-lg font-semibold text-gray-900">{summary.staffCount}</div>
+              <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Staff Count</div>
+                <div className="mt-3 text-xl font-semibold text-slate-950">{summary.staffCount}</div>
               </div>
             )}
           </section>
 
-          <section className="rounded-lg border bg-white">
-            <div className="border-b p-4">
-              <h2 className="font-semibold text-gray-900">By Staff</h2>
+          <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 bg-white px-5 py-4">
+              <h2 className="font-semibold text-slate-950">By Staff</h2>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
-                <thead className="bg-gray-50 text-gray-600">
+                <thead className="bg-slate-100 text-xs uppercase tracking-wide text-slate-600">
                   <tr>
-                    <th className="px-4 py-3">Staff</th>
-                    <th className="px-4 py-3">Core</th>
-                    <th className="px-4 py-3">Support</th>
-                    <th className="px-4 py-3">Case Time</th>
-                    <th className="px-4 py-3">Advisory Time</th>
-                    <th className="px-4 py-3">Total</th>
-                    <th className="px-4 py-3">Signal</th>
+                    <th className="px-5 py-3">Staff</th>
+                    <th className="px-5 py-3">Core</th>
+                    <th className="px-5 py-3">Support</th>
+                    <th className="px-5 py-3">Case Time</th>
+                    <th className="px-5 py-3">Advisory Time</th>
+                    <th className="px-5 py-3">Total</th>
+                    <th className="px-5 py-3">Signal</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y">
+                <tbody className="divide-y divide-slate-100">
                   {staffTable.map((item) => (
-                    <tr key={item.staff}>
-                      <td className="px-4 py-3 font-medium text-gray-900">{item.staff}</td>
-                      <td className="px-4 py-3">{formatDuration(item.core)}</td>
-                      <td className="px-4 py-3">{formatDuration(item.support)}</td>
-                      <td className="px-4 py-3">{formatDuration(item.caseTime)}</td>
-                      <td className="px-4 py-3">{formatDuration(item.advisoryTime)}</td>
-                      <td className="px-4 py-3 font-semibold">{formatDuration(item.total)}</td>
-                      <td className="px-4 py-3">
-                        <span className={`rounded-full px-2 py-1 text-xs ${signalClass(item.signal)}`}>
+                    <tr key={item.staff} className="hover:bg-slate-50">
+                      <td className="px-5 py-4 font-medium text-slate-950">{item.staff}</td>
+                      <td className="px-5 py-4 text-slate-700">{formatDuration(item.core)}</td>
+                      <td className="px-5 py-4 text-slate-700">{formatDuration(item.support)}</td>
+                      <td className="px-5 py-4 text-slate-700">{formatDuration(item.caseTime)}</td>
+                      <td className="px-5 py-4 text-slate-700">{formatDuration(item.advisoryTime)}</td>
+                      <td className="px-5 py-4 font-semibold text-slate-950">{formatDuration(item.total)}</td>
+                      <td className="px-5 py-4">
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${signalClass(item.signal)}`}>
                           {item.signal}
                         </span>
                       </td>
@@ -698,42 +703,56 @@ export default function DailyWorkloadReportPage() {
             </div>
           </section>
 
-          <section className="rounded-lg border bg-white">
-            <div className="border-b p-4">
-              <h2 className="font-semibold text-gray-900">Details</h2>
+          <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 bg-white px-5 py-4">
+              <h2 className="font-semibold text-slate-950">Details</h2>
             </div>
             {loading ? (
-              <div className="p-4 text-sm text-gray-500">Loading...</div>
+              <div className="p-6 text-sm text-slate-500">Loading...</div>
             ) : rows.length === 0 ? (
-              <div className="p-4 text-sm text-gray-500">No workload data for selected date.</div>
+              <div className="m-5 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
+                No workload data for selected date.
+              </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left text-sm">
-                  <thead className="bg-gray-50 text-gray-600">
+                  <thead className="bg-slate-100 text-xs uppercase tracking-wide text-slate-600">
                     <tr>
-                      <th className="px-4 py-3">Source</th>
-                      <th className="px-4 py-3">Staff</th>
-                      <th className="px-4 py-3">Client</th>
-                      <th className="px-4 py-3">Case / Matter</th>
-                      <th className="px-4 py-3">Issue</th>
-                      <th className="px-4 py-3">Work Type</th>
-                      <th className="px-4 py-3">Category</th>
-                      <th className="px-4 py-3">Duration</th>
-                      <th className="px-4 py-3">Note</th>
+                      <th className="px-5 py-3">Source</th>
+                      <th className="px-5 py-3">Staff</th>
+                      <th className="px-5 py-3">Client</th>
+                      <th className="px-5 py-3">Case / Matter</th>
+                      <th className="px-5 py-3">Issue</th>
+                      <th className="px-5 py-3">Work Type</th>
+                      <th className="px-5 py-3">Category</th>
+                      <th className="px-5 py-3">Duration</th>
+                      <th className="px-5 py-3">Note</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y">
+                  <tbody className="divide-y divide-slate-100">
                     {rows.map((row) => (
-                      <tr key={`${row.source}-${row.id}`}>
-                        <td className="px-4 py-3 capitalize">{row.source}</td>
-                        <td className="px-4 py-3">{row.staff_name}</td>
-                        <td className="px-4 py-3">{row.client_name}</td>
-                        <td className="px-4 py-3">{row.matter_or_case}</td>
-                        <td className="px-4 py-3">{row.issue}</td>
-                        <td className="px-4 py-3">{row.work_type}</td>
-                        <td className="px-4 py-3">{row.category}</td>
-                        <td className="px-4 py-3">{formatDuration(row.minutes)}</td>
-                        <td className="px-4 py-3">{row.note || "-"}</td>
+                      <tr key={`${row.source}-${row.id}`} className="hover:bg-slate-50">
+                        <td className="px-5 py-4">
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                              row.source === "case"
+                                ? "bg-blue-50 text-blue-700"
+                                : "bg-purple-50 text-purple-700"
+                            }`}
+                          >
+                            {row.source === "case" ? "Case" : "Advisory"}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 font-medium text-slate-900">{row.staff_name}</td>
+                        <td className="px-5 py-4 text-slate-700">{row.client_name}</td>
+                        <td className="px-5 py-4 text-slate-700">{row.matter_or_case}</td>
+                        <td className="px-5 py-4 text-slate-700">{row.issue}</td>
+                        <td className="px-5 py-4 text-slate-700">{row.work_type}</td>
+                        <td className="px-5 py-4 text-slate-700">{row.category}</td>
+                        <td className="px-5 py-4 font-semibold text-slate-950">
+                          {formatDuration(row.minutes)}
+                        </td>
+                        <td className="max-w-sm px-5 py-4 text-slate-600">{row.note || "-"}</td>
                       </tr>
                     ))}
                   </tbody>
