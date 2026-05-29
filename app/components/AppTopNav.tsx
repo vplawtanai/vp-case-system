@@ -127,12 +127,6 @@ export default function AppTopNav({
         )}
 
         {permissions.canViewDashboard && (
-          <Link href="/clients" style={getLinkStyle("clients")}>
-            Clients
-          </Link>
-        )}
-
-        {permissions.canViewDashboard && (
           <Link href="/advisory" style={getLinkStyle("advisory")}>
             Advisory
           </Link>
@@ -147,6 +141,12 @@ export default function AppTopNav({
         {permissions.canViewDashboard && (
           <Link href="/reports/workload-summary" style={getLinkStyle("workloadSummary")}>
             Summary
+          </Link>
+        )}
+
+        {permissions.canViewDashboard && (
+          <Link href="/clients" style={getLinkStyle("clients")}>
+            Clients
           </Link>
         )}
 
