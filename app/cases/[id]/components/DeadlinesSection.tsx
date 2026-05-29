@@ -162,6 +162,9 @@ export default function DeadlinesSection({
   const [extensionDeadlineId, setExtensionDeadlineId] = useState<string | null>(
     null
   );
+  const [editingExtensionId, setEditingExtensionId] = useState<string | null>(
+    null
+  );
   const [extensionForm, setExtensionForm] =
     useState<ExtensionForm>(emptyExtensionForm);
   const [savingExtension, setSavingExtension] = useState(false);
@@ -618,13 +621,42 @@ export default function DeadlinesSection({
     }
 
     setExtensionDeadlineId(deadlineId);
+    setEditingExtensionId(null);
     setExtensionForm(emptyExtensionForm);
+    scrollToExtensionForm();
+  };
+
+  const startEditExtension = (extension: DeadlineExtension) => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไขการขยายเวลา");
+      return;
+    }
+
+    setExtensionDeadlineId(extension.deadline_id);
+    setEditingExtensionId(extension.id);
+    setExtensionForm({
+      requested_date: extension.requested_date || "",
+      granted_until_date: extension.granted_until_date || "",
+      note: extension.note || "",
+    });
     scrollToExtensionForm();
   };
 
   const cancelExtensionForm = () => {
     setExtensionDeadlineId(null);
+    setEditingExtensionId(null);
     setExtensionForm(emptyExtensionForm);
+  };
+
+  const getLatestExtensionDueDate = (
+    deadlineId: string,
+    nextExtensions: DeadlineExtension[]
+  ) => {
+    const latest = nextExtensions
+      .filter((item) => item.deadline_id === deadlineId)
+      .sort((a, b) => (b.extension_no || 0) - (a.extension_no || 0))[0];
+
+    return latest?.granted_until_date || "";
   };
 
   const createExtension = async () => {
@@ -730,6 +762,127 @@ export default function DeadlinesSection({
             : deadlineUpdatePayload),
         note: "Update current due date after extension",
       });
+
+      cancelExtensionForm();
+      await loadDeadlines();
+    } finally {
+      setSavingExtension(false);
+    }
+  };
+
+  const updateExtension = async () => {
+    if (!canEdit) {
+      alert("คุณไม่มีสิทธิ์แก้ไขการขยายเวลา");
+      cancelExtensionForm();
+      return;
+    }
+
+    if (!extensionDeadlineId || !editingExtensionId) return;
+
+    if (!extensionForm.granted_until_date) {
+      alert("กรุณาเลือกวันที่ศาลอนุญาตให้ขยายถึง");
+      return;
+    }
+
+    try {
+      setSavingExtension(true);
+
+      const oldExtension =
+        extensions.find((item) => item.id === editingExtensionId) || null;
+      const oldDeadline =
+        items.find((item) => item.id === extensionDeadlineId) || null;
+      const now = new Date().toISOString();
+
+      const extensionPayload = {
+        requested_date: extensionForm.requested_date || null,
+        granted_until_date: extensionForm.granted_until_date,
+        note: extensionForm.note,
+        updated_at: now,
+      };
+
+      const { data: updatedExtension, error: updateExtensionError } =
+        await supabase
+          .from("case_deadline_extensions")
+          .update(extensionPayload)
+          .eq("id", editingExtensionId)
+          .select("*")
+          .single();
+
+      if (updateExtensionError) {
+        alert(
+          "Update extension failed:\n" +
+            JSON.stringify(updateExtensionError, null, 2)
+        );
+        return;
+      }
+
+      await createAuditLog({
+        caseId: caseIdNumber,
+        tableName: "case_deadline_extensions",
+        recordId: editingExtensionId,
+        action: "update",
+        oldData: oldExtension,
+        newData: updatedExtension || {
+          ...oldExtension,
+          ...extensionPayload,
+        },
+        note: "Update deadline extension",
+      });
+
+      const nextExtensions = extensions.map((item) =>
+        item.id === editingExtensionId
+          ? ({
+              ...item,
+              ...extensionPayload,
+            } as DeadlineExtension)
+          : item
+      );
+      const nextDueDate = getLatestExtensionDueDate(
+        extensionDeadlineId,
+        nextExtensions
+      );
+
+      if (nextDueDate && oldDeadline?.current_due_date !== nextDueDate) {
+        const deadlineUpdatePayload = {
+          current_due_date: nextDueDate,
+          status: "Active",
+          updated_at: now,
+        };
+
+        const { data: updatedDeadline, error: updateDeadlineError } =
+          await supabase
+            .from("case_deadlines")
+            .update(deadlineUpdatePayload)
+            .eq("id", extensionDeadlineId)
+            .is("deleted_at", null)
+            .select("*")
+            .single();
+
+        if (updateDeadlineError) {
+          alert(
+            "Recalculate current due date failed:\n" +
+              JSON.stringify(updateDeadlineError, null, 2)
+          );
+          return;
+        }
+
+        await createAuditLog({
+          caseId: caseIdNumber,
+          tableName: "case_deadlines",
+          recordId: extensionDeadlineId,
+          action: "update",
+          oldData: oldDeadline,
+          newData:
+            updatedDeadline ||
+            (oldDeadline
+              ? {
+                  ...oldDeadline,
+                  ...deadlineUpdatePayload,
+                }
+              : deadlineUpdatePayload),
+          note: "Recalculate current due date after extension update",
+        });
+      }
 
       cancelExtensionForm();
       await loadDeadlines();
@@ -936,6 +1089,7 @@ export default function DeadlinesSection({
               item={item}
               extensions={extensions.filter((ex) => ex.deadline_id === item.id)}
               extensionDeadlineId={extensionDeadlineId}
+              editingExtensionId={editingExtensionId}
               extensionForm={extensionForm}
               savingExtension={savingExtension}
               canEdit={canEdit}
@@ -945,9 +1099,11 @@ export default function DeadlinesSection({
               onDelete={deleteDeadline}
               onToggleDone={toggleDone}
               onStartAddExtension={startAddExtension}
+              onStartEditExtension={startEditExtension}
               onCancelExtension={cancelExtensionForm}
               onChangeExtensionForm={setExtensionForm}
               onCreateExtension={createExtension}
+              onUpdateExtension={updateExtension}
             />
           ))}
         </div>
@@ -973,6 +1129,7 @@ function DeadlineCard({
   item,
   extensions,
   extensionDeadlineId,
+  editingExtensionId,
   extensionForm,
   savingExtension,
   canEdit,
@@ -982,13 +1139,16 @@ function DeadlineCard({
   onDelete,
   onToggleDone,
   onStartAddExtension,
+  onStartEditExtension,
   onCancelExtension,
   onChangeExtensionForm,
   onCreateExtension,
+  onUpdateExtension,
 }: {
   item: DeadlineItem;
   extensions: DeadlineExtension[];
   extensionDeadlineId: string | null;
+  editingExtensionId: string | null;
   extensionForm: ExtensionForm;
   savingExtension: boolean;
   canEdit: boolean;
@@ -998,9 +1158,11 @@ function DeadlineCard({
   onDelete: (id: string) => void;
   onToggleDone: (item: DeadlineItem) => void;
   onStartAddExtension: (id: string) => void;
+  onStartEditExtension: (extension: DeadlineExtension) => void;
   onCancelExtension: () => void;
   onChangeExtensionForm: (form: ExtensionForm) => void;
   onCreateExtension: () => void;
+  onUpdateExtension: () => void;
 }) {
   const deadlineText =
     item.deadline_type === "other"
@@ -1015,6 +1177,7 @@ function DeadlineCard({
   const dueStatus = getDeadlineDueStatus(item);
   const isDone = item.status === "Done";
   const isAddingExtension = extensionDeadlineId === item.id;
+  const isEditingExtension = isAddingExtension && !!editingExtensionId;
   const showActions = canEdit || canDelete;
 
   return (
@@ -1091,9 +1254,20 @@ function DeadlineCard({
           <div style={extensionTitleStyle}>Extensions</div>
           {extensions.map((ex) => (
             <div key={ex.id} style={extensionItemStyle}>
-              <div style={infoValueStyle}>
-                ขยายครั้งที่ {ex.extension_no || "-"} ถึงวันที่{" "}
-                {formatDisplayDate(ex.granted_until_date)}
+              <div style={extensionRowHeaderStyle}>
+                <div style={infoValueStyle}>
+                  ขยายครั้งที่ {ex.extension_no || "-"} ถึงวันที่{" "}
+                  {formatDisplayDate(ex.granted_until_date)}
+                </div>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => onStartEditExtension(ex)}
+                    style={tinyButtonStyle}
+                  >
+                    Edit
+                  </button>
+                )}
               </div>
               {ex.requested_date && (
                 <div style={infoLabelStyle}>
@@ -1110,7 +1284,9 @@ function DeadlineCard({
         <div ref={extensionFormRef} style={extensionFormStyle}>
           <div style={extensionFormHeaderStyle}>
             <div>
-              <div style={extensionTitleStyle}>Add Extension</div>
+              <div style={extensionTitleStyle}>
+                {isEditingExtension ? "Edit Extension" : "Add Extension"}
+              </div>
               <div style={extensionSubTitleStyle}>
                 บันทึกวันที่ยื่นคำร้องและวันที่ศาลอนุญาตให้ขยาย
               </div>
@@ -1160,11 +1336,15 @@ function DeadlineCard({
           <div style={formButtonWrapStyle}>
             <button
               type="button"
-              onClick={onCreateExtension}
+              onClick={isEditingExtension ? onUpdateExtension : onCreateExtension}
               disabled={savingExtension}
               style={primaryButtonStyle}
             >
-              {savingExtension ? "Saving..." : "Save Extension"}
+              {savingExtension
+                ? "Saving..."
+                : isEditingExtension
+                  ? "Update Extension"
+                  : "Save Extension"}
             </button>
 
             <button
@@ -1843,6 +2023,13 @@ const extensionItemStyle: CSSProperties = {
   marginBottom: 8,
 };
 
+const extensionRowHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 8,
+  alignItems: "flex-start",
+};
+
 const extensionFormStyle: CSSProperties = {
   marginTop: 12,
   padding: 12,
@@ -1879,6 +2066,17 @@ const smallButtonStyle: CSSProperties = {
   cursor: "pointer",
   fontWeight: 700,
   fontSize: 13,
+};
+
+const tinyButtonStyle: CSSProperties = {
+  padding: "4px 8px",
+  borderRadius: 7,
+  border: "1px solid #cccccc",
+  background: "#ffffff",
+  color: "#111111",
+  cursor: "pointer",
+  fontWeight: 700,
+  fontSize: 12,
 };
 
 const doneButtonStyle: CSSProperties = {
