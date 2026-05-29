@@ -1521,7 +1521,7 @@ function addCommas(value: string) {
 function toNumber(value?: number | string | null) {
   if (value === null || value === undefined || value === "") return 0;
 
-  const cleaned = String(value).replace(/,/g, "");
+  const cleaned = String(value).trim().replace(/,/g, "");
   const parsed = Number(cleaned);
 
   return Number.isFinite(parsed) ? parsed : 0;
