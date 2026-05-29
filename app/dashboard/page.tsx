@@ -2187,7 +2187,16 @@ function WorkloadOverview({
 
   return (
     <div style={isMobile ? mobileWorkloadDonutBoxStyle : workloadDonutBoxStyle}>
-      <div style={workloadDonutWrapStyle}>
+      <div style={workloadMiniCardStyle}>
+        <div style={workloadMiniTopStyle}>
+          <span style={{ ...legendDotStyle, background: "#175cd3" }} />
+          <span>Core Work</span>
+        </div>
+        <strong>{formatDuration(summary.coreMinutes)}</strong>
+        <div style={legendPercentStyle}>{summary.corePercent}%</div>
+      </div>
+
+      <div style={workloadDonutCenterPanelStyle}>
         <div style={donutStyle}>
           <div style={isMobile ? mobileWorkloadDonutCenterStyle : workloadDonutCenterStyle}>
             <div style={isMobile ? mobileWorkloadDonutValueStyle : workloadDonutValueStyle}>
@@ -2196,35 +2205,22 @@ function WorkloadOverview({
             <div style={workloadDonutLabelStyle}>Total</div>
           </div>
         </div>
-      </div>
 
-      <div style={workloadDonutSideStyle}>
         <div>
           <div style={workloadTotalLabelStyle}>Workload Composition</div>
           <div style={isMobile ? mobileWorkloadTotalValueStyle : workloadTotalValueStyle}>
             Core {summary.corePercent}% / Support {summary.supportPercent}%
           </div>
         </div>
+      </div>
 
-        <div style={isMobile ? mobileWorkloadMiniGridStyle : workloadMiniGridStyle}>
-          <div style={workloadMiniCardStyle}>
-            <div style={workloadMiniTopStyle}>
-              <span style={{ ...legendDotStyle, background: "#175cd3" }} />
-              <span>Core Work</span>
-            </div>
-            <strong>{formatDuration(summary.coreMinutes)}</strong>
-            <div style={legendPercentStyle}>{summary.corePercent}%</div>
-          </div>
-
-          <div style={workloadMiniCardStyle}>
-            <div style={workloadMiniTopStyle}>
-              <span style={{ ...legendDotStyle, background: "#7e22ce" }} />
-              <span>Support Time</span>
-            </div>
-            <strong>{formatDuration(summary.supportMinutes)}</strong>
-            <div style={legendPercentStyle}>{summary.supportPercent}%</div>
-          </div>
+      <div style={workloadMiniCardStyle}>
+        <div style={workloadMiniTopStyle}>
+          <span style={{ ...legendDotStyle, background: "#7e22ce" }} />
+          <span>Support Time</span>
         </div>
+        <strong>{formatDuration(summary.supportMinutes)}</strong>
+        <div style={legendPercentStyle}>{summary.supportPercent}%</div>
       </div>
     </div>
   );
@@ -3826,7 +3822,7 @@ const distributionValueStyle: CSSProperties = {
 
 const distributionTrackStyle: CSSProperties = {
   width: "100%",
-  height: 9,
+  height: 5,
   borderRadius: 999,
   background: "#eef2f7",
   overflow: "hidden",
@@ -4185,7 +4181,7 @@ const legendPercentStyle: CSSProperties = {
 
 const workloadDonutBoxStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "220px 1fr",
+  gridTemplateColumns: "minmax(0, 1fr) 220px minmax(0, 1fr)",
   gap: 18,
   alignItems: "center",
   padding: 16,
@@ -4205,10 +4201,12 @@ const mobileWorkloadDonutBoxStyle: CSSProperties = {
   background: "#ffffff",
 };
 
-const workloadDonutWrapStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
+const workloadDonutCenterPanelStyle: CSSProperties = {
+  display: "grid",
+  gap: 12,
+  justifyItems: "center",
+  textAlign: "center",
+  minWidth: 0,
 };
 
 const workloadDonutRingStyle: CSSProperties = {
@@ -4267,12 +4265,6 @@ const workloadDonutLabelStyle: CSSProperties = {
   fontWeight: 900,
 };
 
-const workloadDonutSideStyle: CSSProperties = {
-  display: "grid",
-  gap: 12,
-  minWidth: 0,
-};
-
 const workloadTotalLabelStyle: CSSProperties = {
   fontSize: 12,
   fontWeight: 900,
@@ -4292,23 +4284,12 @@ const mobileWorkloadTotalValueStyle: CSSProperties = {
   fontSize: 20,
 };
 
-const workloadMiniGridStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-  gap: 10,
-};
-
-const mobileWorkloadMiniGridStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "1fr",
-  gap: 8,
-};
-
 const workloadMiniCardStyle: CSSProperties = {
   border: "1px solid #e2e8f0",
   borderRadius: 12,
   padding: 12,
   background: "#ffffff",
+  minWidth: 0,
 };
 
 const workloadMiniTopStyle: CSSProperties = {
