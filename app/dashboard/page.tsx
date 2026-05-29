@@ -3318,49 +3318,49 @@ function formatDuration(totalMinutes?: number | null) {
 function getMetricToneStyle(tone: Tone): CSSProperties {
   if (tone === "danger") {
     return {
-      background: "linear-gradient(135deg, #fff5f5 0%, #ffe0e0 100%)",
-      border: "1px solid #f1b5b5",
+      background: "#fffafa",
+      border: "1px solid #efc7c7",
     };
   }
 
   if (tone === "warning") {
     return {
-      background: "linear-gradient(135deg, #fffaf0 0%, #fff0c2 100%)",
-      border: "1px solid #f0d58a",
+      background: "#fffbeb",
+      border: "1px solid #ead28b",
     };
   }
 
   if (tone === "soon") {
     return {
-      background: "linear-gradient(135deg, #effcff 0%, #dff7fb 100%)",
-      border: "1px solid #9bdbe8",
+      background: "#f0fdff",
+      border: "1px solid #a8ddea",
     };
   }
 
   if (tone === "success") {
     return {
-      background: "linear-gradient(135deg, #f0fff4 0%, #e4f4e9 100%)",
+      background: "#f4fff7",
       border: "1px solid #b9dfc3",
     };
   }
 
   if (tone === "blue") {
     return {
-      background: "linear-gradient(135deg, #f0f7ff 0%, #e0f2fe 100%)",
-      border: "1px solid #b2ccff",
+      background: "#f8fbff",
+      border: "1px solid #bdd2f6",
     };
   }
 
   if (tone === "purple") {
     return {
-      background: "linear-gradient(135deg, #faf5ff 0%, #f1e4ff 100%)",
-      border: "1px solid #d8b4fe",
+      background: "#fbf7ff",
+      border: "1px solid #d9c4f2",
     };
   }
 
   return {
-    background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-    border: "1px solid #dddddd",
+    background: "#ffffff",
+    border: "1px solid #dbe3ee",
   };
 }
 
@@ -3388,14 +3388,16 @@ const pageStyle: CSSProperties = {
   padding: "22px 24px 40px",
   maxWidth: 1280,
   margin: "0 auto",
-  color: "#111111",
+  color: "#0f172a",
+  background: "#f6f8fb",
 };
 
 const mobilePageStyle: CSSProperties = {
   padding: "12px 10px 28px",
   maxWidth: 1280,
   margin: "0 auto",
-  color: "#111111",
+  color: "#0f172a",
+  background: "#f6f8fb",
 };
 
 const blockStyle: CSSProperties = {
@@ -3408,12 +3410,12 @@ const heroPanelStyle: CSSProperties = {
   gap: 16,
   alignItems: "center",
   flexWrap: "wrap",
-  border: "1px solid #e5e7eb",
-  borderRadius: 14,
+  border: "1px solid #dbe3ee",
+  borderRadius: 12,
   padding: "14px 16px",
   marginBottom: 14,
   background: "#ffffff",
-  boxShadow: "0 6px 18px rgba(15, 23, 42, 0.05)",
+  boxShadow: "0 8px 22px rgba(15, 23, 42, 0.045)",
 };
 
 const mobileHeroPanelStyle: CSSProperties = {
@@ -3435,7 +3437,7 @@ const heroTitleStyle: CSSProperties = {
   margin: 0,
   fontSize: 24,
   fontWeight: 950,
-  color: "#111111",
+  color: "#0f2743",
 };
 
 const mobileHeroTitleStyle: CSSProperties = {
@@ -3445,7 +3447,7 @@ const mobileHeroTitleStyle: CSSProperties = {
 
 const heroSubtitleStyle: CSSProperties = {
   marginTop: 5,
-  color: "#555555",
+  color: "#475569",
   fontSize: 14,
   fontWeight: 600,
   lineHeight: 1.45,
@@ -3461,8 +3463,9 @@ const stickyNavStyle: CSSProperties = {
   overflowX: "auto",
   padding: "8px 0 12px",
   marginBottom: 6,
-  background: "rgba(248, 250, 252, 0.94)",
+  background: "rgba(246, 248, 251, 0.96)",
   backdropFilter: "blur(10px)",
+  borderBottom: "1px solid rgba(219, 227, 238, 0.72)",
 };
 
 const mobileStickyNavStyle: CSSProperties = {
@@ -3476,7 +3479,7 @@ const stickyNavLinkStyle: CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   padding: "8px 12px",
-  borderRadius: 999,
+  borderRadius: 10,
   border: "1px solid #d8e0ea",
   background: "#ffffff",
   color: "#0f2743",
@@ -3488,19 +3491,19 @@ const stickyNavLinkStyle: CSSProperties = {
 };
 
 const filterPanelStyle: CSSProperties = {
-  border: "1px solid #eeeeee",
-  borderRadius: 16,
+  border: "1px solid #e2e8f0",
+  borderRadius: 12,
   padding: 16,
-  background: "#ffffff",
+  background: "#fbfcfe",
   marginBottom: 18,
 };
 
 const compactFilterPanelStyle: CSSProperties = {
   ...filterPanelStyle,
-  padding: 12,
+  padding: "10px 12px",
   borderRadius: 12,
   marginBottom: 14,
-  boxShadow: "0 4px 14px rgba(15, 23, 42, 0.035)",
+  boxShadow: "0 4px 14px rgba(15, 23, 42, 0.025)",
 };
 
 const mobileFilterPanelStyle: CSSProperties = {
@@ -3523,7 +3526,7 @@ const filterTitleStyle: CSSProperties = {
   margin: 0,
   fontSize: 15,
   fontWeight: 900,
-  color: "#111111",
+  color: "#0f2743",
 };
 
 const filterSubtitleStyle: CSSProperties = {
@@ -3566,11 +3569,11 @@ const mobileSummaryGridStyle: CSSProperties = {
 
 const metricCardStyle: CSSProperties = {
   position: "relative",
-  borderRadius: 14,
+  borderRadius: 12,
   padding: 14,
   minHeight: 96,
-  color: "#111111",
-  boxShadow: "0 6px 18px rgba(15, 23, 42, 0.045)",
+  color: "#0f172a",
+  boxShadow: "0 8px 22px rgba(15, 23, 42, 0.045)",
   overflow: "hidden",
 };
 
@@ -3589,10 +3592,10 @@ const metricTopLineStyle: CSSProperties = {
 };
 
 const metricNumberStyle: CSSProperties = {
-  fontSize: 26,
+  fontSize: 30,
   fontWeight: 950,
   marginBottom: 6,
-  color: "#111111",
+  color: "#0f2743",
   lineHeight: 1.1,
 };
 
@@ -3604,7 +3607,7 @@ const mobileMetricNumberStyle: CSSProperties = {
 
 const metricLabelStyle: CSSProperties = {
   fontWeight: 900,
-  color: "#222222",
+  color: "#1f2937",
 };
 
 const metricSubLabelStyle: CSSProperties = {
@@ -3652,8 +3655,10 @@ const matterStreamRowStyle: CSSProperties = {
   justifyContent: "space-between",
   gap: 12,
   alignItems: "flex-start",
-  padding: "11px 0",
-  borderTop: "1px solid #eef2f7",
+  padding: "11px 12px",
+  border: "1px solid #e8eef6",
+  borderRadius: 12,
+  background: "#ffffff",
 };
 
 const matterStreamMainStyle: CSSProperties = {
@@ -3671,7 +3676,7 @@ const matterStreamSideStyle: CSSProperties = {
 };
 
 const matterStreamTitleStyle: CSSProperties = {
-  color: "#111111",
+  color: "#0f2743",
   fontSize: 14,
   fontWeight: 950,
 };
@@ -3691,18 +3696,21 @@ const sourceBadgeBaseStyle: CSSProperties = {
   fontSize: 11,
   fontWeight: 950,
   whiteSpace: "nowrap",
+  border: "1px solid transparent",
 };
 
 const caseSourceBadgeStyle: CSSProperties = {
   ...sourceBadgeBaseStyle,
   background: "#eff6ff",
   color: "#175cd3",
+  borderColor: "#bdd2f6",
 };
 
 const advisorySourceBadgeStyle: CSSProperties = {
   ...sourceBadgeBaseStyle,
   background: "#f3e8ff",
   color: "#7e22ce",
+  borderColor: "#d9c4f2",
 };
 
 const sectionDividerStyle: CSSProperties = {
@@ -3711,11 +3719,11 @@ const sectionDividerStyle: CSSProperties = {
 };
 
 const distributionCardStyle: CSSProperties = {
-  border: "1px solid #eeeeee",
-  borderRadius: 18,
-  padding: 18,
-  background: "linear-gradient(135deg, #ffffff 0%, #fbfcff 100%)",
-  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.045)",
+  border: "1px solid #e2e8f0",
+  borderRadius: 12,
+  padding: 16,
+  background: "#ffffff",
+  boxShadow: "0 8px 22px rgba(15, 23, 42, 0.04)",
 };
 
 const mobileDistributionCardStyle: CSSProperties = {
@@ -3735,7 +3743,7 @@ const distributionTitleWrapStyle: CSSProperties = {
 const distributionTitleStyle: CSSProperties = {
   fontSize: 16,
   fontWeight: 950,
-  color: "#111111",
+  color: "#0f2743",
 };
 
 const distributionTotalStyle: CSSProperties = {
@@ -3842,12 +3850,12 @@ const nestedPanelStyle: CSSProperties = {
 };
 
 const sectionCardStyle: CSSProperties = {
-  border: "1px solid #eeeeee",
-  borderRadius: 16,
+  border: "1px solid #e2e8f0",
+  borderRadius: 12,
   padding: 16,
   background: "#ffffff",
   marginBottom: 14,
-  boxShadow: "0 6px 18px rgba(15, 23, 42, 0.04)",
+  boxShadow: "0 8px 22px rgba(15, 23, 42, 0.04)",
 };
 
 const mobileSectionCardStyle: CSSProperties = {
@@ -3859,8 +3867,8 @@ const mobileSectionCardStyle: CSSProperties = {
 
 const urgentCommandPanelStyle: CSSProperties = {
   ...sectionCardStyle,
-  border: "1px solid #c8d7ea",
-  boxShadow: "0 12px 30px rgba(15, 39, 67, 0.08)",
+  border: "1px solid #b8c7dc",
+  boxShadow: "0 14px 34px rgba(15, 39, 67, 0.10)",
 };
 
 const mobileUrgentCommandPanelStyle: CSSProperties = {
@@ -3891,7 +3899,7 @@ const sectionTitleStyle: CSSProperties = {
   margin: 0,
   fontSize: 17,
   fontWeight: 900,
-  color: "#111111",
+  color: "#0f2743",
 };
 
 const sectionSubtitleStyle: CSSProperties = {
@@ -3920,21 +3928,21 @@ const labelStyle: CSSProperties = {
 const inputStyle: CSSProperties = {
   width: "100%",
   padding: "10px 12px",
-  border: "1px solid #cccccc",
+  border: "1px solid #cbd5e1",
   borderRadius: 8,
   fontSize: 14,
   boxSizing: "border-box",
   background: "white",
-  color: "#111111",
+  color: "#0f172a",
   colorScheme: "light",
 };
 
 const secondaryButtonStyle: CSSProperties = {
   padding: "10px 16px",
   background: "#ffffff",
-  color: "#111111",
+  color: "#0f2743",
   borderRadius: 10,
-  border: "1px solid #cccccc",
+  border: "1px solid #cbd5e1",
   cursor: "pointer",
   whiteSpace: "nowrap",
   fontWeight: 800,
@@ -3949,9 +3957,9 @@ const mobileSecondaryButtonStyle: CSSProperties = {
 const ghostButtonStyle: CSSProperties = {
   padding: "9px 13px",
   background: "#f8fafc",
-  color: "#111111",
+  color: "#0f2743",
   borderRadius: 10,
-  border: "1px solid #dddddd",
+  border: "1px solid #dbe3ee",
   cursor: "pointer",
   whiteSpace: "nowrap",
   fontWeight: 800,
@@ -3987,20 +3995,20 @@ const tableStyle: CSSProperties = {
 const thStyle: CSSProperties = {
   textAlign: "left",
   padding: "9px 10px",
-  borderBottom: "1px solid #eeeeee",
+  borderBottom: "1px solid #e2e8f0",
   whiteSpace: "nowrap",
-  color: "#111111",
+  color: "#0f2743",
   fontSize: 12,
   fontWeight: 900,
-  background: "#fafafa",
+  background: "#f8fafc",
 };
 
 const tdStyle: CSSProperties = {
   padding: "10px 10px",
   verticalAlign: "top",
-  borderTop: "1px solid #eeeeee",
+  borderTop: "1px solid #e2e8f0",
   whiteSpace: "nowrap",
-  color: "#111111",
+  color: "#0f172a",
   fontSize: 13,
 };
 
@@ -4038,9 +4046,9 @@ const miniOpenLinkStyle: CSSProperties = {
 
 const emptyStyle: CSSProperties = {
   padding: 16,
-  border: "1px dashed #cccccc",
+  border: "1px dashed #cbd5e1",
   borderRadius: 12,
-  color: "#666666",
+  color: "#475569",
   background: "#ffffff",
   fontWeight: 700,
 };
@@ -4134,9 +4142,9 @@ const workloadDonutBoxStyle: CSSProperties = {
   gap: 18,
   alignItems: "center",
   padding: 16,
-  border: "1px solid #eeeeee",
-  borderRadius: 16,
-  background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+  border: "1px solid #e2e8f0",
+  borderRadius: 12,
+  background: "#ffffff",
 };
 
 const mobileWorkloadDonutBoxStyle: CSSProperties = {
@@ -4145,9 +4153,9 @@ const mobileWorkloadDonutBoxStyle: CSSProperties = {
   gap: 12,
   alignItems: "center",
   padding: 12,
-  border: "1px solid #eeeeee",
-  borderRadius: 14,
-  background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+  border: "1px solid #e2e8f0",
+  borderRadius: 12,
+  background: "#ffffff",
 };
 
 const workloadDonutWrapStyle: CSSProperties = {
@@ -4181,7 +4189,7 @@ const workloadDonutCenterStyle: CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   flexDirection: "column",
-  boxShadow: "0 8px 22px rgba(15, 23, 42, 0.10)",
+  boxShadow: "0 8px 22px rgba(15, 23, 42, 0.08)",
   textAlign: "center",
   padding: 10,
 };
@@ -4196,7 +4204,7 @@ const mobileWorkloadDonutCenterStyle: CSSProperties = {
 const workloadDonutValueStyle: CSSProperties = {
   fontSize: 20,
   fontWeight: 950,
-  color: "#111111",
+  color: "#0f2743",
   lineHeight: 1.2,
 };
 
@@ -4228,7 +4236,7 @@ const workloadTotalValueStyle: CSSProperties = {
   marginTop: 2,
   fontSize: 26,
   fontWeight: 950,
-  color: "#111111",
+  color: "#0f2743",
   lineHeight: 1.15,
 };
 
@@ -4250,7 +4258,7 @@ const mobileWorkloadMiniGridStyle: CSSProperties = {
 };
 
 const workloadMiniCardStyle: CSSProperties = {
-  border: "1px solid #eeeeee",
+  border: "1px solid #e2e8f0",
   borderRadius: 12,
   padding: 12,
   background: "#ffffff",
@@ -4260,7 +4268,7 @@ const workloadMiniTopStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 8,
-  color: "#333333",
+  color: "#0f2743",
   fontWeight: 900,
   marginBottom: 6,
 };
@@ -4271,9 +4279,9 @@ const staffSlimListStyle: CSSProperties = {
 };
 
 const staffSlimRowStyle: CSSProperties = {
-  border: "1px solid #eeeeee",
-  borderRadius: 10,
-  padding: "6px 8px",
+  border: "1px solid #e2e8f0",
+  borderRadius: 12,
+  padding: "8px 10px",
   background: "#ffffff",
 };
 
@@ -4315,7 +4323,7 @@ const staffSlimRankStyle: CSSProperties = {
 const staffSlimNameStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 950,
-  color: "#111111",
+  color: "#0f2743",
   lineHeight: 1.2,
 };
 
@@ -4329,7 +4337,7 @@ const staffSlimMetaStyle: CSSProperties = {
 const staffSlimTotalStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 950,
-  color: "#111111",
+  color: "#0f2743",
   whiteSpace: "nowrap",
 };
 
@@ -4508,14 +4516,14 @@ const compactTimeCaseListStyle: CSSProperties = {
 };
 
 const timeCaseItemStyle: CSSProperties = {
-  border: "1px solid #eeeeee",
+  border: "1px solid #e2e8f0",
   borderRadius: 12,
-  padding: "8px 10px",
+  padding: "10px 12px",
   background: "#ffffff",
 };
 
 const compactTimeCaseItemStyle: CSSProperties = {
-  border: "1px solid #eeeeee",
+  border: "1px solid #e2e8f0",
   borderRadius: 10,
   padding: "7px 8px",
   background: "#ffffff",
@@ -4571,7 +4579,7 @@ const compactTimeCaseRankStyle: CSSProperties = {
 
 const timeCaseTitleStyle: CSSProperties = {
   fontWeight: 950,
-  color: "#111111",
+  color: "#0f2743",
   lineHeight: 1.25,
   fontSize: 14,
   whiteSpace: "nowrap",
@@ -4596,7 +4604,7 @@ const timeCaseClientStyle: CSSProperties = {
 
 const timeCaseTotalStyle: CSSProperties = {
   fontWeight: 950,
-  color: "#111111",
+  color: "#0f2743",
   whiteSpace: "nowrap",
   fontSize: 13,
 };
@@ -4707,10 +4715,10 @@ const mobileActionSummaryGridStyle: CSSProperties = {
 };
 
 const actionMiniCardStyle: CSSProperties = {
-  borderRadius: 14,
+  borderRadius: 12,
   padding: 12,
   minHeight: 86,
-  boxShadow: "0 6px 18px rgba(15, 23, 42, 0.045)",
+  boxShadow: "0 8px 22px rgba(15, 23, 42, 0.045)",
 };
 
 const mobileActionMiniCardStyle: CSSProperties = {
@@ -4728,9 +4736,9 @@ const actionMiniTopLineStyle: CSSProperties = {
 };
 
 const actionMiniNumberStyle: CSSProperties = {
-  fontSize: 24,
+  fontSize: 26,
   fontWeight: 950,
-  color: "#111111",
+  color: "#0f2743",
   lineHeight: 1,
   marginBottom: 6,
 };
@@ -4743,7 +4751,7 @@ const mobileActionMiniNumberStyle: CSSProperties = {
 const actionMiniLabelStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 950,
-  color: "#111111",
+  color: "#1f2937",
 };
 
 const actionMiniDescriptionStyle: CSSProperties = {
@@ -4763,20 +4771,21 @@ const actionRowStyle: CSSProperties = {
   justifyContent: "space-between",
   gap: 12,
   alignItems: "center",
-  border: "1px solid #eeeeee",
-  borderRadius: 14,
-  padding: 12,
-  background: "linear-gradient(135deg, #ffffff 0%, #fafafa 100%)",
+  border: "1px solid #e2e8f0",
+  borderRadius: 12,
+  padding: 14,
+  background: "#ffffff",
+  boxShadow: "0 3px 10px rgba(15, 23, 42, 0.025)",
 };
 
 const mobileActionRowStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "1fr",
   gap: 10,
-  border: "1px solid #eeeeee",
+  border: "1px solid #e2e8f0",
   borderRadius: 12,
   padding: 10,
-  background: "linear-gradient(135deg, #ffffff 0%, #fafafa 100%)",
+  background: "#ffffff",
 };
 
 const actionRowLeftStyle: CSSProperties = {
@@ -4805,7 +4814,7 @@ const mobileActionRowRightStyle: CSSProperties = {
 const actionCaseTitleStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 950,
-  color: "#111111",
+  color: "#0f2743",
   lineHeight: 1.4,
 };
 
