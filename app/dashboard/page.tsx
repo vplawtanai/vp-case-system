@@ -2126,7 +2126,7 @@ function MatterStreamPanel({
   isMobile?: boolean;
 }) {
   return (
-    <div style={isMobile ? mobileSectionCardStyle : sectionCardStyle}>
+    <div style={isMobile ? mobileMatterStreamPanelStyle : matterStreamPanelStyle}>
       <SectionHeader
         eyebrow="MATTER STREAM"
         title={title}
@@ -2151,7 +2151,7 @@ function MatterStreamPanel({
                   {item.dueDate ? formatDisplayDate(item.dueDate) : item.status}
                 </div>
                 <div style={matterStreamMetaStyle}>{item.priority}</div>
-                <Link href={item.href} style={openButtonLinkStyle}>
+                <Link href={item.href} style={matterStreamOpenLinkStyle}>
                   Open
                 </Link>
               </div>
@@ -2314,31 +2314,31 @@ function StaffWorkloadChart({
 function StaffTimeTable({ items }: { items: StaffTimeSummary[] }) {
   return (
     <div style={{ overflowX: "auto" }}>
-      <table style={tableStyle}>
+      <table style={teamWorkloadTableStyle}>
         <thead>
           <tr>
-            <th style={thStyle}>Staff</th>
-            <th style={thStyle}>Today</th>
-            <th style={thStyle}>This Week</th>
-            <th style={thStyle}>Selected Period</th>
-            <th style={thStyle}>Core</th>
-            <th style={thStyle}>Support</th>
-            <th style={thStyle}>All Time (ทุกเดือน)</th>
+            <th style={teamWorkloadThStyle}>Staff</th>
+            <th style={teamWorkloadThStyle}>Today</th>
+            <th style={teamWorkloadThStyle}>This Week</th>
+            <th style={teamWorkloadThStyle}>Selected Period</th>
+            <th style={teamWorkloadThStyle}>Core</th>
+            <th style={teamWorkloadThStyle}>Support</th>
+            <th style={teamWorkloadThStyle}>All Time (ทุกเดือน)</th>
           </tr>
         </thead>
 
         <tbody>
           {items.map((item) => (
             <tr key={item.staff} style={rowStyle}>
-              <td style={tdStyle}>{item.staff}</td>
-              <td style={tdStyle}>{formatDuration(item.todayMinutes)}</td>
-              <td style={tdStyle}>{formatDuration(item.weekMinutes)}</td>
-              <td style={tdStyle}>
+              <td style={teamWorkloadTdStyle}>{item.staff}</td>
+              <td style={teamWorkloadTdStyle}>{formatDuration(item.todayMinutes)}</td>
+              <td style={teamWorkloadTdStyle}>{formatDuration(item.weekMinutes)}</td>
+              <td style={teamWorkloadTdStyle}>
                 <strong>{formatDuration(item.periodMinutes)}</strong>
               </td>
-              <td style={tdStyle}>{formatDuration(item.coreMinutes)}</td>
-              <td style={tdStyle}>{formatDuration(item.supportMinutes)}</td>
-              <td style={tdStyle}>{formatDuration(item.totalMinutes)}</td>
+              <td style={teamWorkloadTdStyle}>{formatDuration(item.coreMinutes)}</td>
+              <td style={teamWorkloadTdStyle}>{formatDuration(item.supportMinutes)}</td>
+              <td style={teamWorkloadTdStyle}>{formatDuration(item.totalMinutes)}</td>
             </tr>
           ))}
         </tbody>
@@ -3634,7 +3634,7 @@ const mobileMiniGridStyle: CSSProperties = {
 const matterStreamGridStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-  gap: 14,
+  gap: 12,
   marginBottom: 18,
 };
 
@@ -3647,17 +3647,35 @@ const mobileMatterStreamGridStyle: CSSProperties = {
 
 const matterStreamListStyle: CSSProperties = {
   display: "grid",
-  gap: 10,
+  gap: 8,
+};
+
+const matterStreamPanelStyle: CSSProperties = {
+  border: "1px solid #dbe3ee",
+  borderRadius: 12,
+  padding: 14,
+  background: "#ffffff",
+  marginBottom: 14,
+  boxShadow: "0 8px 22px rgba(15, 23, 42, 0.04)",
+};
+
+const mobileMatterStreamPanelStyle: CSSProperties = {
+  border: "1px solid #dbe3ee",
+  borderRadius: 12,
+  padding: 12,
+  background: "#ffffff",
+  marginBottom: 10,
+  boxShadow: "0 8px 22px rgba(15, 23, 42, 0.04)",
 };
 
 const matterStreamRowStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  gap: 12,
+  gap: 10,
   alignItems: "flex-start",
-  padding: "11px 12px",
+  padding: "9px 10px",
   border: "1px solid #e8eef6",
-  borderRadius: 12,
+  borderRadius: 10,
   background: "#ffffff",
 };
 
@@ -3670,21 +3688,33 @@ const matterStreamMainStyle: CSSProperties = {
 
 const matterStreamSideStyle: CSSProperties = {
   display: "grid",
-  gap: 5,
+  gap: 4,
   justifyItems: "end",
   flexShrink: 0,
 };
 
 const matterStreamTitleStyle: CSSProperties = {
   color: "#0f2743",
-  fontSize: 14,
+  fontSize: 13,
   fontWeight: 950,
+  lineHeight: 1.25,
 };
 
 const matterStreamMetaStyle: CSSProperties = {
   color: "#64748b",
-  fontSize: 12,
+  fontSize: 11,
   fontWeight: 800,
+};
+
+const matterStreamOpenLinkStyle: CSSProperties = {
+  display: "inline-flex",
+  padding: "5px 9px",
+  borderRadius: 999,
+  background: "#0f2743",
+  color: "#ffffff",
+  textDecoration: "none",
+  fontSize: 11,
+  fontWeight: 900,
 };
 
 const sourceBadgeBaseStyle: CSSProperties = {
@@ -3992,6 +4022,11 @@ const tableStyle: CSSProperties = {
   minWidth: 860,
 };
 
+const teamWorkloadTableStyle: CSSProperties = {
+  ...tableStyle,
+  minWidth: 780,
+};
+
 const thStyle: CSSProperties = {
   textAlign: "left",
   padding: "9px 10px",
@@ -4003,6 +4038,12 @@ const thStyle: CSSProperties = {
   background: "#f8fafc",
 };
 
+const teamWorkloadThStyle: CSSProperties = {
+  ...thStyle,
+  padding: "7px 8px",
+  fontSize: 11,
+};
+
 const tdStyle: CSSProperties = {
   padding: "10px 10px",
   verticalAlign: "top",
@@ -4010,6 +4051,12 @@ const tdStyle: CSSProperties = {
   whiteSpace: "nowrap",
   color: "#0f172a",
   fontSize: 13,
+};
+
+const teamWorkloadTdStyle: CSSProperties = {
+  ...tdStyle,
+  padding: "7px 8px",
+  fontSize: 12,
 };
 
 const tdStrongStyle: CSSProperties = {
@@ -4275,13 +4322,13 @@ const workloadMiniTopStyle: CSSProperties = {
 
 const staffSlimListStyle: CSSProperties = {
   display: "grid",
-  gap: 8,
+  gap: 6,
 };
 
 const staffSlimRowStyle: CSSProperties = {
   border: "1px solid #e2e8f0",
-  borderRadius: 12,
-  padding: "8px 10px",
+  borderRadius: 10,
+  padding: "7px 9px",
   background: "#ffffff",
 };
 
@@ -4294,9 +4341,9 @@ const mobileStaffSlimRowStyle: CSSProperties = {
 const staffSlimHeaderStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  gap: 10,
+  gap: 8,
   alignItems: "flex-start",
-  marginBottom: 7,
+  marginBottom: 6,
 };
 
 const staffSlimNameWrapStyle: CSSProperties = {
@@ -4307,9 +4354,9 @@ const staffSlimNameWrapStyle: CSSProperties = {
 };
 
 const staffSlimRankStyle: CSSProperties = {
-  width: 26,
-  height: 26,
-  borderRadius: 9,
+  width: 24,
+  height: 24,
+  borderRadius: 8,
   background: "#0f2743",
   color: "#ffffff",
   display: "inline-flex",
@@ -4317,11 +4364,11 @@ const staffSlimRankStyle: CSSProperties = {
   justifyContent: "center",
   fontWeight: 950,
   flex: "0 0 auto",
-  fontSize: 12,
+  fontSize: 11,
 };
 
 const staffSlimNameStyle: CSSProperties = {
-  fontSize: 14,
+  fontSize: 13,
   fontWeight: 950,
   color: "#0f2743",
   lineHeight: 1.2,
@@ -4329,13 +4376,13 @@ const staffSlimNameStyle: CSSProperties = {
 
 const staffSlimMetaStyle: CSSProperties = {
   marginTop: 2,
-  fontSize: 12,
+  fontSize: 11,
   color: "#666666",
   fontWeight: 800,
 };
 
 const staffSlimTotalStyle: CSSProperties = {
-  fontSize: 14,
+  fontSize: 13,
   fontWeight: 950,
   color: "#0f2743",
   whiteSpace: "nowrap",
