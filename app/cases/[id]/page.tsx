@@ -216,25 +216,6 @@ const statusPillStyle: React.CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-const permissionInfoStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 8,
-  flexWrap: "wrap",
-  marginTop: 12,
-};
-
-const permissionBadgeStyle: React.CSSProperties = {
-  display: "inline-flex",
-  padding: "5px 9px",
-  borderRadius: 999,
-  border: "1px solid #dddddd",
-  background: "#ffffff",
-  color: "#444444",
-  fontSize: 12,
-  fontWeight: 800,
-  whiteSpace: "nowrap",
-};
-
 const backToTopButtonStyle: React.CSSProperties = {
   position: "fixed",
   right: 18,
@@ -532,12 +513,6 @@ export default function CaseDetailPage() {
             </div>
           </div>
 
-          <div style={permissionInfoStyle}>
-            <span style={permissionBadgeStyle}>Role: {permissions.role || "-"}</span>
-            <span style={permissionBadgeStyle}>
-              Financial Access: {permissions.financialAccess ? "Yes" : "No"}
-            </span>
-          </div>
         </div>
 
         <CaseSectionNav canViewFees={permissions.canViewFees} />
