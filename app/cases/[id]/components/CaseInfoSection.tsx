@@ -8,6 +8,7 @@ import { createAuditLog } from "../../../../lib/auditLog";
 type CaseItem = {
   title?: string;
 
+  clientId?: string;
   clientName?: string;
   courtName?: string;
   ownerName?: string;
@@ -33,6 +34,8 @@ type CaseItemFromDb = {
 
   title?: string | null;
 
+  client_id?: string | null;
+  clientId?: string | null;
   client_name?: string | null;
   clientName?: string | null;
 
@@ -100,6 +103,11 @@ type SelectOption = {
   label: string;
 };
 
+type ClientOption = {
+  id: string;
+  name: string;
+};
+
 type SelectProps = {
   label: string;
   value?: string;
@@ -124,7 +132,26 @@ export default function CaseInfoSection({
 
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [clients, setClients] = useState<ClientOption[]>([]);
   const [form, setForm] = useState<CaseItem>({});
+
+  useEffect(() => {
+    const loadClients = async () => {
+      const { data, error } = await supabase
+        .from("clients")
+        .select("id, name")
+        .order("name");
+
+      if (error) {
+        console.error("LOAD CLIENTS ERROR:", error);
+        return;
+      }
+
+      setClients((data || []) as ClientOption[]);
+    };
+
+    loadClients();
+  }, []);
 
   useEffect(() => {
     const parsedCaseNumber = parseBlackCaseNumber(
@@ -138,6 +165,7 @@ export default function CaseInfoSection({
     setForm({
       title: caseItem?.title || "",
 
+      clientId: caseItem?.client_id || caseItem?.clientId || "",
       clientName: caseItem?.client_name || caseItem?.clientName || "",
       courtName: caseItem?.court_name || caseItem?.courtName || "",
       ownerName: caseItem?.owner_name || caseItem?.ownerName || "",
@@ -196,11 +224,14 @@ export default function CaseInfoSection({
         form.claimAmountBaht,
         form.claimAmountSatang
       );
+      const selectedClient =
+        clients.find((client) => client.id === form.clientId) || null;
 
       const payload = {
         title: form.title || "",
 
-        client_name: form.clientName || "",
+        client_id: selectedClient?.id || null,
+        client_name: selectedClient?.name || form.clientName || "",
         court_name: form.courtName || "",
         owner_name: form.ownerName || "",
 
@@ -273,6 +304,10 @@ export default function CaseInfoSection({
 
   const claimPreview =
     buildClaimAmountText(form.claimAmountBaht, form.claimAmountSatang) || "-";
+  const linkedClientName = form.clientId
+    ? clients.find((client) => client.id === form.clientId)?.name
+    : "";
+  const displayClientName = linkedClientName || form.clientName || "";
 
   return (
     <div id="info" style={sectionStyle}>
@@ -319,14 +354,34 @@ export default function CaseInfoSection({
           )}
 
           {isEditing ? (
-            <Input
+            <Select
               label="Client"
-              value={form.clientName}
+              value={form.clientId}
               disabled={!isEditing}
-              onChange={(value) => setForm({ ...form, clientName: value })}
+              onChange={(value) => {
+                const selectedClient =
+                  clients.find((client) => client.id === value) || null;
+
+                setForm({
+                  ...form,
+                  clientId: value,
+                  clientName: selectedClient?.name || form.clientName || "",
+                });
+              }}
+              options={[
+                { value: "", label: form.clientName || "No linked client" },
+                ...clients.map((client) => ({
+                  value: client.id,
+                  label: client.name,
+                })),
+              ]}
             />
           ) : (
-            <ReadOnlyValue label="Client" value={form.clientName} />
+            <ReadOnlyValue label="Client" value={displayClientName} />
+          )}
+
+          {isEditing && clients.length === 0 && (
+            <div style={hintStyle}>No clients yet. Create Client first.</div>
           )}
 
           {isEditing ? (
@@ -946,6 +1001,12 @@ const claimPreviewStyle: CSSProperties = {
   marginTop: 6,
   fontSize: 12,
   color: "#555555",
+  fontWeight: 700,
+};
+
+const hintStyle: CSSProperties = {
+  fontSize: 12,
+  color: "#9a3412",
   fontWeight: 700,
 };
 

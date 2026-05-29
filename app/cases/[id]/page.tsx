@@ -28,6 +28,7 @@ type CaseItem = {
   id?: number;
 
   file_no?: string | null;
+  client_id?: string | null;
   title?: string | null;
   client_name?: string | null;
   court_name?: string | null;
@@ -48,6 +49,7 @@ type CaseItem = {
   updated_at?: string | null;
 
   fileNo?: string | null;
+  clientId?: string | null;
   clientName?: string | null;
   courtName?: string | null;
   caseNumber?: string | null;
@@ -111,6 +113,11 @@ type FeeItem = {
 type UserProfile = {
   role?: UserRole | string | null;
   financial_access?: boolean | null;
+};
+
+type ClientOption = {
+  id: string;
+  name: string;
 };
 
 /* =========================================================
@@ -241,6 +248,7 @@ export default function CaseDetailPage() {
   const caseIdNumber = Number(id);
 
   const [caseItem, setCaseItem] = useState<CaseItem | null>(null);
+  const [clients, setClients] = useState<ClientOption[]>([]);
   const [timeline] = useState<TimelineItem[]>([]);
   const [tasks] = useState<TaskItem[]>([]);
   const [fees] = useState<FeeItem[]>([]);
@@ -296,6 +304,24 @@ export default function CaseDetailPage() {
     loadCurrentUserProfile();
   }, []);
 
+  useEffect(() => {
+    const loadClients = async () => {
+      const { data, error } = await supabase
+        .from("clients")
+        .select("id, name")
+        .order("name");
+
+      if (error) {
+        console.error("LOAD CLIENTS ERROR:", error);
+        return;
+      }
+
+      setClients((data || []) as ClientOption[]);
+    };
+
+    loadClients();
+  }, []);
+
   /* =========================================================
      LOAD CASE FROM SUPABASE
   ========================================================= */
@@ -328,6 +354,7 @@ export default function CaseDetailPage() {
         const mappedCase: CaseItem = {
           id: data.id,
           file_no: data.file_no,
+          client_id: data.client_id,
           title: data.title,
           client_name: data.client_name,
           court_name: data.court_name,
@@ -347,6 +374,7 @@ export default function CaseDetailPage() {
           updated_at: data.updated_at,
 
           fileNo: data.file_no,
+          clientId: data.client_id,
           clientName: data.client_name,
           courtName: data.court_name,
           caseNumber: data.case_number,
@@ -427,6 +455,13 @@ export default function CaseDetailPage() {
     });
   };
 
+  const linkedClientName = caseItem?.client_id
+    ? clients.find((client) => client.id === caseItem.client_id)?.name
+    : "";
+
+  const displayClientName =
+    linkedClientName || caseItem?.client_name || caseItem?.clientName || "-";
+
   /* =========================================================
      RENDER STATES
   ========================================================= */
@@ -486,9 +521,7 @@ export default function CaseDetailPage() {
           <div style={caseMetaGridStyle}>
             <div style={metaBoxStyle}>
               <div style={metaLabelStyle}>Client</div>
-              <div style={metaValueStyle}>
-                {caseItem.client_name || caseItem.clientName || "-"}
-              </div>
+              <div style={metaValueStyle}>{displayClientName}</div>
             </div>
 
             <div style={metaBoxStyle}>

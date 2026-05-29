@@ -19,6 +19,7 @@ type RiskFilter = "all" | RiskLevel;
 type CaseItem = {
   id: number;
   file_no?: string | null;
+  client_id?: string | null;
   title?: string | null;
   client_name?: string | null;
   court_name?: string | null;
@@ -94,6 +95,11 @@ type UserProfile = {
   financial_access?: boolean | null;
 };
 
+type ClientOption = {
+  id: string;
+  name: string;
+};
+
 /* =========================================================
    MAIN PAGE
 ========================================================= */
@@ -102,6 +108,8 @@ export default function CasesPage() {
   const router = useRouter();
 
   const [cases, setCases] = useState<CaseItem[]>([]);
+  const [clients, setClients] = useState<ClientOption[]>([]);
+  const [selectedCreateClientId, setSelectedCreateClientId] = useState("");
   const [alertItems, setAlertItems] = useState<AlertCandidate[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -319,6 +327,24 @@ export default function CasesPage() {
     fetchCases();
   }, []);
 
+  useEffect(() => {
+    const loadClients = async () => {
+      const { data, error } = await supabase
+        .from("clients")
+        .select("id, name")
+        .order("name");
+
+      if (error) {
+        console.error("LOAD CLIENTS ERROR:", error);
+        return;
+      }
+
+      setClients((data || []) as ClientOption[]);
+    };
+
+    loadClients();
+  }, []);
+
   /* =========================================================
      CREATE CASE WITH AUTO FILE NO
   ========================================================= */
@@ -356,13 +382,17 @@ export default function CasesPage() {
         return;
       }
 
+      const selectedClient =
+        clients.find((item) => item.id === selectedCreateClientId) || null;
+
       const { data: createdCase, error } = await supabase
         .from("cases")
         .insert([
           {
             file_no: fileNo,
+            client_id: selectedClient?.id || null,
             title: "",
-            client_name: "",
+            client_name: selectedClient?.name || "",
             court_name: "",
             case_number: "",
             phase: "litigation",
@@ -387,7 +417,7 @@ export default function CasesPage() {
       await fetchCases();
 
       router.push(`/cases/${createdCase.id}`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("CREATE CASE ERROR:", err);
       alert("Error creating case:\n" + JSON.stringify(err, null, 2));
     } finally {
@@ -587,6 +617,27 @@ export default function CasesPage() {
             >
               {loading ? "Refreshing..." : "Refresh"}
             </button>
+
+            {permissions.canCreateCase && (
+              <div style={createClientSelectWrapStyle}>
+                <label style={createClientLabelStyle}>Client</label>
+                <select
+                  value={selectedCreateClientId}
+                  onChange={(event) => setSelectedCreateClientId(event.target.value)}
+                  style={createClientSelectStyle}
+                >
+                  <option value="">No linked client</option>
+                  {clients.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.name}
+                    </option>
+                  ))}
+                </select>
+                {clients.length === 0 && (
+                  <div style={createClientHintStyle}>No clients yet. Create Client first.</div>
+                )}
+              </div>
+            )}
 
             {permissions.canCreateCase && (
               <button
@@ -1338,6 +1389,37 @@ const heroActionWrapStyle: React.CSSProperties = {
   display: "flex",
   gap: 10,
   flexWrap: "wrap",
+  alignItems: "flex-start",
+};
+
+const createClientSelectWrapStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 4,
+  minWidth: 220,
+};
+
+const createClientLabelStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 900,
+  color: "#333333",
+};
+
+const createClientSelectStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "9px 12px",
+  border: "1px solid #cccccc",
+  borderRadius: 8,
+  fontSize: 14,
+  boxSizing: "border-box",
+  background: "white",
+  color: "#111111",
+  colorScheme: "light",
+};
+
+const createClientHintStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 700,
+  color: "#9a3412",
 };
 
 const summaryGridStyle: React.CSSProperties = {
