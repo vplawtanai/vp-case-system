@@ -477,7 +477,12 @@ export default function ClientsPage() {
                 <tbody>
                   {filteredClients.map((client) => (
                     <tr key={client.id}>
-                      <td style={tdStyle}>{client.name || "-"}</td>
+                      <td style={tdStyle}>
+                        <div style={clientNameTextStyle}>{client.name || "-"}</div>
+                        {client.address ? (
+                          <div style={clientAddressTextStyle}>{client.address}</div>
+                        ) : null}
+                      </td>
                       <td style={tdStyle}>
                         {renderClientType(client.client_type)}
                       </td>
@@ -674,6 +679,19 @@ const tdStyle: React.CSSProperties = {
   borderBottom: "1px solid #eeeeee",
   fontSize: 14,
   verticalAlign: "top",
+};
+
+const clientNameTextStyle: React.CSSProperties = {
+  fontWeight: 800,
+};
+
+const clientAddressTextStyle: React.CSSProperties = {
+  marginTop: 4,
+  color: "#666666",
+  fontSize: 12,
+  lineHeight: 1.4,
+  maxWidth: 320,
+  whiteSpace: "normal",
 };
 
 const smallButtonStyle: React.CSSProperties = {
