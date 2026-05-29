@@ -43,6 +43,8 @@ type DeadlineExtension = {
   note?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 };
 
 type DeadlineForm = {
@@ -225,6 +227,7 @@ export default function DeadlinesSection({
         .from("case_deadline_extensions")
         .select("*")
         .in("deadline_id", deadlineIds)
+        .is("deleted_at", null)
         .order("extension_no", { ascending: true })
         .order("created_at", { ascending: true });
 
@@ -659,6 +662,19 @@ export default function DeadlinesSection({
     return latest?.granted_until_date || "";
   };
 
+  const recalculateDueDateAfterExtensionDelete = (
+    deadline: DeadlineItem | null,
+    nextExtensions: DeadlineExtension[]
+  ) => {
+    if (!deadline) return "";
+
+    return (
+      getLatestExtensionDueDate(deadline.id, nextExtensions) ||
+      deadline.original_due_date ||
+      ""
+    );
+  };
+
   const createExtension = async () => {
     if (!canEdit) {
       alert("คุณไม่มีสิทธิ์เพิ่มการขยายเวลา");
@@ -891,6 +907,136 @@ export default function DeadlinesSection({
     }
   };
 
+  const deleteExtension = async (extension: DeadlineExtension) => {
+    if (!canDelete) {
+      alert("คุณไม่มีสิทธิ์ลบการขยายเวลา");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "ต้องการลบการขยายเวลานี้หรือไม่?\n\nระบบจะซ่อนรายการนี้และคำนวณวันครบกำหนดปัจจุบันใหม่"
+    );
+
+    if (!confirmed) return;
+
+    const oldExtension =
+      extensions.find((item) => item.id === extension.id) || extension;
+    const oldDeadline =
+      items.find((item) => item.id === extension.deadline_id) || null;
+    const nextExtensions = extensions.filter((item) => item.id !== extension.id);
+    const nextDueDate = recalculateDueDateAfterExtensionDelete(
+      oldDeadline,
+      nextExtensions
+    );
+
+    if (!nextDueDate) {
+      alert("Cannot recalculate current due date after deleting extension.");
+      return;
+    }
+
+    try {
+      setSavingExtension(true);
+
+      const { data: userData } = await supabase.auth.getUser();
+      const now = new Date().toISOString();
+      const actor =
+        userData.user?.email || userData.user?.id || "current_user";
+
+      const extensionDeletePayload = {
+        deleted_at: now,
+        deleted_by: actor,
+        updated_at: now,
+      };
+
+      const { data: deletedExtension, error: deleteExtensionError } =
+        await supabase
+          .from("case_deadline_extensions")
+          .update(extensionDeletePayload)
+          .eq("id", extension.id)
+          .is("deleted_at", null)
+          .select("*")
+          .single();
+
+      if (deleteExtensionError) {
+        alert(
+          "Delete extension failed:\n" +
+            JSON.stringify(deleteExtensionError, null, 2)
+        );
+        return;
+      }
+
+      try {
+        await createAuditLog({
+          caseId: caseIdNumber,
+          tableName: "case_deadline_extensions",
+          recordId: extension.id,
+          action: "soft_delete",
+          oldData: oldExtension,
+          newData: deletedExtension || {
+            ...oldExtension,
+            ...extensionDeletePayload,
+          },
+          note: "Soft delete deadline extension",
+        });
+      } catch (auditError) {
+        console.error("CREATE EXTENSION DELETE AUDIT LOG FAILED:", auditError);
+      }
+
+      if (oldDeadline?.current_due_date !== nextDueDate) {
+        const deadlineUpdatePayload = {
+          current_due_date: nextDueDate,
+          updated_at: now,
+        };
+
+        const { data: updatedDeadline, error: updateDeadlineError } =
+          await supabase
+            .from("case_deadlines")
+            .update(deadlineUpdatePayload)
+            .eq("id", extension.deadline_id)
+            .is("deleted_at", null)
+            .select("*")
+            .single();
+
+        if (updateDeadlineError) {
+          alert(
+            "Recalculate current due date failed:\n" +
+              JSON.stringify(updateDeadlineError, null, 2)
+          );
+          return;
+        }
+
+        try {
+          await createAuditLog({
+            caseId: caseIdNumber,
+            tableName: "case_deadlines",
+            recordId: extension.deadline_id,
+            action: "update",
+            oldData: oldDeadline,
+            newData:
+              updatedDeadline ||
+              (oldDeadline
+                ? {
+                    ...oldDeadline,
+                    ...deadlineUpdatePayload,
+                  }
+                : deadlineUpdatePayload),
+            note: "Recalculate current due date after extension delete",
+          });
+        } catch (auditError) {
+          console.error(
+            "CREATE DEADLINE RECALC AUDIT LOG FAILED:",
+            auditError
+          );
+        }
+      }
+
+      if (editingExtensionId === extension.id) cancelExtensionForm();
+      await loadDeadlines();
+    } finally {
+      setSavingExtension(false);
+    }
+  };
+
   return (
     <div id="deadlines" style={sectionStyle}>
       <div style={headerStyle}>
@@ -1100,6 +1246,7 @@ export default function DeadlinesSection({
               onToggleDone={toggleDone}
               onStartAddExtension={startAddExtension}
               onStartEditExtension={startEditExtension}
+              onDeleteExtension={deleteExtension}
               onCancelExtension={cancelExtensionForm}
               onChangeExtensionForm={setExtensionForm}
               onCreateExtension={createExtension}
@@ -1140,6 +1287,7 @@ function DeadlineCard({
   onToggleDone,
   onStartAddExtension,
   onStartEditExtension,
+  onDeleteExtension,
   onCancelExtension,
   onChangeExtensionForm,
   onCreateExtension,
@@ -1159,6 +1307,7 @@ function DeadlineCard({
   onToggleDone: (item: DeadlineItem) => void;
   onStartAddExtension: (id: string) => void;
   onStartEditExtension: (extension: DeadlineExtension) => void;
+  onDeleteExtension: (extension: DeadlineExtension) => void;
   onCancelExtension: () => void;
   onChangeExtensionForm: (form: ExtensionForm) => void;
   onCreateExtension: () => void;
@@ -1259,14 +1408,27 @@ function DeadlineCard({
                   ขยายครั้งที่ {ex.extension_no || "-"} ถึงวันที่{" "}
                   {formatDisplayDate(ex.granted_until_date)}
                 </div>
-                {canEdit && (
-                  <button
-                    type="button"
-                    onClick={() => onStartEditExtension(ex)}
-                    style={tinyButtonStyle}
-                  >
-                    Edit
-                  </button>
+                {(canEdit || canDelete) && (
+                  <div style={extensionActionWrapStyle}>
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => onStartEditExtension(ex)}
+                        style={tinyButtonStyle}
+                      >
+                        Edit
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button
+                        type="button"
+                        onClick={() => onDeleteExtension(ex)}
+                        style={tinyDangerButtonStyle}
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
               {ex.requested_date && (
@@ -2030,6 +2192,13 @@ const extensionRowHeaderStyle: CSSProperties = {
   alignItems: "flex-start",
 };
 
+const extensionActionWrapStyle: CSSProperties = {
+  display: "flex",
+  gap: 6,
+  flexWrap: "wrap",
+  justifyContent: "flex-end",
+};
+
 const extensionFormStyle: CSSProperties = {
   marginTop: 12,
   padding: 12,
@@ -2077,6 +2246,13 @@ const tinyButtonStyle: CSSProperties = {
   cursor: "pointer",
   fontWeight: 700,
   fontSize: 12,
+};
+
+const tinyDangerButtonStyle: CSSProperties = {
+  ...tinyButtonStyle,
+  border: "1px solid #f0c4c4",
+  background: "#fff5f5",
+  color: "#a40000",
 };
 
 const doneButtonStyle: CSSProperties = {
