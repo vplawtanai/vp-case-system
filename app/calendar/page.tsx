@@ -124,6 +124,7 @@ export default function CalendarPage() {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [loading, setLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState(getDateKey(new Date()));
+  const [focusedDate, setFocusedDate] = useState("");
   const [monthDate, setMonthDate] = useState(getMonthStart(new Date()));
 
   const [cases, setCases] = useState<CaseRow[]>([]);
@@ -493,18 +494,23 @@ export default function CalendarPage() {
                 const dateItems = cell.dateKey ? itemsByDate.get(cell.dateKey) || [] : [];
                 const isSelected = cell.dateKey === selectedDate;
                 const isToday = cell.dateKey === getDateKey(new Date());
+                const isFocused = cell.dateKey === focusedDate;
 
                 return (
                   <button
                     key={cell.key}
                     type="button"
                     disabled={!cell.dateKey}
+                    onBlur={() => setFocusedDate("")}
+                    onFocus={() => cell.dateKey && setFocusedDate(cell.dateKey)}
+                    onMouseDown={(event) => event.preventDefault()}
                     onClick={() => cell.dateKey && setSelectedDate(cell.dateKey)}
                     style={{
                       ...dateCellStyle,
                       ...(isCompactView ? compactDateCellStyle : {}),
-                      ...(isSelected ? selectedDateCellStyle : {}),
                       ...(isToday ? todayCellStyle : {}),
+                      ...(isFocused && !isSelected ? focusedDateCellStyle : {}),
+                      ...(isSelected ? selectedDateCellStyle : {}),
                       opacity: cell.dateKey ? 1 : 0.35,
                     }}
                   >
@@ -526,7 +532,7 @@ export default function CalendarPage() {
                               : advisoryBadgeStyle
                           }
                         >
-                          {item.source}
+                          {getShortItemType(item.itemType)}
                         </span>
                       ))}
                     </div>
@@ -544,8 +550,9 @@ export default function CalendarPage() {
             />
             <ItemPanel
               title="Overdue + Next 7 days"
-              subtitle="Upcoming command list"
+              subtitle="Upcoming & Overdue"
               items={upcomingItems}
+              showDateLabels
             />
           </div>
         </section>
@@ -558,10 +565,12 @@ function ItemPanel({
   title,
   subtitle,
   items,
+  showDateLabels = false,
 }: {
   title: string;
   subtitle: string;
   items: CalendarItem[];
+  showDateLabels?: boolean;
 }) {
   return (
     <section style={panelStyle}>
@@ -580,14 +589,22 @@ function ItemPanel({
           {items.map((item) => (
             <Link key={item.id} href={item.link} style={itemRowStyle}>
               <div style={itemTopLineStyle}>
-                <span
-                  style={
-                    item.source === "Case" ? caseBadgeStyle : advisoryBadgeStyle
-                  }
-                >
-                  {item.source}
-                </span>
-                <span style={typeBadgeStyle}>{item.itemType}</span>
+                <div style={itemBadgeLineStyle}>
+                  <span
+                    style={
+                      item.source === "Case" ? caseBadgeStyle : advisoryBadgeStyle
+                    }
+                  >
+                    {item.source}
+                  </span>
+                  <span style={typeBadgeStyle}>{item.itemType}</span>
+                </div>
+                {showDateLabels ? (
+                  <span style={dateChipStyle}>
+                    {formatDisplayDate(item.date)}
+                    {getDueLabel(item.date) ? ` · ${getDueLabel(item.date)}` : ""}
+                  </span>
+                ) : null}
               </div>
               <div style={itemTitleStyle}>{item.title}</div>
               <div style={itemMetaStyle}>
@@ -683,6 +700,39 @@ function formatDisplayDate(value: string) {
   const [year, month, day] = value.split("-");
   if (!year || !month || !day) return value;
   return `${day}/${month}/${year}`;
+}
+
+function getShortItemType(value: CalendarItem["itemType"]) {
+  if (value.includes("Deadline")) return "Deadline";
+  if (value.includes("Timeline")) return "Timeline";
+  if (value.includes("Issue")) return "Issue";
+  return "Task";
+}
+
+function getDueLabel(dateKey: string) {
+  const today = getDateKey(new Date());
+  const dayDiff = daysBetweenDateKeys(today, dateKey);
+
+  if (dayDiff < 0) {
+    const days = Math.abs(dayDiff);
+    return days === 1 ? "Overdue 1 day" : `Overdue ${days} days`;
+  }
+
+  if (dayDiff === 0) return "Today";
+  return "";
+}
+
+function daysBetweenDateKeys(startKey: string, endKey: string) {
+  const start = parseDateKey(startKey);
+  const end = parseDateKey(endKey);
+  if (!start || !end) return 0;
+  return Math.round((end.getTime() - start.getTime()) / 86400000);
+}
+
+function parseDateKey(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
 }
 
 const pageStyle: CSSProperties = {
@@ -811,6 +861,7 @@ const dateCellStyle: CSSProperties = {
   textAlign: "left",
   cursor: "pointer",
   minWidth: 0,
+  outline: "none",
 };
 
 const compactDateCellStyle: CSSProperties = {
@@ -823,6 +874,11 @@ const compactDateCellStyle: CSSProperties = {
 const selectedDateCellStyle: CSSProperties = {
   borderColor: "#0f2743",
   boxShadow: "inset 0 0 0 1px #0f2743",
+};
+
+const focusedDateCellStyle: CSSProperties = {
+  borderColor: "#93c5fd",
+  boxShadow: "0 0 0 2px rgba(147, 197, 253, 0.35)",
 };
 
 const todayCellStyle: CSSProperties = {
@@ -938,6 +994,21 @@ const itemTopLineStyle: CSSProperties = {
   display: "flex",
   gap: 5,
   flexWrap: "wrap",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+};
+
+const itemBadgeLineStyle: CSSProperties = {
+  display: "flex",
+  gap: 5,
+  flexWrap: "wrap",
+};
+
+const dateChipStyle: CSSProperties = {
+  ...badgeBaseStyle,
+  background: "#f1f5f9",
+  color: "#334155",
+  border: "1px solid #dbe3ee",
 };
 
 const itemTitleStyle: CSSProperties = {
