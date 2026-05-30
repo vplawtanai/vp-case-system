@@ -445,12 +445,20 @@ export default function CalendarPage() {
       <main style={pageStyle}>
         <style jsx global>{`
           .calendar-date-cell:focus:not(:focus-visible) {
+            border-color: #e5e7eb !important;
             outline: none !important;
+            box-shadow: none !important;
           }
 
           .calendar-date-cell:focus-visible {
             outline: 2px solid rgba(147, 197, 253, 0.55);
             outline-offset: 2px;
+          }
+
+          .calendar-date-cell:hover:not([data-selected="true"]) {
+            border-color: #e5e7eb !important;
+            box-shadow: none !important;
+            background: #f8fafc !important;
           }
         `}</style>
         <AppTopNav
@@ -509,6 +517,7 @@ export default function CalendarPage() {
                   <button
                     key={cell.key}
                     className="calendar-date-cell"
+                    data-selected={isSelected ? "true" : "false"}
                     type="button"
                     disabled={!cell.dateKey}
                     onMouseDown={(event) => event.preventDefault()}
@@ -518,11 +527,11 @@ export default function CalendarPage() {
                       if (event.detail > 0) event.currentTarget.blur();
                     }}
                     style={{
-                      ...dateCellStyle,
-                      ...(isCompactView ? compactDateCellStyle : {}),
-                      ...(isToday ? todayCellStyle : {}),
+                      ...baseDateCellStyle,
+                      ...(isCompactView ? compactBaseDateCellStyle : {}),
+                      ...(!cell.dateKey ? outsideMonthDateCellStyle : {}),
+                      ...(isToday && !isSelected ? todayDateCellStyle : {}),
                       ...(isSelected ? selectedDateCellStyle : {}),
-                      opacity: cell.dateKey ? 1 : 0.35,
                     }}
                   >
                     <span style={{ ...dateNumberStyle, ...(isCompactView ? compactDateNumberStyle : {}) }}>
@@ -859,13 +868,13 @@ const compactMonthGridStyle: CSSProperties = {
   gap: 3,
 };
 
-const dateCellStyle: CSSProperties = {
+const baseDateCellStyle: CSSProperties = {
   minHeight: 104,
   display: "grid",
   alignContent: "start",
   gap: 6,
   padding: 8,
-  border: "1px solid #e2e8f0",
+  border: "1px solid #e5e7eb",
   borderRadius: 10,
   background: "#ffffff",
   color: "#0f172a",
@@ -877,7 +886,7 @@ const dateCellStyle: CSSProperties = {
   boxShadow: "none",
 };
 
-const compactDateCellStyle: CSSProperties = {
+const compactBaseDateCellStyle: CSSProperties = {
   minHeight: 66,
   gap: 3,
   padding: 4,
@@ -889,8 +898,15 @@ const selectedDateCellStyle: CSSProperties = {
   boxShadow: "inset 0 0 0 1px #0f2743",
 };
 
-const todayCellStyle: CSSProperties = {
+const todayDateCellStyle: CSSProperties = {
   background: "#f0f7ff",
+};
+
+const outsideMonthDateCellStyle: CSSProperties = {
+  background: "#f8fafc",
+  borderColor: "#e5e7eb",
+  boxShadow: "none",
+  opacity: 0.35,
 };
 
 const dateNumberStyle: CSSProperties = {
