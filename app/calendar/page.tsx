@@ -124,7 +124,6 @@ export default function CalendarPage() {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [loading, setLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState(getDateKey(new Date()));
-  const [focusedDate, setFocusedDate] = useState("");
   const [monthDate, setMonthDate] = useState(getMonthStart(new Date()));
 
   const [cases, setCases] = useState<CaseRow[]>([]);
@@ -447,11 +446,10 @@ export default function CalendarPage() {
         <style jsx global>{`
           .calendar-date-cell:focus:not(:focus-visible) {
             outline: none !important;
-            box-shadow: none !important;
           }
 
           .calendar-date-cell:focus-visible {
-            outline: 2px solid rgba(147, 197, 253, 0.75);
+            outline: 2px solid rgba(147, 197, 253, 0.55);
             outline-offset: 2px;
           }
         `}</style>
@@ -506,7 +504,6 @@ export default function CalendarPage() {
                 const isSelected = cell.dateKey === selectedDate;
                 const isToday = cell.dateKey === getDateKey(new Date());
                 const hasItems = dateItems.length > 0;
-                const isFocused = cell.dateKey === focusedDate;
 
                 return (
                   <button
@@ -514,8 +511,6 @@ export default function CalendarPage() {
                     className="calendar-date-cell"
                     type="button"
                     disabled={!cell.dateKey}
-                    onBlur={() => setFocusedDate("")}
-                    onFocus={() => cell.dateKey && setFocusedDate(cell.dateKey)}
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={(event) => {
                       if (!cell.dateKey) return;
@@ -526,7 +521,6 @@ export default function CalendarPage() {
                       ...dateCellStyle,
                       ...(isCompactView ? compactDateCellStyle : {}),
                       ...(isToday ? todayCellStyle : {}),
-                      ...(isFocused && !isSelected ? focusedDateCellStyle : {}),
                       ...(isSelected ? selectedDateCellStyle : {}),
                       opacity: cell.dateKey ? 1 : 0.35,
                     }}
@@ -879,6 +873,8 @@ const dateCellStyle: CSSProperties = {
   cursor: "pointer",
   minWidth: 0,
   outline: "none",
+  appearance: "none",
+  boxShadow: "none",
 };
 
 const compactDateCellStyle: CSSProperties = {
@@ -891,11 +887,6 @@ const compactDateCellStyle: CSSProperties = {
 const selectedDateCellStyle: CSSProperties = {
   borderColor: "#0f2743",
   boxShadow: "inset 0 0 0 1px #0f2743",
-};
-
-const focusedDateCellStyle: CSSProperties = {
-  borderColor: "#93c5fd",
-  boxShadow: "0 0 0 2px rgba(147, 197, 253, 0.35)",
 };
 
 const todayCellStyle: CSSProperties = {
