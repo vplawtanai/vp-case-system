@@ -406,13 +406,26 @@ export default function CalendarPage() {
   }, [calendarItems]);
 
   const selectedItems = itemsByDate.get(selectedDate) || [];
-  const upcomingItems = useMemo(() => {
+  const actionQueueItems = useMemo(() => {
     const today = getDateKey(new Date());
     const nextWeek = getDateKey(addDays(new Date(), 7));
 
-    return calendarItems.filter(
-      (item) => item.date < today || (item.date >= today && item.date <= nextWeek)
-    );
+    return calendarItems
+      .filter((item) => {
+        if (isClosedStatus(item.status)) return false;
+        return item.date < today || (item.date >= today && item.date <= nextWeek);
+      })
+      .sort((a, b) => {
+        const aDiff = daysBetweenDateKeys(today, a.date);
+        const bDiff = daysBetweenDateKeys(today, b.date);
+        const aGroup = getActionQueueGroup(aDiff);
+        const bGroup = getActionQueueGroup(bDiff);
+
+        if (aGroup !== bGroup) return aGroup - bGroup;
+        if (aGroup === 0) return bDiff - aDiff;
+        return aDiff - bDiff;
+      })
+      .slice(0, 10);
   }, [calendarItems]);
 
   if (loadingProfile) {
@@ -568,9 +581,9 @@ export default function CalendarPage() {
               items={selectedItems}
             />
             <ItemPanel
-              title="Overdue + Next 7 days"
-              subtitle="Upcoming & Overdue"
-              items={upcomingItems}
+              title="Overdue, today, and next 7 days"
+              subtitle="Action Queue"
+              items={actionQueueItems}
               showDateLabels
             />
           </div>
@@ -739,6 +752,18 @@ function getDueLabel(dateKey: string) {
 
   if (dayDiff === 0) return "Today";
   return "";
+}
+
+function isClosedStatus(status: string) {
+  return ["done", "completed", "closed", "clear"].includes(
+    status.trim().toLowerCase()
+  );
+}
+
+function getActionQueueGroup(dayDiff: number) {
+  if (dayDiff < 0) return 0;
+  if (dayDiff === 0) return 1;
+  return 2;
 }
 
 function daysBetweenDateKeys(startKey: string, endKey: string) {
