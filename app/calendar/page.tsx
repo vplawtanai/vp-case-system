@@ -444,12 +444,6 @@ export default function CalendarPage() {
     <AuthGuard>
       <main style={pageStyle}>
         <style jsx global>{`
-          .calendar-date-cell:focus:not(:focus-visible) {
-            border-color: #e5e7eb !important;
-            outline: none !important;
-            box-shadow: none !important;
-          }
-
           .calendar-date-cell:focus-visible {
             outline: 2px solid rgba(147, 197, 253, 0.55);
             outline-offset: 2px;
@@ -514,17 +508,22 @@ export default function CalendarPage() {
                 const hasItems = dateItems.length > 0;
 
                 return (
-                  <button
+                  <div
                     key={cell.key}
+                    role="button"
+                    tabIndex={cell.dateKey ? 0 : -1}
+                    aria-disabled={!cell.dateKey}
                     className="calendar-date-cell"
                     data-selected={isSelected ? "true" : "false"}
-                    type="button"
-                    disabled={!cell.dateKey}
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={(event) => {
+                    onClick={() => {
                       if (!cell.dateKey) return;
                       setSelectedDate(cell.dateKey);
-                      if (event.detail > 0) event.currentTarget.blur();
+                    }}
+                    onKeyDown={(event) => {
+                      if (!cell.dateKey) return;
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
+                      setSelectedDate(cell.dateKey);
                     }}
                     style={{
                       ...baseDateCellStyle,
@@ -556,7 +555,7 @@ export default function CalendarPage() {
                         </span>
                       ))}
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -874,7 +873,7 @@ const baseDateCellStyle: CSSProperties = {
   alignContent: "start",
   gap: 6,
   padding: 8,
-  border: "1px solid #e5e7eb",
+  border: "1px solid #eef2f7",
   borderRadius: 10,
   background: "#ffffff",
   color: "#0f172a",
@@ -894,8 +893,8 @@ const compactBaseDateCellStyle: CSSProperties = {
 };
 
 const selectedDateCellStyle: CSSProperties = {
-  borderColor: "#0f2743",
-  boxShadow: "inset 0 0 0 1px #0f2743",
+  border: "2px solid #0f2743",
+  boxShadow: "0 0 0 1px rgba(15, 39, 67, 0.15)",
 };
 
 const todayDateCellStyle: CSSProperties = {
@@ -904,7 +903,7 @@ const todayDateCellStyle: CSSProperties = {
 
 const outsideMonthDateCellStyle: CSSProperties = {
   background: "#f8fafc",
-  borderColor: "#e5e7eb",
+  borderColor: "#eef2f7",
   boxShadow: "none",
   opacity: 0.35,
 };
