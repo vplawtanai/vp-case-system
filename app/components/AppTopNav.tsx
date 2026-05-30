@@ -18,6 +18,7 @@ type AppTopNavProps = {
     | "advisory"
     | "workload"
     | "workloadSummary"
+    | "account"
     | "users";
 };
 
@@ -85,6 +86,7 @@ export default function AppTopNav({
       | "advisory"
       | "workload"
       | "workloadSummary"
+      | "account"
       | "users"
   ): React.CSSProperties => {
     const isActive = activePage === page;
@@ -155,6 +157,10 @@ export default function AppTopNav({
             Users
           </Link>
         )}
+
+        <Link href="/account/security" style={getLinkStyle("account")}>
+          Account
+        </Link>
 
         <button type="button" onClick={handleLogout} style={logoutButtonStyle}>
           Logout
