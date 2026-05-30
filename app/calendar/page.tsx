@@ -408,12 +408,14 @@ export default function CalendarPage() {
   const selectedItems = itemsByDate.get(selectedDate) || [];
   const actionQueueItems = useMemo(() => {
     const today = getDateKey(new Date());
-    const nextWeek = getDateKey(addDays(new Date(), 7));
+    const nextThirtyDays = getDateKey(addDays(new Date(), 30));
 
     return calendarItems
       .filter((item) => {
         if (isClosedStatus(item.status)) return false;
-        return item.date < today || (item.date >= today && item.date <= nextWeek);
+        return (
+          item.date < today || (item.date >= today && item.date <= nextThirtyDays)
+        );
       })
       .sort((a, b) => {
         const aDiff = daysBetweenDateKeys(today, a.date);
@@ -581,7 +583,7 @@ export default function CalendarPage() {
               items={selectedItems}
             />
             <ItemPanel
-              title="Overdue, today, and next 7 days"
+              title="Overdue, today, and next 30 days"
               subtitle="Action Queue"
               items={actionQueueItems}
               showDateLabels
