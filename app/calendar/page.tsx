@@ -444,6 +444,17 @@ export default function CalendarPage() {
   return (
     <AuthGuard>
       <main style={pageStyle}>
+        <style jsx global>{`
+          .calendar-date-cell:focus:not(:focus-visible) {
+            outline: none !important;
+            box-shadow: none !important;
+          }
+
+          .calendar-date-cell:focus-visible {
+            outline: 2px solid rgba(147, 197, 253, 0.75);
+            outline-offset: 2px;
+          }
+        `}</style>
         <AppTopNav
           title="Calendar"
           subtitle="Deadlines, tasks, timeline events, and advisory work in one view."
@@ -494,17 +505,23 @@ export default function CalendarPage() {
                 const dateItems = cell.dateKey ? itemsByDate.get(cell.dateKey) || [] : [];
                 const isSelected = cell.dateKey === selectedDate;
                 const isToday = cell.dateKey === getDateKey(new Date());
+                const hasItems = dateItems.length > 0;
                 const isFocused = cell.dateKey === focusedDate;
 
                 return (
                   <button
                     key={cell.key}
+                    className="calendar-date-cell"
                     type="button"
                     disabled={!cell.dateKey}
                     onBlur={() => setFocusedDate("")}
                     onFocus={() => cell.dateKey && setFocusedDate(cell.dateKey)}
                     onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => cell.dateKey && setSelectedDate(cell.dateKey)}
+                    onClick={(event) => {
+                      if (!cell.dateKey) return;
+                      setSelectedDate(cell.dateKey);
+                      if (event.detail > 0) event.currentTarget.blur();
+                    }}
                     style={{
                       ...dateCellStyle,
                       ...(isCompactView ? compactDateCellStyle : {}),
@@ -517,7 +534,7 @@ export default function CalendarPage() {
                     <span style={{ ...dateNumberStyle, ...(isCompactView ? compactDateNumberStyle : {}) }}>
                       {cell.dayLabel}
                     </span>
-                    {dateItems.length > 0 ? (
+                    {hasItems ? (
                       <span style={{ ...countBadgeStyle, ...(isCompactView ? compactCountBadgeStyle : {}) }}>
                         {isCompactView ? dateItems.length : `${dateItems.length} item(s)`}
                       </span>
