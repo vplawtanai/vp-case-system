@@ -12,6 +12,7 @@ type AppTopNavProps = {
   subtitle?: string;
   activePage:
     | "dashboard"
+    | "calendar"
     | "alerts"
     | "cases"
     | "clients"
@@ -81,6 +82,7 @@ export default function AppTopNav({
   const getLinkStyle = (
     page:
       | "dashboard"
+      | "calendar"
       | "cases"
       | "clients"
       | "advisory"
@@ -119,6 +121,12 @@ export default function AppTopNav({
         {permissions.canViewDashboard && (
           <Link href="/dashboard" style={getLinkStyle("dashboard")}>
             Dashboard
+          </Link>
+        )}
+
+        {permissions.canViewDashboard && (
+          <Link href="/calendar" style={getLinkStyle("calendar")}>
+            Calendar
           </Link>
         )}
 
