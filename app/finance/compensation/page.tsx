@@ -223,7 +223,9 @@ export default function CompensationPage() {
 
   const saveDraft = async () => {
     if (!permissions.canEditFinanceModule) return;
-    const validation = validateAllocations(form, allocations);
+    if (saving) return;
+    const allocationRows = dedupeAllocationRows(allocations);
+    const validation = validateAllocations(form, allocationRows);
     if (validation) return alert(validation);
     const payload = {
       received_date: form.received_date,
@@ -247,7 +249,13 @@ export default function CompensationPage() {
         if (error || !data) return alert(error?.message || "Update batch failed");
         const { error: deleteError } = await supabase.from("finance_compensation_allocations").delete().eq("batch_id", editingBatchId);
         if (deleteError) return alert(deleteError.message || "Delete old allocations failed");
-        await insertAllocations(editingBatchId);
+        const { data: remainingRows, error: verifyDeleteError } = await supabase
+          .from("finance_compensation_allocations")
+          .select("id")
+          .eq("batch_id", editingBatchId);
+        if (verifyDeleteError) return alert(verifyDeleteError.message || "Verify allocation delete failed");
+        if ((remainingRows || []).length > 0) return alert("Delete old allocations failed: existing allocations remain.");
+        await insertAllocations(editingBatchId, allocationRows);
         await auditFinance("update", "finance_compensation_batches", editingBatchId, oldBatch, data, "Update compensation draft");
       } else {
         const { data, error } = await supabase.from("finance_compensation_batches").insert([{
@@ -257,7 +265,7 @@ export default function CompensationPage() {
           created_by_name: actorName || null,
         }]).select("*").single();
         if (error || !data) return alert(error?.message || "Create batch failed");
-        await insertAllocations(data.id);
+        await insertAllocations(data.id, allocationRows);
         await auditFinance("create", "finance_compensation_batches", data.id, null, data, "Create compensation draft");
       }
       resetForm();
@@ -269,9 +277,9 @@ export default function CompensationPage() {
     }
   };
 
-  const insertAllocations = async (batchId: string) => {
+  const insertAllocations = async (batchId: string, rows: AllocationRow[]) => {
     const now = new Date().toISOString();
-    const payload = allocations.map((item) => ({
+    const payload = rows.map((item) => ({
       batch_id: batchId,
       recipient_type: item.recipient_type,
       recipient_user_id: item.recipient_user_id && item.recipient_user_id !== otherValue ? item.recipient_user_id : null,
@@ -767,10 +775,14 @@ function validateAllocations(form: BatchForm, rows: AllocationRow[]) {
     const source = rows.filter((item) => item.recipient_type === "source").reduce((sum, item) => sum + parseMoney(item.amount), 0);
     const company = rows.filter((item) => item.is_company_share).reduce((sum, item) => sum + parseMoney(item.amount), 0);
     const pool = allocationTotal - source - company;
+    const sourceRows = rows.filter((item) => item.recipient_type === "source");
+    const companyRows = rows.filter((item) => item.is_company_share);
     const ownerRows = rows.filter((item) => isSourcePoolOwnerRow(item, form.formula_code));
     const poolPercent = rows
       .filter((item) => isSourcePoolRow(item, form.formula_code))
       .reduce((sum, item) => sum + getPoolPercent(item), 0);
+    if (sourceRows.length !== 1) return "Source / Worker / QC needs exactly one source row";
+    if (companyRows.length !== 1) return "Source / Worker / QC needs exactly one company share row";
     if (ownerRows.length !== 1) return "Work Pool needs exactly one Lead Lawyer / Case Owner row";
     if (getPoolPercent(ownerRows[0]) < 0) return "Owner work pool percent cannot be negative";
     if (Math.abs(source - total * 0.2) > 0.01) return "Source must be 20%";
@@ -788,6 +800,24 @@ function getRecipientName(row: AllocationRow, users: UserProfileRow[]) {
     return user ? renderUserLabel(user) : row.recipient_name.trim();
   }
   return row.recipient_name.trim();
+}
+
+function dedupeAllocationRows(rows: AllocationRow[]) {
+  const seen = new Set<string>();
+  return rows.map(normalizeAllocationForState).filter((row) => {
+    const key = [
+      row.recipient_type,
+      row.recipient_user_id && row.recipient_user_id !== otherValue ? row.recipient_user_id : "",
+      getRecipientName(row, []),
+      row.role_label,
+      formatPercent(parseMoney(row.percent)),
+      String(roundMoney(parseMoney(row.amount))),
+      row.is_company_share ? "company" : "recipient",
+    ].join("|").toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function isSourcePoolRow(row: AllocationRow, formula: FormulaCode) {
