@@ -114,6 +114,7 @@ export default function ExpenseClaimsPage() {
   const [claimantUsers, setClaimantUsers] = useState<UserProfileRow[]>([]);
   const [form, setForm] = useState<ClaimForm>(emptyClaimForm);
   const [paidForms, setPaidForms] = useState<Record<string, PaidForm>>({});
+  const [payingClaimId, setPayingClaimId] = useState("");
   const [errorText, setErrorText] = useState("");
 
   const permissions: UserPermissions = useMemo(() => buildPermissions(profile), [profile]);
@@ -340,66 +341,112 @@ export default function ExpenseClaimsPage() {
   const markPaid = async (claim: ClaimRow) => {
     if (!permissions.canEditFinanceModule || claim.status !== "approved") return;
     if (claim.ledger_entry_id) return alert("This claim is already posted to ledger.");
+    if (payingClaimId === claim.id) return;
 
     const paidForm = getPaidForm(claim.id);
     if (!paidForm.bank_account_id) return alert("Bank account is required");
 
-    const now = new Date().toISOString();
-    const ledgerPayload = {
-      transaction_date: paidForm.paid_date || getDateKey(new Date()),
-      entry_type: "expense",
-      category: claim.category,
-      amount: toAmount(claim.amount),
-      bank_account_id: paidForm.bank_account_id,
-      client_id: claim.client_id || null,
-      case_id: claim.case_id || null,
-      advisory_matter_id: claim.advisory_matter_id || null,
-      expense_claimant_user_id: claim.claimant_user_id || null,
-      expense_claimant_name: claim.claimant_name || null,
-      reference_no: paidForm.payment_reference_no.trim() || null,
-      description: claim.description || null,
-      note: [claim.note, paidForm.payment_note.trim()].filter(Boolean).join("\n") || null,
-      status: "active",
-      created_by_user_id: userId || null,
-      created_by_email: userEmail || null,
-      created_by_name: actorName || null,
-      updated_at: now,
-    };
+    try {
+      setPayingClaimId(claim.id);
 
-    const { data: ledgerData, error: ledgerError } = await supabase
-      .from("finance_company_ledger")
-      .insert([ledgerPayload])
-      .select("*")
-      .single();
+      const { data: latestClaim, error: latestClaimError } = await supabase
+        .from("finance_expense_claims")
+        .select("*")
+        .eq("id", claim.id)
+        .single();
 
-    if (ledgerError || !ledgerData) return alert(ledgerError?.message || "Create ledger entry failed");
+      if (latestClaimError || !latestClaim) {
+        alert(latestClaimError?.message || "Claim not found");
+        return;
+      }
 
-    const { data: claimData, error: claimError } = await supabase
-      .from("finance_expense_claims")
-      .update({
-        status: "paid",
-        paid_by_user_id: userId || null,
-        paid_by_name: actorName || null,
-        paid_at: now,
-        paid_bank_account_id: paidForm.bank_account_id,
-        payment_reference_no: paidForm.payment_reference_no.trim() || null,
-        payment_note: paidForm.payment_note.trim() || null,
-        ledger_entry_id: ledgerData.id,
+      const currentClaim = latestClaim as ClaimRow;
+      if (currentClaim.status !== "approved") {
+        alert("This claim is no longer approved.");
+        await loadClaims();
+        return;
+      }
+
+      if (currentClaim.ledger_entry_id) {
+        alert("This claim is already posted to Ledger.");
+        await loadClaims();
+        return;
+      }
+
+      const now = new Date().toISOString();
+      const ledgerPayload = {
+        source_expense_claim_id: currentClaim.id,
+        transaction_date: paidForm.paid_date || getDateKey(new Date()),
+        entry_type: "expense",
+        category: currentClaim.category,
+        amount: toAmount(currentClaim.amount),
+        bank_account_id: paidForm.bank_account_id,
+        client_id: currentClaim.client_id || null,
+        case_id: currentClaim.case_id || null,
+        advisory_matter_id: currentClaim.advisory_matter_id || null,
+        expense_claimant_user_id: currentClaim.claimant_user_id || null,
+        expense_claimant_name: currentClaim.claimant_name || null,
+        reference_no: paidForm.payment_reference_no.trim() || null,
+        description: currentClaim.description || null,
+        note: [currentClaim.note, paidForm.payment_note.trim()].filter(Boolean).join("\n") || null,
+        status: "active",
+        created_by_user_id: userId || null,
+        created_by_email: userEmail || null,
+        created_by_name: actorName || null,
         updated_at: now,
-      })
-      .eq("id", claim.id)
-      .is("ledger_entry_id", null)
-      .eq("status", "approved")
-      .select("*")
-      .single();
+      };
 
-    if (claimError || !claimData) {
-      return alert(claimError?.message || "Claim paid update failed. Ledger entry was created; please review manually.");
+      const { data: ledgerData, error: ledgerError } = await supabase
+        .from("finance_company_ledger")
+        .insert([ledgerPayload])
+        .select("*")
+        .single();
+
+      if (ledgerError || !ledgerData) {
+        if (isDuplicateLedgerError(ledgerError)) {
+          alert("This claim has already been posted to Ledger.");
+          await loadClaims();
+          return;
+        }
+
+        alert(ledgerError?.message || "Create ledger entry failed");
+        return;
+      }
+
+      const { data: claimData, error: claimError } = await supabase
+        .from("finance_expense_claims")
+        .update({
+          status: "paid",
+          paid_by_user_id: userId || null,
+          paid_by_name: actorName || null,
+          paid_at: now,
+          paid_bank_account_id: paidForm.bank_account_id,
+          payment_reference_no: paidForm.payment_reference_no.trim() || null,
+          payment_note: paidForm.payment_note.trim() || null,
+          ledger_entry_id: ledgerData.id,
+          updated_at: now,
+        })
+        .eq("id", currentClaim.id)
+        .is("ledger_entry_id", null)
+        .eq("status", "approved")
+        .select("*")
+        .single();
+
+      if (claimError || !claimData) {
+        alert(
+          claimError?.message ||
+            "Claim paid update failed. Ledger entry was created; please review manually."
+        );
+        await loadClaims();
+        return;
+      }
+
+      await auditFinance("create", "finance_company_ledger", ledgerData.id, null, ledgerData, "Post paid expense claim to ledger");
+      await auditFinance("update", "finance_expense_claims", currentClaim.id, currentClaim, claimData, "Mark expense claim as paid");
+      await loadClaims();
+    } finally {
+      setPayingClaimId("");
     }
-
-    await auditFinance("create", "finance_company_ledger", ledgerData.id, null, ledgerData, "Post paid expense claim to ledger");
-    await auditFinance("update", "finance_expense_claims", claim.id, claim, claimData, "Mark expense claim as paid");
-    await loadClaims();
   };
 
   const auditFinance = async (
@@ -534,6 +581,7 @@ export default function ExpenseClaimsPage() {
 
   function renderActions(claim: ClaimRow) {
     const paidForm = getPaidForm(claim.id);
+    const isPaying = payingClaimId === claim.id;
 
     if (claim.status === "paid") return <div style={postedStyle}>Posted to Ledger</div>;
     if (claim.status === "rejected" || claim.status === "voided") return null;
@@ -546,13 +594,13 @@ export default function ExpenseClaimsPage() {
         {["submitted", "approved"].includes(claim.status) ? (
           <button type="button" onClick={() => rejectClaim(claim)} style={smallButtonStyle}>Reject</button>
         ) : null}
-        {claim.status === "approved" ? (
+        {claim.status === "approved" && !claim.ledger_entry_id ? (
           <div style={paidFormStyle}>
             <input type="date" value={paidForm.paid_date} onChange={(event) => updatePaidForm(claim.id, { paid_date: event.target.value })} style={inputStyle} />
             <select value={paidForm.bank_account_id} onChange={(event) => updatePaidForm(claim.id, { bank_account_id: event.target.value })} style={inputStyle}><option value="">Bank</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{renderBankLabel(account)}</option>)}</select>
             <input value={paidForm.payment_reference_no} onChange={(event) => updatePaidForm(claim.id, { payment_reference_no: event.target.value })} style={inputStyle} placeholder="Reference" />
             <input value={paidForm.payment_note} onChange={(event) => updatePaidForm(claim.id, { payment_note: event.target.value })} style={inputStyle} placeholder="Payment note" />
-            <button type="button" onClick={() => markPaid(claim)} style={primarySmallButtonStyle}>Mark as Paid</button>
+            <button type="button" onClick={() => markPaid(claim)} disabled={isPaying} style={primarySmallButtonStyle}>{isPaying ? "Processing..." : "Mark as Paid"}</button>
           </div>
         ) : null}
         {["submitted", "approved", "rejected"].includes(claim.status) ? (
@@ -617,6 +665,16 @@ function isRealUserProfile(user: UserProfileRow) {
   if (email.includes("test") || email.endsWith("@example.com")) return false;
   if (fullName.startsWith("test") || staffName.startsWith("test")) return false;
   return true;
+}
+
+function isDuplicateLedgerError(error: { code?: string; message?: string } | null) {
+  const message = (error?.message || "").toLowerCase();
+  return (
+    error?.code === "23505" ||
+    message.includes("duplicate") ||
+    message.includes("source_expense_claim_id") ||
+    message.includes("uq_finance_ledger_source_expense_claim")
+  );
 }
 
 function renderCaseLabel(item: CaseRow) {
