@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
+import Link from "next/link";
 import AuthGuard from "../../components/AuthGuard";
 import AppTopNav from "../../components/AppTopNav";
 import { createAuditLog } from "../../../lib/auditLog";
@@ -520,6 +521,8 @@ export default function FinanceLedgerPage() {
           activePage="finance"
         />
 
+        <FinanceSubNav activePage="ledger" />
+
         {errorText ? <div style={errorStyle}>{errorText}</div> : null}
 
         <section style={summaryGridStyle}>
@@ -680,6 +683,25 @@ function SummaryCard({
       <div style={{ ...summaryLabelStyle, ...toneStyle.label }}>{label}</div>
       <div style={{ ...summaryValueStyle, ...toneStyle.value }}>{value}</div>
     </div>
+  );
+}
+
+function FinanceSubNav({ activePage }: { activePage: "ledger" | "claims" }) {
+  return (
+    <nav style={subNavStyle}>
+      <Link
+        href="/finance/ledger"
+        style={activePage === "ledger" ? subNavActiveLinkStyle : subNavLinkStyle}
+      >
+        Ledger
+      </Link>
+      <Link
+        href="/finance/expense-claims"
+        style={activePage === "claims" ? subNavActiveLinkStyle : subNavLinkStyle}
+      >
+        Expense Claims
+      </Link>
+    </nav>
   );
 }
 
@@ -874,6 +896,9 @@ const summaryToneStyles: Record<
     value: { color: "#FFFFFF" },
   },
 };
+const subNavStyle: CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 };
+const subNavLinkStyle: CSSProperties = { padding: "9px 12px", border: "1px solid #cccccc", borderRadius: 6, color: "#111111", textDecoration: "none", fontWeight: 800, background: "#ffffff" };
+const subNavActiveLinkStyle: CSSProperties = { ...subNavLinkStyle, background: "#111111", color: "#ffffff", borderColor: "#111111" };
 const filterGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 };
 const formGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 };
 const labelStyle: CSSProperties = { display: "grid", gap: 6, fontSize: 13, fontWeight: 700 };
