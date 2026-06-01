@@ -52,6 +52,7 @@ type LedgerForm = {
   transaction_date: string;
   entry_type: EntryType;
   category: string;
+  custom_category: string;
   amount: string;
   bank_account_id: string;
   client_id: string;
@@ -70,6 +71,7 @@ const emptyForm: LedgerForm = {
   transaction_date: getDateKey(new Date()),
   entry_type: "income",
   category: "เงินเข้าบริษัทจากคดี",
+  custom_category: "",
   amount: "",
   bank_account_id: "",
   client_id: "",
@@ -90,6 +92,7 @@ const incomeCategories = [
   "ค่าเดินทางรับจากลูกค้า",
   "เงินคืนค่าใช้จ่าย",
   "รายรับอื่น",
+  "Other",
 ];
 
 const expenseCategories = [
@@ -110,6 +113,7 @@ const expenseCategories = [
   "ค่าธรรมเนียมธนาคาร",
   "รับรองลูกค้า / ประชุมงาน",
   "ค่าใช้จ่ายทั่วไป",
+  "Other",
 ];
 
 const transferCategories = ["โอนย้ายระหว่างบัญชีบริษัท"];
@@ -275,7 +279,7 @@ export default function FinanceLedgerPage() {
       id: row.id,
       transaction_date: row.transaction_date || getDateKey(new Date()),
       entry_type: entryType,
-      category: normalizeCategory(entryType, row.category || ""),
+      ...resolveEditCategory(entryType, row.category || ""),
       amount: String(row.amount || ""),
       bank_account_id: row.bank_account_id || "",
       client_id: row.client_id || "",
@@ -298,6 +302,8 @@ export default function FinanceLedgerPage() {
     if (!form.transaction_date) return alert("Transaction date is required");
     if (!form.bank_account_id) return alert("Bank account is required");
     if (!form.category.trim()) return alert("Category is required");
+    const category = getCategoryForSave(form);
+    if (!category) return alert("Custom Category is required");
     if (!amount || amount <= 0) return alert("Amount must be greater than zero");
     if (isClaimantRequired(form) && !getClaimantName(form, claimantUsers)) {
       return alert("Expense claimant is required for this category");
@@ -306,7 +312,7 @@ export default function FinanceLedgerPage() {
     const payload = {
       transaction_date: form.transaction_date,
       entry_type: form.entry_type,
-      category: form.category.trim(),
+      category,
       amount,
       bank_account_id: form.bank_account_id,
       client_id: form.client_id || null,
@@ -428,6 +434,7 @@ export default function FinanceLedgerPage() {
       ...form,
       entry_type: entryType,
       category: getCategoryOptions(entryType)[0] || "",
+      custom_category: "",
       expense_claimant_user_id:
         entryType === "expense" ? form.expense_claimant_user_id : "",
       expense_claimant_name: entryType === "expense" ? form.expense_claimant_name : "",
@@ -483,7 +490,11 @@ export default function FinanceLedgerPage() {
           <SummaryCard label="Operating Income" value={formatMoney(summary.income)} />
           <SummaryCard label="Operating Expense" value={formatMoney(summary.expense)} />
           <SummaryCard label="Operating Net" value={formatMoney(summary.net)} />
-          <SummaryCard label="Total Bank Balance" value={formatMoney(summary.totalBankBalance)} />
+          <SummaryCard
+            label="Total Bank Balance"
+            value={formatMoney(summary.totalBankBalance)}
+            tone="totalBank"
+          />
           <SummaryCard label="Active Entries" value={String(summary.activeCount)} />
         </section>
 
@@ -493,6 +504,7 @@ export default function FinanceLedgerPage() {
               key={account.id}
               label={`${account.short_name || "-"} Balance`}
               value={formatMoney(balance)}
+              tone={getBankTone(account.short_name)}
             />
           ))}
         </section>
@@ -532,6 +544,9 @@ export default function FinanceLedgerPage() {
               <label style={labelStyle}>Type<select value={form.entry_type} onChange={(event) => updateEntryType(event.target.value as EntryType)} style={inputStyle}><option value="income">Income</option><option value="expense">Expense</option><option value="transfer_in">Transfer In</option><option value="transfer_out">Transfer Out</option></select></label>
               <label style={labelStyle}>Bank Account<select value={form.bank_account_id} onChange={(event) => setForm({ ...form, bank_account_id: event.target.value })} style={inputStyle}><option value="">Select bank</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{renderBankLabel(account)}</option>)}</select></label>
               <label style={labelStyle}>Category<select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} style={inputStyle}>{categoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
+              {form.category === "Other" ? (
+                <label style={labelStyle}>Custom Category<input value={form.custom_category} onChange={(event) => setForm({ ...form, custom_category: event.target.value })} style={inputStyle} placeholder="ระบุหมวดรายการเอง" /></label>
+              ) : null}
               <label style={labelStyle}>Amount<input value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} style={inputStyle} placeholder="0.00" /></label>
               <label style={labelStyle}>Payment Method<input value={form.payment_method} onChange={(event) => setForm({ ...form, payment_method: event.target.value })} style={inputStyle} /></label>
               <label style={labelStyle}>Reference No.<input value={form.reference_no} onChange={(event) => setForm({ ...form, reference_no: event.target.value })} style={inputStyle} /></label>
@@ -609,11 +624,23 @@ export default function FinanceLedgerPage() {
   );
 }
 
-function SummaryCard({ label, value }: { label: string; value: string }) {
+type SummaryTone = "default" | "bay" | "kbank" | "ktb" | "totalBank";
+
+function SummaryCard({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  tone?: SummaryTone;
+}) {
+  const toneStyle = summaryToneStyles[tone] || summaryToneStyles.default;
+
   return (
-    <div style={summaryCardStyle}>
-      <div style={summaryLabelStyle}>{label}</div>
-      <div style={summaryValueStyle}>{value}</div>
+    <div style={{ ...summaryCardStyle, ...toneStyle.card }}>
+      <div style={{ ...summaryLabelStyle, ...toneStyle.label }}>{label}</div>
+      <div style={{ ...summaryValueStyle, ...toneStyle.value }}>{value}</div>
     </div>
   );
 }
@@ -668,6 +695,14 @@ function renderBankName(bankAccountId: string | null, bankAccounts: BankAccountR
   return account?.short_name || "-";
 }
 
+function getBankTone(shortName?: string | null): SummaryTone {
+  const normalized = (shortName || "").trim().toUpperCase();
+  if (normalized === "BAY") return "bay";
+  if (normalized === "KBANK") return "kbank";
+  if (normalized === "KTB") return "ktb";
+  return "default";
+}
+
 function renderUserLabel(user: UserProfileRow) {
   return user.full_name || user.staff_name || user.email || user.id;
 }
@@ -693,9 +728,23 @@ function getCategoryOptions(entryType: EntryType) {
   return transferCategories;
 }
 
-function normalizeCategory(entryType: EntryType, category: string) {
+function resolveEditCategory(entryType: EntryType, category: string) {
   const options = getCategoryOptions(entryType);
-  return options.includes(category) ? category : options[0] || "";
+
+  if (options.includes(category)) {
+    return { category, custom_category: "" };
+  }
+
+  if (entryType === "transfer_in" || entryType === "transfer_out") {
+    return { category: options[0] || "", custom_category: "" };
+  }
+
+  return { category: "Other", custom_category: category };
+}
+
+function getCategoryForSave(form: LedgerForm) {
+  if (form.category !== "Other") return form.category.trim();
+  return form.custom_category.trim();
 }
 
 function isClaimantRequired(form: LedgerForm) {
@@ -746,6 +795,32 @@ const summaryGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: 
 const summaryCardStyle: CSSProperties = { ...panelStyle, marginBottom: 0 };
 const summaryLabelStyle: CSSProperties = { color: "#666666", fontSize: 12, fontWeight: 700 };
 const summaryValueStyle: CSSProperties = { color: "#111111", fontSize: 24, fontWeight: 900, marginTop: 6 };
+const summaryToneStyles: Record<
+  SummaryTone,
+  { card: CSSProperties; label: CSSProperties; value: CSSProperties }
+> = {
+  default: { card: {}, label: {}, value: {} },
+  bay: {
+    card: { background: "#FFF7E6", borderColor: "#F6C76A" },
+    label: { color: "#7A4B00" },
+    value: { color: "#7A4B00" },
+  },
+  kbank: {
+    card: { background: "#EAF7EE", borderColor: "#8BD29A" },
+    label: { color: "#14532D" },
+    value: { color: "#14532D" },
+  },
+  ktb: {
+    card: { background: "#EAF3FF", borderColor: "#93C5FD" },
+    label: { color: "#0F3A6B" },
+    value: { color: "#0F3A6B" },
+  },
+  totalBank: {
+    card: { background: "#0F2743", borderColor: "#C5A46D" },
+    label: { color: "#E9DDBF" },
+    value: { color: "#FFFFFF" },
+  },
+};
 const filterGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 };
 const formGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 };
 const labelStyle: CSSProperties = { display: "grid", gap: 6, fontSize: 13, fontWeight: 700 };
