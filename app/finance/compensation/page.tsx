@@ -234,7 +234,7 @@ export default function CompensationPage() {
   const saveDraft = async () => {
     if (!permissions.canEditFinanceModule) return;
     if (saving) return;
-    const allocationRows = dedupeAllocationRows(syncAllocationAmounts(allocations, form.formula_code, receivedAmount));
+    const allocationRows = normalizeAllocationsForSave(receivedAmount, form.formula_code, allocations);
     const validation = validateAllocations(form, allocationRows);
     if (validation) return alert(validation);
     const payload = {
@@ -471,7 +471,7 @@ export default function CompensationPage() {
     const nextAmount = parseMoney(value);
     setForm({ ...form, received_amount: value });
     if (editingBatchId) {
-      setAllocations(syncAllocationAmounts(allocations, form.formula_code, nextAmount));
+      setAllocations(normalizeAllocationsForSave(nextAmount, form.formula_code, allocations));
     }
   };
 
@@ -830,12 +830,50 @@ function dedupeAllocationRows(rows: AllocationRow[]) {
   });
 }
 
-function syncAllocationAmounts(rows: AllocationRow[], formula: FormulaCode, receivedAmount: number) {
-  if (formula === "custom") return rows.map(normalizeAllocationForState);
-  return rows.map((item) => normalizeAllocationForState({
-    ...item,
-    amount: String(roundMoney((receivedAmount * parseMoney(item.percent)) / 100)),
-  }));
+function normalizeAllocationsForSave(receivedAmount: number, formula: FormulaCode, rows: AllocationRow[]) {
+  if (formula === "custom") return dedupeAllocationRows(rows);
+  const normalized = rows.map((item) => normalizeAllocationForState(item));
+  if (formula !== "source_worker_qc") {
+    return dedupeAllocationRows(normalized.map((item) => ({
+      ...item,
+      amount: String(roundMoney((receivedAmount * parseMoney(item.percent)) / 100)),
+      payment_status: item.payment_status || "unpaid",
+    })));
+  }
+
+  const sourceRow = normalized.find((item) => item.recipient_type === "source") || createAllocation("source", "", 20, false, "Client Source / Broker");
+  const companyRow = normalized.find((item) => item.is_company_share) || createAllocation("company", "Company", 40, true, "Company Share");
+  const poolRows = normalized.filter((item) => isSourcePoolRow(item, formula));
+  return dedupeAllocationRows([
+    {
+      ...sourceRow,
+      percent: "20",
+      amount: String(roundMoney(receivedAmount * 0.2)),
+      role_label: sourceRow.role_label || "Client Source / Broker",
+      payment_status: sourceRow.payment_status || "unpaid",
+    },
+    {
+      ...companyRow,
+      recipient_type: "company",
+      recipient_name: "Company",
+      role_label: "Company Share",
+      percent: "40",
+      amount: String(roundMoney(receivedAmount * 0.4)),
+      is_company_share: true,
+      payment_status: companyRow.payment_status || "unpaid",
+    },
+    ...poolRows.map((item) => {
+      const poolPercent = getPoolPercent(item);
+      const actualPercent = (poolPercent * 40) / 100;
+      return {
+        ...item,
+        percent: formatPercent(actualPercent),
+        amount: String(roundMoney((receivedAmount * actualPercent) / 100)),
+        is_company_share: false,
+        payment_status: item.payment_status || "unpaid",
+      };
+    }),
+  ]);
 }
 
 function isSourcePoolRow(row: AllocationRow, formula: FormulaCode) {
