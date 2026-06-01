@@ -44,6 +44,8 @@ type AllocationRow = {
   percent: string;
   amount: string;
   is_company_share: boolean;
+  payment_status?: string | null;
+  paid_at?: string | null;
   note: string;
 };
 
@@ -83,6 +85,7 @@ export default function CompensationPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [postingBatchId, setPostingBatchId] = useState("");
+  const [payingAllocationId, setPayingAllocationId] = useState("");
   const [batches, setBatches] = useState<BatchRow[]>([]);
   const [allocations, setAllocations] = useState<AllocationRow[]>([]);
   const [allAllocations, setAllAllocations] = useState<AllocationRow[]>([]);
@@ -163,14 +166,43 @@ export default function CompensationPage() {
   }, [editingBatchId, form.formula_code, receivedAmount]);
 
   const summary = useMemo(() => {
+    const activeBatchIds = new Set(batches.filter((item) => item.status !== "voided").map((item) => item.id));
+    const activeAllocations = allAllocations.filter((item) => item.batch_id && activeBatchIds.has(item.batch_id));
+    const recipientAllocations = activeAllocations.filter((item) => !item.is_company_share);
+    const recipientPaid = recipientAllocations
+      .filter((item) => item.payment_status === "paid")
+      .reduce((sum, item) => sum + parseMoney(item.amount), 0);
+    const recipientTotal = recipientAllocations.reduce((sum, item) => sum + parseMoney(item.amount), 0);
+    const recipientKeys = new Set(recipientAllocations.map(getRecipientSummaryKey));
+
     return {
       draft: batches.filter((item) => item.status === "draft").length,
       finalized: batches.filter((item) => item.status === "finalized").length,
       posted: batches.filter((item) => item.status === "posted").length,
-      companyShare: allAllocations
+      companyShare: activeAllocations
         .filter((item) => item.is_company_share)
         .reduce((sum, item) => sum + parseMoney(item.amount), 0),
+      recipientTotal,
+      recipientPaid,
+      recipientUnpaid: recipientTotal - recipientPaid,
+      recipientCount: recipientKeys.size,
     };
+  }, [allAllocations, batches]);
+
+  const recipientSummary = useMemo(() => {
+    const activeBatchIds = new Set(batches.filter((item) => item.status !== "voided").map((item) => item.id));
+    const grouped = new Map<string, { name: string; allocated: number; paid: number }>();
+    allAllocations
+      .filter((item) => item.batch_id && activeBatchIds.has(item.batch_id) && !item.is_company_share)
+      .forEach((item) => {
+        const key = getRecipientSummaryKey(item);
+        const current = grouped.get(key) || { name: item.recipient_name || "-", allocated: 0, paid: 0 };
+        const amount = parseMoney(item.amount);
+        current.allocated += amount;
+        if (item.payment_status === "paid") current.paid += amount;
+        grouped.set(key, current);
+      });
+    return Array.from(grouped.values()).map((item) => ({ ...item, unpaid: item.allocated - item.paid }));
   }, [allAllocations, batches]);
 
   const saveDraft = async () => {
@@ -228,6 +260,7 @@ export default function CompensationPage() {
       percent: parseMoney(item.percent),
       amount: parseMoney(item.amount),
       is_company_share: item.is_company_share,
+      payment_status: item.is_company_share ? null : item.payment_status || "unpaid",
       note: item.note.trim() || null,
       created_by_user_id: userId || null,
       created_by_email: userEmail || null,
@@ -350,6 +383,26 @@ export default function CompensationPage() {
     }, "Void compensation batch");
   };
 
+  const markAllocationPaid = async (allocation: AllocationRow, batch: BatchRow) => {
+    if (!permissions.canEditFinanceModule || !allocation.id || allocation.is_company_share) return;
+    if (batch.status === "voided" || allocation.payment_status === "paid") return;
+    try {
+      setPayingAllocationId(allocation.id);
+      const now = new Date().toISOString();
+      const { data, error } = await supabase
+        .from("finance_compensation_allocations")
+        .update({ payment_status: "paid", paid_at: now, updated_at: now })
+        .eq("id", allocation.id)
+        .select("*")
+        .single();
+      if (error || !data) return alert(error?.message || "Mark as paid failed");
+      await auditFinance("update", "finance_compensation_allocations", allocation.id, allocation, data, "Mark recipient allocation as paid");
+      await loadData();
+    } finally {
+      setPayingAllocationId("");
+    }
+  };
+
   const updateBatch = async (batch: BatchRow, payload: Record<string, unknown>, note: string) => {
     const { data, error } = await supabase.from("finance_compensation_batches").update({ ...payload, updated_at: new Date().toISOString() }).eq("id", batch.id).select("*").single();
     if (error || !data) return alert(error?.message || "Update batch failed");
@@ -408,7 +461,31 @@ export default function CompensationPage() {
           <SummaryCard label="Draft" value={String(summary.draft)} />
           <SummaryCard label="Finalized" value={String(summary.finalized)} />
           <SummaryCard label="Posted" value={String(summary.posted)} />
-          <SummaryCard label="Total Company Share" value={formatMoney(summary.companyShare)} />
+          <SummaryCard label="Company Share Total" value={formatMoney(summary.companyShare)} />
+          <SummaryCard label="Total Recipient Share" value={formatMoney(summary.recipientTotal)} />
+          <SummaryCard label="Total Recipient Paid" value={formatMoney(summary.recipientPaid)} />
+          <SummaryCard label="Total Recipient Unpaid" value={formatMoney(summary.recipientUnpaid)} />
+          <SummaryCard label="Number of Recipients" value={String(summary.recipientCount)} />
+        </section>
+
+        <section style={panelStyle}>
+          <h2 style={sectionTitleStyle}>Recipient Income Summary</h2>
+          <div style={tableWrapStyle}>
+            <table style={compactTableStyle}>
+              <thead><tr><th style={thStyle}>Recipient</th><th style={thStyle}>Allocated</th><th style={thStyle}>Paid</th><th style={thStyle}>Unpaid</th></tr></thead>
+              <tbody>
+                {recipientSummary.map((item) => (
+                  <tr key={item.name}>
+                    <td style={tdStyle}>{item.name}</td>
+                    <td style={tdStyle}>{formatMoney(item.allocated)}</td>
+                    <td style={tdStyle}>{formatMoney(item.paid)}</td>
+                    <td style={tdStyle}>{formatMoney(item.unpaid)}</td>
+                  </tr>
+                ))}
+                {recipientSummary.length === 0 ? <tr><td colSpan={4} style={tdStyle}>No recipient income.</td></tr> : null}
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <section style={panelStyle}>
@@ -468,10 +545,10 @@ export default function CompensationPage() {
                   return (
                     <tr key={batch.id}>
                       <td style={tdStyle}>{batch.received_date}</td>
-                      <td style={tdStyle}>{renderFormula(batch.formula_code)}</td>
+                      <td style={tdStyle}>{renderFormula(batch.formula_code)}{renderAllocationDetails(batch, allAllocations, permissions.canEditFinanceModule, payingAllocationId, markAllocationPaid)}</td>
                       <td style={tdStyle}>{formatMoney(toAmount(batch.received_amount))}</td>
                       <td style={tdStyle}>{formatMoney(companyShare)}</td>
-                      <td style={tdStyle}>{batch.status}</td>
+                      <td style={tdStyle}>{renderBatchStatus(batch)}</td>
                       <td style={tdStyle}>{batch.ledger_entry_id ? `Posted: ${batch.ledger_entry_id}` : "-"}</td>
                       <td style={tdStyle}>
                         <div style={actionStackStyle}>
@@ -612,6 +689,58 @@ function getCompanyShare(batchId: string, rows: AllocationRow[]) {
   return rows.filter((item) => item.batch_id === batchId && item.is_company_share).reduce((sum, item) => sum + parseMoney(item.amount), 0);
 }
 
+function getRecipientSummaryKey(row: AllocationRow) {
+  return row.recipient_user_id && row.recipient_user_id !== otherValue
+    ? `user:${row.recipient_user_id}`
+    : `name:${(row.recipient_name || "-").trim().toLowerCase()}`;
+}
+
+function renderBatchStatus(batch: BatchRow) {
+  if (batch.status === "posted") return <div style={postedStyle}>Company Share Posted to Ledger</div>;
+  return batch.status;
+}
+
+function renderAllocationDetails(
+  batch: BatchRow,
+  rows: AllocationRow[],
+  canEdit: boolean,
+  payingAllocationId: string,
+  onMarkPaid: (allocation: AllocationRow, batch: BatchRow) => void
+) {
+  const batchRows = rows.filter((item) => item.batch_id === batch.id);
+  if (batchRows.length === 0) return null;
+
+  return (
+    <div style={allocationDetailStyle}>
+      {batchRows.map((item) => {
+        const paid = item.payment_status === "paid";
+        const statusLabel = item.is_company_share ? "Company Share" : paid ? "Paid" : item.payment_status === "voided" ? "Voided" : "Unpaid";
+        return (
+          <div key={item.id || `${item.recipient_name}-${item.amount}`} style={allocationRowStyle}>
+            <div>
+              <strong>{item.recipient_name || "-"}</strong>
+              {item.role_label ? <span style={mutedInlineStyle}> {item.role_label}</span> : null}
+              {item.percent ? <span style={mutedInlineStyle}> {item.percent}%</span> : null}
+              <span style={item.is_company_share ? companyTagStyle : recipientTagStyle}> {statusLabel}</span>
+              <div style={mutedTextStyle}>{formatMoney(parseMoney(item.amount))}</div>
+            </div>
+            {!item.is_company_share && !paid && batch.status !== "voided" && item.payment_status !== "voided" && canEdit ? (
+              <button
+                type="button"
+                onClick={() => onMarkPaid(item, batch)}
+                disabled={payingAllocationId === item.id}
+                style={smallButtonStyle}
+              >
+                {payingAllocationId === item.id ? "Paying..." : "Mark as Paid"}
+              </button>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function getLedgerCategory(batch: BatchRow) {
   if (batch.revenue_type === "travel_fee") return "ค่าเดินทางรับจากลูกค้า";
   if (batch.case_id) return "เงินเข้าบริษัทจากคดี";
@@ -680,12 +809,19 @@ const smallButtonStyle: CSSProperties = { ...secondaryButtonStyle, padding: "6px
 const dangerButtonStyle: CSSProperties = { padding: "6px 9px", border: "1px solid #a40000", borderRadius: 6, background: "#fff5f5", color: "#a40000", cursor: "pointer", fontWeight: 800 };
 const tableWrapStyle: CSSProperties = { overflowX: "auto", maxWidth: "100%" };
 const tableStyle: CSSProperties = { width: "100%", borderCollapse: "collapse", minWidth: 1100 };
+const compactTableStyle: CSSProperties = { width: "100%", borderCollapse: "collapse", minWidth: 640 };
 const thStyle: CSSProperties = { padding: 10, borderBottom: "1px solid #dddddd", textAlign: "left", fontSize: 12 };
 const tdStyle: CSSProperties = { padding: 10, borderBottom: "1px solid #eeeeee", fontSize: 13, verticalAlign: "top" };
 const emptyStyle: CSSProperties = { padding: 12, border: "1px dashed #cccccc", borderRadius: 6, color: "#666666" };
 const helpTextStyle: CSSProperties = { color: "#0f2743", fontSize: 12, fontWeight: 800 };
 const postedStyle: CSSProperties = { color: "#14532d", fontWeight: 800 };
 const recipientGridStyle: CSSProperties = { display: "grid", gap: 6, minWidth: 180 };
+const allocationDetailStyle: CSSProperties = { display: "grid", gap: 8, marginTop: 10, paddingTop: 10, borderTop: "1px solid #eeeeee" };
+const allocationRowStyle: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" };
+const mutedInlineStyle: CSSProperties = { color: "#666666", fontSize: 12, fontWeight: 600 };
+const mutedTextStyle: CSSProperties = { color: "#555555", fontSize: 12, marginTop: 2 };
+const companyTagStyle: CSSProperties = { display: "inline-block", marginLeft: 6, padding: "2px 6px", borderRadius: 999, background: "#0f2743", color: "#ffffff", fontSize: 11, fontWeight: 800 };
+const recipientTagStyle: CSSProperties = { display: "inline-block", marginLeft: 6, padding: "2px 6px", borderRadius: 999, background: "#eef2f7", color: "#0f2743", fontSize: 11, fontWeight: 800 };
 const subNavStyle: CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 };
 const subNavLinkStyle: CSSProperties = { padding: "9px 12px", border: "1px solid #cccccc", borderRadius: 6, color: "#111111", textDecoration: "none", fontWeight: 800, background: "#ffffff" };
 const subNavActiveLinkStyle: CSSProperties = { ...subNavLinkStyle, background: "#111111", color: "#ffffff", borderColor: "#111111" };
