@@ -17,6 +17,7 @@ type AppTopNavProps = {
     | "cases"
     | "clients"
     | "advisory"
+    | "finance"
     | "workload"
     | "workloadSummary"
     | "account"
@@ -86,6 +87,7 @@ export default function AppTopNav({
       | "cases"
       | "clients"
       | "advisory"
+      | "finance"
       | "workload"
       | "workloadSummary"
       | "account"
@@ -139,6 +141,12 @@ export default function AppTopNav({
         {permissions.canViewDashboard && (
           <Link href="/advisory" style={getLinkStyle("advisory")}>
             Advisory
+          </Link>
+        )}
+
+        {permissions.canViewFinanceModule && (
+          <Link href="/finance/ledger" style={getLinkStyle("finance")}>
+            Finance
           </Link>
         )}
 
