@@ -104,6 +104,7 @@ export default function CompensationPage() {
   const [form, setForm] = useState<BatchForm>(emptyForm);
   const [editingBatchId, setEditingBatchId] = useState("");
   const [multipleWorkPool, setMultipleWorkPool] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState(getMonthKey(new Date()));
   const [errorText, setErrorText] = useState("");
 
   const permissions: UserPermissions = useMemo(() => buildPermissions(profile), [profile]);
@@ -114,6 +115,13 @@ export default function CompensationPage() {
   const workPoolPercentTotal = allocations
     .filter((item) => isSourcePoolRow(item, form.formula_code))
     .reduce((sum, item) => sum + getPoolPercent(item), 0);
+  const summaryBatchIds = useMemo(() => {
+    return new Set(
+      batches
+        .filter((item) => item.status !== "voided" && (!selectedMonth || item.received_date?.startsWith(selectedMonth)))
+        .map((item) => item.id)
+    );
+  }, [batches, selectedMonth]);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -182,8 +190,7 @@ export default function CompensationPage() {
   }, [editingBatchId, form.formula_code, receivedAmount]);
 
   const summary = useMemo(() => {
-    const activeBatchIds = new Set(batches.filter((item) => item.status !== "voided").map((item) => item.id));
-    const activeAllocations = allAllocations.filter((item) => item.batch_id && activeBatchIds.has(item.batch_id));
+    const activeAllocations = allAllocations.filter((item) => item.batch_id && summaryBatchIds.has(item.batch_id));
     const recipientAllocations = activeAllocations.filter((item) => !item.is_company_share);
     const recipientPaid = recipientAllocations
       .filter((item) => item.payment_status === "paid")
@@ -192,9 +199,9 @@ export default function CompensationPage() {
     const recipientKeys = new Set(recipientAllocations.map((item) => getRecipientSummaryKey(item)));
 
     return {
-      draft: batches.filter((item) => item.status === "draft").length,
-      finalized: batches.filter((item) => item.status === "finalized").length,
-      posted: batches.filter((item) => item.status === "posted").length,
+      draft: batches.filter((item) => item.status === "draft" && summaryBatchIds.has(item.id)).length,
+      finalized: batches.filter((item) => item.status === "finalized" && summaryBatchIds.has(item.id)).length,
+      posted: batches.filter((item) => item.status === "posted" && summaryBatchIds.has(item.id)).length,
       companyShare: activeAllocations
         .filter((item) => item.is_company_share)
         .reduce((sum, item) => sum + parseMoney(item.amount), 0),
@@ -203,13 +210,12 @@ export default function CompensationPage() {
       recipientUnpaid: recipientTotal - recipientPaid,
       recipientCount: recipientKeys.size,
     };
-  }, [allAllocations, batches]);
+  }, [allAllocations, batches, summaryBatchIds]);
 
   const recipientSummary = useMemo(() => {
-    const activeBatchIds = new Set(batches.filter((item) => item.status !== "voided").map((item) => item.id));
     const grouped = new Map<string, { name: string; allocated: number; paid: number; items: number; roles: Set<string> }>();
     allAllocations
-      .filter((item) => item.batch_id && activeBatchIds.has(item.batch_id) && !item.is_company_share)
+      .filter((item) => item.batch_id && summaryBatchIds.has(item.batch_id) && !item.is_company_share)
       .forEach((item) => {
         const key = getRecipientSummaryKey(item);
         const current = grouped.get(key) || {
@@ -229,7 +235,7 @@ export default function CompensationPage() {
     return Array.from(grouped.values())
       .map((item) => ({ ...item, roles: Array.from(item.roles), unpaid: item.allocated - item.paid }))
       .sort((a, b) => b.allocated - a.allocated || a.name.localeCompare(b.name));
-  }, [allAllocations, batches, users]);
+  }, [allAllocations, summaryBatchIds, users]);
 
   const saveDraft = async () => {
     if (!permissions.canEditFinanceModule) return;
@@ -563,6 +569,13 @@ export default function CompensationPage() {
         <AppTopNav title="Lawyer Compensation" subtitle="Allocate received fees before posting company share to KBANK." activePage="finance" />
         <FinanceSubNav activePage="compensation" />
         {errorText ? <div style={errorStyle}>{errorText}</div> : null}
+        <section style={filterPanelStyle}>
+          <label style={labelStyle}>
+            Month
+            <input type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} style={inputStyle} />
+          </label>
+          <button type="button" onClick={() => setSelectedMonth(getMonthKey(new Date()))} style={secondaryButtonStyle}>This Month</button>
+        </section>
         <section style={summaryGridStyle}>
           <SummaryCard label="Draft" value={String(summary.draft)} />
           <SummaryCard label="Finalized" value={String(summary.finalized)} />
@@ -575,7 +588,8 @@ export default function CompensationPage() {
         </section>
 
         <section style={panelStyle}>
-          <h2 style={sectionTitleStyle}>Recipient Income Summary</h2>
+          <h2 style={sectionTitleStyle}>Recipient Income Summary — {formatMonthLabel(selectedMonth)}</h2>
+          <p style={mutedTextStyle}>Recipient Summary is filtered by selected month.</p>
           <div style={tableWrapStyle}>
             <table style={compactTableStyle}>
               <thead><tr><th style={thStyle}>Recipient</th><th style={thStyle}>Allocated</th><th style={thStyle}>Paid</th><th style={thStyle}>Unpaid</th></tr></thead>
@@ -591,7 +605,7 @@ export default function CompensationPage() {
                     <td style={tdStyle}>{formatMoney(item.unpaid)}</td>
                   </tr>
                 ))}
-                {recipientSummary.length === 0 ? <tr><td colSpan={4} style={tdStyle}>No recipient income.</td></tr> : null}
+                {recipientSummary.length === 0 ? <tr><td colSpan={4} style={tdStyle}>No recipient income in this month.</td></tr> : null}
               </tbody>
             </table>
           </div>
@@ -1059,9 +1073,17 @@ function roundMoney(value: number) { return Math.round(value * 100) / 100; }
 function formatPercent(value: number) { return String(Math.round(value * 10000) / 10000); }
 function formatMoney(value: number) { return value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function getDateKey(value: Date) { return value.toISOString().slice(0, 10); }
+function getMonthKey(value: Date) { return value.toISOString().slice(0, 7); }
+function formatMonthLabel(value: string) {
+  if (!value) return "All Time";
+  const [year, month] = value.split("-").map(Number);
+  if (!year || !month) return value;
+  return new Date(year, month - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
 
 const pageStyle: CSSProperties = { minHeight: "100vh", padding: 24, background: "#f7f7f8", color: "#111111", overflowX: "hidden" };
 const panelStyle: CSSProperties = { border: "1px solid #dddddd", borderRadius: 8, background: "#ffffff", padding: 18, marginBottom: 16 };
+const filterPanelStyle: CSSProperties = { ...panelStyle, display: "flex", gap: 12, alignItems: "end", flexWrap: "wrap" };
 const noAccessStyle: CSSProperties = { ...panelStyle, color: "#a40000", background: "#fff5f5" };
 const errorStyle: CSSProperties = { ...panelStyle, color: "#a40000", background: "#fff5f5" };
 const summaryGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 16 };
