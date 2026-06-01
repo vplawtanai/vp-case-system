@@ -686,7 +686,7 @@ function SummaryCard({
   );
 }
 
-function FinanceSubNav({ activePage }: { activePage: "ledger" | "claims" }) {
+function FinanceSubNav({ activePage }: { activePage: "ledger" | "claims" | "compensation" }) {
   return (
     <nav style={subNavStyle}>
       <Link
@@ -700,6 +700,12 @@ function FinanceSubNav({ activePage }: { activePage: "ledger" | "claims" }) {
         style={activePage === "claims" ? subNavActiveLinkStyle : subNavLinkStyle}
       >
         Expense Claims
+      </Link>
+      <Link
+        href="/finance/compensation"
+        style={activePage === "compensation" ? subNavActiveLinkStyle : subNavLinkStyle}
+      >
+        Lawyer Compensation
       </Link>
     </nav>
   );

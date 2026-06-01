@@ -611,11 +611,12 @@ export default function ExpenseClaimsPage() {
   }
 }
 
-function FinanceSubNav({ activePage }: { activePage: "ledger" | "claims" }) {
+function FinanceSubNav({ activePage }: { activePage: "ledger" | "claims" | "compensation" }) {
   return (
     <nav style={subNavStyle}>
       <Link href="/finance/ledger" style={activePage === "ledger" ? subNavActiveLinkStyle : subNavLinkStyle}>Ledger</Link>
       <Link href="/finance/expense-claims" style={activePage === "claims" ? subNavActiveLinkStyle : subNavLinkStyle}>Expense Claims</Link>
+      <Link href="/finance/compensation" style={activePage === "compensation" ? subNavActiveLinkStyle : subNavLinkStyle}>Lawyer Compensation</Link>
     </nav>
   );
 }
