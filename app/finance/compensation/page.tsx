@@ -189,7 +189,7 @@ export default function CompensationPage() {
       .filter((item) => item.payment_status === "paid")
       .reduce((sum, item) => sum + parseMoney(item.amount), 0);
     const recipientTotal = recipientAllocations.reduce((sum, item) => sum + parseMoney(item.amount), 0);
-    const recipientKeys = new Set(recipientAllocations.map(getRecipientSummaryKey));
+    const recipientKeys = new Set(recipientAllocations.map((item) => getRecipientSummaryKey(item)));
 
     return {
       draft: batches.filter((item) => item.status === "draft").length,
@@ -207,19 +207,29 @@ export default function CompensationPage() {
 
   const recipientSummary = useMemo(() => {
     const activeBatchIds = new Set(batches.filter((item) => item.status !== "voided").map((item) => item.id));
-    const grouped = new Map<string, { name: string; allocated: number; paid: number }>();
+    const grouped = new Map<string, { name: string; allocated: number; paid: number; items: number; roles: Set<string> }>();
     allAllocations
       .filter((item) => item.batch_id && activeBatchIds.has(item.batch_id) && !item.is_company_share)
       .forEach((item) => {
         const key = getRecipientSummaryKey(item);
-        const current = grouped.get(key) || { name: item.recipient_name || "-", allocated: 0, paid: 0 };
+        const current = grouped.get(key) || {
+          name: getRecipientDisplayName(item, users),
+          allocated: 0,
+          paid: 0,
+          items: 0,
+          roles: new Set<string>(),
+        };
         const amount = parseMoney(item.amount);
         current.allocated += amount;
         if (item.payment_status === "paid") current.paid += amount;
+        current.items += 1;
+        if (item.role_label) current.roles.add(item.role_label);
         grouped.set(key, current);
       });
-    return Array.from(grouped.values()).map((item) => ({ ...item, unpaid: item.allocated - item.paid }));
-  }, [allAllocations, batches]);
+    return Array.from(grouped.values())
+      .map((item) => ({ ...item, roles: Array.from(item.roles), unpaid: item.allocated - item.paid }))
+      .sort((a, b) => b.allocated - a.allocated || a.name.localeCompare(b.name));
+  }, [allAllocations, batches, users]);
 
   const saveDraft = async () => {
     if (!permissions.canEditFinanceModule) return;
@@ -573,7 +583,10 @@ export default function CompensationPage() {
               <tbody>
                 {recipientSummary.map((item) => (
                   <tr key={item.name}>
-                    <td style={tdStyle}>{item.name}</td>
+                    <td style={tdStyle}>
+                      <div>{item.name}</div>
+                      <div style={mutedTextStyle}>Items: {item.items} {item.roles.length ? `| Roles: ${item.roles.join(", ")}` : ""}</div>
+                    </td>
                     <td style={tdStyle}>{formatMoney(item.allocated)}</td>
                     <td style={tdStyle}>{formatMoney(item.paid)}</td>
                     <td style={tdStyle}>{formatMoney(item.unpaid)}</td>
@@ -882,7 +895,21 @@ function getCompanyShare(batchId: string, rows: AllocationRow[]) {
 function getRecipientSummaryKey(row: AllocationRow) {
   return row.recipient_user_id && row.recipient_user_id !== otherValue
     ? `user:${row.recipient_user_id}`
-    : `name:${(row.recipient_name || "-").trim().toLowerCase()}`;
+    : `name:${normalizeRecipientName(row.recipient_name)}`;
+}
+
+function normalizeRecipientName(value: string | null | undefined) {
+  const normalized = (value || "").trim().replace(/\s+/g, " ");
+  return normalized ? normalized.toLocaleLowerCase("en-US") : "unknown recipient";
+}
+
+function getRecipientDisplayName(row: AllocationRow, users: UserProfileRow[]) {
+  if (row.recipient_user_id && row.recipient_user_id !== otherValue) {
+    const user = users.find((item) => item.id === row.recipient_user_id);
+    if (user) return renderUserLabel(user);
+  }
+  const name = (row.recipient_name || "").trim().replace(/\s+/g, " ");
+  return name || "Unknown Recipient";
 }
 
 function renderBatchStatus(batch: BatchRow) {
