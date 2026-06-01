@@ -630,17 +630,20 @@ export default function FinanceLedgerPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredRows.map((row) => (
+                {filteredRows.map((row) => {
+                  const entryTextStyle = getEntryTextStyle(row.entry_type);
+                  const amountTextStyle = { ...entryTextStyle, fontWeight: 800 };
+                  return (
                   <tr key={row.id}>
                     <td style={tdStyle}>{formatDate(row.transaction_date)}</td>
-                    <td style={tdStyle}>{renderEntryType(row.entry_type)}</td>
-                    <td style={tdStyle}>{renderBankName(row.bank_account_id, bankAccounts)}</td>
-                    <td style={tdStyle}>{renderCategoryDetail(row)}</td>
-                    <td style={tdStyle}>{formatMoney(toAmount(row.amount))}</td>
-                    <td style={tdStyle}>{row.expense_claimant_name || "-"}</td>
-                    <td style={tdStyle}>{row.reference_no || row.payment_method || "-"}</td>
-                    <td style={tdStyle}>{renderRelation(row, clients, cases, matters)}</td>
-                    <td style={tdStyle}>{row.status}</td>
+                    <td style={{ ...tdStyle, ...entryTextStyle }}>{renderEntryType(row.entry_type)}</td>
+                    <td style={{ ...tdStyle, ...entryTextStyle }}>{renderBankName(row.bank_account_id, bankAccounts)}</td>
+                    <td style={{ ...tdStyle, ...entryTextStyle }}>{renderCategoryDetail(row)}</td>
+                    <td style={{ ...tdStyle, ...amountTextStyle }}>{formatMoney(toAmount(row.amount))}</td>
+                    <td style={{ ...tdStyle, ...entryTextStyle }}>{row.expense_claimant_name || "-"}</td>
+                    <td style={{ ...tdStyle, ...entryTextStyle }}>{row.reference_no || row.payment_method || "-"}</td>
+                    <td style={{ ...tdStyle, ...entryTextStyle }}>{renderRelation(row, clients, cases, matters)}</td>
+                    <td style={{ ...tdStyle, ...entryTextStyle }}>{row.status}</td>
                     <td style={tdStyle}>
                       {row.status === "active" && permissions.canEditFinanceModule ? (
                         <button type="button" onClick={() => startEdit(row)} style={smallButtonStyle}>Edit</button>
@@ -650,7 +653,8 @@ export default function FinanceLedgerPage() {
                       ) : null}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
                 {filteredRows.length === 0 ? (
                   <tr>
                     <td colSpan={10} style={tdStyle}>No ledger entries.</td>
@@ -790,6 +794,12 @@ function renderEntryType(value: string) {
   if (value === "transfer_in") return "Transfer In";
   if (value === "transfer_out") return "Transfer Out";
   return value || "-";
+}
+
+function getEntryTextStyle(value: string): CSSProperties {
+  if (value === "income" || value === "transfer_in") return { color: "#166534" };
+  if (value === "expense" || value === "transfer_out") return { color: "#7f1d1d" };
+  return {};
 }
 
 function normalizeEntryType(value: string): EntryType {
