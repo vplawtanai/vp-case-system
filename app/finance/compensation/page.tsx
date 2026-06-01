@@ -234,7 +234,7 @@ export default function CompensationPage() {
   const saveDraft = async () => {
     if (!permissions.canEditFinanceModule) return;
     if (saving) return;
-    const allocationRows = dedupeAllocationRows(allocations);
+    const allocationRows = dedupeAllocationRows(syncAllocationAmounts(allocations, form.formula_code, receivedAmount));
     const validation = validateAllocations(form, allocationRows);
     if (validation) return alert(validation);
     const payload = {
@@ -278,8 +278,8 @@ export default function CompensationPage() {
         await insertAllocations(data.id, allocationRows);
         await auditFinance("create", "finance_compensation_batches", data.id, null, data, "Create compensation draft");
       }
-      resetForm();
       await loadData();
+      resetForm();
     } catch (error) {
       alert(error instanceof Error ? error.message : "Save draft failed");
     } finally {
@@ -471,10 +471,7 @@ export default function CompensationPage() {
     const nextAmount = parseMoney(value);
     setForm({ ...form, received_amount: value });
     if (editingBatchId) {
-      setAllocations(allocations.map((item) => normalizeAllocationForState({
-        ...item,
-        amount: String(roundMoney((nextAmount * parseMoney(item.percent)) / 100)),
-      })));
+      setAllocations(syncAllocationAmounts(allocations, form.formula_code, nextAmount));
     }
   };
 
@@ -831,6 +828,14 @@ function dedupeAllocationRows(rows: AllocationRow[]) {
     seen.add(key);
     return true;
   });
+}
+
+function syncAllocationAmounts(rows: AllocationRow[], formula: FormulaCode, receivedAmount: number) {
+  if (formula === "custom") return rows.map(normalizeAllocationForState);
+  return rows.map((item) => normalizeAllocationForState({
+    ...item,
+    amount: String(roundMoney((receivedAmount * parseMoney(item.percent)) / 100)),
+  }));
 }
 
 function isSourcePoolRow(row: AllocationRow, formula: FormulaCode) {
