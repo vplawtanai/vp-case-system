@@ -236,7 +236,8 @@ export default function CompensationPage() {
         if (oldBatch?.status !== "draft") return alert("Only draft batches can be edited.");
         const { data, error } = await supabase.from("finance_compensation_batches").update(payload).eq("id", editingBatchId).eq("status", "draft").select("*").single();
         if (error || !data) return alert(error?.message || "Update batch failed");
-        await supabase.from("finance_compensation_allocations").delete().eq("batch_id", editingBatchId);
+        const { error: deleteError } = await supabase.from("finance_compensation_allocations").delete().eq("batch_id", editingBatchId);
+        if (deleteError) return alert(deleteError.message || "Delete old allocations failed");
         await insertAllocations(editingBatchId);
         await auditFinance("update", "finance_compensation_batches", editingBatchId, oldBatch, data, "Update compensation draft");
       } else {
@@ -252,6 +253,8 @@ export default function CompensationPage() {
       }
       resetForm();
       await loadData();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Save draft failed");
     } finally {
       setSaving(false);
     }
@@ -277,7 +280,7 @@ export default function CompensationPage() {
       updated_at: now,
     }));
     const { error } = await supabase.from("finance_compensation_allocations").insert(payload);
-    if (error) alert(error.message || "Create allocations failed");
+    if (error) throw new Error(error.message || "Create allocations failed");
   };
 
   const editDraft = (batch: BatchRow) => {
@@ -435,11 +438,42 @@ export default function CompensationPage() {
   };
 
   const updateAllocation = (index: number, patch: Partial<AllocationRow>) => {
-    setAllocations(allocations.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
+    setAllocations(allocations.map((item, itemIndex) => itemIndex === index ? normalizeAllocationForState({ ...item, ...patch }) : item));
   };
 
   const addAllocation = () => {
-    setAllocations([...allocations, createAllocation("other", "", 0, false, "Other")]);
+    setAllocations([
+      ...allocations,
+      form.formula_code === "source_worker_qc"
+        ? createAllocation("assistant", "", 0, false, "Assistant")
+        : createAllocation("other", "", 0, false, "Other"),
+    ]);
+  };
+
+  const updatePercent = (index: number, value: string) => {
+    const row = allocations[index];
+    const actualPercent = isSourcePoolRow(row, form.formula_code) ? (parseMoney(value) * 40) / 100 : parseMoney(value);
+    updateAllocation(index, {
+      percent: formatPercent(actualPercent),
+      amount: receivedAmount ? String(roundMoney((receivedAmount * actualPercent) / 100)) : row.amount,
+    });
+  };
+
+  const updateAmount = (index: number, value: string) => {
+    const actualPercent = receivedAmount ? (parseMoney(value) / receivedAmount) * 100 : 0;
+    updateAllocation(index, { amount: value, percent: formatPercent(actualPercent) });
+  };
+
+  const updateRecipientType = (index: number, value: string) => {
+    if (value === "company") {
+      updateAllocation(index, { recipient_type: value, recipient_name: "Company", role_label: "Company Share", is_company_share: true });
+      return;
+    }
+    if (value === "source") {
+      updateAllocation(index, { recipient_type: value, role_label: "Client Source / Broker", is_company_share: false });
+      return;
+    }
+    updateAllocation(index, { recipient_type: value, is_company_share: false });
   };
 
   const removeAllocation = (index: number) => {
@@ -516,7 +550,7 @@ export default function CompensationPage() {
         <section style={panelStyle}>
           <div style={toolbarStyle}>
             <h2 style={sectionTitleStyle}>Allocation Editor</h2>
-            <button type="button" onClick={addAllocation} style={secondaryButtonStyle}>Add Row</button>
+            <button type="button" onClick={addAllocation} style={secondaryButtonStyle}>{form.formula_code === "source_worker_qc" ? "Add Work Pool Row" : "Add Row"}</button>
           </div>
           <div style={tableWrapStyle}>
             <table style={tableStyle}>
@@ -524,11 +558,11 @@ export default function CompensationPage() {
               <tbody>
                 {allocations.map((row, index) => (
                   <tr key={`${index}-${row.recipient_type}`}>
-                    <td style={tdStyle}><select value={row.recipient_type} onChange={(event) => updateAllocation(index, { recipient_type: event.target.value })} style={inputStyle}>{recipientTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></td>
+                    <td style={tdStyle}><select value={row.recipient_type} onChange={(event) => updateRecipientType(index, event.target.value)} style={inputStyle}>{recipientTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></td>
                     <td style={tdStyle}><RecipientEditor row={row} users={users} onChange={(patch) => updateAllocation(index, patch)} /></td>
                     <td style={tdStyle}><select value={row.role_label} onChange={(event) => updateAllocation(index, { role_label: event.target.value })} style={inputStyle}><option value="">-</option>{roleLabels.map((label) => <option key={label} value={label}>{label}</option>)}</select></td>
-                    <td style={tdStyle}><input value={row.percent} onChange={(event) => updateAllocation(index, { percent: event.target.value })} style={inputStyle} /></td>
-                    <td style={tdStyle}><input value={row.amount} onChange={(event) => updateAllocation(index, { amount: event.target.value })} style={inputStyle} /></td>
+                    <td style={tdStyle}><input value={getDisplayPercent(row, form.formula_code)} onChange={(event) => updatePercent(index, event.target.value)} style={inputStyle} /></td>
+                    <td style={tdStyle}><input value={row.amount} onChange={(event) => updateAmount(index, event.target.value)} style={inputStyle} /></td>
                     <td style={tdStyle}><input type="checkbox" checked={row.is_company_share} onChange={(event) => updateAllocation(index, { is_company_share: event.target.checked })} /></td>
                     <td style={tdStyle}><input value={row.note} onChange={(event) => updateAllocation(index, { note: event.target.value })} style={inputStyle} /></td>
                     <td style={tdStyle}><button type="button" onClick={() => removeAllocation(index)} style={dangerButtonStyle}>Remove</button></td>
@@ -669,9 +703,13 @@ function validateAllocations(form: BatchForm, rows: AllocationRow[]) {
     const source = rows.filter((item) => item.recipient_type === "source").reduce((sum, item) => sum + parseMoney(item.amount), 0);
     const company = rows.filter((item) => item.is_company_share).reduce((sum, item) => sum + parseMoney(item.amount), 0);
     const pool = allocationTotal - source - company;
+    const poolPercent = rows
+      .filter((item) => isSourcePoolRow(item, form.formula_code))
+      .reduce((sum, item) => sum + getPoolPercent(item), 0);
     if (Math.abs(source - total * 0.2) > 0.01) return "Source must be 20%";
     if (Math.abs(company - total * 0.4) > 0.01) return "Company must be 40%";
     if (Math.abs(pool - total * 0.4) > 0.01) return "Work Pool must be 40%";
+    if (Math.abs(poolPercent - 100) > 0.01) return "Work Pool percent must equal 100%";
   }
   return "";
 }
@@ -683,6 +721,18 @@ function getRecipientName(row: AllocationRow, users: UserProfileRow[]) {
     return user ? renderUserLabel(user) : row.recipient_name.trim();
   }
   return row.recipient_name.trim();
+}
+
+function isSourcePoolRow(row: AllocationRow, formula: FormulaCode) {
+  return formula === "source_worker_qc" && row.recipient_type !== "source" && !row.is_company_share;
+}
+
+function getPoolPercent(row: AllocationRow) {
+  return (parseMoney(row.percent) / 40) * 100;
+}
+
+function getDisplayPercent(row: AllocationRow, formula: FormulaCode) {
+  return isSourcePoolRow(row, formula) ? formatPercent(getPoolPercent(row)) : row.percent;
 }
 
 function normalizeAllocationForState(row: AllocationRow): AllocationRow {
@@ -800,6 +850,7 @@ function renderMatterLabel(item: MatterRow) { return [item.matter_no, item.title
 function parseMoney(value: number | string | null | undefined) { const amount = Number(String(value || "").replace(/,/g, "").trim()); return Number.isFinite(amount) ? amount : 0; }
 function toAmount(value: number | string | null) { return parseMoney(value); }
 function roundMoney(value: number) { return Math.round(value * 100) / 100; }
+function formatPercent(value: number) { return String(Math.round(value * 10000) / 10000); }
 function formatMoney(value: number) { return value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function getDateKey(value: Date) { return value.toISOString().slice(0, 10); }
 
