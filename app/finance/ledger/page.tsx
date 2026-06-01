@@ -84,6 +84,7 @@ const emptyForm: LedgerForm = {
 };
 
 const incomeCategories = [
+  "ยอดยกมาก่อนเริ่มระบบ",
   "เงินเข้าบริษัทจากคดี",
   "เงินเข้าบริษัทจาก Advisory",
   "ค่าเดินทางรับจากลูกค้า",
@@ -578,7 +579,7 @@ export default function FinanceLedgerPage() {
                     <td style={tdStyle}>{formatDate(row.transaction_date)}</td>
                     <td style={tdStyle}>{renderEntryType(row.entry_type)}</td>
                     <td style={tdStyle}>{renderBankName(row.bank_account_id, bankAccounts)}</td>
-                    <td style={tdStyle}>{row.category || "-"}</td>
+                    <td style={tdStyle}>{renderCategoryDetail(row)}</td>
                     <td style={tdStyle}>{formatMoney(toAmount(row.amount))}</td>
                     <td style={tdStyle}>{row.expense_claimant_name || "-"}</td>
                     <td style={tdStyle}>{row.reference_no || row.payment_method || "-"}</td>
@@ -722,6 +723,21 @@ function renderRelation(row: LedgerRow, clients: ClientRow[], cases: CaseRow[], 
   return client?.name || "-";
 }
 
+function renderCategoryDetail(row: LedgerRow) {
+  return (
+    <div style={detailStackStyle}>
+      <div>{row.category || "-"}</div>
+      {row.description ? (
+        <div style={descriptionTextStyle}>Description: {row.description}</div>
+      ) : null}
+      {row.note ? <div style={noteTextStyle}>Note: {row.note}</div> : null}
+      {row.status === "voided" && row.void_reason ? (
+        <div style={voidReasonTextStyle}>Void reason: {row.void_reason}</div>
+      ) : null}
+    </div>
+  );
+}
+
 const pageStyle: CSSProperties = { minHeight: "100vh", padding: 24, background: "#f7f7f8", color: "#111111" };
 const panelStyle: CSSProperties = { border: "1px solid #dddddd", borderRadius: 8, background: "#ffffff", padding: 16, marginBottom: 16 };
 const noAccessStyle: CSSProperties = { ...panelStyle, color: "#a40000", background: "#fff5f5" };
@@ -744,6 +760,10 @@ const tableWrapStyle: CSSProperties = { overflowX: "auto" };
 const tableStyle: CSSProperties = { width: "100%", borderCollapse: "collapse", minWidth: 900 };
 const thStyle: CSSProperties = { padding: 10, borderBottom: "1px solid #dddddd", textAlign: "left", fontSize: 12 };
 const tdStyle: CSSProperties = { padding: 10, borderBottom: "1px solid #eeeeee", fontSize: 13, verticalAlign: "top" };
+const detailStackStyle: CSSProperties = { display: "grid", gap: 4 };
+const descriptionTextStyle: CSSProperties = { color: "#4b5563", fontSize: 12, lineHeight: 1.35 };
+const noteTextStyle: CSSProperties = { color: "#6b7280", fontSize: 12, lineHeight: 1.35 };
+const voidReasonTextStyle: CSSProperties = { color: "#991b1b", fontSize: 12, lineHeight: 1.35, fontWeight: 700 };
 const smallButtonStyle: CSSProperties = { ...secondaryButtonStyle, padding: "6px 9px", marginRight: 6 };
 const dangerButtonStyle: CSSProperties = { padding: "6px 9px", border: "1px solid #a40000", borderRadius: 6, background: "#fff5f5", color: "#a40000", cursor: "pointer", fontWeight: 800 };
 const emptyStyle: CSSProperties = { padding: 12, border: "1px dashed #cccccc", borderRadius: 6, color: "#666666" };
