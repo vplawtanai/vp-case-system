@@ -237,6 +237,8 @@ export default function CompensationPage() {
     const allocationRows = normalizeAllocationsForSave(receivedAmount, form.formula_code, allocations);
     const validation = validateAllocations(form, allocationRows);
     if (validation) return alert(validation);
+    const safeguard = validateNormalizedRowsForSave(receivedAmount, form.formula_code, allocationRows);
+    if (safeguard) return alert(safeguard);
     const payload = {
       received_date: form.received_date,
       received_amount: receivedAmount,
@@ -255,16 +257,16 @@ export default function CompensationPage() {
       if (editingBatchId) {
         const oldBatch = batches.find((item) => item.id === editingBatchId);
         if (oldBatch?.status !== "draft") return alert("Only draft batches can be edited.");
-        const { data, error } = await supabase.from("finance_compensation_batches").update(payload).eq("id", editingBatchId).eq("status", "draft").select("*").single();
-        if (error || !data) return alert(error?.message || "Update batch failed");
         const { error: deleteError } = await supabase.from("finance_compensation_allocations").delete().eq("batch_id", editingBatchId);
-        if (deleteError) return alert(deleteError.message || "Delete old allocations failed");
+        if (deleteError) throw new Error(`Delete old allocations failed: ${deleteError.message}`);
         const { data: remainingRows, error: verifyDeleteError } = await supabase
           .from("finance_compensation_allocations")
           .select("id")
           .eq("batch_id", editingBatchId);
-        if (verifyDeleteError) return alert(verifyDeleteError.message || "Verify allocation delete failed");
-        if ((remainingRows || []).length > 0) return alert("Delete old allocations failed: existing allocations remain.");
+        if (verifyDeleteError) throw new Error(`Verify allocation delete failed: ${verifyDeleteError.message}`);
+        if ((remainingRows || []).length > 0) throw new Error("Delete old allocations failed: existing allocations remain.");
+        const { data, error } = await supabase.from("finance_compensation_batches").update(payload).eq("id", editingBatchId).eq("status", "draft").select("*").single();
+        if (error || !data) return alert(error?.message || "Update batch failed");
         await insertAllocations(editingBatchId, allocationRows);
         await auditFinance("update", "finance_compensation_batches", editingBatchId, oldBatch, data, "Update compensation draft");
       } else {
@@ -874,6 +876,18 @@ function normalizeAllocationsForSave(receivedAmount: number, formula: FormulaCod
       };
     }),
   ]);
+}
+
+function validateNormalizedRowsForSave(receivedAmount: number, formula: FormulaCode, rows: AllocationRow[]) {
+  if (formula !== "source_worker_qc") return "";
+  const companyAmount = rows
+    .filter((item) => item.is_company_share)
+    .reduce((sum, item) => sum + parseMoney(item.amount), 0);
+  const expectedCompanyAmount = roundMoney(receivedAmount * 0.4);
+  if (Math.abs(companyAmount - expectedCompanyAmount) > 0.01) {
+    return `Company share must be ${formatMoney(expectedCompanyAmount)} for received amount ${formatMoney(receivedAmount)}`;
+  }
+  return "";
 }
 
 function isSourcePoolRow(row: AllocationRow, formula: FormulaCode) {
