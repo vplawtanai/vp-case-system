@@ -103,11 +103,17 @@ export default function CompensationPage() {
   const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
   const [form, setForm] = useState<BatchForm>(emptyForm);
   const [editingBatchId, setEditingBatchId] = useState("");
+  const [multipleWorkPool, setMultipleWorkPool] = useState(false);
   const [errorText, setErrorText] = useState("");
 
   const permissions: UserPermissions = useMemo(() => buildPermissions(profile), [profile]);
   const actorName = profile.full_name || profile.staff_name || userEmail;
   const receivedAmount = parseMoney(form.received_amount);
+  const isSourceWorkerQc = form.formula_code === "source_worker_qc";
+  const workPoolAmount = receivedAmount * 0.4;
+  const workPoolPercentTotal = allocations
+    .filter((item) => isSourcePoolRow(item, form.formula_code))
+    .reduce((sum, item) => sum + getPoolPercent(item), 0);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -169,7 +175,10 @@ export default function CompensationPage() {
   }, [loadingProfile, loadData]);
 
   useEffect(() => {
-    if (!editingBatchId) setAllocations(generateAllocations(form.formula_code, receivedAmount));
+    if (!editingBatchId) {
+      setAllocations(generateAllocations(form.formula_code, receivedAmount));
+      setMultipleWorkPool(false);
+    }
   }, [editingBatchId, form.formula_code, receivedAmount]);
 
   const summary = useMemo(() => {
@@ -286,12 +295,13 @@ export default function CompensationPage() {
   const editDraft = (batch: BatchRow) => {
     if (batch.status !== "draft") return;
     const batchAllocations = allAllocations.filter((item) => item.batch_id === batch.id);
+    const formula = normalizeFormula(batch.formula_code);
     setEditingBatchId(batch.id);
     setForm({
       received_date: batch.received_date || getDateKey(new Date()),
       received_amount: String(batch.received_amount || ""),
       revenue_type: batch.revenue_type || "professional_fee",
-      formula_code: normalizeFormula(batch.formula_code),
+      formula_code: formula,
       client_id: batch.client_id || "",
       case_id: batch.case_id ? String(batch.case_id) : "",
       advisory_matter_id: batch.advisory_matter_id || "",
@@ -299,6 +309,7 @@ export default function CompensationPage() {
       note: batch.note || "",
     });
     setAllocations(batchAllocations.length ? batchAllocations.map(prepareAllocationForEdit) : []);
+    setMultipleWorkPool(formula === "source_worker_qc" && batchAllocations.filter((item) => isSourcePoolRow(item, formula)).length > 1);
   };
 
   const finalizeBatch = async (batch: BatchRow) => {
@@ -434,7 +445,19 @@ export default function CompensationPage() {
   const resetForm = () => {
     setForm({ ...emptyForm, received_date: getDateKey(new Date()) });
     setEditingBatchId("");
+    setMultipleWorkPool(false);
     setAllocations(generateAllocations("pao_line", 0));
+  };
+
+  const updateReceivedAmount = (value: string) => {
+    const nextAmount = parseMoney(value);
+    setForm({ ...form, received_amount: value });
+    if (editingBatchId) {
+      setAllocations(allocations.map((item) => normalizeAllocationForState({
+        ...item,
+        amount: String(roundMoney((nextAmount * parseMoney(item.percent)) / 100)),
+      })));
+    }
   };
 
   const updateAllocation = (index: number, patch: Partial<AllocationRow>) => {
@@ -442,26 +465,39 @@ export default function CompensationPage() {
   };
 
   const addAllocation = () => {
+    if (form.formula_code === "source_worker_qc" && !multipleWorkPool) return;
+    if (form.formula_code === "source_worker_qc") {
+      const next = [
+        ...allocations,
+        createAllocation("assistant", "", 4, false, "Assistant", receivedAmount),
+      ];
+      setAllocations(rebalanceOwnerWorkPool(next, receivedAmount, form.formula_code));
+      return;
+    }
     setAllocations([
       ...allocations,
-      form.formula_code === "source_worker_qc"
-        ? createAllocation("assistant", "", 0, false, "Assistant")
-        : createAllocation("other", "", 0, false, "Other"),
+      createAllocation("other", "", 0, false, "Other"),
     ]);
   };
 
   const updatePercent = (index: number, value: string) => {
     const row = allocations[index];
+    if (isSourcePoolOwnerRow(row, form.formula_code)) return;
     const actualPercent = isSourcePoolRow(row, form.formula_code) ? (parseMoney(value) * 40) / 100 : parseMoney(value);
-    updateAllocation(index, {
+    const next = allocations.map((item, itemIndex) => itemIndex === index ? normalizeAllocationForState({
+      ...item,
       percent: formatPercent(actualPercent),
       amount: receivedAmount ? String(roundMoney((receivedAmount * actualPercent) / 100)) : row.amount,
-    });
+    }) : item);
+    setAllocations(rebalanceOwnerWorkPool(next, receivedAmount, form.formula_code));
   };
 
   const updateAmount = (index: number, value: string) => {
+    const row = allocations[index];
+    if (isSourcePoolOwnerRow(row, form.formula_code)) return;
     const actualPercent = receivedAmount ? (parseMoney(value) / receivedAmount) * 100 : 0;
-    updateAllocation(index, { amount: value, percent: formatPercent(actualPercent) });
+    const next = allocations.map((item, itemIndex) => itemIndex === index ? normalizeAllocationForState({ ...item, amount: value, percent: formatPercent(actualPercent) }) : item);
+    setAllocations(rebalanceOwnerWorkPool(next, receivedAmount, form.formula_code));
   };
 
   const updateRecipientType = (index: number, value: string) => {
@@ -477,7 +513,16 @@ export default function CompensationPage() {
   };
 
   const removeAllocation = (index: number) => {
-    setAllocations(allocations.filter((_, itemIndex) => itemIndex !== index));
+    const row = allocations[index];
+    if (form.formula_code === "source_worker_qc" && (row.recipient_type === "source" || row.is_company_share || isSourcePoolOwnerRow(row, form.formula_code))) return;
+    setAllocations(rebalanceOwnerWorkPool(allocations.filter((_, itemIndex) => itemIndex !== index), receivedAmount, form.formula_code));
+  };
+
+  const updateMultipleWorkPool = (checked: boolean) => {
+    setMultipleWorkPool(checked);
+    if (!checked && form.formula_code === "source_worker_qc") {
+      setAllocations(generateAllocations("source_worker_qc", receivedAmount));
+    }
   };
 
   if (loadingProfile) {
@@ -536,7 +581,7 @@ export default function CompensationPage() {
           <h2 style={sectionTitleStyle}>{editingBatchId ? "Edit Draft" : "Create Compensation Batch"}</h2>
           <div style={formGridStyle}>
             <label style={labelStyle}>Received Date<input type="date" value={form.received_date} onChange={(event) => setForm({ ...form, received_date: event.target.value })} style={inputStyle} /></label>
-            <label style={labelStyle}>Received Amount<input value={form.received_amount} onChange={(event) => setForm({ ...form, received_amount: event.target.value })} style={inputStyle} /></label>
+            <label style={labelStyle}>Received Amount<input value={form.received_amount} onChange={(event) => updateReceivedAmount(event.target.value)} style={inputStyle} /></label>
             <label style={labelStyle}>Revenue Type<select value={form.revenue_type} onChange={(event) => setForm({ ...form, revenue_type: event.target.value })} style={inputStyle}><option value="professional_fee">Professional Fee</option><option value="service_fee">Service Fee</option><option value="travel_fee">Travel Fee</option><option value="other">Other</option></select></label>
             <label style={labelStyle}>Formula<select value={form.formula_code} onChange={(event) => setForm({ ...form, formula_code: event.target.value as FormulaCode })} style={inputStyle}><option value="pao_line">Pao Line</option><option value="tun_line">Tun Line</option><option value="source_worker_qc">Source / Worker / QC</option><option value="travel_fee">Travel Fee</option><option value="custom">Custom</option></select></label>
             <label style={labelStyle}>Client<select value={form.client_id} onChange={(event) => setForm({ ...form, client_id: event.target.value })} style={inputStyle}><option value="">-</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name || client.id}</option>)}</select></label>
@@ -550,22 +595,41 @@ export default function CompensationPage() {
         <section style={panelStyle}>
           <div style={toolbarStyle}>
             <h2 style={sectionTitleStyle}>Allocation Editor</h2>
-            <button type="button" onClick={addAllocation} style={secondaryButtonStyle}>{form.formula_code === "source_worker_qc" ? "Add Work Pool Row" : "Add Row"}</button>
+            <button type="button" onClick={addAllocation} disabled={isSourceWorkerQc && !multipleWorkPool} style={secondaryButtonStyle}>{isSourceWorkerQc ? "Add Work Pool Row" : "Add Row"}</button>
           </div>
+          {isSourceWorkerQc ? (
+            <div style={workPoolPanelStyle}>
+              <div><strong>Source / เจ้าของสายลูกค้า:</strong> 20% of received amount</div>
+              <div><strong>Company Share:</strong> 40% of received amount</div>
+              <div><strong>Work Pool / ทีมทำงาน:</strong> 40% of received amount = 100% inside work pool</div>
+              <div style={workPoolSummaryStyle}>
+                <span>Received Amount: {formatMoney(receivedAmount)}</span>
+                <span>Work Pool 40%: {formatMoney(workPoolAmount)}</span>
+                <span>Work Pool Allocation: {formatPercent(workPoolPercentTotal)}%</span>
+              </div>
+              <label style={checkboxLabelStyle}>
+                <input type="checkbox" checked={multipleWorkPool} onChange={(event) => updateMultipleWorkPool(event.target.checked)} />
+                Multiple work pool recipients
+              </label>
+            </div>
+          ) : null}
           <div style={tableWrapStyle}>
             <table style={tableStyle}>
-              <thead><tr><th style={thStyle}>Type</th><th style={thStyle}>Recipient</th><th style={thStyle}>Role</th><th style={thStyle}>Percent</th><th style={thStyle}>Amount</th><th style={thStyle}>Company</th><th style={thStyle}>Note</th><th style={thStyle}>Actions</th></tr></thead>
+              <thead><tr><th style={thStyle}>Type</th><th style={thStyle}>Recipient</th><th style={thStyle}>Role</th><th style={thStyle}>{isSourceWorkerQc ? "Work Pool %" : "Percent"}</th><th style={thStyle}>Amount</th><th style={thStyle}>Company</th><th style={thStyle}>Note</th><th style={thStyle}>Actions</th></tr></thead>
               <tbody>
                 {allocations.map((row, index) => (
                   <tr key={`${index}-${row.recipient_type}`}>
                     <td style={tdStyle}><select value={row.recipient_type} onChange={(event) => updateRecipientType(index, event.target.value)} style={inputStyle}>{recipientTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></td>
                     <td style={tdStyle}><RecipientEditor row={row} users={users} onChange={(patch) => updateAllocation(index, patch)} /></td>
                     <td style={tdStyle}><select value={row.role_label} onChange={(event) => updateAllocation(index, { role_label: event.target.value })} style={inputStyle}><option value="">-</option>{roleLabels.map((label) => <option key={label} value={label}>{label}</option>)}</select></td>
-                    <td style={tdStyle}><input value={getDisplayPercent(row, form.formula_code)} onChange={(event) => updatePercent(index, event.target.value)} style={inputStyle} /></td>
-                    <td style={tdStyle}><input value={row.amount} onChange={(event) => updateAmount(index, event.target.value)} style={inputStyle} /></td>
+                    <td style={tdStyle}>
+                      <input value={getDisplayPercent(row, form.formula_code)} onChange={(event) => updatePercent(index, event.target.value)} disabled={isFixedSourceWorkerRow(row, form.formula_code)} style={inputStyle} />
+                      {isSourcePoolRow(row, form.formula_code) ? <div style={mutedTextStyle}>Actual: {formatPercent(parseMoney(row.percent))}% of received amount</div> : null}
+                    </td>
+                    <td style={tdStyle}><input value={row.amount} onChange={(event) => updateAmount(index, event.target.value)} disabled={isFixedSourceWorkerRow(row, form.formula_code)} style={inputStyle} /></td>
                     <td style={tdStyle}><input type="checkbox" checked={row.is_company_share} onChange={(event) => updateAllocation(index, { is_company_share: event.target.checked })} /></td>
                     <td style={tdStyle}><input value={row.note} onChange={(event) => updateAllocation(index, { note: event.target.value })} style={inputStyle} /></td>
-                    <td style={tdStyle}><button type="button" onClick={() => removeAllocation(index)} style={dangerButtonStyle}>Remove</button></td>
+                    <td style={tdStyle}><button type="button" onClick={() => removeAllocation(index)} disabled={isSourceWorkerQc && (row.recipient_type === "source" || row.is_company_share || isSourcePoolOwnerRow(row, form.formula_code))} style={dangerButtonStyle}>Remove</button></td>
                   </tr>
                 ))}
               </tbody>
@@ -703,9 +767,12 @@ function validateAllocations(form: BatchForm, rows: AllocationRow[]) {
     const source = rows.filter((item) => item.recipient_type === "source").reduce((sum, item) => sum + parseMoney(item.amount), 0);
     const company = rows.filter((item) => item.is_company_share).reduce((sum, item) => sum + parseMoney(item.amount), 0);
     const pool = allocationTotal - source - company;
+    const ownerRows = rows.filter((item) => isSourcePoolOwnerRow(item, form.formula_code));
     const poolPercent = rows
       .filter((item) => isSourcePoolRow(item, form.formula_code))
       .reduce((sum, item) => sum + getPoolPercent(item), 0);
+    if (ownerRows.length !== 1) return "Work Pool needs exactly one Lead Lawyer / Case Owner row";
+    if (getPoolPercent(ownerRows[0]) < 0) return "Owner work pool percent cannot be negative";
     if (Math.abs(source - total * 0.2) > 0.01) return "Source must be 20%";
     if (Math.abs(company - total * 0.4) > 0.01) return "Company must be 40%";
     if (Math.abs(pool - total * 0.4) > 0.01) return "Work Pool must be 40%";
@@ -727,12 +794,37 @@ function isSourcePoolRow(row: AllocationRow, formula: FormulaCode) {
   return formula === "source_worker_qc" && row.recipient_type !== "source" && !row.is_company_share;
 }
 
+function isSourcePoolOwnerRow(row: AllocationRow, formula: FormulaCode) {
+  return isSourcePoolRow(row, formula) && row.role_label === "Lead Lawyer / Case Owner";
+}
+
+function isFixedSourceWorkerRow(row: AllocationRow, formula: FormulaCode) {
+  return formula === "source_worker_qc" && (row.recipient_type === "source" || row.is_company_share || isSourcePoolOwnerRow(row, formula));
+}
+
 function getPoolPercent(row: AllocationRow) {
   return (parseMoney(row.percent) / 40) * 100;
 }
 
 function getDisplayPercent(row: AllocationRow, formula: FormulaCode) {
   return isSourcePoolRow(row, formula) ? formatPercent(getPoolPercent(row)) : row.percent;
+}
+
+function rebalanceOwnerWorkPool(rows: AllocationRow[], receivedAmount: number, formula: FormulaCode) {
+  if (formula !== "source_worker_qc") return rows;
+  const nonOwnerPoolPercent = rows
+    .filter((item) => isSourcePoolRow(item, formula) && !isSourcePoolOwnerRow(item, formula))
+    .reduce((sum, item) => sum + getPoolPercent(item), 0);
+  const ownerPoolPercent = 100 - nonOwnerPoolPercent;
+  const ownerActualPercent = (ownerPoolPercent * 40) / 100;
+  return rows.map((item) => {
+    if (!isSourcePoolOwnerRow(item, formula)) return item;
+    return normalizeAllocationForState({
+      ...item,
+      percent: formatPercent(ownerActualPercent),
+      amount: String(roundMoney((receivedAmount * ownerActualPercent) / 100)),
+    });
+  });
 }
 
 function normalizeAllocationForState(row: AllocationRow): AllocationRow {
@@ -885,6 +977,9 @@ const emptyStyle: CSSProperties = { padding: 12, border: "1px dashed #cccccc", b
 const helpTextStyle: CSSProperties = { color: "#0f2743", fontSize: 12, fontWeight: 800 };
 const postedStyle: CSSProperties = { color: "#14532d", fontWeight: 800 };
 const recipientGridStyle: CSSProperties = { display: "grid", gap: 6, minWidth: 180 };
+const workPoolPanelStyle: CSSProperties = { display: "grid", gap: 8, padding: 12, border: "1px solid #d7e3f0", borderRadius: 8, background: "#f8fbff", marginBottom: 12, fontSize: 13 };
+const workPoolSummaryStyle: CSSProperties = { display: "flex", gap: 12, flexWrap: "wrap", color: "#0f2743", fontWeight: 800 };
+const checkboxLabelStyle: CSSProperties = { display: "flex", gap: 8, alignItems: "center", fontWeight: 800 };
 const allocationDetailStyle: CSSProperties = { display: "grid", gap: 8, marginTop: 10, paddingTop: 10, borderTop: "1px solid #eeeeee" };
 const allocationRowStyle: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" };
 const mutedInlineStyle: CSSProperties = { color: "#666666", fontSize: 12, fontWeight: 600 };
