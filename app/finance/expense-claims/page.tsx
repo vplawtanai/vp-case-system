@@ -530,7 +530,7 @@ export default function ExpenseClaimsPage() {
             <label style={labelStyle}>Client<select value={form.client_id} onChange={(event) => setForm({ ...form, client_id: event.target.value })} style={inputStyle}><option value="">-</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name || client.id}</option>)}</select></label>
             <label style={labelStyle}>Case<select value={form.case_id} onChange={(event) => setForm({ ...form, case_id: event.target.value })} style={inputStyle}><option value="">-</option>{cases.map((item) => <option key={item.id} value={item.id}>{renderCaseLabel(item)}</option>)}</select></label>
             <label style={labelStyle}>Advisory Matter<select value={form.advisory_matter_id} onChange={(event) => setForm({ ...form, advisory_matter_id: event.target.value })} style={inputStyle}><option value="">-</option>{matters.map((item) => <option key={item.id} value={item.id}>{renderMatterLabel(item)}</option>)}</select></label>
-            <label style={labelStyle}>Description<input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} style={inputStyle} /></label>
+            <label style={descriptionLabelStyle}>Description<input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} style={inputStyle} /></label>
             <label style={wideLabelStyle}>Note<textarea value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} style={textareaStyle} /></label>
           </div>
           <div style={actionRowStyle}>
@@ -710,18 +710,19 @@ function renderClaimDetail(claim: ClaimRow) {
   );
 }
 
-const pageStyle: CSSProperties = { minHeight: "100vh", padding: 24, background: "#f7f7f8", color: "#111111" };
-const panelStyle: CSSProperties = { border: "1px solid #dddddd", borderRadius: 8, background: "#ffffff", padding: 16, marginBottom: 16 };
+const pageStyle: CSSProperties = { minHeight: "100vh", padding: 24, background: "#f7f7f8", color: "#111111", overflowX: "hidden" };
+const panelStyle: CSSProperties = { border: "1px solid #dddddd", borderRadius: 8, background: "#ffffff", padding: 18, marginBottom: 16 };
 const noAccessStyle: CSSProperties = { ...panelStyle, color: "#a40000", background: "#fff5f5" };
 const errorStyle: CSSProperties = { ...panelStyle, color: "#a40000", background: "#fff5f5" };
 const summaryGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 16 };
 const summaryCardStyle: CSSProperties = { ...panelStyle, marginBottom: 0 };
 const summaryLabelStyle: CSSProperties = { color: "#666666", fontSize: 12, fontWeight: 700 };
 const summaryValueStyle: CSSProperties = { color: "#111111", fontSize: 24, fontWeight: 900, marginTop: 6 };
-const formGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 };
-const labelStyle: CSSProperties = { display: "grid", gap: 6, fontSize: 13, fontWeight: 700 };
+const formGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(260px, 100%), 1fr))", columnGap: 16, rowGap: 14, alignItems: "start" };
+const labelStyle: CSSProperties = { display: "grid", gap: 7, fontSize: 13, fontWeight: 700, minWidth: 0 };
+const descriptionLabelStyle: CSSProperties = { ...labelStyle, gridColumn: "1 / -1" };
 const wideLabelStyle: CSSProperties = { ...labelStyle, gridColumn: "1 / -1" };
-const inputStyle: CSSProperties = { padding: 10, border: "1px solid #cccccc", borderRadius: 6, fontSize: 14 };
+const inputStyle: CSSProperties = { width: "100%", boxSizing: "border-box", padding: 10, border: "1px solid #cccccc", borderRadius: 6, fontSize: 14 };
 const textareaStyle: CSSProperties = { ...inputStyle, minHeight: 70 };
 const sectionTitleStyle: CSSProperties = { margin: "0 0 12px", fontSize: 18, fontWeight: 900 };
 const actionRowStyle: CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 };
@@ -732,7 +733,7 @@ const primarySmallButtonStyle: CSSProperties = { ...primaryButtonStyle, padding:
 const secondaryButtonStyle: CSSProperties = { padding: "10px 14px", border: "1px solid #cccccc", borderRadius: 6, background: "#ffffff", cursor: "pointer", fontWeight: 800 };
 const smallButtonStyle: CSSProperties = { ...secondaryButtonStyle, padding: "6px 9px" };
 const dangerButtonStyle: CSSProperties = { padding: "6px 9px", border: "1px solid #a40000", borderRadius: 6, background: "#fff5f5", color: "#a40000", cursor: "pointer", fontWeight: 800 };
-const tableWrapStyle: CSSProperties = { overflowX: "auto" };
+const tableWrapStyle: CSSProperties = { overflowX: "auto", maxWidth: "100%" };
 const tableStyle: CSSProperties = { width: "100%", borderCollapse: "collapse", minWidth: 1000 };
 const thStyle: CSSProperties = { padding: 10, borderBottom: "1px solid #dddddd", textAlign: "left", fontSize: 12 };
 const tdStyle: CSSProperties = { padding: 10, borderBottom: "1px solid #eeeeee", fontSize: 13, verticalAlign: "top" };
