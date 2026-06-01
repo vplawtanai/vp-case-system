@@ -125,6 +125,10 @@ export function canViewFees(
   return isPartnerUp(role) || financialAccess === true;
 }
 
+export function canViewFinanceModule(role?: string | null) {
+  return isAdmin(role);
+}
+
 /* =========================================================
    TIME / WORKLOAD VIEW PERMISSIONS
 ========================================================= */
@@ -208,6 +212,10 @@ export function canEditFees(
   return isPartnerUp(role) || financialAccess === true;
 }
 
+export function canEditFinanceModule(role?: string | null) {
+  return isAdmin(role);
+}
+
 /* =========================================================
    HIGH-RISK ACTION PERMISSIONS
 ========================================================= */
@@ -221,6 +229,10 @@ export function canRestore(role?: string | null) {
 }
 
 export function canHardDelete(role?: string | null) {
+  return isAdmin(role);
+}
+
+export function canVoidFinanceEntry(role?: string | null) {
   return isAdmin(role);
 }
 
@@ -264,6 +276,7 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
     canViewAlerts: canViewAlerts(role),
     canViewHistory: canViewHistory(role),
     canViewFees: canViewFees(role, financialAccess),
+    canViewFinanceModule: canViewFinanceModule(role),
 
     canViewTimeOverview: canViewTimeOverview(role),
     canViewOwnTimeDetail: canViewOwnTimeDetail(role),
@@ -285,10 +298,12 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
     canEditNotes: canEditNotes(role),
     canEditTimeLogs: canEditTimeLogs(role),
     canEditFees: canEditFees(role, financialAccess),
+    canEditFinanceModule: canEditFinanceModule(role),
 
     canSoftDelete: canSoftDelete(role),
     canRestore: canRestore(role),
     canHardDelete: canHardDelete(role),
+    canVoidFinanceEntry: canVoidFinanceEntry(role),
     canManageUsers: canManageUsers(role),
   };
 }
