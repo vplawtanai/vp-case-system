@@ -46,6 +46,7 @@ type MatterRow = { id: string; matter_no: string | null; title: string | null };
 type BankAccountRow = { id: string; short_name: string | null; bank_name: string | null };
 type UserProfileRow = { id: string; full_name: string | null; staff_name: string | null; email: string | null };
 type EntryType = "income" | "expense" | "transfer_in" | "transfer_out";
+const otherClaimantValue = "__other__";
 
 type LedgerForm = {
   id: string;
@@ -220,7 +221,7 @@ export default function FinanceLedgerPage() {
       setCases((casesRes.data || []) as CaseRow[]);
       setMatters((mattersRes.data || []) as MatterRow[]);
       setBankAccounts((bankAccountsRes.data || []) as BankAccountRow[]);
-      setClaimantUsers((usersRes.data || []) as UserProfileRow[]);
+      setClaimantUsers(((usersRes.data || []) as UserProfileRow[]).filter(isRealUserProfile));
     } finally {
       setLoading(false);
     }
@@ -275,6 +276,14 @@ export default function FinanceLedgerPage() {
   const startEdit = (row: LedgerRow) => {
     if (row.status !== "active") return;
     const entryType = normalizeEntryType(row.entry_type);
+    const hasRealClaimantUser =
+      row.expense_claimant_user_id &&
+      claimantUsers.some((user) => user.id === row.expense_claimant_user_id);
+    const claimantSelector = hasRealClaimantUser
+      ? row.expense_claimant_user_id || ""
+      : row.expense_claimant_name
+        ? otherClaimantValue
+        : "";
     setForm({
       id: row.id,
       transaction_date: row.transaction_date || getDateKey(new Date()),
@@ -285,7 +294,7 @@ export default function FinanceLedgerPage() {
       client_id: row.client_id || "",
       case_id: row.case_id ? String(row.case_id) : "",
       advisory_matter_id: row.advisory_matter_id || "",
-      expense_claimant_user_id: row.expense_claimant_user_id || "",
+      expense_claimant_user_id: claimantSelector,
       expense_claimant_name: row.expense_claimant_name || "",
       payment_method: row.payment_method || "",
       reference_no: row.reference_no || "",
@@ -305,6 +314,13 @@ export default function FinanceLedgerPage() {
     const category = getCategoryForSave(form);
     if (!category) return alert("Custom Category is required");
     if (!amount || amount <= 0) return alert("Amount must be greater than zero");
+    if (
+      form.entry_type === "expense" &&
+      form.expense_claimant_user_id === otherClaimantValue &&
+      !form.expense_claimant_name.trim()
+    ) {
+      return alert("Claimant Name is required");
+    }
     if (isClaimantRequired(form) && !getClaimantName(form, claimantUsers)) {
       return alert("Expense claimant is required for this category");
     }
@@ -319,7 +335,9 @@ export default function FinanceLedgerPage() {
       case_id: form.case_id ? Number(form.case_id) : null,
       advisory_matter_id: form.advisory_matter_id || null,
       expense_claimant_user_id:
-        form.entry_type === "expense" && form.expense_claimant_user_id
+        form.entry_type === "expense" &&
+        form.expense_claimant_user_id &&
+        form.expense_claimant_user_id !== otherClaimantValue
           ? form.expense_claimant_user_id
           : null,
       expense_claimant_name:
@@ -442,6 +460,24 @@ export default function FinanceLedgerPage() {
   };
 
   const updateClaimantUser = (userIdValue: string) => {
+    if (!userIdValue) {
+      setForm({
+        ...form,
+        expense_claimant_user_id: "",
+        expense_claimant_name: "",
+      });
+      return;
+    }
+
+    if (userIdValue === otherClaimantValue) {
+      setForm({
+        ...form,
+        expense_claimant_user_id: otherClaimantValue,
+        expense_claimant_name: "",
+      });
+      return;
+    }
+
     const selectedUser = claimantUsers.find((user) => user.id === userIdValue);
     setForm({
       ...form,
@@ -552,8 +588,10 @@ export default function FinanceLedgerPage() {
               <label style={labelStyle}>Reference No.<input value={form.reference_no} onChange={(event) => setForm({ ...form, reference_no: event.target.value })} style={inputStyle} /></label>
               {form.entry_type === "expense" ? (
                 <>
-                  <label style={labelStyle}>Claimant User<select value={form.expense_claimant_user_id} onChange={(event) => updateClaimantUser(event.target.value)} style={inputStyle}><option value="">-</option>{claimantUsers.map((user) => <option key={user.id} value={user.id}>{renderUserLabel(user)}</option>)}</select></label>
-                  <label style={labelStyle}>Claimant Name<input value={form.expense_claimant_name} onChange={(event) => setForm({ ...form, expense_claimant_name: event.target.value })} style={inputStyle} /></label>
+                  <label style={labelStyle}>Claimant User<select value={form.expense_claimant_user_id} onChange={(event) => updateClaimantUser(event.target.value)} style={inputStyle}><option value="">-</option>{claimantUsers.map((user) => <option key={user.id} value={user.id}>{renderUserLabel(user)}</option>)}<option value={otherClaimantValue}>Other</option></select></label>
+                  {form.expense_claimant_user_id === otherClaimantValue ? (
+                    <label style={labelStyle}>Claimant Name<input value={form.expense_claimant_name} onChange={(event) => setForm({ ...form, expense_claimant_name: event.target.value })} style={inputStyle} placeholder="ระบุชื่อผู้เบิก" /></label>
+                  ) : null}
                 </>
               ) : null}
               <label style={labelStyle}>Client<select value={form.client_id} onChange={(event) => setForm({ ...form, client_id: event.target.value })} style={inputStyle}><option value="">-</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name || client.id}</option>)}</select></label>
@@ -695,6 +733,17 @@ function renderBankName(bankAccountId: string | null, bankAccounts: BankAccountR
   return account?.short_name || "-";
 }
 
+function isRealUserProfile(user: UserProfileRow) {
+  const email = (user.email || "").trim().toLowerCase();
+  const fullName = (user.full_name || "").trim().toLowerCase();
+  const staffName = (user.staff_name || "").trim().toLowerCase();
+
+  if (email.includes("test") || email.endsWith("@example.com")) return false;
+  if (fullName.startsWith("test") || staffName.startsWith("test")) return false;
+
+  return true;
+}
+
 function getBankTone(shortName?: string | null): SummaryTone {
   const normalized = (shortName || "").trim().toUpperCase();
   if (normalized === "BAY") return "bay";
@@ -704,7 +753,7 @@ function getBankTone(shortName?: string | null): SummaryTone {
 }
 
 function renderUserLabel(user: UserProfileRow) {
-  return user.full_name || user.staff_name || user.email || user.id;
+  return user.staff_name || user.full_name || user.email || user.id;
 }
 
 function renderEntryType(value: string) {
@@ -755,6 +804,10 @@ function isClaimantRequired(form: LedgerForm) {
 }
 
 function getClaimantName(form: LedgerForm, users: UserProfileRow[]) {
+  if (form.expense_claimant_user_id === otherClaimantValue) {
+    return form.expense_claimant_name.trim();
+  }
+
   if (form.expense_claimant_user_id) {
     const user = users.find((item) => item.id === form.expense_claimant_user_id);
     return user ? renderUserLabel(user) : form.expense_claimant_name.trim();
