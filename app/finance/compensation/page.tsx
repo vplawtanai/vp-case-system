@@ -74,7 +74,14 @@ const emptyForm: BatchForm = {
   note: "",
 };
 
-const roleLabels = ["Lead Lawyer", "Worker", "Assistant", "Quality Controller", "Other"];
+const roleLabels = [
+  "Client Source / Broker",
+  "Company Share",
+  "Lead Lawyer / Case Owner",
+  "Assistant",
+  "Quality Controller",
+  "Other",
+];
 const recipientTypes = ["company", "source", "lawyer", "lead_lawyer", "worker", "assistant", "qc", "other"];
 
 export default function CompensationPage() {
@@ -251,6 +258,7 @@ export default function CompensationPage() {
   };
 
   const insertAllocations = async (batchId: string) => {
+    const now = new Date().toISOString();
     const payload = allocations.map((item) => ({
       batch_id: batchId,
       recipient_type: item.recipient_type,
@@ -260,11 +268,13 @@ export default function CompensationPage() {
       percent: parseMoney(item.percent),
       amount: parseMoney(item.amount),
       is_company_share: item.is_company_share,
-      payment_status: item.is_company_share ? null : item.payment_status || "unpaid",
+      payment_status: item.payment_status || "unpaid",
+      paid_at: item.payment_status === "paid" ? item.paid_at || now : null,
       note: item.note.trim() || null,
       created_by_user_id: userId || null,
       created_by_email: userEmail || null,
       created_by_name: actorName || null,
+      updated_at: now,
     }));
     const { error } = await supabase.from("finance_compensation_allocations").insert(payload);
     if (error) alert(error.message || "Create allocations failed");
@@ -619,9 +629,9 @@ function generateAllocations(formula: FormulaCode, total: number) {
     createAllocation("lawyer", "ทนายตุลย์", 40, false, "Lawyer", total),
   ];
   if (formula === "source_worker_qc") return [
-    createAllocation("source", "", 20, false, "Source", total),
-    createAllocation("company", "Company", 40, true, "Company", total),
-    createAllocation("worker", "", 40, false, "Worker", total),
+    createAllocation("source", "", 20, false, "Client Source / Broker", total),
+    createAllocation("company", "Company", 40, true, "Company Share", total),
+    createAllocation("worker", "", 40, false, "Lead Lawyer / Case Owner", total),
   ];
   if (formula === "travel_fee") return [createAllocation("company", "Company", 100, true, "Company", total)];
   return [createAllocation("company", "Company", 0, true, "Company", total)];
@@ -637,6 +647,8 @@ function createAllocation(type: string, name: string, percent: number | string, 
     percent: String(percent),
     amount: total ? String(roundMoney((total * percentNumber) / 100)) : "",
     is_company_share: isCompany,
+    payment_status: "unpaid",
+    paid_at: null,
     note: "",
   };
 }
@@ -644,10 +656,13 @@ function createAllocation(type: string, name: string, percent: number | string, 
 function validateAllocations(form: BatchForm, rows: AllocationRow[]) {
   const total = parseMoney(form.received_amount);
   if (total <= 0) return "Received amount must be greater than zero";
+  if (rows.length === 0) return "Allocation rows are required";
   const allocationTotal = rows.reduce((sum, item) => sum + parseMoney(item.amount), 0);
   if (Math.abs(allocationTotal - total) > 0.01) return "Allocation total must equal received amount";
   if (!rows.some((item) => item.is_company_share)) return "At least one company allocation is required";
   if (rows.some((item) => item.is_company_share && item.recipient_type !== "company")) return "Company allocation must use recipient_type company";
+  if (rows.some((item) => !item.payment_status)) return "Every allocation row needs payment status";
+  if (rows.some((item) => item.recipient_type === "source" && !item.role_label)) return "Source row needs Client Source / Broker role";
   if (rows.some((item) => !getRecipientName(item, []))) return "Every allocation row needs recipient name";
   if (form.formula_code === "travel_fee" && (rows.length !== 1 || !rows[0].is_company_share || parseMoney(rows[0].amount) !== total)) return "Travel Fee must be company 100%";
   if (form.formula_code === "source_worker_qc") {
@@ -662,6 +677,7 @@ function validateAllocations(form: BatchForm, rows: AllocationRow[]) {
 }
 
 function getRecipientName(row: AllocationRow, users: UserProfileRow[]) {
+  if (row.recipient_type === "company") return row.recipient_name.trim() || "Company";
   if (row.recipient_user_id && row.recipient_user_id !== otherValue) {
     const user = users.find((item) => item.id === row.recipient_user_id);
     return user ? renderUserLabel(user) : row.recipient_name.trim();
@@ -673,10 +689,12 @@ function normalizeAllocationForState(row: AllocationRow): AllocationRow {
   return {
     ...row,
     recipient_user_id: row.recipient_user_id || "",
-    recipient_name: row.recipient_name || "",
+    recipient_name: row.recipient_name || (row.recipient_type === "company" ? "Company" : ""),
     role_label: row.role_label || "",
     percent: String(row.percent || ""),
     amount: String(row.amount || ""),
+    payment_status: row.payment_status || "unpaid",
+    paid_at: row.paid_at || null,
     note: row.note || "",
   };
 }
