@@ -24,6 +24,7 @@ type LedgerRow = {
   category: string | null;
   amount: number | string | null;
   bank_account_id: string | null;
+  transfer_group_id: string | null;
   client_id: string | null;
   case_id: number | null;
   advisory_matter_id: string | null;
@@ -46,7 +47,7 @@ type CaseRow = { id: number; file_no: string | null; title: string | null; clien
 type MatterRow = { id: string; matter_no: string | null; title: string | null };
 type BankAccountRow = { id: string; short_name: string | null; bank_name: string | null };
 type UserProfileRow = { id: string; full_name: string | null; staff_name: string | null; email: string | null };
-type EntryType = "income" | "expense" | "transfer_in" | "transfer_out";
+type EntryType = "income" | "expense" | "transfer";
 const otherClaimantValue = "__other__";
 
 type LedgerForm = {
@@ -57,6 +58,8 @@ type LedgerForm = {
   custom_category: string;
   amount: string;
   bank_account_id: string;
+  from_bank_account_id: string;
+  to_bank_account_id: string;
   client_id: string;
   case_id: string;
   advisory_matter_id: string;
@@ -76,6 +79,8 @@ const emptyForm: LedgerForm = {
   custom_category: "",
   amount: "",
   bank_account_id: "",
+  from_bank_account_id: "",
+  to_bank_account_id: "",
   client_id: "",
   case_id: "",
   advisory_matter_id: "",
@@ -276,6 +281,10 @@ export default function FinanceLedgerPage() {
 
   const startEdit = (row: LedgerRow) => {
     if (row.status !== "active") return;
+    if (row.entry_type === "transfer_in" || row.entry_type === "transfer_out") {
+      alert("Transfer entries cannot be edited. Void the transfer and create a new one.");
+      return;
+    }
     const entryType = normalizeEntryType(row.entry_type);
     const hasRealClaimantUser =
       row.expense_claimant_user_id &&
@@ -292,6 +301,8 @@ export default function FinanceLedgerPage() {
       ...resolveEditCategory(entryType, row.category || ""),
       amount: String(row.amount || ""),
       bank_account_id: row.bank_account_id || "",
+      from_bank_account_id: "",
+      to_bank_account_id: "",
       client_id: row.client_id || "",
       case_id: row.case_id ? String(row.case_id) : "",
       advisory_matter_id: row.advisory_matter_id || "",
@@ -310,11 +321,18 @@ export default function FinanceLedgerPage() {
 
     const amount = parseMoney(form.amount);
     if (!form.transaction_date) return alert("Transaction date is required");
-    if (!form.bank_account_id) return alert("Bank account is required");
-    if (!form.category.trim()) return alert("Category is required");
-    const category = getCategoryForSave(form);
-    if (!category) return alert("Custom Category is required");
     if (!amount || amount <= 0) return alert("Amount must be greater than zero");
+    if (form.entry_type === "transfer") {
+      if (isEditing) return alert("Transfer entries cannot be edited. Void the transfer and create a new one.");
+      if (!form.from_bank_account_id) return alert("From Bank Account is required");
+      if (!form.to_bank_account_id) return alert("To Bank Account is required");
+      if (form.from_bank_account_id === form.to_bank_account_id) return alert("From Bank and To Bank must be different");
+    } else if (!form.bank_account_id) {
+      return alert("Bank account is required");
+    }
+    if (!form.category.trim()) return alert("Category is required");
+    const category = form.entry_type === "transfer" ? transferCategories[0] : getCategoryForSave(form);
+    if (!category) return alert("Custom Category is required");
     if (
       form.entry_type === "expense" &&
       form.expense_claimant_user_id === otherClaimantValue &&
@@ -326,12 +344,10 @@ export default function FinanceLedgerPage() {
       return alert("Expense claimant is required for this category");
     }
 
-    const payload = {
+    const basePayload = {
       transaction_date: form.transaction_date,
-      entry_type: form.entry_type,
       category,
       amount,
-      bank_account_id: form.bank_account_id,
       client_id: form.client_id || null,
       case_id: form.case_id ? Number(form.case_id) : null,
       advisory_matter_id: form.advisory_matter_id || null,
@@ -350,6 +366,11 @@ export default function FinanceLedgerPage() {
       description: form.description.trim() || null,
       note: form.note.trim() || null,
       updated_at: new Date().toISOString(),
+    };
+    const payload = {
+      ...basePayload,
+      entry_type: form.entry_type,
+      bank_account_id: form.bank_account_id,
     };
 
     try {
@@ -371,6 +392,37 @@ export default function FinanceLedgerPage() {
 
         await auditLedger("update", data.id, oldData, data, "Update company ledger entry");
       } else {
+        if (form.entry_type === "transfer") {
+          const transferGroupId = crypto.randomUUID();
+          const transferRows = [
+            {
+              ...basePayload,
+              entry_type: "transfer_out",
+              bank_account_id: form.from_bank_account_id,
+              transfer_group_id: transferGroupId,
+              status: "active",
+              created_by_user_id: userId || null,
+              created_by_email: userEmail || null,
+              created_by_name: actorName || null,
+            },
+            {
+              ...basePayload,
+              entry_type: "transfer_in",
+              bank_account_id: form.to_bank_account_id,
+              transfer_group_id: transferGroupId,
+              status: "active",
+              created_by_user_id: userId || null,
+              created_by_email: userEmail || null,
+              created_by_name: actorName || null,
+            },
+          ];
+          const { data, error } = await supabase.from("finance_company_ledger").insert(transferRows).select("*");
+          if (error || !data) {
+            await loadLedger();
+            return alert(error?.message || "Create transfer failed");
+          }
+          await auditLedger("create", transferGroupId, null, data, "Create company ledger transfer pair");
+        } else {
         const { data, error } = await supabase
           .from("finance_company_ledger")
           .insert([
@@ -388,6 +440,7 @@ export default function FinanceLedgerPage() {
         if (error || !data) return alert(error?.message || "Create ledger failed");
 
         await auditLedger("create", data.id, null, data, "Create company ledger entry");
+        }
       }
 
       resetForm();
@@ -409,6 +462,21 @@ export default function FinanceLedgerPage() {
       void_reason: reason.trim(),
       updated_at: new Date().toISOString(),
     };
+
+    if (row.transfer_group_id) {
+      const oldGroupRows = rows.filter((item) => item.transfer_group_id === row.transfer_group_id);
+      const { data, error } = await supabase
+        .from("finance_company_ledger")
+        .update(payload)
+        .eq("transfer_group_id", row.transfer_group_id)
+        .eq("status", "active")
+        .select("*");
+
+      if (error || !data) return alert(error?.message || "Void transfer failed");
+      await auditLedger("update", row.transfer_group_id, oldGroupRows, data, "Void company ledger transfer pair");
+      await loadLedger();
+      return;
+    }
 
     const { data, error } = await supabase
       .from("finance_company_ledger")
@@ -454,6 +522,9 @@ export default function FinanceLedgerPage() {
       entry_type: entryType,
       category: getCategoryOptions(entryType)[0] || "",
       custom_category: "",
+      bank_account_id: entryType === "transfer" ? "" : form.bank_account_id,
+      from_bank_account_id: "",
+      to_bank_account_id: "",
       expense_claimant_user_id:
         entryType === "expense" ? form.expense_claimant_user_id : "",
       expense_claimant_name: entryType === "expense" ? form.expense_claimant_name : "",
@@ -580,8 +651,15 @@ export default function FinanceLedgerPage() {
             <h2 style={sectionTitleStyle}>{isEditing ? "Edit ledger entry" : "Create ledger entry"}</h2>
             <div style={formGridStyle}>
               <label style={labelStyle}>Date<input type="date" value={form.transaction_date} onChange={(event) => setForm({ ...form, transaction_date: event.target.value })} style={inputStyle} /></label>
-              <label style={labelStyle}>Type<select value={form.entry_type} onChange={(event) => updateEntryType(event.target.value as EntryType)} style={inputStyle}><option value="income">Income</option><option value="expense">Expense</option><option value="transfer_in">Transfer In</option><option value="transfer_out">Transfer Out</option></select></label>
-              <label style={labelStyle}>Bank Account<select value={form.bank_account_id} onChange={(event) => setForm({ ...form, bank_account_id: event.target.value })} style={inputStyle}><option value="">Select bank</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{renderBankLabel(account)}</option>)}</select></label>
+              <label style={labelStyle}>Type<select value={form.entry_type} onChange={(event) => updateEntryType(event.target.value as EntryType)} style={inputStyle}><option value="income">Income</option><option value="expense">Expense</option><option value="transfer">Transfer</option></select></label>
+              {form.entry_type === "transfer" ? (
+                <>
+                  <label style={labelStyle}>From Bank Account<select value={form.from_bank_account_id} onChange={(event) => setForm({ ...form, from_bank_account_id: event.target.value })} style={inputStyle}><option value="">Select from bank</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{renderBankLabel(account)}</option>)}</select></label>
+                  <label style={labelStyle}>To Bank Account<select value={form.to_bank_account_id} onChange={(event) => setForm({ ...form, to_bank_account_id: event.target.value })} style={inputStyle}><option value="">Select to bank</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{renderBankLabel(account)}</option>)}</select></label>
+                </>
+              ) : (
+                <label style={labelStyle}>Bank Account<select value={form.bank_account_id} onChange={(event) => setForm({ ...form, bank_account_id: event.target.value })} style={inputStyle}><option value="">Select bank</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{renderBankLabel(account)}</option>)}</select></label>
+              )}
               <label style={labelStyle}>Category<select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} style={inputStyle}>{categoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
               {form.category === "Other" ? (
                 <label style={labelStyle}>Custom Category<input value={form.custom_category} onChange={(event) => setForm({ ...form, custom_category: event.target.value })} style={inputStyle} placeholder="ระบุหมวดรายการเอง" /></label>
@@ -645,7 +723,7 @@ export default function FinanceLedgerPage() {
                     <td style={{ ...tdStyle, ...entryTextStyle }}>{renderRelation(row, clients, cases, matters)}</td>
                     <td style={{ ...tdStyle, ...entryTextStyle }}>{row.status}</td>
                     <td style={tdStyle}>
-                      {row.status === "active" && permissions.canEditFinanceModule ? (
+                      {row.status === "active" && permissions.canEditFinanceModule && row.entry_type !== "transfer_in" && row.entry_type !== "transfer_out" ? (
                         <button type="button" onClick={() => startEdit(row)} style={smallButtonStyle}>Edit</button>
                       ) : null}
                       {row.status === "active" && permissions.canVoidFinanceEntry ? (
@@ -804,8 +882,7 @@ function getEntryTextStyle(value: string): CSSProperties {
 
 function normalizeEntryType(value: string): EntryType {
   if (value === "expense") return "expense";
-  if (value === "transfer_in") return "transfer_in";
-  if (value === "transfer_out") return "transfer_out";
+  if (value === "transfer_in" || value === "transfer_out" || value === "transfer") return "transfer";
   return "income";
 }
 
@@ -822,7 +899,7 @@ function resolveEditCategory(entryType: EntryType, category: string) {
     return { category, custom_category: "" };
   }
 
-  if (entryType === "transfer_in" || entryType === "transfer_out") {
+  if (entryType === "transfer") {
     return { category: options[0] || "", custom_category: "" };
   }
 
@@ -867,6 +944,9 @@ function renderCategoryDetail(row: LedgerRow) {
   return (
     <div style={detailStackStyle}>
       <div>{row.category || "-"}</div>
+      {row.transfer_group_id ? (
+        <div style={noteTextStyle}>Transfer group: {row.transfer_group_id}</div>
+      ) : null}
       {row.description ? (
         <div style={descriptionTextStyle}>Description: {row.description}</div>
       ) : null}
