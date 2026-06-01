@@ -41,6 +41,7 @@ type AllocationRow = {
   recipient_user_id: string;
   recipient_name: string;
   role_label: string;
+  custom_role?: string;
   percent: string;
   amount: string;
   is_company_share: boolean;
@@ -78,6 +79,7 @@ const roleLabels = [
   "Client Source / Broker",
   "Company Share",
   "Lead Lawyer / Case Owner",
+  "Co-Lawyer / Co-Worker",
   "Assistant",
   "Quality Controller",
   "Other",
@@ -302,7 +304,7 @@ export default function CompensationPage() {
       recipient_type: item.recipient_type,
       recipient_user_id: item.recipient_user_id && item.recipient_user_id !== otherValue ? item.recipient_user_id : null,
       recipient_name: getRecipientName(item, users),
-      role_label: item.role_label || null,
+      role_label: getRoleLabelForSave(item),
       percent: parseMoney(item.percent),
       amount: parseMoney(item.amount),
       is_company_share: item.is_company_share,
@@ -535,6 +537,15 @@ export default function CompensationPage() {
     updateAllocation(index, { recipient_type: value, is_company_share: false });
   };
 
+  const updateRole = (index: number, value: string) => {
+    const row = allocations[index];
+    const patch: Partial<AllocationRow> = { role_label: value, custom_role: "" };
+    if (form.formula_code === "source_worker_qc" && isSourcePoolRow(row, form.formula_code)) {
+      patch.recipient_type = getWorkPoolRecipientType(value);
+    }
+    updateAllocation(index, patch);
+  };
+
   const removeAllocation = (index: number) => {
     const row = allocations[index];
     if (form.formula_code === "source_worker_qc" && (row.recipient_type === "source" || row.is_company_share || isSourcePoolOwnerRow(row, form.formula_code))) return;
@@ -655,7 +666,12 @@ export default function CompensationPage() {
                   <tr key={`${index}-${row.recipient_type}`}>
                     <td style={tdStyle}><select value={row.recipient_type} onChange={(event) => updateRecipientType(index, event.target.value)} style={inputStyle}>{recipientTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></td>
                     <td style={tdStyle}><RecipientEditor row={row} users={users} onChange={(patch) => updateAllocation(index, patch)} /></td>
-                    <td style={tdStyle}><select value={row.role_label} onChange={(event) => updateAllocation(index, { role_label: event.target.value })} style={inputStyle}><option value="">-</option>{roleLabels.map((label) => <option key={label} value={label}>{label}</option>)}</select></td>
+                    <td style={tdStyle}>
+                      <select value={row.role_label} onChange={(event) => updateRole(index, event.target.value)} style={inputStyle}><option value="">-</option>{roleLabels.map((label) => <option key={label} value={label}>{label}</option>)}</select>
+                      {row.role_label === "Other" ? (
+                        <input value={row.custom_role || ""} onChange={(event) => updateAllocation(index, { custom_role: event.target.value })} style={inputStyle} placeholder="Custom Role / ระบุบทบาทเอง" />
+                      ) : null}
+                    </td>
                     <td style={tdStyle}>
                       <input value={getDisplayPercent(row, form.formula_code)} onChange={(event) => updatePercent(index, event.target.value)} disabled={isFixedSourceWorkerRow(row, form.formula_code)} style={inputStyle} />
                       {isSourcePoolRow(row, form.formula_code) ? <div style={mutedTextStyle}>Actual: {formatPercent(parseMoney(row.percent))}% of received amount</div> : null}
@@ -795,6 +811,7 @@ function validateAllocations(form: BatchForm, rows: AllocationRow[]) {
   if (rows.some((item) => item.is_company_share && item.recipient_type !== "company")) return "Company allocation must use recipient_type company";
   if (rows.some((item) => !item.payment_status)) return "Every allocation row needs payment status";
   if (rows.some((item) => item.recipient_type === "source" && !item.role_label)) return "Source row needs Client Source / Broker role";
+  if (rows.some((item) => item.role_label === "Other" && !item.custom_role?.trim())) return "Custom Role is required when role is Other";
   if (rows.some((item) => !getRecipientName(item, []))) return "Every allocation row needs recipient name";
   if (form.formula_code === "travel_fee" && (rows.length !== 1 || !rows[0].is_company_share || parseMoney(rows[0].amount) !== total)) return "Travel Fee must be company 100%";
   if (form.formula_code === "source_worker_qc") {
@@ -828,6 +845,19 @@ function getRecipientName(row: AllocationRow, users: UserProfileRow[]) {
   return row.recipient_name.trim();
 }
 
+function getRoleLabelForSave(row: AllocationRow) {
+  if (row.role_label === "Other" && row.custom_role?.trim()) return row.custom_role.trim();
+  return row.role_label || null;
+}
+
+function getWorkPoolRecipientType(roleLabel: string) {
+  if (roleLabel === "Lead Lawyer / Case Owner") return "lead_lawyer";
+  if (roleLabel === "Co-Lawyer / Co-Worker") return "worker";
+  if (roleLabel === "Assistant") return "assistant";
+  if (roleLabel === "Quality Controller") return "qc";
+  return "other";
+}
+
 function dedupeAllocationRows(rows: AllocationRow[]) {
   const seen = new Set<string>();
   return rows.map(normalizeAllocationForState).filter((row) => {
@@ -835,7 +865,7 @@ function dedupeAllocationRows(rows: AllocationRow[]) {
       row.recipient_type,
       row.recipient_user_id && row.recipient_user_id !== otherValue ? row.recipient_user_id : "",
       getRecipientName(row, []),
-      row.role_label,
+      getRoleLabelForSave(row) || "",
       formatPercent(parseMoney(row.percent)),
       String(roundMoney(parseMoney(row.amount))),
       row.is_company_share ? "company" : "recipient",
@@ -942,11 +972,13 @@ function rebalanceOwnerWorkPool(rows: AllocationRow[], receivedAmount: number, f
 }
 
 function normalizeAllocationForState(row: AllocationRow): AllocationRow {
+  const isPresetRole = !row.role_label || roleLabels.includes(row.role_label);
   return {
     ...row,
     recipient_user_id: row.recipient_user_id || "",
     recipient_name: row.recipient_name || (row.recipient_type === "company" ? "Company" : ""),
-    role_label: row.role_label || "",
+    role_label: isPresetRole ? row.role_label || "" : "Other",
+    custom_role: isPresetRole ? row.custom_role || "" : row.role_label,
     percent: String(row.percent || ""),
     amount: String(row.amount || ""),
     payment_status: row.payment_status || "unpaid",
