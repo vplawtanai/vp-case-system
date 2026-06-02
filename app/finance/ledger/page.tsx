@@ -15,6 +15,17 @@ type Profile = {
   financial_access?: boolean | null;
   full_name?: string | null;
   staff_name?: string | null;
+  can_view_company_ledger?: boolean | null;
+  can_edit_company_ledger?: boolean | null;
+  can_void_company_ledger?: boolean | null;
+  can_submit_expense_claim?: boolean | null;
+  can_view_own_expense_claims?: boolean | null;
+  can_view_all_expense_claims?: boolean | null;
+  can_approve_expense_claims?: boolean | null;
+  can_pay_expense_claims?: boolean | null;
+  can_view_lawyer_compensation?: boolean | null;
+  can_edit_lawyer_compensation?: boolean | null;
+  can_void_lawyer_compensation?: boolean | null;
 };
 
 type LedgerRow = {
@@ -46,6 +57,7 @@ type ClientRow = { id: string; name: string | null };
 type CaseRow = { id: number; file_no: string | null; title: string | null; client_name: string | null };
 type MatterRow = { id: string; matter_no: string | null; title: string | null };
 type BankAccountRow = { id: string; short_name: string | null; bank_name: string | null };
+type BankAccountAccessRow = { bank_account_id: string | null };
 type UserProfileRow = { id: string; full_name: string | null; staff_name: string | null; email: string | null };
 type EntryType = "income" | "expense" | "transfer";
 const otherClaimantValue = "__other__";
@@ -171,7 +183,7 @@ export default function FinanceLedgerPage() {
 
         const { data } = await supabase
           .from("user_profiles")
-          .select("role, financial_access, full_name, staff_name")
+          .select("role, financial_access, full_name, staff_name, can_submit_expense_claim, can_view_own_expense_claims, can_view_all_expense_claims, can_approve_expense_claims, can_pay_expense_claims, can_view_company_ledger, can_edit_company_ledger, can_void_company_ledger, can_view_lawyer_compensation, can_edit_lawyer_compensation, can_void_lawyer_compensation")
           .eq("id", userData.user.id)
           .single();
 
@@ -180,6 +192,17 @@ export default function FinanceLedgerPage() {
           financial_access: data?.financial_access === true,
           full_name: data?.full_name || "",
           staff_name: data?.staff_name || "",
+          can_view_company_ledger: data?.can_view_company_ledger === true,
+          can_edit_company_ledger: data?.can_edit_company_ledger === true,
+          can_void_company_ledger: data?.can_void_company_ledger === true,
+          can_submit_expense_claim: data?.can_submit_expense_claim === true,
+          can_view_own_expense_claims: data?.can_view_own_expense_claims === true,
+          can_view_all_expense_claims: data?.can_view_all_expense_claims === true,
+          can_approve_expense_claims: data?.can_approve_expense_claims === true,
+          can_pay_expense_claims: data?.can_pay_expense_claims === true,
+          can_view_lawyer_compensation: data?.can_view_lawyer_compensation === true,
+          can_edit_lawyer_compensation: data?.can_edit_lawyer_compensation === true,
+          can_void_lawyer_compensation: data?.can_void_lawyer_compensation === true,
         });
       } finally {
         setLoadingProfile(false);
@@ -190,13 +213,13 @@ export default function FinanceLedgerPage() {
   }, []);
 
   const loadLedger = useCallback(async () => {
-    if (!permissions.canViewFinanceModule) return;
+    if (!permissions.canViewCompanyLedger) return;
 
     try {
       setLoading(true);
       setErrorText("");
 
-      const [ledgerRes, clientsRes, casesRes, mattersRes, bankAccountsRes, usersRes] = await Promise.all([
+      const [ledgerRes, clientsRes, casesRes, mattersRes, bankAccountsRes, bankAccessRes, usersRes] = await Promise.all([
         supabase
           .from("finance_company_ledger")
           .select("*")
@@ -210,6 +233,7 @@ export default function FinanceLedgerPage() {
           .select("id, short_name, bank_name")
           .eq("is_active", true)
           .order("short_name", { ascending: true }),
+        supabase.from("finance_bank_account_access").select("bank_account_id").eq("user_id", userId),
         supabase
           .from("user_profiles")
           .select("id, full_name, staff_name, email")
@@ -222,16 +246,18 @@ export default function FinanceLedgerPage() {
         return;
       }
 
-      setRows((ledgerRes.data || []) as LedgerRow[]);
+      const allowedBankIds = new Set(((bankAccessRes.data || []) as BankAccountAccessRow[]).map((item) => item.bank_account_id).filter(Boolean));
+      const visibleBankAccounts = ((bankAccountsRes.data || []) as BankAccountRow[]).filter((account) => allowedBankIds.has(account.id));
+      setRows(((ledgerRes.data || []) as LedgerRow[]).filter((row) => row.bank_account_id && allowedBankIds.has(row.bank_account_id)));
       setClients((clientsRes.data || []) as ClientRow[]);
       setCases((casesRes.data || []) as CaseRow[]);
       setMatters((mattersRes.data || []) as MatterRow[]);
-      setBankAccounts((bankAccountsRes.data || []) as BankAccountRow[]);
+      setBankAccounts(visibleBankAccounts);
       setClaimantUsers(((usersRes.data || []) as UserProfileRow[]).filter(isRealUserProfile));
     } finally {
       setLoading(false);
     }
-  }, [permissions.canViewFinanceModule]);
+  }, [permissions.canViewCompanyLedger, userId]);
 
   useEffect(() => {
     if (loadingProfile) return;
@@ -317,7 +343,7 @@ export default function FinanceLedgerPage() {
   };
 
   const saveLedger = async () => {
-    if (!permissions.canEditFinanceModule) return;
+    if (!permissions.canEditCompanyLedger) return;
 
     const amount = parseMoney(form.amount);
     if (!form.transaction_date) return alert("Transaction date is required");
@@ -451,7 +477,7 @@ export default function FinanceLedgerPage() {
   };
 
   const voidLedger = async (row: LedgerRow) => {
-    if (!permissions.canVoidFinanceEntry || row.status !== "active") return;
+    if (!permissions.canVoidCompanyLedger || row.status !== "active") return;
     const reason = window.prompt("Void reason");
     if (!reason?.trim()) return;
 
@@ -568,7 +594,7 @@ export default function FinanceLedgerPage() {
     );
   }
 
-  if (!permissions.canViewFinanceModule) {
+  if (!permissions.canViewCompanyLedger) {
     return (
       <AuthGuard>
         <main style={pageStyle}>
@@ -592,7 +618,7 @@ export default function FinanceLedgerPage() {
           activePage="finance"
         />
 
-        <FinanceSubNav activePage="ledger" />
+        <FinanceSubNav activePage="ledger" permissions={permissions} />
 
         {errorText ? <div style={errorStyle}>{errorText}</div> : null}
 
@@ -601,7 +627,7 @@ export default function FinanceLedgerPage() {
           <SummaryCard label="Operating Expense" value={formatMoney(summary.expense)} />
           <SummaryCard label="Operating Net" value={formatMoney(summary.net)} />
           <SummaryCard
-            label="Total Bank Balance"
+            label="Total Visible Bank Balance"
             value={formatMoney(summary.totalBankBalance)}
             tone="totalBank"
           />
@@ -646,7 +672,7 @@ export default function FinanceLedgerPage() {
           </div>
         </section>
 
-        {permissions.canEditFinanceModule ? (
+        {permissions.canEditCompanyLedger ? (
           <section style={panelStyle}>
             <h2 style={sectionTitleStyle}>{isEditing ? "Edit ledger entry" : "Create ledger entry"}</h2>
             <div style={formGridStyle}>
@@ -723,10 +749,10 @@ export default function FinanceLedgerPage() {
                     <td style={{ ...tdStyle, ...entryTextStyle }}>{renderRelation(row, clients, cases, matters)}</td>
                     <td style={{ ...tdStyle, ...entryTextStyle }}>{row.status}</td>
                     <td style={tdStyle}>
-                      {row.status === "active" && permissions.canEditFinanceModule && row.entry_type !== "transfer_in" && row.entry_type !== "transfer_out" ? (
+                      {row.status === "active" && permissions.canEditCompanyLedger && row.entry_type !== "transfer_in" && row.entry_type !== "transfer_out" ? (
                         <button type="button" onClick={() => startEdit(row)} style={smallButtonStyle}>Edit</button>
                       ) : null}
-                      {row.status === "active" && permissions.canVoidFinanceEntry ? (
+                      {row.status === "active" && permissions.canVoidCompanyLedger ? (
                         <button type="button" onClick={() => voidLedger(row)} style={dangerButtonStyle}>Void</button>
                       ) : null}
                     </td>
@@ -768,27 +794,27 @@ function SummaryCard({
   );
 }
 
-function FinanceSubNav({ activePage }: { activePage: "ledger" | "claims" | "compensation" }) {
+function FinanceSubNav({ activePage, permissions }: { activePage: "ledger" | "claims" | "compensation"; permissions: UserPermissions }) {
   return (
     <nav style={subNavStyle}>
-      <Link
+      {permissions.canViewCompanyLedger ? <Link
         href="/finance/ledger"
         style={activePage === "ledger" ? subNavActiveLinkStyle : subNavLinkStyle}
       >
         Ledger
-      </Link>
-      <Link
+      </Link> : null}
+      {permissions.canSubmitExpenseClaim || permissions.canViewOwnExpenseClaims || permissions.canViewAllExpenseClaims ? <Link
         href="/finance/expense-claims"
         style={activePage === "claims" ? subNavActiveLinkStyle : subNavLinkStyle}
       >
         Expense Claims
-      </Link>
-      <Link
+      </Link> : null}
+      {permissions.canViewLawyerCompensation ? <Link
         href="/finance/compensation"
         style={activePage === "compensation" ? subNavActiveLinkStyle : subNavLinkStyle}
       >
         Lawyer Compensation
-      </Link>
+      </Link> : null}
     </nav>
   );
 }

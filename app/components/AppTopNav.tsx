@@ -27,6 +27,11 @@ type AppTopNavProps = {
 type UserProfile = {
   role?: UserRole | string | null;
   financial_access?: boolean | null;
+  can_submit_expense_claim?: boolean | null;
+  can_view_own_expense_claims?: boolean | null;
+  can_view_all_expense_claims?: boolean | null;
+  can_view_company_ledger?: boolean | null;
+  can_view_lawyer_compensation?: boolean | null;
 };
 
 export default function AppTopNav({
@@ -59,7 +64,7 @@ export default function AppTopNav({
 
       const { data, error } = await supabase
         .from("user_profiles")
-        .select("role, financial_access")
+        .select("role, financial_access, can_submit_expense_claim, can_view_own_expense_claims, can_view_all_expense_claims, can_view_company_ledger, can_view_lawyer_compensation")
         .eq("id", userData.user.id)
         .single();
 
@@ -74,6 +79,11 @@ export default function AppTopNav({
       setProfile({
         role: data.role || "",
         financial_access: data.financial_access === true,
+        can_submit_expense_claim: data.can_submit_expense_claim === true,
+        can_view_own_expense_claims: data.can_view_own_expense_claims === true,
+        can_view_all_expense_claims: data.can_view_all_expense_claims === true,
+        can_view_company_ledger: data.can_view_company_ledger === true,
+        can_view_lawyer_compensation: data.can_view_lawyer_compensation === true,
       });
     };
 

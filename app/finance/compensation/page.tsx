@@ -10,7 +10,23 @@ import { buildPermissions } from "../../../lib/permissions";
 import type { UserPermissions, UserRole } from "../../../lib/permissions";
 import { supabase } from "../../../lib/supabase";
 
-type Profile = { role?: UserRole | string | null; financial_access?: boolean | null; full_name?: string | null; staff_name?: string | null };
+type Profile = {
+  role?: UserRole | string | null;
+  financial_access?: boolean | null;
+  full_name?: string | null;
+  staff_name?: string | null;
+  can_view_lawyer_compensation?: boolean | null;
+  can_edit_lawyer_compensation?: boolean | null;
+  can_void_lawyer_compensation?: boolean | null;
+  can_submit_expense_claim?: boolean | null;
+  can_view_own_expense_claims?: boolean | null;
+  can_view_all_expense_claims?: boolean | null;
+  can_approve_expense_claims?: boolean | null;
+  can_pay_expense_claims?: boolean | null;
+  can_view_company_ledger?: boolean | null;
+  can_edit_company_ledger?: boolean | null;
+  can_void_company_ledger?: boolean | null;
+};
 type ClientRow = { id: string; name: string | null };
 type CaseRow = { id: number; file_no: string | null; title: string | null; client_name: string | null };
 type MatterRow = { id: string; matter_no: string | null; title: string | null };
@@ -135,7 +151,7 @@ export default function CompensationPage() {
         setUserEmail(userData.user.email || "");
         const { data } = await supabase
           .from("user_profiles")
-          .select("role, financial_access, full_name, staff_name")
+          .select("role, financial_access, full_name, staff_name, can_submit_expense_claim, can_view_own_expense_claims, can_view_all_expense_claims, can_approve_expense_claims, can_pay_expense_claims, can_view_company_ledger, can_edit_company_ledger, can_void_company_ledger, can_view_lawyer_compensation, can_edit_lawyer_compensation, can_void_lawyer_compensation")
           .eq("id", userData.user.id)
           .single();
         setProfile({
@@ -143,6 +159,17 @@ export default function CompensationPage() {
           financial_access: data?.financial_access === true,
           full_name: data?.full_name || "",
           staff_name: data?.staff_name || "",
+          can_view_lawyer_compensation: data?.can_view_lawyer_compensation === true,
+          can_edit_lawyer_compensation: data?.can_edit_lawyer_compensation === true,
+          can_void_lawyer_compensation: data?.can_void_lawyer_compensation === true,
+          can_submit_expense_claim: data?.can_submit_expense_claim === true,
+          can_view_own_expense_claims: data?.can_view_own_expense_claims === true,
+          can_view_all_expense_claims: data?.can_view_all_expense_claims === true,
+          can_approve_expense_claims: data?.can_approve_expense_claims === true,
+          can_pay_expense_claims: data?.can_pay_expense_claims === true,
+          can_view_company_ledger: data?.can_view_company_ledger === true,
+          can_edit_company_ledger: data?.can_edit_company_ledger === true,
+          can_void_company_ledger: data?.can_void_company_ledger === true,
         });
       } finally {
         setLoadingProfile(false);
@@ -152,7 +179,7 @@ export default function CompensationPage() {
   }, []);
 
   const loadData = useCallback(async () => {
-    if (!permissions.canViewFinanceModule) return;
+    if (!permissions.canViewLawyerCompensation) return;
     try {
       setLoading(true);
       const [batchRes, allocRes, clientsRes, casesRes, mattersRes, usersRes, bankRes] = await Promise.all([
@@ -178,7 +205,7 @@ export default function CompensationPage() {
     } finally {
       setLoading(false);
     }
-  }, [permissions.canViewFinanceModule]);
+  }, [permissions.canViewLawyerCompensation]);
 
   useEffect(() => {
     if (!loadingProfile) loadData();
@@ -240,7 +267,7 @@ export default function CompensationPage() {
   }, [allAllocations, summaryBatchIds, users]);
 
   const saveDraft = async () => {
-    if (!permissions.canEditFinanceModule) return;
+    if (!permissions.canEditLawyerCompensation) return;
     if (saving) return;
     const allocationRows = normalizeAllocationsForSave(receivedAmount, form.formula_code, allocations);
     const validation = validateAllocations(form, allocationRows);
@@ -341,7 +368,7 @@ export default function CompensationPage() {
   };
 
   const finalizeBatch = async (batch: BatchRow) => {
-    if (!permissions.canEditFinanceModule || batch.status !== "draft") return;
+    if (!permissions.canEditLawyerCompensation || batch.status !== "draft") return;
     const batchAllocations = allAllocations.filter((item) => item.batch_id === batch.id);
     const validation = validateAllocations(
       {
@@ -356,7 +383,7 @@ export default function CompensationPage() {
   };
 
   const postCompanyShare = async (batch: BatchRow) => {
-    if (!permissions.canEditFinanceModule || batch.status !== "finalized") return;
+    if (!permissions.canEditLawyerCompensation || batch.status !== "finalized") return;
     if (postingBatchId === batch.id) return;
     try {
       setPostingBatchId(batch.id);
@@ -422,7 +449,7 @@ export default function CompensationPage() {
   };
 
   const voidBatch = async (batch: BatchRow) => {
-    if (!permissions.canVoidFinanceEntry) return;
+    if (!permissions.canVoidLawyerCompensation) return;
     if (batch.status === "posted" || batch.ledger_entry_id) return alert("Posted batches cannot be voided in this phase.");
     if (!["draft", "finalized"].includes(batch.status)) return;
     const reason = window.prompt("Void reason");
@@ -436,7 +463,7 @@ export default function CompensationPage() {
   };
 
   const markAllocationPaid = async (allocation: AllocationRow, batch: BatchRow) => {
-    if (!permissions.canEditFinanceModule || !allocation.id || allocation.is_company_share) return;
+    if (!permissions.canEditLawyerCompensation || !allocation.id || allocation.is_company_share) return;
     if (batch.status === "voided" || allocation.payment_status === "paid") return;
     try {
       setPayingAllocationId(allocation.id);
@@ -563,7 +590,7 @@ export default function CompensationPage() {
     return <AuthGuard><main style={pageStyle}><div style={panelStyle}>Loading permission...</div></main></AuthGuard>;
   }
 
-  if (!permissions.canViewFinanceModule) {
+  if (!permissions.canViewLawyerCompensation) {
     return (
       <AuthGuard>
         <main style={pageStyle}>
@@ -578,7 +605,7 @@ export default function CompensationPage() {
     <AuthGuard>
       <main style={pageStyle}>
         <AppTopNav title="Lawyer Compensation" subtitle="Allocate received fees before posting company share to KBANK." activePage="finance" />
-        <FinanceSubNav activePage="compensation" />
+        <FinanceSubNav activePage="compensation" permissions={permissions} />
         {errorText ? <div style={errorStyle}>{errorText}</div> : null}
         <section style={filterPanelStyle}>
           <label style={labelStyle}>
@@ -598,6 +625,7 @@ export default function CompensationPage() {
           <SummaryCard label="Number of Recipients" value={String(summary.recipientCount)} />
         </section>
 
+        {permissions.canEditLawyerCompensation ? (
         <section style={panelStyle}>
           <h2 style={sectionTitleStyle}>Recipient Income Summary — {formatMonthLabel(selectedMonth)}</h2>
           <p style={mutedTextStyle}>Recipient Summary is filtered by selected month.</p>
@@ -621,7 +649,9 @@ export default function CompensationPage() {
             </table>
           </div>
         </section>
+        ) : null}
 
+        {permissions.canEditLawyerCompensation ? (
         <section style={panelStyle}>
           <h2 style={sectionTitleStyle}>{editingBatchId ? "Edit Draft" : "Create Compensation Batch"}</h2>
           <div style={formGridStyle}>
@@ -636,6 +666,7 @@ export default function CompensationPage() {
             <label style={wideLabelStyle}>Note<textarea value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} style={textareaStyle} /></label>
           </div>
         </section>
+        ) : null}
 
         <section style={panelStyle}>
           <div style={toolbarStyle}>
@@ -703,18 +734,18 @@ export default function CompensationPage() {
                   return (
                     <tr key={batch.id}>
                       <td style={tdStyle}>{batch.received_date}</td>
-                      <td style={tdStyle}>{renderFormula(batch.formula_code)}{renderAllocationDetails(batch, allAllocations, permissions.canEditFinanceModule, payingAllocationId, markAllocationPaid)}</td>
+                      <td style={tdStyle}>{renderFormula(batch.formula_code)}{renderAllocationDetails(batch, allAllocations, permissions.canEditLawyerCompensation, payingAllocationId, markAllocationPaid)}</td>
                       <td style={tdStyle}>{formatMoney(toAmount(batch.received_amount))}</td>
                       <td style={tdStyle}>{formatMoney(companyShare)}</td>
                       <td style={tdStyle}>{renderBatchStatus(batch)}</td>
                       <td style={tdStyle}>{batch.ledger_entry_id ? `Posted: ${batch.ledger_entry_id}` : "-"}</td>
                       <td style={tdStyle}>
                         <div style={actionStackStyle}>
-                          {batch.status === "draft" ? <button type="button" onClick={() => editDraft(batch)} style={smallButtonStyle}>Edit</button> : null}
-                          {batch.status === "draft" ? <button type="button" onClick={() => finalizeBatch(batch)} style={smallButtonStyle}>Finalize</button> : null}
+                          {batch.status === "draft" && permissions.canEditLawyerCompensation ? <button type="button" onClick={() => editDraft(batch)} style={smallButtonStyle}>Edit</button> : null}
+                          {batch.status === "draft" && permissions.canEditLawyerCompensation ? <button type="button" onClick={() => finalizeBatch(batch)} style={smallButtonStyle}>Finalize</button> : null}
                           {batch.status === "finalized" && !batch.ledger_entry_id ? <div style={helpTextStyle}>ส่วนของบริษัทจะเข้าบัญชี KBANK เท่านั้น</div> : null}
-                          {batch.status === "finalized" && !batch.ledger_entry_id ? <button type="button" onClick={() => postCompanyShare(batch)} disabled={postingBatchId === batch.id} style={primarySmallButtonStyle}>{postingBatchId === batch.id ? "Posting..." : "Post Company Share"}</button> : null}
-                          {["draft", "finalized"].includes(batch.status) ? <button type="button" onClick={() => voidBatch(batch)} style={dangerButtonStyle}>Void</button> : null}
+                          {batch.status === "finalized" && !batch.ledger_entry_id && permissions.canEditLawyerCompensation ? <button type="button" onClick={() => postCompanyShare(batch)} disabled={postingBatchId === batch.id} style={primarySmallButtonStyle}>{postingBatchId === batch.id ? "Posting..." : "Post Company Share"}</button> : null}
+                          {["draft", "finalized"].includes(batch.status) && permissions.canVoidLawyerCompensation ? <button type="button" onClick={() => voidBatch(batch)} style={dangerButtonStyle}>Void</button> : null}
                           {batch.status === "posted" ? <div style={postedStyle}>Posted to Ledger</div> : null}
                         </div>
                       </td>
@@ -750,12 +781,12 @@ function RecipientEditor({ row, users, onChange }: { row: AllocationRow; users: 
   );
 }
 
-function FinanceSubNav({ activePage }: { activePage: "ledger" | "claims" | "compensation" }) {
+function FinanceSubNav({ activePage, permissions }: { activePage: "ledger" | "claims" | "compensation"; permissions: UserPermissions }) {
   return (
     <nav style={subNavStyle}>
-      <Link href="/finance/ledger" style={activePage === "ledger" ? subNavActiveLinkStyle : subNavLinkStyle}>Ledger</Link>
-      <Link href="/finance/expense-claims" style={activePage === "claims" ? subNavActiveLinkStyle : subNavLinkStyle}>Expense Claims</Link>
-      <Link href="/finance/compensation" style={activePage === "compensation" ? subNavActiveLinkStyle : subNavLinkStyle}>Lawyer Compensation</Link>
+      {permissions.canViewCompanyLedger ? <Link href="/finance/ledger" style={activePage === "ledger" ? subNavActiveLinkStyle : subNavLinkStyle}>Ledger</Link> : null}
+      {permissions.canSubmitExpenseClaim || permissions.canViewOwnExpenseClaims || permissions.canViewAllExpenseClaims ? <Link href="/finance/expense-claims" style={activePage === "claims" ? subNavActiveLinkStyle : subNavLinkStyle}>Expense Claims</Link> : null}
+      {permissions.canViewLawyerCompensation ? <Link href="/finance/compensation" style={activePage === "compensation" ? subNavActiveLinkStyle : subNavLinkStyle}>Lawyer Compensation</Link> : null}
     </nav>
   );
 }

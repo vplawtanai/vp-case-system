@@ -15,6 +15,17 @@ type Profile = {
   financial_access?: boolean | null;
   full_name?: string | null;
   staff_name?: string | null;
+  can_submit_expense_claim?: boolean | null;
+  can_view_own_expense_claims?: boolean | null;
+  can_view_all_expense_claims?: boolean | null;
+  can_approve_expense_claims?: boolean | null;
+  can_pay_expense_claims?: boolean | null;
+  can_view_company_ledger?: boolean | null;
+  can_edit_company_ledger?: boolean | null;
+  can_void_company_ledger?: boolean | null;
+  can_view_lawyer_compensation?: boolean | null;
+  can_edit_lawyer_compensation?: boolean | null;
+  can_void_lawyer_compensation?: boolean | null;
 };
 
 type ClaimRow = {
@@ -33,12 +44,14 @@ type ClaimRow = {
   reject_reason: string | null;
   void_reason: string | null;
   ledger_entry_id: string | null;
+  created_by_user_id?: string | null;
 };
 
 type ClientRow = { id: string; name: string | null };
 type CaseRow = { id: number; file_no: string | null; title: string | null; client_name: string | null };
 type MatterRow = { id: string; matter_no: string | null; title: string | null };
 type BankAccountRow = { id: string; short_name: string | null; bank_name: string | null };
+type BankAccountAccessRow = { bank_account_id: string | null };
 type UserProfileRow = { id: string; full_name: string | null; staff_name: string | null; email: string | null };
 
 type ClaimForm = {
@@ -132,7 +145,7 @@ export default function ExpenseClaimsPage() {
 
         const { data } = await supabase
           .from("user_profiles")
-          .select("role, financial_access, full_name, staff_name")
+          .select("role, financial_access, full_name, staff_name, can_submit_expense_claim, can_view_own_expense_claims, can_view_all_expense_claims, can_approve_expense_claims, can_pay_expense_claims, can_view_company_ledger, can_edit_company_ledger, can_void_company_ledger, can_view_lawyer_compensation, can_edit_lawyer_compensation, can_void_lawyer_compensation")
           .eq("id", userData.user.id)
           .single();
 
@@ -141,6 +154,17 @@ export default function ExpenseClaimsPage() {
           financial_access: data?.financial_access === true,
           full_name: data?.full_name || "",
           staff_name: data?.staff_name || "",
+          can_submit_expense_claim: data?.can_submit_expense_claim === true,
+          can_view_own_expense_claims: data?.can_view_own_expense_claims === true,
+          can_view_all_expense_claims: data?.can_view_all_expense_claims === true,
+          can_approve_expense_claims: data?.can_approve_expense_claims === true,
+          can_pay_expense_claims: data?.can_pay_expense_claims === true,
+          can_view_company_ledger: data?.can_view_company_ledger === true,
+          can_edit_company_ledger: data?.can_edit_company_ledger === true,
+          can_void_company_ledger: data?.can_void_company_ledger === true,
+          can_view_lawyer_compensation: data?.can_view_lawyer_compensation === true,
+          can_edit_lawyer_compensation: data?.can_edit_lawyer_compensation === true,
+          can_void_lawyer_compensation: data?.can_void_lawyer_compensation === true,
         });
       } finally {
         setLoadingProfile(false);
@@ -151,13 +175,13 @@ export default function ExpenseClaimsPage() {
   }, []);
 
   const loadClaims = useCallback(async () => {
-    if (!permissions.canViewFinanceModule) return;
+    if (!permissions.canSubmitExpenseClaim && !permissions.canViewOwnExpenseClaims && !permissions.canViewAllExpenseClaims) return;
 
     try {
       setLoading(true);
       setErrorText("");
 
-      const [claimsRes, clientsRes, casesRes, mattersRes, bankRes, usersRes] = await Promise.all([
+      const [claimsRes, clientsRes, casesRes, mattersRes, bankRes, bankAccessRes, usersRes] = await Promise.all([
         supabase
           .from("finance_expense_claims")
           .select("*")
@@ -167,6 +191,7 @@ export default function ExpenseClaimsPage() {
         supabase.from("cases").select("id, file_no, title, client_name").order("id", { ascending: false }),
         supabase.from("advisory_matters").select("id, matter_no, title").order("created_at", { ascending: false }),
         supabase.from("finance_bank_accounts").select("id, short_name, bank_name").eq("is_active", true).order("short_name", { ascending: true }),
+        supabase.from("finance_bank_account_access").select("bank_account_id").eq("user_id", userId),
         supabase.from("user_profiles").select("id, full_name, staff_name, email").eq("active", true).order("full_name", { ascending: true }),
       ]);
 
@@ -175,16 +200,18 @@ export default function ExpenseClaimsPage() {
         return;
       }
 
-      setClaims((claimsRes.data || []) as ClaimRow[]);
+      const loadedClaims = (claimsRes.data || []) as ClaimRow[];
+      setClaims(permissions.canViewAllExpenseClaims ? loadedClaims : loadedClaims.filter((claim) => claim.created_by_user_id === userId || claim.claimant_user_id === userId));
       setClients((clientsRes.data || []) as ClientRow[]);
       setCases((casesRes.data || []) as CaseRow[]);
       setMatters((mattersRes.data || []) as MatterRow[]);
-      setBankAccounts((bankRes.data || []) as BankAccountRow[]);
+      const allowedBankIds = new Set(((bankAccessRes.data || []) as BankAccountAccessRow[]).map((item) => item.bank_account_id).filter(Boolean));
+      setBankAccounts(((bankRes.data || []) as BankAccountRow[]).filter((account) => allowedBankIds.has(account.id)));
       setClaimantUsers(((usersRes.data || []) as UserProfileRow[]).filter(isRealUserProfile));
     } finally {
       setLoading(false);
     }
-  }, [permissions.canViewFinanceModule]);
+  }, [permissions.canSubmitExpenseClaim, permissions.canViewAllExpenseClaims, permissions.canViewOwnExpenseClaims, userId]);
 
   useEffect(() => {
     if (loadingProfile) return;
@@ -216,7 +243,7 @@ export default function ExpenseClaimsPage() {
   };
 
   const createClaim = async () => {
-    if (!permissions.canEditFinanceModule) return;
+    if (!permissions.canSubmitExpenseClaim) return;
 
     const amount = parseMoney(form.amount);
     const category = form.category === "Other" ? form.custom_category.trim() : form.category;
@@ -285,7 +312,7 @@ export default function ExpenseClaimsPage() {
   };
 
   const approveClaim = async (claim: ClaimRow) => {
-    if (!permissions.canEditFinanceModule || claim.status !== "submitted") return;
+    if (!permissions.canApproveExpenseClaims || claim.status !== "submitted") return;
     await updateClaimStatus(
       claim,
       {
@@ -299,7 +326,7 @@ export default function ExpenseClaimsPage() {
   };
 
   const rejectClaim = async (claim: ClaimRow) => {
-    if (!permissions.canEditFinanceModule || !["submitted", "approved"].includes(claim.status)) return;
+    if (!permissions.canApproveExpenseClaims || !["submitted", "approved"].includes(claim.status)) return;
     const reason = window.prompt("Reject reason");
     if (!reason?.trim()) return;
 
@@ -317,7 +344,7 @@ export default function ExpenseClaimsPage() {
   };
 
   const voidClaim = async (claim: ClaimRow) => {
-    if (!permissions.canVoidFinanceEntry || claim.status === "paid" || claim.ledger_entry_id) {
+    if (!permissions.canApproveExpenseClaims || claim.status === "paid" || claim.ledger_entry_id) {
       alert("Paid claims cannot be voided in this phase.");
       return;
     }
@@ -339,7 +366,7 @@ export default function ExpenseClaimsPage() {
   };
 
   const markPaid = async (claim: ClaimRow) => {
-    if (!permissions.canEditFinanceModule || claim.status !== "approved") return;
+    if (!permissions.canPayExpenseClaims || claim.status !== "approved") return;
     if (claim.ledger_entry_id) return alert("This claim is already posted to ledger.");
     if (payingClaimId === claim.id) return;
 
@@ -489,7 +516,7 @@ export default function ExpenseClaimsPage() {
     );
   }
 
-  if (!permissions.canViewFinanceModule) {
+  if (!permissions.canSubmitExpenseClaim && !permissions.canViewOwnExpenseClaims && !permissions.canViewAllExpenseClaims) {
     return (
       <AuthGuard>
         <main style={pageStyle}>
@@ -504,7 +531,7 @@ export default function ExpenseClaimsPage() {
     <AuthGuard>
       <main style={pageStyle}>
         <AppTopNav title="Expense Claims" subtitle="Internal reimbursement requests before posting to ledger." activePage="finance" />
-        <FinanceSubNav activePage="claims" />
+        <FinanceSubNav activePage="claims" permissions={permissions} />
         {errorText ? <div style={errorStyle}>{errorText}</div> : null}
 
         <section style={summaryGridStyle}>
@@ -514,6 +541,7 @@ export default function ExpenseClaimsPage() {
           <SummaryCard label="Rejected" value={String(summary.rejected)} />
         </section>
 
+        {permissions.canSubmitExpenseClaim ? (
         <section style={panelStyle}>
           <h2 style={sectionTitleStyle}>Create Claim</h2>
           <div style={formGridStyle}>
@@ -537,6 +565,7 @@ export default function ExpenseClaimsPage() {
             <button type="button" onClick={createClaim} disabled={saving} style={primaryButtonStyle}>{saving ? "Saving..." : "Create Claim"}</button>
           </div>
         </section>
+        ) : null}
 
         <section style={panelStyle}>
           <h2 style={sectionTitleStyle}>Claims</h2>
@@ -588,13 +617,13 @@ export default function ExpenseClaimsPage() {
 
     return (
       <div style={actionStackStyle}>
-        {claim.status === "submitted" ? (
+        {claim.status === "submitted" && permissions.canApproveExpenseClaims ? (
           <button type="button" onClick={() => approveClaim(claim)} style={smallButtonStyle}>Approve</button>
         ) : null}
-        {["submitted", "approved"].includes(claim.status) ? (
+        {["submitted", "approved"].includes(claim.status) && permissions.canApproveExpenseClaims ? (
           <button type="button" onClick={() => rejectClaim(claim)} style={smallButtonStyle}>Reject</button>
         ) : null}
-        {claim.status === "approved" && !claim.ledger_entry_id ? (
+        {claim.status === "approved" && !claim.ledger_entry_id && permissions.canPayExpenseClaims ? (
           <div style={paidFormStyle}>
             <input type="date" value={paidForm.paid_date} onChange={(event) => updatePaidForm(claim.id, { paid_date: event.target.value })} style={inputStyle} />
             <select value={paidForm.bank_account_id} onChange={(event) => updatePaidForm(claim.id, { bank_account_id: event.target.value })} style={inputStyle}><option value="">Bank</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{renderBankLabel(account)}</option>)}</select>
@@ -603,7 +632,7 @@ export default function ExpenseClaimsPage() {
             <button type="button" onClick={() => markPaid(claim)} disabled={isPaying} style={primarySmallButtonStyle}>{isPaying ? "Processing..." : "Mark as Paid"}</button>
           </div>
         ) : null}
-        {["submitted", "approved", "rejected"].includes(claim.status) ? (
+        {["submitted", "approved", "rejected"].includes(claim.status) && permissions.canApproveExpenseClaims ? (
           <button type="button" onClick={() => voidClaim(claim)} style={dangerButtonStyle}>Void</button>
         ) : null}
       </div>
@@ -611,12 +640,12 @@ export default function ExpenseClaimsPage() {
   }
 }
 
-function FinanceSubNav({ activePage }: { activePage: "ledger" | "claims" | "compensation" }) {
+function FinanceSubNav({ activePage, permissions }: { activePage: "ledger" | "claims" | "compensation"; permissions: UserPermissions }) {
   return (
     <nav style={subNavStyle}>
-      <Link href="/finance/ledger" style={activePage === "ledger" ? subNavActiveLinkStyle : subNavLinkStyle}>Ledger</Link>
-      <Link href="/finance/expense-claims" style={activePage === "claims" ? subNavActiveLinkStyle : subNavLinkStyle}>Expense Claims</Link>
-      <Link href="/finance/compensation" style={activePage === "compensation" ? subNavActiveLinkStyle : subNavLinkStyle}>Lawyer Compensation</Link>
+      {permissions.canViewCompanyLedger ? <Link href="/finance/ledger" style={activePage === "ledger" ? subNavActiveLinkStyle : subNavLinkStyle}>Ledger</Link> : null}
+      {permissions.canSubmitExpenseClaim || permissions.canViewOwnExpenseClaims || permissions.canViewAllExpenseClaims ? <Link href="/finance/expense-claims" style={activePage === "claims" ? subNavActiveLinkStyle : subNavLinkStyle}>Expense Claims</Link> : null}
+      {permissions.canViewLawyerCompensation ? <Link href="/finance/compensation" style={activePage === "compensation" ? subNavActiveLinkStyle : subNavLinkStyle}>Lawyer Compensation</Link> : null}
     </nav>
   );
 }

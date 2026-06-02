@@ -11,6 +11,17 @@ export type UserPermissionProfile = {
   role?: UserRole | string | null;
   financial_access?: boolean | null;
   staff_name?: string | null;
+  can_submit_expense_claim?: boolean | null;
+  can_view_own_expense_claims?: boolean | null;
+  can_view_all_expense_claims?: boolean | null;
+  can_approve_expense_claims?: boolean | null;
+  can_pay_expense_claims?: boolean | null;
+  can_view_company_ledger?: boolean | null;
+  can_edit_company_ledger?: boolean | null;
+  can_void_company_ledger?: boolean | null;
+  can_view_lawyer_compensation?: boolean | null;
+  can_edit_lawyer_compensation?: boolean | null;
+  can_void_lawyer_compensation?: boolean | null;
 };
 
 /* =========================================================
@@ -125,8 +136,14 @@ export function canViewFees(
   return isPartnerUp(role) || financialAccess === true;
 }
 
-export function canViewFinanceModule(role?: string | null) {
-  return isAdmin(role);
+export function canViewFinanceModule(profile?: UserPermissionProfile | null) {
+  return (
+    profile?.can_submit_expense_claim === true ||
+    profile?.can_view_own_expense_claims === true ||
+    profile?.can_view_all_expense_claims === true ||
+    profile?.can_view_company_ledger === true ||
+    profile?.can_view_lawyer_compensation === true
+  );
 }
 
 /* =========================================================
@@ -265,6 +282,17 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
   const role = normalizeRole(profile?.role || "");
   const financialAccess = profile?.financial_access === true;
   const staffName = profile?.staff_name || "";
+  const canSubmitExpenseClaim = profile?.can_submit_expense_claim === true;
+  const canViewOwnExpenseClaims = profile?.can_view_own_expense_claims === true;
+  const canViewAllExpenseClaims = profile?.can_view_all_expense_claims === true;
+  const canApproveExpenseClaims = profile?.can_approve_expense_claims === true;
+  const canPayExpenseClaims = profile?.can_pay_expense_claims === true;
+  const canViewCompanyLedger = profile?.can_view_company_ledger === true;
+  const canEditCompanyLedger = profile?.can_edit_company_ledger === true;
+  const canVoidCompanyLedger = profile?.can_void_company_ledger === true;
+  const canViewLawyerCompensation = profile?.can_view_lawyer_compensation === true;
+  const canEditLawyerCompensation = profile?.can_edit_lawyer_compensation === true;
+  const canVoidLawyerCompensation = profile?.can_void_lawyer_compensation === true;
 
   return {
     role,
@@ -276,7 +304,18 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
     canViewAlerts: canViewAlerts(role),
     canViewHistory: canViewHistory(role),
     canViewFees: canViewFees(role, financialAccess),
-    canViewFinanceModule: canViewFinanceModule(role),
+    canSubmitExpenseClaim,
+    canViewOwnExpenseClaims,
+    canViewAllExpenseClaims,
+    canApproveExpenseClaims,
+    canPayExpenseClaims,
+    canViewCompanyLedger,
+    canEditCompanyLedger,
+    canVoidCompanyLedger,
+    canViewLawyerCompensation,
+    canEditLawyerCompensation,
+    canVoidLawyerCompensation,
+    canViewFinanceModule: canViewFinanceModule(profile),
 
     canViewTimeOverview: canViewTimeOverview(role),
     canViewOwnTimeDetail: canViewOwnTimeDetail(role),
@@ -298,12 +337,12 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
     canEditNotes: canEditNotes(role),
     canEditTimeLogs: canEditTimeLogs(role),
     canEditFees: canEditFees(role, financialAccess),
-    canEditFinanceModule: canEditFinanceModule(role),
+    canEditFinanceModule: canEditCompanyLedger || canEditLawyerCompensation || canSubmitExpenseClaim || canApproveExpenseClaims || canPayExpenseClaims,
 
     canSoftDelete: canSoftDelete(role),
     canRestore: canRestore(role),
     canHardDelete: canHardDelete(role),
-    canVoidFinanceEntry: canVoidFinanceEntry(role),
+    canVoidFinanceEntry: canVoidCompanyLedger || canVoidLawyerCompensation,
     canManageUsers: canManageUsers(role),
   };
 }
