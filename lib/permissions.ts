@@ -22,6 +22,11 @@ export type UserPermissionProfile = {
   can_view_lawyer_compensation?: boolean | null;
   can_edit_lawyer_compensation?: boolean | null;
   can_void_lawyer_compensation?: boolean | null;
+  can_submit_office_work_log?: boolean | null;
+  can_view_own_office_work_logs?: boolean | null;
+  can_view_all_office_work_logs?: boolean | null;
+  can_edit_office_work_logs?: boolean | null;
+  can_void_office_work_logs?: boolean | null;
 };
 
 /* =========================================================
@@ -293,6 +298,11 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
   const canViewLawyerCompensation = profile?.can_view_lawyer_compensation === true;
   const canEditLawyerCompensation = profile?.can_edit_lawyer_compensation === true;
   const canVoidLawyerCompensation = profile?.can_void_lawyer_compensation === true;
+  const canSubmitOfficeWorkLog = profile?.can_submit_office_work_log === true;
+  const canViewOwnOfficeWorkLogs = profile?.can_view_own_office_work_logs === true;
+  const canViewAllOfficeWorkLogs = profile?.can_view_all_office_work_logs === true;
+  const canEditOfficeWorkLogs = profile?.can_edit_office_work_logs === true;
+  const canVoidOfficeWorkLogs = profile?.can_void_office_work_logs === true;
 
   return {
     role,
@@ -315,6 +325,13 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
     canViewLawyerCompensation,
     canEditLawyerCompensation,
     canVoidLawyerCompensation,
+    canSubmitOfficeWorkLog,
+    canViewOwnOfficeWorkLogs,
+    canViewAllOfficeWorkLogs,
+    canEditOfficeWorkLogs,
+    canVoidOfficeWorkLogs,
+    canViewOfficeWorkLogs: canViewOwnOfficeWorkLogs || canViewAllOfficeWorkLogs,
+    canAccessOfficeWorkLogs: canSubmitOfficeWorkLog || canViewOwnOfficeWorkLogs || canViewAllOfficeWorkLogs,
     canViewFinanceModule: canViewFinanceModule(profile),
 
     canViewTimeOverview: canViewTimeOverview(role),
