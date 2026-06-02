@@ -27,9 +27,16 @@ type Tone =
   | "purple";
 
 type UserProfile = {
+  id?: string | null;
   role?: UserRole | string | null;
   financial_access?: boolean | null;
+  full_name?: string | null;
   staff_name?: string | null;
+  can_submit_office_work_log?: boolean | null;
+  can_view_own_office_work_logs?: boolean | null;
+  can_view_all_office_work_logs?: boolean | null;
+  can_edit_office_work_logs?: boolean | null;
+  can_void_office_work_logs?: boolean | null;
 };
 
 type CaseItem = {
@@ -157,6 +164,20 @@ type AdvisoryTimeLog = {
   updated_at?: string | null;
 };
 
+type OfficeWorkLog = {
+  id: string;
+  work_date?: string | null;
+  staff_user_id?: string | null;
+  staff_name?: string | null;
+  work_scope?: string | null;
+  work_type?: string | null;
+  work_other?: string | null;
+  minutes?: number | string | null;
+  description?: string | null;
+  note?: string | null;
+  created_by_user_id?: string | null;
+};
+
 type UnifiedTimeLog = {
   id: string;
   source: "Case" | "Advisory";
@@ -271,8 +292,10 @@ type SortMode =
 
 export default function DashboardPage() {
   const [profile, setProfile] = useState<UserProfile>({
+    id: "",
     role: "",
     financial_access: false,
+    full_name: "",
     staff_name: "",
   });
 
@@ -296,11 +319,14 @@ export default function DashboardPage() {
     canSeeTeamWorkload ||
     canSeeDailyStaffWorkload ||
     canSeeCaseCost;
+  const canSeeOfficeWorkData =
+    permissions.canViewAllOfficeWorkLogs || permissions.canViewOwnOfficeWorkLogs;
 
   const [cases, setCases] = useState<EnrichedCase[]>([]);
   const [alertItems, setAlertItems] = useState<AlertCandidate[]>([]);
   const [timeLogs, setTimeLogs] = useState<CaseTimeLog[]>([]);
   const [advisoryTimeLogs, setAdvisoryTimeLogs] = useState<AdvisoryTimeLog[]>([]);
+  const [officeWorkLogs, setOfficeWorkLogs] = useState<OfficeWorkLog[]>([]);
   const [advisoryMatters, setAdvisoryMatters] = useState<AdvisoryMatter[]>([]);
   const [advisoryIssues, setAdvisoryIssues] = useState<AdvisoryIssue[]>([]);
   const [advisoryTasks, setAdvisoryTasks] = useState<AdvisoryTask[]>([]);
@@ -356,8 +382,10 @@ export default function DashboardPage() {
 
         if (userError || !userData.user) {
           setProfile({
+            id: "",
             role: "",
             financial_access: false,
+            full_name: "",
             staff_name: "",
           });
           return;
@@ -365,23 +393,32 @@ export default function DashboardPage() {
 
         const { data, error } = await supabase
           .from("user_profiles")
-          .select("role, financial_access, staff_name")
+          .select("id, role, financial_access, full_name, staff_name, can_submit_office_work_log, can_view_own_office_work_logs, can_view_all_office_work_logs, can_edit_office_work_logs, can_void_office_work_logs")
           .eq("id", userData.user.id)
           .single();
 
         if (error || !data) {
           setProfile({
+            id: "",
             role: "",
             financial_access: false,
+            full_name: "",
             staff_name: "",
           });
           return;
         }
 
         setProfile({
+          id: data.id || userData.user.id,
           role: data.role || "",
           financial_access: data.financial_access === true,
+          full_name: data.full_name || "",
           staff_name: data.staff_name || "",
+          can_submit_office_work_log: data.can_submit_office_work_log === true,
+          can_view_own_office_work_logs: data.can_view_own_office_work_logs === true,
+          can_view_all_office_work_logs: data.can_view_all_office_work_logs === true,
+          can_edit_office_work_logs: data.can_edit_office_work_logs === true,
+          can_void_office_work_logs: data.can_void_office_work_logs === true,
         });
       } finally {
         setLoadingProfile(false);
@@ -390,6 +427,27 @@ export default function DashboardPage() {
 
     loadProfile();
   }, []);
+
+  const loadOfficeWorkLogs = async () => {
+    if (!canSeeOfficeWorkData) return [] as OfficeWorkLog[];
+
+    let query = supabase
+      .from("office_work_logs")
+      .select("id, work_date, staff_user_id, staff_name, work_scope, work_type, work_other, minutes, description, note, created_by_user_id")
+      .eq("status", "active");
+
+    if (!permissions.canViewAllOfficeWorkLogs) {
+      query = query.or(`created_by_user_id.eq.${profile.id},staff_user_id.eq.${profile.id}`);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      alert("Load office work logs failed:\n" + JSON.stringify(error, null, 2));
+      return null;
+    }
+
+    return ((data || []) as OfficeWorkLog[]).filter(isRealOfficeWorkLog);
+  };
 
   const fetchDashboard = async () => {
     try {
@@ -455,6 +513,8 @@ export default function DashboardPage() {
 
       if (caseIds.length === 0) {
         let loadedAdvisoryTimeLogs: AdvisoryTimeLog[] = [];
+        const loadedOfficeWorkLogs = await loadOfficeWorkLogs();
+        if (loadedOfficeWorkLogs === null) return;
         if (canSeeAnyWorkloadData) {
           const { data, error } = await supabase
             .from("advisory_time_logs")
@@ -472,6 +532,7 @@ export default function DashboardPage() {
         setAlertItems([]);
         setTimeLogs([]);
         setAdvisoryTimeLogs(loadedAdvisoryTimeLogs);
+        setOfficeWorkLogs(loadedOfficeWorkLogs);
         setAdvisoryMatters(loadedAdvisoryMatters);
         setAdvisoryIssues(loadedAdvisoryIssues);
         setAdvisoryTasks(loadedAdvisoryTasks);
@@ -544,6 +605,8 @@ export default function DashboardPage() {
 
       let loadedTimeLogs: CaseTimeLog[] = [];
       let loadedAdvisoryTimeLogs: AdvisoryTimeLog[] = [];
+      const loadedOfficeWorkLogs = await loadOfficeWorkLogs();
+      if (loadedOfficeWorkLogs === null) return;
 
       if (canSeeAnyWorkloadData) {
         const [caseTimeLogsRes, advisoryTimeLogsRes] = await Promise.all([
@@ -619,6 +682,7 @@ export default function DashboardPage() {
       setAlertItems(allAlerts);
       setTimeLogs(loadedTimeLogs);
       setAdvisoryTimeLogs(loadedAdvisoryTimeLogs);
+      setOfficeWorkLogs(loadedOfficeWorkLogs);
       setAdvisoryMatters(loadedAdvisoryMatters);
       setAdvisoryIssues(loadedAdvisoryIssues);
       setAdvisoryTasks(loadedAdvisoryTasks);
@@ -834,6 +898,11 @@ export default function DashboardPage() {
     );
   }, [filteredTimeLogsAllTime, timeRange, selectedMonth]);
 
+  const filteredOfficeWorkLogsByPeriod = useMemo(() => {
+    if (!canSeeOfficeWorkData) return [];
+    return officeWorkLogs.filter((item) => isDateInTimeRange(item.work_date, timeRange, selectedMonth));
+  }, [canSeeOfficeWorkData, officeWorkLogs, timeRange, selectedMonth]);
+
   const ownTimeLogsByPeriod = useMemo(() => {
     if (!canSeeOwnTimeDetail) return [];
     if (!currentStaffName) return [];
@@ -884,6 +953,41 @@ export default function DashboardPage() {
     );
   }, [filteredTimeLogsByPeriod, canSeeTimeOverview]);
 
+  const officeWorkSummary = useMemo(() => {
+    const byStaff = new Map<string, number>();
+    let officeMinutes = 0;
+    let businessDevelopmentMinutes = 0;
+    let internalSupportMinutes = 0;
+    let otherMinutes = 0;
+
+    filteredOfficeWorkLogsByPeriod.forEach((item) => {
+      const minutes = safeMinutes(item.minutes);
+      const staff = item.staff_name || "-";
+      byStaff.set(staff, (byStaff.get(staff) || 0) + minutes);
+
+      if (item.work_scope === "business_development") {
+        businessDevelopmentMinutes += minutes;
+      } else if (item.work_scope === "internal_support") {
+        internalSupportMinutes += minutes;
+      } else if (item.work_scope === "other") {
+        otherMinutes += minutes;
+      } else {
+        officeMinutes += minutes;
+      }
+    });
+
+    return {
+      officeMinutes,
+      businessDevelopmentMinutes,
+      internalSupportMinutes,
+      otherMinutes,
+      totalMinutes: officeMinutes + businessDevelopmentMinutes + internalSupportMinutes + otherMinutes,
+      byStaff: Array.from(byStaff.entries())
+        .map(([staff, minutes]) => ({ staff, minutes }))
+        .sort((a, b) => b.minutes - a.minutes || a.staff.localeCompare(b.staff)),
+    };
+  }, [filteredOfficeWorkLogsByPeriod]);
+
   const summary = useMemo(() => {
     const overdue = filteredCases.filter(
       (item) => item.risk_level === "overdue"
@@ -928,8 +1032,11 @@ export default function DashboardPage() {
       done,
       enforcementReady,
       totalLoggedMinutes,
+      officeWorkMinutes: officeWorkSummary.totalMinutes,
+      businessDevelopmentMinutes: officeWorkSummary.businessDevelopmentMinutes,
+      totalWorkMinutes: totalLoggedMinutes + officeWorkSummary.totalMinutes,
     };
-  }, [filteredCases, alertItems, totalLoggedMinutes]);
+  }, [filteredCases, alertItems, officeWorkSummary.businessDevelopmentMinutes, officeWorkSummary.totalMinutes, totalLoggedMinutes]);
 
   const phaseSummary = useMemo(() => {
     const map = new Map<string, number>();
@@ -1415,6 +1522,33 @@ export default function DashboardPage() {
                 isMobile={isMobile}
               />
             )}
+            {canSeeOfficeWorkData && (
+              <MetricCard
+                label="Office / Internal Hours"
+                subLabel={renderTimeRangeLabel(timeRange, selectedMonth)}
+                count={formatDuration(summary.officeWorkMinutes)}
+                tone="success"
+                isMobile={isMobile}
+              />
+            )}
+            {canSeeOfficeWorkData && (
+              <MetricCard
+                label="Business Development"
+                subLabel={renderTimeRangeLabel(timeRange, selectedMonth)}
+                count={formatDuration(summary.businessDevelopmentMinutes)}
+                tone="warning"
+                isMobile={isMobile}
+              />
+            )}
+            {(canSeeTimeOverview || canSeeOfficeWorkData) && (
+              <MetricCard
+                label="Total Work Hours"
+                subLabel="Case + Advisory + Office"
+                count={formatDuration(summary.totalWorkMinutes)}
+                tone="blue"
+                isMobile={isMobile}
+              />
+            )}
             <MetricCard
               label="Advisory Tasks"
               subLabel="pending / due"
@@ -1468,6 +1602,25 @@ export default function DashboardPage() {
               </div>
 
               <WorkloadOverview summary={workloadSummary} isMobile={isMobile} />
+
+              {canSeeOfficeWorkData && (
+                <div style={nestedPanelStyle}>
+                  <SectionHeader
+                    eyebrow="NON-CASE WORK"
+                    title="Office & Business Work"
+                    subtitle="Office, business development, internal support, and other non-case work for the selected period."
+                  />
+                  <div style={isMobile ? mobileSummaryGridStyle : compactSummaryGridStyle}>
+                    <MetricCard label="Office Work" subLabel="สำนักงาน" count={formatDuration(officeWorkSummary.officeMinutes)} tone="success" isMobile={isMobile} />
+                    <MetricCard label="Business Development" subLabel="หาลูกค้า" count={formatDuration(officeWorkSummary.businessDevelopmentMinutes)} tone="warning" isMobile={isMobile} />
+                    <MetricCard label="Internal Support" subLabel="งานภายใน" count={formatDuration(officeWorkSummary.internalSupportMinutes)} tone="purple" isMobile={isMobile} />
+                    <MetricCard label="Other Office" subLabel="อื่น ๆ" count={formatDuration(officeWorkSummary.otherMinutes)} tone="neutral" isMobile={isMobile} />
+                  </div>
+                  <div style={actionRowStyle}>
+                    <Link href="/workload/office-work" style={sectionLinkStyle}>Open Office Work Log</Link>
+                  </div>
+                </div>
+              )}
 
               {canSeeTeamWorkload && (
                 <div style={nestedPanelStyle}>
@@ -3039,6 +3192,11 @@ function safeMinutes(value?: number | string | null) {
   const parsed = Number(value);
 
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function isRealOfficeWorkLog(item: OfficeWorkLog) {
+  const staffName = (item.staff_name || "").trim().toLowerCase();
+  return !staffName.startsWith("test");
 }
 
 function getRiskScore(level: RiskLevel) {

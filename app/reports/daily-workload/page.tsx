@@ -13,6 +13,9 @@ type Profile = {
   staff_name: string | null;
   role: string | null;
   active?: boolean | null;
+  can_submit_office_work_log?: boolean | null;
+  can_view_own_office_work_logs?: boolean | null;
+  can_view_all_office_work_logs?: boolean | null;
 };
 
 type CaseTimeLog = {
@@ -44,6 +47,20 @@ type AdvisoryTimeLog = {
   created_by_name: string | null;
 };
 
+type OfficeWorkLog = {
+  id: string;
+  work_date: string;
+  staff_user_id: string | null;
+  staff_name: string | null;
+  work_scope: string | null;
+  work_type: string | null;
+  work_other: string | null;
+  minutes: number | null;
+  description: string | null;
+  note: string | null;
+  created_by_user_id: string | null;
+};
+
 type CaseRow = {
   id: string;
   file_no: string | null;
@@ -73,14 +90,15 @@ type Client = {
 
 type WorkloadRow = {
   id: string;
-  source: "case" | "advisory";
+  source: "case" | "advisory" | "office";
   work_date: string;
   staff_name: string;
   client_name: string;
   matter_or_case: string;
   issue: string;
   work_type: string;
-  category: "Core" | "Support";
+  category: "Core" | "Support" | "Office";
+  officeScope?: string;
   minutes: number;
   note: string;
 };
@@ -91,6 +109,7 @@ type StaffSummary = {
   support: number;
   caseTime: number;
   advisoryTime: number;
+  officeTime: number;
   total: number;
   signal: "No Time" | "No Core" | "Support High" | "Normal";
 };
@@ -114,6 +133,20 @@ const uniqueValues = (values: Array<string | null | undefined>) =>
 const workTypeLabel = (workType: string | null, other: string | null) => {
   if (workType === "อื่นๆ" || workType === "other") return other || workType || "-";
   return workType || "-";
+};
+
+const officeScopeLabel = (scope: string | null | undefined) => {
+  if (scope === "business_development") return "Business Development";
+  if (scope === "internal_support") return "Internal Support";
+  if (scope === "other") return "Other Office";
+  return "Office Work";
+};
+
+const isRealProfile = (profile: Profile) => {
+  const email = (profile.email || "").trim().toLowerCase();
+  const fullName = (profile.full_name || "").trim().toLowerCase();
+  const staffName = (profile.staff_name || "").trim().toLowerCase();
+  return !email.includes("test") && !email.endsWith("@example.com") && !fullName.startsWith("test") && !staffName.startsWith("test");
 };
 
 const getSignal = (
@@ -150,6 +183,7 @@ export default function DailyWorkloadReportPage() {
   const [activeProfiles, setActiveProfiles] = useState<Profile[]>([]);
   const [caseLogs, setCaseLogs] = useState<CaseTimeLog[]>([]);
   const [advisoryLogs, setAdvisoryLogs] = useState<AdvisoryTimeLog[]>([]);
+  const [officeLogs, setOfficeLogs] = useState<OfficeWorkLog[]>([]);
   const [cases, setCases] = useState<CaseRow[]>([]);
   const [matters, setMatters] = useState<AdvisoryMatter[]>([]);
   const [issues, setIssues] = useState<AdvisoryIssue[]>([]);
@@ -179,7 +213,7 @@ export default function DailyWorkloadReportPage() {
 
       const { data: profileData, error: profileError } = await supabase
         .from("user_profiles")
-        .select("id, email, full_name, staff_name, role, active")
+        .select("id, email, full_name, staff_name, role, active, can_submit_office_work_log, can_view_own_office_work_logs, can_view_all_office_work_logs")
         .eq("id", userData.user.id)
         .maybeSingle();
 
@@ -193,6 +227,8 @@ export default function DailyWorkloadReportPage() {
       const currentPermissions = buildPermissions(currentProfile);
       const isAdminOrPartner =
         currentPermissions.role === "admin" || currentPermissions.role === "partner";
+      const canViewOfficeAll = currentPermissions.canViewAllOfficeWorkLogs;
+      const canViewOfficeOwn = currentPermissions.canViewOwnOfficeWorkLogs;
       const ownNames = uniqueValues([currentProfile.staff_name, currentProfile.full_name]);
       setProfile(currentProfile);
 
@@ -267,8 +303,27 @@ export default function DailyWorkloadReportPage() {
         }
       }
 
+      let officeLogsResult;
+      if (canViewOfficeAll) {
+        officeLogsResult = await supabase
+          .from("office_work_logs")
+          .select("id, work_date, staff_user_id, staff_name, work_scope, work_type, work_other, minutes, description, note, created_by_user_id")
+          .eq("work_date", selectedDate)
+          .eq("status", "active");
+      } else if (canViewOfficeOwn) {
+        officeLogsResult = await supabase
+          .from("office_work_logs")
+          .select("id, work_date, staff_user_id, staff_name, work_scope, work_type, work_other, minutes, description, note, created_by_user_id")
+          .eq("work_date", selectedDate)
+          .eq("status", "active")
+          .or(`created_by_user_id.eq.${userData.user.id},staff_user_id.eq.${userData.user.id}`);
+      } else {
+        officeLogsResult = { data: [], error: null };
+      }
+
       const caseLogsData = (caseLogsResult.data || []) as CaseTimeLog[];
       const advisoryLogsData = (advisoryLogsResult.data || []) as AdvisoryTimeLog[];
+      const officeLogsData = (officeLogsResult.data || []) as OfficeWorkLog[];
       const caseIds = uniqueValues(caseLogsData.map((item) => item.case_id));
       const matterIds = uniqueValues(advisoryLogsData.map((item) => item.advisory_matter_id));
       const issueIds = uniqueValues(advisoryLogsData.map((item) => item.advisory_issue_id));
@@ -293,7 +348,7 @@ export default function DailyWorkloadReportPage() {
               .select("id, advisory_matter_id, issue_no, title")
               .in("id", issueIds)
           : Promise.resolve({ data: [], error: null }),
-        isAdminOrPartner
+        isAdminOrPartner || canViewOfficeAll
           ? supabase
               .from("user_profiles")
               .select("id, email, full_name, staff_name, role, active")
@@ -314,6 +369,7 @@ export default function DailyWorkloadReportPage() {
       const firstError =
         caseLogsResult.error ||
         advisoryLogsResult.error ||
+        officeLogsResult.error ||
         casesResult.error ||
         mattersResult.error ||
         issuesResult.error ||
@@ -326,11 +382,12 @@ export default function DailyWorkloadReportPage() {
 
       setCaseLogs(caseLogsData);
       setAdvisoryLogs(advisoryLogsData);
+      setOfficeLogs(officeLogsData);
       setCases((casesResult.data || []) as CaseRow[]);
       setMatters(mattersData);
       setIssues((issuesResult.data || []) as AdvisoryIssue[]);
       setClients((clientsResult.data || []) as Client[]);
-      setActiveProfiles((profilesResult.data || []) as Profile[]);
+      setActiveProfiles(((profilesResult.data || []) as Profile[]).filter(isRealProfile));
       setLoading(false);
     };
 
@@ -404,7 +461,22 @@ export default function DailyWorkloadReportPage() {
         };
       });
 
-    const allRows = [...caseRows, ...advisoryRows];
+    const officeRows = officeLogs.map((log): WorkloadRow => ({
+      id: log.id,
+      source: "office",
+      work_date: log.work_date,
+      staff_name: log.staff_name || "-",
+      client_name: "-",
+      matter_or_case: "Office & Business Work",
+      issue: officeScopeLabel(log.work_scope),
+      work_type: workTypeLabel(log.work_type, log.work_other),
+      category: "Office",
+      officeScope: log.work_scope || "office_work",
+      minutes: Number(log.minutes || 0),
+      note: log.note || log.description || "",
+    }));
+
+    const allRows = [...caseRows, ...advisoryRows, ...officeRows];
     if (canViewAll && selectedStaff) {
       return allRows.filter((row) => row.staff_name === selectedStaff);
     }
@@ -419,6 +491,7 @@ export default function DailyWorkloadReportPage() {
     clients,
     issues,
     matters,
+    officeLogs,
     profile?.full_name,
     profile?.staff_name,
     selectedStaff,
@@ -435,11 +508,27 @@ export default function DailyWorkloadReportPage() {
     const core = rows
       .filter((row) => row.category === "Core")
       .reduce((sum, row) => sum + row.minutes, 0);
-    const support = total - core;
+    const support = rows
+      .filter((row) => row.category === "Support")
+      .reduce((sum, row) => sum + row.minutes, 0);
     const caseTime = rows
       .filter((row) => row.source === "case")
       .reduce((sum, row) => sum + row.minutes, 0);
-    const advisoryTime = total - caseTime;
+    const advisoryTime = rows
+      .filter((row) => row.source === "advisory")
+      .reduce((sum, row) => sum + row.minutes, 0);
+    const officeTime = rows
+      .filter((row) => row.source === "office")
+      .reduce((sum, row) => sum + row.minutes, 0);
+    const businessDevelopmentTime = rows
+      .filter((row) => row.officeScope === "business_development")
+      .reduce((sum, row) => sum + row.minutes, 0);
+    const internalSupportTime = rows
+      .filter((row) => row.officeScope === "internal_support")
+      .reduce((sum, row) => sum + row.minutes, 0);
+    const otherOfficeTime = rows
+      .filter((row) => row.officeScope === "other" || row.officeScope === "office_work")
+      .reduce((sum, row) => sum + row.minutes, 0);
 
     return {
       total,
@@ -447,6 +536,10 @@ export default function DailyWorkloadReportPage() {
       support,
       caseTime,
       advisoryTime,
+      officeTime,
+      businessDevelopmentTime,
+      internalSupportTime,
+      otherOfficeTime,
       staffCount: new Set(rows.map((row) => row.staff_name).filter((name) => name !== "-")).size,
     };
   }, [rows]);
@@ -469,11 +562,18 @@ export default function DailyWorkloadReportPage() {
       const core = staffRows
         .filter((row) => row.category === "Core")
         .reduce((sum, row) => sum + row.minutes, 0);
-      const support = total - core;
+      const support = staffRows
+        .filter((row) => row.category === "Support")
+        .reduce((sum, row) => sum + row.minutes, 0);
       const caseTime = staffRows
         .filter((row) => row.source === "case")
         .reduce((sum, row) => sum + row.minutes, 0);
-      const advisoryTime = total - caseTime;
+      const advisoryTime = staffRows
+        .filter((row) => row.source === "advisory")
+        .reduce((sum, row) => sum + row.minutes, 0);
+      const officeTime = staffRows
+        .filter((row) => row.source === "office")
+        .reduce((sum, row) => sum + row.minutes, 0);
 
       return {
         staff,
@@ -481,6 +581,7 @@ export default function DailyWorkloadReportPage() {
         support,
         caseTime,
         advisoryTime,
+        officeTime,
         total,
         signal: getSignal(core, support, total),
       };
@@ -498,6 +599,7 @@ export default function DailyWorkloadReportPage() {
       csvRow(["Support Time", formatDuration(summary.support)]),
       csvRow(["Case Time", formatDuration(summary.caseTime)]),
       csvRow(["Advisory Time", formatDuration(summary.advisoryTime)]),
+      csvRow(["Office / Business Time", formatDuration(summary.officeTime)]),
       csvRow(["Staff Count", canViewAll ? summary.staffCount : ""]),
       "",
       csvRow(["Details"]),
@@ -569,7 +671,7 @@ export default function DailyWorkloadReportPage() {
             <div>
               <h1 className="text-2xl font-semibold text-slate-950">Daily Time Check</h1>
               <p className="mt-1 text-sm text-slate-500">
-                Case and advisory workload for the selected day.
+                Case, advisory, and non-case office workload for the selected day.
               </p>
             </div>
             <button
@@ -625,7 +727,7 @@ export default function DailyWorkloadReportPage() {
               <div className="mt-3 text-2xl font-semibold text-slate-950">{selectedDate}</div>
             </div>
             <div className="rounded-lg border border-blue-100 bg-white p-5 shadow-sm">
-              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Time</div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Work Time</div>
               <div className="mt-3 text-2xl font-semibold text-blue-800">
                 {formatDuration(summary.total)}
               </div>
@@ -657,6 +759,24 @@ export default function DailyWorkloadReportPage() {
                 {formatDuration(summary.advisoryTime)}
               </div>
             </div>
+            <div className="rounded-lg border border-emerald-100 bg-white p-5 shadow-sm">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Office / Business Time</div>
+              <div className="mt-3 text-xl font-semibold text-emerald-800">
+                {formatDuration(summary.officeTime)}
+              </div>
+            </div>
+            <div className="rounded-lg border border-amber-100 bg-white p-5 shadow-sm">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Business Development</div>
+              <div className="mt-3 text-xl font-semibold text-amber-800">
+                {formatDuration(summary.businessDevelopmentTime)}
+              </div>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Internal / Other Office</div>
+              <div className="mt-3 text-xl font-semibold text-slate-950">
+                {formatDuration(summary.internalSupportTime + summary.otherOfficeTime)}
+              </div>
+            </div>
             {canViewAll && (
               <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Staff Count</div>
@@ -678,6 +798,7 @@ export default function DailyWorkloadReportPage() {
                     <th className="px-5 py-3">Support</th>
                     <th className="px-5 py-3">Case Time</th>
                     <th className="px-5 py-3">Advisory Time</th>
+                    <th className="px-5 py-3">Office Time</th>
                     <th className="px-5 py-3">Total</th>
                     <th className="px-5 py-3">Signal</th>
                   </tr>
@@ -690,6 +811,7 @@ export default function DailyWorkloadReportPage() {
                       <td className="px-5 py-4 text-slate-700">{formatDuration(item.support)}</td>
                       <td className="px-5 py-4 text-slate-700">{formatDuration(item.caseTime)}</td>
                       <td className="px-5 py-4 text-slate-700">{formatDuration(item.advisoryTime)}</td>
+                      <td className="px-5 py-4 text-slate-700">{formatDuration(item.officeTime)}</td>
                       <td className="px-5 py-4 font-semibold text-slate-950">{formatDuration(item.total)}</td>
                       <td className="px-5 py-4">
                         <span className={`rounded-full px-3 py-1 text-xs font-semibold ${signalClass(item.signal)}`}>
@@ -737,10 +859,12 @@ export default function DailyWorkloadReportPage() {
                             className={`rounded-full px-3 py-1 text-xs font-semibold ${
                               row.source === "case"
                                 ? "bg-blue-50 text-blue-700"
-                                : "bg-purple-50 text-purple-700"
+                                : row.source === "advisory"
+                                  ? "bg-purple-50 text-purple-700"
+                                  : "bg-emerald-50 text-emerald-700"
                             }`}
                           >
-                            {row.source === "case" ? "Case" : "Advisory"}
+                            {row.source === "case" ? "Case" : row.source === "advisory" ? "Advisory" : "Office"}
                           </span>
                         </td>
                         <td className="px-5 py-4 font-medium text-slate-900">{row.staff_name}</td>
