@@ -620,37 +620,40 @@ function ItemPanel({
         <div style={emptyStyle}>No calendar items.</div>
       ) : (
         <div style={itemListStyle}>
-          {items.map((item) => (
-            <Link key={item.id} href={item.link} style={itemRowStyle}>
-              <div style={itemTopLineStyle}>
-                <div style={itemBadgeLineStyle}>
-                  <span
-                    style={
-                      item.source === "Case" ? caseBadgeStyle : advisoryBadgeStyle
-                    }
-                  >
-                    {item.source}
-                  </span>
-                  <span style={typeBadgeStyle}>{item.itemType}</span>
+          {items.map((item) => {
+            const isOverdue = isOverdueDate(item.date);
+            return (
+              <Link key={item.id} href={item.link} style={isOverdue ? overdueItemRowStyle : itemRowStyle}>
+                <div style={itemTopLineStyle}>
+                  <div style={itemBadgeLineStyle}>
+                    <span
+                      style={
+                        item.source === "Case" ? caseBadgeStyle : advisoryBadgeStyle
+                      }
+                    >
+                      {item.source}
+                    </span>
+                    <span style={typeBadgeStyle}>{item.itemType}</span>
+                  </div>
+                  {showDateLabels ? (
+                    <span style={isOverdue ? overdueDateChipStyle : dateChipStyle}>
+                      {formatDisplayDate(item.date)}
+                      {getDueLabel(item.date) ? ` · ${getDueLabel(item.date)}` : ""}
+                    </span>
+                  ) : null}
                 </div>
-                {showDateLabels ? (
-                  <span style={dateChipStyle}>
-                    {formatDisplayDate(item.date)}
-                    {getDueLabel(item.date) ? ` · ${getDueLabel(item.date)}` : ""}
-                  </span>
-                ) : null}
-              </div>
-              <div style={itemTitleStyle}>{item.title}</div>
-              <div style={itemMetaStyle}>
-                {item.clientName} · {item.matterOrCaseTitle}
-              </div>
-              <div style={itemMetaStyle}>
-                {item.status}
-                {item.priority ? ` · ${item.priority}` : ""}
-                {item.assignee ? ` · ${item.assignee}` : ""}
-              </div>
-            </Link>
-          ))}
+                <div style={isOverdue ? overdueItemTitleStyle : itemTitleStyle}>{item.title}</div>
+                <div style={isOverdue ? overdueItemMetaStyle : itemMetaStyle}>
+                  {item.clientName} · {item.matterOrCaseTitle}
+                </div>
+                <div style={isOverdue ? overdueItemMetaStyle : itemMetaStyle}>
+                  {item.status}
+                  {item.priority ? ` · ${item.priority}` : ""}
+                  {item.assignee ? ` · ${item.assignee}` : ""}
+                </div>
+              </Link>
+            );
+          })}
         </div>
       )}
     </section>
@@ -754,6 +757,10 @@ function getDueLabel(dateKey: string) {
 
   if (dayDiff === 0) return "Today";
   return "";
+}
+
+function isOverdueDate(dateKey: string) {
+  return !!dateKey && dateKey < getDateKey(new Date());
 }
 
 function isClosedStatus(status: string) {
@@ -1040,6 +1047,13 @@ const itemRowStyle: CSSProperties = {
   textDecoration: "none",
 };
 
+const overdueItemRowStyle: CSSProperties = {
+  ...itemRowStyle,
+  border: "1px solid #fca5a5",
+  background: "#fef2f2",
+  color: "#7f1d1d",
+};
+
 const itemTopLineStyle: CSSProperties = {
   display: "flex",
   gap: 5,
@@ -1061,10 +1075,22 @@ const dateChipStyle: CSSProperties = {
   border: "1px solid #dbe3ee",
 };
 
+const overdueDateChipStyle: CSSProperties = {
+  ...badgeBaseStyle,
+  background: "#fee2e2",
+  color: "#7f1d1d",
+  border: "1px solid #ef4444",
+};
+
 const itemTitleStyle: CSSProperties = {
   color: "#0f2743",
   fontSize: 14,
   fontWeight: 950,
+};
+
+const overdueItemTitleStyle: CSSProperties = {
+  ...itemTitleStyle,
+  color: "#7f1d1d",
 };
 
 const itemMetaStyle: CSSProperties = {
@@ -1072,6 +1098,11 @@ const itemMetaStyle: CSSProperties = {
   fontSize: 12,
   fontWeight: 750,
   lineHeight: 1.35,
+};
+
+const overdueItemMetaStyle: CSSProperties = {
+  ...itemMetaStyle,
+  color: "#991b1b",
 };
 
 const emptyStyle: CSSProperties = {
