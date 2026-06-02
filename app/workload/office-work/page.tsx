@@ -583,8 +583,11 @@ function toMinutes(value: number | string | null) {
 }
 
 function formatHours(minutes: number) {
-  const hours = minutes / 60;
-  return `${hours.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} h`;
+  const hrs = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  if (hrs <= 0) return `${mins} นาที`;
+  if (mins <= 0) return `${hrs} ชม.`;
+  return `${hrs} ชม. ${mins} นาที`;
 }
 
 function mapToSortedRows(map: Map<string, number>) {

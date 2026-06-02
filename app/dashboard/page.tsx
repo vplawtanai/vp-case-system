@@ -180,7 +180,7 @@ type OfficeWorkLog = {
 
 type UnifiedTimeLog = {
   id: string;
-  source: "Case" | "Advisory";
+  source: "Case" | "Advisory" | "Office" | "Business Development" | "Internal Support";
   work_date?: string | null;
   staff_name?: string | null;
   client_name: string;
@@ -219,18 +219,20 @@ type StaffTimeSummary = {
   periodMinutes: number;
   coreMinutes: number;
   supportMinutes: number;
+  officeMinutes: number;
   totalMinutes: number;
 };
 
 type DailyStaffTimeDetail = {
   id: string;
-  source: "Case" | "Advisory";
+  source: "Case" | "Advisory" | "Office" | "Business Development" | "Internal Support";
   fileNo: string;
   title: string;
   clientName: string;
   workText: string;
   coreMinutes: number;
   supportMinutes: number;
+  officeMinutes: number;
   totalMinutes: number;
   href: string;
 };
@@ -239,6 +241,7 @@ type DailyStaffTimeSummary = {
   staff: string;
   coreMinutes: number;
   supportMinutes: number;
+  officeMinutes: number;
   totalMinutes: number;
   details: DailyStaffTimeDetail[];
 };
@@ -903,30 +906,53 @@ export default function DashboardPage() {
     return officeWorkLogs.filter((item) => isDateInTimeRange(item.work_date, timeRange, selectedMonth));
   }, [canSeeOfficeWorkData, officeWorkLogs, timeRange, selectedMonth]);
 
-  const ownTimeLogsByPeriod = useMemo(() => {
-    if (!canSeeOwnTimeDetail) return [];
-    if (!currentStaffName) return [];
+  const normalizedOfficeWorkLogs = useMemo<UnifiedTimeLog[]>(() => {
+    if (!canSeeOfficeWorkData) return [];
+    return officeWorkLogs.map((item) => ({
+      id: `office-${item.id}`,
+      source: renderOfficeWorkSource(item.work_scope),
+      work_date: item.work_date,
+      staff_name: item.staff_name || "-",
+      client_name: "-",
+      matter_or_case: "Non-case Work",
+      issue: renderOfficeWorkSource(item.work_scope),
+      work_type:
+        item.work_type === "อื่น ๆ" || item.work_type === "อื่นๆ" || item.work_type === "other"
+          ? item.work_other || item.work_type
+          : item.work_type,
+      minutes: item.minutes,
+      billable: null,
+      note: item.note || item.description || "",
+      href: "/workload/office-work",
+    }));
+  }, [canSeeOfficeWorkData, officeWorkLogs]);
 
-    return filteredTimeLogsByPeriod.filter(
-      (item) => (item.staff_name || "").trim() === currentStaffName
-    );
-  }, [filteredTimeLogsByPeriod, canSeeOwnTimeDetail, currentStaffName]);
+  const allWorkLogsAllTime = useMemo(
+    () => [...filteredTimeLogsAllTime, ...normalizedOfficeWorkLogs],
+    [filteredTimeLogsAllTime, normalizedOfficeWorkLogs],
+  );
+
+  const allWorkLogsByPeriod = useMemo(
+    () => allWorkLogsAllTime.filter((item) => isDateInTimeRange(item.work_date, timeRange, selectedMonth)),
+    [allWorkLogsAllTime, timeRange, selectedMonth],
+  );
 
   const dailyDateOptions = useMemo(() => {
-    const values = filteredTimeLogsByPeriod
+    const values = allWorkLogsByPeriod
       .map((item) => item.work_date)
       .filter((value): value is string => !!value && value.trim() !== "");
 
     return Array.from(new Set(values)).sort((a, b) => b.localeCompare(a));
-  }, [filteredTimeLogsByPeriod]);
+  }, [allWorkLogsByPeriod]);
 
   const ownDailyDateOptions = useMemo(() => {
-    const values = ownTimeLogsByPeriod
+    const values = allWorkLogsByPeriod
+      .filter((item) => (item.staff_name || "").trim() === currentStaffName)
       .map((item) => item.work_date)
       .filter((value): value is string => !!value && value.trim() !== "");
 
     return Array.from(new Set(values)).sort((a, b) => b.localeCompare(a));
-  }, [ownTimeLogsByPeriod]);
+  }, [allWorkLogsByPeriod, currentStaffName]);
 
   useEffect(() => {
     if (dailyDateOptions.length === 0) return;
@@ -1093,11 +1119,12 @@ export default function DashboardPage() {
 
     const map = new Map<string, StaffTimeSummary>();
 
-    filteredTimeLogsAllTime.forEach((item) => {
+    allWorkLogsAllTime.forEach((item) => {
       const staff = item.staff_name || "-";
       const minutes = safeMinutes(item.minutes);
       const workDate = item.work_date || "";
       const isCore = item.billable !== false;
+      const isOffice = isOfficeWorkSource(item.source);
       const isInPeriod = isDateInTimeRange(workDate, timeRange, selectedMonth);
 
       const current = map.get(staff) || {
@@ -1108,6 +1135,7 @@ export default function DashboardPage() {
         periodMinutes: 0,
         coreMinutes: 0,
         supportMinutes: 0,
+        officeMinutes: 0,
         totalMinutes: 0,
       };
 
@@ -1122,7 +1150,9 @@ export default function DashboardPage() {
       if (isInPeriod) {
         current.periodMinutes += minutes;
 
-        if (isCore) {
+        if (isOffice) {
+          current.officeMinutes += minutes;
+        } else if (isCore) {
           current.coreMinutes += minutes;
         } else {
           current.supportMinutes += minutes;
@@ -1136,23 +1166,21 @@ export default function DashboardPage() {
     return Array.from(map.values()).sort(
       (a, b) => b.periodMinutes - a.periodMinutes
     );
-  }, [filteredTimeLogsAllTime, timeRange, selectedMonth]);
+  }, [allWorkLogsAllTime, timeRange, selectedMonth]);
 
   const dailyStaffSummary = useMemo<DailyStaffTimeSummary[]>(() => {
     return buildDailyStaffSummary({
-      logs: filteredTimeLogsByPeriod.filter(
+      logs: allWorkLogsByPeriod.filter(
         (item) => item.work_date === selectedDailyDate
       ),
     });
-  }, [filteredTimeLogsByPeriod, selectedDailyDate]);
+  }, [allWorkLogsByPeriod, selectedDailyDate]);
 
   const ownDailyStaffSummary = useMemo<DailyStaffTimeSummary[]>(() => {
     return buildDailyStaffSummary({
-      logs: ownTimeLogsByPeriod.filter(
-        (item) => item.work_date === selectedOwnDailyDate
-      ),
+      logs: allWorkLogsByPeriod.filter((item) => item.work_date === selectedOwnDailyDate && (item.staff_name || "").trim() === currentStaffName),
     });
-  }, [ownTimeLogsByPeriod, selectedOwnDailyDate]);
+  }, [allWorkLogsByPeriod, currentStaffName, selectedOwnDailyDate]);
 
   const dailySummary = useMemo(() => {
     return buildDailyTotalSummary(dailyStaffSummary);
@@ -1166,6 +1194,7 @@ export default function DashboardPage() {
     const map = new Map<string, CaseTimeSummary>();
 
     filteredTimeLogsByPeriod.forEach((item) => {
+      if (item.source !== "Case" && item.source !== "Advisory") return;
       const minutes = safeMinutes(item.minutes);
       const isCore = item.billable !== false;
       const key = `${item.source}-${item.matter_or_case}`;
@@ -2259,9 +2288,9 @@ function ActionLevelBadge({
   return <span style={{ ...actionBadgeBaseStyle, ...style }}>{label}</span>;
 }
 
-function SourceBadge({ source }: { source: "Case" | "Advisory" }) {
+function SourceBadge({ source }: { source: UnifiedTimeLog["source"] }) {
   return (
-    <span style={source === "Advisory" ? advisorySourceBadgeStyle : caseSourceBadgeStyle}>
+    <span style={isOfficeWorkSource(source) ? officeSourceBadgeStyle : source === "Advisory" ? advisorySourceBadgeStyle : caseSourceBadgeStyle}>
       {source}
     </span>
   );
@@ -2412,6 +2441,11 @@ function StaffWorkloadChart({
             ? Math.round((item.supportMinutes / targetMinutes) * 100)
             : 0;
 
+        const officePercent =
+          targetMinutes > 0
+            ? Math.max(0, 100 - corePercent - supportPercent)
+            : 0;
+
         return (
           <div key={item.staff} style={isMobile ? mobileStaffSlimRowStyle : staffSlimRowStyle}>
             <div style={staffSlimHeaderStyle}>
@@ -2422,7 +2456,8 @@ function StaffWorkloadChart({
                   <div style={staffSlimNameStyle}>{item.staff}</div>
                   <div style={staffSlimMetaStyle}>
                     Core {formatDuration(item.coreMinutes)} · Support{" "}
-                    {formatDuration(item.supportMinutes)}
+                    {formatDuration(item.supportMinutes)} · Office/BD/Internal{" "}
+                    {formatDuration(item.officeMinutes)}
                   </div>
                 </div>
               </div>
@@ -2451,6 +2486,12 @@ function StaffWorkloadChart({
                     width: `${supportPercent}%`,
                   }}
                 />
+                <div
+                  style={{
+                    ...staffSegmentOfficeStyle,
+                    width: `${officePercent}%`,
+                  }}
+                />
               </div>
             </div>
           </div>
@@ -2472,6 +2513,7 @@ function StaffTimeTable({ items }: { items: StaffTimeSummary[] }) {
             <th style={teamWorkloadThStyle}>Selected Period</th>
             <th style={teamWorkloadThStyle}>Core</th>
             <th style={teamWorkloadThStyle}>Support</th>
+            <th style={teamWorkloadThStyle}>Office / BD / Internal</th>
             <th style={teamWorkloadThStyle}>All Time (ทุกเดือน)</th>
           </tr>
         </thead>
@@ -2487,6 +2529,7 @@ function StaffTimeTable({ items }: { items: StaffTimeSummary[] }) {
               </td>
               <td style={teamWorkloadTdStyle}>{formatDuration(item.coreMinutes)}</td>
               <td style={teamWorkloadTdStyle}>{formatDuration(item.supportMinutes)}</td>
+              <td style={teamWorkloadTdStyle}>{formatDuration(item.officeMinutes)}</td>
               <td style={teamWorkloadTdStyle}>{formatDuration(item.totalMinutes)}</td>
             </tr>
           ))}
@@ -2517,6 +2560,10 @@ function StaffTimeCardList({
             value={formatDuration(item.supportMinutes)}
           />
           <InfoLine
+            label="Office / BD / Internal"
+            value={formatDuration(item.officeMinutes)}
+          />
+          <InfoLine
             label="All Time (ทุกเดือน)"
             value={formatDuration(item.totalMinutes)}
           />
@@ -2539,6 +2586,7 @@ function DailyStaffTimeCheck({
   summary: {
     coreMinutes: number;
     supportMinutes: number;
+    officeMinutes: number;
     totalMinutes: number;
   };
   isCompact: boolean;
@@ -2574,6 +2622,12 @@ function DailyStaffTimeCheck({
           label="Support Time"
           value={formatDuration(summary.supportMinutes)}
           tone="purple"
+          isMobile={isMobile}
+        />
+        <DailySummaryCard
+          label="Office / BD / Internal"
+          value={formatDuration(summary.officeMinutes)}
+          tone="success"
           isMobile={isMobile}
         />
       </div>
@@ -2621,6 +2675,7 @@ function DailyStaffTimeTable({
             {detailMode === "team" && <th style={thStyle}>Staff</th>}
             <th style={thStyle}>Core Work</th>
             <th style={thStyle}>Support Time</th>
+            <th style={thStyle}>Office / BD / Internal</th>
             <th style={thStyle}>Total</th>
             <th style={thStyle}>Signal</th>
             <th style={thStyle}>Cases / Work Details</th>
@@ -2635,6 +2690,7 @@ function DailyStaffTimeTable({
               )}
               <td style={tdStyle}>{formatDuration(item.coreMinutes)}</td>
               <td style={tdStyle}>{formatDuration(item.supportMinutes)}</td>
+              <td style={tdStyle}>{formatDuration(item.officeMinutes)}</td>
               <td style={tdStrongStyle}>{formatDuration(item.totalMinutes)}</td>
               <td style={tdStyle}>
                 <DailySignalBadge item={item} />
@@ -2670,6 +2726,10 @@ function DailyStaffTimeCardList({
           <InfoLine
             label="Support Time"
             value={formatDuration(item.supportMinutes)}
+          />
+          <InfoLine
+            label="Office / BD / Internal"
+            value={formatDuration(item.officeMinutes)}
           />
           <InfoLine label="Total" value={formatDuration(item.totalMinutes)} />
           <div style={dailySignalWrapStyle}>
@@ -2717,6 +2777,7 @@ function DailyCaseDetailList({
           <div style={dailyDetailSplitStyle}>
             <span>Core {formatDuration(detail.coreMinutes)}</span>
             <span>Support {formatDuration(detail.supportMinutes)}</span>
+            {detail.officeMinutes > 0 ? <span>Office {formatDuration(detail.officeMinutes)}</span> : null}
           </div>
         </div>
       ))}
@@ -3113,11 +3174,13 @@ function buildDailyStaffSummary({
     const staff = item.staff_name || "-";
     const minutes = safeMinutes(item.minutes);
     const isCore = item.billable !== false;
+    const isOffice = isOfficeWorkSource(item.source);
 
     const current = map.get(staff) || {
       staff,
       coreMinutes: 0,
       supportMinutes: 0,
+      officeMinutes: 0,
       totalMinutes: 0,
       details: [],
     };
@@ -3132,13 +3195,16 @@ function buildDailyStaffSummary({
         [item.issue !== "-" ? item.issue : "", renderWorkType(item.work_type)]
           .filter(Boolean)
           .join(" · ") || "-",
-      coreMinutes: isCore ? minutes : 0,
-      supportMinutes: isCore ? 0 : minutes,
+      coreMinutes: !isOffice && isCore ? minutes : 0,
+      supportMinutes: !isOffice && !isCore ? minutes : 0,
+      officeMinutes: isOffice ? minutes : 0,
       totalMinutes: minutes,
       href: item.href,
     };
 
-    if (isCore) {
+    if (isOffice) {
+      current.officeMinutes += minutes;
+    } else if (isCore) {
       current.coreMinutes += minutes;
     } else {
       current.supportMinutes += minutes;
@@ -3164,11 +3230,13 @@ function buildDailyTotalSummary(items: DailyStaffTimeSummary[]) {
     (sum, item) => sum + item.supportMinutes,
     0
   );
+  const officeMinutes = items.reduce((sum, item) => sum + item.officeMinutes, 0);
 
   return {
     coreMinutes,
     supportMinutes,
-    totalMinutes: coreMinutes + supportMinutes,
+    officeMinutes,
+    totalMinutes: coreMinutes + supportMinutes + officeMinutes,
   };
 }
 
@@ -3197,6 +3265,16 @@ function safeMinutes(value?: number | string | null) {
 function isRealOfficeWorkLog(item: OfficeWorkLog) {
   const staffName = (item.staff_name || "").trim().toLowerCase();
   return !staffName.startsWith("test");
+}
+
+function renderOfficeWorkSource(scope?: string | null): UnifiedTimeLog["source"] {
+  if (scope === "business_development") return "Business Development";
+  if (scope === "internal_support") return "Internal Support";
+  return "Office";
+}
+
+function isOfficeWorkSource(source: UnifiedTimeLog["source"]) {
+  return source === "Office" || source === "Business Development" || source === "Internal Support";
 }
 
 function getRiskScore(level: RiskLevel) {
@@ -3897,6 +3975,13 @@ const advisorySourceBadgeStyle: CSSProperties = {
   borderColor: "#d9c4f2",
 };
 
+const officeSourceBadgeStyle: CSSProperties = {
+  ...sourceBadgeBaseStyle,
+  background: "#ecfdf5",
+  color: "#047857",
+  borderColor: "#a7f3d0",
+};
+
 const sectionDividerStyle: CSSProperties = {
   margin: "20px 0 10px",
   paddingTop: 4,
@@ -4556,6 +4641,11 @@ const staffSegmentCoreStyle: CSSProperties = {
 const staffSegmentSupportStyle: CSSProperties = {
   height: "100%",
   background: "#7e22ce",
+};
+
+const staffSegmentOfficeStyle: CSSProperties = {
+  height: "100%",
+  background: "#059669",
 };
 
 const dailySummaryGridStyle: CSSProperties = {
