@@ -56,8 +56,8 @@ type LedgerRow = {
 type ClientRow = { id: string; name: string | null };
 type CaseRow = { id: number; file_no: string | null; title: string | null; client_name: string | null };
 type MatterRow = { id: string; matter_no: string | null; title: string | null };
-type BankAccountRow = { id: string; short_name: string | null; bank_name: string | null };
-type BankAccountAccessRow = { bank_account_id: string | null };
+type BankAccountRow = { id: string; short_name: string | null; bank_name: string | null; is_active?: boolean | null };
+type BankAccountAccessRow = { bank_account_id: string | null; can_view?: boolean | null };
 type UserProfileRow = { id: string; full_name: string | null; staff_name: string | null; email: string | null };
 type EntryType = "income" | "expense" | "transfer";
 const otherClaimantValue = "__other__";
@@ -214,6 +214,7 @@ export default function FinanceLedgerPage() {
 
   const loadLedger = useCallback(async () => {
     if (!permissions.canViewCompanyLedger) return;
+    if (!userId) return;
 
     try {
       setLoading(true);
@@ -230,10 +231,14 @@ export default function FinanceLedgerPage() {
         supabase.from("advisory_matters").select("id, matter_no, title").order("created_at", { ascending: false }),
         supabase
           .from("finance_bank_accounts")
-          .select("id, short_name, bank_name")
+          .select("id, short_name, bank_name, is_active")
           .eq("is_active", true)
           .order("short_name", { ascending: true }),
-        supabase.from("finance_bank_account_access").select("bank_account_id").eq("user_id", userId),
+        supabase
+          .from("finance_bank_account_access")
+          .select("bank_account_id, can_view")
+          .eq("user_profile_id", userId)
+          .eq("can_view", true),
         supabase
           .from("user_profiles")
           .select("id, full_name, staff_name, email")
@@ -245,10 +250,26 @@ export default function FinanceLedgerPage() {
         setErrorText(ledgerRes.error.message);
         return;
       }
+      if (bankAccountsRes.error) {
+        setErrorText(bankAccountsRes.error.message);
+        return;
+      }
+      if (bankAccessRes.error) {
+        setErrorText(bankAccessRes.error.message);
+        return;
+      }
 
-      const allowedBankIds = new Set(((bankAccessRes.data || []) as BankAccountAccessRow[]).map((item) => item.bank_account_id).filter(Boolean));
-      const visibleBankAccounts = ((bankAccountsRes.data || []) as BankAccountRow[]).filter((account) => allowedBankIds.has(account.id));
-      setRows(((ledgerRes.data || []) as LedgerRow[]).filter((row) => row.bank_account_id && allowedBankIds.has(row.bank_account_id)));
+      const activeBankAccounts = (bankAccountsRes.data || []) as BankAccountRow[];
+      const accessRows = (bankAccessRes.data || []) as BankAccountAccessRow[];
+      const allowedBankIds = new Set(accessRows.map((item) => item.bank_account_id).filter(Boolean));
+      const visibleBankAccounts =
+        accessRows.length > 0
+          ? activeBankAccounts.filter((account) => allowedBankIds.has(account.id))
+          : permissions.role === "admin"
+            ? activeBankAccounts
+            : [];
+      const visibleBankIds = new Set(visibleBankAccounts.map((account) => account.id));
+      setRows(((ledgerRes.data || []) as LedgerRow[]).filter((row) => row.bank_account_id && visibleBankIds.has(row.bank_account_id)));
       setClients((clientsRes.data || []) as ClientRow[]);
       setCases((casesRes.data || []) as CaseRow[]);
       setMatters((mattersRes.data || []) as MatterRow[]);
@@ -257,7 +278,7 @@ export default function FinanceLedgerPage() {
     } finally {
       setLoading(false);
     }
-  }, [permissions.canViewCompanyLedger, userId]);
+  }, [permissions.canViewCompanyLedger, permissions.role, userId]);
 
   useEffect(() => {
     if (loadingProfile) return;
@@ -686,6 +707,9 @@ export default function FinanceLedgerPage() {
               ) : (
                 <label style={labelStyle}>Bank Account<select value={form.bank_account_id} onChange={(event) => setForm({ ...form, bank_account_id: event.target.value })} style={inputStyle}><option value="">Select bank</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{renderBankLabel(account)}</option>)}</select></label>
               )}
+              {bankAccounts.length === 0 ? (
+                <div style={bankAccessHintStyle}>No bank accounts available for your permission.</div>
+              ) : null}
               <label style={labelStyle}>Category<select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} style={inputStyle}>{categoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
               {form.category === "Other" ? (
                 <label style={labelStyle}>Custom Category<input value={form.custom_category} onChange={(event) => setForm({ ...form, custom_category: event.target.value })} style={inputStyle} placeholder="ระบุหมวดรายการเอง" /></label>
@@ -1026,6 +1050,7 @@ const formGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "re
 const labelStyle: CSSProperties = { display: "grid", gap: 7, fontSize: 13, fontWeight: 700, minWidth: 0 };
 const wideLabelStyle: CSSProperties = { ...labelStyle, gridColumn: "1 / -1" };
 const inputStyle: CSSProperties = { width: "100%", maxWidth: "100%", boxSizing: "border-box", padding: 10, border: "1px solid #cccccc", borderRadius: 6, fontSize: 14, minWidth: 0 };
+const bankAccessHintStyle: CSSProperties = { gridColumn: "1 / -1", color: "#991b1b", fontSize: 12, fontWeight: 700 };
 const textareaStyle: CSSProperties = { ...inputStyle, minHeight: 70 };
 const sectionTitleStyle: CSSProperties = { margin: "0 0 12px", fontSize: 18, fontWeight: 900 };
 const actionRowStyle: CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 };
