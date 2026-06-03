@@ -50,8 +50,8 @@ type ClaimRow = {
 type ClientRow = { id: string; name: string | null };
 type CaseRow = { id: number; file_no: string | null; title: string | null; client_name: string | null };
 type MatterRow = { id: string; matter_no: string | null; title: string | null };
-type BankAccountRow = { id: string; short_name: string | null; bank_name: string | null };
-type BankAccountAccessRow = { bank_account_id: string | null };
+type BankAccountRow = { id: string; short_name: string | null; bank_name: string | null; is_active?: boolean | null };
+type BankAccountAccessRow = { bank_account_id: string | null; can_view?: boolean | null };
 type UserProfileRow = { id: string; full_name: string | null; staff_name: string | null; email: string | null };
 
 type ClaimForm = {
@@ -176,6 +176,7 @@ export default function ExpenseClaimsPage() {
 
   const loadClaims = useCallback(async () => {
     if (!permissions.canSubmitExpenseClaim && !permissions.canViewOwnExpenseClaims && !permissions.canViewAllExpenseClaims) return;
+    if (!userId) return;
 
     try {
       setLoading(true);
@@ -190,13 +191,25 @@ export default function ExpenseClaimsPage() {
         supabase.from("clients").select("id, name").order("name", { ascending: true }),
         supabase.from("cases").select("id, file_no, title, client_name").order("id", { ascending: false }),
         supabase.from("advisory_matters").select("id, matter_no, title").order("created_at", { ascending: false }),
-        supabase.from("finance_bank_accounts").select("id, short_name, bank_name").eq("is_active", true).order("short_name", { ascending: true }),
-        supabase.from("finance_bank_account_access").select("bank_account_id").eq("user_id", userId),
+        supabase.from("finance_bank_accounts").select("id, short_name, bank_name, is_active").eq("is_active", true).order("short_name", { ascending: true }),
+        supabase
+          .from("finance_bank_account_access")
+          .select("bank_account_id, can_view")
+          .eq("user_profile_id", userId)
+          .eq("can_view", true),
         supabase.from("user_profiles").select("id, full_name, staff_name, email").eq("active", true).order("full_name", { ascending: true }),
       ]);
 
       if (claimsRes.error) {
         setErrorText(claimsRes.error.message);
+        return;
+      }
+      if (bankRes.error) {
+        setErrorText(bankRes.error.message);
+        return;
+      }
+      if (bankAccessRes.error) {
+        setErrorText(bankAccessRes.error.message);
         return;
       }
 
@@ -205,13 +218,21 @@ export default function ExpenseClaimsPage() {
       setClients((clientsRes.data || []) as ClientRow[]);
       setCases((casesRes.data || []) as CaseRow[]);
       setMatters((mattersRes.data || []) as MatterRow[]);
-      const allowedBankIds = new Set(((bankAccessRes.data || []) as BankAccountAccessRow[]).map((item) => item.bank_account_id).filter(Boolean));
-      setBankAccounts(((bankRes.data || []) as BankAccountRow[]).filter((account) => allowedBankIds.has(account.id)));
+      const activeBankAccounts = (bankRes.data || []) as BankAccountRow[];
+      const accessRows = (bankAccessRes.data || []) as BankAccountAccessRow[];
+      const allowedBankIds = new Set(accessRows.map((item) => item.bank_account_id).filter(Boolean));
+      const visibleBankAccounts =
+        accessRows.length > 0
+          ? activeBankAccounts.filter((account) => allowedBankIds.has(account.id))
+          : permissions.role === "admin"
+            ? activeBankAccounts
+            : [];
+      setBankAccounts(visibleBankAccounts);
       setClaimantUsers(((usersRes.data || []) as UserProfileRow[]).filter(isRealUserProfile));
     } finally {
       setLoading(false);
     }
-  }, [permissions.canSubmitExpenseClaim, permissions.canViewAllExpenseClaims, permissions.canViewOwnExpenseClaims, userId]);
+  }, [permissions.canSubmitExpenseClaim, permissions.canViewAllExpenseClaims, permissions.canViewOwnExpenseClaims, permissions.role, userId]);
 
   useEffect(() => {
     if (loadingProfile) return;
@@ -371,7 +392,10 @@ export default function ExpenseClaimsPage() {
     if (payingClaimId === claim.id) return;
 
     const paidForm = getPaidForm(claim.id);
-    if (!paidForm.bank_account_id) return alert("Bank account is required");
+    if (!paidForm.bank_account_id) return alert("Please select bank account.");
+    if (!bankAccounts.some((account) => account.id === paidForm.bank_account_id)) {
+      return alert("You do not have access to this bank account.");
+    }
 
     try {
       setPayingClaimId(claim.id);
@@ -627,9 +651,10 @@ export default function ExpenseClaimsPage() {
           <div style={paidFormStyle}>
             <input type="date" value={paidForm.paid_date} onChange={(event) => updatePaidForm(claim.id, { paid_date: event.target.value })} style={inputStyle} />
             <select value={paidForm.bank_account_id} onChange={(event) => updatePaidForm(claim.id, { bank_account_id: event.target.value })} style={inputStyle}><option value="">Bank</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{renderBankLabel(account)}</option>)}</select>
+            {bankAccounts.length === 0 ? <div style={bankAccessHintStyle}>No bank accounts available for your permission.</div> : null}
             <input value={paidForm.payment_reference_no} onChange={(event) => updatePaidForm(claim.id, { payment_reference_no: event.target.value })} style={inputStyle} placeholder="Reference" />
             <input value={paidForm.payment_note} onChange={(event) => updatePaidForm(claim.id, { payment_note: event.target.value })} style={inputStyle} placeholder="Payment note" />
-            <button type="button" onClick={() => markPaid(claim)} disabled={isPaying} style={primarySmallButtonStyle}>{isPaying ? "Processing..." : "Mark as Paid"}</button>
+            <button type="button" onClick={() => markPaid(claim)} disabled={isPaying || bankAccounts.length === 0} style={primarySmallButtonStyle}>{isPaying ? "Processing..." : "Mark as Paid"}</button>
           </div>
         ) : null}
         {["submitted", "approved", "rejected"].includes(claim.status) && permissions.canApproveExpenseClaims ? (
@@ -753,6 +778,7 @@ const labelStyle: CSSProperties = { display: "grid", gap: 7, fontSize: 13, fontW
 const descriptionLabelStyle: CSSProperties = { ...labelStyle, gridColumn: "1 / -1" };
 const wideLabelStyle: CSSProperties = { ...labelStyle, gridColumn: "1 / -1" };
 const inputStyle: CSSProperties = { width: "100%", boxSizing: "border-box", padding: 10, border: "1px solid #cccccc", borderRadius: 6, fontSize: 14 };
+const bankAccessHintStyle: CSSProperties = { color: "#991b1b", fontSize: 12, fontWeight: 700 };
 const textareaStyle: CSSProperties = { ...inputStyle, minHeight: 70 };
 const sectionTitleStyle: CSSProperties = { margin: "0 0 12px", fontSize: 18, fontWeight: 900 };
 const actionRowStyle: CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 };
