@@ -12,6 +12,8 @@ import type { UserPermissions, UserRole } from "../../lib/permissions";
 type CurrentProfile = {
   role?: UserRole | string | null;
   financial_access?: boolean | null;
+  email?: string | null;
+  staff_name?: string | null;
 };
 
 type ClientOption = {
@@ -41,6 +43,7 @@ type AdvisoryMatterForm = {
   matter_no: string;
   title: string;
   matter_type: string;
+  matter_type_other: string;
   retainer_type: string;
   status: string;
   responsible_lawyer: string;
@@ -57,6 +60,7 @@ const emptyForm: AdvisoryMatterForm = {
   matter_no: "",
   title: "",
   matter_type: "general_advisory",
+  matter_type_other: "",
   retainer_type: "no_retainer",
   status: "active",
   responsible_lawyer: "",
@@ -120,6 +124,11 @@ export default function AdvisoryPage() {
 
   const canViewAdvisory = permissions.canViewDashboard;
   const canEditAdvisory = editableRoles.includes(permissions.role);
+  const canViewAdvisoryFinancials =
+    permissions.role === "admin" ||
+    permissions.role === "partner" ||
+    (profile.email || "").trim().toLowerCase() === "boonyanud2002@gmail.com" ||
+    (profile.staff_name || "").trim() === "ทนายแพม";
 
   const clientNameMap = useMemo(() => {
     return new Map(clients.map((client) => [client.id, client.name || "-"]));
@@ -140,7 +149,7 @@ export default function AdvisoryPage() {
 
         const { data, error } = await supabase
           .from("user_profiles")
-          .select("role, financial_access")
+          .select("role, financial_access, email, staff_name")
           .eq("id", userData.user.id)
           .single();
 
@@ -152,6 +161,8 @@ export default function AdvisoryPage() {
         setProfile({
           role: data.role || "",
           financial_access: data.financial_access === true,
+          email: data.email || userData.user.email || "",
+          staff_name: data.staff_name || "",
         });
       } finally {
         setLoadingProfile(false);
@@ -229,12 +240,14 @@ export default function AdvisoryPage() {
   };
 
   const startEdit = (matter: AdvisoryMatterRow) => {
+    const isPresetMatterType = matterTypeOptions.some((option) => option.value === matter.matter_type);
     setForm({
       id: matter.id,
       client_id: matter.client_id || "",
       matter_no: matter.matter_no || "",
       title: matter.title || "",
-      matter_type: normalizeOptionValue(matter.matter_type, matterTypeOptions),
+      matter_type: isPresetMatterType ? matter.matter_type || "general_advisory" : "other",
+      matter_type_other: isPresetMatterType ? "" : matter.matter_type || "",
       retainer_type: normalizeOptionValue(
         matter.retainer_type,
         retainerTypeOptions
@@ -269,6 +282,13 @@ export default function AdvisoryPage() {
     }
 
     const monthlyRetainerAmountText = form.monthly_retainer_amount.trim();
+    const matterType = form.matter_type === "other" ? form.matter_type_other.trim() : form.matter_type;
+
+    if (!matterType) {
+      alert("Custom matter type is required");
+      return;
+    }
+
     const monthlyRetainerAmount = monthlyRetainerAmountText
       ? Number(monthlyRetainerAmountText)
       : null;
@@ -281,19 +301,34 @@ export default function AdvisoryPage() {
       return;
     }
 
-    const payload = {
+    const payload: {
+      client_id: string;
+      title: string;
+      matter_type: string;
+      retainer_type: string;
+      status: string;
+      responsible_lawyer: string;
+      start_date: string | null;
+      end_date: string | null;
+      monthly_retainer_amount?: number | null;
+      scope_of_work: string;
+      note: string;
+    } = {
       client_id: form.client_id,
       title: form.title.trim(),
-      matter_type: form.matter_type,
+      matter_type: matterType,
       retainer_type: form.retainer_type,
       status: form.status,
       responsible_lawyer: form.responsible_lawyer.trim(),
       start_date: form.start_date || null,
       end_date: form.end_date || null,
-      monthly_retainer_amount: monthlyRetainerAmount,
       scope_of_work: form.scope_of_work.trim(),
       note: form.note.trim(),
     };
+
+    if (canViewAdvisoryFinancials || !isEditing) {
+      payload.monthly_retainer_amount = canViewAdvisoryFinancials ? monthlyRetainerAmount : null;
+    }
 
     try {
       setSaving(true);
@@ -476,9 +511,16 @@ export default function AdvisoryPage() {
               <SelectField
                 label="Matter type"
                 value={form.matter_type}
-                onChange={(value) => setForm({ ...form, matter_type: value })}
+                onChange={(value) => setForm({ ...form, matter_type: value, matter_type_other: value === "other" ? form.matter_type_other : "" })}
                 options={matterTypeOptions}
               />
+              {form.matter_type === "other" ? (
+                <Field
+                  label="Custom matter type"
+                  value={form.matter_type_other}
+                  onChange={(value) => setForm({ ...form, matter_type_other: value })}
+                />
+              ) : null}
               <SelectField
                 label="Retainer type"
                 value={form.retainer_type}
@@ -510,14 +552,16 @@ export default function AdvisoryPage() {
                 type="date"
                 onChange={(value) => setForm({ ...form, end_date: value })}
               />
-              <Field
-                label="Monthly retainer amount"
-                value={form.monthly_retainer_amount}
-                type="number"
-                onChange={(value) =>
-                  setForm({ ...form, monthly_retainer_amount: value })
-                }
-              />
+              {canViewAdvisoryFinancials ? (
+                <Field
+                  label="Monthly retainer amount"
+                  value={form.monthly_retainer_amount}
+                  type="number"
+                  onChange={(value) =>
+                    setForm({ ...form, monthly_retainer_amount: value })
+                  }
+                />
+              ) : null}
               <Field
                 label="Scope of work"
                 value={form.scope_of_work}
@@ -568,7 +612,7 @@ export default function AdvisoryPage() {
                     <th style={thStyle}>Lawyer</th>
                     <th style={thStyle}>Start</th>
                     <th style={thStyle}>End</th>
-                    <th style={thStyle}>Monthly</th>
+                    {canViewAdvisoryFinancials ? <th style={thStyle}>Monthly</th> : null}
                     <th style={thStyle}>Action</th>
                   </tr>
                 </thead>
@@ -581,7 +625,7 @@ export default function AdvisoryPage() {
                         {clientNameMap.get(matter.client_id || "") || "-"}
                       </td>
                       <td style={tdStyle}>
-                        {renderOptionLabel(matter.matter_type, matterTypeOptions)}
+                        {matter.matter_type || "-"}
                       </td>
                       <td style={tdStyle}>
                         {renderOptionLabel(
@@ -597,9 +641,11 @@ export default function AdvisoryPage() {
                       </td>
                       <td style={tdStyle}>{matter.start_date || "-"}</td>
                       <td style={tdStyle}>{matter.end_date || "-"}</td>
-                      <td style={tdStyle}>
-                        {formatAmount(matter.monthly_retainer_amount)}
-                      </td>
+                      {canViewAdvisoryFinancials ? (
+                        <td style={tdStyle}>
+                          {formatAmount(matter.monthly_retainer_amount)}
+                        </td>
+                      ) : null}
                       <td style={tdStyle}>
                         <div style={actionWrapStyle}>
                           <Link
