@@ -169,6 +169,7 @@ export default function FinanceLedgerPage() {
   const [errorText, setErrorText] = useState("");
 
   const permissions: UserPermissions = useMemo(() => buildPermissions(profile), [profile]);
+  const isAdmin = permissions.role === "admin";
   const actorName = profile.full_name || profile.staff_name || userEmail;
 
   useEffect(() => {
@@ -381,13 +382,14 @@ export default function FinanceLedgerPage() {
     const category = form.entry_type === "transfer" ? transferCategories[0] : getCategoryForSave(form);
     if (!category) return alert("Custom Category is required");
     if (
+      !isAdmin &&
       form.entry_type === "expense" &&
       form.expense_claimant_user_id === otherClaimantValue &&
       !form.expense_claimant_name.trim()
     ) {
       return alert("Claimant Name is required");
     }
-    if (isClaimantRequired(form) && !getClaimantName(form, claimantUsers)) {
+    if (!isAdmin && isClaimantRequired(form) && !getClaimantName(form, claimantUsers)) {
       return alert("Expense claimant is required for this category");
     }
 
