@@ -3783,20 +3783,20 @@ const compactFilterGridStyle: CSSProperties = {
 
 const summaryGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-  gap: 12,
+  gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+  gap: 16,
 };
 
 const compactSummaryGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(2, minmax(120px, 1fr))",
-  gap: 10,
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: 12,
 };
 
 const mobileSummaryGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-  gap: 8,
+  gridTemplateColumns: "1fr",
+  gap: 10,
 };
 
 const metricCardStyle: CSSProperties = {
