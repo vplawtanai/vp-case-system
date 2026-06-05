@@ -29,6 +29,7 @@ type TimelineItem = {
 type TimelineForm = {
   event_date: string;
   event_time: string;
+  custom_event_time: string;
   event_end_time: string;
   appointment_type: string;
   appointment_other: string;
@@ -66,12 +67,14 @@ const appointmentStatusOptions = [
   { value: "Cancelled", label: "Cancelled (ยกเลิก/เลื่อน)" },
 ];
 
-const startTimeOptions = ["08:30", "09:00", "09:30", "10:00", "16:30"];
+const otherStartTimeValue = "__other_start_time__";
+const startTimeOptions = ["08:30", "09:00", "09:30", "10:00", "13:00", "13:30", "16:30", otherStartTimeValue];
 const endTimeOptions = ["12:00", "16:30", "17:30"];
 
 const emptyAppointmentForm: TimelineForm = {
   event_date: "",
   event_time: "09:00",
+  custom_event_time: "",
   event_end_time: "12:00",
   appointment_type: "นัดไกล่เกลี่ย",
   appointment_other: "",
@@ -331,7 +334,8 @@ export default function TimelineSection({
 
     setForm({
       event_date: item.event_date || "",
-      event_time: item.event_time || "09:00",
+      event_time: resolveStartTimeSelectValue(item.event_time),
+      custom_event_time: resolveCustomStartTimeValue(item.event_time),
       event_end_time: item.event_end_time || "12:00",
       appointment_type: item.appointment_type || "นัดไกล่เกลี่ย",
       appointment_other: item.appointment_other || "",
@@ -356,6 +360,18 @@ export default function TimelineSection({
     if (!form.event_time.trim()) {
       alert("กรุณาเลือกเวลาเริ่มต้น");
       return false;
+    }
+
+    if (form.event_time === otherStartTimeValue) {
+      if (!form.custom_event_time.trim()) {
+        alert("กรุณากรอกเวลาเริ่มต้นเอง");
+        return false;
+      }
+
+      if (!isValidTimeValue(form.custom_event_time.trim())) {
+        alert("กรุณากรอกเวลาเริ่มต้นในรูปแบบ HH:mm เช่น 14:15");
+        return false;
+      }
     }
 
     if (!form.event_end_time.trim()) {
@@ -386,7 +402,7 @@ export default function TimelineSection({
       case_id: caseIdNumber,
       event_type: "hearing",
       event_date: form.event_date,
-      event_time: form.event_time,
+      event_time: getStartTimeForSave(form),
       event_end_time: form.event_end_time,
       appointment_type: form.appointment_type,
       appointment_other:
@@ -712,12 +728,30 @@ export default function TimelineSection({
             <Select
               label="เวลาเริ่มต้น"
               value={form.event_time}
-              onChange={(value) => setForm({ ...form, event_time: value })}
+              onChange={(value) =>
+                setForm({
+                  ...form,
+                  event_time: value,
+                  custom_event_time:
+                    value === otherStartTimeValue ? form.custom_event_time : "",
+                })
+              }
               options={startTimeOptions.map((option) => ({
                 value: option,
-                label: option,
+                label: option === otherStartTimeValue ? "Other" : option,
               }))}
             />
+
+            {form.event_time === otherStartTimeValue && (
+              <Input
+                label="Custom start time"
+                value={form.custom_event_time}
+                onChange={(value) =>
+                  setForm({ ...form, custom_event_time: value })
+                }
+                placeholder="เช่น 14:15"
+              />
+            )}
 
             <Select
               label="เวลาสิ้นสุด"
@@ -1172,6 +1206,30 @@ function formatDisplayDate(value?: string | null) {
 
   const [year, month, day] = parts;
   return `${day}/${month}/${year}`;
+}
+
+function resolveStartTimeSelectValue(value?: string | null) {
+  if (!value) return "09:00";
+  return startTimeOptions.includes(value) && value !== otherStartTimeValue
+    ? value
+    : otherStartTimeValue;
+}
+
+function resolveCustomStartTimeValue(value?: string | null) {
+  if (!value) return "";
+  return startTimeOptions.includes(value) && value !== otherStartTimeValue
+    ? ""
+    : value;
+}
+
+function getStartTimeForSave(form: TimelineForm) {
+  return form.event_time === otherStartTimeValue
+    ? form.custom_event_time.trim()
+    : form.event_time;
+}
+
+function isValidTimeValue(value: string) {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 }
 
 /* =========================================================
