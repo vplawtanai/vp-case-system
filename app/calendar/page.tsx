@@ -621,7 +621,7 @@ function ItemPanel({
       ) : (
         <div style={itemListStyle}>
           {items.map((item) => {
-            const isOverdue = isOverdueDate(item.date);
+            const isOverdue = isOverdueCalendarItem(item);
             return (
               <Link key={item.id} href={item.link} style={isOverdue ? overdueItemRowStyle : itemRowStyle}>
                 <div style={itemTopLineStyle}>
@@ -763,8 +763,12 @@ function isOverdueDate(dateKey: string) {
   return !!dateKey && dateKey < getDateKey(new Date());
 }
 
+function isOverdueCalendarItem(item: CalendarItem) {
+  return isOverdueDate(item.date) && !isClosedStatus(item.status);
+}
+
 function isClosedStatus(status: string) {
-  return ["done", "completed", "closed", "clear"].includes(
+  return ["done", "completed", "cancelled", "closed", "clear"].includes(
     status.trim().toLowerCase()
   );
 }
