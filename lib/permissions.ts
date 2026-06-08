@@ -142,12 +142,15 @@ export function canViewFees(
 }
 
 export function canViewFinanceModule(profile?: UserPermissionProfile | null) {
+  const role = normalizeRole(profile?.role || "");
+
   return (
     profile?.can_submit_expense_claim === true ||
     profile?.can_view_own_expense_claims === true ||
     profile?.can_view_all_expense_claims === true ||
     profile?.can_view_company_ledger === true ||
-    profile?.can_view_lawyer_compensation === true
+    profile?.can_view_lawyer_compensation === true ||
+    isStaffUp(role)
   );
 }
 
@@ -287,12 +290,17 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
   const role = normalizeRole(profile?.role || "");
   const financialAccess = profile?.financial_access === true;
   const staffName = profile?.staff_name || "";
-  const canSubmitExpenseClaim = profile?.can_submit_expense_claim === true;
-  const canViewOwnExpenseClaims = profile?.can_view_own_expense_claims === true;
-  const canViewAllExpenseClaims = profile?.can_view_all_expense_claims === true;
-  const canApproveExpenseClaims = profile?.can_approve_expense_claims === true;
+  const canSubmitExpenseClaim =
+    profile?.can_submit_expense_claim === true || isStaffUp(role);
+  const canViewOwnExpenseClaims =
+    profile?.can_view_own_expense_claims === true || isStaffUp(role);
+  const canViewAllExpenseClaims =
+    profile?.can_view_all_expense_claims === true || isPartnerUp(role);
+  const canApproveExpenseClaims =
+    profile?.can_approve_expense_claims === true || isPartnerUp(role);
   const canPayExpenseClaims = profile?.can_pay_expense_claims === true;
-  const canViewCompanyLedger = profile?.can_view_company_ledger === true;
+  const canViewCompanyLedger =
+    profile?.can_view_company_ledger === true || isPartnerUp(role);
   const canEditCompanyLedger = profile?.can_edit_company_ledger === true;
   const canVoidCompanyLedger = profile?.can_void_company_ledger === true;
   const canViewLawyerCompensation = profile?.can_view_lawyer_compensation === true;
@@ -325,6 +333,7 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
     canViewLawyerCompensation,
     canEditLawyerCompensation,
     canVoidLawyerCompensation,
+    canUseExpenseClaims: canSubmitExpenseClaim || canViewOwnExpenseClaims || canViewAllExpenseClaims,
     canSubmitOfficeWorkLog,
     canViewOwnOfficeWorkLogs,
     canViewAllOfficeWorkLogs,
@@ -354,7 +363,7 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
     canEditNotes: canEditNotes(role),
     canEditTimeLogs: canEditTimeLogs(role),
     canEditFees: canEditFees(role, financialAccess),
-    canEditFinanceModule: canEditCompanyLedger || canEditLawyerCompensation || canSubmitExpenseClaim || canApproveExpenseClaims || canPayExpenseClaims,
+    canEditFinanceModule: canEditCompanyLedger || canEditLawyerCompensation || canApproveExpenseClaims || canPayExpenseClaims,
 
     canSoftDelete: canSoftDelete(role),
     canRestore: canRestore(role),

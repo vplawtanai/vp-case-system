@@ -53,13 +53,9 @@ export default function AppTopNav({
   const permissions: UserPermissions = useMemo(() => {
     return buildPermissions(profile);
   }, [profile]);
-  const canAccessExpenseClaims =
-    permissions.canSubmitExpenseClaim ||
-    permissions.canViewOwnExpenseClaims ||
-    permissions.canViewAllExpenseClaims;
   const financeHref = permissions.canViewCompanyLedger
     ? "/finance/ledger"
-    : canAccessExpenseClaims
+    : permissions.canUseExpenseClaims
       ? "/finance/expense-claims"
       : "/finance/compensation";
 
