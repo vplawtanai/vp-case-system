@@ -53,6 +53,15 @@ export default function AppTopNav({
   const permissions: UserPermissions = useMemo(() => {
     return buildPermissions(profile);
   }, [profile]);
+  const canAccessExpenseClaims =
+    permissions.canSubmitExpenseClaim ||
+    permissions.canViewOwnExpenseClaims ||
+    permissions.canViewAllExpenseClaims;
+  const financeHref = permissions.canViewCompanyLedger
+    ? "/finance/ledger"
+    : canAccessExpenseClaims
+      ? "/finance/expense-claims"
+      : "/finance/compensation";
 
   useEffect(() => {
     const loadCurrentUserProfile = async () => {
@@ -163,7 +172,7 @@ export default function AppTopNav({
         )}
 
         {permissions.canViewFinanceModule && (
-          <Link href="/finance/ledger" style={getLinkStyle("finance")}>
+          <Link href={financeHref} style={getLinkStyle("finance")}>
             Finance
           </Link>
         )}
