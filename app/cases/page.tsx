@@ -34,6 +34,7 @@ type CaseItem = {
   risk_level?: RiskLevel | null;
   next_alert_text?: string | null;
   next_alert_date?: string | null;
+  next_alerts?: AlertCandidate[];
 
   created_at?: string | null;
   updated_at?: string | null;
@@ -298,7 +299,8 @@ export default function CasesPage() {
       setAlertItems(allAlerts);
 
       const enrichedCases = baseCases.map((item) => {
-        const alert = alertMap.get(item.id);
+        const alerts = alertMap.get(item.id) || [];
+        const alert = alerts[0];
 
         if (!alert) {
           return {
@@ -306,6 +308,7 @@ export default function CasesPage() {
             risk_level: "clear" as RiskLevel,
             next_alert_text: "-",
             next_alert_date: "",
+            next_alerts: [],
           };
         }
 
@@ -314,6 +317,7 @@ export default function CasesPage() {
           risk_level: alert.level,
           next_alert_text: alert.text,
           next_alert_date: alert.date,
+          next_alerts: alerts,
         };
       });
 
@@ -942,24 +946,16 @@ function buildAlertCandidates(
 }
 
 function buildAlertMapFromCandidates(candidates: AlertCandidate[]) {
-  const map = new Map<number, AlertCandidate>();
+  const map = new Map<number, AlertCandidate[]>();
 
   candidates.forEach((candidate) => {
-    const existing = map.get(candidate.case_id);
-
-    if (!existing) {
-      map.set(candidate.case_id, candidate);
-      return;
-    }
-
-    if (candidate.score < existing.score) {
-      map.set(candidate.case_id, candidate);
-      return;
-    }
-
-    if (candidate.score === existing.score && candidate.date < existing.date) {
-      map.set(candidate.case_id, candidate);
-    }
+    const existing = map.get(candidate.case_id) || [];
+    existing.push(candidate);
+    existing.sort((a, b) => {
+      if (a.score !== b.score) return a.score - b.score;
+      return a.date.localeCompare(b.date);
+    });
+    map.set(candidate.case_id, existing);
   });
 
   return map;
@@ -1022,26 +1018,21 @@ function getTodayDateString() {
 }
 
 function isTaskDone(status?: string | null) {
-  const value = (status || "").toLowerCase();
-
-  return value === "done" || value === "cancelled";
+  return isClosedAlertStatus(status);
 }
 
 function isDeadlineDone(status?: string | null) {
   const value = (status || "").toLowerCase();
 
   return (
-    value === "done" ||
+    isClosedAlertStatus(status) ||
     value === "filed" ||
-    value === "submitted" ||
-    value === "cancelled"
+    value === "submitted"
   );
 }
 
 function isTimelineDone(status?: string | null) {
-  const value = (status || "").toLowerCase();
-
-  return value === "done" || value === "cancelled";
+  return isClosedAlertStatus(status);
 }
 
 function isEnforcementWritDone(item: CaseEnforcement) {
@@ -1050,6 +1041,7 @@ function isEnforcementWritDone(item: CaseEnforcement) {
   const value = (item.status || "").toLowerCase();
 
   return (
+    isClosedAlertStatus(item.status) ||
     value === "writ_requested" ||
     value === "writ_issued" ||
     value === "asset_searching" ||
@@ -1061,6 +1053,11 @@ function isEnforcementWritDone(item: CaseEnforcement) {
     value === "sold" ||
     value === "closed"
   );
+}
+
+function isClosedAlertStatus(status?: string | null) {
+  const value = (status || "").trim().toLowerCase();
+  return ["done", "completed", "cancelled", "closed", "clear"].includes(value);
 }
 
 function renderEnforcementPartyLabel(
@@ -1127,12 +1124,7 @@ function CaseTable({
                 <RiskBadge level={getRiskLevel(c)} />
               </td>
               <td style={tdStyle}>
-                <div style={alertTextStyle}>{c.next_alert_text || "-"}</div>
-                {c.next_alert_date && (
-                  <div style={subTextStyle}>
-                    {formatDisplayDate(c.next_alert_date)}
-                  </div>
-                )}
+                <NextAlertList alerts={c.next_alerts || []} />
               </td>
               <td style={tdStyle}>{formatDateTime(c.updated_at)}</td>
               <td style={tdStyle}>
@@ -1205,12 +1197,7 @@ function CaseCardList({
 
           <div style={mobileAlertBoxStyle}>
             <div style={infoLabelStyle}>Next Alert</div>
-            <div style={infoValueStyle}>{c.next_alert_text || "-"}</div>
-            {c.next_alert_date && (
-              <div style={subTextStyle}>
-                {formatDisplayDate(c.next_alert_date)}
-              </div>
-            )}
+            <NextAlertList alerts={c.next_alerts || []} />
           </div>
 
           <div style={cardActionStyle}>
@@ -1280,6 +1267,32 @@ function RiskBadge({ level }: { level: RiskLevel }) {
       : riskClearStyle;
 
   return <span style={{ ...riskBadgeBaseStyle, ...style }}>{text}</span>;
+}
+
+function NextAlertList({ alerts }: { alerts: AlertCandidate[] }) {
+  if (alerts.length === 0) {
+    return <div style={alertTextStyle}>-</div>;
+  }
+
+  const visibleAlerts = alerts.slice(0, 3);
+  const moreCount = alerts.length - visibleAlerts.length;
+
+  return (
+    <div style={nextAlertListStyle}>
+      {visibleAlerts.map((alert, index) => (
+        <div key={`${alert.case_id}-${alert.text}-${alert.date}-${index}`} style={nextAlertItemStyle}>
+          <div style={nextAlertHeaderStyle}>
+            <RiskBadge level={alert.level} />
+            <span style={subTextStyle}>{formatDisplayDate(alert.date)}</span>
+          </div>
+          <div style={alertTextStyle}>{alert.text}</div>
+        </div>
+      ))}
+      {moreCount > 0 && (
+        <div style={subTextStyle}>+{moreCount} more</div>
+      )}
+    </div>
+  );
 }
 
 function InfoLine({ label, value }: { label: string; value: string }) {
@@ -1652,6 +1665,24 @@ const alertTextStyle: React.CSSProperties = {
   whiteSpace: "normal",
   fontWeight: 700,
   lineHeight: 1.45,
+};
+
+const nextAlertListStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 8,
+  minWidth: 220,
+};
+
+const nextAlertItemStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 4,
+};
+
+const nextAlertHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  alignItems: "center",
+  flexWrap: "wrap",
 };
 
 const subTextStyle: React.CSSProperties = {
