@@ -1239,8 +1239,12 @@ export default function DashboardPage() {
   }, [advisoryIssues, advisoryTasks, advisoryMatterMap, advisoryIssueMap]);
 
   const advisoryTaskSummary = useMemo(() => {
-    return advisoryTasks.filter((item) => !isDoneStatus(item.status)).length;
-  }, [advisoryTasks]);
+    return advisoryTasks.filter((item) => {
+      if (isDoneStatus(item.status)) return false;
+      const issue = item.advisory_issue_id ? advisoryIssueMap.get(item.advisory_issue_id) : null;
+      return !isDoneStatus(issue?.status);
+    }).length;
+  }, [advisoryIssueMap, advisoryTasks]);
 
   const advisoryStatusSummary = useMemo(() => {
     return buildDistributionRows(advisoryIssues.map((item) => item.status || "Open"));
@@ -1299,7 +1303,11 @@ export default function DashboardPage() {
       });
 
     const taskItems = advisoryTasks
-      .filter((item) => !isDoneStatus(item.status))
+      .filter((item) => {
+        if (isDoneStatus(item.status)) return false;
+        const issue = item.advisory_issue_id ? advisoryIssueMap.get(item.advisory_issue_id) : null;
+        return !isDoneStatus(issue?.status);
+      })
       .map((item) => {
         const matter = item.advisory_matter_id
           ? advisoryMatterMap.get(item.advisory_matter_id)
@@ -3132,6 +3140,8 @@ function buildAdvisoryUrgentItems({
       ? matterMap.get(task.advisory_matter_id)
       : null;
     const issue = task.advisory_issue_id ? issueMap.get(task.advisory_issue_id) : null;
+    if (isDoneStatus(issue?.status)) return;
+
     rows.push({
       id: `advisory-task-${task.id}`,
       source: "Advisory",
@@ -3417,19 +3427,22 @@ function renderMonthKey(monthKey: string) {
 }
 
 function isDoneStatus(status?: string | null) {
-  const value = (status || "").toLowerCase();
+  const value = (status || "").trim().toLowerCase();
 
   return (
     value === "done" ||
+    value === "completed" ||
     value === "cancelled" ||
+    value === "closed" ||
+    value === "clear" ||
     value === "filed" ||
     value === "submitted"
   );
 }
 
 function isClosedStatus(status?: string | null) {
-  const value = (status || "").toLowerCase();
-  return value === "done" || value === "closed" || value === "cancelled";
+  const value = (status || "").trim().toLowerCase();
+  return ["done", "completed", "cancelled", "closed", "clear"].includes(value);
 }
 
 function isEnforcementDone(item: CaseEnforcement) {

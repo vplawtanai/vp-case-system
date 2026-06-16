@@ -333,6 +333,7 @@ export default function CalendarPage() {
 
     advisoryIssues.forEach((item) => {
       if (!item.due_date) return;
+      if (isClosedStatus(item.status)) return;
 
       const matter = matterMap.get(item.advisory_matter_id);
       const client = item.client_id
@@ -358,6 +359,12 @@ export default function CalendarPage() {
 
     advisoryTasks.forEach((item) => {
       if (!item.due_date) return;
+      if (isClosedStatus(item.status)) return;
+
+      const parentIssue = item.advisory_issue_id
+        ? advisoryIssues.find((issue) => issue.id === item.advisory_issue_id)
+        : null;
+      if (isClosedStatus(parentIssue?.status)) return;
 
       const matter = matterMap.get(item.advisory_matter_id);
       const client = item.client_id
@@ -767,9 +774,9 @@ function isOverdueCalendarItem(item: CalendarItem) {
   return isOverdueDate(item.date) && !isClosedStatus(item.status);
 }
 
-function isClosedStatus(status: string) {
+function isClosedStatus(status?: string | null) {
   return ["done", "completed", "cancelled", "closed", "clear"].includes(
-    status.trim().toLowerCase()
+    (status || "").trim().toLowerCase()
   );
 }
 
