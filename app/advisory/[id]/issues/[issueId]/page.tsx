@@ -112,6 +112,7 @@ const issueStatusOptions = [
   { value: "waiting", label: "Waiting" },
   { value: "in_progress", label: "In Progress" },
   { value: "completed", label: "Completed" },
+  { value: "Closed", label: "Closed" },
   { value: "cancelled", label: "Cancelled" },
 ];
 
@@ -161,6 +162,7 @@ export default function AdvisoryIssueDetailPage() {
   const canDeleteTimeLogs = deleteRoles.includes(permissions.role);
   const canDeleteIssue = deleteRoles.includes(permissions.role);
   const actorName = profile.staff_name || actorEmail || "current_user";
+  const issueIsClosed = isIssueClosedStatus(issue?.status);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -332,6 +334,59 @@ export default function AdvisoryIssueDetailPage() {
     }
   };
 
+  const updateIssueClosedState = async (nextClosed: boolean) => {
+    if (!canEditIssue || !issue || !matter) return;
+
+    if (issue.advisory_matter_id !== matter.id) {
+      alert("Advisory issue does not belong to this matter");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      nextClosed ? "Confirm close this issue?" : "Confirm reopen this issue?"
+    );
+    if (!confirmed) return;
+
+    const now = new Date().toISOString();
+    const payload = {
+      status: nextClosed ? "Closed" : "Open",
+      closed_at: nextClosed ? now : null,
+      updated_at: now,
+    };
+
+    try {
+      setSavingIssue(true);
+
+      const { data, error } = await supabase
+        .from("advisory_issues")
+        .update(payload)
+        .eq("id", issueId)
+        .eq("advisory_matter_id", matter.id)
+        .is("deleted_at", null)
+        .select("*")
+        .maybeSingle();
+
+      if (error || !data) {
+        alert(
+          `${nextClosed ? "Close" : "Reopen"} advisory issue failed:\n` +
+            (error?.message || "No row updated")
+        );
+        return;
+      }
+
+      await writeIssueAuditLog(
+        "update",
+        issue.id,
+        issue,
+        data,
+        nextClosed ? "Close advisory issue" : "Reopen advisory issue"
+      );
+      await loadData();
+    } finally {
+      setSavingIssue(false);
+    }
+  };
+
   const softDeleteIssue = async () => {
     if (!canDeleteIssue || !issue || !matter) return;
 
@@ -449,6 +504,26 @@ export default function AdvisoryIssueDetailPage() {
                       style={secondaryButtonStyle}
                     >
                       Edit Issue
+                    </button>
+                  ) : null}
+                  {canEditIssue && !showEditForm && !issueIsClosed ? (
+                    <button
+                      type="button"
+                      onClick={() => updateIssueClosedState(true)}
+                      disabled={savingIssue}
+                      style={primaryButtonStyle}
+                    >
+                      Close Issue
+                    </button>
+                  ) : null}
+                  {canEditIssue && !showEditForm && issueIsClosed ? (
+                    <button
+                      type="button"
+                      onClick={() => updateIssueClosedState(false)}
+                      disabled={savingIssue}
+                      style={secondaryButtonStyle}
+                    >
+                      Reopen Issue
                     </button>
                   ) : null}
                   {canDeleteIssue ? (
@@ -668,7 +743,9 @@ function renderOptionLabel(
   value: string | null | undefined,
   options: { value: string; label: string }[]
 ) {
-  const option = options.find((item) => item.value === value);
+  const option = options.find(
+    (item) => item.value.toLowerCase() === String(value || "").toLowerCase()
+  );
   return option?.label || value || "-";
 }
 
@@ -694,15 +771,24 @@ function normalizeOptionValue(
   value: string | null | undefined,
   options: { value: string; label: string }[]
 ) {
-  if (options.some((option) => option.value === value)) return value || "";
-  return options[0]?.value || "";
+  const option = options.find(
+    (item) => item.value.toLowerCase() === String(value || "").toLowerCase()
+  );
+  return option?.value || options[0]?.value || "";
+}
+
+function isIssueClosedStatus(status?: string | null) {
+  return ["closed", "done", "completed", "cancelled"].includes(
+    (status || "").trim().toLowerCase()
+  );
 }
 
 async function writeIssueAuditLog(
   action: "update" | "soft_delete",
   recordId: string,
   oldData: unknown,
-  newData: unknown
+  newData: unknown,
+  note?: string
 ) {
   try {
     await createAuditLog({
@@ -712,7 +798,7 @@ async function writeIssueAuditLog(
       action,
       oldData,
       newData,
-      note: `Advisory issue ${action}`,
+      note: note || `Advisory issue ${action}`,
     });
   } catch (auditError) {
     console.error("CREATE ADVISORY ISSUE AUDIT FAILED:", auditError);
