@@ -633,14 +633,9 @@ function ItemPanel({
               <Link key={item.id} href={item.link} style={isOverdue ? overdueItemRowStyle : itemRowStyle}>
                 <div style={itemTopLineStyle}>
                   <div style={itemBadgeLineStyle}>
-                    <span
-                      style={
-                        item.source === "Case" ? caseBadgeStyle : advisoryBadgeStyle
-                      }
-                    >
-                      {item.source}
+                    <span style={getItemTypeBadgeStyle(item)}>
+                      {getItemTypeBadgeLabel(item)}
                     </span>
-                    <span style={typeBadgeStyle}>{item.itemType}</span>
                   </div>
                   {showDateLabels ? (
                     <span style={isOverdue ? overdueDateChipStyle : dateChipStyle}>
@@ -751,6 +746,14 @@ function getShortItemType(value: CalendarItem["itemType"]) {
   if (value.includes("Timeline")) return "Timeline";
   if (value.includes("Issue")) return "Issue";
   return "Task";
+}
+
+function getItemTypeBadgeLabel(item: CalendarItem) {
+  return item.itemType || item.source;
+}
+
+function getItemTypeBadgeStyle(item: CalendarItem) {
+  return item.source === "Case" ? caseBadgeStyle : advisoryBadgeStyle;
 }
 
 function getDueLabel(dateKey: string) {
@@ -1005,13 +1008,6 @@ const advisoryBadgeStyle: CSSProperties = {
   background: "#f3e8ff",
   color: "#7e22ce",
   border: "1px solid #d9c4f2",
-};
-
-const typeBadgeStyle: CSSProperties = {
-  ...badgeBaseStyle,
-  background: "#f8fafc",
-  color: "#475569",
-  border: "1px solid #e2e8f0",
 };
 
 const sidePanelStackStyle: CSSProperties = {
