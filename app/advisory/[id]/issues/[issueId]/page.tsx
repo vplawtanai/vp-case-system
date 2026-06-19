@@ -292,6 +292,7 @@ export default function AdvisoryIssueDetailPage() {
       return;
     }
 
+    const statusIsClosed = isIssueClosedStatus(issueForm.status);
     const payload = {
       issue_no: issueForm.issue_no.trim(),
       title: issueForm.title.trim(),
@@ -299,9 +300,11 @@ export default function AdvisoryIssueDetailPage() {
       status: issueForm.status,
       priority: issueForm.priority,
       responsible_person: issueForm.responsible_person.trim(),
-      opened_at: issueForm.opened_at || null,
-      due_date: issueForm.due_date || null,
-      closed_at: issueForm.closed_at || null,
+      opened_at: toNullableDate(issueForm.opened_at),
+      due_date: toNullableDate(issueForm.due_date),
+      closed_at: statusIsClosed
+        ? issueForm.closed_at || new Date().toISOString()
+        : null,
       summary: issueForm.summary.trim(),
       legal_position: issueForm.legal_position.trim(),
       next_action: issueForm.next_action.trim(),
@@ -342,8 +345,22 @@ export default function AdvisoryIssueDetailPage() {
       return;
     }
 
+    let pendingTaskCount = 0;
+    if (nextClosed) {
+      const { data: taskData } = await supabase
+        .from("advisory_issue_tasks")
+        .select("id, status")
+        .eq("advisory_matter_id", matter.id)
+        .eq("advisory_issue_id", issue.id)
+        .is("deleted_at", null);
+      pendingTaskCount = ((taskData || []) as { status?: string | null }[])
+        .filter((item) => !isIssueClosedStatus(item.status)).length;
+    }
+
     const confirmed = window.confirm(
-      nextClosed ? "Confirm close this issue?" : "Confirm reopen this issue?"
+      nextClosed
+        ? `Confirm close this issue?${pendingTaskCount > 0 ? `\n\nThere are ${pendingTaskCount} active task(s) under this issue.` : ""}`
+        : "Confirm reopen this issue?"
     );
     if (!confirmed) return;
 
@@ -616,25 +633,22 @@ export default function AdvisoryIssueDetailPage() {
                       })
                     }
                   />
-                  <Field
+                  <DateField
                     label="Opened At"
-                    type="date"
                     value={issueForm.opened_at}
                     onChange={(value) =>
                       setIssueForm({ ...issueForm, opened_at: value })
                     }
                   />
-                  <Field
+                  <DateField
                     label="Due Date"
-                    type="date"
                     value={issueForm.due_date}
                     onChange={(value) =>
                       setIssueForm({ ...issueForm, due_date: value })
                     }
                   />
-                  <Field
+                  <DateField
                     label="Closed At"
-                    type="date"
                     value={issueForm.closed_at}
                     onChange={(value) =>
                       setIssueForm({ ...issueForm, closed_at: value })
@@ -783,6 +797,10 @@ function isIssueClosedStatus(status?: string | null) {
   );
 }
 
+function toNullableDate(value: string) {
+  return value.trim() || null;
+}
+
 async function writeIssueAuditLog(
   action: "update" | "soft_delete",
   recordId: string,
@@ -826,6 +844,29 @@ function Field({
         style={inputStyle}
       />
     </label>
+  );
+}
+
+function DateField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div style={fieldLabelStyle}>
+      <Field label={label} type="date" value={value} onChange={onChange} />
+      <button
+        type="button"
+        onClick={() => onChange("")}
+        style={smallClearButtonStyle}
+      >
+        Clear / No date
+      </button>
+    </div>
   );
 }
 
@@ -969,6 +1010,18 @@ const buttonRowStyle: React.CSSProperties = {
   gap: 10,
   alignItems: "center",
   flexWrap: "wrap",
+};
+
+const smallClearButtonStyle: React.CSSProperties = {
+  width: "fit-content",
+  padding: "6px 9px",
+  border: "1px solid #cccccc",
+  borderRadius: 8,
+  background: "#ffffff",
+  color: "#444444",
+  cursor: "pointer",
+  fontSize: 12,
+  fontWeight: 800,
 };
 
 const primaryButtonStyle: React.CSSProperties = {

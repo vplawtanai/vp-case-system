@@ -85,6 +85,7 @@ const statusOptions = [
   { value: "waiting", label: "Waiting" },
   { value: "in_progress", label: "In Progress" },
   { value: "completed", label: "Completed" },
+  { value: "Closed", label: "Closed" },
   { value: "cancelled", label: "Cancelled" },
 ];
 
@@ -180,6 +181,7 @@ export default function AdvisoryIssuesSection({
       return;
     }
 
+    const statusIsClosed = isIssueClosedStatus(form.status);
     const payload = {
       advisory_matter_id: advisoryMatterId,
       client_id: clientId || null,
@@ -189,9 +191,11 @@ export default function AdvisoryIssuesSection({
       status: form.status,
       priority: form.priority,
       responsible_person: form.responsible_person.trim(),
-      opened_at: form.opened_at || null,
-      due_date: form.due_date || null,
-      closed_at: form.closed_at || null,
+      opened_at: toNullableDate(form.opened_at),
+      due_date: toNullableDate(form.due_date),
+      closed_at: statusIsClosed
+        ? form.closed_at || new Date().toISOString()
+        : null,
       summary: form.summary.trim(),
       legal_position: form.legal_position.trim(),
       next_action: form.next_action.trim(),
@@ -355,21 +359,18 @@ export default function AdvisoryIssuesSection({
               setForm({ ...form, responsible_person: value })
             }
           />
-          <Field
+          <DateField
             label="Opened at"
-            type="date"
             value={form.opened_at}
             onChange={(value) => setForm({ ...form, opened_at: value })}
           />
-          <Field
+          <DateField
             label="Due date"
-            type="date"
             value={form.due_date}
             onChange={(value) => setForm({ ...form, due_date: value })}
           />
-          <Field
+          <DateField
             label="Closed at"
-            type="date"
             value={form.closed_at}
             onChange={(value) => setForm({ ...form, closed_at: value })}
           />
@@ -518,6 +519,29 @@ function Field({
   );
 }
 
+function DateField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div style={labelStyle}>
+      <Field label={label} type="date" value={value} onChange={onChange} />
+      <button
+        type="button"
+        onClick={() => onChange("")}
+        style={smallClearButtonStyle}
+      >
+        Clear / No date
+      </button>
+    </div>
+  );
+}
+
 function SelectField({
   label,
   value,
@@ -551,16 +575,30 @@ function normalizeOptionValue(
   value: string | null | undefined,
   options: { value: string; label: string }[]
 ) {
-  if (options.some((option) => option.value === value)) return value || "";
-  return options[0]?.value || "";
+  const option = options.find(
+    (item) => item.value.toLowerCase() === String(value || "").toLowerCase()
+  );
+  return option?.value || options[0]?.value || "";
 }
 
 function renderOptionLabel(
   value: string | null | undefined,
   options: { value: string; label: string }[]
 ) {
-  const option = options.find((item) => item.value === value);
+  const option = options.find(
+    (item) => item.value.toLowerCase() === String(value || "").toLowerCase()
+  );
   return option?.label || value || "-";
+}
+
+function isIssueClosedStatus(status?: string | null) {
+  return ["closed", "done", "completed", "cancelled"].includes(
+    (status || "").trim().toLowerCase()
+  );
+}
+
+function toNullableDate(value: string) {
+  return value.trim() || null;
 }
 
 const sectionStyle: React.CSSProperties = {
@@ -620,6 +658,18 @@ const buttonRowStyle: React.CSSProperties = {
   display: "flex",
   gap: 10,
   alignItems: "end",
+};
+
+const smallClearButtonStyle: React.CSSProperties = {
+  width: "fit-content",
+  padding: "6px 9px",
+  border: "1px solid #cccccc",
+  borderRadius: 8,
+  background: "#ffffff",
+  color: "#444444",
+  cursor: "pointer",
+  fontSize: 12,
+  fontWeight: 800,
 };
 
 const primaryButtonStyle: React.CSSProperties = {
