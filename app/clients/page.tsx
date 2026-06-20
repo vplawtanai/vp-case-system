@@ -209,6 +209,79 @@ export default function ClientsPage() {
     setErrorText("");
   };
 
+  const loadDuplicateTaxIdClient = async (
+    taxId: string,
+    currentClientId?: string
+  ) => {
+    const normalizedTaxId = normalizeTaxId(taxId);
+    if (!normalizedTaxId) return null;
+
+    const { data, error } = await supabase
+      .from("clients")
+      .select("id, client_type, name, tax_id, contact_name, phone, email, line_id, address, status, note")
+      .neq("tax_id", "");
+
+    if (error) {
+      alert("Cannot check duplicate Tax ID. Please try again.");
+      return "error";
+    }
+
+    return (
+      ((data || []) as ClientRow[]).find((client) => {
+        if (currentClientId && client.id === currentClientId) return false;
+        return normalizeTaxId(client.tax_id || "") === normalizedTaxId;
+      }) || null
+    );
+  };
+
+  const validateClientDuplicateBeforeSave = async (payload: {
+    name: string;
+    tax_id: string;
+  }) => {
+    const currentClientId = isEditing ? form.id : "";
+    const normalizedTaxId = normalizeTaxId(payload.tax_id);
+
+    if (normalizedTaxId) {
+      const duplicate = await loadDuplicateTaxIdClient(
+        payload.tax_id,
+        currentClientId
+      );
+      if (duplicate === "error") return false;
+
+      if (duplicate && isClientDeleted(duplicate)) {
+        alert(
+          "ลูกความรายนี้เคยถูกลบไว้ กรุณา Restore แทนการสร้างใหม่"
+        );
+        return false;
+      }
+
+      if (duplicate) {
+        alert(
+          "มีลูกความที่ใช้ Tax ID นี้อยู่แล้ว กรุณาตรวจสอบก่อนสร้างใหม่"
+        );
+        return false;
+      }
+
+      return true;
+    }
+
+    if (!isEditing) {
+      const normalizedName = normalizeClientName(payload.name);
+      const similarClient = clients.find((client) => {
+        if (isClientDeleted(client)) return false;
+        return normalizeClientName(client.name || "") === normalizedName;
+      });
+
+      if (similarClient) {
+        return window.confirm(
+          `พบชื่อลูกความคล้ายกันอยู่แล้ว: ${similarClient.name || "-"}\n\nต้องการสร้างลูกความใหม่ต่อหรือไม่?`
+        );
+      }
+    }
+
+    return true;
+  };
+
   const startEdit = (client: ClientRow) => {
     setForm({
       id: client.id,
@@ -248,6 +321,9 @@ export default function ClientsPage() {
       return;
     }
 
+    const canSave = await validateClientDuplicateBeforeSave(payload);
+    if (!canSave) return;
+
     try {
       setSaving(true);
       setErrorText("");
@@ -273,15 +349,7 @@ export default function ClientsPage() {
           .maybeSingle();
 
         if (error) {
-          alert(
-            "Update client failed:\n" +
-              [
-                `message: ${error.message || "-"}`,
-                `details: ${error.details || "-"}`,
-                `hint: ${error.hint || "-"}`,
-                `code: ${error.code || "-"}`,
-              ].join("\n")
-          );
+          alert(renderClientSaveErrorMessage(error, "Update client failed."));
           return;
         }
 
@@ -313,7 +381,7 @@ export default function ClientsPage() {
           .single();
 
         if (error || !data) {
-          alert("Create client failed:\n" + (error?.message || "No row created"));
+          alert(renderClientSaveErrorMessage(error, "Create client failed."));
           return;
         }
 
@@ -417,6 +485,16 @@ export default function ClientsPage() {
     try {
       setSaving(true);
       setErrorText("");
+
+      const duplicate = await loadDuplicateTaxIdClient(client.tax_id || "", client.id);
+      if (duplicate === "error") return;
+
+      if (duplicate && !isClientDeleted(duplicate)) {
+        alert(
+          "ไม่สามารถ Restore ได้ เพราะมีลูกความ active ที่ใช้ Tax ID นี้อยู่แล้ว"
+        );
+        return;
+      }
 
       const oldData = client;
       const { data, error } = await supabase
@@ -737,6 +815,29 @@ function renderClientStatus(value?: string | null) {
 
 function isClientDeleted(client: ClientRow) {
   return (client.status || "").trim().toLowerCase() === "deleted";
+}
+
+function normalizeTaxId(value: string | null | undefined) {
+  return (value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function normalizeClientName(value: string | null | undefined) {
+  return (value || "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function renderClientSaveErrorMessage(
+  error: { code?: string; message?: string } | null | undefined,
+  fallback: string
+) {
+  if (
+    error?.code === "23505" ||
+    (error?.message || "").toLowerCase().includes("duplicate") ||
+    (error?.message || "").includes("uq_clients_active_normalized_tax_id")
+  ) {
+    return "ไม่สามารถสร้างลูกความได้ เพราะ Tax ID นี้มีอยู่ในระบบแล้ว";
+  }
+
+  return fallback;
 }
 
 function renderOptionLabel(
