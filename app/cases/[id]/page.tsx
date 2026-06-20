@@ -19,6 +19,7 @@ import FeesSection from "./components/FeesSection";
 import AuditLogSection from "./components/AuditLogSection";
 import AuthGuard from "../../components/AuthGuard";
 import NotesSection from "./components/NotesSection";
+import AppTopNav from "../../components/AppTopNav";
 
 /* =========================================================
    TYPES
@@ -469,7 +470,10 @@ export default function CaseDetailPage() {
   if (loading) {
     return (
       <AuthGuard>
-        <main style={pageStyle}>Loading...</main>
+        <main style={pageStyle}>
+          <AppTopNav title="Case Detail" activePage="cases" />
+          Loading...
+        </main>
       </AuthGuard>
     );
   }
@@ -478,6 +482,7 @@ export default function CaseDetailPage() {
     return (
       <AuthGuard>
         <main style={pageStyle}>
+          <AppTopNav title="Case Detail" activePage="cases" />
           <p style={backLinkStyle}>
             <Link href="/cases">← Back to Cases</Link>
           </p>
@@ -499,6 +504,12 @@ export default function CaseDetailPage() {
   return (
     <AuthGuard>
       <main style={pageStyle}>
+        <AppTopNav
+          title="Case Detail"
+          subtitle={caseItem.file_no || caseItem.fileNo || caseItem.title || ""}
+          activePage="cases"
+        />
+
         <p style={backLinkStyle}>
           <Link href="/cases">← Back to Cases</Link>
         </p>

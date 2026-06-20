@@ -38,6 +38,20 @@ type UserProfile = {
   can_view_all_office_work_logs?: boolean | null;
 };
 
+type NavIconName =
+  | "dashboard"
+  | "calendar"
+  | "cases"
+  | "advisory"
+  | "workload"
+  | "office"
+  | "finance"
+  | "summary"
+  | "clients"
+  | "users"
+  | "account"
+  | "logout";
+
 export default function AppTopNav({
   title,
   subtitle,
@@ -68,37 +82,37 @@ export default function AppTopNav({
       {
         title: "Command",
         items: [
-          { page: "dashboard" as const, label: "Dashboard", shortLabel: "DB", href: "/dashboard", visible: permissions.canViewDashboard },
-          { page: "calendar" as const, label: "Calendar", shortLabel: "Cal", href: "/calendar", visible: permissions.canViewDashboard },
-          { page: "cases" as const, label: "Cases", shortLabel: "Case", href: "/cases", visible: permissions.canViewCases },
-          { page: "advisory" as const, label: "Advisory", shortLabel: "Adv", href: "/advisory", visible: permissions.canViewDashboard },
+          { page: "dashboard" as const, label: "Dashboard", icon: "dashboard" as const, href: "/dashboard", visible: permissions.canViewDashboard },
+          { page: "calendar" as const, label: "Calendar", icon: "calendar" as const, href: "/calendar", visible: permissions.canViewDashboard },
+          { page: "cases" as const, label: "Cases", icon: "cases" as const, href: "/cases", visible: permissions.canViewCases },
+          { page: "advisory" as const, label: "Advisory", icon: "advisory" as const, href: "/advisory", visible: permissions.canViewDashboard },
         ],
       },
       {
         title: "Operations",
         items: [
-          { page: "workload" as const, label: "Workload", shortLabel: "Work", href: "/reports/daily-workload", visible: permissions.canViewDashboard },
-          { page: "officeWork" as const, label: "Office Work", shortLabel: "Off", href: "/workload/office-work", visible: permissions.canAccessOfficeWorkLogs },
+          { page: "workload" as const, label: "Workload", icon: "workload" as const, href: "/reports/daily-workload", visible: permissions.canViewDashboard },
+          { page: "officeWork" as const, label: "Office Work", icon: "office" as const, href: "/workload/office-work", visible: permissions.canAccessOfficeWorkLogs },
         ],
       },
       {
         title: "Finance",
         items: [
-          { page: "finance" as const, label: "Finance", shortLabel: "Fin", href: financeHref, visible: permissions.canViewFinanceModule },
+          { page: "finance" as const, label: "Finance", icon: "finance" as const, href: financeHref, visible: permissions.canViewFinanceModule },
         ],
       },
       {
         title: "Management",
         items: [
-          { page: "workloadSummary" as const, label: "Summary", shortLabel: "Sum", href: "/reports/workload-summary", visible: permissions.canViewDashboard },
-          { page: "clients" as const, label: "Clients", shortLabel: "Cli", href: "/clients", visible: permissions.canViewDashboard },
-          { page: "users" as const, label: "Users", shortLabel: "User", href: "/admin/users", visible: permissions.canManageUsers },
+          { page: "workloadSummary" as const, label: "Summary", icon: "summary" as const, href: "/reports/workload-summary", visible: permissions.canViewDashboard },
+          { page: "clients" as const, label: "Clients", icon: "clients" as const, href: "/clients", visible: permissions.canViewDashboard },
+          { page: "users" as const, label: "Users", icon: "users" as const, href: "/admin/users", visible: permissions.canManageUsers },
         ],
       },
       {
         title: "Account",
         items: [
-          { page: "account" as const, label: "Account", shortLabel: "Acct", href: "/account/security", visible: true },
+          { page: "account" as const, label: "Account", icon: "account" as const, href: "/account/security", visible: true },
         ],
       },
     ],
@@ -250,7 +264,9 @@ export default function AppTopNav({
                   style={getLinkStyle(item.page)}
                   title={item.label}
                 >
-                  <span style={navShortLabelStyle}>{item.shortLabel}</span>
+                  <span style={navIconStyle}>
+                    <NavIcon name={item.icon} />
+                  </span>
                   {!collapsed && <span>{item.label}</span>}
                 </Link>
               ))}
@@ -260,7 +276,9 @@ export default function AppTopNav({
       </nav>
 
       <button type="button" onClick={handleLogout} style={logoutButtonStyle}>
-        <span style={navShortLabelStyle}>Out</span>
+        <span style={navIconStyle}>
+          <NavIcon name="logout" />
+        </span>
         {!collapsed && <span>Logout</span>}
       </button>
     </>
@@ -313,6 +331,132 @@ export default function AppTopNav({
         {subtitle ? <p style={subtitleStyle}>{subtitle}</p> : null}
       </div>
     </>
+  );
+}
+
+function NavIcon({ name }: { name: NavIconName }) {
+  const common = {
+    width: 19,
+    height: 19,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 2,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+  };
+
+  if (name === "dashboard") {
+    return (
+      <svg {...common}>
+        <rect x="3" y="3" width="7" height="7" />
+        <rect x="14" y="3" width="7" height="7" />
+        <rect x="3" y="14" width="7" height="7" />
+        <rect x="14" y="14" width="7" height="7" />
+      </svg>
+    );
+  }
+
+  if (name === "calendar") {
+    return (
+      <svg {...common}>
+        <rect x="3" y="4" width="18" height="17" rx="2" />
+        <path d="M8 2v4M16 2v4M3 10h18" />
+      </svg>
+    );
+  }
+
+  if (name === "cases") {
+    return (
+      <svg {...common}>
+        <path d="M4 7h16v12H4z" />
+        <path d="M9 7V5h6v2M4 12h16" />
+      </svg>
+    );
+  }
+
+  if (name === "advisory") {
+    return (
+      <svg {...common}>
+        <path d="M5 4h14v11H8l-3 3z" />
+        <path d="M9 8h6M9 12h4" />
+      </svg>
+    );
+  }
+
+  if (name === "workload") {
+    return (
+      <svg {...common}>
+        <path d="M4 19V5M4 19h16" />
+        <path d="M8 16v-5M12 16V8M16 16v-8" />
+      </svg>
+    );
+  }
+
+  if (name === "office") {
+    return (
+      <svg {...common}>
+        <path d="M5 21V4h10v17M15 9h4v12" />
+        <path d="M8 8h2M8 12h2M8 16h2" />
+      </svg>
+    );
+  }
+
+  if (name === "finance") {
+    return (
+      <svg {...common}>
+        <path d="M4 7h16v12H4z" />
+        <path d="M16 12h4M7 7V5h10v2" />
+        <circle cx="16" cy="13" r="1" />
+      </svg>
+    );
+  }
+
+  if (name === "summary") {
+    return (
+      <svg {...common}>
+        <path d="M6 3h9l3 3v15H6z" />
+        <path d="M14 3v4h4M9 12h6M9 16h6" />
+      </svg>
+    );
+  }
+
+  if (name === "clients") {
+    return (
+      <svg {...common}>
+        <circle cx="9" cy="8" r="3" />
+        <path d="M3 20a6 6 0 0 1 12 0" />
+        <path d="M16 11a3 3 0 0 0 0-6M18 20a5 5 0 0 0-3-4" />
+      </svg>
+    );
+  }
+
+  if (name === "users") {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="8" r="3" />
+        <path d="M5 21a7 7 0 0 1 14 0" />
+        <path d="M18 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1z" />
+      </svg>
+    );
+  }
+
+  if (name === "account") {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="8" r="4" />
+        <path d="M4 21a8 8 0 0 1 16 0" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg {...common}>
+      <path d="M10 17l5-5-5-5" />
+      <path d="M15 12H3" />
+      <path d="M14 4h5v16h-5" />
+    </svg>
   );
 }
 
@@ -414,12 +558,13 @@ const groupHeadingStyle: React.CSSProperties = {
   padding: "2px 4px",
 };
 
-const navShortLabelStyle: React.CSSProperties = {
+const navIconStyle: React.CSSProperties = {
   display: "inline-flex",
-  minWidth: 34,
+  width: 34,
+  height: 24,
+  alignItems: "center",
   justifyContent: "center",
-  fontSize: 11,
-  fontWeight: 950,
+  flex: "0 0 34px",
 };
 
 const mobileTopBarStyle: React.CSSProperties = {
