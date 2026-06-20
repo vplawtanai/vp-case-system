@@ -81,7 +81,12 @@ const statusOptions = [
   { value: "inactive", label: "Inactive" },
   { value: "prospect", label: "Prospect" },
   { value: "blacklist", label: "Blacklist" },
+  { value: "deleted", label: "Deleted" },
 ];
+
+const editableStatusOptions = statusOptions.filter(
+  (option) => option.value !== "deleted"
+);
 
 export default function ClientsPage() {
   const [profile, setProfile] = useState<CurrentProfile>({
@@ -93,6 +98,7 @@ export default function ClientsPage() {
   const [saving, setSaving] = useState(false);
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [searchText, setSearchText] = useState("");
+  const [showDeleted, setShowDeleted] = useState(false);
   const [form, setForm] = useState<ClientForm>(emptyForm);
   const [isEditing, setIsEditing] = useState(false);
   const [errorText, setErrorText] = useState("");
@@ -103,6 +109,7 @@ export default function ClientsPage() {
 
   const canViewClients = permissions.canViewDashboard;
   const canEditClients = editableRoles.includes(permissions.role);
+  const isAdmin = permissions.role === "admin";
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -172,9 +179,12 @@ export default function ClientsPage() {
 
   const filteredClients = useMemo(() => {
     const keyword = searchText.trim().toLowerCase();
-    if (!keyword) return clients;
+    const visibleClients = clients.filter((client) =>
+      showDeleted ? isClientDeleted(client) : !isClientDeleted(client)
+    );
+    if (!keyword) return visibleClients;
 
-    return clients.filter((client) =>
+    return visibleClients.filter((client) =>
       [
         client.name,
         client.contact_name,
@@ -191,7 +201,7 @@ export default function ClientsPage() {
         .toLowerCase()
         .includes(keyword)
     );
-  }, [clients, searchText]);
+  }, [clients, searchText, showDeleted]);
 
   const resetForm = () => {
     setForm(emptyForm);
@@ -329,6 +339,121 @@ export default function ClientsPage() {
     }
   };
 
+  const softDeleteClient = async (client: ClientRow) => {
+    if (!isAdmin || isClientDeleted(client)) return;
+
+    try {
+      setSaving(true);
+      setErrorText("");
+
+      const [{ count: caseCount, error: caseError }, { count: advisoryCount, error: advisoryError }] =
+        await Promise.all([
+          supabase
+            .from("cases")
+            .select("id", { count: "exact", head: true })
+            .eq("client_id", client.id),
+          supabase
+            .from("advisory_matters")
+            .select("id", { count: "exact", head: true })
+            .eq("client_id", client.id),
+        ]);
+
+      if (caseError || advisoryError) {
+        alert("Cannot verify linked cases/advisory matters. Please try again.");
+        return;
+      }
+
+      const linkedCount = (caseCount || 0) + (advisoryCount || 0);
+      const confirmed = window.confirm(
+        linkedCount > 0
+          ? `Confirm soft delete this client?\n\nThis client is linked to ${caseCount || 0} case(s) and ${advisoryCount || 0} advisory matter(s). Those records will not be deleted; the client will only be hidden from the normal client list.`
+          : "Confirm soft delete this client?"
+      );
+
+      if (!confirmed) return;
+
+      const oldData = client;
+      const { data, error } = await supabase
+        .from("clients")
+        .update({ status: "deleted" })
+        .eq("id", client.id)
+        .select(
+          "id, client_type, name, tax_id, contact_name, phone, email, line_id, address, status, note"
+        )
+        .maybeSingle();
+
+      if (error || !data) {
+        alert("Soft delete client failed. Please try again.");
+        return;
+      }
+
+      try {
+        await createAuditLog({
+          caseId: null,
+          tableName: "clients",
+          recordId: data.id,
+          action: "soft_delete",
+          oldData,
+          newData: data,
+          note: `Soft delete client: ${data.name || data.id}`,
+        });
+      } catch (auditError) {
+        console.error("CREATE CLIENT AUDIT LOG FAILED:", auditError);
+      }
+
+      resetForm();
+      await loadClients();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const restoreClient = async (client: ClientRow) => {
+    if (!isAdmin || !isClientDeleted(client)) return;
+
+    const confirmed = window.confirm("Restore this client?");
+    if (!confirmed) return;
+
+    try {
+      setSaving(true);
+      setErrorText("");
+
+      const oldData = client;
+      const { data, error } = await supabase
+        .from("clients")
+        .update({ status: "active" })
+        .eq("id", client.id)
+        .select(
+          "id, client_type, name, tax_id, contact_name, phone, email, line_id, address, status, note"
+        )
+        .maybeSingle();
+
+      if (error || !data) {
+        alert("Restore client failed. Please try again.");
+        return;
+      }
+
+      try {
+        await createAuditLog({
+          caseId: null,
+          tableName: "clients",
+          recordId: data.id,
+          action: "restore",
+          oldData,
+          newData: data,
+          note: `Restore client: ${data.name || data.id}`,
+        });
+      } catch (auditError) {
+        console.error("CREATE CLIENT AUDIT LOG FAILED:", auditError);
+      }
+
+      resetForm();
+      await loadClients();
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loadingProfile) {
     return (
       <AuthGuard>
@@ -371,6 +496,15 @@ export default function ClientsPage() {
               placeholder="Search name, contact, phone, email, tax id"
               style={inputStyle}
             />
+            {isAdmin ? (
+              <button
+                type="button"
+                onClick={() => setShowDeleted((value) => !value)}
+                style={showDeleted ? primaryButtonStyle : secondaryButtonStyle}
+              >
+                {showDeleted ? "Show active clients" : "Show deleted clients"}
+              </button>
+            ) : null}
           </div>
         </section>
 
@@ -420,7 +554,7 @@ export default function ClientsPage() {
                 label="Status"
                 value={form.status}
                 onChange={(value) => setForm({ ...form, status: value })}
-                options={statusOptions}
+                options={editableStatusOptions}
               />
               <Field
                 label="Address"
@@ -471,16 +605,19 @@ export default function ClientsPage() {
                     <th style={thStyle}>Line ID</th>
                     <th style={thStyle}>Tax ID</th>
                     <th style={thStyle}>Status</th>
-                    {canEditClients ? <th style={thStyle}>Action</th> : null}
+                    {canEditClients || isAdmin ? <th style={thStyle}>Action</th> : null}
                   </tr>
                 </thead>
                 <tbody>
                   {filteredClients.map((client) => (
-                    <tr key={client.id}>
+                    <tr key={client.id} style={isClientDeleted(client) ? deletedRowStyle : undefined}>
                       <td style={tdStyle}>
                         <div style={clientNameTextStyle}>{client.name || "-"}</div>
                         {client.address ? (
                           <div style={clientAddressTextStyle}>{client.address}</div>
+                        ) : null}
+                        {isClientDeleted(client) ? (
+                          <div style={deletedTextStyle}>Deleted</div>
                         ) : null}
                       </td>
                       <td style={tdStyle}>
@@ -494,15 +631,39 @@ export default function ClientsPage() {
                       <td style={tdStyle}>
                         {renderClientStatus(client.status)}
                       </td>
-                      {canEditClients ? (
+                      {canEditClients || isAdmin ? (
                         <td style={tdStyle}>
-                          <button
-                            type="button"
-                            onClick={() => startEdit(client)}
-                            style={smallButtonStyle}
-                          >
-                            Edit
-                          </button>
+                          <div style={actionButtonRowStyle}>
+                            {canEditClients && !isClientDeleted(client) ? (
+                              <button
+                                type="button"
+                                onClick={() => startEdit(client)}
+                                style={smallButtonStyle}
+                              >
+                                Edit
+                              </button>
+                            ) : null}
+                            {isAdmin && !isClientDeleted(client) ? (
+                              <button
+                                type="button"
+                                onClick={() => softDeleteClient(client)}
+                                disabled={saving}
+                                style={dangerButtonStyle}
+                              >
+                                Delete
+                              </button>
+                            ) : null}
+                            {isAdmin && isClientDeleted(client) ? (
+                              <button
+                                type="button"
+                                onClick={() => restoreClient(client)}
+                                disabled={saving}
+                                style={smallButtonStyle}
+                              >
+                                Restore
+                              </button>
+                            ) : null}
+                          </div>
                         </td>
                       ) : null}
                     </tr>
@@ -574,6 +735,10 @@ function renderClientStatus(value?: string | null) {
   return renderOptionLabel(value, statusOptions);
 }
 
+function isClientDeleted(client: ClientRow) {
+  return (client.status || "").trim().toLowerCase() === "deleted";
+}
+
 function renderOptionLabel(
   value: string | null | undefined,
   options: { value: string; label: string }[]
@@ -598,6 +763,10 @@ const panelStyle: React.CSSProperties = {
 };
 
 const toolbarStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
+  alignItems: "center",
+  flexWrap: "wrap",
   padding: 16,
 };
 
@@ -702,6 +871,30 @@ const smallButtonStyle: React.CSSProperties = {
   color: "#111111",
   cursor: "pointer",
   fontWeight: 800,
+};
+
+const dangerButtonStyle: React.CSSProperties = {
+  ...smallButtonStyle,
+  border: "1px solid #f0c4c4",
+  color: "#a40000",
+  background: "#fff5f5",
+};
+
+const actionButtonRowStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+};
+
+const deletedRowStyle: React.CSSProperties = {
+  background: "#fff7f7",
+};
+
+const deletedTextStyle: React.CSSProperties = {
+  marginTop: 4,
+  color: "#a40000",
+  fontSize: 12,
+  fontWeight: 900,
 };
 
 const messageBoxStyle: React.CSSProperties = {
