@@ -813,7 +813,7 @@ function generateAllocations(formula: FormulaCode, total: number) {
     createAllocation("worker", "", 40, false, "Lead Lawyer / Case Owner", total),
   ];
   if (formula === "travel_fee") return [createAllocation("company", "Company", 100, true, "Company", total)];
-  return [createAllocation("company", "Company", 0, true, "Company", total)];
+  return [];
 }
 
 function createAllocation(type: string, name: string, percent: number | string, isCompany: boolean, roleLabel = "", total = 0): AllocationRow {
@@ -838,7 +838,12 @@ function validateAllocations(form: BatchForm, rows: AllocationRow[]) {
   if (rows.length === 0) return "Allocation rows are required";
   const allocationTotal = rows.reduce((sum, item) => sum + parseMoney(item.amount), 0);
   if (Math.abs(allocationTotal - total) > 0.01) return "Allocation total must equal received amount";
-  if (!rows.some((item) => item.is_company_share)) return "At least one company allocation is required";
+  if (rows.some((item) => parseMoney(item.amount) <= 0)) return "Every allocation row needs amount greater than zero";
+  if (form.formula_code === "custom") {
+    const percentTotal = rows.reduce((sum, item) => sum + parseMoney(item.percent), 0);
+    if (Math.abs(percentTotal - 100) > 0.01) return "Custom allocation percent must equal 100%";
+  }
+  if (form.formula_code !== "custom" && !rows.some((item) => item.is_company_share)) return "At least one company allocation is required";
   if (rows.some((item) => item.is_company_share && item.recipient_type !== "company")) return "Company allocation must use recipient_type company";
   if (rows.some((item) => !item.payment_status)) return "Every allocation row needs payment status";
   if (rows.some((item) => item.recipient_type === "source" && !item.role_label)) return "Source row needs Client Source / Broker role";
@@ -908,7 +913,15 @@ function dedupeAllocationRows(rows: AllocationRow[]) {
 }
 
 function normalizeAllocationsForSave(receivedAmount: number, formula: FormulaCode, rows: AllocationRow[]) {
-  if (formula === "custom") return dedupeAllocationRows(rows);
+  if (formula === "custom") {
+    return dedupeAllocationRows(
+      rows.map((item) => ({
+        ...normalizeAllocationForState(item),
+        payment_status: item.payment_status || "unpaid",
+        paid_at: item.payment_status === "paid" ? item.paid_at || null : null,
+      }))
+    );
+  }
   const normalized = rows.map((item) => normalizeAllocationForState(item));
   if (formula !== "source_worker_qc") {
     return dedupeAllocationRows(normalized.map((item) => ({
