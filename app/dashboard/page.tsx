@@ -8,12 +8,21 @@ import { supabase } from "../../lib/supabase";
 import AppTopNav from "../components/AppTopNav";
 import { buildPermissions } from "../../lib/permissions";
 import type { UserPermissions, UserRole } from "../../lib/permissions";
+import {
+  getDueStatus,
+  getDueStatusLabel,
+  getDueStatusScore,
+  getDueStatusStyle,
+  isActiveAlertStatus,
+  isClosedStatus as isClosedDueStatus,
+  type DueStatus,
+} from "../../lib/dueStatus";
 
 /* =========================================================
    TYPES
 ========================================================= */
 
-type RiskLevel = "overdue" | "today" | "dueSoon" | "clear";
+type RiskLevel = DueStatus;
 type RiskFilter = "all" | RiskLevel;
 type TimeRange = "today" | "thisWeek" | "thisMonth" | "selectedMonth" | "all";
 
@@ -264,7 +273,7 @@ type ActionRequiredItem = {
   fileNo: string;
   title: string;
   clientName: string;
-  level: "overdue" | "today" | "dueSoon" | "stale";
+  level: "overdue" | "today" | "dueSoon" | "upcoming" | "planned" | "stale";
   label: string;
   text: string;
   dateText: string;
@@ -1027,6 +1036,14 @@ export default function DashboardPage() {
       (item) => item.risk_level === "dueSoon"
     ).length;
 
+    const upcoming = filteredCases.filter(
+      (item) => item.risk_level === "upcoming"
+    ).length;
+
+    const planned = filteredCases.filter(
+      (item) => item.risk_level === "planned"
+    ).length;
+
     const clear = filteredCases.filter(
       (item) => item.risk_level === "clear"
     ).length;
@@ -1052,6 +1069,8 @@ export default function DashboardPage() {
       overdue,
       today,
       dueSoon,
+      upcoming,
+      planned,
       clear,
       active,
       waiting,
@@ -1353,12 +1372,24 @@ export default function DashboardPage() {
     const dueSoonItems = filteredAlerts.filter(
       (item) => item.level === "dueSoon"
     );
+    const upcomingItems = filteredAlerts.filter(
+      (item) => item.level === "upcoming"
+    );
+    const plannedItems = filteredAlerts.filter(
+      (item) => item.level === "planned"
+    );
     const advisoryOverdueItems = advisoryUrgentItems.filter(
       (item) => item.level === "overdue"
     );
     const advisoryTodayItems = advisoryUrgentItems.filter((item) => item.level === "today");
     const advisoryDueSoonItems = advisoryUrgentItems.filter(
       (item) => item.level === "dueSoon"
+    );
+    const advisoryUpcomingItems = advisoryUrgentItems.filter(
+      (item) => item.level === "upcoming"
+    );
+    const advisoryPlannedItems = advisoryUrgentItems.filter(
+      (item) => item.level === "planned"
     );
 
     const staleCases = filteredCases.filter((item) => {
@@ -1372,7 +1403,9 @@ export default function DashboardPage() {
       if (
         item.level !== "overdue" &&
         item.level !== "today" &&
-        item.level !== "dueSoon"
+        item.level !== "dueSoon" &&
+        item.level !== "upcoming" &&
+        item.level !== "planned"
       ) {
         return;
       }
@@ -1388,16 +1421,11 @@ export default function DashboardPage() {
         title: caseItem.title || "-",
         clientName: caseItem.client_name || "-",
         level: item.level,
-        label:
-          item.level === "overdue"
-            ? "Overdue"
-            : item.level === "today"
-              ? "Due Today"
-              : "Due Soon",
+        label: getDueStatusLabel(item.level),
         text: item.text,
         dateText: formatDisplayDate(item.date),
         href: `/cases/${item.case_id}${item.sourceHash}`,
-        score: item.level === "overdue" ? 1 : item.level === "today" ? 2 : 3,
+        score: getRiskScore(item.level),
       });
     });
 
@@ -1433,14 +1461,18 @@ export default function DashboardPage() {
       overdue: overdueItems.length + advisoryOverdueItems.length,
       today: todayItems.length + advisoryTodayItems.length,
       dueSoon: dueSoonItems.length + advisoryDueSoonItems.length,
+      upcoming: upcomingItems.length + advisoryUpcomingItems.length,
+      planned: plannedItems.length + advisoryPlannedItems.length,
       stale: staleCases.length,
       total:
         overdueItems.length +
         todayItems.length +
         dueSoonItems.length +
+        upcomingItems.length +
+        plannedItems.length +
         staleCases.length +
         advisoryUrgentItems.length,
-      rows: rows.slice(0, 8),
+      rows,
     };
   }, [alertItems, filteredCaseIds, filteredCases, caseMap, advisoryUrgentItems]);
 
@@ -2172,6 +2204,8 @@ function ActionRequiredPanel({
     overdue: number;
     today: number;
     dueSoon: number;
+    upcoming: number;
+    planned: number;
     stale: number;
     total: number;
     rows: ActionRequiredItem[];
@@ -2199,7 +2233,21 @@ function ActionRequiredPanel({
           label="Due Soon"
           value={data.dueSoon}
           tone="soon"
-          description="ใกล้ครบกำหนด"
+          description="อีก 1-4 วัน"
+          isMobile={isMobile}
+        />
+        <ActionMiniCard
+          label="Upcoming"
+          value={data.upcoming}
+          tone="blue"
+          description="อีก 5-15 วัน"
+          isMobile={isMobile}
+        />
+        <ActionMiniCard
+          label="Planned"
+          value={data.planned}
+          tone="purple"
+          description="อีก 16-30 วัน"
           isMobile={isMobile}
         />
         <ActionMiniCard
@@ -2273,25 +2321,10 @@ function ActionMiniCard({
 function ActionLevelBadge({
   level,
 }: {
-  level: "overdue" | "today" | "dueSoon" | "stale";
+  level: "overdue" | "today" | "dueSoon" | "upcoming" | "planned" | "stale";
 }) {
-  const label =
-    level === "overdue"
-      ? "Overdue"
-      : level === "today"
-        ? "Today"
-        : level === "dueSoon"
-          ? "Due Soon"
-          : "Stale";
-
-  const style =
-    level === "overdue"
-      ? actionBadgeDangerStyle
-      : level === "today"
-        ? actionBadgeWarningStyle
-        : level === "dueSoon"
-          ? actionBadgeSoonStyle
-          : actionBadgePurpleStyle;
+  const label = level === "stale" ? "Stale" : getDueStatusLabel(level);
+  const style = level === "stale" ? actionBadgePurpleStyle : getDueStatusStyle(level);
 
   return <span style={{ ...actionBadgeBaseStyle, ...style }}>{label}</span>;
 }
@@ -2968,7 +3001,7 @@ function buildAlertCandidates(
     if (isDoneStatus(task.status)) return;
 
     const level = getDateRiskLevel(task.due_date);
-    if (level === "clear") return;
+    if (!isActiveAlertStatus(level)) return;
 
     const taskText =
       task.task_type === "อื่นๆ"
@@ -2992,7 +3025,7 @@ function buildAlertCandidates(
     if (isDoneStatus(deadline.status)) return;
 
     const level = getDateRiskLevel(deadline.current_due_date);
-    if (level === "clear") return;
+    if (!isActiveAlertStatus(level)) return;
 
     candidates.push({
       id: `deadline-${deadline.id}`,
@@ -3015,7 +3048,7 @@ function buildAlertCandidates(
     if (isDoneStatus(event.status)) return;
 
     const level = getDateRiskLevel(event.event_date);
-    if (level === "clear") return;
+    if (!isActiveAlertStatus(level)) return;
 
     const appointmentText =
       event.appointment_type === "นัดอื่นๆ"
@@ -3039,7 +3072,7 @@ function buildAlertCandidates(
     if (isEnforcementDone(item)) return;
 
     const level = getDateRiskLevel(item.final_due_date);
-    if (level === "clear") return;
+    if (!isActiveAlertStatus(level)) return;
 
     const partyText = renderEnforcementPartyLabel(
       item.party_label,
@@ -3106,7 +3139,7 @@ function buildAdvisoryUrgentItems({
     if (isDoneStatus(issue.status)) return;
 
     const level = getDateRiskLevel(issue.due_date);
-    if (level === "clear") return;
+    if (!isActiveAlertStatus(level)) return;
 
     const matter = issue.advisory_matter_id
       ? matterMap.get(issue.advisory_matter_id)
@@ -3134,7 +3167,7 @@ function buildAdvisoryUrgentItems({
     if (isDoneStatus(task.status)) return;
 
     const level = getDateRiskLevel(task.due_date);
-    if (level === "clear") return;
+    if (!isActiveAlertStatus(level)) return;
 
     const matter = task.advisory_matter_id
       ? matterMap.get(task.advisory_matter_id)
@@ -3255,13 +3288,7 @@ function buildDailyTotalSummary(items: DailyStaffTimeSummary[]) {
 ========================================================= */
 
 function getDateRiskLevel(dateText: string): RiskLevel {
-  const diffDays = diffDaysFromToday(dateText);
-
-  if (diffDays < 0) return "overdue";
-  if (diffDays === 0) return "today";
-  if (diffDays <= 3) return "dueSoon";
-
-  return "clear";
+  return getDueStatus(dateText);
 }
 
 function safeMinutes(value?: number | string | null) {
@@ -3288,17 +3315,11 @@ function isOfficeWorkSource(source: UnifiedTimeLog["source"]) {
 }
 
 function getRiskScore(level: RiskLevel) {
-  if (level === "overdue") return 1;
-  if (level === "today") return 2;
-  if (level === "dueSoon") return 3;
-  return 5;
+  return getDueStatusScore(level);
 }
 
 function renderUrgencyLabel(level: RiskLevel) {
-  if (level === "overdue") return "Overdue";
-  if (level === "today") return "Due Today";
-  if (level === "dueSoon") return "Due Soon";
-  return "Clear";
+  return getDueStatusLabel(level);
 }
 
 function buildDistributionRows(values: Array<string | null | undefined>) {
@@ -3312,15 +3333,6 @@ function buildDistributionRows(values: Array<string | null | undefined>) {
   return Array.from(map.entries())
     .map(([label, value]) => ({ label, value }))
     .sort((a, b) => b.value - a.value);
-}
-
-function diffDaysFromToday(dateText: string) {
-  const today = parseLocalDate(getTodayDateString());
-  const target = parseLocalDate(dateText);
-
-  return Math.floor(
-    (target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-  );
 }
 
 function parseLocalDate(dateText: string) {
@@ -3430,19 +3442,14 @@ function isDoneStatus(status?: string | null) {
   const value = (status || "").trim().toLowerCase();
 
   return (
-    value === "done" ||
-    value === "completed" ||
-    value === "cancelled" ||
-    value === "closed" ||
-    value === "clear" ||
+    isClosedDueStatus(status) ||
     value === "filed" ||
     value === "submitted"
   );
 }
 
 function isClosedStatus(status?: string | null) {
-  const value = (status || "").trim().toLowerCase();
-  return ["done", "completed", "cancelled", "closed", "clear"].includes(value);
+  return isClosedDueStatus(status);
 }
 
 function isEnforcementDone(item: CaseEnforcement) {
@@ -5053,6 +5060,9 @@ const actionMiniDescriptionStyle: CSSProperties = {
 const actionListStyle: CSSProperties = {
   display: "grid",
   gap: 10,
+  maxHeight: 620,
+  overflowY: "auto",
+  paddingRight: 4,
 };
 
 const actionRowStyle: CSSProperties = {
@@ -5129,21 +5139,6 @@ const actionBadgeBaseStyle: CSSProperties = {
   fontSize: 12,
   fontWeight: 950,
   whiteSpace: "nowrap",
-};
-
-const actionBadgeDangerStyle: CSSProperties = {
-  background: "#ffe0e0",
-  color: "#c0392b",
-};
-
-const actionBadgeWarningStyle: CSSProperties = {
-  background: "#fff0c2",
-  color: "#b26a00",
-};
-
-const actionBadgeSoonStyle: CSSProperties = {
-  background: "#cffafe",
-  color: "#0e7490",
 };
 
 const actionBadgePurpleStyle: CSSProperties = {

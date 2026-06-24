@@ -8,12 +8,21 @@ import Link from "next/link";
 import AppTopNav from "../components/AppTopNav";
 import { buildPermissions } from "../../lib/permissions";
 import type { UserPermissions, UserRole } from "../../lib/permissions";
+import {
+  getDueStatus,
+  getDueStatusLabel,
+  getDueStatusScore,
+  getDueStatusStyle,
+  isActiveAlertStatus,
+  isClosedStatus as isClosedDueStatus,
+  type DueStatus,
+} from "../../lib/dueStatus";
 
 /* =========================================================
    TYPES
 ========================================================= */
 
-type RiskLevel = "overdue" | "today" | "dueSoon" | "clear";
+type RiskLevel = DueStatus;
 type RiskFilter = "all" | RiskLevel;
 
 type CaseItem = {
@@ -437,16 +446,6 @@ export default function CasesPage() {
     return item.risk_level || "clear";
   };
 
-  const getRiskScore = (item: CaseItem) => {
-    const level = getRiskLevel(item);
-
-    if (level === "overdue") return 1;
-    if (level === "today") return 2;
-    if (level === "dueSoon") return 3;
-
-    return 5;
-  };
-
   /* =========================================================
      FILTER OPTIONS
   ========================================================= */
@@ -534,7 +533,8 @@ export default function CasesPage() {
 
     result = [...result].sort((a, b) => {
       if (sortMode === "highestRisk") {
-        const riskDiff = getRiskScore(a) - getRiskScore(b);
+        const riskDiff =
+          getDueStatusScore(getRiskLevel(a)) - getDueStatusScore(getRiskLevel(b));
         if (riskDiff !== 0) return riskDiff;
 
         return (a.next_alert_date || "9999-12-31").localeCompare(
@@ -579,6 +579,8 @@ export default function CasesPage() {
     const overdue = alertItems.filter((item) => item.level === "overdue").length;
     const today = alertItems.filter((item) => item.level === "today").length;
     const dueSoon = alertItems.filter((item) => item.level === "dueSoon").length;
+    const upcoming = alertItems.filter((item) => item.level === "upcoming").length;
+    const planned = alertItems.filter((item) => item.level === "planned").length;
 
     const caseIdsWithAlert = new Set(alertItems.map((item) => item.case_id));
     const clear = cases.filter((item) => !caseIdsWithAlert.has(item.id)).length;
@@ -590,6 +592,8 @@ export default function CasesPage() {
       overdue,
       today,
       dueSoon,
+      upcoming,
+      planned,
       clear,
     };
   }, [cases, alertItems]);
@@ -688,10 +692,28 @@ export default function CasesPage() {
             <SummaryCard
               count={summary.dueSoon}
               label="Due Soon"
-              subLabel="ใกล้ครบกำหนด"
-              background="#fff8df"
+              subLabel="อีก 1-4 วัน"
+              background="#ccfbf1"
               active={riskFilter === "dueSoon"}
               onClick={() => setRiskFilter("dueSoon")}
+            />
+
+            <SummaryCard
+              count={summary.upcoming}
+              label="Upcoming"
+              subLabel="อีก 5-15 วัน"
+              background="#dbeafe"
+              active={riskFilter === "upcoming"}
+              onClick={() => setRiskFilter("upcoming")}
+            />
+
+            <SummaryCard
+              count={summary.planned}
+              label="Planned"
+              subLabel="อีก 16-30 วัน"
+              background="#ede9fe"
+              active={riskFilter === "planned"}
+              onClick={() => setRiskFilter("planned")}
             />
 
             <SummaryCard
@@ -741,6 +763,9 @@ export default function CasesPage() {
                 <option value="overdue">Overdue</option>
                 <option value="today">Today</option>
                 <option value="dueSoon">Due Soon</option>
+                <option value="upcoming">Upcoming</option>
+                <option value="planned">Planned</option>
+                <option value="future">Future</option>
                 <option value="clear">Clear</option>
               </select>
             </div>
@@ -859,7 +884,7 @@ function buildAlertCandidates(
     if (isTaskDone(task.status)) return;
 
     const level = getDateRiskLevel(task.due_date);
-    if (level === "clear") return;
+    if (!isActiveAlertStatus(level)) return;
 
     const taskText =
       task.task_type === "อื่นๆ"
@@ -880,7 +905,7 @@ function buildAlertCandidates(
     if (isDeadlineDone(deadline.status)) return;
 
     const level = getDateRiskLevel(deadline.current_due_date);
-    if (level === "clear") return;
+    if (!isActiveAlertStatus(level)) return;
 
     const deadlineText = renderDeadlineTypeForAlert(
       deadline.deadline_type,
@@ -902,7 +927,7 @@ function buildAlertCandidates(
     if (isTimelineDone(event.status)) return;
 
     const level = getDateRiskLevel(event.event_date);
-    if (level === "clear") return;
+    if (!isActiveAlertStatus(level)) return;
 
     const appointmentText =
       event.appointment_type === "นัดอื่นๆ"
@@ -923,7 +948,7 @@ function buildAlertCandidates(
     if (isEnforcementWritDone(item)) return;
 
     const level = getDateRiskLevel(item.final_due_date);
-    if (level === "clear") return;
+    if (!isActiveAlertStatus(level)) return;
 
     const partyText = renderEnforcementPartyLabel(
       item.party_label,
@@ -978,43 +1003,11 @@ function renderDeadlineTypeForAlert(
 }
 
 function getDateRiskLevel(dateText: string): RiskLevel {
-  const diffDays = diffDaysFromToday(dateText);
-
-  if (diffDays < 0) return "overdue";
-  if (diffDays === 0) return "today";
-  if (diffDays <= 3) return "dueSoon";
-
-  return "clear";
+  return getDueStatus(dateText);
 }
 
 function getRiskScoreFromLevel(level: RiskLevel) {
-  if (level === "overdue") return 1;
-  if (level === "today") return 2;
-  if (level === "dueSoon") return 3;
-  return 5;
-}
-
-function diffDaysFromToday(dateText: string) {
-  const today = parseLocalDate(getTodayDateString());
-  const target = parseLocalDate(dateText);
-
-  return Math.floor(
-    (target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-  );
-}
-
-function parseLocalDate(dateText: string) {
-  const [year, month, day] = dateText.split("-").map(Number);
-  return new Date(year, month - 1, day);
-}
-
-function getTodayDateString() {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, "0");
-  const day = String(today.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
+  return getDueStatusScore(level);
 }
 
 function isTaskDone(status?: string | null) {
@@ -1056,8 +1049,7 @@ function isEnforcementWritDone(item: CaseEnforcement) {
 }
 
 function isClosedAlertStatus(status?: string | null) {
-  const value = (status || "").trim().toLowerCase();
-  return ["done", "completed", "cancelled", "closed", "clear"].includes(value);
+  return isClosedDueStatus(status);
 }
 
 function renderEnforcementPartyLabel(
@@ -1248,25 +1240,11 @@ function SummaryCard({
 }
 
 function RiskBadge({ level }: { level: RiskLevel }) {
-  const text =
-    level === "overdue"
-      ? "Overdue"
-      : level === "today"
-      ? "Today"
-      : level === "dueSoon"
-      ? "Due Soon"
-      : "Clear";
-
-  const style =
-    level === "overdue"
-      ? riskOverdueStyle
-      : level === "today"
-      ? riskTodayStyle
-      : level === "dueSoon"
-      ? riskDueSoonStyle
-      : riskClearStyle;
-
-  return <span style={{ ...riskBadgeBaseStyle, ...style }}>{text}</span>;
+  return (
+    <span style={{ ...riskBadgeBaseStyle, ...getDueStatusStyle(level) }}>
+      {getDueStatusLabel(level)}
+    </span>
+  );
 }
 
 function NextAlertList({ alerts }: { alerts: AlertCandidate[] }) {
@@ -1310,11 +1288,7 @@ function InfoLine({ label, value }: { label: string; value: string }) {
 
 function renderRiskFilterLabel(value: RiskFilter) {
   if (value === "all") return "All";
-  if (value === "overdue") return "Overdue";
-  if (value === "today") return "Today";
-  if (value === "dueSoon") return "Due Soon";
-  if (value === "clear") return "Clear";
-  return value;
+  return getDueStatusLabel(value);
 }
 
 function renderPhase(phase?: string | null) {
@@ -1698,26 +1672,6 @@ const riskBadgeBaseStyle: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 900,
   whiteSpace: "nowrap",
-};
-
-const riskOverdueStyle: React.CSSProperties = {
-  background: "#ffe0e0",
-  color: "#c0392b",
-};
-
-const riskTodayStyle: React.CSSProperties = {
-  background: "#fff0c2",
-  color: "#b26a00",
-};
-
-const riskDueSoonStyle: React.CSSProperties = {
-  background: "#fff4d9",
-  color: "#c96b00",
-};
-
-const riskClearStyle: React.CSSProperties = {
-  background: "#e8f5ec",
-  color: "#18794e",
 };
 
 const openButtonLinkStyle: React.CSSProperties = {

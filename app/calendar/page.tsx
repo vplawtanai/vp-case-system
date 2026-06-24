@@ -8,6 +8,14 @@ import AuthGuard from "../components/AuthGuard";
 import { buildPermissions } from "../../lib/permissions";
 import type { UserPermissions, UserRole } from "../../lib/permissions";
 import { supabase } from "../../lib/supabase";
+import {
+  getDueStatus,
+  getDueStatusLabel,
+  getDueStatusScore,
+  getDueStatusStyle,
+  isActiveAlertStatus,
+  isClosedStatus as isClosedDueStatus,
+} from "../../lib/dueStatus";
 
 type UserProfile = {
   role?: UserRole | string | null;
@@ -415,26 +423,22 @@ export default function CalendarPage() {
   const selectedItems = itemsByDate.get(selectedDate) || [];
   const actionQueueItems = useMemo(() => {
     const today = getDateKey(new Date());
-    const nextThirtyDays = getDateKey(addDays(new Date(), 30));
 
     return calendarItems
       .filter((item) => {
-        if (isClosedStatus(item.status)) return false;
-        return (
-          item.date < today || (item.date >= today && item.date <= nextThirtyDays)
-        );
+        const status = getDueStatus(item.date, item.status, today);
+        return isActiveAlertStatus(status);
       })
       .sort((a, b) => {
         const aDiff = daysBetweenDateKeys(today, a.date);
         const bDiff = daysBetweenDateKeys(today, b.date);
-        const aGroup = getActionQueueGroup(aDiff);
-        const bGroup = getActionQueueGroup(bDiff);
+        const aGroup = getDueStatusScore(getDueStatus(a.date, a.status, today));
+        const bGroup = getDueStatusScore(getDueStatus(b.date, b.status, today));
 
         if (aGroup !== bGroup) return aGroup - bGroup;
-        if (aGroup === 0) return bDiff - aDiff;
+        if (getDueStatus(a.date, a.status, today) === "overdue") return bDiff - aDiff;
         return aDiff - bDiff;
-      })
-      .slice(0, 10);
+      });
   }, [calendarItems]);
 
   if (loadingProfile) {
@@ -638,7 +642,7 @@ function ItemPanel({
                     </span>
                   </div>
                   {showDateLabels ? (
-                    <span style={isOverdue ? overdueDateChipStyle : dateChipStyle}>
+                    <span style={{ ...dateChipStyle, ...getDueStatusStyle(getDueStatus(item.date, item.status)) }}>
                       {formatDisplayDate(item.date)}
                       {getDueLabel(item.date) ? ` · ${getDueLabel(item.date)}` : ""}
                     </span>
@@ -683,12 +687,6 @@ function getMonthStart(value: Date) {
 
 function addMonths(value: Date, count: number) {
   return new Date(value.getFullYear(), value.getMonth() + count, 1);
-}
-
-function addDays(value: Date, count: number) {
-  const next = new Date(value);
-  next.setDate(next.getDate() + count);
-  return next;
 }
 
 function getDateKey(value: Date) {
@@ -765,28 +763,15 @@ function getDueLabel(dateKey: string) {
     return days === 1 ? "Overdue 1 day" : `Overdue ${days} days`;
   }
 
-  if (dayDiff === 0) return "Today";
-  return "";
-}
-
-function isOverdueDate(dateKey: string) {
-  return !!dateKey && dateKey < getDateKey(new Date());
+  return getDueStatusLabel(getDueStatus(dateKey));
 }
 
 function isOverdueCalendarItem(item: CalendarItem) {
-  return isOverdueDate(item.date) && !isClosedStatus(item.status);
+  return getDueStatus(item.date, item.status) === "overdue";
 }
 
 function isClosedStatus(status?: string | null) {
-  return ["done", "completed", "cancelled", "closed", "clear"].includes(
-    (status || "").trim().toLowerCase()
-  );
-}
-
-function getActionQueueGroup(dayDiff: number) {
-  if (dayDiff < 0) return 0;
-  if (dayDiff === 0) return 1;
-  return 2;
+  return isClosedDueStatus(status);
 }
 
 function daysBetweenDateKeys(startKey: string, endKey: string) {
@@ -1041,6 +1026,9 @@ const panelTitleStyle: CSSProperties = {
 const itemListStyle: CSSProperties = {
   display: "grid",
   gap: 8,
+  maxHeight: 620,
+  overflowY: "auto",
+  paddingRight: 4,
 };
 
 const itemRowStyle: CSSProperties = {
@@ -1080,13 +1068,6 @@ const dateChipStyle: CSSProperties = {
   background: "#f1f5f9",
   color: "#334155",
   border: "1px solid #dbe3ee",
-};
-
-const overdueDateChipStyle: CSSProperties = {
-  ...badgeBaseStyle,
-  background: "#fee2e2",
-  color: "#7f1d1d",
-  border: "1px solid #ef4444",
 };
 
 const itemTitleStyle: CSSProperties = {
