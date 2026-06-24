@@ -398,13 +398,47 @@ export default function CompensationPage() {
         await loadData();
         return alert("This batch is already posted to Ledger.");
       }
-      const kbank = bankAccounts.find((account) => (account.short_name || "").toUpperCase() === "KBANK");
-      if (!kbank) return alert("ไม่พบ KBANK bank account");
       const companyShare = allAllocations
         .filter((item) => item.batch_id === batch.id && item.is_company_share)
         .reduce((sum, item) => sum + parseMoney(item.amount), 0);
-      if (companyShare <= 0) return alert("Company share must be greater than zero");
       const now = new Date().toISOString();
+      if (companyShare <= 0) {
+        if (normalizeFormula(currentBatch.formula_code) !== "custom") {
+          return alert("Company share must be greater than zero");
+        }
+
+        const { data: postedBatch, error: postError } = await supabase
+          .from("finance_compensation_batches")
+          .update({
+            status: "posted",
+            posted_to_ledger_at: now,
+            ledger_entry_id: null,
+            updated_at: now,
+          })
+          .eq("id", batch.id)
+          .eq("status", "finalized")
+          .select("*")
+          .single();
+
+        if (postError || !postedBatch) {
+          await loadData();
+          return alert(postError?.message || "Batch post update failed.");
+        }
+
+        await auditFinance(
+          "update",
+          "finance_compensation_batches",
+          batch.id,
+          currentBatch,
+          postedBatch,
+          "No company share to post for this custom batch"
+        );
+        await loadData();
+        return alert("No company share to post for this custom batch.");
+      }
+
+      const kbank = bankAccounts.find((account) => (account.short_name || "").toUpperCase() === "KBANK");
+      if (!kbank) return alert("ไม่พบ KBANK bank account");
       const { data: ledgerData, error: ledgerError } = await supabase.from("finance_company_ledger").insert([{
         source_compensation_batch_id: batch.id,
         transaction_date: getDateKey(new Date()),
@@ -738,7 +772,7 @@ export default function CompensationPage() {
                       <td style={tdStyle}>{formatMoney(toAmount(batch.received_amount))}</td>
                       <td style={tdStyle}>{formatMoney(companyShare)}</td>
                       <td style={tdStyle}>{renderBatchStatus(batch)}</td>
-                      <td style={tdStyle}>{batch.ledger_entry_id ? `Posted: ${batch.ledger_entry_id}` : "-"}</td>
+                      <td style={tdStyle}>{batch.ledger_entry_id ? `Posted: ${batch.ledger_entry_id}` : batch.status === "posted" ? "No company share" : "-"}</td>
                       <td style={tdStyle}>
                         <div style={actionStackStyle}>
                           {batch.status === "draft" && permissions.canEditLawyerCompensation ? <button type="button" onClick={() => editDraft(batch)} style={smallButtonStyle}>Edit</button> : null}
@@ -746,7 +780,7 @@ export default function CompensationPage() {
                           {batch.status === "finalized" && !batch.ledger_entry_id ? <div style={helpTextStyle}>ส่วนของบริษัทจะเข้าบัญชี KBANK เท่านั้น</div> : null}
                           {batch.status === "finalized" && !batch.ledger_entry_id && permissions.canEditLawyerCompensation ? <button type="button" onClick={() => postCompanyShare(batch)} disabled={postingBatchId === batch.id} style={primarySmallButtonStyle}>{postingBatchId === batch.id ? "Posting..." : "Post Company Share"}</button> : null}
                           {["draft", "finalized"].includes(batch.status) && permissions.canVoidLawyerCompensation ? <button type="button" onClick={() => voidBatch(batch)} style={dangerButtonStyle}>Void</button> : null}
-                          {batch.status === "posted" ? <div style={postedStyle}>Posted to Ledger</div> : null}
+                          {batch.status === "posted" ? <div style={postedStyle}>{batch.ledger_entry_id ? "Posted to Ledger" : "No company share to post"}</div> : null}
                         </div>
                       </td>
                     </tr>
