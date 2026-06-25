@@ -644,9 +644,6 @@ export default function ExpenseClaimsPage() {
         {claim.status === "submitted" && permissions.canApproveExpenseClaims ? (
           <button type="button" onClick={() => approveClaim(claim)} style={smallButtonStyle}>Approve</button>
         ) : null}
-        {["submitted", "approved"].includes(claim.status) && permissions.canApproveExpenseClaims ? (
-          <button type="button" onClick={() => rejectClaim(claim)} style={smallButtonStyle}>Reject</button>
-        ) : null}
         {claim.status === "approved" && !claim.ledger_entry_id && permissions.canPayExpenseClaims ? (
           <div style={paidFormStyle}>
             <input type="date" value={paidForm.paid_date} onChange={(event) => updatePaidForm(claim.id, { paid_date: event.target.value })} style={inputStyle} />
@@ -658,7 +655,15 @@ export default function ExpenseClaimsPage() {
           </div>
         ) : null}
         {["submitted", "approved", "rejected"].includes(claim.status) && permissions.canApproveExpenseClaims ? (
-          <button type="button" onClick={() => voidClaim(claim)} style={dangerButtonStyle}>Void</button>
+          <details style={moreMenuStyle}>
+            <summary style={moreButtonStyle}>...</summary>
+            <div style={moreMenuContentStyle}>
+              {["submitted", "approved"].includes(claim.status) ? (
+                <button type="button" onClick={() => rejectClaim(claim)} style={menuButtonStyle}>Reject</button>
+              ) : null}
+              <button type="button" onClick={() => voidClaim(claim)} style={dangerMenuButtonStyle}>Void</button>
+            </div>
+          </details>
         ) : null}
       </div>
     );
@@ -782,13 +787,18 @@ const bankAccessHintStyle: CSSProperties = { color: "#991b1b", fontSize: 12, fon
 const textareaStyle: CSSProperties = { ...inputStyle, minHeight: 70 };
 const sectionTitleStyle: CSSProperties = { margin: "0 0 12px", fontSize: 18, fontWeight: 900 };
 const actionRowStyle: CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 };
-const actionStackStyle: CSSProperties = { display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", minWidth: 220 };
+const actionStackStyle: CSSProperties = { display: "flex", gap: 6, flexWrap: "nowrap", alignItems: "center", minWidth: 220 };
 const paidFormStyle: CSSProperties = { display: "grid", gap: 6, minWidth: 220, flex: "1 1 220px" };
 const primaryButtonStyle: CSSProperties = { padding: "10px 14px", border: "1px solid #111111", borderRadius: 6, background: "#111111", color: "#ffffff", cursor: "pointer", fontWeight: 800 };
 const primarySmallButtonStyle: CSSProperties = { ...primaryButtonStyle, padding: "6px 9px" };
 const secondaryButtonStyle: CSSProperties = { padding: "10px 14px", border: "1px solid #cccccc", borderRadius: 6, background: "#ffffff", cursor: "pointer", fontWeight: 800 };
 const smallButtonStyle: CSSProperties = { ...secondaryButtonStyle, padding: "6px 9px" };
 const dangerButtonStyle: CSSProperties = { padding: "6px 9px", border: "1px solid #a40000", borderRadius: 6, background: "#fff5f5", color: "#a40000", cursor: "pointer", fontWeight: 800 };
+const moreMenuStyle: CSSProperties = { position: "relative" };
+const moreButtonStyle: CSSProperties = { ...smallButtonStyle, listStyle: "none", padding: "6px 10px" };
+const moreMenuContentStyle: CSSProperties = { position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 20, display: "grid", gap: 4, minWidth: 132, padding: 6, border: "1px solid #dddddd", borderRadius: 8, background: "#ffffff", boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)" };
+const menuButtonStyle: CSSProperties = { ...smallButtonStyle, textAlign: "left" };
+const dangerMenuButtonStyle: CSSProperties = { ...dangerButtonStyle, textAlign: "left" };
 const tableWrapStyle: CSSProperties = { overflowX: "auto", maxWidth: "100%" };
 const tableStyle: CSSProperties = { width: "100%", borderCollapse: "collapse", minWidth: 1000 };
 const thStyle: CSSProperties = { padding: 10, borderBottom: "1px solid #dddddd", textAlign: "left", fontSize: 12 };

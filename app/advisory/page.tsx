@@ -613,7 +613,7 @@ export default function AdvisoryPage() {
                     <th style={thStyle}>Start</th>
                     <th style={thStyle}>End</th>
                     {canViewAdvisoryFinancials ? <th style={thStyle}>Monthly</th> : null}
-                    <th style={thStyle}>Action</th>
+                    <th style={{ ...thStyle, ...actionColumnStyle }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -650,14 +650,8 @@ export default function AdvisoryPage() {
                           {formatAmount(matter.monthly_retainer_amount)}
                         </td>
                       ) : null}
-                      <td style={tdStyle}>
+                      <td style={{ ...tdStyle, ...actionColumnStyle }}>
                         <div style={actionWrapStyle}>
-                          <Link
-                            href={`/advisory/${matter.id}`}
-                            style={linkButtonStyle}
-                          >
-                            Open
-                          </Link>
                           {canEditAdvisory ? (
                           <button
                             type="button"
@@ -666,7 +660,9 @@ export default function AdvisoryPage() {
                           >
                             Edit
                           </button>
-                          ) : null}
+                          ) : (
+                            <span style={mutedActionTextStyle}>-</span>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -911,7 +907,18 @@ const matterNoLinkStyle: React.CSSProperties = {
 const actionWrapStyle: React.CSSProperties = {
   display: "flex",
   gap: 8,
-  flexWrap: "wrap",
+  flexWrap: "nowrap",
+  alignItems: "center",
+};
+
+const actionColumnStyle: React.CSSProperties = {
+  minWidth: 96,
+  whiteSpace: "nowrap",
+};
+
+const mutedActionTextStyle: React.CSSProperties = {
+  color: "#9ca3af",
+  fontWeight: 800,
 };
 
 const messageBoxStyle: React.CSSProperties = {

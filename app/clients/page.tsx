@@ -683,7 +683,7 @@ export default function ClientsPage() {
                     <th style={thStyle}>Line ID</th>
                     <th style={thStyle}>Tax ID</th>
                     <th style={thStyle}>Status</th>
-                    {canEditClients || isAdmin ? <th style={thStyle}>Action</th> : null}
+                    {canEditClients || isAdmin ? <th style={{ ...thStyle, ...actionColumnStyle }}>Action</th> : null}
                   </tr>
                 </thead>
                 <tbody>
@@ -710,7 +710,7 @@ export default function ClientsPage() {
                         {renderClientStatus(client.status)}
                       </td>
                       {canEditClients || isAdmin ? (
-                        <td style={tdStyle}>
+                        <td style={{ ...tdStyle, ...actionColumnStyle }}>
                           <div style={actionButtonRowStyle}>
                             {canEditClients && !isClientDeleted(client) ? (
                               <button
@@ -721,25 +721,31 @@ export default function ClientsPage() {
                                 Edit
                               </button>
                             ) : null}
-                            {isAdmin && !isClientDeleted(client) ? (
-                              <button
-                                type="button"
-                                onClick={() => softDeleteClient(client)}
-                                disabled={saving}
-                                style={dangerButtonStyle}
-                              >
-                                Delete
-                              </button>
-                            ) : null}
-                            {isAdmin && isClientDeleted(client) ? (
-                              <button
-                                type="button"
-                                onClick={() => restoreClient(client)}
-                                disabled={saving}
-                                style={smallButtonStyle}
-                              >
-                                Restore
-                              </button>
+                            {isAdmin ? (
+                              <details style={moreMenuStyle}>
+                                <summary style={moreButtonStyle}>...</summary>
+                                <div style={moreMenuContentStyle}>
+                                  {!isClientDeleted(client) ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => softDeleteClient(client)}
+                                      disabled={saving}
+                                      style={dangerMenuButtonStyle}
+                                    >
+                                      Delete
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => restoreClient(client)}
+                                      disabled={saving}
+                                      style={menuButtonStyle}
+                                    >
+                                      Restore
+                                    </button>
+                                  )}
+                                </div>
+                              </details>
                             ) : null}
                           </div>
                         </td>
@@ -984,7 +990,48 @@ const dangerButtonStyle: React.CSSProperties = {
 const actionButtonRowStyle: React.CSSProperties = {
   display: "flex",
   gap: 8,
-  flexWrap: "wrap",
+  flexWrap: "nowrap",
+  alignItems: "center",
+};
+
+const actionColumnStyle: React.CSSProperties = {
+  minWidth: 148,
+  whiteSpace: "nowrap",
+};
+
+const moreMenuStyle: React.CSSProperties = {
+  position: "relative",
+};
+
+const moreButtonStyle: React.CSSProperties = {
+  ...smallButtonStyle,
+  listStyle: "none",
+  padding: "8px 11px",
+};
+
+const moreMenuContentStyle: React.CSSProperties = {
+  position: "absolute",
+  top: "calc(100% + 4px)",
+  right: 0,
+  zIndex: 20,
+  display: "grid",
+  gap: 4,
+  minWidth: 132,
+  padding: 6,
+  border: "1px solid #dddddd",
+  borderRadius: 8,
+  background: "#ffffff",
+  boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
+};
+
+const menuButtonStyle: React.CSSProperties = {
+  ...smallButtonStyle,
+  textAlign: "left",
+};
+
+const dangerMenuButtonStyle: React.CSSProperties = {
+  ...dangerButtonStyle,
+  textAlign: "left",
 };
 
 const deletedRowStyle: React.CSSProperties = {

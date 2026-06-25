@@ -508,7 +508,7 @@ export default function OfficeWorkPage() {
                     <th style={thStyle}>Related Matter</th>
                     <th style={thStyle}>Description / Note</th>
                     <th style={thStyle}>Status</th>
-                    <th style={thStyle}>Actions</th>
+                    <th style={{ ...thStyle, ...actionColumnStyle }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -522,7 +522,7 @@ export default function OfficeWorkPage() {
                       <td style={tdStyle}>{renderRelatedMatter(row, clients, cases, matters)}</td>
                       <td style={tdStyle}><div style={detailStackStyle}>{row.description ? <span>{row.description}</span> : null}{row.note ? <span style={mutedTextStyle}>{row.note}</span> : null}{row.void_reason ? <span style={voidReasonTextStyle}>Void reason: {row.void_reason}</span> : null}</div></td>
                       <td style={tdStyle}>{row.status || "-"}</td>
-                      <td style={tdStyle}>
+                      <td style={{ ...tdStyle, ...actionColumnStyle }}>
                         <div style={actionButtonGroupStyle}>
                           {permissions.canEditOfficeWorkLogs && row.status === "active" ? <button type="button" onClick={() => startEdit(row)} style={smallButtonStyle}>Edit</button> : null}
                           {permissions.canVoidOfficeWorkLogs && row.status === "active" ? <button type="button" onClick={() => voidLog(row)} style={dangerButtonStyle}>Void</button> : null}
@@ -664,7 +664,8 @@ const inputStyle: CSSProperties = { width: "100%", maxWidth: "100%", boxSizing: 
 const textareaStyle: CSSProperties = { ...inputStyle, minHeight: 76 };
 const sectionTitleStyle: CSSProperties = { margin: "0 0 12px", fontSize: 18, fontWeight: 900 };
 const actionRowStyle: CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 };
-const actionButtonGroupStyle: CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" };
+const actionColumnStyle: CSSProperties = { minWidth: 148, whiteSpace: "nowrap" };
+const actionButtonGroupStyle: CSSProperties = { display: "flex", gap: 8, flexWrap: "nowrap", alignItems: "center" };
 const primaryButtonStyle: CSSProperties = { padding: "10px 14px", border: "1px solid #111111", borderRadius: 6, background: "#111111", color: "#ffffff", cursor: "pointer", fontWeight: 800 };
 const secondaryButtonStyle: CSSProperties = { padding: "10px 14px", border: "1px solid #cccccc", borderRadius: 6, background: "#ffffff", cursor: "pointer", fontWeight: 800 };
 const tableWrapStyle: CSSProperties = { overflowX: "auto", maxWidth: "100%" };

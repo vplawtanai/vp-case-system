@@ -779,7 +779,14 @@ export default function CompensationPage() {
                           {batch.status === "draft" && permissions.canEditLawyerCompensation ? <button type="button" onClick={() => finalizeBatch(batch)} style={smallButtonStyle}>Finalize</button> : null}
                           {batch.status === "finalized" && !batch.ledger_entry_id ? <div style={helpTextStyle}>ส่วนของบริษัทจะเข้าบัญชี KBANK เท่านั้น</div> : null}
                           {batch.status === "finalized" && !batch.ledger_entry_id && permissions.canEditLawyerCompensation ? <button type="button" onClick={() => postCompanyShare(batch)} disabled={postingBatchId === batch.id} style={primarySmallButtonStyle}>{postingBatchId === batch.id ? "Posting..." : "Post Company Share"}</button> : null}
-                          {["draft", "finalized"].includes(batch.status) && permissions.canVoidLawyerCompensation ? <button type="button" onClick={() => voidBatch(batch)} style={dangerButtonStyle}>Void</button> : null}
+                          {["draft", "finalized"].includes(batch.status) && permissions.canVoidLawyerCompensation ? (
+                            <details style={moreMenuStyle}>
+                              <summary style={moreButtonStyle}>...</summary>
+                              <div style={moreMenuContentStyle}>
+                                <button type="button" onClick={() => voidBatch(batch)} style={dangerMenuButtonStyle}>Void</button>
+                              </div>
+                            </details>
+                          ) : null}
                           {batch.status === "posted" ? <div style={postedStyle}>{batch.ledger_entry_id ? "Posted to Ledger" : "No company share to post"}</div> : null}
                         </div>
                       </td>
@@ -1208,12 +1215,16 @@ const textareaStyle: CSSProperties = { ...inputStyle, minHeight: 70 };
 const sectionTitleStyle: CSSProperties = { margin: "0 0 12px", fontSize: 18, fontWeight: 900 };
 const toolbarStyle: CSSProperties = { display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" };
 const actionRowStyle: CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 };
-const actionStackStyle: CSSProperties = { display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", minWidth: 220 };
+const actionStackStyle: CSSProperties = { display: "flex", gap: 6, flexWrap: "nowrap", alignItems: "center", minWidth: 220 };
 const primaryButtonStyle: CSSProperties = { padding: "10px 14px", border: "1px solid #111111", borderRadius: 6, background: "#111111", color: "#ffffff", cursor: "pointer", fontWeight: 800 };
 const primarySmallButtonStyle: CSSProperties = { ...primaryButtonStyle, padding: "6px 9px" };
 const secondaryButtonStyle: CSSProperties = { padding: "10px 14px", border: "1px solid #cccccc", borderRadius: 6, background: "#ffffff", cursor: "pointer", fontWeight: 800 };
 const smallButtonStyle: CSSProperties = { ...secondaryButtonStyle, padding: "6px 9px" };
 const dangerButtonStyle: CSSProperties = { padding: "6px 9px", border: "1px solid #a40000", borderRadius: 6, background: "#fff5f5", color: "#a40000", cursor: "pointer", fontWeight: 800 };
+const moreMenuStyle: CSSProperties = { position: "relative" };
+const moreButtonStyle: CSSProperties = { ...smallButtonStyle, listStyle: "none", padding: "6px 10px" };
+const moreMenuContentStyle: CSSProperties = { position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 20, display: "grid", gap: 4, minWidth: 132, padding: 6, border: "1px solid #dddddd", borderRadius: 8, background: "#ffffff", boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)" };
+const dangerMenuButtonStyle: CSSProperties = { ...dangerButtonStyle, textAlign: "left" };
 const tableWrapStyle: CSSProperties = { overflowX: "auto", maxWidth: "100%" };
 const tableStyle: CSSProperties = { width: "100%", borderCollapse: "collapse", minWidth: 1100 };
 const compactTableStyle: CSSProperties = { width: "100%", borderCollapse: "collapse", minWidth: 640 };
