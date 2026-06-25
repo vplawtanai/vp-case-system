@@ -138,6 +138,7 @@ export default function CasesPage() {
   const [statusFilter, setStatusFilter] = useState("All");
   const [phaseFilter, setPhaseFilter] = useState("All");
   const [ownerFilter, setOwnerFilter] = useState("All");
+  const [clientFilter, setClientFilter] = useState("All");
   const [storageFilter, setStorageFilter] = useState("All");
   const [riskFilter, setRiskFilter] = useState<RiskFilter>("all");
   const [sortMode, setSortMode] = useState<SortMode>("highestRisk");
@@ -487,6 +488,7 @@ export default function CasesPage() {
     setStatusFilter("All");
     setPhaseFilter("All");
     setOwnerFilter("All");
+    setClientFilter("All");
     setStorageFilter("All");
     setRiskFilter("all");
     setSortMode("highestRisk");
@@ -517,6 +519,9 @@ export default function CasesPage() {
       const matchStatus = statusFilter === "All" || c.status === statusFilter;
       const matchPhase = phaseFilter === "All" || c.phase === phaseFilter;
       const matchOwner = ownerFilter === "All" || c.owner_name === ownerFilter;
+      const matchClient =
+        clientFilter === "All" ||
+        (clientFilter === "__no_client__" ? !c.client_id : c.client_id === clientFilter);
       const matchStorage =
         storageFilter === "All" || c.physical_storage_type === storageFilter;
       const matchRisk = riskFilter === "all" || getRiskLevel(c) === riskFilter;
@@ -526,6 +531,7 @@ export default function CasesPage() {
         matchStatus &&
         matchPhase &&
         matchOwner &&
+        matchClient &&
         matchStorage &&
         matchRisk
       );
@@ -566,6 +572,7 @@ export default function CasesPage() {
     statusFilter,
     phaseFilter,
     ownerFilter,
+    clientFilter,
     storageFilter,
     riskFilter,
     sortMode,
@@ -628,7 +635,7 @@ export default function CasesPage() {
 
             {permissions.canCreateCase && (
               <div style={createClientSelectWrapStyle}>
-                <label style={createClientLabelStyle}>Client</label>
+                <label style={createClientLabelStyle}>Client for new case</label>
                 <select
                   value={selectedCreateClientId}
                   onChange={(event) => setSelectedCreateClientId(event.target.value)}
@@ -806,6 +813,23 @@ export default function CasesPage() {
                 {owners.map((o) => (
                   <option key={o}>{o}</option>
                 ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Client</label>
+              <select
+                value={clientFilter}
+                onChange={(e) => setClientFilter(e.target.value)}
+                style={inputStyle}
+              >
+                <option value="All">All</option>
+                {clients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.name}
+                  </option>
+                ))}
+                <option value="__no_client__">No linked client</option>
               </select>
             </div>
 
