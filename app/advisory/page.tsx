@@ -619,7 +619,11 @@ export default function AdvisoryPage() {
                 <tbody>
                   {filteredMatters.map((matter) => (
                     <tr key={matter.id}>
-                      <td style={tdStyle}>{matter.matter_no || "-"}</td>
+                      <td style={tdStyle}>
+                        <Link href={`/advisory/${matter.id}`} style={matterNoLinkStyle}>
+                          {matter.matter_no || "-"}
+                        </Link>
+                      </td>
                       <td style={tdStyle}>{matter.title || "-"}</td>
                       <td style={tdStyle}>
                         {clientNameMap.get(matter.client_id || "") || "-"}
@@ -894,6 +898,13 @@ const smallButtonStyle: React.CSSProperties = {
 const linkButtonStyle: React.CSSProperties = {
   ...smallButtonStyle,
   display: "inline-block",
+  textDecoration: "none",
+};
+
+const matterNoLinkStyle: React.CSSProperties = {
+  fontWeight: 950,
+  fontSize: 15,
+  color: "#12355b",
   textDecoration: "none",
 };
 
