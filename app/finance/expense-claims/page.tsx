@@ -129,9 +129,26 @@ export default function ExpenseClaimsPage() {
   const [paidForms, setPaidForms] = useState<Record<string, PaidForm>>({});
   const [payingClaimId, setPayingClaimId] = useState("");
   const [errorText, setErrorText] = useState("");
+  const [openActionMenuId, setOpenActionMenuId] = useState("");
 
   const permissions: UserPermissions = useMemo(() => buildPermissions(profile), [profile]);
   const actorName = profile.full_name || profile.staff_name || userEmail;
+
+  useEffect(() => {
+    if (!openActionMenuId) return;
+    const closeOnOutside = (event: MouseEvent) => {
+      if (!(event.target as HTMLElement).closest("[data-action-menu-root='true']")) setOpenActionMenuId("");
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpenActionMenuId("");
+    };
+    document.addEventListener("mousedown", closeOnOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [openActionMenuId]);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -655,13 +672,41 @@ export default function ExpenseClaimsPage() {
           </div>
         ) : null}
         {["submitted", "approved", "rejected"].includes(claim.status) && permissions.canApproveExpenseClaims ? (
-          <details style={moreMenuStyle}>
-            <summary style={moreButtonStyle}>...</summary>
+          <details data-action-menu-root="true" open={openActionMenuId === claim.id} style={moreMenuStyle}>
+            <summary
+              aria-label="More actions"
+              title="More actions"
+              onClick={(event) => {
+                event.preventDefault();
+                setOpenActionMenuId((current) => current === claim.id ? "" : claim.id);
+              }}
+              style={moreButtonStyle}
+            >
+              ...
+            </summary>
             <div style={moreMenuContentStyle}>
               {["submitted", "approved"].includes(claim.status) ? (
-                <button type="button" onClick={() => rejectClaim(claim)} style={menuButtonStyle}>Reject</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenActionMenuId("");
+                    rejectClaim(claim);
+                  }}
+                  style={menuButtonStyle}
+                >
+                  Reject
+                </button>
               ) : null}
-              <button type="button" onClick={() => voidClaim(claim)} style={dangerMenuButtonStyle}>Void</button>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpenActionMenuId("");
+                  voidClaim(claim);
+                }}
+                style={dangerMenuButtonStyle}
+              >
+                Void
+              </button>
             </div>
           </details>
         ) : null}

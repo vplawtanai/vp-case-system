@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import AuthGuard from "../components/AuthGuard";
 import AppTopNav from "../components/AppTopNav";
@@ -129,6 +129,7 @@ export default function AdvisoryPage() {
     permissions.role === "partner" ||
     (profile.email || "").trim().toLowerCase() === "boonyanud2002@gmail.com" ||
     (profile.staff_name || "").trim() === "ทนายแพม";
+  const formRef = useRef<HTMLElement | null>(null);
 
   const clientNameMap = useMemo(() => {
     return new Map(clients.map((client) => [client.id, client.name || "-"]));
@@ -266,6 +267,7 @@ export default function AdvisoryPage() {
     });
     setIsEditing(true);
     setErrorText("");
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
   };
 
   const saveMatter = async () => {
@@ -478,7 +480,7 @@ export default function AdvisoryPage() {
         </section>
 
         {canEditAdvisory ? (
-          <section style={panelStyle}>
+          <section ref={formRef} style={panelStyle}>
             <div style={formTitleStyle}>
               {isEditing ? "Edit advisory matter" : "Create advisory matter"}
             </div>

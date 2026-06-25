@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AuthGuard from "../components/AuthGuard";
 import AppTopNav from "../components/AppTopNav";
 import { createAuditLog } from "../../lib/auditLog";
@@ -102,6 +102,8 @@ export default function ClientsPage() {
   const [form, setForm] = useState<ClientForm>(emptyForm);
   const [isEditing, setIsEditing] = useState(false);
   const [errorText, setErrorText] = useState("");
+  const [openActionMenuId, setOpenActionMenuId] = useState("");
+  const formRef = useRef<HTMLElement | null>(null);
 
   const permissions: UserPermissions = useMemo(() => {
     return buildPermissions(profile);
@@ -110,6 +112,22 @@ export default function ClientsPage() {
   const canViewClients = permissions.canViewDashboard;
   const canEditClients = editableRoles.includes(permissions.role);
   const isAdmin = permissions.role === "admin";
+
+  useEffect(() => {
+    if (!openActionMenuId) return;
+    const closeOnOutside = (event: MouseEvent) => {
+      if (!(event.target as HTMLElement).closest("[data-action-menu-root='true']")) setOpenActionMenuId("");
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpenActionMenuId("");
+    };
+    document.addEventListener("mousedown", closeOnOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [openActionMenuId]);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -283,6 +301,7 @@ export default function ClientsPage() {
   };
 
   const startEdit = (client: ClientRow) => {
+    setOpenActionMenuId("");
     setForm({
       id: client.id,
       client_type: normalizeOptionValue(client.client_type, clientTypeOptions),
@@ -298,6 +317,7 @@ export default function ClientsPage() {
     });
     setIsEditing(true);
     setErrorText("");
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
   };
 
   const saveClient = async () => {
@@ -587,7 +607,7 @@ export default function ClientsPage() {
         </section>
 
         {canEditClients ? (
-          <section style={panelStyle}>
+          <section ref={formRef} style={panelStyle}>
             <div style={formTitleStyle}>
               {isEditing ? "Edit client" : "Create client"}
             </div>
@@ -722,13 +742,26 @@ export default function ClientsPage() {
                               </button>
                             ) : null}
                             {isAdmin ? (
-                              <details style={moreMenuStyle}>
-                                <summary style={moreButtonStyle}>...</summary>
+                              <details data-action-menu-root="true" open={openActionMenuId === client.id} style={moreMenuStyle}>
+                                <summary
+                                  aria-label="More actions"
+                                  title="More actions"
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    setOpenActionMenuId((current) => current === client.id ? "" : client.id);
+                                  }}
+                                  style={moreButtonStyle}
+                                >
+                                  ...
+                                </summary>
                                 <div style={moreMenuContentStyle}>
                                   {!isClientDeleted(client) ? (
                                     <button
                                       type="button"
-                                      onClick={() => softDeleteClient(client)}
+                                      onClick={() => {
+                                        setOpenActionMenuId("");
+                                        softDeleteClient(client);
+                                      }}
                                       disabled={saving}
                                       style={dangerMenuButtonStyle}
                                     >
@@ -737,7 +770,10 @@ export default function ClientsPage() {
                                   ) : (
                                     <button
                                       type="button"
-                                      onClick={() => restoreClient(client)}
+                                      onClick={() => {
+                                        setOpenActionMenuId("");
+                                        restoreClient(client);
+                                      }}
                                       disabled={saving}
                                       style={menuButtonStyle}
                                     >

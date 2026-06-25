@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import AuthGuard from "../../components/AuthGuard";
@@ -123,10 +123,28 @@ export default function CompensationPage() {
   const [editingBatchId, setEditingBatchId] = useState("");
   const [multipleWorkPool, setMultipleWorkPool] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(getMonthKey(new Date()));
+  const [openActionMenuId, setOpenActionMenuId] = useState("");
+  const formRef = useRef<HTMLElement | null>(null);
   const [errorText, setErrorText] = useState("");
 
   const permissions: UserPermissions = useMemo(() => buildPermissions(profile), [profile]);
   const actorName = profile.full_name || profile.staff_name || userEmail;
+
+  useEffect(() => {
+    if (!openActionMenuId) return;
+    const closeOnOutside = (event: MouseEvent) => {
+      if (!(event.target as HTMLElement).closest("[data-action-menu-root='true']")) setOpenActionMenuId("");
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpenActionMenuId("");
+    };
+    document.addEventListener("mousedown", closeOnOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [openActionMenuId]);
   const receivedAmount = parseMoney(form.received_amount);
   const isSourceWorkerQc = form.formula_code === "source_worker_qc";
   const workPoolAmount = receivedAmount * 0.4;
@@ -349,6 +367,7 @@ export default function CompensationPage() {
 
   const editDraft = (batch: BatchRow) => {
     if (batch.status !== "draft") return;
+    setOpenActionMenuId("");
     const batchAllocations = allAllocations.filter((item) => item.batch_id === batch.id);
     const formula = normalizeFormula(batch.formula_code);
     setEditingBatchId(batch.id);
@@ -365,6 +384,7 @@ export default function CompensationPage() {
     });
     setAllocations(batchAllocations.length ? batchAllocations.map(prepareAllocationForEdit) : []);
     setMultipleWorkPool(formula === "source_worker_qc" && batchAllocations.filter((item) => isSourcePoolRow(item, formula)).length > 1);
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
   };
 
   const finalizeBatch = async (batch: BatchRow) => {
@@ -686,7 +706,7 @@ export default function CompensationPage() {
         ) : null}
 
         {permissions.canEditLawyerCompensation ? (
-        <section style={panelStyle}>
+        <section ref={formRef} style={panelStyle}>
           <h2 style={sectionTitleStyle}>{editingBatchId ? "Edit Draft" : "Create Compensation Batch"}</h2>
           <div style={formGridStyle}>
             <label style={labelStyle}>Received Date<input type="date" value={form.received_date} onChange={(event) => setForm({ ...form, received_date: event.target.value })} style={inputStyle} /></label>
@@ -780,10 +800,29 @@ export default function CompensationPage() {
                           {batch.status === "finalized" && !batch.ledger_entry_id ? <div style={helpTextStyle}>ส่วนของบริษัทจะเข้าบัญชี KBANK เท่านั้น</div> : null}
                           {batch.status === "finalized" && !batch.ledger_entry_id && permissions.canEditLawyerCompensation ? <button type="button" onClick={() => postCompanyShare(batch)} disabled={postingBatchId === batch.id} style={primarySmallButtonStyle}>{postingBatchId === batch.id ? "Posting..." : "Post Company Share"}</button> : null}
                           {["draft", "finalized"].includes(batch.status) && permissions.canVoidLawyerCompensation ? (
-                            <details style={moreMenuStyle}>
-                              <summary style={moreButtonStyle}>...</summary>
+                            <details data-action-menu-root="true" open={openActionMenuId === batch.id} style={moreMenuStyle}>
+                              <summary
+                                aria-label="More actions"
+                                title="More actions"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  setOpenActionMenuId((current) => current === batch.id ? "" : batch.id);
+                                }}
+                                style={moreButtonStyle}
+                              >
+                                ...
+                              </summary>
                               <div style={moreMenuContentStyle}>
-                                <button type="button" onClick={() => voidBatch(batch)} style={dangerMenuButtonStyle}>Void</button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenActionMenuId("");
+                                    voidBatch(batch);
+                                  }}
+                                  style={dangerMenuButtonStyle}
+                                >
+                                  Void
+                                </button>
                               </div>
                             </details>
                           ) : null}

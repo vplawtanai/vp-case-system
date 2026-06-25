@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import AuthGuard from "../../components/AuthGuard";
@@ -167,6 +167,7 @@ export default function FinanceLedgerPage() {
   const [entryTypeFilter, setEntryTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("active");
   const [errorText, setErrorText] = useState("");
+  const formRef = useRef<HTMLElement | null>(null);
 
   const permissions: UserPermissions = useMemo(() => buildPermissions(profile), [profile]);
   const isAdmin = permissions.role === "admin";
@@ -362,6 +363,7 @@ export default function FinanceLedgerPage() {
       note: row.note || "",
     });
     setIsEditing(true);
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
   };
 
   const saveLedger = async () => {
@@ -696,7 +698,7 @@ export default function FinanceLedgerPage() {
         </section>
 
         {permissions.canEditCompanyLedger ? (
-          <section style={panelStyle}>
+          <section ref={formRef} style={panelStyle}>
             <h2 style={sectionTitleStyle}>{isEditing ? "Edit ledger entry" : "Create ledger entry"}</h2>
             <div style={formGridStyle}>
               <label style={labelStyle}>Date<input type="date" value={form.transaction_date} onChange={(event) => setForm({ ...form, transaction_date: event.target.value })} style={inputStyle} /></label>

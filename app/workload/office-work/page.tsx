@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import AuthGuard from "../../components/AuthGuard";
 import AppTopNav from "../../components/AppTopNav";
@@ -140,6 +140,7 @@ export default function OfficeWorkPage() {
   const [scopeFilter, setScopeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("active");
   const [errorText, setErrorText] = useState("");
+  const formRef = useRef<HTMLElement | null>(null);
 
   const permissions: UserPermissions = useMemo(() => buildPermissions(profile), [profile]);
   const actorName = profile.full_name || profile.staff_name || userEmail;
@@ -385,6 +386,7 @@ export default function OfficeWorkPage() {
       business_development_stage: row.business_development_stage || "none",
     });
     setIsEditing(true);
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
   };
 
   const voidLog = async (row: OfficeWorkLogRow) => {
@@ -460,7 +462,7 @@ export default function OfficeWorkPage() {
         </section>
 
         {permissions.canSubmitOfficeWorkLog || (isEditing && permissions.canEditOfficeWorkLogs) ? (
-          <section style={panelStyle}>
+          <section ref={formRef} style={panelStyle}>
             <h2 style={sectionTitleStyle}>{isEditing ? "Edit office work log" : "Create office work log"}</h2>
             <div style={formGridStyle}>
               <label style={labelStyle}>Work Date<input type="date" value={form.work_date} onChange={(event) => setForm({ ...form, work_date: event.target.value })} style={inputStyle} /></label>
