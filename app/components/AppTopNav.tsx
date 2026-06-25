@@ -64,7 +64,7 @@ export default function AppTopNav({
     role: "",
     financial_access: false,
   });
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -93,6 +93,7 @@ export default function AppTopNav({
         items: [
           { page: "workload" as const, label: "Workload", icon: "workload" as const, href: "/reports/daily-workload", visible: permissions.canViewDashboard },
           { page: "officeWork" as const, label: "Office Work", icon: "office" as const, href: "/workload/office-work", visible: permissions.canAccessOfficeWorkLogs },
+          { page: "workloadSummary" as const, label: "Summary", icon: "summary" as const, href: "/reports/workload-summary", visible: permissions.canViewDashboard },
         ],
       },
       {
@@ -104,7 +105,6 @@ export default function AppTopNav({
       {
         title: "Management",
         items: [
-          { page: "workloadSummary" as const, label: "Summary", icon: "summary" as const, href: "/reports/workload-summary", visible: permissions.canViewDashboard },
           { page: "clients" as const, label: "Clients", icon: "clients" as const, href: "/clients", visible: permissions.canViewDashboard },
           { page: "users" as const, label: "Users", icon: "users" as const, href: "/admin/users", visible: permissions.canManageUsers },
         ],
@@ -135,11 +135,11 @@ export default function AppTopNav({
       return;
     }
 
-    document.body.style.paddingLeft = sidebarCollapsed ? "88px" : "256px";
+    document.body.style.paddingLeft = "88px";
     return () => {
       document.body.style.paddingLeft = "";
     };
-  }, [isMobile, sidebarCollapsed]);
+  }, [isMobile]);
 
   useEffect(() => {
     const loadCurrentUserProfile = async () => {
@@ -212,7 +212,11 @@ export default function AppTopNav({
     return activePage === page;
   };
 
-  const getLinkStyle = (page: Parameters<typeof isActivePage>[0]): React.CSSProperties => {
+  const getLinkStyle = (page: Parameters<typeof isActivePage>[0], collapsed: boolean): React.CSSProperties => {
+    if (collapsed) {
+      return isActivePage(page) ? compactPrimaryLinkButtonStyle : compactLinkButtonStyle;
+    }
+
     return isActivePage(page) ? primaryLinkButtonStyle : linkButtonStyle;
   };
 
@@ -226,7 +230,7 @@ export default function AppTopNav({
     router.refresh();
   };
 
-  const renderNavigation = (collapsed: boolean, isDrawer = false) => (
+  const renderNavigation = (collapsed: boolean) => (
     <>
       <div style={brandStyle}>
         <div style={brandMarkStyle}>VP</div>
@@ -237,16 +241,6 @@ export default function AppTopNav({
           </div>
         )}
       </div>
-
-      {!isDrawer && (
-        <button
-          type="button"
-          onClick={() => setSidebarCollapsed((value) => !value)}
-          style={collapseButtonStyle}
-        >
-          {collapsed ? ">" : "<"}
-        </button>
-      )}
 
       <nav style={sidebarNavStyle}>
         {navGroups.map((group) => {
@@ -260,8 +254,11 @@ export default function AppTopNav({
                 <Link
                   key={item.href}
                   href={item.href}
-                  onClick={() => setDrawerOpen(false)}
-                  style={getLinkStyle(item.page)}
+                  onClick={() => {
+                    setDrawerOpen(false);
+                    setSidebarExpanded(false);
+                  }}
+                  style={getLinkStyle(item.page, collapsed)}
                   title={item.label}
                 >
                   <span style={navIconStyle}>
@@ -275,7 +272,7 @@ export default function AppTopNav({
         })}
       </nav>
 
-      <button type="button" onClick={handleLogout} style={logoutButtonStyle}>
+      <button type="button" onClick={handleLogout} style={collapsed ? compactLogoutButtonStyle : logoutButtonStyle}>
         <span style={navIconStyle}>
           <NavIcon name="logout" />
         </span>
@@ -287,8 +284,12 @@ export default function AppTopNav({
   return (
     <>
       {!isMobile && (
-        <aside style={sidebarCollapsed ? collapsedSidebarStyle : sidebarStyle}>
-          {renderNavigation(sidebarCollapsed)}
+        <aside
+          style={sidebarExpanded ? sidebarStyle : collapsedSidebarStyle}
+          onMouseEnter={() => setSidebarExpanded(true)}
+          onMouseLeave={() => setSidebarExpanded(false)}
+        >
+          {renderNavigation(!sidebarExpanded)}
         </aside>
       )}
 
@@ -321,7 +322,7 @@ export default function AppTopNav({
             >
               Close
             </button>
-            {renderNavigation(false, true)}
+            {renderNavigation(false)}
           </aside>
         </>
       )}
@@ -379,8 +380,11 @@ function NavIcon({ name }: { name: NavIconName }) {
   if (name === "advisory") {
     return (
       <svg {...common}>
-        <path d="M5 4h14v11H8l-3 3z" />
-        <path d="M9 8h6M9 12h4" />
+        <path d="M6 3h9l3 3v15H6z" />
+        <path d="M15 3v4h4" />
+        <path d="M9 11h6M9 15h4" />
+        <path d="M17 14l2 2 2-2" />
+        <path d="M19 16v5" />
       </svg>
     );
   }
@@ -484,6 +488,7 @@ const sidebarStyle: React.CSSProperties = {
   borderRight: "1px solid #e5e7eb",
   boxShadow: "2px 0 16px rgba(15, 23, 42, 0.06)",
   overflowY: "auto",
+  transition: "width 180ms ease, padding 180ms ease, box-shadow 180ms ease",
 };
 
 const collapsedSidebarStyle: React.CSSProperties = {
@@ -491,6 +496,7 @@ const collapsedSidebarStyle: React.CSSProperties = {
   width: 72,
   padding: 12,
   alignItems: "center",
+  boxShadow: "2px 0 12px rgba(15, 23, 42, 0.04)",
 };
 
 const brandStyle: React.CSSProperties = {
@@ -525,17 +531,6 @@ const brandSubtitleStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 800,
   marginTop: 2,
-};
-
-const collapseButtonStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "7px 9px",
-  borderRadius: 8,
-  border: "1px solid #d1d5db",
-  background: "#f8fafc",
-  color: "#334155",
-  cursor: "pointer",
-  fontWeight: 900,
 };
 
 const sidebarNavStyle: React.CSSProperties = {
@@ -658,6 +653,22 @@ const primaryLinkButtonStyle: React.CSSProperties = {
   boxShadow: "0 6px 14px rgba(15, 39, 67, 0.16)",
 };
 
+const compactLinkButtonStyle: React.CSSProperties = {
+  ...linkButtonStyle,
+  width: 48,
+  height: 42,
+  justifyContent: "center",
+  padding: 0,
+};
+
+const compactPrimaryLinkButtonStyle: React.CSSProperties = {
+  ...primaryLinkButtonStyle,
+  width: 48,
+  height: 42,
+  justifyContent: "center",
+  padding: 0,
+};
+
 const logoutButtonStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
@@ -671,4 +682,12 @@ const logoutButtonStyle: React.CSSProperties = {
   cursor: "pointer",
   fontWeight: 800,
   whiteSpace: "nowrap",
+};
+
+const compactLogoutButtonStyle: React.CSSProperties = {
+  ...logoutButtonStyle,
+  width: 48,
+  height: 42,
+  justifyContent: "center",
+  padding: 0,
 };
