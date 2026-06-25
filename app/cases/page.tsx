@@ -120,6 +120,7 @@ export default function CasesPage() {
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [selectedCreateClientId, setSelectedCreateClientId] = useState("");
+  const [showAddCaseForm, setShowAddCaseForm] = useState(false);
   const [alertItems, setAlertItems] = useState<AlertCandidate[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -428,6 +429,8 @@ export default function CasesPage() {
 
       alert(`สร้างแฟ้มคดีเรียบร้อยแล้ว\nFile No: ${createdCase.file_no}`);
 
+      setSelectedCreateClientId("");
+      setShowAddCaseForm(false);
       await fetchCases();
 
       router.push(`/cases/${createdCase.id}`);
@@ -634,8 +637,27 @@ export default function CasesPage() {
             </button>
 
             {permissions.canCreateCase && (
+              <button
+                type="button"
+                onClick={() => setShowAddCaseForm(true)}
+                style={primaryButtonStyle}
+                disabled={saving}
+              >
+                + Add Case
+              </button>
+            )}
+          </div>
+        </section>
+
+        {permissions.canCreateCase && showAddCaseForm ? (
+          <section style={addCasePanelStyle}>
+            <div>
+              <h2 style={addCaseTitleStyle}>Add Case</h2>
+              <div style={addCaseSubtitleStyle}>Choose a linked client before creating a new case file.</div>
+            </div>
+            <div style={addCaseFormStyle}>
               <div style={createClientSelectWrapStyle}>
-                <label style={createClientLabelStyle}>Client for new case</label>
+                <label style={createClientLabelStyle}>Client</label>
                 <select
                   value={selectedCreateClientId}
                   onChange={(event) => setSelectedCreateClientId(event.target.value)}
@@ -652,20 +674,30 @@ export default function CasesPage() {
                   <div style={createClientHintStyle}>No clients yet. Create Client first.</div>
                 )}
               </div>
-            )}
-
-            {permissions.canCreateCase && (
-              <button
-                type="button"
-                onClick={createCase}
-                style={primaryButtonStyle}
-                disabled={saving}
-              >
-                {saving ? "Creating..." : "+ Add Case"}
-              </button>
-            )}
-          </div>
-        </section>
+              <div style={addCaseActionStyle}>
+                <button
+                  type="button"
+                  onClick={createCase}
+                  style={primaryButtonStyle}
+                  disabled={saving}
+                >
+                  {saving ? "Creating..." : "Create Case"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCreateClientId("");
+                    setShowAddCaseForm(false);
+                  }}
+                  style={secondaryButtonStyle}
+                  disabled={saving}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         <section style={blockStyle}>
           <div style={isCompact ? compactSummaryGridStyle : summaryGridStyle}>
@@ -1406,7 +1438,7 @@ const heroActionWrapStyle: React.CSSProperties = {
 const createClientSelectWrapStyle: React.CSSProperties = {
   display: "grid",
   gap: 4,
-  minWidth: 220,
+  minWidth: 0,
 };
 
 const createClientLabelStyle: React.CSSProperties = {
@@ -1431,6 +1463,43 @@ const createClientHintStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 700,
   color: "#9a3412",
+};
+
+const addCasePanelStyle: React.CSSProperties = {
+  marginBottom: 16,
+  padding: 16,
+  border: "1px solid #e5e7eb",
+  borderRadius: 14,
+  background: "#ffffff",
+  display: "grid",
+  gap: 14,
+};
+
+const addCaseTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 18,
+  fontWeight: 950,
+  color: "#111111",
+};
+
+const addCaseSubtitleStyle: React.CSSProperties = {
+  marginTop: 4,
+  fontSize: 13,
+  fontWeight: 650,
+  color: "#64748b",
+};
+
+const addCaseFormStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(260px, 100%), 1fr))",
+  gap: 12,
+  alignItems: "end",
+};
+
+const addCaseActionStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
 };
 
 const summaryGridStyle: React.CSSProperties = {
