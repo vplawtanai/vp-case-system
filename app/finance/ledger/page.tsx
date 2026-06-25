@@ -775,12 +775,14 @@ export default function FinanceLedgerPage() {
                     <td style={{ ...tdStyle, ...entryTextStyle }}>{renderRelation(row, clients, cases, matters)}</td>
                     <td style={{ ...tdStyle, ...entryTextStyle }}>{row.status}</td>
                     <td style={tdStyle}>
-                      {row.status === "active" && permissions.canEditCompanyLedger && row.entry_type !== "transfer_in" && row.entry_type !== "transfer_out" ? (
-                        <button type="button" onClick={() => startEdit(row)} style={smallButtonStyle}>Edit</button>
-                      ) : null}
-                      {row.status === "active" && permissions.canVoidCompanyLedger ? (
-                        <button type="button" onClick={() => voidLedger(row)} style={dangerButtonStyle}>Void</button>
-                      ) : null}
+                      <div style={actionButtonGroupStyle}>
+                        {row.status === "active" && permissions.canEditCompanyLedger && row.entry_type !== "transfer_in" && row.entry_type !== "transfer_out" ? (
+                          <button type="button" onClick={() => startEdit(row)} style={smallButtonStyle}>Edit</button>
+                        ) : null}
+                        {row.status === "active" && permissions.canVoidCompanyLedger ? (
+                          <button type="button" onClick={() => voidLedger(row)} style={dangerButtonStyle}>Void</button>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                   );
@@ -1056,6 +1058,7 @@ const bankAccessHintStyle: CSSProperties = { gridColumn: "1 / -1", color: "#991b
 const textareaStyle: CSSProperties = { ...inputStyle, minHeight: 70 };
 const sectionTitleStyle: CSSProperties = { margin: "0 0 12px", fontSize: 18, fontWeight: 900 };
 const actionRowStyle: CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 };
+const actionButtonGroupStyle: CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" };
 const primaryButtonStyle: CSSProperties = { padding: "10px 14px", border: "1px solid #111111", borderRadius: 6, background: "#111111", color: "#ffffff", cursor: "pointer", fontWeight: 800 };
 const secondaryButtonStyle: CSSProperties = { padding: "10px 14px", border: "1px solid #cccccc", borderRadius: 6, background: "#ffffff", cursor: "pointer", fontWeight: 800 };
 const tableWrapStyle: CSSProperties = { overflowX: "auto", maxWidth: "100%" };
