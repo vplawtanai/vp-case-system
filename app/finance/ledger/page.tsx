@@ -756,7 +756,7 @@ export default function FinanceLedgerPage() {
                   <th style={thStyle}>Reference</th>
                   <th style={thStyle}>Matter</th>
                   <th style={thStyle}>Status</th>
-                  <th style={thStyle}>Actions</th>
+                  <th style={{ ...thStyle, ...actionColumnStyle }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -774,7 +774,7 @@ export default function FinanceLedgerPage() {
                     <td style={{ ...tdStyle, ...entryTextStyle }}>{row.reference_no || row.payment_method || "-"}</td>
                     <td style={{ ...tdStyle, ...entryTextStyle }}>{renderRelation(row, clients, cases, matters)}</td>
                     <td style={{ ...tdStyle, ...entryTextStyle }}>{row.status}</td>
-                    <td style={tdStyle}>
+                    <td style={{ ...tdStyle, ...actionColumnStyle }}>
                       <div style={actionButtonGroupStyle}>
                         {row.status === "active" && permissions.canEditCompanyLedger && row.entry_type !== "transfer_in" && row.entry_type !== "transfer_out" ? (
                           <button type="button" onClick={() => startEdit(row)} style={smallButtonStyle}>Edit</button>
@@ -1058,7 +1058,8 @@ const bankAccessHintStyle: CSSProperties = { gridColumn: "1 / -1", color: "#991b
 const textareaStyle: CSSProperties = { ...inputStyle, minHeight: 70 };
 const sectionTitleStyle: CSSProperties = { margin: "0 0 12px", fontSize: 18, fontWeight: 900 };
 const actionRowStyle: CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 };
-const actionButtonGroupStyle: CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" };
+const actionColumnStyle: CSSProperties = { minWidth: 132, whiteSpace: "nowrap" };
+const actionButtonGroupStyle: CSSProperties = { display: "flex", gap: 8, flexWrap: "nowrap", alignItems: "center" };
 const primaryButtonStyle: CSSProperties = { padding: "10px 14px", border: "1px solid #111111", borderRadius: 6, background: "#111111", color: "#ffffff", cursor: "pointer", fontWeight: 800 };
 const secondaryButtonStyle: CSSProperties = { padding: "10px 14px", border: "1px solid #cccccc", borderRadius: 6, background: "#ffffff", cursor: "pointer", fontWeight: 800 };
 const tableWrapStyle: CSSProperties = { overflowX: "auto", maxWidth: "100%" };
@@ -1069,6 +1070,6 @@ const detailStackStyle: CSSProperties = { display: "grid", gap: 4 };
 const descriptionTextStyle: CSSProperties = { color: "#4b5563", fontSize: 12, lineHeight: 1.35 };
 const noteTextStyle: CSSProperties = { color: "#6b7280", fontSize: 12, lineHeight: 1.35 };
 const voidReasonTextStyle: CSSProperties = { color: "#991b1b", fontSize: 12, lineHeight: 1.35, fontWeight: 700 };
-const smallButtonStyle: CSSProperties = { ...secondaryButtonStyle, padding: "6px 9px", marginRight: 6 };
+const smallButtonStyle: CSSProperties = { ...secondaryButtonStyle, padding: "6px 9px" };
 const dangerButtonStyle: CSSProperties = { padding: "6px 9px", border: "1px solid #a40000", borderRadius: 6, background: "#fff5f5", color: "#a40000", cursor: "pointer", fontWeight: 800 };
 const emptyStyle: CSSProperties = { padding: 12, border: "1px dashed #cccccc", borderRadius: 6, color: "#666666" };
