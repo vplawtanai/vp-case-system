@@ -303,7 +303,9 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
     profile?.can_view_company_ledger === true || isPartnerUp(role);
   const canEditCompanyLedger = profile?.can_edit_company_ledger === true;
   const canVoidCompanyLedger = profile?.can_void_company_ledger === true;
-  const canViewLawyerCompensation = profile?.can_view_lawyer_compensation === true;
+  const canCreateCompensationBatch = isPartnerUp(role);
+  const canViewLawyerCompensation =
+    profile?.can_view_lawyer_compensation === true || canCreateCompensationBatch;
   const canEditLawyerCompensation = profile?.can_edit_lawyer_compensation === true;
   const canVoidLawyerCompensation = profile?.can_void_lawyer_compensation === true;
   const canSubmitOfficeWorkLog = profile?.can_submit_office_work_log === true;
@@ -331,6 +333,7 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
     canEditCompanyLedger,
     canVoidCompanyLedger,
     canViewLawyerCompensation,
+    canCreateCompensationBatch,
     canEditLawyerCompensation,
     canVoidLawyerCompensation,
     canUseExpenseClaims: canSubmitExpenseClaim || canViewOwnExpenseClaims || canViewAllExpenseClaims,

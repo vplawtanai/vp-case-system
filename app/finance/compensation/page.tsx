@@ -129,6 +129,7 @@ export default function CompensationPage() {
 
   const permissions: UserPermissions = useMemo(() => buildPermissions(profile), [profile]);
   const actorName = profile.full_name || profile.staff_name || userEmail;
+  const canCreateCompensationBatch = permissions.canCreateCompensationBatch || permissions.canEditLawyerCompensation;
 
   useEffect(() => {
     if (!openActionMenuId) return;
@@ -285,7 +286,7 @@ export default function CompensationPage() {
   }, [allAllocations, summaryBatchIds, users]);
 
   const saveDraft = async () => {
-    if (!permissions.canEditLawyerCompensation) return;
+    if (!canCreateCompensationBatch) return;
     if (saving) return;
     const allocationRows = normalizeAllocationsForSave(receivedAmount, form.formula_code, allocations);
     const validation = validateAllocations(form, allocationRows);
@@ -679,7 +680,7 @@ export default function CompensationPage() {
           <SummaryCard label="Number of Recipients" value={String(summary.recipientCount)} />
         </section>
 
-        {permissions.canEditLawyerCompensation ? (
+        {canCreateCompensationBatch ? (
         <section style={panelStyle}>
           <h2 style={sectionTitleStyle}>Recipient Income Summary — {formatMonthLabel(selectedMonth)}</h2>
           <p style={mutedTextStyle}>Recipient Summary is filtered by selected month.</p>
@@ -705,7 +706,7 @@ export default function CompensationPage() {
         </section>
         ) : null}
 
-        {permissions.canEditLawyerCompensation ? (
+        {canCreateCompensationBatch ? (
         <section ref={formRef} style={panelStyle}>
           <h2 style={sectionTitleStyle}>{editingBatchId ? "Edit Draft" : "Create Compensation Batch"}</h2>
           <div style={formGridStyle}>
