@@ -287,21 +287,29 @@ export default function FinanceLedgerPage() {
     loadLedger();
   }, [loadingProfile, loadLedger]);
 
+  const monthlyEntries = useMemo(() => {
+    return rows.filter((row) => isInSelectedMonth(row.transaction_date, monthFilter));
+  }, [monthFilter, rows]);
+
+  const cumulativeEntries = useMemo(() => {
+    return rows.filter((row) => isOnOrBeforeMonthEnd(row.transaction_date, monthFilter));
+  }, [monthFilter, rows]);
+
   const filteredRows = useMemo(() => {
-    return rows.filter((row) => {
-      if (monthFilter && !String(row.transaction_date || "").startsWith(monthFilter)) return false;
+    return monthlyEntries.filter((row) => {
       if (entryTypeFilter !== "all" && row.entry_type !== entryTypeFilter) return false;
       if (statusFilter !== "all" && row.status !== statusFilter) return false;
       return true;
     });
-  }, [entryTypeFilter, monthFilter, rows, statusFilter]);
+  }, [entryTypeFilter, monthlyEntries, statusFilter]);
 
   const summary = useMemo(() => {
-    const activeRows = filteredRows.filter((row) => row.status === "active");
-    const income = activeRows
+    const monthlyActiveEntries = monthlyEntries.filter((row) => row.status === "active");
+    const cumulativeActiveEntries = cumulativeEntries.filter((row) => row.status === "active");
+    const income = monthlyActiveEntries
       .filter((row) => row.entry_type === "income")
       .reduce((sum, row) => sum + toAmount(row.amount), 0);
-    const expense = activeRows
+    const expense = monthlyActiveEntries
       .filter((row) => row.entry_type === "expense")
       .reduce((sum, row) => sum + toAmount(row.amount), 0);
 
@@ -309,19 +317,19 @@ export default function FinanceLedgerPage() {
       income,
       expense,
       net: income - expense,
-      activeCount: activeRows.length,
+      activeCount: monthlyActiveEntries.length,
       bankBalances: bankAccounts.map((account) => ({
         account,
-        balance: activeRows
+        balance: cumulativeActiveEntries
           .filter((row) => row.bank_account_id === account.id)
           .reduce((sum, row) => sum + getBankSignedAmount(row), 0),
       })),
-      totalBankBalance: activeRows.reduce(
+      totalBankBalance: cumulativeActiveEntries.reduce(
         (sum, row) => sum + getBankSignedAmount(row),
         0
       ),
     };
-  }, [bankAccounts, filteredRows]);
+  }, [bankAccounts, cumulativeEntries, monthlyEntries]);
 
   const resetForm = () => {
     setForm({ ...emptyForm, transaction_date: getDateKey(new Date()) });
@@ -855,6 +863,27 @@ function getDateKey(value: Date) {
 
 function getMonthKey(value: Date) {
   return value.toISOString().slice(0, 7);
+}
+
+function getMonthEndDateKey(monthKey: string) {
+  const [yearText, monthText] = monthKey.split("-");
+  const year = Number(yearText);
+  const month = Number(monthText);
+  if (!year || !month) return "";
+  return getDateKey(new Date(year, month, 0));
+}
+
+function isInSelectedMonth(dateText: string | null, monthKey: string) {
+  if (!monthKey) return true;
+  return String(dateText || "").startsWith(monthKey);
+}
+
+function isOnOrBeforeMonthEnd(dateText: string | null, monthKey: string) {
+  if (!dateText) return false;
+  if (!monthKey) return true;
+  const monthEndDate = getMonthEndDateKey(monthKey);
+  if (!monthEndDate) return true;
+  return String(dateText).slice(0, 10) <= monthEndDate;
 }
 
 function parseMoney(value: string) {
