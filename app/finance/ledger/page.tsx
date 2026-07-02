@@ -865,12 +865,14 @@ function getMonthKey(value: Date) {
   return value.toISOString().slice(0, 7);
 }
 
-function getMonthEndDateKey(monthKey: string) {
+function getNextMonthStartDateKey(monthKey: string) {
   const [yearText, monthText] = monthKey.split("-");
   const year = Number(yearText);
   const month = Number(monthText);
   if (!year || !month) return "";
-  return getDateKey(new Date(year, month, 0));
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const nextYear = month === 12 ? year + 1 : year;
+  return `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`;
 }
 
 function isInSelectedMonth(dateText: string | null, monthKey: string) {
@@ -881,9 +883,9 @@ function isInSelectedMonth(dateText: string | null, monthKey: string) {
 function isOnOrBeforeMonthEnd(dateText: string | null, monthKey: string) {
   if (!dateText) return false;
   if (!monthKey) return true;
-  const monthEndDate = getMonthEndDateKey(monthKey);
-  if (!monthEndDate) return true;
-  return String(dateText).slice(0, 10) <= monthEndDate;
+  const nextMonthStartDate = getNextMonthStartDateKey(monthKey);
+  if (!nextMonthStartDate) return true;
+  return String(dateText).slice(0, 10) < nextMonthStartDate;
 }
 
 function parseMoney(value: string) {
