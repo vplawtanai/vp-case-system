@@ -152,13 +152,28 @@ export default function CompensationPage() {
   const workPoolPercentTotal = allocations
     .filter((item) => isSourcePoolRow(item, form.formula_code))
     .reduce((sum, item) => sum + getPoolPercent(item), 0);
-  const summaryBatchIds = useMemo(() => {
-    return new Set(
-      batches
-        .filter((item) => item.status !== "voided" && (!selectedMonth || item.received_date?.startsWith(selectedMonth)))
-        .map((item) => item.id)
-    );
+  const selectedMonthBatches = useMemo(() => {
+    return batches.filter((item) => item.status !== "voided" && isBatchInSelectedMonth(item, selectedMonth));
   }, [batches, selectedMonth]);
+  const visibleBatches = useMemo(() => {
+    return batches.filter((item) => isBatchInSelectedMonth(item, selectedMonth));
+  }, [batches, selectedMonth]);
+  const selectedMonthBatchIds = useMemo(() => {
+    return new Set(selectedMonthBatches.map((item) => item.id));
+  }, [selectedMonthBatches]);
+  const selectedMonthAllocations = useMemo(() => {
+    return allAllocations.filter((item) => item.batch_id && selectedMonthBatchIds.has(item.batch_id));
+  }, [allAllocations, selectedMonthBatchIds]);
+  const selectedMonthRecipientAllocations = useMemo(() => {
+    return selectedMonthAllocations.filter((item) => !item.is_company_share);
+  }, [selectedMonthAllocations]);
+  const userIdByNormalizedName = useMemo(() => {
+    const map = new Map<string, string>();
+    users.forEach((user) => {
+      map.set(normalizeRecipientName(renderUserLabel(user)), user.id);
+    });
+    return map;
+  }, [users]);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -238,19 +253,17 @@ export default function CompensationPage() {
   }, [editingBatchId, form.formula_code, receivedAmount]);
 
   const summary = useMemo(() => {
-    const activeAllocations = allAllocations.filter((item) => item.batch_id && summaryBatchIds.has(item.batch_id));
-    const recipientAllocations = activeAllocations.filter((item) => !item.is_company_share);
-    const recipientPaid = recipientAllocations
+    const recipientPaid = selectedMonthRecipientAllocations
       .filter((item) => item.payment_status === "paid")
       .reduce((sum, item) => sum + parseMoney(item.amount), 0);
-    const recipientTotal = recipientAllocations.reduce((sum, item) => sum + parseMoney(item.amount), 0);
-    const recipientKeys = new Set(recipientAllocations.map((item) => getRecipientSummaryKey(item)));
+    const recipientTotal = selectedMonthRecipientAllocations.reduce((sum, item) => sum + parseMoney(item.amount), 0);
+    const recipientKeys = new Set(selectedMonthRecipientAllocations.map((item) => getRecipientSummaryKey(item, userIdByNormalizedName)));
 
     return {
-      draft: batches.filter((item) => item.status === "draft" && summaryBatchIds.has(item.id)).length,
-      finalized: batches.filter((item) => item.status === "finalized" && summaryBatchIds.has(item.id)).length,
-      posted: batches.filter((item) => item.status === "posted" && summaryBatchIds.has(item.id)).length,
-      companyShare: activeAllocations
+      draft: selectedMonthBatches.filter((item) => item.status === "draft").length,
+      finalized: selectedMonthBatches.filter((item) => item.status === "finalized").length,
+      posted: selectedMonthBatches.filter((item) => item.status === "posted").length,
+      companyShare: selectedMonthAllocations
         .filter((item) => item.is_company_share)
         .reduce((sum, item) => sum + parseMoney(item.amount), 0),
       recipientTotal,
@@ -258,32 +271,31 @@ export default function CompensationPage() {
       recipientUnpaid: recipientTotal - recipientPaid,
       recipientCount: recipientKeys.size,
     };
-  }, [allAllocations, batches, summaryBatchIds]);
+  }, [selectedMonthAllocations, selectedMonthBatches, selectedMonthRecipientAllocations, userIdByNormalizedName]);
 
   const recipientSummary = useMemo(() => {
-    const grouped = new Map<string, { name: string; allocated: number; paid: number; items: number; roles: Set<string> }>();
-    allAllocations
-      .filter((item) => item.batch_id && summaryBatchIds.has(item.batch_id) && !item.is_company_share)
-      .forEach((item) => {
-        const key = getRecipientSummaryKey(item);
-        const current = grouped.get(key) || {
-          name: getRecipientDisplayName(item, users),
-          allocated: 0,
-          paid: 0,
-          items: 0,
-          roles: new Set<string>(),
-        };
-        const amount = parseMoney(item.amount);
-        current.allocated += amount;
-        if (item.payment_status === "paid") current.paid += amount;
-        current.items += 1;
-        if (item.role_label) current.roles.add(item.role_label);
-        grouped.set(key, current);
-      });
+    const grouped = new Map<string, { key: string; name: string; allocated: number; paid: number; items: number; roles: Set<string> }>();
+    selectedMonthRecipientAllocations.forEach((item) => {
+      const key = getRecipientSummaryKey(item, userIdByNormalizedName);
+      const current = grouped.get(key) || {
+        key,
+        name: getRecipientDisplayName(item, users),
+        allocated: 0,
+        paid: 0,
+        items: 0,
+        roles: new Set<string>(),
+      };
+      const amount = parseMoney(item.amount);
+      current.allocated += amount;
+      if (item.payment_status === "paid") current.paid += amount;
+      current.items += 1;
+      if (item.role_label) current.roles.add(item.role_label);
+      grouped.set(key, current);
+    });
     return Array.from(grouped.values())
-      .map((item) => ({ ...item, roles: Array.from(item.roles), unpaid: item.allocated - item.paid }))
+      .map((item) => ({ ...item, roles: Array.from(item.roles) }))
       .sort((a, b) => b.allocated - a.allocated || a.name.localeCompare(b.name));
-  }, [allAllocations, summaryBatchIds, users]);
+  }, [selectedMonthRecipientAllocations, userIdByNormalizedName, users]);
 
   const saveDraft = async () => {
     if (!canCreateCompensationBatch) return;
@@ -686,20 +698,19 @@ export default function CompensationPage() {
           <p style={mutedTextStyle}>Recipient Summary is filtered by selected month.</p>
           <div style={tableWrapStyle}>
             <table style={compactTableStyle}>
-              <thead><tr><th style={thStyle}>Recipient</th><th style={thStyle}>Allocated</th><th style={thStyle}>Paid</th><th style={thStyle}>Unpaid</th></tr></thead>
+              <thead><tr><th style={thStyle}>Recipient</th><th style={thStyle}>Allocated</th><th style={thStyle}>Paid</th></tr></thead>
               <tbody>
                 {recipientSummary.map((item) => (
-                  <tr key={item.name}>
+                  <tr key={item.key}>
                     <td style={tdStyle}>
                       <div>{item.name}</div>
                       <div style={mutedTextStyle}>Items: {item.items} {item.roles.length ? `| Roles: ${item.roles.join(", ")}` : ""}</div>
                     </td>
                     <td style={tdStyle}>{formatMoney(item.allocated)}</td>
                     <td style={tdStyle}>{formatMoney(item.paid)}</td>
-                    <td style={tdStyle}>{formatMoney(item.unpaid)}</td>
                   </tr>
                 ))}
-                {recipientSummary.length === 0 ? <tr><td colSpan={4} style={tdStyle}>No recipient income in this month.</td></tr> : null}
+                {recipientSummary.length === 0 ? <tr><td colSpan={3} style={tdStyle}>No recipient income in this month.</td></tr> : null}
               </tbody>
             </table>
           </div>
@@ -782,13 +793,14 @@ export default function CompensationPage() {
           {loading ? <div style={emptyStyle}>Loading batches...</div> : null}
           <div style={tableWrapStyle}>
             <table style={tableStyle}>
-              <thead><tr><th style={thStyle}>Date</th><th style={thStyle}>Formula</th><th style={thStyle}>Amount</th><th style={thStyle}>Company Share</th><th style={thStyle}>Status</th><th style={thStyle}>Ledger</th><th style={thStyle}>Actions</th></tr></thead>
+              <thead><tr><th style={thStyle}>Date</th><th style={thStyle}>Client / Matter</th><th style={thStyle}>Formula</th><th style={thStyle}>Amount</th><th style={thStyle}>Company Share</th><th style={thStyle}>Status</th><th style={thStyle}>Ledger</th><th style={thStyle}>Actions</th></tr></thead>
               <tbody>
-                {batches.map((batch) => {
+                {visibleBatches.map((batch) => {
                   const companyShare = getCompanyShare(batch.id, allAllocations);
                   return (
                     <tr key={batch.id}>
                       <td style={tdStyle}>{batch.received_date}</td>
+                      <td style={tdStyle}>{renderBatchContext(batch, clients, cases, matters)}</td>
                       <td style={tdStyle}>{renderFormula(batch.formula_code)}{renderAllocationDetails(batch, allAllocations, permissions.canEditLawyerCompensation, payingAllocationId, markAllocationPaid)}</td>
                       <td style={tdStyle}>{formatMoney(toAmount(batch.received_amount))}</td>
                       <td style={tdStyle}>{formatMoney(companyShare)}</td>
@@ -833,7 +845,7 @@ export default function CompensationPage() {
                     </tr>
                   );
                 })}
-                {batches.length === 0 ? <tr><td colSpan={7} style={tdStyle}>No compensation batches.</td></tr> : null}
+                {visibleBatches.length === 0 ? <tr><td colSpan={8} style={tdStyle}>No compensation batches.</td></tr> : null}
               </tbody>
             </table>
           </div>
@@ -1120,10 +1132,13 @@ function getCompanyShare(batchId: string, rows: AllocationRow[]) {
   return rows.filter((item) => item.batch_id === batchId && item.is_company_share).reduce((sum, item) => sum + parseMoney(item.amount), 0);
 }
 
-function getRecipientSummaryKey(row: AllocationRow) {
-  return row.recipient_user_id && row.recipient_user_id !== otherValue
-    ? `user:${row.recipient_user_id}`
-    : `name:${normalizeRecipientName(row.recipient_name)}`;
+function getRecipientSummaryKey(row: AllocationRow, userIdByNormalizedName: Map<string, string>) {
+  if (row.recipient_user_id && row.recipient_user_id !== otherValue) {
+    return `user:${row.recipient_user_id}`;
+  }
+  const normalizedName = normalizeRecipientName(row.recipient_name);
+  const matchedUserId = userIdByNormalizedName.get(normalizedName);
+  return matchedUserId ? `user:${matchedUserId}` : `name:${normalizedName}`;
 }
 
 function normalizeRecipientName(value: string | null | undefined) {
@@ -1143,6 +1158,30 @@ function getRecipientDisplayName(row: AllocationRow, users: UserProfileRow[]) {
 function renderBatchStatus(batch: BatchRow) {
   if (batch.status === "posted") return <div style={postedStyle}>Company Share Posted to Ledger</div>;
   return batch.status;
+}
+
+function renderBatchContext(
+  batch: BatchRow,
+  clients: ClientRow[],
+  cases: CaseRow[],
+  matters: MatterRow[]
+) {
+  const client = clients.find((item) => item.id === batch.client_id);
+  const caseItem = cases.find((item) => String(item.id) === String(batch.case_id));
+  const matter = matters.find((item) => item.id === batch.advisory_matter_id);
+  const clientName = client?.name || caseItem?.client_name || "-";
+  const matterLabel = caseItem
+    ? `Case: ${renderCaseLabel(caseItem)}`
+    : matter
+      ? `Advisory: ${renderMatterLabel(matter)}`
+      : "Matter: Manual / Unlinked";
+
+  return (
+    <div style={batchContextStyle}>
+      <div>Client: {clientName}</div>
+      <div style={mutedTextStyle}>{matterLabel}</div>
+    </div>
+  );
 }
 
 function renderAllocationDetails(
@@ -1231,6 +1270,10 @@ function formatPercent(value: number) { return String(Math.round(value * 10000) 
 function formatMoney(value: number) { return value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function getDateKey(value: Date) { return value.toISOString().slice(0, 10); }
 function getMonthKey(value: Date) { return value.toISOString().slice(0, 7); }
+function isBatchInSelectedMonth(batch: BatchRow, selectedMonth: string) {
+  if (!selectedMonth) return true;
+  return String(batch.received_date || "").startsWith(selectedMonth);
+}
 function formatMonthLabel(value: string) {
   if (!value) return "All Time";
   const [year, month] = value.split("-").map(Number);
@@ -1273,6 +1316,7 @@ const tdStyle: CSSProperties = { padding: 10, borderBottom: "1px solid #eeeeee",
 const emptyStyle: CSSProperties = { padding: 12, border: "1px dashed #cccccc", borderRadius: 6, color: "#666666" };
 const helpTextStyle: CSSProperties = { color: "#0f2743", fontSize: 12, fontWeight: 800, flexBasis: "100%" };
 const postedStyle: CSSProperties = { color: "#14532d", fontWeight: 800, flexBasis: "100%" };
+const batchContextStyle: CSSProperties = { display: "grid", gap: 4 };
 const recipientGridStyle: CSSProperties = { display: "grid", gap: 6, minWidth: 180 };
 const workPoolPanelStyle: CSSProperties = { display: "grid", gap: 8, padding: 12, border: "1px solid #d7e3f0", borderRadius: 8, background: "#f8fbff", marginBottom: 12, fontSize: 13 };
 const workPoolSummaryStyle: CSSProperties = { display: "flex", gap: 12, flexWrap: "wrap", color: "#0f2743", fontWeight: 800 };
