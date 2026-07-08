@@ -274,18 +274,38 @@ export default function CompensationPage() {
   }, [selectedMonthAllocations, selectedMonthBatches, selectedMonthRecipientAllocations, userIdByNormalizedName]);
 
   const recipientSummary = useMemo(() => {
-    const grouped = new Map<string, { key: string; name: string; allocated: number; paid: number; items: number; roles: Set<string> }>();
+    const grouped = new Map<
+      string,
+      {
+        key: string;
+        name: string;
+        sourceBroker: number;
+        workIncome: number;
+        other: number;
+        allocated: number;
+        paid: number;
+        items: number;
+        roles: Set<string>;
+      }
+    >();
     selectedMonthRecipientAllocations.forEach((item) => {
       const key = getRecipientSummaryKey(item, userIdByNormalizedName);
       const current = grouped.get(key) || {
         key,
         name: getRecipientDisplayName(item, users),
+        sourceBroker: 0,
+        workIncome: 0,
+        other: 0,
         allocated: 0,
         paid: 0,
         items: 0,
         roles: new Set<string>(),
       };
       const amount = parseMoney(item.amount);
+      const roleCategory = getRecipientRoleCategory(item.role_label);
+      if (roleCategory === "sourceBroker") current.sourceBroker += amount;
+      else if (roleCategory === "workIncome") current.workIncome += amount;
+      else current.other += amount;
       current.allocated += amount;
       if (item.payment_status === "paid") current.paid += amount;
       current.items += 1;
@@ -698,7 +718,7 @@ export default function CompensationPage() {
           <p style={mutedTextStyle}>Recipient Summary is filtered by selected month.</p>
           <div style={tableWrapStyle}>
             <table style={compactTableStyle}>
-              <thead><tr><th style={thStyle}>Recipient</th><th style={thStyle}>Allocated</th><th style={thStyle}>Paid</th></tr></thead>
+              <thead><tr><th style={thStyle}>Recipient</th><th style={thStyle}>Source / Broker</th><th style={thStyle}>Work Income</th><th style={thStyle}>Other</th><th style={thStyle}>Total Allocated</th><th style={thStyle}>Paid</th></tr></thead>
               <tbody>
                 {recipientSummary.map((item) => (
                   <tr key={item.key}>
@@ -706,11 +726,14 @@ export default function CompensationPage() {
                       <div>{item.name}</div>
                       <div style={mutedTextStyle}>Items: {item.items} {item.roles.length ? `| Roles: ${item.roles.join(", ")}` : ""}</div>
                     </td>
+                    <td style={tdStyle}>{formatMoney(item.sourceBroker)}</td>
+                    <td style={tdStyle}>{formatMoney(item.workIncome)}</td>
+                    <td style={tdStyle}>{formatMoney(item.other)}</td>
                     <td style={tdStyle}>{formatMoney(item.allocated)}</td>
                     <td style={tdStyle}>{formatMoney(item.paid)}</td>
                   </tr>
                 ))}
-                {recipientSummary.length === 0 ? <tr><td colSpan={3} style={tdStyle}>No recipient income in this month.</td></tr> : null}
+                {recipientSummary.length === 0 ? <tr><td colSpan={6} style={tdStyle}>No recipient income in this month.</td></tr> : null}
               </tbody>
             </table>
           </div>
@@ -1155,6 +1178,35 @@ function getRecipientDisplayName(row: AllocationRow, users: UserProfileRow[]) {
   return name || "Unknown Recipient";
 }
 
+function getRecipientRoleCategory(roleLabel?: string | null) {
+  const role = (roleLabel || "").trim().toLowerCase();
+  if (!role) return "other";
+
+  if (
+    role.includes("client source / broker") ||
+    role.includes("source") ||
+    role.includes("broker")
+  ) {
+    return "sourceBroker";
+  }
+
+  if (
+    role.includes("lead lawyer / case owner") ||
+    role.includes("lead lawyer") ||
+    role.includes("case owner") ||
+    role.includes("co-lawyer / co-worker") ||
+    role.includes("co-lawyer") ||
+    role.includes("co-worker") ||
+    role.includes("worker") ||
+    role === "qc" ||
+    role.includes("quality controller")
+  ) {
+    return "workIncome";
+  }
+
+  return "other";
+}
+
 function renderBatchStatus(batch: BatchRow) {
   if (batch.status === "posted") return <div style={postedStyle}>Company Share Posted to Ledger</div>;
   return batch.status;
@@ -1310,7 +1362,7 @@ const moreMenuContentStyle: CSSProperties = { position: "absolute", top: "calc(1
 const dangerMenuButtonStyle: CSSProperties = { ...dangerButtonStyle, textAlign: "left" };
 const tableWrapStyle: CSSProperties = { overflowX: "auto", maxWidth: "100%" };
 const tableStyle: CSSProperties = { width: "100%", borderCollapse: "collapse", minWidth: 1100 };
-const compactTableStyle: CSSProperties = { width: "100%", borderCollapse: "collapse", minWidth: 640 };
+const compactTableStyle: CSSProperties = { width: "100%", borderCollapse: "collapse", minWidth: 860 };
 const thStyle: CSSProperties = { padding: 10, borderBottom: "1px solid #dddddd", textAlign: "left", fontSize: 12 };
 const tdStyle: CSSProperties = { padding: 10, borderBottom: "1px solid #eeeeee", fontSize: 13, verticalAlign: "top" };
 const emptyStyle: CSSProperties = { padding: 12, border: "1px dashed #cccccc", borderRadius: 6, color: "#666666" };
