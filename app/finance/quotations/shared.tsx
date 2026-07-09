@@ -53,6 +53,9 @@ export type QuotationRow = {
   cancelled_at: string | null;
   cancelled_by_user_id: string | null;
   cancel_reason: string | null;
+  client_snapshot_json?: Record<string, unknown> | null;
+  matter_snapshot_json?: Record<string, unknown> | null;
+  document_data_snapshot_json?: Record<string, unknown> | null;
   created_at: string | null;
   updated_at: string | null;
 };
@@ -373,6 +376,8 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
     setSaving(true);
     const normalizedItems = items.map((item, index) => normalizeItem(item, index));
     const currentTotals = computeTotals(normalizedItems);
+    const quotationNo = quotation?.quotation_no || "";
+    const snapshots = buildQuotationSnapshots(form, normalizedItems, currentTotals, lookups, quotationNo);
     const quotationPayload = {
       client_id: form.client_id,
       case_id: form.case_id ? Number(form.case_id) : null,
@@ -386,6 +391,9 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       grand_total: currentTotals.grandTotal,
       note: form.note.trim() || null,
       internal_note: form.internal_note.trim() || null,
+      client_snapshot_json: snapshots.clientSnapshot,
+      matter_snapshot_json: snapshots.matterSnapshot,
+      document_data_snapshot_json: snapshots.documentSnapshot,
       updated_by_user_id: access.userId,
       updated_by_email: access.userEmail,
       updated_by_name: access.userName,
@@ -393,27 +401,29 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
     };
 
     if (isEdit && quotationId) {
-      const { error: updateError } = await supabase
-        .from("finance_quotations")
-        .update(quotationPayload)
-        .eq("id", quotationId)
-        .eq("status", "draft");
+      const { error: updateError } = await supabase.rpc("save_finance_quotation_draft", {
+        p_quotation_id: quotationId,
+        p_client_id: quotationPayload.client_id,
+        p_case_id: quotationPayload.case_id,
+        p_advisory_matter_id: quotationPayload.advisory_matter_id,
+        p_issue_date: quotationPayload.issue_date,
+        p_valid_until: quotationPayload.valid_until,
+        p_note: form.note,
+        p_internal_note: form.internal_note,
+        p_subtotal_vatable: quotationPayload.subtotal_vatable,
+        p_subtotal_non_vatable: quotationPayload.subtotal_non_vatable,
+        p_vat_amount: quotationPayload.vat_amount,
+        p_grand_total: quotationPayload.grand_total,
+        p_client_snapshot_json: quotationPayload.client_snapshot_json,
+        p_matter_snapshot_json: quotationPayload.matter_snapshot_json,
+        p_document_data_snapshot_json: quotationPayload.document_data_snapshot_json,
+        p_updated_by_user_id: access.userId,
+        p_updated_by_email: access.userEmail,
+        p_updated_by_name: access.userName,
+        p_items: buildItemPayload(quotationId, normalizedItems),
+      });
       if (updateError) {
         alert("Unable to update quotation.");
-        setSaving(false);
-        return;
-      }
-
-      const { error: deleteError } = await supabase.from("finance_quotation_items").delete().eq("quotation_id", quotationId);
-      if (deleteError) {
-        alert("Unable to replace quotation items.");
-        setSaving(false);
-        return;
-      }
-
-      const { error: itemError } = await supabase.from("finance_quotation_items").insert(buildItemPayload(quotationId, normalizedItems));
-      if (itemError) {
-        alert("Unable to save quotation items.");
         setSaving(false);
         return;
       }
@@ -423,7 +433,14 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
         recordId: quotationId,
         caseId: form.case_id ? Number(form.case_id) : null,
         action: "update",
-        note: `Updated quotation ${quotation?.quotation_no || quotationId}`,
+        note: `Updated quotation ${quotation?.quotation_no || quotationId}; grand total ${formatMoney(toAmount(quotation?.grand_total))} -> ${formatMoney(currentTotals.grandTotal)}`,
+      });
+      await createAuditLog({
+        tableName: "finance_quotation_items",
+        recordId: quotationId,
+        caseId: form.case_id ? Number(form.case_id) : null,
+        action: "update",
+        note: `Replaced quotation line items for ${quotation?.quotation_no || quotationId}; item count ${normalizedItems.length}`,
       });
       router.push(`/finance/quotations/${quotationId}`);
       return;
@@ -438,12 +455,16 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       setSaving(false);
       return;
     }
+    const createSnapshots = buildQuotationSnapshots(form, normalizedItems, currentTotals, lookups, String(docNoData));
 
     const { data: insertedQuotation, error: insertError } = await supabase
       .from("finance_quotations")
       .insert({
         ...quotationPayload,
         quotation_no: String(docNoData),
+        client_snapshot_json: createSnapshots.clientSnapshot,
+        matter_snapshot_json: createSnapshots.matterSnapshot,
+        document_data_snapshot_json: createSnapshots.documentSnapshot,
         created_by_user_id: access.userId,
         created_by_email: access.userEmail,
         created_by_name: access.userName,
@@ -469,7 +490,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       recordId: created.id,
       caseId: form.case_id ? Number(form.case_id) : null,
       action: "create",
-      note: `Created quotation ${created.quotation_no}`,
+      note: `Created quotation ${created.quotation_no}; item count ${normalizedItems.length}; grand total ${formatMoney(currentTotals.grandTotal)}`,
     });
     router.push(`/finance/quotations/${created.id}`);
   };
@@ -495,13 +516,14 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
     );
   }
 
-  if (isEdit && quotation?.status !== "draft") {
+  if (isEdit && quotation && quotation.status !== "draft") {
+    const readonlyMessage = getReadonlyMessage(quotation.status);
     return (
       <>
         <FinanceSubNav activePage="quotations" permissions={access.permissions} />
         <div style={cardStyle}>
           <h2 style={sectionTitleStyle}>Readonly quotation</h2>
-          <p style={mutedTextStyle}>Only draft quotations can be edited. Sent, accepted, and cancelled quotations are readonly in Phase 1A.</p>
+          <p style={mutedTextStyle}>{readonlyMessage}</p>
           {quotation ? <Link href={`/finance/quotations/${quotation.id}`} style={primaryButtonStyle}>Back to quotation</Link> : null}
         </div>
       </>
@@ -668,28 +690,14 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
     }
 
     setSaving(true);
-    const patch: Record<string, string | null> = {
-      status: nextStatus,
-      updated_by_user_id: access.userId,
-      updated_by_email: access.userEmail,
-      updated_by_name: access.userName,
-      updated_at: new Date().toISOString(),
-    };
-    if (nextStatus === "sent") {
-      patch.sent_at = new Date().toISOString();
-      patch.sent_by_user_id = access.userId;
-    }
-    if (nextStatus === "accepted") {
-      patch.accepted_at = new Date().toISOString();
-      patch.accepted_by_user_id = access.userId;
-    }
-    if (nextStatus === "cancelled") {
-      patch.cancelled_at = new Date().toISOString();
-      patch.cancelled_by_user_id = access.userId;
-      patch.cancel_reason = cancelReason;
-    }
-
-    const { error } = await supabase.from("finance_quotations").update(patch).eq("id", quotation.id);
+    const { error } = await supabase.rpc("set_finance_quotation_status", {
+      p_quotation_id: quotation.id,
+      p_next_status: nextStatus,
+      p_cancel_reason: cancelReason,
+      p_user_id: access.userId,
+      p_user_email: access.userEmail,
+      p_user_name: access.userName,
+    });
     if (error) {
       alert("Unable to update quotation status.");
       setSaving(false);
@@ -717,6 +725,7 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
             <div>
               <h1 style={pageTitleStyle}>{quotation.quotation_no}</h1>
               <p style={mutedTextStyle}>Quotation document record. No invoice, receipt, ledger posting, or compensation is created from this page.</p>
+              {quotation.status !== "draft" ? <p style={noticeTextStyle}>{getReadonlyMessage(quotation.status)}</p> : null}
             </div>
             <div style={actionGroupStyle}>
               <Link href="/finance/quotations" style={secondaryButtonStyle}>Back</Link>
@@ -804,6 +813,7 @@ async function loadLookups(): Promise<LookupState> {
 function validateForm(form: FormState, items: QuotationItemRow[]) {
   if (!form.client_id) return "Please select client.";
   if (!form.issue_date) return "Please select issue date.";
+  if (form.valid_until && form.valid_until < form.issue_date) return "Valid until cannot be before issue date.";
   if (form.case_id && form.advisory_matter_id) return "Select either case or advisory matter, not both.";
   if (items.length === 0) return "Please add at least one line item.";
   for (const item of items) {
@@ -812,6 +822,77 @@ function validateForm(form: FormState, items: QuotationItemRow[]) {
     if (toAmount(item.unit_price) < 0) return "Unit price cannot be negative.";
   }
   return "";
+}
+
+function buildQuotationSnapshots(
+  form: FormState,
+  items: QuotationItemRow[],
+  totals: ReturnType<typeof computeTotals>,
+  lookups: LookupState,
+  quotationNo: string
+) {
+  const client = lookups.clients.find((item) => item.id === form.client_id);
+  const caseItem = form.case_id ? lookups.cases.find((item) => String(item.id) === String(form.case_id)) : null;
+  const matter = form.advisory_matter_id ? lookups.matters.find((item) => item.id === form.advisory_matter_id) : null;
+  const normalizedItems = items.map((item, index) => normalizeItem(item, index));
+
+  const clientSnapshot: Record<string, unknown> = {
+    id: form.client_id,
+    name: client?.name || null,
+    tax_id: client?.tax_id || null,
+    email: client?.email || null,
+    phone: client?.phone || null,
+    address: client?.address || null,
+  };
+
+  const matterSnapshot: Record<string, unknown> | null = caseItem
+    ? {
+        type: "case",
+        id: caseItem.id,
+        file_no: caseItem.file_no || null,
+        title: caseItem.title || null,
+        client_name: caseItem.client_name || null,
+      }
+    : matter
+      ? {
+          type: "advisory",
+          id: matter.id,
+          matter_no: matter.matter_no || null,
+          title: matter.title || null,
+        }
+      : form.case_id
+        ? { type: "case", id: form.case_id }
+        : form.advisory_matter_id
+          ? { type: "advisory", id: form.advisory_matter_id }
+          : null;
+
+  return {
+    clientSnapshot,
+    matterSnapshot,
+    documentSnapshot: {
+      document_type: "quotation",
+      quotation_no: quotationNo || null,
+      client_id: form.client_id,
+      case_id: form.case_id ? Number(form.case_id) : null,
+      advisory_matter_id: form.advisory_matter_id || null,
+      issue_date: form.issue_date,
+      valid_until: form.valid_until || null,
+      note: form.note.trim() || null,
+      totals,
+      items: normalizedItems.map((item) => ({
+        description: item.description.trim(),
+        quantity: toAmount(item.quantity),
+        unit_price: toAmount(item.unit_price),
+        amount_before_tax: toAmount(item.amount_before_tax),
+        vat_applicable: item.vat_applicable,
+        vat_rate: toAmount(item.vat_rate),
+        vat_amount: toAmount(item.vat_amount),
+        line_total: toAmount(item.line_total),
+        sort_order: item.sort_order,
+      })),
+      snapshot_created_at: new Date().toISOString(),
+    },
+  };
 }
 
 function buildItemPayload(quotationId: string, items: QuotationItemRow[]) {
@@ -885,6 +966,14 @@ function StatusBadge({ status }: { status: string | null }) {
   const normalized = String(status || "draft").toLowerCase();
   const style = statusStyles[normalized] || statusStyles.draft;
   return <span style={{ ...badgeStyle, ...style }}>{normalized}</span>;
+}
+
+function getReadonlyMessage(status: string | null) {
+  const normalized = String(status || "").toLowerCase();
+  if (normalized === "accepted") return "Accepted quotations are read-only. To change terms, cancel and create a new quotation.";
+  if (normalized === "cancelled") return "Cancelled quotations are read-only.";
+  if (normalized === "sent") return "Sent quotations cannot edit line items in this phase. Cancel and create a new quotation if terms change.";
+  return "Only draft quotations can be edited.";
 }
 
 function renderMatterLink(quotation: Pick<QuotationRow, "case_id" | "advisory_matter_id">, lookups: LookupState) {
@@ -987,6 +1076,7 @@ const sectionHeaderStyle: CSSProperties = {
 const pageTitleStyle: CSSProperties = { margin: 0, fontSize: 26, color: "#111827" };
 const sectionTitleStyle: CSSProperties = { margin: 0, fontSize: 18, color: "#111827" };
 const mutedTextStyle: CSSProperties = { color: "#6b7280", margin: "6px 0 0", fontSize: 13 };
+const noticeTextStyle: CSSProperties = { color: "#92400e", background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 6, padding: "8px 10px", margin: "10px 0 0", fontSize: 13, fontWeight: 700 };
 
 const tableWrapStyle: CSSProperties = { overflowX: "auto" };
 const tableStyle: CSSProperties = { width: "100%", borderCollapse: "collapse", minWidth: 900 };
