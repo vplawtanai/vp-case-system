@@ -297,27 +297,32 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
   useEffect(() => {
     const loadFormData = async () => {
       setLoading(true);
-      const lookupData = await loadLookups();
-      setLookups(lookupData);
-
       if (!quotationId) {
+        const lookupData = await loadLookups();
+        setLookups(lookupData);
         setLoading(false);
         return;
       }
 
-      const [quotationRes, itemRes] = await Promise.all([
-        supabase.from("finance_quotations").select("*").eq("id", quotationId).single(),
-        supabase.from("finance_quotation_items").select("*").eq("quotation_id", quotationId).order("sort_order", { ascending: true }),
-      ]);
-
+      const quotationRes = await supabase.from("finance_quotations").select("*").eq("id", quotationId).maybeSingle();
       if (quotationRes.error || !quotationRes.data) {
-        alert("Unable to load quotation.");
+        console.error("Failed to load quotation for edit", { quotationId, error: quotationRes.error });
+        alert(quotationRes.error ? "Unable to load quotation." : "Quotation not found.");
         setLoading(false);
         return;
+      }
+
+      const [itemRes, lookupData] = await Promise.all([
+        supabase.from("finance_quotation_items").select("*").eq("quotation_id", quotationId).order("sort_order", { ascending: true }),
+        loadLookups(),
+      ]);
+      if (itemRes.error) {
+        console.warn("Failed to load quotation items for edit", { quotationId, error: itemRes.error });
       }
 
       const loadedQuotation = quotationRes.data as QuotationRow;
       setQuotation(loadedQuotation);
+      setLookups(lookupData);
       setForm({
         client_id: loadedQuotation.client_id || "",
         case_id: loadedQuotation.case_id ? String(loadedQuotation.case_id) : "",
@@ -614,16 +619,27 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const [quotationRes, itemRes, lookupRes] = await Promise.all([
-      supabase.from("finance_quotations").select("*").eq("id", quotationId).single(),
+    if (!quotationId) {
+      console.error("Missing quotation id in quotation detail route");
+      alert("Quotation not found.");
+      setLoading(false);
+      return;
+    }
+
+    const quotationRes = await supabase.from("finance_quotations").select("*").eq("id", quotationId).maybeSingle();
+    if (quotationRes.error || !quotationRes.data) {
+      console.error("Failed to load quotation", { quotationId, error: quotationRes.error });
+      alert(quotationRes.error ? "Unable to load quotation." : "Quotation not found.");
+      setLoading(false);
+      return;
+    }
+
+    const [itemRes, lookupRes] = await Promise.all([
       supabase.from("finance_quotation_items").select("*").eq("quotation_id", quotationId).order("sort_order", { ascending: true }),
       loadLookups(),
     ]);
-
-    if (quotationRes.error || !quotationRes.data) {
-      alert("Unable to load quotation.");
-      setLoading(false);
-      return;
+    if (itemRes.error) {
+      console.warn("Failed to load quotation items", { quotationId, error: itemRes.error });
     }
 
     setQuotation(quotationRes.data as QuotationRow);
