@@ -832,9 +832,15 @@ function SummaryCard({
   );
 }
 
-function FinanceSubNav({ activePage, permissions }: { activePage: "ledger" | "claims" | "compensation"; permissions: UserPermissions }) {
+function FinanceSubNav({ activePage, permissions }: { activePage: "ledger" | "claims" | "compensation" | "quotations"; permissions: UserPermissions }) {
   return (
     <nav style={subNavStyle}>
+      {permissions.canViewFinanceQuotations ? <Link
+        href="/finance/quotations"
+        style={activePage === "quotations" ? subNavActiveLinkStyle : subNavLinkStyle}
+      >
+        Quotations
+      </Link> : null}
       {permissions.canViewCompanyLedger ? <Link
         href="/finance/ledger"
         style={activePage === "ledger" ? subNavActiveLinkStyle : subNavLinkStyle}

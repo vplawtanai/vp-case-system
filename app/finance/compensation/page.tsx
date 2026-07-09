@@ -897,9 +897,10 @@ function RecipientEditor({ row, users, onChange }: { row: AllocationRow; users: 
   );
 }
 
-function FinanceSubNav({ activePage, permissions }: { activePage: "ledger" | "claims" | "compensation"; permissions: UserPermissions }) {
+function FinanceSubNav({ activePage, permissions }: { activePage: "ledger" | "claims" | "compensation" | "quotations"; permissions: UserPermissions }) {
   return (
     <nav style={subNavStyle}>
+      {permissions.canViewFinanceQuotations ? <Link href="/finance/quotations" style={activePage === "quotations" ? subNavActiveLinkStyle : subNavLinkStyle}>Quotations</Link> : null}
       {permissions.canViewCompanyLedger ? <Link href="/finance/ledger" style={activePage === "ledger" ? subNavActiveLinkStyle : subNavLinkStyle}>Ledger</Link> : null}
       {permissions.canSubmitExpenseClaim || permissions.canViewOwnExpenseClaims || permissions.canViewAllExpenseClaims ? <Link href="/finance/expense-claims" style={activePage === "claims" ? subNavActiveLinkStyle : subNavLinkStyle}>Expense Claims</Link> : null}
       {permissions.canViewLawyerCompensation ? <Link href="/finance/compensation" style={activePage === "compensation" ? subNavActiveLinkStyle : subNavLinkStyle}>Lawyer Compensation</Link> : null}
