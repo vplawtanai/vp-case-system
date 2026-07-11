@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import AuthGuard from "../../components/AuthGuard";
 import AppTopNav from "../../components/AppTopNav";
 import { createAuditLog } from "../../../lib/auditLog";
+import { AUTHORIZED_SIGNERS, DEFAULT_AUTHORIZED_SIGNER, VP_COMPANY_PROFILE, formatSignerPosition, getAuthorizedSigner } from "../../../lib/companyProfile";
 import { buildPermissions } from "../../../lib/permissions";
 import type { UserPermissions, UserRole } from "../../../lib/permissions";
 import { supabase } from "../../../lib/supabase";
@@ -39,6 +40,10 @@ export type QuotationRow = {
   vat_amount: number | string | null;
   grand_total: number | string | null;
   scope_of_legal_services: string | null;
+  authorized_signer_key: string | null;
+  authorized_signer_name: string | null;
+  authorized_signer_position: string | null;
+  authorized_signer_email: string | null;
   note: string | null;
   internal_note: string | null;
   created_by_user_id: string | null;
@@ -100,6 +105,7 @@ type FormState = {
   issue_date: string;
   valid_until: string;
   scope_of_legal_services: string;
+  authorized_signer_key: string;
   note: string;
   internal_note: string;
 };
@@ -111,6 +117,7 @@ const emptyForm: FormState = {
   issue_date: getDateKey(new Date()),
   valid_until: "",
   scope_of_legal_services: "",
+  authorized_signer_key: DEFAULT_AUTHORIZED_SIGNER.key,
   note: "",
   internal_note: "",
 };
@@ -336,6 +343,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
         issue_date: loadedQuotation.issue_date || getDateKey(new Date()),
         valid_until: loadedQuotation.valid_until || "",
         scope_of_legal_services: loadedQuotation.scope_of_legal_services || "",
+        authorized_signer_key: loadedQuotation.authorized_signer_key || DEFAULT_AUTHORIZED_SIGNER.key,
         note: loadedQuotation.note || "",
         internal_note: loadedQuotation.internal_note || "",
       });
@@ -381,6 +389,8 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
     const normalizedItems = items.map((item, index) => normalizeItem(item, index));
     const currentTotals = computeTotals(normalizedItems);
     const quotationNo = quotation?.quotation_no || "";
+    const selectedSigner = getAuthorizedSigner(form.authorized_signer_key);
+    const signerPosition = formatSignerPosition(selectedSigner);
     const snapshots = buildQuotationSnapshots(form, normalizedItems, currentTotals, lookups, quotationNo);
     const quotationPayload = {
       client_id: form.client_id,
@@ -394,6 +404,10 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       vat_amount: currentTotals.vatAmount,
       grand_total: currentTotals.grandTotal,
       scope_of_legal_services: form.scope_of_legal_services.trim() || null,
+      authorized_signer_key: selectedSigner.key,
+      authorized_signer_name: selectedSigner.displayName,
+      authorized_signer_position: signerPosition,
+      authorized_signer_email: selectedSigner.email,
       note: form.note.trim() || null,
       internal_note: form.internal_note.trim() || null,
       client_snapshot_json: snapshots.clientSnapshot,
@@ -416,6 +430,10 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
         p_scope_of_legal_services: form.scope_of_legal_services,
         p_note: form.note,
         p_internal_note: form.internal_note,
+        p_authorized_signer_key: quotationPayload.authorized_signer_key,
+        p_authorized_signer_name: quotationPayload.authorized_signer_name,
+        p_authorized_signer_position: quotationPayload.authorized_signer_position,
+        p_authorized_signer_email: quotationPayload.authorized_signer_email,
         p_subtotal_vatable: quotationPayload.subtotal_vatable,
         p_subtotal_non_vatable: quotationPayload.subtotal_non_vatable,
         p_vat_amount: quotationPayload.vat_amount,
@@ -572,6 +590,15 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
           </label>
           <label style={labelStyle}>Valid Until
             <input type="date" value={form.valid_until} onChange={(event) => setForm({ ...form, valid_until: event.target.value })} style={inputStyle} />
+          </label>
+          <label style={labelStyle}>ผู้ลงนามใบเสนอราคา / Authorized Signer
+            <select value={form.authorized_signer_key} onChange={(event) => setForm({ ...form, authorized_signer_key: event.target.value })} style={inputStyle}>
+              {AUTHORIZED_SIGNERS.map((signer) => (
+                <option key={signer.key} value={signer.key}>
+                  {signer.displayName} — {formatSignerPosition(signer)}
+                </option>
+              ))}
+            </select>
           </label>
         </div>
       </div>
@@ -760,6 +787,7 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
               <Detail label="Valid Until" value={formatDate(quotation.valid_until)} />
               <Detail label="Grand Total" value={formatMoney(toAmount(quotation.grand_total))} />
               <Detail label="ขอบเขตงาน / Scope of Legal Services" value={quotation.scope_of_legal_services || "-"} />
+              <Detail label="Authorized Signer" value={renderSignerDetail(quotation)} />
             </div>
           </div>
 
@@ -831,6 +859,7 @@ function validateForm(form: FormState, items: QuotationItemRow[]) {
   if (!form.issue_date) return "Please select issue date.";
   if (form.valid_until && form.valid_until < form.issue_date) return "Valid until cannot be before issue date.";
   if (form.case_id && form.advisory_matter_id) return "Select either case or advisory matter, not both.";
+  if (!form.authorized_signer_key) return "Please select authorized signer.";
   if (items.length === 0) return "Please add at least one line item.";
   for (const item of items) {
     if (!item.description.trim()) return "Every line item needs a description.";
@@ -850,6 +879,8 @@ function buildQuotationSnapshots(
   const client = lookups.clients.find((item) => item.id === form.client_id);
   const caseItem = form.case_id ? lookups.cases.find((item) => String(item.id) === String(form.case_id)) : null;
   const matter = form.advisory_matter_id ? lookups.matters.find((item) => item.id === form.advisory_matter_id) : null;
+  const signer = getAuthorizedSigner(form.authorized_signer_key);
+  const signerPosition = formatSignerPosition(signer);
   const normalizedItems = items.map((item, index) => normalizeItem(item, index));
 
   const clientSnapshot: Record<string, unknown> = {
@@ -894,6 +925,14 @@ function buildQuotationSnapshots(
       issue_date: form.issue_date,
       valid_until: form.valid_until || null,
       scope_of_legal_services: form.scope_of_legal_services.trim() || null,
+      company_profile: VP_COMPANY_PROFILE,
+      authorized_signer: {
+        key: signer.key,
+        name: signer.displayName,
+        nickname: signer.nickname,
+        position: signerPosition,
+        email: signer.email,
+      },
       note: form.note.trim() || null,
       totals,
       items: normalizedItems.map((item) => ({
@@ -975,6 +1014,21 @@ function Detail({ label, value }: { label: string; value: ReactNode }) {
     <div>
       <div style={detailLabelStyle}>{label}</div>
       <div style={detailValueStyle}>{value}</div>
+    </div>
+  );
+}
+
+function renderSignerDetail(quotation: QuotationRow) {
+  const fallbackSigner = getAuthorizedSigner(quotation.authorized_signer_key);
+  const name = quotation.authorized_signer_name || fallbackSigner.displayName;
+  const position = quotation.authorized_signer_position || formatSignerPosition(fallbackSigner);
+  const email = quotation.authorized_signer_email || fallbackSigner.email;
+
+  return (
+    <div>
+      <div>{name}</div>
+      <div style={mutedInlineTextStyle}>{position}</div>
+      <div style={mutedInlineTextStyle}>{email}</div>
     </div>
   );
 }
@@ -1127,6 +1181,7 @@ const totalLineStyle: CSSProperties = { ...summaryLineStyle, fontSize: 16, color
 const detailGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 };
 const detailLabelStyle: CSSProperties = { color: "#6b7280", fontSize: 12, fontWeight: 700, marginBottom: 4 };
 const detailValueStyle: CSSProperties = { color: "#111827", fontSize: 14, fontWeight: 600 };
+const mutedInlineTextStyle: CSSProperties = { color: "#6b7280", fontSize: 12, fontWeight: 600, marginTop: 3 };
 
 const badgeStyle: CSSProperties = { display: "inline-flex", borderRadius: 999, padding: "4px 9px", fontSize: 12, fontWeight: 800, textTransform: "capitalize" };
 const statusStyles: Record<string, CSSProperties> = {

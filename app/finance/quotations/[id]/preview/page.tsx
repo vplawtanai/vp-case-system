@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { DEFAULT_AUTHORIZED_SIGNER, VP_COMPANY_PROFILE, formatSignerPosition, getAuthorizedSigner } from "../../../../../lib/companyProfile";
 import { supabase } from "../../../../../lib/supabase";
 import { QuotationGuard } from "../../shared";
 
@@ -20,6 +22,10 @@ type QuotationRow = {
   vat_amount: number | string | null;
   grand_total: number | string | null;
   scope_of_legal_services: string | null;
+  authorized_signer_key: string | null;
+  authorized_signer_name: string | null;
+  authorized_signer_position: string | null;
+  authorized_signer_email: string | null;
   note: string | null;
   created_by_name: string | null;
   created_by_email: string | null;
@@ -149,7 +155,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
   const clientContact = getSnapshotText(quotation?.client_snapshot_json, "contact_person") || getSnapshotText(quotation?.client_snapshot_json, "contact_name") || "-";
   const matterLabel = getMatterLabel(quotation, caseItem, matter);
   const scopeText = quotation?.scope_of_legal_services?.trim() || getMatterDescription(quotation, caseItem, matter) || "-";
-  const preparedBy = quotation?.updated_by_name || quotation?.created_by_name || quotation?.updated_by_email || quotation?.created_by_email || "-";
+  const signer = resolveQuotationSigner(quotation);
 
   return (
     <>
@@ -170,11 +176,11 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
         <article className="quotation-print-document" style={documentStyle}>
           <header style={documentHeaderStyle}>
             <div style={providerHeaderStyle}>
-              <div className="quotation-logo" style={companyMarkStyle}>VP</div>
+              <LogoMark />
               <div>
-                <div style={companyNameThaiStyle}>บริษัท วีพี พาร์ทเนอร์ จำกัด</div>
-                <div style={companyNameStyle}>VP Partners Co., Ltd.</div>
-                <div style={companyMetaStyle}>Professional Legal Services</div>
+                <div style={companyNameThaiStyle}>{VP_COMPANY_PROFILE.nameTh}</div>
+                <div style={companyNameStyle}>{VP_COMPANY_PROFILE.nameEn}</div>
+                <div style={companyMetaStyle}>{VP_COMPANY_PROFILE.description}</div>
               </div>
             </div>
             <div style={documentTitleBlockStyle}>
@@ -186,12 +192,12 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
           <section className="quotation-compact-block" style={topGridStyle}>
             <div style={panelStyle}>
               <h2 style={panelTitleStyle}>ผู้ให้บริการ / Service Provider</h2>
-              <InfoLine label="Company" value="บริษัท วีพี พาร์ทเนอร์ จำกัด / VP Partners Co., Ltd." />
-              <InfoLine label="Tax ID" value="-" />
-              <InfoLine label="Address" value="-" />
-              <InfoLine label="Phone" value="-" />
-              <InfoLine label="Email" value="-" />
-              <InfoLine label="Website" value="-" />
+              <InfoLine label="Company" value={`${VP_COMPANY_PROFILE.nameTh} / ${VP_COMPANY_PROFILE.nameEn}`} />
+              <InfoLine label="Tax ID" value={VP_COMPANY_PROFILE.taxId} />
+              <InfoLine label="Address" value={VP_COMPANY_PROFILE.address} />
+              <InfoLine label="Phone" value={VP_COMPANY_PROFILE.phone} />
+              <InfoLine label="Email" value={VP_COMPANY_PROFILE.email} />
+              <InfoLine label="Website" value={VP_COMPANY_PROFILE.website} />
             </div>
             <div style={panelStyle}>
               <h2 style={panelTitleStyle}>ข้อมูลเอกสาร / Document Information</h2>
@@ -274,13 +280,15 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
           <section className="signature-section" style={signatureGridStyle}>
             <SignatureBlock
               title="ผู้เสนอราคา / Service Provider"
-              name={preparedBy}
-              position="Authorized Partner / Partner / -"
+              name={signer.name}
+              position={signer.position}
+              email={signer.email}
             />
             <SignatureBlock
               title="ผู้ยอมรับใบเสนอราคา / Client Acceptance"
               name="____________________"
               position="____________________"
+              email=""
             />
           </section>
         </article>
@@ -307,16 +315,47 @@ function TotalLine({ label, value, strong = false }: { label: string; value: num
   );
 }
 
-function SignatureBlock({ title, name, position }: { title: string; name: string; position: string }) {
+function LogoMark() {
+  const [logoFailed, setLogoFailed] = useState(false);
+
+  if (logoFailed) {
+    return <div className="quotation-logo" style={companyMarkStyle}>VP</div>;
+  }
+
+  return (
+    <div className="quotation-logo" style={companyLogoFrameStyle}>
+      <Image
+        src={VP_COMPANY_PROFILE.logoPath}
+        alt="VP Partners"
+        width={54}
+        height={54}
+        style={companyLogoImageStyle}
+        onError={() => setLogoFailed(true)}
+      />
+    </div>
+  );
+}
+
+function SignatureBlock({ title, name, position, email }: { title: string; name: string; position: string; email: string }) {
   return (
     <div style={signatureBlockStyle}>
       <div style={signatureTitleStyle}>{title}</div>
       <div style={signatureLineStyle} />
       <div style={signatureFieldStyle}>Name: {name}</div>
       <div style={signatureFieldStyle}>Position: {position}</div>
+      {email ? <div style={signatureFieldStyle}>Email: {email}</div> : null}
       <div style={signatureFieldStyle}>Date: ____________________</div>
     </div>
   );
+}
+
+function resolveQuotationSigner(quotation: QuotationRow | null) {
+  const fallbackSigner = getAuthorizedSigner(quotation?.authorized_signer_key || DEFAULT_AUTHORIZED_SIGNER.key);
+  return {
+    name: quotation?.authorized_signer_name || fallbackSigner.displayName,
+    position: quotation?.authorized_signer_position || formatSignerPosition(fallbackSigner),
+    email: quotation?.authorized_signer_email || fallbackSigner.email,
+  };
 }
 
 function getClientDisplayValue(quotation: QuotationRow | null, client: ClientRow | null, key: keyof ClientRow) {
@@ -507,6 +546,18 @@ const companyMarkStyle: React.CSSProperties = {
   fontSize: 21,
   fontWeight: 900,
   flex: "0 0 auto",
+};
+const companyLogoFrameStyle: React.CSSProperties = {
+  ...companyMarkStyle,
+  background: "#ffffff",
+  border: "2px solid #111827",
+  overflow: "hidden",
+};
+const companyLogoImageStyle: React.CSSProperties = {
+  width: "100%",
+  height: "100%",
+  objectFit: "contain",
+  padding: 6,
 };
 
 const companyNameThaiStyle: React.CSSProperties = { fontSize: 17, fontWeight: 900, lineHeight: 1.35 };
