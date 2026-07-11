@@ -20,6 +20,7 @@ import AuditLogSection from "./components/AuditLogSection";
 import AuthGuard from "../../components/AuthGuard";
 import NotesSection from "./components/NotesSection";
 import AppTopNav from "../../components/AppTopNav";
+import FinanceQuotationsSection from "../../components/FinanceQuotationsSection";
 
 /* =========================================================
    TYPES
@@ -637,6 +638,10 @@ export default function CaseDetailPage() {
             />
           </div>
         )}
+
+        <div id="finance-documents" style={sectionWrapStyle}>
+          <FinanceQuotationsSection caseId={caseIdNumber || id} />
+        </div>
 
         <div id="notes" style={sectionWrapStyle}>
           <NotesSection
