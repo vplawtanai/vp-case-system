@@ -729,6 +729,7 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
             </div>
             <div style={actionGroupStyle}>
               <Link href="/finance/quotations" style={secondaryButtonStyle}>Back</Link>
+              <Link href={`/finance/quotations/${quotation.id}/preview`} style={secondaryButtonStyle}>Preview</Link>
               {quotation.status === "draft" && access.permissions.canEditFinanceQuotation ? <Link href={`/finance/quotations/${quotation.id}/edit`} style={primaryButtonStyle}>Edit Draft</Link> : null}
               {quotation.status === "draft" && access.permissions.canMarkFinanceQuotationSent ? <button type="button" onClick={() => updateStatus("sent")} disabled={saving} style={secondaryButtonStyle}>Mark Sent</button> : null}
               {quotation.status === "sent" && access.permissions.canMarkFinanceQuotationAccepted ? <button type="button" onClick={() => updateStatus("accepted")} disabled={saving} style={secondaryButtonStyle}>Mark Accepted</button> : null}
