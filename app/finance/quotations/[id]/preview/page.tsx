@@ -31,6 +31,8 @@ type QuotationRow = {
   vat_amount: number | string | null;
   grand_total: number | string | null;
   scope_of_legal_services: string | null;
+  included_services: string | null;
+  excluded_services: string | null;
   authorized_signer_key: string | null;
   authorized_signer_name: string | null;
   authorized_signer_position: string | null;
@@ -202,7 +204,10 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
   const clientEmail = getClientDisplayValue(quotation, client, "email");
   const clientContact = getSnapshotText(quotation?.client_snapshot_json, "contact_person") || getSnapshotText(quotation?.client_snapshot_json, "contact_name") || "-";
   const matterLabel = getMatterLabel(quotation, caseItem, matter);
-  const scopeText = quotation?.scope_of_legal_services?.trim() || getMatterDescription(quotation, caseItem, matter) || "-";
+  const documentSnapshot = getSnapshotObject(quotation?.document_data_snapshot_json);
+  const scopeText = getSnapshotText(documentSnapshot, "scope_of_legal_services") || quotation?.scope_of_legal_services?.trim() || getMatterDescription(quotation, caseItem, matter);
+  const includedText = getSnapshotText(documentSnapshot, "included_services") || quotation?.included_services?.trim() || "";
+  const excludedText = getSnapshotText(documentSnapshot, "excluded_services") || quotation?.excluded_services?.trim() || "";
   const signer = resolveQuotationSigner(quotation, signers);
 
   return (
@@ -272,9 +277,20 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
           </section>
 
           <section className="quotation-compact-block" style={sectionStyle}>
-            <h2 style={sectionTitleStyle}>ขอบเขตงาน / Scope of Legal Services</h2>
-            <div style={scopeBoxStyle}>{scopeText}</div>
+            <DocumentTextSection title="ขอบเขตงาน / Scope of Legal Services" value={scopeText || "-"} />
           </section>
+
+          {includedText ? (
+            <section className="quotation-compact-block" style={sectionStyle}>
+              <DocumentTextSection title="งานที่รวมอยู่ในค่าบริการ / Included Services" value={includedText} />
+            </section>
+          ) : null}
+
+          {excludedText ? (
+            <section className="quotation-compact-block" style={sectionStyle}>
+              <DocumentTextSection title="งานหรือค่าใช้จ่ายที่ไม่รวม / Excluded Services" value={excludedText} />
+            </section>
+          ) : null}
 
           <section className="quotation-compact-block" style={sectionStyle}>
             <h2 style={sectionTitleStyle}>รายการค่าบริการ / Fee Items</h2>
@@ -320,10 +336,10 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
               </ul>
             </div>
             <div style={totalsBoxStyle}>
-              <TotalLine label="Subtotal Vatable" value={quotation.subtotal_vatable} />
-              <TotalLine label="Subtotal Non-Vatable" value={quotation.subtotal_non_vatable} />
-              <TotalLine label="VAT" value={quotation.vat_amount} />
-              <TotalLine label="Grand Total / จำนวนเงินตามใบเสนอราคา" value={quotation.grand_total} strong />
+              <TotalLine label="รวมรายการที่มี VAT / Vatable Subtotal" value={quotation.subtotal_vatable} />
+              <TotalLine label="รวมรายการที่ไม่มี VAT / Non-Vatable Subtotal" value={quotation.subtotal_non_vatable} />
+              <TotalLine label="ภาษีมูลค่าเพิ่ม / VAT" value={quotation.vat_amount} />
+              <TotalLine label="จำนวนเงินตามใบเสนอราคา / Quotation Total" value={quotation.grand_total} strong />
             </div>
           </section>
 
@@ -363,6 +379,16 @@ function TotalLine({ label, value, strong = false }: { label: string; value: num
     <div style={strong ? totalStrongLineStyle : totalLineStyle}>
       <span>{label}</span>
       <strong>{formatMoney(value)}</strong>
+    </div>
+  );
+}
+
+function DocumentTextSection({ title, value }: { title: string; value: string }) {
+  return (
+    <div style={documentTextSectionStyle}>
+      <h2 style={sectionTitleStyle}>{title}</h2>
+      <div style={sectionDividerStyle} />
+      <div style={documentTextStyle}>{value}</div>
     </div>
   );
 }
@@ -494,7 +520,7 @@ function formatQuantity(value: number | string | null) {
 function formatMoney(value: number | string | null) {
   const amount = Number(value || 0);
   if (!Number.isFinite(amount)) return "-";
-  return amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} THB`;
 }
 
 const printCss = `
@@ -599,7 +625,7 @@ const documentStyle: React.CSSProperties = {
   margin: "0 auto",
   background: "#ffffff",
   color: "#111827",
-  border: "1px solid #bbf7d0",
+  border: "1px solid #E5E7EB",
   borderRadius: 6,
   boxShadow: "0 10px 32px rgba(15, 23, 42, 0.08)",
   padding: "38px 42px",
@@ -669,7 +695,7 @@ const topGridStyle: React.CSSProperties = {
 };
 
 const panelStyle: React.CSSProperties = {
-  border: "1px solid #bbf7d0",
+  border: "1px solid #E5E7EB",
   borderRadius: 6,
   padding: 14,
   minWidth: 0,
@@ -705,14 +731,14 @@ const strongInfoLineValueStyle: React.CSSProperties = { ...infoLineValueStyle, f
 
 const sectionStyle: React.CSSProperties = { marginBottom: 20 };
 const sectionTitleStyle: React.CSSProperties = { margin: "0 0 10px", fontSize: 15, fontWeight: 900 };
-const scopeBoxStyle: React.CSSProperties = {
-  border: "1px solid #e5e7eb",
-  borderRadius: 6,
-  background: "#F0FDF4",
-  padding: 12,
-  fontSize: 13,
-  lineHeight: 1.65,
+const documentTextSectionStyle: React.CSSProperties = { breakInside: "avoid" };
+const sectionDividerStyle: React.CSSProperties = { height: 2, width: 56, background: "#16A344", margin: "0 0 9px" };
+const documentTextStyle: React.CSSProperties = {
+  fontSize: 12.8,
+  lineHeight: 1.7,
   whiteSpace: "pre-wrap",
+  color: "#1F2937",
+  paddingLeft: 2,
 };
 
 const tableStyle: React.CSSProperties = { width: "100%", borderCollapse: "collapse", tableLayout: "fixed" };
@@ -739,7 +765,7 @@ const totalsSectionStyle: React.CSSProperties = {
 };
 
 const termsBoxStyle: React.CSSProperties = {
-  border: "1px solid #bbf7d0",
+  border: "1px solid #E5E7EB",
   borderRadius: 6,
   padding: 13,
   minHeight: 120,

@@ -52,6 +52,8 @@ export type QuotationRow = {
   vat_amount: number | string | null;
   grand_total: number | string | null;
   scope_of_legal_services: string | null;
+  included_services: string | null;
+  excluded_services: string | null;
   authorized_signer_key: string | null;
   authorized_signer_name: string | null;
   authorized_signer_position: string | null;
@@ -119,6 +121,8 @@ type FormState = {
   issue_date: string;
   valid_until: string;
   scope_of_legal_services: string;
+  included_services: string;
+  excluded_services: string;
   authorized_signer_key: string;
   note: string;
   internal_note: string;
@@ -131,6 +135,8 @@ const emptyForm: FormState = {
   issue_date: getDateKey(new Date()),
   valid_until: "",
   scope_of_legal_services: "",
+  included_services: "",
+  excluded_services: "",
   authorized_signer_key: DEFAULT_AUTHORIZED_SIGNER.key,
   note: "",
   internal_note: "",
@@ -276,7 +282,7 @@ export function QuotationList({ access }: { access: QuotationAccess }) {
                 <th style={thStyle}>Issue Date</th>
                 <th style={thStyle}>Valid Until</th>
                 <th style={thStyle}>Status</th>
-                <th style={rightThStyle}>Grand Total</th>
+                <th style={rightThStyle}>Quotation Total</th>
                 <th style={thStyle}>Actions</th>
               </tr>
             </thead>
@@ -358,6 +364,8 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
         issue_date: loadedQuotation.issue_date || getDateKey(new Date()),
         valid_until: loadedQuotation.valid_until || "",
         scope_of_legal_services: loadedQuotation.scope_of_legal_services || "",
+        included_services: loadedQuotation.included_services || "",
+        excluded_services: loadedQuotation.excluded_services || "",
         authorized_signer_key: loadedQuotation.authorized_signer_key || getDefaultSigner(lookupData.signers).key,
         note: loadedQuotation.note || "",
         internal_note: loadedQuotation.internal_note || "",
@@ -419,6 +427,8 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       vat_amount: currentTotals.vatAmount,
       grand_total: currentTotals.grandTotal,
       scope_of_legal_services: form.scope_of_legal_services.trim() || null,
+      included_services: form.included_services.trim() || null,
+      excluded_services: form.excluded_services.trim() || null,
       authorized_signer_key: selectedSigner.key,
       authorized_signer_name: selectedSigner.displayName,
       authorized_signer_position: signerPosition,
@@ -443,6 +453,8 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
         p_issue_date: quotationPayload.issue_date,
         p_valid_until: quotationPayload.valid_until,
         p_scope_of_legal_services: form.scope_of_legal_services,
+        p_included_services: form.included_services,
+        p_excluded_services: form.excluded_services,
         p_note: form.note,
         p_internal_note: form.internal_note,
         p_authorized_signer_key: quotationPayload.authorized_signer_key,
@@ -619,8 +631,37 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       </div>
 
       <div style={cardStyle}>
+        <div style={formGridStyle}>
+          <label style={wideLabelStyle}>ขอบเขตงาน / Scope of Legal Services
+            <textarea
+              value={form.scope_of_legal_services}
+              onChange={(event) => setForm({ ...form, scope_of_legal_services: event.target.value })}
+              style={textareaStyle}
+              placeholder="ระบุขอบเขตงานบริการทางกฎหมายที่ใบเสนอราคานี้ครอบคลุม เช่น การให้คำปรึกษา การจัดทำเอกสาร การดำเนินคดี หรือการติดต่อหน่วยงานที่เกี่ยวข้อง"
+            />
+          </label>
+          <label style={wideLabelStyle}>งานที่รวมอยู่ในค่าบริการ / Included Services
+            <textarea
+              value={form.included_services}
+              onChange={(event) => setForm({ ...form, included_services: event.target.value })}
+              style={textareaStyle}
+              placeholder="ระบุงานหรือบริการที่รวมอยู่ในค่าบริการตามใบเสนอราคานี้"
+            />
+          </label>
+          <label style={wideLabelStyle}>งานหรือค่าใช้จ่ายที่ไม่รวม / Excluded Services
+            <textarea
+              value={form.excluded_services}
+              onChange={(event) => setForm({ ...form, excluded_services: event.target.value })}
+              style={textareaStyle}
+              placeholder="ระบุงาน ค่าใช้จ่าย หรือค่าธรรมเนียมที่ไม่รวมอยู่ในใบเสนอราคานี้"
+            />
+          </label>
+        </div>
+      </div>
+
+      <div style={cardStyle}>
         <div style={sectionHeaderStyle}>
-          <h2 style={sectionTitleStyle}>Line Items</h2>
+          <h2 style={sectionTitleStyle}>Line Items / Fee Items</h2>
           <button type="button" onClick={() => setItems((current) => [...current, normalizeItem({ ...emptyItem }, current.length)])} style={secondaryButtonStyle}>Add Item</button>
         </div>
         <div style={tableWrapStyle}>
@@ -656,27 +697,19 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
           </table>
         </div>
         <div style={totalsGridStyle}>
-          <SummaryLine label="Subtotal Vatable" value={totals.subtotalVatable} />
-          <SummaryLine label="Subtotal Non-Vatable" value={totals.subtotalNonVatable} />
-          <SummaryLine label="VAT" value={totals.vatAmount} />
-          <SummaryLine label="Grand Total" value={totals.grandTotal} strong />
+          <SummaryLine label="รวมรายการที่มี VAT / Vatable Subtotal" value={totals.subtotalVatable} />
+          <SummaryLine label="รวมรายการที่ไม่มี VAT / Non-Vatable Subtotal" value={totals.subtotalNonVatable} />
+          <SummaryLine label="ภาษีมูลค่าเพิ่ม / VAT" value={totals.vatAmount} />
+          <SummaryLine label="จำนวนเงินตามใบเสนอราคา / Quotation Total" value={totals.grandTotal} strong />
         </div>
       </div>
 
       <div style={cardStyle}>
         <div style={formGridStyle}>
-          <label style={wideLabelStyle}>ขอบเขตงาน / Scope of Legal Services
-            <textarea
-              value={form.scope_of_legal_services}
-              onChange={(event) => setForm({ ...form, scope_of_legal_services: event.target.value })}
-              style={textareaStyle}
-              placeholder="ระบุขอบเขตงานบริการทางกฎหมายที่ใบเสนอราคานี้ครอบคลุม เช่น การให้คำปรึกษา การจัดทำเอกสาร การดำเนินคดี หรือการติดต่อหน่วยงานที่เกี่ยวข้อง"
-            />
-          </label>
-          <label style={labelStyle}>Note
+          <label style={wideLabelStyle}>Note
             <textarea value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} style={textareaStyle} />
           </label>
-          <label style={labelStyle}>Internal Note
+          <label style={wideLabelStyle}>Internal Note
             <textarea value={form.internal_note} onChange={(event) => setForm({ ...form, internal_note: event.target.value })} style={textareaStyle} />
           </label>
         </div>
@@ -800,8 +833,10 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
               <Detail label="Linked Matter" value={renderMatterLink(quotation, lookups)} />
               <Detail label="Issue Date" value={formatDate(quotation.issue_date)} />
               <Detail label="Valid Until" value={formatDate(quotation.valid_until)} />
-              <Detail label="Grand Total" value={formatMoney(toAmount(quotation.grand_total))} />
+              <Detail label="จำนวนเงินตามใบเสนอราคา / Quotation Total" value={formatMoney(toAmount(quotation.grand_total))} />
               <Detail label="ขอบเขตงาน / Scope of Legal Services" value={quotation.scope_of_legal_services || "-"} />
+              <Detail label="งานที่รวมอยู่ในค่าบริการ / Included Services" value={quotation.included_services || "-"} />
+              <Detail label="งานหรือค่าใช้จ่ายที่ไม่รวม / Excluded Services" value={quotation.excluded_services || "-"} />
               <Detail label="Authorized Signer" value={renderSignerDetail(quotation)} />
             </div>
           </div>
@@ -835,10 +870,10 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
               </table>
             </div>
             <div style={totalsGridStyle}>
-              <SummaryLine label="Subtotal Vatable" value={toAmount(quotation.subtotal_vatable)} />
-              <SummaryLine label="Subtotal Non-Vatable" value={toAmount(quotation.subtotal_non_vatable)} />
-              <SummaryLine label="VAT" value={toAmount(quotation.vat_amount)} />
-              <SummaryLine label="Grand Total" value={toAmount(quotation.grand_total)} strong />
+              <SummaryLine label="รวมรายการที่มี VAT / Vatable Subtotal" value={toAmount(quotation.subtotal_vatable)} />
+              <SummaryLine label="รวมรายการที่ไม่มี VAT / Non-Vatable Subtotal" value={toAmount(quotation.subtotal_non_vatable)} />
+              <SummaryLine label="ภาษีมูลค่าเพิ่ม / VAT" value={toAmount(quotation.vat_amount)} />
+              <SummaryLine label="จำนวนเงินตามใบเสนอราคา / Quotation Total" value={toAmount(quotation.grand_total)} strong />
             </div>
           </div>
 
@@ -955,6 +990,8 @@ function buildQuotationSnapshots(
       issue_date: form.issue_date,
       valid_until: form.valid_until || null,
       scope_of_legal_services: form.scope_of_legal_services.trim() || null,
+      included_services: form.included_services.trim() || null,
+      excluded_services: form.excluded_services.trim() || null,
       company_profile: {
         company_name_th: lookups.companyProfile.companyNameTh,
         company_name_en: lookups.companyProfile.companyNameEn,
@@ -1115,7 +1152,7 @@ function renderMatterLabel(item: MatterRow) {
 }
 
 function formatMoney(value: number) {
-  return value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} THB`;
 }
 
 function formatQuantity(value: number) {
