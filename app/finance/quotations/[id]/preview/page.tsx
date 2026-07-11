@@ -19,6 +19,7 @@ type QuotationRow = {
   subtotal_non_vatable: number | string | null;
   vat_amount: number | string | null;
   grand_total: number | string | null;
+  scope_of_legal_services: string | null;
   note: string | null;
   created_by_name: string | null;
   created_by_email: string | null;
@@ -147,7 +148,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
   const clientEmail = getClientDisplayValue(quotation, client, "email");
   const clientContact = getSnapshotText(quotation?.client_snapshot_json, "contact_person") || getSnapshotText(quotation?.client_snapshot_json, "contact_name") || "-";
   const matterLabel = getMatterLabel(quotation, caseItem, matter);
-  const scopeText = quotation?.note?.trim() || getMatterDescription(quotation, caseItem, matter) || "-";
+  const scopeText = quotation?.scope_of_legal_services?.trim() || getMatterDescription(quotation, caseItem, matter) || "-";
   const preparedBy = quotation?.updated_by_name || quotation?.created_by_name || quotation?.updated_by_email || quotation?.created_by_email || "-";
 
   return (
@@ -169,7 +170,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
         <article className="quotation-print-document" style={documentStyle}>
           <header style={documentHeaderStyle}>
             <div style={providerHeaderStyle}>
-              <div style={companyMarkStyle}>VP</div>
+              <div className="quotation-logo" style={companyMarkStyle}>VP</div>
               <div>
                 <div style={companyNameThaiStyle}>บริษัท วีพี พาร์ทเนอร์ จำกัด</div>
                 <div style={companyNameStyle}>VP Partners Co., Ltd.</div>
@@ -182,7 +183,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
             </div>
           </header>
 
-          <section style={topGridStyle}>
+          <section className="quotation-compact-block" style={topGridStyle}>
             <div style={panelStyle}>
               <h2 style={panelTitleStyle}>ผู้ให้บริการ / Service Provider</h2>
               <InfoLine label="Company" value="บริษัท วีพี พาร์ทเนอร์ จำกัด / VP Partners Co., Ltd." />
@@ -202,7 +203,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
             </div>
           </section>
 
-          <section style={panelStyle}>
+          <section className="quotation-compact-block" style={panelStyle}>
             <h2 style={panelTitleStyle}>ลูกค้า / Client</h2>
             <div style={clientGridStyle}>
               <InfoLine label="Client Name" value={clientName} strong />
@@ -214,12 +215,12 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
             </div>
           </section>
 
-          <section style={sectionStyle}>
+          <section className="quotation-compact-block" style={sectionStyle}>
             <h2 style={sectionTitleStyle}>ขอบเขตงาน / Scope of Legal Services</h2>
             <div style={scopeBoxStyle}>{scopeText}</div>
           </section>
 
-          <section style={sectionStyle}>
+          <section className="quotation-compact-block" style={sectionStyle}>
             <h2 style={sectionTitleStyle}>รายการค่าบริการ / Fee Items</h2>
             <table style={tableStyle}>
               <thead>
@@ -251,7 +252,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
             </table>
           </section>
 
-          <section style={totalsSectionStyle}>
+          <section className="quotation-keep-together" style={totalsSectionStyle}>
             <div style={termsBoxStyle}>
               <h2 style={sectionTitleStyle}>หมายเหตุและเงื่อนไข / Notes and Conditions</h2>
               {quotation.note ? <p style={noteParagraphStyle}>{quotation.note}</p> : null}
@@ -381,14 +382,24 @@ const printCss = `
   @media print {
     @page {
       size: A4;
-      margin: 12mm;
+      margin: 8mm;
     }
     body {
       background: #ffffff !important;
       padding-left: 0 !important;
     }
+    body * {
+      visibility: hidden !important;
+    }
+    .quotation-print-document,
+    .quotation-print-document * {
+      visibility: visible !important;
+    }
     aside,
     nav,
+    header:not(.quotation-print-document header),
+    button,
+    [role="button"],
     .print-hidden {
       display: none !important;
     }
@@ -398,6 +409,9 @@ const printCss = `
       margin: 0 !important;
     }
     .quotation-print-document {
+      position: absolute !important;
+      left: 0 !important;
+      top: 0 !important;
       width: 100% !important;
       min-height: auto !important;
       margin: 0 auto !important;
@@ -405,10 +419,46 @@ const printCss = `
       border: none !important;
       padding: 0 !important;
       page-break-after: avoid;
+      color: #111827 !important;
+      font-size: 10.5pt !important;
+    }
+    .quotation-print-document header {
+      margin-bottom: 10px !important;
+      padding-bottom: 10px !important;
+    }
+    .quotation-print-document table {
+      page-break-inside: auto;
+    }
+    .quotation-print-document tr {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .quotation-print-document th,
+    .quotation-print-document td {
+      padding-top: 5px !important;
+      padding-bottom: 5px !important;
+    }
+    .quotation-compact-block {
+      margin-bottom: 9px !important;
+    }
+    .quotation-keep-together {
+      break-inside: avoid;
+      page-break-inside: avoid;
+      margin-top: 10px !important;
     }
     .signature-section {
       break-inside: avoid;
       page-break-inside: avoid;
+      margin-top: 20px !important;
+    }
+    .signature-section > div {
+      min-height: 115px !important;
+      padding: 10px !important;
+    }
+    .quotation-logo {
+      background: #ffffff !important;
+      color: #111827 !important;
+      border: 2px solid #111827 !important;
     }
   }
 `;

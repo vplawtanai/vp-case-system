@@ -38,6 +38,7 @@ export type QuotationRow = {
   subtotal_non_vatable: number | string | null;
   vat_amount: number | string | null;
   grand_total: number | string | null;
+  scope_of_legal_services: string | null;
   note: string | null;
   internal_note: string | null;
   created_by_user_id: string | null;
@@ -98,6 +99,7 @@ type FormState = {
   advisory_matter_id: string;
   issue_date: string;
   valid_until: string;
+  scope_of_legal_services: string;
   note: string;
   internal_note: string;
 };
@@ -108,6 +110,7 @@ const emptyForm: FormState = {
   advisory_matter_id: "",
   issue_date: getDateKey(new Date()),
   valid_until: "",
+  scope_of_legal_services: "",
   note: "",
   internal_note: "",
 };
@@ -332,6 +335,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
         advisory_matter_id: loadedQuotation.advisory_matter_id || "",
         issue_date: loadedQuotation.issue_date || getDateKey(new Date()),
         valid_until: loadedQuotation.valid_until || "",
+        scope_of_legal_services: loadedQuotation.scope_of_legal_services || "",
         note: loadedQuotation.note || "",
         internal_note: loadedQuotation.internal_note || "",
       });
@@ -389,6 +393,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       subtotal_non_vatable: currentTotals.subtotalNonVatable,
       vat_amount: currentTotals.vatAmount,
       grand_total: currentTotals.grandTotal,
+      scope_of_legal_services: form.scope_of_legal_services.trim() || null,
       note: form.note.trim() || null,
       internal_note: form.internal_note.trim() || null,
       client_snapshot_json: snapshots.clientSnapshot,
@@ -408,6 +413,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
         p_advisory_matter_id: quotationPayload.advisory_matter_id,
         p_issue_date: quotationPayload.issue_date,
         p_valid_until: quotationPayload.valid_until,
+        p_scope_of_legal_services: form.scope_of_legal_services,
         p_note: form.note,
         p_internal_note: form.internal_note,
         p_subtotal_vatable: quotationPayload.subtotal_vatable,
@@ -617,6 +623,14 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
 
       <div style={cardStyle}>
         <div style={formGridStyle}>
+          <label style={wideLabelStyle}>ขอบเขตงาน / Scope of Legal Services
+            <textarea
+              value={form.scope_of_legal_services}
+              onChange={(event) => setForm({ ...form, scope_of_legal_services: event.target.value })}
+              style={textareaStyle}
+              placeholder="ระบุขอบเขตงานบริการทางกฎหมายที่ใบเสนอราคานี้ครอบคลุม เช่น การให้คำปรึกษา การจัดทำเอกสาร การดำเนินคดี หรือการติดต่อหน่วยงานที่เกี่ยวข้อง"
+            />
+          </label>
           <label style={labelStyle}>Note
             <textarea value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} style={textareaStyle} />
           </label>
@@ -745,6 +759,7 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
               <Detail label="Issue Date" value={formatDate(quotation.issue_date)} />
               <Detail label="Valid Until" value={formatDate(quotation.valid_until)} />
               <Detail label="Grand Total" value={formatMoney(toAmount(quotation.grand_total))} />
+              <Detail label="ขอบเขตงาน / Scope of Legal Services" value={quotation.scope_of_legal_services || "-"} />
             </div>
           </div>
 
@@ -878,6 +893,7 @@ function buildQuotationSnapshots(
       advisory_matter_id: form.advisory_matter_id || null,
       issue_date: form.issue_date,
       valid_until: form.valid_until || null,
+      scope_of_legal_services: form.scope_of_legal_services.trim() || null,
       note: form.note.trim() || null,
       totals,
       items: normalizedItems.map((item) => ({
@@ -1096,6 +1112,7 @@ const actionGroupStyle: CSSProperties = { display: "flex", flexWrap: "wrap", gap
 
 const formGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14 };
 const labelStyle: CSSProperties = { display: "flex", flexDirection: "column", gap: 6, color: "#374151", fontSize: 13, fontWeight: 700, minWidth: 0 };
+const wideLabelStyle: CSSProperties = { ...labelStyle, gridColumn: "1 / -1" };
 const inputStyle: CSSProperties = { width: "100%", border: "1px solid #d1d5db", borderRadius: 6, padding: "9px 10px", fontSize: 14, minWidth: 0 };
 const compactInputStyle: CSSProperties = { ...inputStyle, width: 110, textAlign: "right" };
 const vatInputStyle: CSSProperties = { ...inputStyle, width: 80, marginTop: 6 };
