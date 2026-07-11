@@ -1,10 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { DEFAULT_AUTHORIZED_SIGNER, VP_COMPANY_PROFILE, formatSignerPosition, getAuthorizedSigner } from "../../../../../lib/companyProfile";
+import {
+  AUTHORIZED_SIGNERS,
+  type AuthorizedSigner,
+  type CompanyProfile,
+  type DbAuthorizedSigner,
+  type DbCompanyProfile,
+  formatSignerPosition,
+  getSignerByKey,
+  normalizeAuthorizedSigner,
+  normalizeCompanyProfile,
+} from "../../../../../lib/companyProfile";
 import { supabase } from "../../../../../lib/supabase";
 import { QuotationGuard } from "../../shared";
 
@@ -33,6 +42,7 @@ type QuotationRow = {
   updated_by_email: string | null;
   client_snapshot_json?: Record<string, unknown> | null;
   matter_snapshot_json?: Record<string, unknown> | null;
+  document_data_snapshot_json?: Record<string, unknown> | null;
 };
 
 type QuotationItemRow = {
@@ -85,6 +95,10 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
   const [client, setClient] = useState<ClientRow | null>(null);
   const [caseItem, setCaseItem] = useState<CaseRow | null>(null);
   const [matter, setMatter] = useState<MatterRow | null>(null);
+  const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(normalizeCompanyProfile(null));
+  const [signers, setSigners] = useState<AuthorizedSigner[]>(AUTHORIZED_SIGNERS);
+  const [logoUrl, setLogoUrl] = useState("");
+  const [signerSignatureUrl, setSignerSignatureUrl] = useState("");
   const [loading, setLoading] = useState(true);
   const [errorText, setErrorText] = useState("");
 
@@ -115,7 +129,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
       const loadedQuotation = quotationRes.data as QuotationRow;
       setQuotation(loadedQuotation);
 
-      const [itemsRes, clientRes, caseRes, matterRes] = await Promise.all([
+      const [itemsRes, clientRes, caseRes, matterRes, companyRes, signersRes] = await Promise.all([
         supabase
           .from("finance_quotation_items")
           .select("*")
@@ -130,12 +144,46 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
         loadedQuotation.advisory_matter_id
           ? supabase.from("advisory_matters").select("id, matter_no, title").eq("id", loadedQuotation.advisory_matter_id).maybeSingle()
           : Promise.resolve({ data: null, error: null }),
+        supabase.from("finance_company_profiles").select("*").eq("id", "default").maybeSingle(),
+        supabase.from("finance_authorized_signers").select("*").order("sort_order", { ascending: true }),
       ]);
 
       if (itemsRes.error) console.warn("Failed to load quotation preview items", itemsRes.error);
       if (clientRes.error) console.warn("Failed to load quotation preview client", clientRes.error);
       if (caseRes.error) console.warn("Failed to load quotation preview case", caseRes.error);
       if (matterRes.error) console.warn("Failed to load quotation preview advisory matter", matterRes.error);
+      if (companyRes.error) console.warn("Failed to load quotation preview company profile", companyRes.error);
+      if (signersRes.error) console.warn("Failed to load quotation preview signers", signersRes.error);
+
+      const documentSnapshot = getSnapshotObject(loadedQuotation.document_data_snapshot_json);
+      const companySnapshot = getSnapshotObjectOrNull(documentSnapshot.company_profile) as DbCompanyProfile | null;
+      const signerSnapshot = getSnapshotObject(documentSnapshot.authorized_signer);
+      const currentCompany = normalizeCompanyProfile((companyRes.data || null) as DbCompanyProfile | null);
+      const normalizedCompany = resolveCompanyProfile(companySnapshot, currentCompany);
+      const normalizedSigners = signersRes.error
+        ? AUTHORIZED_SIGNERS
+        : ((signersRes.data || []) as DbAuthorizedSigner[]).map(normalizeAuthorizedSigner).filter((signer) => signer.key);
+      const activeSigners = normalizedSigners.length > 0 ? normalizedSigners : AUTHORIZED_SIGNERS;
+      const signerForAssets = getSignerByKey(activeSigners, loadedQuotation.authorized_signer_key);
+      const logoStoragePath = getSnapshotText(companySnapshot, "logo_storage_path") || currentCompany.logoStoragePath || "";
+      const signatureStoragePath = getSnapshotText(signerSnapshot, "signature_storage_path") || signerForAssets.signatureStoragePath || "";
+
+      setCompanyProfile(normalizedCompany);
+      setSigners(activeSigners);
+
+      if (logoStoragePath) {
+        const logoRes = await supabase.storage.from("vp-document-assets").createSignedUrl(logoStoragePath, 60 * 10);
+        setLogoUrl(logoRes.data?.signedUrl || "");
+      } else {
+        setLogoUrl("");
+      }
+
+      if (signatureStoragePath) {
+        const signatureRes = await supabase.storage.from("vp-document-assets").createSignedUrl(signatureStoragePath, 60 * 10);
+        setSignerSignatureUrl(signatureRes.data?.signedUrl || "");
+      } else {
+        setSignerSignatureUrl("");
+      }
 
       setItems((itemsRes.data || []) as QuotationItemRow[]);
       setClient((clientRes.data || null) as ClientRow | null);
@@ -155,12 +203,13 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
   const clientContact = getSnapshotText(quotation?.client_snapshot_json, "contact_person") || getSnapshotText(quotation?.client_snapshot_json, "contact_name") || "-";
   const matterLabel = getMatterLabel(quotation, caseItem, matter);
   const scopeText = quotation?.scope_of_legal_services?.trim() || getMatterDescription(quotation, caseItem, matter) || "-";
-  const signer = resolveQuotationSigner(quotation);
+  const signer = resolveQuotationSigner(quotation, signers);
 
   return (
     <>
       <style>{printCss}</style>
       <div className="print-hidden" style={toolbarStyle}>
+        <span style={printHintStyle}>เพื่อเอกสารที่สะอาด กรุณาปิด Headers and footers ในหน้าต่าง Print</span>
         <Link href={quotationId ? `/finance/quotations/${quotationId}` : "/finance/quotations"} style={secondaryButtonStyle}>
           Back to Quotation
         </Link>
@@ -176,28 +225,29 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
         <article className="quotation-print-document" style={documentStyle}>
           <header style={documentHeaderStyle}>
             <div style={providerHeaderStyle}>
-              <LogoMark />
+              <LogoMark logoUrl={logoUrl} />
               <div>
-                <div style={companyNameThaiStyle}>{VP_COMPANY_PROFILE.nameTh}</div>
-                <div style={companyNameStyle}>{VP_COMPANY_PROFILE.nameEn}</div>
-                <div style={companyMetaStyle}>{VP_COMPANY_PROFILE.description}</div>
+                <div style={companyNameThaiStyle}>{companyProfile.companyNameTh}</div>
+                <div style={companyNameStyle}>{companyProfile.companyNameEn}</div>
+                <div style={companyMetaStyle}>{companyProfile.description}</div>
               </div>
             </div>
             <div style={documentTitleBlockStyle}>
-              <h1 style={documentTitleStyle}>ใบเสนอราคา / Quotation</h1>
-              <div style={statusStyle}>{quotation.status || "draft"}</div>
+              <h1 style={documentTitleStyle}>ใบเสนอราคา</h1>
+              <div style={documentSubtitleStyle}>Quotation</div>
+              <div style={{ ...statusStyle, ...getPreviewStatusStyle(quotation.status) }}>{quotation.status || "draft"}</div>
             </div>
           </header>
 
           <section className="quotation-compact-block" style={topGridStyle}>
             <div style={panelStyle}>
               <h2 style={panelTitleStyle}>ผู้ให้บริการ / Service Provider</h2>
-              <InfoLine label="Company" value={`${VP_COMPANY_PROFILE.nameTh} / ${VP_COMPANY_PROFILE.nameEn}`} />
-              <InfoLine label="Tax ID" value={VP_COMPANY_PROFILE.taxId} />
-              <InfoLine label="Address" value={VP_COMPANY_PROFILE.address} />
-              <InfoLine label="Phone" value={VP_COMPANY_PROFILE.phone} />
-              <InfoLine label="Email" value={VP_COMPANY_PROFILE.email} />
-              <InfoLine label="Website" value={VP_COMPANY_PROFILE.website} />
+              <InfoLine label="Company" value={`${companyProfile.companyNameTh} / ${companyProfile.companyNameEn}`} />
+              <InfoLine label="Tax ID" value={`${companyProfile.taxId}${companyProfile.branchLabel ? ` (${companyProfile.branchLabel})` : ""}`} />
+              <InfoLine label="Address" value={companyProfile.addressTh} />
+              <InfoLine label="Phone" value={companyProfile.phone} />
+              <InfoLine label="Email" value={companyProfile.email} />
+              <InfoLine label="Website" value={companyProfile.website} />
             </div>
             <div style={panelStyle}>
               <h2 style={panelTitleStyle}>ข้อมูลเอกสาร / Document Information</h2>
@@ -283,12 +333,14 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
               name={signer.name}
               position={signer.position}
               email={signer.email}
+              signatureUrl={signerSignatureUrl}
             />
             <SignatureBlock
               title="ผู้ยอมรับใบเสนอราคา / Client Acceptance"
               name="____________________"
               position="____________________"
               email=""
+              signatureUrl=""
             />
           </section>
         </article>
@@ -315,31 +367,16 @@ function TotalLine({ label, value, strong = false }: { label: string; value: num
   );
 }
 
-function LogoMark() {
-  const [logoFailed, setLogoFailed] = useState(false);
-
-  if (logoFailed) {
-    return <div className="quotation-logo" style={companyMarkStyle}>VP</div>;
-  }
-
-  return (
-    <div className="quotation-logo" style={companyLogoFrameStyle}>
-      <Image
-        src={VP_COMPANY_PROFILE.logoPath}
-        alt="VP Partners"
-        width={54}
-        height={54}
-        style={companyLogoImageStyle}
-        onError={() => setLogoFailed(true)}
-      />
-    </div>
-  );
+function LogoMark({ logoUrl }: { logoUrl: string }) {
+  if (!logoUrl) return <div className="quotation-logo" style={companyMarkStyle}>VP</div>;
+  return <div className="quotation-logo" style={{ ...companyLogoFrameStyle, backgroundImage: `url("${logoUrl}")` }} />;
 }
 
-function SignatureBlock({ title, name, position, email }: { title: string; name: string; position: string; email: string }) {
+function SignatureBlock({ title, name, position, email, signatureUrl }: { title: string; name: string; position: string; email: string; signatureUrl: string }) {
   return (
     <div style={signatureBlockStyle}>
       <div style={signatureTitleStyle}>{title}</div>
+      {signatureUrl ? <div style={{ ...signatureImageStyle, backgroundImage: `url("${signatureUrl}")` }} /> : <div style={signatureBlankSpaceStyle} />}
       <div style={signatureLineStyle} />
       <div style={signatureFieldStyle}>Name: {name}</div>
       <div style={signatureFieldStyle}>Position: {position}</div>
@@ -349,13 +386,22 @@ function SignatureBlock({ title, name, position, email }: { title: string; name:
   );
 }
 
-function resolveQuotationSigner(quotation: QuotationRow | null) {
-  const fallbackSigner = getAuthorizedSigner(quotation?.authorized_signer_key || DEFAULT_AUTHORIZED_SIGNER.key);
+function resolveQuotationSigner(quotation: QuotationRow | null, signers: AuthorizedSigner[]) {
+  const signerSnapshot = getSnapshotObject(quotation?.document_data_snapshot_json?.authorized_signer);
+  const fallbackSigner = getSignerByKey(signers, quotation?.authorized_signer_key);
   return {
-    name: quotation?.authorized_signer_name || fallbackSigner.displayName,
-    position: quotation?.authorized_signer_position || formatSignerPosition(fallbackSigner),
-    email: quotation?.authorized_signer_email || fallbackSigner.email,
+    name: quotation?.authorized_signer_name || getSnapshotText(signerSnapshot, "name") || fallbackSigner.displayName,
+    position: quotation?.authorized_signer_position || getSnapshotText(signerSnapshot, "position") || formatSignerPosition(fallbackSigner),
+    email: quotation?.authorized_signer_email || getSnapshotText(signerSnapshot, "email") || fallbackSigner.email,
   };
+}
+
+function getPreviewStatusStyle(status: string | null): React.CSSProperties {
+  const normalized = String(status || "draft").toLowerCase();
+  if (normalized === "sent") return { color: "#1e40af", background: "#dbeafe", borderColor: "#93c5fd" };
+  if (normalized === "accepted") return { color: "#166534", background: "#dcfce7", borderColor: "#86efac" };
+  if (normalized === "cancelled") return { color: "#991b1b", background: "#fee2e2", borderColor: "#fca5a5" };
+  return { color: "#374151", background: "#f3f4f6", borderColor: "#d1d5db" };
 }
 
 function getClientDisplayValue(quotation: QuotationRow | null, client: ClientRow | null, key: keyof ClientRow) {
@@ -399,6 +445,40 @@ function getMatterDescription(quotation: QuotationRow | null, caseItem: CaseRow 
 function getSnapshotText(snapshot: Record<string, unknown> | null | undefined, key: string) {
   const value = snapshot?.[key];
   return typeof value === "string" || typeof value === "number" ? String(value) : "";
+}
+
+function getSnapshotObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function getSnapshotObjectOrNull(value: unknown): Record<string, unknown> | null {
+  const snapshot = getSnapshotObject(value);
+  return Object.keys(snapshot).length > 0 ? snapshot : null;
+}
+
+function resolveCompanyProfile(snapshot: Record<string, unknown> | null, currentCompany: CompanyProfile): CompanyProfile {
+  if (!snapshot) return currentCompany;
+  const companyNameTh = getSnapshotText(snapshot, "company_name_th") || currentCompany.companyNameTh;
+  const companyNameEn = getSnapshotText(snapshot, "company_name_en") || currentCompany.companyNameEn;
+  const addressTh = getSnapshotText(snapshot, "address_th") || currentCompany.addressTh;
+
+  return {
+    nameTh: companyNameTh,
+    nameEn: companyNameEn,
+    companyNameTh,
+    companyNameEn,
+    taxId: getSnapshotText(snapshot, "tax_id") || currentCompany.taxId,
+    branchLabel: getSnapshotText(snapshot, "branch_label") || currentCompany.branchLabel,
+    address: addressTh,
+    addressTh,
+    phone: getSnapshotText(snapshot, "phone") || currentCompany.phone,
+    email: getSnapshotText(snapshot, "email") || currentCompany.email,
+    website: getSnapshotText(snapshot, "website") || currentCompany.website,
+    description: getSnapshotText(snapshot, "description") || currentCompany.description,
+    quotationPrefix: getSnapshotText(snapshot, "quotation_prefix") || currentCompany.quotationPrefix,
+    logoStoragePath: getSnapshotText(snapshot, "logo_storage_path") || currentCompany.logoStoragePath || null,
+    logoPath: currentCompany.logoPath,
+  };
 }
 
 function formatDate(value: string | null) {
@@ -460,6 +540,8 @@ const printCss = `
       page-break-after: avoid;
       color: #111827 !important;
       font-size: 10.5pt !important;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
     }
     .quotation-print-document header {
       margin-bottom: 10px !important;
@@ -505,16 +587,19 @@ const printCss = `
 const toolbarStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "flex-end",
+  alignItems: "center",
+  flexWrap: "wrap",
   gap: 10,
   marginBottom: 16,
 };
+const printHintStyle: React.CSSProperties = { color: "#6B7280", fontSize: 12, fontWeight: 700, marginRight: "auto" };
 
 const documentStyle: React.CSSProperties = {
   maxWidth: 920,
   margin: "0 auto",
   background: "#ffffff",
   color: "#111827",
-  border: "1px solid #e5e7eb",
+  border: "1px solid #bbf7d0",
   borderRadius: 6,
   boxShadow: "0 10px 32px rgba(15, 23, 42, 0.08)",
   padding: "38px 42px",
@@ -524,7 +609,7 @@ const documentHeaderStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   gap: 28,
-  borderBottom: "3px solid #111827",
+  borderBottom: "3px solid #16A344",
   paddingBottom: 18,
   marginBottom: 22,
 };
@@ -548,29 +633,28 @@ const companyMarkStyle: React.CSSProperties = {
   flex: "0 0 auto",
 };
 const companyLogoFrameStyle: React.CSSProperties = {
-  ...companyMarkStyle,
+  width: 54,
+  height: 54,
+  borderRadius: 8,
   background: "#ffffff",
   border: "2px solid #111827",
-  overflow: "hidden",
-};
-const companyLogoImageStyle: React.CSSProperties = {
-  width: "100%",
-  height: "100%",
-  objectFit: "contain",
-  padding: 6,
+  backgroundSize: "contain",
+  backgroundRepeat: "no-repeat",
+  backgroundPosition: "center",
+  flex: "0 0 auto",
 };
 
 const companyNameThaiStyle: React.CSSProperties = { fontSize: 17, fontWeight: 900, lineHeight: 1.35 };
 const companyNameStyle: React.CSSProperties = { fontSize: 15, fontWeight: 900, lineHeight: 1.35 };
 const companyMetaStyle: React.CSSProperties = { marginTop: 4, fontSize: 12, color: "#6b7280", fontWeight: 800 };
 const documentTitleBlockStyle: React.CSSProperties = { textAlign: "right", minWidth: 260 };
-const documentTitleStyle: React.CSSProperties = { margin: 0, fontSize: 28, fontWeight: 900, letterSpacing: 0 };
+const documentTitleStyle: React.CSSProperties = { margin: 0, fontSize: 30, fontWeight: 900, letterSpacing: 0, color: "#15803D" };
+const documentSubtitleStyle: React.CSSProperties = { marginTop: 1, fontSize: 16, color: "#6B7280", fontWeight: 800 };
 const statusStyle: React.CSSProperties = {
   marginTop: 8,
   display: "inline-block",
   textTransform: "capitalize",
   fontWeight: 900,
-  color: "#111827",
   border: "1px solid #d1d5db",
   borderRadius: 999,
   padding: "4px 12px",
@@ -585,7 +669,7 @@ const topGridStyle: React.CSSProperties = {
 };
 
 const panelStyle: React.CSSProperties = {
-  border: "1px solid #d1d5db",
+  border: "1px solid #bbf7d0",
   borderRadius: 6,
   padding: 14,
   minWidth: 0,
@@ -596,7 +680,7 @@ const panelTitleStyle: React.CSSProperties = {
   margin: "0 0 10px",
   fontSize: 14,
   fontWeight: 900,
-  color: "#111827",
+  color: "#15803D",
 };
 
 const clientGridStyle: React.CSSProperties = {
@@ -624,7 +708,7 @@ const sectionTitleStyle: React.CSSProperties = { margin: "0 0 10px", fontSize: 1
 const scopeBoxStyle: React.CSSProperties = {
   border: "1px solid #e5e7eb",
   borderRadius: 6,
-  background: "#fafafa",
+  background: "#F0FDF4",
   padding: 12,
   fontSize: 13,
   lineHeight: 1.65,
@@ -635,8 +719,8 @@ const tableStyle: React.CSSProperties = { width: "100%", borderCollapse: "collap
 const thStyle: React.CSSProperties = {
   textAlign: "left",
   padding: "9px 7px",
-  borderBottom: "1px solid #d1d5db",
-  background: "#f9fafb",
+  borderBottom: "1px solid #86efac",
+  background: "#F0FDF4",
   fontSize: 10.5,
   color: "#374151",
   fontWeight: 900,
@@ -655,7 +739,7 @@ const totalsSectionStyle: React.CSSProperties = {
 };
 
 const termsBoxStyle: React.CSSProperties = {
-  border: "1px solid #e5e7eb",
+  border: "1px solid #bbf7d0",
   borderRadius: 6,
   padding: 13,
   minHeight: 120,
@@ -665,12 +749,13 @@ const termsListStyle: React.CSSProperties = { margin: 0, paddingLeft: 18, fontSi
 const totalsBoxStyle: React.CSSProperties = {
   display: "grid",
   gap: 8,
-  border: "1px solid #111827",
+  border: "1px solid #16A344",
   borderRadius: 6,
   padding: 14,
+  background: "#F0FDF4",
 };
 const totalLineStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 16, fontSize: 12.5 };
-const totalStrongLineStyle: React.CSSProperties = { ...totalLineStyle, borderTop: "2px solid #111827", paddingTop: 10, fontSize: 15 };
+const totalStrongLineStyle: React.CSSProperties = { ...totalLineStyle, borderTop: "2px solid #16A344", paddingTop: 10, fontSize: 15, color: "#15803D" };
 
 const signatureGridStyle: React.CSSProperties = {
   display: "grid",
@@ -683,9 +768,11 @@ const signatureBlockStyle: React.CSSProperties = {
   border: "1px solid #d1d5db",
   borderRadius: 6,
   padding: 16,
-  minHeight: 168,
+  minHeight: 145,
 };
-const signatureTitleStyle: React.CSSProperties = { fontSize: 13, fontWeight: 900, marginBottom: 52 };
+const signatureTitleStyle: React.CSSProperties = { fontSize: 13, fontWeight: 900, marginBottom: 12, color: "#15803D" };
+const signatureImageStyle: React.CSSProperties = { height: 52, backgroundSize: "contain", backgroundRepeat: "no-repeat", backgroundPosition: "left center", marginBottom: 8 };
+const signatureBlankSpaceStyle: React.CSSProperties = { height: 52, marginBottom: 8 };
 const signatureLineStyle: React.CSSProperties = { borderBottom: "1px solid #111827", marginBottom: 12 };
 const signatureFieldStyle: React.CSSProperties = { marginTop: 8, fontSize: 12, color: "#374151" };
 

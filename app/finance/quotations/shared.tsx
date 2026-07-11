@@ -7,7 +7,19 @@ import { useRouter } from "next/navigation";
 import AuthGuard from "../../components/AuthGuard";
 import AppTopNav from "../../components/AppTopNav";
 import { createAuditLog } from "../../../lib/auditLog";
-import { AUTHORIZED_SIGNERS, DEFAULT_AUTHORIZED_SIGNER, VP_COMPANY_PROFILE, formatSignerPosition, getAuthorizedSigner } from "../../../lib/companyProfile";
+import {
+  AUTHORIZED_SIGNERS,
+  DEFAULT_AUTHORIZED_SIGNER,
+  type AuthorizedSigner,
+  type CompanyProfile,
+  type DbAuthorizedSigner,
+  type DbCompanyProfile,
+  formatSignerPosition,
+  getDefaultSigner,
+  getSignerByKey,
+  normalizeAuthorizedSigner,
+  normalizeCompanyProfile,
+} from "../../../lib/companyProfile";
 import { buildPermissions } from "../../../lib/permissions";
 import type { UserPermissions, UserRole } from "../../../lib/permissions";
 import { supabase } from "../../../lib/supabase";
@@ -96,6 +108,8 @@ type LookupState = {
   clients: ClientRow[];
   cases: CaseRow[];
   matters: MatterRow[];
+  signers: AuthorizedSigner[];
+  companyProfile: CompanyProfile;
 };
 
 type FormState = {
@@ -212,7 +226,7 @@ export function FinanceSubNav({ activePage, permissions }: { activePage: "quotat
 
 export function QuotationList({ access }: { access: QuotationAccess }) {
   const [quotations, setQuotations] = useState<QuotationRow[]>([]);
-  const [lookups, setLookups] = useState<LookupState>({ clients: [], cases: [], matters: [] });
+  const [lookups, setLookups] = useState<LookupState>(getEmptyLookups());
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
@@ -297,7 +311,7 @@ export function QuotationList({ access }: { access: QuotationAccess }) {
 export function QuotationForm({ access, quotationId }: { access: QuotationAccess; quotationId?: string }) {
   const router = useRouter();
   const isEdit = Boolean(quotationId);
-  const [lookups, setLookups] = useState<LookupState>({ clients: [], cases: [], matters: [] });
+  const [lookups, setLookups] = useState<LookupState>(getEmptyLookups());
   const [quotation, setQuotation] = useState<QuotationRow | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [items, setItems] = useState<QuotationItemRow[]>([{ ...emptyItem }]);
@@ -313,6 +327,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       if (!quotationId) {
         const lookupData = await loadLookups();
         setLookups(lookupData);
+        setForm((current) => ({ ...current, authorized_signer_key: getDefaultSigner(lookupData.signers).key }));
         setLoading(false);
         return;
       }
@@ -343,7 +358,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
         issue_date: loadedQuotation.issue_date || getDateKey(new Date()),
         valid_until: loadedQuotation.valid_until || "",
         scope_of_legal_services: loadedQuotation.scope_of_legal_services || "",
-        authorized_signer_key: loadedQuotation.authorized_signer_key || DEFAULT_AUTHORIZED_SIGNER.key,
+        authorized_signer_key: loadedQuotation.authorized_signer_key || getDefaultSigner(lookupData.signers).key,
         note: loadedQuotation.note || "",
         internal_note: loadedQuotation.internal_note || "",
       });
@@ -389,7 +404,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
     const normalizedItems = items.map((item, index) => normalizeItem(item, index));
     const currentTotals = computeTotals(normalizedItems);
     const quotationNo = quotation?.quotation_no || "";
-    const selectedSigner = getAuthorizedSigner(form.authorized_signer_key);
+    const selectedSigner = getSignerByKey(lookups.signers, form.authorized_signer_key);
     const signerPosition = formatSignerPosition(selectedSigner);
     const snapshots = buildQuotationSnapshots(form, normalizedItems, currentTotals, lookups, quotationNo);
     const quotationPayload = {
@@ -593,7 +608,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
           </label>
           <label style={labelStyle}>ผู้ลงนามใบเสนอราคา / Authorized Signer
             <select value={form.authorized_signer_key} onChange={(event) => setForm({ ...form, authorized_signer_key: event.target.value })} style={inputStyle}>
-              {AUTHORIZED_SIGNERS.map((signer) => (
+              {lookups.signers.map((signer) => (
                 <option key={signer.key} value={signer.key}>
                   {signer.displayName} — {formatSignerPosition(signer)}
                 </option>
@@ -676,7 +691,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
 export function QuotationDetail({ access, quotationId }: { access: QuotationAccess; quotationId: string }) {
   const [quotation, setQuotation] = useState<QuotationRow | null>(null);
   const [items, setItems] = useState<QuotationItemRow[]>([]);
-  const [lookups, setLookups] = useState<LookupState>({ clients: [], cases: [], matters: [] });
+  const [lookups, setLookups] = useState<LookupState>(getEmptyLookups());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -841,16 +856,31 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
 }
 
 async function loadLookups(): Promise<LookupState> {
-  const [clientsRes, casesRes, mattersRes] = await Promise.all([
+  const [clientsRes, casesRes, mattersRes, companyRes, signersRes] = await Promise.all([
     supabase.from("clients").select("id, name, tax_id, email, phone, address").order("name", { ascending: true }),
     supabase.from("cases").select("id, file_no, title, client_name").order("created_at", { ascending: false }),
     supabase.from("advisory_matters").select("id, matter_no, title").order("created_at", { ascending: false }),
+    supabase.from("finance_company_profiles").select("*").eq("id", "default").maybeSingle(),
+    supabase.from("finance_authorized_signers").select("*").eq("is_active", true).order("sort_order", { ascending: true }),
   ]);
+  const signers = signersRes.error ? AUTHORIZED_SIGNERS : ((signersRes.data || []) as DbAuthorizedSigner[]).map(normalizeAuthorizedSigner).filter((signer) => signer.key);
 
   return {
     clients: (clientsRes.data || []) as ClientRow[],
     cases: (casesRes.data || []) as CaseRow[],
     matters: (mattersRes.data || []) as MatterRow[],
+    companyProfile: normalizeCompanyProfile((companyRes.data || null) as DbCompanyProfile | null),
+    signers: signers.length > 0 ? signers : AUTHORIZED_SIGNERS,
+  };
+}
+
+function getEmptyLookups(): LookupState {
+  return {
+    clients: [],
+    cases: [],
+    matters: [],
+    companyProfile: normalizeCompanyProfile(null),
+    signers: AUTHORIZED_SIGNERS,
   };
 }
 
@@ -879,7 +909,7 @@ function buildQuotationSnapshots(
   const client = lookups.clients.find((item) => item.id === form.client_id);
   const caseItem = form.case_id ? lookups.cases.find((item) => String(item.id) === String(form.case_id)) : null;
   const matter = form.advisory_matter_id ? lookups.matters.find((item) => item.id === form.advisory_matter_id) : null;
-  const signer = getAuthorizedSigner(form.authorized_signer_key);
+  const signer = getSignerByKey(lookups.signers, form.authorized_signer_key);
   const signerPosition = formatSignerPosition(signer);
   const normalizedItems = items.map((item, index) => normalizeItem(item, index));
 
@@ -925,13 +955,26 @@ function buildQuotationSnapshots(
       issue_date: form.issue_date,
       valid_until: form.valid_until || null,
       scope_of_legal_services: form.scope_of_legal_services.trim() || null,
-      company_profile: VP_COMPANY_PROFILE,
+      company_profile: {
+        company_name_th: lookups.companyProfile.companyNameTh,
+        company_name_en: lookups.companyProfile.companyNameEn,
+        tax_id: lookups.companyProfile.taxId,
+        branch_label: lookups.companyProfile.branchLabel,
+        address_th: lookups.companyProfile.addressTh,
+        phone: lookups.companyProfile.phone,
+        email: lookups.companyProfile.email,
+        website: lookups.companyProfile.website,
+        description: lookups.companyProfile.description,
+        quotation_prefix: lookups.companyProfile.quotationPrefix,
+        logo_storage_path: lookups.companyProfile.logoStoragePath || null,
+      },
       authorized_signer: {
         key: signer.key,
         name: signer.displayName,
         nickname: signer.nickname,
         position: signerPosition,
         email: signer.email,
+        signature_storage_path: signer.signatureStoragePath || null,
       },
       note: form.note.trim() || null,
       totals,
@@ -1019,7 +1062,7 @@ function Detail({ label, value }: { label: string; value: ReactNode }) {
 }
 
 function renderSignerDetail(quotation: QuotationRow) {
-  const fallbackSigner = getAuthorizedSigner(quotation.authorized_signer_key);
+  const fallbackSigner = getSignerByKey(AUTHORIZED_SIGNERS, quotation.authorized_signer_key);
   const name = quotation.authorized_signer_name || fallbackSigner.displayName;
   const position = quotation.authorized_signer_position || formatSignerPosition(fallbackSigner);
   const email = quotation.authorized_signer_email || fallbackSigner.email;
