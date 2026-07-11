@@ -39,9 +39,27 @@ type QuotationItemRow = {
   sort_order: number | null;
 };
 
-type ClientRow = { id: string; name: string | null };
-type CaseRow = { id: number; file_no: string | null; title: string | null; client_name: string | null };
-type MatterRow = { id: string; matter_no: string | null; title: string | null };
+type ClientRow = {
+  id: string;
+  name: string | null;
+  tax_id?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+};
+
+type CaseRow = {
+  id: number;
+  file_no: string | null;
+  title: string | null;
+  client_name: string | null;
+};
+
+type MatterRow = {
+  id: string;
+  matter_no: string | null;
+  title: string | null;
+};
 
 export default function QuotationPreviewPage() {
   const params = useParams();
@@ -97,7 +115,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
           .eq("quotation_id", quotationId)
           .order("sort_order", { ascending: true }),
         loadedQuotation.client_id
-          ? supabase.from("clients").select("id, name").eq("id", loadedQuotation.client_id).maybeSingle()
+          ? supabase.from("clients").select("id, name, tax_id, email, phone, address").eq("id", loadedQuotation.client_id).maybeSingle()
           : Promise.resolve({ data: null, error: null }),
         loadedQuotation.case_id
           ? supabase.from("cases").select("id, file_no, title, client_name").eq("id", loadedQuotation.case_id).maybeSingle()
@@ -122,8 +140,14 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
     loadPreview();
   }, [quotationId]);
 
-  const clientName = getSnapshotText(quotation?.client_snapshot_json, "name") || client?.name || quotation?.client_id || "-";
+  const clientName = getClientDisplayValue(quotation, client, "name") || quotation?.client_id || "-";
+  const clientAddress = getClientDisplayValue(quotation, client, "address");
+  const clientTaxId = getClientDisplayValue(quotation, client, "tax_id");
+  const clientPhone = getClientDisplayValue(quotation, client, "phone");
+  const clientEmail = getClientDisplayValue(quotation, client, "email");
+  const clientContact = getSnapshotText(quotation?.client_snapshot_json, "contact_person") || getSnapshotText(quotation?.client_snapshot_json, "contact_name") || "-";
   const matterLabel = getMatterLabel(quotation, caseItem, matter);
+  const scopeText = quotation?.note?.trim() || getMatterDescription(quotation, caseItem, matter) || "-";
   const preparedBy = quotation?.updated_by_name || quotation?.created_by_name || quotation?.updated_by_email || quotation?.created_by_email || "-";
 
   return (
@@ -144,27 +168,59 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
       {!loading && quotation ? (
         <article className="quotation-print-document" style={documentStyle}>
           <header style={documentHeaderStyle}>
-            <div>
+            <div style={providerHeaderStyle}>
               <div style={companyMarkStyle}>VP</div>
-              <div style={companyNameStyle}>VP Partners Co., Ltd.</div>
-              <div style={companyMetaStyle}>Professional legal services</div>
+              <div>
+                <div style={companyNameThaiStyle}>บริษัท วีพี พาร์ทเนอร์ จำกัด</div>
+                <div style={companyNameStyle}>VP Partners Co., Ltd.</div>
+                <div style={companyMetaStyle}>Professional Legal Services</div>
+              </div>
             </div>
             <div style={documentTitleBlockStyle}>
-              <h1 style={documentTitleStyle}>Quotation</h1>
+              <h1 style={documentTitleStyle}>ใบเสนอราคา / Quotation</h1>
               <div style={statusStyle}>{quotation.status || "draft"}</div>
             </div>
           </header>
 
-          <section style={infoGridStyle}>
-            <Info label="Quotation No." value={quotation.quotation_no || "-"} />
-            <Info label="Issue Date" value={formatDate(quotation.issue_date)} />
-            <Info label="Valid Until" value={formatDate(quotation.valid_until)} />
-            <Info label="Client" value={clientName} />
-            <Info label="Linked Matter" value={matterLabel} wide />
+          <section style={topGridStyle}>
+            <div style={panelStyle}>
+              <h2 style={panelTitleStyle}>ผู้ให้บริการ / Service Provider</h2>
+              <InfoLine label="Company" value="บริษัท วีพี พาร์ทเนอร์ จำกัด / VP Partners Co., Ltd." />
+              <InfoLine label="Tax ID" value="-" />
+              <InfoLine label="Address" value="-" />
+              <InfoLine label="Phone" value="-" />
+              <InfoLine label="Email" value="-" />
+              <InfoLine label="Website" value="-" />
+            </div>
+            <div style={panelStyle}>
+              <h2 style={panelTitleStyle}>ข้อมูลเอกสาร / Document Information</h2>
+              <InfoLine label="Quotation No." value={quotation.quotation_no || "-"} strong />
+              <InfoLine label="Status" value={quotation.status || "draft"} />
+              <InfoLine label="Issue Date" value={formatDate(quotation.issue_date)} />
+              <InfoLine label="Valid Until" value={formatDate(quotation.valid_until)} />
+              <InfoLine label="Reference / Linked Matter" value={matterLabel} />
+            </div>
+          </section>
+
+          <section style={panelStyle}>
+            <h2 style={panelTitleStyle}>ลูกค้า / Client</h2>
+            <div style={clientGridStyle}>
+              <InfoLine label="Client Name" value={clientName} strong />
+              <InfoLine label="Tax ID" value={clientTaxId} />
+              <InfoLine label="Phone" value={clientPhone} />
+              <InfoLine label="Email" value={clientEmail} />
+              <InfoLine label="Contact Person" value={clientContact} />
+              <InfoLine label="Address" value={clientAddress} wide />
+            </div>
           </section>
 
           <section style={sectionStyle}>
-            <h2 style={sectionTitleStyle}>Line Items</h2>
+            <h2 style={sectionTitleStyle}>ขอบเขตงาน / Scope of Legal Services</h2>
+            <div style={scopeBoxStyle}>{scopeText}</div>
+          </section>
+
+          <section style={sectionStyle}>
+            <h2 style={sectionTitleStyle}>รายการค่าบริการ / Fee Items</h2>
             <table style={tableStyle}>
               <thead>
                 <tr>
@@ -172,8 +228,8 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
                   <th style={thStyle}>Description</th>
                   <th style={rightThStyle}>Quantity</th>
                   <th style={rightThStyle}>Unit Price</th>
-                  <th style={rightThStyle}>Amount Before Tax</th>
                   <th style={rightThStyle}>VAT</th>
+                  <th style={rightThStyle}>Amount Before Tax</th>
                   <th style={rightThStyle}>Line Total</th>
                 </tr>
               </thead>
@@ -183,11 +239,11 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
                 ) : items.map((item, index) => (
                   <tr key={item.id || index}>
                     <td style={tdStyle}>{index + 1}</td>
-                    <td style={tdStyle}>{item.description || "-"}</td>
+                    <td style={descriptionTdStyle}>{item.description || "-"}</td>
                     <td style={rightTdStyle}>{formatQuantity(item.quantity)}</td>
                     <td style={rightTdStyle}>{formatMoney(item.unit_price)}</td>
-                    <td style={rightTdStyle}>{formatMoney(item.amount_before_tax)}</td>
                     <td style={rightTdStyle}>{formatMoney(item.vat_amount)}</td>
+                    <td style={rightTdStyle}>{formatMoney(item.amount_before_tax)}</td>
                     <td style={rightTdStyle}>{formatMoney(item.line_total)}</td>
                   </tr>
                 ))}
@@ -196,21 +252,35 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
           </section>
 
           <section style={totalsSectionStyle}>
-            <div style={noteBoxStyle}>
-              <div style={labelStyle}>Note</div>
-              <div style={noteTextStyle}>{quotation.note || "-"}</div>
+            <div style={termsBoxStyle}>
+              <h2 style={sectionTitleStyle}>หมายเหตุและเงื่อนไข / Notes and Conditions</h2>
+              {quotation.note ? <p style={noteParagraphStyle}>{quotation.note}</p> : null}
+              <ul style={termsListStyle}>
+                <li>ใบเสนอราคานี้ไม่ใช่ใบแจ้งหนี้หรือใบเสร็จรับเงิน</li>
+                <li>ค่าธรรมเนียมศาล ค่าธรรมเนียมราชการ ค่าเดินทาง ค่าที่พัก ค่าถ่ายเอกสาร ค่าจัดส่ง ค่าแปลเอกสาร และค่าใช้จ่ายนอกกระเป๋าอื่น ๆ ไม่รวมอยู่ในใบเสนอราคานี้ เว้นแต่ระบุไว้โดยชัดแจ้ง</li>
+                <li>การเริ่มงานขึ้นอยู่กับการยืนยันจากลูกความและ/หรือเงื่อนไขการชำระเงินที่คู่สัญญาตกลงกัน</li>
+                <li>ใบเสนอราคานี้มีผลถึงวันที่ Valid Until ที่ระบุไว้ข้างต้น</li>
+              </ul>
             </div>
             <div style={totalsBoxStyle}>
               <TotalLine label="Subtotal Vatable" value={quotation.subtotal_vatable} />
               <TotalLine label="Subtotal Non-Vatable" value={quotation.subtotal_non_vatable} />
               <TotalLine label="VAT" value={quotation.vat_amount} />
-              <TotalLine label="Grand Total" value={quotation.grand_total} strong />
+              <TotalLine label="Grand Total / จำนวนเงินตามใบเสนอราคา" value={quotation.grand_total} strong />
             </div>
           </section>
 
-          <section style={signatureGridStyle}>
-            <SignatureBlock label="Prepared by" name={preparedBy} />
-            <SignatureBlock label="Approved by" name="Authorized Partner" />
+          <section className="signature-section" style={signatureGridStyle}>
+            <SignatureBlock
+              title="ผู้เสนอราคา / Service Provider"
+              name={preparedBy}
+              position="Authorized Partner / Partner / -"
+            />
+            <SignatureBlock
+              title="ผู้ยอมรับใบเสนอราคา / Client Acceptance"
+              name="____________________"
+              position="____________________"
+            />
           </section>
         </article>
       ) : null}
@@ -218,11 +288,11 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
   );
 }
 
-function Info({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) {
+function InfoLine({ label, value, strong = false, wide = false }: { label: string; value: string; strong?: boolean; wide?: boolean }) {
   return (
-    <div style={wide ? wideInfoStyle : infoStyle}>
-      <div style={labelStyle}>{label}</div>
-      <div style={valueStyle}>{value}</div>
+    <div style={wide ? wideInfoLineStyle : infoLineStyle}>
+      <span style={infoLineLabelStyle}>{label}</span>
+      <span style={strong ? strongInfoLineValueStyle : infoLineValueStyle}>{value || "-"}</span>
     </div>
   );
 }
@@ -236,15 +306,23 @@ function TotalLine({ label, value, strong = false }: { label: string; value: num
   );
 }
 
-function SignatureBlock({ label, name }: { label: string; name: string }) {
+function SignatureBlock({ title, name, position }: { title: string; name: string; position: string }) {
   return (
     <div style={signatureBlockStyle}>
-      <div style={labelStyle}>{label}</div>
-      <div style={signatureNameStyle}>{name}</div>
+      <div style={signatureTitleStyle}>{title}</div>
       <div style={signatureLineStyle} />
-      <div style={dateLineStyle}>Date: ____________________</div>
+      <div style={signatureFieldStyle}>Name: {name}</div>
+      <div style={signatureFieldStyle}>Position: {position}</div>
+      <div style={signatureFieldStyle}>Date: ____________________</div>
     </div>
   );
+}
+
+function getClientDisplayValue(quotation: QuotationRow | null, client: ClientRow | null, key: keyof ClientRow) {
+  const snapshotValue = getSnapshotText(quotation?.client_snapshot_json, key);
+  const clientValue = client?.[key];
+  if (snapshotValue) return snapshotValue;
+  return typeof clientValue === "string" && clientValue.trim() ? clientValue : "-";
 }
 
 function getMatterLabel(quotation: QuotationRow | null, caseItem: CaseRow | null, matter: MatterRow | null) {
@@ -264,7 +342,18 @@ function getMatterLabel(quotation: QuotationRow | null, caseItem: CaseRow | null
   if (matter) return [matter.matter_no, matter.title].filter(Boolean).join(" - ") || matter.id;
   if (quotation.case_id) return `Case: ${quotation.case_id}`;
   if (quotation.advisory_matter_id) return `Advisory: ${quotation.advisory_matter_id}`;
-  return "Unlinked";
+  return "-";
+}
+
+function getMatterDescription(quotation: QuotationRow | null, caseItem: CaseRow | null, matter: MatterRow | null) {
+  if (!quotation) return "";
+  return (
+    getSnapshotText(quotation.matter_snapshot_json, "description") ||
+    getSnapshotText(quotation.matter_snapshot_json, "title") ||
+    caseItem?.title ||
+    matter?.title ||
+    ""
+  );
 }
 
 function getSnapshotText(snapshot: Record<string, unknown> | null | undefined, key: string) {
@@ -290,6 +379,10 @@ function formatMoney(value: number | string | null) {
 
 const printCss = `
   @media print {
+    @page {
+      size: A4;
+      margin: 12mm;
+    }
     body {
       background: #ffffff !important;
       padding-left: 0 !important;
@@ -305,12 +398,17 @@ const printCss = `
       margin: 0 !important;
     }
     .quotation-print-document {
-      width: 210mm !important;
-      min-height: 297mm !important;
+      width: 100% !important;
+      min-height: auto !important;
       margin: 0 auto !important;
       box-shadow: none !important;
       border: none !important;
+      padding: 0 !important;
       page-break-after: avoid;
+    }
+    .signature-section {
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
   }
 `;
@@ -323,89 +421,172 @@ const toolbarStyle: React.CSSProperties = {
 };
 
 const documentStyle: React.CSSProperties = {
-  maxWidth: 900,
+  maxWidth: 920,
   margin: "0 auto",
   background: "#ffffff",
   color: "#111827",
   border: "1px solid #e5e7eb",
-  borderRadius: 4,
-  boxShadow: "0 8px 30px rgba(15, 23, 42, 0.08)",
-  padding: "42px 46px",
+  borderRadius: 6,
+  boxShadow: "0 10px 32px rgba(15, 23, 42, 0.08)",
+  padding: "38px 42px",
 };
 
 const documentHeaderStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  gap: 24,
-  borderBottom: "2px solid #111827",
-  paddingBottom: 20,
-  marginBottom: 24,
+  gap: 28,
+  borderBottom: "3px solid #111827",
+  paddingBottom: 18,
+  marginBottom: 22,
+};
+
+const providerHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 14,
 };
 
 const companyMarkStyle: React.CSSProperties = {
-  width: 48,
-  height: 48,
+  width: 54,
+  height: 54,
   borderRadius: 8,
   background: "#111827",
   color: "#ffffff",
   display: "grid",
   placeItems: "center",
-  fontSize: 20,
+  fontSize: 21,
   fontWeight: 900,
-  marginBottom: 10,
+  flex: "0 0 auto",
 };
 
-const companyNameStyle: React.CSSProperties = { fontSize: 18, fontWeight: 900 };
-const companyMetaStyle: React.CSSProperties = { marginTop: 4, fontSize: 12, color: "#6b7280", fontWeight: 700 };
-const documentTitleBlockStyle: React.CSSProperties = { textAlign: "right" };
-const documentTitleStyle: React.CSSProperties = { margin: 0, fontSize: 34, fontWeight: 900, letterSpacing: 0 };
-const statusStyle: React.CSSProperties = { marginTop: 8, textTransform: "capitalize", fontWeight: 900, color: "#374151" };
+const companyNameThaiStyle: React.CSSProperties = { fontSize: 17, fontWeight: 900, lineHeight: 1.35 };
+const companyNameStyle: React.CSSProperties = { fontSize: 15, fontWeight: 900, lineHeight: 1.35 };
+const companyMetaStyle: React.CSSProperties = { marginTop: 4, fontSize: 12, color: "#6b7280", fontWeight: 800 };
+const documentTitleBlockStyle: React.CSSProperties = { textAlign: "right", minWidth: 260 };
+const documentTitleStyle: React.CSSProperties = { margin: 0, fontSize: 28, fontWeight: 900, letterSpacing: 0 };
+const statusStyle: React.CSSProperties = {
+  marginTop: 8,
+  display: "inline-block",
+  textTransform: "capitalize",
+  fontWeight: 900,
+  color: "#111827",
+  border: "1px solid #d1d5db",
+  borderRadius: 999,
+  padding: "4px 12px",
+  fontSize: 12,
+};
 
-const infoGridStyle: React.CSSProperties = {
+const topGridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-  gap: 12,
-  marginBottom: 26,
+  gridTemplateColumns: "1fr 1fr",
+  gap: 14,
+  marginBottom: 14,
 };
 
-const infoStyle: React.CSSProperties = { border: "1px solid #e5e7eb", borderRadius: 4, padding: 10, minWidth: 0 };
-const wideInfoStyle: React.CSSProperties = { ...infoStyle, gridColumn: "span 3" };
-const labelStyle: React.CSSProperties = { fontSize: 11, color: "#6b7280", fontWeight: 900, textTransform: "uppercase", marginBottom: 5 };
-const valueStyle: React.CSSProperties = { fontSize: 14, color: "#111827", fontWeight: 800, lineHeight: 1.45 };
+const panelStyle: React.CSSProperties = {
+  border: "1px solid #d1d5db",
+  borderRadius: 6,
+  padding: 14,
+  minWidth: 0,
+  marginBottom: 14,
+};
 
-const sectionStyle: React.CSSProperties = { marginBottom: 22 };
-const sectionTitleStyle: React.CSSProperties = { margin: "0 0 10px", fontSize: 16, fontWeight: 900 };
-const tableStyle: React.CSSProperties = { width: "100%", borderCollapse: "collapse" };
-const thStyle: React.CSSProperties = { textAlign: "left", padding: "9px 7px", borderBottom: "1px solid #d1d5db", fontSize: 11, color: "#374151", fontWeight: 900 };
+const panelTitleStyle: React.CSSProperties = {
+  margin: "0 0 10px",
+  fontSize: 14,
+  fontWeight: 900,
+  color: "#111827",
+};
+
+const clientGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  columnGap: 18,
+};
+
+const infoLineStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "132px minmax(0, 1fr)",
+  gap: 8,
+  padding: "5px 0",
+  borderBottom: "1px solid #f3f4f6",
+  fontSize: 12,
+};
+
+const wideInfoLineStyle: React.CSSProperties = { ...infoLineStyle, gridColumn: "span 2" };
+const infoLineLabelStyle: React.CSSProperties = { color: "#6b7280", fontWeight: 800 };
+const infoLineValueStyle: React.CSSProperties = { color: "#111827", fontWeight: 600, lineHeight: 1.45, overflowWrap: "anywhere" };
+const strongInfoLineValueStyle: React.CSSProperties = { ...infoLineValueStyle, fontWeight: 900 };
+
+const sectionStyle: React.CSSProperties = { marginBottom: 20 };
+const sectionTitleStyle: React.CSSProperties = { margin: "0 0 10px", fontSize: 15, fontWeight: 900 };
+const scopeBoxStyle: React.CSSProperties = {
+  border: "1px solid #e5e7eb",
+  borderRadius: 6,
+  background: "#fafafa",
+  padding: 12,
+  fontSize: 13,
+  lineHeight: 1.65,
+  whiteSpace: "pre-wrap",
+};
+
+const tableStyle: React.CSSProperties = { width: "100%", borderCollapse: "collapse", tableLayout: "fixed" };
+const thStyle: React.CSSProperties = {
+  textAlign: "left",
+  padding: "9px 7px",
+  borderBottom: "1px solid #d1d5db",
+  background: "#f9fafb",
+  fontSize: 10.5,
+  color: "#374151",
+  fontWeight: 900,
+};
 const rightThStyle: React.CSSProperties = { ...thStyle, textAlign: "right" };
-const tdStyle: React.CSSProperties = { padding: "10px 7px", borderBottom: "1px solid #e5e7eb", fontSize: 12, verticalAlign: "top" };
+const tdStyle: React.CSSProperties = { padding: "10px 7px", borderBottom: "1px solid #e5e7eb", fontSize: 11.5, verticalAlign: "top" };
+const descriptionTdStyle: React.CSSProperties = { ...tdStyle, overflowWrap: "anywhere", lineHeight: 1.45 };
 const rightTdStyle: React.CSSProperties = { ...tdStyle, textAlign: "right", whiteSpace: "nowrap" };
 
 const totalsSectionStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "1fr 320px",
+  gridTemplateColumns: "1fr 330px",
   gap: 22,
   alignItems: "start",
   marginTop: 18,
 };
 
-const noteBoxStyle: React.CSSProperties = { border: "1px solid #e5e7eb", borderRadius: 4, padding: 12, minHeight: 96 };
-const noteTextStyle: React.CSSProperties = { fontSize: 13, lineHeight: 1.55, whiteSpace: "pre-wrap" };
-const totalsBoxStyle: React.CSSProperties = { display: "grid", gap: 8 };
-const totalLineStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 16, fontSize: 13 };
-const totalStrongLineStyle: React.CSSProperties = { ...totalLineStyle, borderTop: "2px solid #111827", paddingTop: 10, fontSize: 16 };
+const termsBoxStyle: React.CSSProperties = {
+  border: "1px solid #e5e7eb",
+  borderRadius: 6,
+  padding: 13,
+  minHeight: 120,
+};
+const noteParagraphStyle: React.CSSProperties = { margin: "0 0 10px", fontSize: 12.5, lineHeight: 1.6, whiteSpace: "pre-wrap" };
+const termsListStyle: React.CSSProperties = { margin: 0, paddingLeft: 18, fontSize: 12.2, lineHeight: 1.65 };
+const totalsBoxStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 8,
+  border: "1px solid #111827",
+  borderRadius: 6,
+  padding: 14,
+};
+const totalLineStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 16, fontSize: 12.5 };
+const totalStrongLineStyle: React.CSSProperties = { ...totalLineStyle, borderTop: "2px solid #111827", paddingTop: 10, fontSize: 15 };
 
 const signatureGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "1fr 1fr",
-  gap: 42,
-  marginTop: 52,
+  gap: 38,
+  marginTop: 44,
 };
 
-const signatureBlockStyle: React.CSSProperties = { minHeight: 132 };
-const signatureNameStyle: React.CSSProperties = { fontWeight: 800, minHeight: 24 };
-const signatureLineStyle: React.CSSProperties = { borderBottom: "1px solid #111827", marginTop: 48 };
-const dateLineStyle: React.CSSProperties = { marginTop: 12, fontSize: 12, color: "#374151" };
+const signatureBlockStyle: React.CSSProperties = {
+  border: "1px solid #d1d5db",
+  borderRadius: 6,
+  padding: 16,
+  minHeight: 168,
+};
+const signatureTitleStyle: React.CSSProperties = { fontSize: 13, fontWeight: 900, marginBottom: 52 };
+const signatureLineStyle: React.CSSProperties = { borderBottom: "1px solid #111827", marginBottom: 12 };
+const signatureFieldStyle: React.CSSProperties = { marginTop: 8, fontSize: 12, color: "#374151" };
 
 const primaryButtonStyle: React.CSSProperties = { border: "1px solid #111827", background: "#111827", color: "#ffffff", borderRadius: 6, padding: "9px 12px", fontWeight: 800, cursor: "pointer" };
 const secondaryButtonStyle: React.CSSProperties = { border: "1px solid #d1d5db", background: "#ffffff", color: "#111827", borderRadius: 6, padding: "9px 12px", fontWeight: 800, textDecoration: "none" };
