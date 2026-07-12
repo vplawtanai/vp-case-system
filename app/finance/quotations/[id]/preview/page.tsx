@@ -15,7 +15,7 @@ import {
   normalizeCompanyProfile,
 } from "../../../../../lib/companyProfile";
 import { supabase } from "../../../../../lib/supabase";
-import { QuotationGuard } from "../../shared";
+import { DownloadQuotationPdfButton, QuotationGuard } from "../../shared";
 
 type QuotationRow = {
   id: string;
@@ -218,6 +218,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
         <Link href={quotationId ? `/finance/quotations/${quotationId}` : "/finance/quotations"} style={secondaryButtonStyle}>
           Back to Quotation
         </Link>
+        {quotationId ? <DownloadQuotationPdfButton quotationId={quotationId} /> : null}
         <button type="button" onClick={() => window.print()} style={primaryButtonStyle}>
           Print
         </button>

@@ -819,6 +819,7 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
             <div style={actionGroupStyle}>
               <Link href="/finance/quotations" style={secondaryButtonStyle}>Back</Link>
               <Link href={`/finance/quotations/${quotation.id}/preview`} style={secondaryButtonStyle}>Preview</Link>
+              <DownloadQuotationPdfButton quotationId={quotation.id} />
               {quotation.status === "draft" && access.permissions.canEditFinanceQuotation ? <Link href={`/finance/quotations/${quotation.id}/edit`} style={primaryButtonStyle}>Edit Draft</Link> : null}
               {quotation.status === "draft" && access.permissions.canMarkFinanceQuotationSent ? <button type="button" onClick={() => updateStatus("sent")} disabled={saving} style={secondaryButtonStyle}>Mark Sent</button> : null}
               {quotation.status === "sent" && access.permissions.canMarkFinanceQuotationAccepted ? <button type="button" onClick={() => updateStatus("accepted")} disabled={saving} style={secondaryButtonStyle}>Mark Accepted</button> : null}
@@ -887,6 +888,54 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
         </>
       ) : null}
     </>
+  );
+}
+
+export function DownloadQuotationPdfButton({ quotationId }: { quotationId: string }) {
+  const [downloading, setDownloading] = useState(false);
+  const [errorText, setErrorText] = useState("");
+
+  const downloadPdf = async () => {
+    if (downloading || !quotationId) return;
+    setDownloading(true);
+    setErrorText("");
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error("Missing authenticated session");
+
+      const response = await fetch(`/api/finance/quotations/${encodeURIComponent(quotationId)}/pdf`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (!response.ok) throw new Error("PDF generation failed");
+
+      const blob = await response.blob();
+      const filename = getDownloadFilename(response.headers.get("content-disposition")) || "quotation.pdf";
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Unable to download quotation PDF", error);
+      setErrorText("Unable to generate the quotation PDF. Please try again.");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
+      <button type="button" onClick={downloadPdf} disabled={downloading} style={secondaryButtonStyle}>
+        {downloading ? "Generating PDF..." : "Download PDF"}
+      </button>
+      {errorText ? <span style={{ color: "#b91c1c", fontSize: 12, fontWeight: 700 }}>{errorText}</span> : null}
+    </span>
   );
 }
 
@@ -1153,6 +1202,11 @@ function renderMatterLabel(item: MatterRow) {
 
 function formatMoney(value: number) {
   return `${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} THB`;
+}
+
+function getDownloadFilename(contentDisposition: string | null) {
+  const match = contentDisposition?.match(/filename="?([^";]+)"?/i);
+  return match?.[1]?.replace(/[^A-Za-z0-9._-]/g, "_") || "";
 }
 
 function formatQuantity(value: number) {
