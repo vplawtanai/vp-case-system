@@ -242,14 +242,14 @@ function QuotationPdfDocument({ data }: { data: PdfData }) {
         ),
       ),
       createElement(View, { style: pdfStyles.mainDivider }),
-      createElement(View, { style: pdfStyles.twoColumns },
+      createElement(View, { style: pdfStyles.twoColumns, minPresenceAhead: 104 },
         createElement(InfoPanel, { title: "ผู้ให้บริการ / Service Provider", lines: [
           ["Company", `${company.companyNameTh} / ${company.companyNameEn}`],
           ["Tax ID", `${company.taxId}${company.branchLabel ? ` (${company.branchLabel})` : ""}`],
           ["Address", company.addressTh], ["Phone", company.phone], ["Email", company.email], ["Website", company.website],
         ] }),
         createElement(InfoPanel, { title: "ข้อมูลเอกสาร / Document Information", lines: [
-          ["Quotation No.", quotation.quotation_no || "-"], ["Status", quotation.status || "draft"],
+          ["Quotation No.", quotation.quotation_no || "-", true], ["Status", quotation.status || "draft"],
           ["Issue Date", formatDate(quotation.issue_date)], ["Valid Until", formatDate(quotation.valid_until)],
           ["Reference / Linked Matter", getMatterLabel(quotation, caseItem, matter)],
         ] }),
@@ -264,17 +264,17 @@ function QuotationPdfDocument({ data }: { data: PdfData }) {
       createElement(DocumentTextSection, { title: "ขอบเขตงาน / Scope of Legal Services", value: scope || "-" }),
       included ? createElement(DocumentTextSection, { title: "งานที่รวมอยู่ในค่าบริการ / Included Services", value: included }) : null,
       excluded ? createElement(DocumentTextSection, { title: "งานหรือค่าใช้จ่ายที่ไม่รวม / Excluded Services", value: excluded }) : null,
-      createElement(View, { style: pdfStyles.section },
+      createElement(View, { style: pdfStyles.section, minPresenceAhead: 104 },
         createElement(SectionHeading, { title: "รายการค่าบริการ / Fee Items" }),
         createElement(View, { style: pdfStyles.table },
           createElement(View, { style: [pdfStyles.tableRow, pdfStyles.tableHeader] },
-            createElement(TableCell, { value: "No.", style: pdfStyles.cellNo }),
-            createElement(TableCell, { value: "Description", style: pdfStyles.cellDescription }),
-            createElement(TableCell, { value: "Qty", style: pdfStyles.cellQuantity, right: true }),
-            createElement(TableCell, { value: "Unit Price", style: pdfStyles.cellMoney, right: true }),
-            createElement(TableCell, { value: "VAT", style: pdfStyles.cellMoney, right: true }),
-            createElement(TableCell, { value: "Before Tax", style: pdfStyles.cellMoney, right: true }),
-            createElement(TableCell, { value: "Line Total", style: pdfStyles.cellMoney, right: true }),
+            createElement(TableCell, { value: "No.", style: pdfStyles.cellNo, header: true }),
+            createElement(TableCell, { value: "Description", style: pdfStyles.cellDescription, header: true }),
+            createElement(TableCell, { value: "Qty", style: pdfStyles.cellQuantity, right: true, header: true }),
+            createElement(TableCell, { value: "Unit Price", style: pdfStyles.cellMoney, right: true, header: true }),
+            createElement(TableCell, { value: "VAT", style: pdfStyles.cellMoney, right: true, header: true }),
+            createElement(TableCell, { value: "Before Tax", style: pdfStyles.cellMoney, right: true, header: true }),
+            createElement(TableCell, { value: "Total", style: pdfStyles.cellMoney, right: true, header: true }),
           ),
           ...(items.length > 0
             ? items.map((item, index) => createElement(View, { key: item.id || index, style: pdfStyles.tableRow, wrap: false },
@@ -313,18 +313,18 @@ function QuotationPdfDocument({ data }: { data: PdfData }) {
   );
 }
 
-function InfoPanel({ title, lines, fullWidth = false }: { title: string; lines: [string, string][]; fullWidth?: boolean }) {
+function InfoPanel({ title, lines, fullWidth = false }: { title: string; lines: [string, string, boolean?][]; fullWidth?: boolean }) {
   return createElement(View, { style: fullWidth ? [pdfStyles.panel, pdfStyles.fullWidthPanel] : pdfStyles.panel },
     createElement(SectionHeading, { title }),
-    ...lines.map(([label, value]) => createElement(View, { key: label, style: pdfStyles.infoLine },
+    ...lines.map(([label, value, strong]) => createElement(View, { key: label, style: pdfStyles.infoLine },
       createElement(Text, { style: pdfStyles.infoLabel }, label),
-      createElement(Text, { style: pdfStyles.infoValue }, value || "-"),
+      createElement(Text, { style: strong ? pdfStyles.infoValueStrong : pdfStyles.infoValue }, value || "-"),
     )),
   );
 }
 
 function DocumentTextSection({ title, value }: { title: string; value: string }) {
-  return createElement(View, { style: pdfStyles.section, wrap: false },
+  return createElement(View, { style: pdfStyles.section, minPresenceAhead: 54 },
     createElement(SectionHeading, { title }),
     createElement(Text, { style: pdfStyles.documentText }, value),
   );
@@ -337,8 +337,8 @@ function SectionHeading({ title }: { title: string }) {
   );
 }
 
-function TableCell({ value, style, right = false }: { value: string; style: Style | Style[]; right?: boolean }) {
-  const styles = right ? [pdfStyles.tableCell, style, pdfStyles.rightText] : [pdfStyles.tableCell, style];
+function TableCell({ value, style, right = false, header = false }: { value: string; style: Style | Style[]; right?: boolean; header?: boolean }) {
+  const styles = [pdfStyles.tableCell, style, header ? pdfStyles.tableHeaderText : null, right ? pdfStyles.rightText : null].filter(Boolean);
   return createElement(Text, { style: styles as never }, value);
 }
 
@@ -354,7 +354,7 @@ function SignatureBlock({ title, name, position, email, signatureDataUri }: { ti
     createElement(Text, { style: pdfStyles.signatureTitle }, title),
     signatureDataUri ? createElement(Image, { src: signatureDataUri, style: pdfStyles.signatureImage }) : createElement(View, { style: pdfStyles.signatureSpacer }),
     createElement(View, { style: pdfStyles.signatureLine }),
-    createElement(Text, { style: pdfStyles.signatureText }, `Name: ${name}`),
+    createElement(Text, { style: pdfStyles.signatureName }, `Name: ${name}`),
     createElement(Text, { style: pdfStyles.signatureText }, `Position: ${position}`),
     email ? createElement(Text, { style: pdfStyles.signatureText }, `Email: ${email}`) : null,
     createElement(Text, { style: pdfStyles.signatureText }, "Date: ____________________"),
@@ -470,21 +470,21 @@ function safeError(message: string, status: number) {
 }
 
 const pdfStyles = StyleSheet.create({
-  page: { paddingTop: 30, paddingRight: 32, paddingBottom: 30, paddingLeft: 32, fontFamily: FONT_FAMILY, fontSize: 9.8, color: "#1F2937", lineHeight: 1.4 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 },
-  providerBrand: { flexDirection: "row", alignItems: "center", flexGrow: 1, paddingRight: 14 },
-  logo: { width: 42, height: 42, objectFit: "contain", marginRight: 10 },
-  logoFallback: { width: 42, height: 42, marginRight: 10, borderWidth: 1.5, borderColor: "#15803D", borderRadius: 4, color: "#15803D", justifyContent: "center", alignItems: "center", fontSize: 17, fontWeight: 700 },
-  companyTh: { fontSize: 14, fontWeight: 700 }, companyEn: { fontSize: 11, fontWeight: 700 }, muted: { marginTop: 2, color: "#6B7280", fontSize: 8.5 },
-  titleBlock: { alignItems: "flex-end" }, title: { color: "#15803D", fontSize: 22, fontWeight: 700 }, subtitle: { color: "#6B7280", fontSize: 11, marginTop: 1 },
-  status: { marginTop: 5, borderWidth: 1, borderRadius: 8, paddingVertical: 2, paddingHorizontal: 7, fontSize: 8.5, textTransform: "capitalize" },
-  mainDivider: { borderBottomWidth: 2, borderBottomColor: "#16A344", marginBottom: 12 },
-  twoColumns: { flexDirection: "row", gap: 10, marginBottom: 10 }, panel: { flexGrow: 1, flexBasis: 0, borderWidth: 1, borderColor: "#E5E7EB", padding: 9, borderRadius: 3 }, fullWidthPanel: { marginBottom: 10 },
-  sectionHeading: { marginBottom: 6 }, sectionHeadingText: { fontSize: 10.5, fontWeight: 700, color: "#15803D" }, sectionDivider: { borderBottomWidth: 1, borderBottomColor: "#DCFCE7", marginTop: 3 },
-  infoLine: { flexDirection: "row", marginBottom: 3, gap: 5 }, infoLabel: { color: "#6B7280", width: "34%", fontWeight: 700 }, infoValue: { flexGrow: 1 },
-  section: { marginBottom: 9 }, documentText: { whiteSpace: "pre-wrap", lineHeight: 1.55, color: "#374151" },
-  table: { borderWidth: 1, borderColor: "#E5E7EB" }, tableRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", alignItems: "stretch" }, tableHeader: { backgroundColor: "#F0FDF4", borderBottomColor: "#BBF7D0" }, tableCell: { paddingVertical: 5, paddingHorizontal: 4, fontSize: 8 }, cellNo: { width: "5%" }, cellDescription: { width: "31%" }, cellQuantity: { width: "8%" }, cellMoney: { width: "14%" }, rightText: { textAlign: "right" },
-  bottomGrid: { flexDirection: "row", gap: 10, marginTop: 1, marginBottom: 12 }, termsBox: { flexGrow: 1.35, flexBasis: 0, borderWidth: 1, borderColor: "#E5E7EB", padding: 9, borderRadius: 3 }, note: { marginBottom: 5, whiteSpace: "pre-wrap", lineHeight: 1.45 }, term: { fontSize: 8.5, lineHeight: 1.45, marginBottom: 3 },
-  totalBox: { flexGrow: 0.85, flexBasis: 0, borderWidth: 1, borderColor: "#86EFAC", backgroundColor: "#F0FDF4", padding: 9, borderRadius: 3 }, totalLine: { flexDirection: "row", justifyContent: "space-between", gap: 7, paddingVertical: 3 }, totalLabel: { fontSize: 8.2, color: "#374151", maxWidth: "65%" }, totalValue: { fontSize: 8.2, textAlign: "right" }, totalStrongLine: { flexDirection: "row", justifyContent: "space-between", gap: 7, paddingTop: 7, marginTop: 4, borderTopWidth: 1.5, borderTopColor: "#16A344" }, totalStrongLabel: { fontSize: 10, fontWeight: 700, color: "#15803D", maxWidth: "62%" }, totalStrongValue: { fontSize: 10, fontWeight: 700, color: "#15803D", textAlign: "right" },
-  signatureGrid: { flexDirection: "row", gap: 22, marginTop: 6 }, signatureBlock: { flexGrow: 1, flexBasis: 0 }, signatureTitle: { color: "#15803D", fontSize: 10, fontWeight: 700, marginBottom: 7 }, signatureImage: { width: 105, height: 36, objectFit: "contain", marginBottom: 2 }, signatureSpacer: { height: 38 }, signatureLine: { borderBottomWidth: 1, borderBottomColor: "#6B7280", marginBottom: 5 }, signatureText: { fontSize: 8.5, color: "#374151", marginBottom: 2 },
+  page: { paddingTop: 32, paddingRight: 34, paddingBottom: 32, paddingLeft: 34, fontFamily: FONT_FAMILY, fontSize: 9.6, color: "#1F2937", lineHeight: 1.4 },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 11 },
+  providerBrand: { flexDirection: "row", alignItems: "center", width: "58%", minWidth: 0, flexShrink: 1, paddingRight: 16 },
+  logo: { width: 42, height: 42, objectFit: "contain", marginRight: 10, flexShrink: 0 },
+  logoFallback: { width: 42, height: 42, marginRight: 10, borderWidth: 1.5, borderColor: "#15803D", borderRadius: 4, color: "#15803D", justifyContent: "center", alignItems: "center", fontSize: 17, fontWeight: 700, flexShrink: 0 },
+  companyTh: { fontSize: 13.4, fontWeight: 700, lineHeight: 1.2 }, companyEn: { fontSize: 10.2, fontWeight: 700, lineHeight: 1.2 }, muted: { marginTop: 2, color: "#6B7280", fontSize: 8.4, lineHeight: 1.35 },
+  titleBlock: { width: "42%", minWidth: 0, flexShrink: 1, alignItems: "flex-end" }, title: { color: "#15803D", fontSize: 21, fontWeight: 700, lineHeight: 1.15 }, subtitle: { color: "#6B7280", fontSize: 10.4, marginTop: 2, lineHeight: 1.2 },
+  status: { marginTop: 5, borderWidth: 1, borderRadius: 8, paddingVertical: 2, paddingHorizontal: 7, fontSize: 8.2, lineHeight: 1.2, textTransform: "capitalize" },
+  mainDivider: { borderBottomWidth: 2, borderBottomColor: "#16A344", marginBottom: 14 },
+  twoColumns: { flexDirection: "row", gap: 14, marginBottom: 14 }, panel: { flexGrow: 1, flexBasis: 0, minWidth: 0, flexShrink: 1, borderWidth: 1, borderColor: "#E5E7EB", padding: 10, borderRadius: 3 }, fullWidthPanel: { marginBottom: 20 },
+  sectionHeading: { marginBottom: 10 }, sectionHeadingText: { fontSize: 10.6, fontWeight: 700, color: "#15803D", lineHeight: 1.18 }, sectionDivider: { borderBottomWidth: 1, borderBottomColor: "#DCFCE7", marginTop: 4 },
+  infoLine: { flexDirection: "row", alignItems: "flex-start", marginBottom: 5, gap: 7, minWidth: 0 }, infoLabel: { color: "#6B7280", width: "31%", flexShrink: 0, fontWeight: 400, lineHeight: 1.4 }, infoValue: { width: "69%", flexGrow: 1, flexShrink: 1, minWidth: 0, fontWeight: 400, lineHeight: 1.4 }, infoValueStrong: { width: "69%", flexGrow: 1, flexShrink: 1, minWidth: 0, fontWeight: 700, lineHeight: 1.4 },
+  section: { marginBottom: 20 }, documentText: { whiteSpace: "pre-wrap", lineHeight: 1.45, color: "#374151", fontWeight: 400 },
+  table: { borderWidth: 1, borderColor: "#E5E7EB" }, tableRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", alignItems: "stretch", minWidth: 0 }, tableHeader: { backgroundColor: "#F0FDF4", borderBottomColor: "#BBF7D0" }, tableCell: { paddingVertical: 5, paddingHorizontal: 4, fontSize: 8, lineHeight: 1.3, fontWeight: 400, minWidth: 0 }, tableHeaderText: { fontWeight: 700, color: "#15803D" }, cellNo: { width: "5%" }, cellDescription: { width: "31%" }, cellQuantity: { width: "8%" }, cellMoney: { width: "14%" }, rightText: { textAlign: "right" },
+  bottomGrid: { flexDirection: "row", gap: 14, marginTop: 2, marginBottom: 20 }, termsBox: { flexGrow: 1.35, flexBasis: 0, minWidth: 0, flexShrink: 1, borderWidth: 1, borderColor: "#E5E7EB", padding: 10, borderRadius: 3 }, note: { marginBottom: 7, whiteSpace: "pre-wrap", lineHeight: 1.45, fontWeight: 400 }, term: { fontSize: 8.4, lineHeight: 1.45, fontWeight: 400, marginBottom: 4 },
+  totalBox: { flexGrow: 0.85, flexBasis: 0, minWidth: 0, flexShrink: 1, borderWidth: 1, borderColor: "#86EFAC", backgroundColor: "#F0FDF4", padding: 11, borderRadius: 3 }, totalLine: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 8, paddingVertical: 4 }, totalLabel: { fontSize: 8.2, fontWeight: 400, color: "#374151", maxWidth: "65%", lineHeight: 1.35 }, totalValue: { fontSize: 8.2, fontWeight: 400, textAlign: "right", lineHeight: 1.35 }, totalStrongLine: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 8, paddingTop: 8, marginTop: 5, borderTopWidth: 1.5, borderTopColor: "#16A344" }, totalStrongLabel: { fontSize: 9.8, fontWeight: 700, color: "#15803D", maxWidth: "62%", lineHeight: 1.3 }, totalStrongValue: { fontSize: 10, fontWeight: 700, color: "#15803D", textAlign: "right", lineHeight: 1.3 },
+  signatureGrid: { flexDirection: "row", gap: 24, marginTop: 2 }, signatureBlock: { flexGrow: 1, flexBasis: 0, minWidth: 0, flexShrink: 1 }, signatureTitle: { color: "#15803D", fontSize: 10, fontWeight: 700, lineHeight: 1.2, marginBottom: 8 }, signatureImage: { width: 110, height: 38, objectFit: "contain", marginBottom: 3 }, signatureSpacer: { height: 40 }, signatureLine: { borderBottomWidth: 1, borderBottomColor: "#6B7280", marginBottom: 6 }, signatureName: { fontSize: 8.6, fontWeight: 700, color: "#374151", lineHeight: 1.35, marginBottom: 2 }, signatureText: { fontSize: 8.4, fontWeight: 400, color: "#374151", lineHeight: 1.35, marginBottom: 2 },
 });
