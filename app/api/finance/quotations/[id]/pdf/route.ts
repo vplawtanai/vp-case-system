@@ -19,23 +19,15 @@ import { buildPermissions } from "../../../../../../lib/permissions";
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-const FONT_FAMILY = "NotoSansThai";
-const LATIN_FONT_FAMILY = "NotoSansThaiLatin";
-const THAI_FONT_DIRECTORY = `${process.cwd()}/node_modules/@fontsource/noto-sans-thai/files`;
+const FONT_FAMILY = "VP-Noto-Sans-Thai";
+const THAI_REGULAR_FONT_PATH = `${process.cwd()}/assets/fonts/noto-sans-thai/NotoSansThai-Regular.ttf`;
+const THAI_BOLD_FONT_PATH = `${process.cwd()}/assets/fonts/noto-sans-thai/NotoSansThai-Bold.ttf`;
 
 Font.register({
   family: FONT_FAMILY,
   fonts: [
-    { src: `${THAI_FONT_DIRECTORY}/noto-sans-thai-thai-400-normal.woff`, fontWeight: 400 },
-    { src: `${THAI_FONT_DIRECTORY}/noto-sans-thai-thai-700-normal.woff`, fontWeight: 700 },
-  ],
-});
-
-Font.register({
-  family: LATIN_FONT_FAMILY,
-  fonts: [
-    { src: `${THAI_FONT_DIRECTORY}/noto-sans-thai-latin-400-normal.woff`, fontWeight: 400 },
-    { src: `${THAI_FONT_DIRECTORY}/noto-sans-thai-latin-700-normal.woff`, fontWeight: 700 },
+    { src: THAI_REGULAR_FONT_PATH, fontWeight: 400 },
+    { src: THAI_BOLD_FONT_PATH, fontWeight: 700 },
   ],
 });
 
@@ -297,7 +289,7 @@ function QuotationPdfDocument({ data }: { data: PdfData }) {
             : [createElement(View, { key: "empty", style: pdfStyles.tableRow }, createElement(TableCell, { value: "No line items.", style: [pdfStyles.cellDescription, { width: "100%" }] }))]),
         ),
       ),
-      createElement(View, { style: pdfStyles.bottomGrid, wrap: false },
+      createElement(View, { style: pdfStyles.bottomGrid },
         createElement(View, { style: pdfStyles.termsBox },
           createElement(SectionHeading, { title: "หมายเหตุและเงื่อนไข / Notes and Conditions" }),
           quotation.note ? createElement(Text, { style: pdfStyles.note }, quotation.note) : null,
@@ -306,7 +298,7 @@ function QuotationPdfDocument({ data }: { data: PdfData }) {
           createElement(Text, { style: pdfStyles.term }, "• การเริ่มงานขึ้นอยู่กับการยืนยันจากลูกความและ/หรือเงื่อนไขการชำระเงินที่คู่สัญญาตกลงกัน"),
           createElement(Text, { style: pdfStyles.term }, "• ใบเสนอราคานี้มีผลถึงวันที่ Valid Until ที่ระบุไว้ข้างต้น"),
         ),
-        createElement(View, { style: pdfStyles.totalBox },
+        createElement(View, { style: pdfStyles.totalBox, wrap: false },
           createElement(TotalLine, { label: "รวมรายการที่มี VAT / Vatable Subtotal", value: quotation.subtotal_vatable }),
           createElement(TotalLine, { label: "รวมรายการที่ไม่มี VAT / Non-Vatable Subtotal", value: quotation.subtotal_non_vatable }),
           createElement(TotalLine, { label: "ภาษีมูลค่าเพิ่ม / VAT", value: quotation.vat_amount }),
@@ -439,7 +431,7 @@ function cleanText(value: string | null) {
 }
 
 function formatMoney(value: number | string | null) {
-  return `${Number(value || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} THB`;
+  return `${Number(value || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
 }
 
 function formatQuantity(value: number | string | null) {
@@ -478,7 +470,7 @@ function safeError(message: string, status: number) {
 }
 
 const pdfStyles = StyleSheet.create({
-  page: { paddingTop: 28, paddingRight: 30, paddingBottom: 30, paddingLeft: 30, fontFamily: [FONT_FAMILY, LATIN_FONT_FAMILY], fontSize: 9.5, color: "#1F2937", lineHeight: 1.35 },
+  page: { paddingTop: 30, paddingRight: 32, paddingBottom: 30, paddingLeft: 32, fontFamily: FONT_FAMILY, fontSize: 9.8, color: "#1F2937", lineHeight: 1.4 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 },
   providerBrand: { flexDirection: "row", alignItems: "center", flexGrow: 1, paddingRight: 14 },
   logo: { width: 42, height: 42, objectFit: "contain", marginRight: 10 },
@@ -490,9 +482,9 @@ const pdfStyles = StyleSheet.create({
   twoColumns: { flexDirection: "row", gap: 10, marginBottom: 10 }, panel: { flexGrow: 1, flexBasis: 0, borderWidth: 1, borderColor: "#E5E7EB", padding: 9, borderRadius: 3 }, fullWidthPanel: { marginBottom: 10 },
   sectionHeading: { marginBottom: 6 }, sectionHeadingText: { fontSize: 10.5, fontWeight: 700, color: "#15803D" }, sectionDivider: { borderBottomWidth: 1, borderBottomColor: "#DCFCE7", marginTop: 3 },
   infoLine: { flexDirection: "row", marginBottom: 3, gap: 5 }, infoLabel: { color: "#6B7280", width: "34%", fontWeight: 700 }, infoValue: { flexGrow: 1 },
-  section: { marginBottom: 10 }, documentText: { whiteSpace: "pre-wrap", lineHeight: 1.5, color: "#374151" },
+  section: { marginBottom: 9 }, documentText: { whiteSpace: "pre-wrap", lineHeight: 1.55, color: "#374151" },
   table: { borderWidth: 1, borderColor: "#E5E7EB" }, tableRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", alignItems: "stretch" }, tableHeader: { backgroundColor: "#F0FDF4", borderBottomColor: "#BBF7D0" }, tableCell: { paddingVertical: 5, paddingHorizontal: 4, fontSize: 8 }, cellNo: { width: "5%" }, cellDescription: { width: "31%" }, cellQuantity: { width: "8%" }, cellMoney: { width: "14%" }, rightText: { textAlign: "right" },
   bottomGrid: { flexDirection: "row", gap: 10, marginTop: 1, marginBottom: 12 }, termsBox: { flexGrow: 1.35, flexBasis: 0, borderWidth: 1, borderColor: "#E5E7EB", padding: 9, borderRadius: 3 }, note: { marginBottom: 5, whiteSpace: "pre-wrap", lineHeight: 1.45 }, term: { fontSize: 8.5, lineHeight: 1.45, marginBottom: 3 },
   totalBox: { flexGrow: 0.85, flexBasis: 0, borderWidth: 1, borderColor: "#86EFAC", backgroundColor: "#F0FDF4", padding: 9, borderRadius: 3 }, totalLine: { flexDirection: "row", justifyContent: "space-between", gap: 7, paddingVertical: 3 }, totalLabel: { fontSize: 8.2, color: "#374151", maxWidth: "65%" }, totalValue: { fontSize: 8.2, textAlign: "right" }, totalStrongLine: { flexDirection: "row", justifyContent: "space-between", gap: 7, paddingTop: 7, marginTop: 4, borderTopWidth: 1.5, borderTopColor: "#16A344" }, totalStrongLabel: { fontSize: 10, fontWeight: 700, color: "#15803D", maxWidth: "62%" }, totalStrongValue: { fontSize: 10, fontWeight: 700, color: "#15803D", textAlign: "right" },
-  signatureGrid: { flexDirection: "row", gap: 22, marginTop: 4 }, signatureBlock: { flexGrow: 1, flexBasis: 0 }, signatureTitle: { color: "#15803D", fontSize: 10, fontWeight: 700, marginBottom: 7 }, signatureImage: { width: 105, height: 36, objectFit: "contain", marginBottom: 2 }, signatureSpacer: { height: 38 }, signatureLine: { borderBottomWidth: 1, borderBottomColor: "#6B7280", marginBottom: 5 }, signatureText: { fontSize: 8.5, color: "#374151", marginBottom: 2 },
+  signatureGrid: { flexDirection: "row", gap: 22, marginTop: 6 }, signatureBlock: { flexGrow: 1, flexBasis: 0 }, signatureTitle: { color: "#15803D", fontSize: 10, fontWeight: 700, marginBottom: 7 }, signatureImage: { width: 105, height: 36, objectFit: "contain", marginBottom: 2 }, signatureSpacer: { height: 38 }, signatureLine: { borderBottomWidth: 1, borderBottomColor: "#6B7280", marginBottom: 5 }, signatureText: { fontSize: 8.5, color: "#374151", marginBottom: 2 },
 });

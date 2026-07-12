@@ -211,7 +211,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
   const signer = resolveQuotationSigner(quotation, signers);
 
   return (
-    <>
+    <div className="quotation-preview-shell">
       <style>{printCss}</style>
       <div className="print-hidden" style={toolbarStyle}>
         <span style={printHintStyle}>เพื่อเอกสารที่สะอาด กรุณาปิด Headers and footers ในหน้าต่าง Print</span>
@@ -362,7 +362,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
           </section>
         </article>
       ) : null}
-    </>
+    </div>
   );
 }
 
@@ -530,26 +530,17 @@ const printCss = `
       size: A4;
       margin: 8mm;
     }
+    html,
     body {
       background: #ffffff !important;
       padding-left: 0 !important;
     }
-    body * {
-      visibility: hidden !important;
-    }
-    .quotation-print-document,
-    .quotation-print-document * {
-      visibility: visible !important;
-    }
-    aside,
-    nav,
-    header:not(.quotation-print-document header),
-    button,
-    [role="button"],
-    .print-hidden {
+    body:has(.quotation-preview-shell) > *:not(main),
+    main:has(.quotation-preview-shell) > *:not(.quotation-preview-shell),
+    .quotation-preview-shell > :not(.quotation-print-document) {
       display: none !important;
     }
-    main {
+    main:has(.quotation-preview-shell) {
       max-width: none !important;
       padding: 0 !important;
       margin: 0 !important;
@@ -597,11 +588,11 @@ const printCss = `
     .signature-section {
       break-inside: avoid;
       page-break-inside: avoid;
-      margin-top: 20px !important;
+      margin-top: 14px !important;
     }
     .signature-section > div {
-      min-height: 115px !important;
-      padding: 10px !important;
+      min-height: 88px !important;
+      padding: 8px !important;
     }
     .quotation-logo {
       background: #ffffff !important;
