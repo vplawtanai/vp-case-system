@@ -428,7 +428,11 @@ function SignatureBlock({ title, name, position, email, signatureUrl, signatureI
   return (
     <div style={signatureBlockStyle}>
       <div style={signatureTitleStyle}>{title}</div>
-      {signatureUrl ? <img ref={signatureImageRef} className="quotation-signature-image" src={signatureUrl} alt="Authorized signer signature" loading="eager" onError={onSignatureError} style={signatureImageStyle} /> : <div style={signatureBlankSpaceStyle} />}
+      {signatureUrl ? (
+        <div className="quotation-signature-viewport" style={signatureViewportStyle}>
+          <img ref={signatureImageRef} className="quotation-signature-image" src={signatureUrl} alt="Authorized signer signature" loading="eager" onError={onSignatureError} style={signatureImageStyle} />
+        </div>
+      ) : <div className="quotation-signature-blank" style={signatureBlankSpaceStyle} />}
       <div style={signatureLineStyle} />
       <div style={signatureFieldStyle}>Name: {name}</div>
       <div style={signatureFieldStyle}>Position: {position}</div>
@@ -660,8 +664,18 @@ const printCss = `
       height: 28mm !important;
     }
     .quotation-signature-image {
-      width: 45mm !important;
-      height: 20mm !important;
+      width: 38mm !important;
+      height: 17mm !important;
+      object-position: left bottom !important;
+      transform: scale(1.6) !important;
+      transform-origin: left bottom !important;
+    }
+    .quotation-signature-viewport,
+    .quotation-signature-blank {
+      width: 62mm !important;
+      height: 31mm !important;
+      margin-bottom: 0 !important;
+      overflow: visible !important;
     }
   }
 `;
@@ -851,8 +865,9 @@ const signatureBlockStyle: React.CSSProperties = {
   minHeight: 145,
 };
 const signatureTitleStyle: React.CSSProperties = { fontSize: 13, fontWeight: 900, marginBottom: 12, color: "#15803D" };
-const signatureImageStyle: React.CSSProperties = { width: 156, height: 76, display: "block", objectFit: "contain", objectPosition: "left center", background: "transparent", marginBottom: 8 };
-const signatureBlankSpaceStyle: React.CSSProperties = { height: 76, marginBottom: 8 };
+const signatureViewportStyle: React.CSSProperties = { width: 252, height: 124, display: "flex", alignItems: "flex-end", overflow: "visible", marginBottom: 0 };
+const signatureImageStyle: React.CSSProperties = { width: 156, height: 76, display: "block", objectFit: "contain", objectPosition: "left bottom", background: "transparent", transform: "scale(1.6)", transformOrigin: "left bottom" };
+const signatureBlankSpaceStyle: React.CSSProperties = { width: 252, height: 124, marginBottom: 0 };
 const signatureLineStyle: React.CSSProperties = { borderBottom: "1px solid #111827", marginBottom: 12 };
 const signatureFieldStyle: React.CSSProperties = { marginTop: 8, fontSize: 12, color: "#374151" };
 
