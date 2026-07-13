@@ -426,7 +426,7 @@ function LogoMark({ logoUrl, imageRef, onError }: { logoUrl: string; imageRef: R
 
 function SignatureBlock({ title, name, position, email, signatureUrl, signatureImageRef, onSignatureError }: { title: string; name: string; position: string; email: string; signatureUrl: string; signatureImageRef: React.RefObject<HTMLImageElement | null> | null; onSignatureError?: () => void }) {
   return (
-    <div style={signatureBlockStyle}>
+    <div className="quotation-signature-card" style={signatureBlockStyle}>
       <div className="quotation-signature-title" style={signatureTitleStyle}>{title}</div>
       {signatureUrl ? (
         <div className="quotation-signature-viewport" style={signatureViewportStyle}>
@@ -436,7 +436,9 @@ function SignatureBlock({ title, name, position, email, signatureUrl, signatureI
       <div style={signatureLineStyle} />
       <div style={signatureFieldStyle}>Name: {name}</div>
       <div style={signatureFieldStyle}>Position: {position}</div>
-      {email ? <div style={signatureFieldStyle}>Email: {email}</div> : null}
+      <div className="quotation-signature-email-row" aria-hidden={!email} style={{ ...signatureFieldStyle, visibility: email ? "visible" : "hidden" }}>
+        Email: {email || "-"}
+      </div>
       <div style={signatureFieldStyle}>Date: ____________________</div>
     </div>
   );
@@ -666,9 +668,9 @@ const printCss = `
       margin-top: 8px !important;
     }
     .signature-section > div {
-      height: auto !important;
+      height: 100% !important;
       min-height: 0 !important;
-      align-self: start !important;
+      align-self: stretch !important;
       padding: 8px 8px 6px !important;
     }
     .quotation-signature-title {
@@ -698,7 +700,7 @@ const printCss = `
     .quotation-signature-viewport,
     .quotation-signature-blank {
       width: 62mm !important;
-      height: 19mm !important;
+      height: 15mm !important;
       margin-bottom: 0 !important;
       overflow: visible !important;
     }
@@ -884,21 +886,21 @@ const signatureGridStyle: React.CSSProperties = {
   gridTemplateColumns: "1fr 1fr",
   gap: 38,
   marginTop: 20,
-  alignItems: "start",
+  alignItems: "stretch",
 };
 
 const signatureBlockStyle: React.CSSProperties = {
   border: "1px solid #d1d5db",
   borderRadius: 6,
-  height: "auto",
+  height: "100%",
   minHeight: 0,
-  alignSelf: "start",
+  boxSizing: "border-box",
   padding: "8px 8px 6px",
 };
 const signatureTitleStyle: React.CSSProperties = { fontSize: 13, fontWeight: 900, marginBottom: 12, color: "#15803D" };
-const signatureViewportStyle: React.CSSProperties = { width: 252, height: 96, display: "flex", alignItems: "flex-end", overflow: "visible", marginBottom: 0 };
+const signatureViewportStyle: React.CSSProperties = { width: 252, height: 72, display: "flex", alignItems: "flex-end", overflow: "visible", marginBottom: 0 };
 const signatureImageStyle: React.CSSProperties = { width: 156, height: 76, display: "block", objectFit: "contain", objectPosition: "left bottom", background: "transparent", transform: "scale(1.6)", transformOrigin: "left bottom" };
-const signatureBlankSpaceStyle: React.CSSProperties = { width: 252, height: 96, marginBottom: 0 };
+const signatureBlankSpaceStyle: React.CSSProperties = { width: 252, height: 72, marginBottom: 0 };
 const signatureLineStyle: React.CSSProperties = { borderBottom: "1px solid #111827", marginBottom: 4 };
 const signatureFieldStyle: React.CSSProperties = { marginTop: 4, fontSize: 12, color: "#374151" };
 
