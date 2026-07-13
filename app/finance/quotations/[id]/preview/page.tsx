@@ -324,8 +324,8 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
                   <th style={rightThStyle}>Quantity</th>
                   <th style={rightThStyle}>Unit Price</th>
                   <th style={rightThStyle}>VAT</th>
-                  <th style={rightThStyle}>Amount Before Tax</th>
-                  <th style={rightThStyle}>Line Total</th>
+                  <th style={rightThStyle}><span className="quotation-screen-heading">Amount Before Tax</span><span className="quotation-print-heading">Before Tax</span></th>
+                  <th style={rightThStyle}><span className="quotation-screen-heading">Line Total</span><span className="quotation-print-heading">Total</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -349,8 +349,8 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
           <section className="quotation-keep-together" style={totalsSectionStyle}>
             <div style={termsBoxStyle}>
               <h2 style={sectionTitleStyle}>หมายเหตุและเงื่อนไข / Notes and Conditions</h2>
-              {quotation.note ? <p style={noteParagraphStyle}>{quotation.note}</p> : null}
-              <ul style={termsListStyle}>
+              {quotation.note ? <p className="quotation-thai-text" style={noteParagraphStyle}>{quotation.note}</p> : null}
+              <ul className="quotation-thai-text" style={termsListStyle}>
                 <li>ใบเสนอราคานี้ไม่ใช่ใบแจ้งหนี้หรือใบเสร็จรับเงิน</li>
                 <li>ค่าธรรมเนียมศาล ค่าธรรมเนียมราชการ ค่าเดินทาง ค่าที่พัก ค่าถ่ายเอกสาร ค่าจัดส่ง ค่าแปลเอกสาร และค่าใช้จ่ายนอกกระเป๋าอื่น ๆ ไม่รวมอยู่ในใบเสนอราคานี้ เว้นแต่ระบุไว้โดยชัดแจ้ง</li>
                 <li>การเริ่มงานขึ้นอยู่กับการยืนยันจากลูกความและ/หรือเงื่อนไขการชำระเงินที่คู่สัญญาตกลงกัน</li>
@@ -403,8 +403,8 @@ function InfoLine({ label, value, strong = false, wide = false }: { label: strin
 function TotalLine({ label, value, strong = false }: { label: string; value: number | string | null; strong?: boolean }) {
   return (
     <div style={strong ? totalStrongLineStyle : totalLineStyle}>
-      <span>{label}</span>
-      <strong>{formatMoney(value)}</strong>
+      <span style={totalLabelStyle}>{label}</span>
+      <strong style={strong ? totalStrongValueStyle : totalValueStyle}>{formatMoney(value)}</strong>
     </div>
   );
 }
@@ -414,7 +414,7 @@ function DocumentTextSection({ title, value }: { title: string; value: string })
     <div style={documentTextSectionStyle}>
       <h2 style={sectionTitleStyle}>{title}</h2>
       <div style={sectionDividerStyle} />
-      <div style={documentTextStyle}>{value}</div>
+      <div className="quotation-thai-text" style={documentTextStyle}>{value}</div>
     </div>
   );
 }
@@ -584,6 +584,16 @@ function formatMoney(value: number | string | null) {
 }
 
 const printCss = `
+  .quotation-print-heading {
+    display: none;
+  }
+  .quotation-thai-text {
+    word-break: normal;
+    overflow-wrap: normal;
+    hyphens: none;
+    line-break: auto;
+    text-wrap: pretty;
+  }
   @media print {
     @page {
       size: A4;
@@ -636,6 +646,12 @@ const printCss = `
       padding-top: 5px !important;
       padding-bottom: 5px !important;
     }
+    .quotation-screen-heading {
+      display: none;
+    }
+    .quotation-print-heading {
+      display: inline;
+    }
     .quotation-compact-block {
       margin-bottom: 9px !important;
     }
@@ -647,7 +663,11 @@ const printCss = `
     .signature-section {
       break-inside: avoid;
       page-break-inside: avoid;
-      margin-top: 14px !important;
+      margin-top: 10px !important;
+    }
+    .signature-section > div {
+      padding: 10px !important;
+      min-height: 0 !important;
     }
     .quotation-logo-image,
     .quotation-signature-image {
@@ -673,7 +693,7 @@ const printCss = `
     .quotation-signature-viewport,
     .quotation-signature-blank {
       width: 62mm !important;
-      height: 31mm !important;
+      height: 29mm !important;
       margin-bottom: 0 !important;
       overflow: visible !important;
     }
@@ -803,7 +823,7 @@ const documentTextSectionStyle: React.CSSProperties = { breakInside: "avoid" };
 const sectionDividerStyle: React.CSSProperties = { height: 2, width: 56, background: "#16A344", margin: "0 0 9px" };
 const documentTextStyle: React.CSSProperties = {
   fontSize: 12.8,
-  lineHeight: 1.7,
+  lineHeight: 1.62,
   whiteSpace: "pre-wrap",
   color: "#1F2937",
   paddingLeft: 2,
@@ -819,7 +839,7 @@ const thStyle: React.CSSProperties = {
   color: "#374151",
   fontWeight: 900,
 };
-const rightThStyle: React.CSSProperties = { ...thStyle, textAlign: "right" };
+const rightThStyle: React.CSSProperties = { ...thStyle, textAlign: "right", whiteSpace: "nowrap" };
 const tdStyle: React.CSSProperties = { padding: "10px 7px", borderBottom: "1px solid #e5e7eb", fontSize: 11.5, verticalAlign: "top" };
 const descriptionTdStyle: React.CSSProperties = { ...tdStyle, overflowWrap: "anywhere", lineHeight: 1.45 };
 const rightTdStyle: React.CSSProperties = { ...tdStyle, textAlign: "right", whiteSpace: "nowrap" };
@@ -836,40 +856,41 @@ const termsBoxStyle: React.CSSProperties = {
   border: "1px solid #E5E7EB",
   borderRadius: 6,
   padding: 13,
-  minHeight: 120,
 };
-const noteParagraphStyle: React.CSSProperties = { margin: "0 0 10px", fontSize: 12.5, lineHeight: 1.6, whiteSpace: "pre-wrap" };
-const termsListStyle: React.CSSProperties = { margin: 0, paddingLeft: 18, fontSize: 12.2, lineHeight: 1.65 };
+const noteParagraphStyle: React.CSSProperties = { margin: "0 0 10px", fontSize: 12.5, lineHeight: 1.58, whiteSpace: "pre-wrap" };
+const termsListStyle: React.CSSProperties = { margin: 0, paddingLeft: 18, fontSize: 12.2, lineHeight: 1.58 };
 const totalsBoxStyle: React.CSSProperties = {
   display: "grid",
-  gap: 8,
+  gap: 5,
   border: "1px solid #16A344",
   borderRadius: 6,
-  padding: 14,
+  padding: 12,
   background: "#F0FDF4",
 };
-const totalLineStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 16, fontSize: 12.5 };
-const totalStrongLineStyle: React.CSSProperties = { ...totalLineStyle, borderTop: "2px solid #16A344", paddingTop: 10, fontSize: 15, color: "#15803D" };
+const totalLineStyle: React.CSSProperties = { display: "flex", alignItems: "flex-start", gap: 12, fontSize: 12.5, lineHeight: 1.35 };
+const totalStrongLineStyle: React.CSSProperties = { ...totalLineStyle, borderTop: "2px solid #16A344", paddingTop: 7, fontSize: 15, color: "#15803D" };
+const totalLabelStyle: React.CSSProperties = { flex: "1 1 0", minWidth: 0, wordBreak: "normal", overflowWrap: "normal", hyphens: "none" };
+const totalValueStyle: React.CSSProperties = { flex: "0 0 auto", whiteSpace: "nowrap", textAlign: "right" };
+const totalStrongValueStyle: React.CSSProperties = { ...totalValueStyle, color: "#15803D" };
 
 const signatureGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "1fr 1fr",
   gap: 38,
-  marginTop: 44,
+  marginTop: 28,
 };
 
 const signatureBlockStyle: React.CSSProperties = {
   border: "1px solid #d1d5db",
   borderRadius: 6,
-  padding: 16,
-  minHeight: 145,
+  padding: 12,
 };
-const signatureTitleStyle: React.CSSProperties = { fontSize: 13, fontWeight: 900, marginBottom: 12, color: "#15803D" };
-const signatureViewportStyle: React.CSSProperties = { width: 252, height: 124, display: "flex", alignItems: "flex-end", overflow: "visible", marginBottom: 0 };
+const signatureTitleStyle: React.CSSProperties = { fontSize: 13, fontWeight: 900, marginBottom: 14, color: "#15803D" };
+const signatureViewportStyle: React.CSSProperties = { width: 252, height: 112, display: "flex", alignItems: "flex-end", overflow: "visible", marginBottom: 0 };
 const signatureImageStyle: React.CSSProperties = { width: 156, height: 76, display: "block", objectFit: "contain", objectPosition: "left bottom", background: "transparent", transform: "scale(1.6)", transformOrigin: "left bottom" };
-const signatureBlankSpaceStyle: React.CSSProperties = { width: 252, height: 124, marginBottom: 0 };
-const signatureLineStyle: React.CSSProperties = { borderBottom: "1px solid #111827", marginBottom: 12 };
-const signatureFieldStyle: React.CSSProperties = { marginTop: 8, fontSize: 12, color: "#374151" };
+const signatureBlankSpaceStyle: React.CSSProperties = { width: 252, height: 112, marginBottom: 0 };
+const signatureLineStyle: React.CSSProperties = { borderBottom: "1px solid #111827", marginBottom: 9 };
+const signatureFieldStyle: React.CSSProperties = { marginTop: 6, fontSize: 12, color: "#374151" };
 
 const primaryButtonStyle: React.CSSProperties = { border: "1px solid #111827", background: "#111827", color: "#ffffff", borderRadius: 6, padding: "9px 12px", fontWeight: 800, cursor: "pointer" };
 const secondaryButtonStyle: React.CSSProperties = { border: "1px solid #d1d5db", background: "#ffffff", color: "#111827", borderRadius: 6, padding: "9px 12px", fontWeight: 800, textDecoration: "none" };
