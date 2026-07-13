@@ -584,6 +584,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
   return (
     <>
       <FinanceSubNav activePage="quotations" permissions={access.permissions} />
+      <style>{quotationHeaderFormCss}</style>
       <div style={sectionHeaderStyle}>
         <div>
           <h1 style={pageTitleStyle}>{isEdit ? `Edit ${quotation?.quotation_no || "Quotation"}` : "New Quotation"}</h1>
@@ -593,7 +594,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       </div>
 
       <div style={cardStyle}>
-        <div style={formGridStyle}>
+        <div className="quotation-header-form-grid" style={formGridStyle}>
           <label style={labelStyle}>Client
             <select value={form.client_id} onChange={(event) => setForm({ ...form, client_id: event.target.value })} style={inputStyle}>
               <option value="">Select client</option>
@@ -618,8 +619,8 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
           <label style={labelStyle}>Valid Until
             <input type="date" value={form.valid_until} onChange={(event) => setForm({ ...form, valid_until: event.target.value })} style={inputStyle} />
           </label>
-          <label style={labelStyle}>ผู้ลงนามใบเสนอราคา / Authorized Signer
-            <select value={form.authorized_signer_key} onChange={(event) => setForm({ ...form, authorized_signer_key: event.target.value })} style={inputStyle}>
+          <label className="quotation-authorized-signer-field" style={authorizedSignerLabelStyle}>ผู้ลงนามใบเสนอราคา / Authorized Signer
+            <select value={form.authorized_signer_key} onChange={(event) => setForm({ ...form, authorized_signer_key: event.target.value })} style={authorizedSignerSelectStyle}>
               {lookups.signers.map((signer) => (
                 <option key={signer.key} value={signer.key}>
                   {signer.displayName} — {formatSignerPosition(signer)}
@@ -1260,9 +1261,27 @@ const formGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "re
 const labelStyle: CSSProperties = { display: "flex", flexDirection: "column", gap: 6, color: "#374151", fontSize: 13, fontWeight: 700, minWidth: 0 };
 const wideLabelStyle: CSSProperties = { ...labelStyle, gridColumn: "1 / -1" };
 const inputStyle: CSSProperties = { width: "100%", border: "1px solid #d1d5db", borderRadius: 6, padding: "9px 10px", fontSize: 14, minWidth: 0 };
+const authorizedSignerLabelStyle: CSSProperties = { ...labelStyle, minWidth: 0 };
+const authorizedSignerSelectStyle: CSSProperties = { ...inputStyle, paddingRight: 36 };
 const compactInputStyle: CSSProperties = { ...inputStyle, width: 110, textAlign: "right" };
 const vatInputStyle: CSSProperties = { ...inputStyle, width: 80, marginTop: 6 };
 const textareaStyle: CSSProperties = { ...inputStyle, minHeight: 88, resize: "vertical" };
+
+const quotationHeaderFormCss = `
+  @media (min-width: 960px) {
+    .quotation-header-form-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    }
+    .quotation-authorized-signer-field {
+      grid-column: span 2 !important;
+    }
+  }
+  @media (max-width: 959px) {
+    .quotation-authorized-signer-field {
+      grid-column: 1 / -1 !important;
+    }
+  }
+`;
 const checkboxLabelStyle: CSSProperties = { display: "flex", gap: 6, alignItems: "center", fontSize: 13, fontWeight: 600 };
 const buttonRowStyle: CSSProperties = { display: "flex", justifyContent: "flex-end", marginTop: 16 };
 
