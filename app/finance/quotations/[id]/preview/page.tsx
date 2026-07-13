@@ -216,6 +216,11 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
   const includedText = getSnapshotText(documentSnapshot, "included_services") || quotation?.included_services?.trim() || "";
   const excludedText = getSnapshotText(documentSnapshot, "excluded_services") || quotation?.excluded_services?.trim() || "";
   const signer = resolveQuotationSigner(quotation, signers);
+  const engagementSections = [
+    { title: "ขอบเขตงาน / Scope of Legal Services", value: scopeText },
+    { title: "งานที่รวมอยู่ในค่าบริการ / Included Services", value: includedText },
+    { title: "งานหรือค่าใช้จ่ายที่ไม่รวม / Excluded Services", value: excludedText },
+  ].filter((section) => Boolean(section.value));
 
   const printWhenReady = useCallback(async () => {
     await waitForPrintReadiness([logoImageRef.current, showSignerSignature ? signerSignatureImageRef.current : null]);
@@ -311,25 +316,19 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
             </div>
           </section>
 
-          <section className="quotation-compact-block" style={sectionStyle}>
-            <DocumentTextSection title="ขอบเขตงาน / Scope of Legal Services" value={scopeText || "-"} />
-          </section>
-
-          {includedText ? (
-            <section className="quotation-compact-block" style={sectionStyle}>
-              <DocumentTextSection title="งานที่รวมอยู่ในค่าบริการ / Included Services" value={includedText} />
+          {engagementSections.length > 0 ? (
+            <section className="quotation-compact-block" style={{ ...panelStyle, marginBottom: 24 }}>
+              <h2 style={panelTitleStyle}>รายละเอียดการให้บริการ / Engagement Scope</h2>
+              <div style={engagementScopeListStyle}>
+                {engagementSections.map((section, index) => <EngagementScopeSubsection key={section.title} title={section.title} value={section.value} withDivider={index > 0} />)}
+              </div>
             </section>
           ) : null}
 
-          {excludedText ? (
-            <section className="quotation-compact-block" style={sectionStyle}>
-              <DocumentTextSection title="งานหรือค่าใช้จ่ายที่ไม่รวม / Excluded Services" value={excludedText} />
-            </section>
-          ) : null}
-
-          <section className="quotation-compact-block" style={sectionStyle}>
-            <h2 style={sectionTitleStyle}>รายการค่าบริการ / Fee Items</h2>
-            <table style={tableStyle}>
+          <section className="quotation-compact-block" style={{ ...panelStyle, marginBottom: 24 }}>
+            <h2 style={panelTitleStyle}>รายการค่าบริการ / Fee Items</h2>
+            <div style={feeTableWrapStyle}>
+              <table style={tableStyle}>
               <colgroup>
                 <col style={{ width: "4%" }} />
                 <col style={{ width: "38%" }} />
@@ -365,7 +364,8 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+              </table>
+            </div>
           </section>
 
           <section className="quotation-keep-together" style={totalsSectionStyle}>
@@ -446,11 +446,10 @@ function TotalLine({ label, value, strong = false }: { label: string; value: num
   );
 }
 
-function DocumentTextSection({ title, value }: { title: string; value: string }) {
+function EngagementScopeSubsection({ title, value, withDivider }: { title: string; value: string; withDivider: boolean }) {
   return (
-    <div style={documentTextSectionStyle}>
-      <h2 style={sectionTitleStyle}>{title}</h2>
-      <div style={sectionDividerStyle} />
+    <div style={withDivider ? engagementScopeSubsectionDividerStyle : engagementScopeSubsectionStyle}>
+      <h3 style={engagementScopeTitleStyle}>{title}</h3>
       <div className="quotation-thai-text" style={documentTextStyle}>{value}</div>
     </div>
   );
@@ -872,10 +871,7 @@ const bilingualInfoLineValueStyle: React.CSSProperties = { ...infoLineValueStyle
 const strongBilingualInfoLineValueStyle: React.CSSProperties = { ...strongInfoLineValueStyle, whiteSpace: "pre-line" };
 const englishInfoLineValueStyle: React.CSSProperties = { ...bilingualInfoLineValueStyle, color: "#6b7280", fontSize: 11.5 };
 
-const sectionStyle: React.CSSProperties = { marginBottom: 24 };
 const sectionTitleStyle: React.CSSProperties = { margin: "0 0 12px", fontSize: 15, fontWeight: 800, color: "#1f2937" };
-const documentTextSectionStyle: React.CSSProperties = { breakInside: "avoid" };
-const sectionDividerStyle: React.CSSProperties = { height: 1, width: 56, background: "#16A344", margin: "0 0 12px" };
 const documentTextStyle: React.CSSProperties = {
   fontSize: 13,
   lineHeight: 1.72,
@@ -883,6 +879,11 @@ const documentTextStyle: React.CSSProperties = {
   color: "#1F2937",
   fontWeight: 400,
 };
+const engagementScopeListStyle: React.CSSProperties = { display: "grid", gap: 0 };
+const engagementScopeSubsectionStyle: React.CSSProperties = { breakInside: "avoid" };
+const engagementScopeSubsectionDividerStyle: React.CSSProperties = { ...engagementScopeSubsectionStyle, borderTop: "1px solid #edf0ee", paddingTop: 12, marginTop: 12 };
+const engagementScopeTitleStyle: React.CSSProperties = { margin: "0 0 8px", fontSize: 13, fontWeight: 700, lineHeight: 1.45, color: "#374151" };
+const feeTableWrapStyle: React.CSSProperties = { marginTop: 2, minWidth: 0 };
 
 const tableStyle: React.CSSProperties = { width: "100%", borderCollapse: "collapse", tableLayout: "fixed" };
 const thStyle: React.CSSProperties = {
