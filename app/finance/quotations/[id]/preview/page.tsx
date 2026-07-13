@@ -434,6 +434,7 @@ function SignatureBlock({ title, name, position, email, signatureUrl, signatureI
         </div>
       ) : <div className="quotation-signature-blank" style={signatureBlankSpaceStyle} />}
       <div style={signatureLineStyle} />
+      <div aria-hidden="true" style={signaturePostLineSpacerStyle} />
       <div style={signatureFieldStyle}>Name: {name}</div>
       <div style={signatureFieldStyle}>Position: {position}</div>
       <div className="quotation-signature-email-row" aria-hidden={!email} style={{ ...signatureFieldStyle, visibility: email ? "visible" : "hidden" }}>
@@ -668,13 +669,14 @@ const printCss = `
       margin-top: 8px !important;
     }
     .signature-section > div {
-      height: 100% !important;
+      height: auto !important;
       min-height: 0 !important;
-      align-self: stretch !important;
-      padding: 8px 8px 6px !important;
+      align-self: start !important;
+      grid-template-rows: 6mm 22mm 0.3mm 3mm 5mm 5mm 5mm 5mm !important;
+      padding: 4mm !important;
     }
     .quotation-signature-title {
-      margin-bottom: 16px !important;
+      margin-bottom: 0 !important;
     }
     .quotation-logo-image,
     .quotation-signature-image {
@@ -691,16 +693,16 @@ const printCss = `
       height: 28mm !important;
     }
     .quotation-signature-image {
-      width: 38mm !important;
-      height: 17mm !important;
+      width: auto !important;
+      height: auto !important;
+      max-width: 100% !important;
+      max-height: 100% !important;
       object-position: left bottom !important;
-      transform: scale(1.6) !important;
-      transform-origin: left bottom !important;
     }
     .quotation-signature-viewport,
     .quotation-signature-blank {
       width: 62mm !important;
-      height: 15mm !important;
+      height: 22mm !important;
       margin-bottom: 0 !important;
       overflow: visible !important;
     }
@@ -886,23 +888,25 @@ const signatureGridStyle: React.CSSProperties = {
   gridTemplateColumns: "1fr 1fr",
   gap: 38,
   marginTop: 20,
-  alignItems: "stretch",
+  alignItems: "start",
 };
 
 const signatureBlockStyle: React.CSSProperties = {
   border: "1px solid #d1d5db",
   borderRadius: 6,
-  height: "100%",
   minHeight: 0,
   boxSizing: "border-box",
-  padding: "8px 8px 6px",
+  display: "grid",
+  gridTemplateRows: "22px 92px 1px 10px 22px 22px 22px 22px",
+  padding: 16,
 };
-const signatureTitleStyle: React.CSSProperties = { fontSize: 13, fontWeight: 900, marginBottom: 12, color: "#15803D" };
-const signatureViewportStyle: React.CSSProperties = { width: 252, height: 72, display: "flex", alignItems: "flex-end", overflow: "visible", marginBottom: 0 };
-const signatureImageStyle: React.CSSProperties = { width: 156, height: 76, display: "block", objectFit: "contain", objectPosition: "left bottom", background: "transparent", transform: "scale(1.6)", transformOrigin: "left bottom" };
-const signatureBlankSpaceStyle: React.CSSProperties = { width: 252, height: 72, marginBottom: 0 };
-const signatureLineStyle: React.CSSProperties = { borderBottom: "1px solid #111827", marginBottom: 4 };
-const signatureFieldStyle: React.CSSProperties = { marginTop: 4, fontSize: 12, color: "#374151" };
+const signatureTitleStyle: React.CSSProperties = { alignSelf: "start", fontSize: 13, fontWeight: 900, lineHeight: "22px", margin: 0, color: "#15803D" };
+const signatureViewportStyle: React.CSSProperties = { width: 252, height: 92, display: "flex", alignItems: "flex-end", overflow: "visible" };
+const signatureImageStyle: React.CSSProperties = { display: "block", width: "auto", height: "auto", maxWidth: "100%", maxHeight: "100%", objectFit: "contain", objectPosition: "left bottom", background: "transparent" };
+const signatureBlankSpaceStyle: React.CSSProperties = { width: 252, height: 92 };
+const signatureLineStyle: React.CSSProperties = { borderBottom: "1px solid #111827" };
+const signaturePostLineSpacerStyle: React.CSSProperties = { height: 10 };
+const signatureFieldStyle: React.CSSProperties = { display: "flex", alignItems: "center", fontSize: 12, lineHeight: "22px", color: "#374151" };
 
 const primaryButtonStyle: React.CSSProperties = { border: "1px solid #111827", background: "#111827", color: "#ffffff", borderRadius: 6, padding: "9px 12px", fontWeight: 800, cursor: "pointer" };
 const secondaryButtonStyle: React.CSSProperties = { border: "1px solid #d1d5db", background: "#ffffff", color: "#111827", borderRadius: 6, padding: "9px 12px", fontWeight: 800, textDecoration: "none" };
