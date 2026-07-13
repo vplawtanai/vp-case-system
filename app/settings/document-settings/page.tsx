@@ -220,6 +220,10 @@ export default function DocumentSettingsPage() {
       alert("Default signer must be active.");
       return;
     }
+    if (signerForm.id && !signerForm.is_active && signers.find((signer) => signer.id === signerForm.id)?.is_default) {
+      alert("กรุณาตั้งผู้ลงนามเริ่มต้นคนใหม่ก่อนปิดใช้งานรายนี้");
+      return;
+    }
     setSaving(true);
 
     const payload = {
@@ -363,6 +367,67 @@ export default function DocumentSettingsPage() {
     await loadSettings();
   };
 
+  const setSignerActive = async (signer: SignerForm, isActive: boolean) => {
+    if (!canManageSigners || !signer.id || saving) return;
+    if (!isActive && signer.is_default) {
+      alert("กรุณาตั้งผู้ลงนามเริ่มต้นคนใหม่ก่อนปิดใช้งานรายนี้");
+      return;
+    }
+
+    setSaving(true);
+    const { error } = await supabase.rpc("set_finance_authorized_signer_active", {
+      p_signer_id: signer.id,
+      p_is_active: isActive,
+    });
+    if (error) {
+      alert(error.message.includes("กรุณาตั้งผู้ลงนาม") ? error.message : "Unable to update signer status.");
+      setSaving(false);
+      return;
+    }
+
+    await createAuditLog({
+      tableName: "finance_authorized_signers",
+      recordId: signer.id,
+      action: "update",
+      note: `${isActive ? "Activated" : "Deactivated"} authorized signer ${signer.display_name}`,
+    });
+    setSaving(false);
+    await loadSettings();
+  };
+
+  const deleteSigner = async (signer: SignerForm) => {
+    if (!canManageSigners || !signer.id || saving) return;
+    if (signer.is_default) {
+      alert("กรุณาตั้งผู้ลงนามเริ่มต้นคนใหม่ก่อนลบรายนี้");
+      return;
+    }
+    if (!window.confirm("ต้องการลบผู้ลงนามรายนี้ถาวรหรือไม่?\nหากเคยใช้ในเอกสาร แนะนำให้ปิดใช้งานแทน")) return;
+
+    setSaving(true);
+    const { data: signaturePath, error } = await supabase.rpc("delete_finance_authorized_signer", {
+      p_signer_id: signer.id,
+    });
+    if (error) {
+      alert(error.message.includes("ผู้ลงนามรายนี้เคยถูกใช้") || error.message.includes("กรุณาตั้งผู้ลงนาม") ? error.message : "Unable to delete signer.");
+      setSaving(false);
+      return;
+    }
+
+    if (typeof signaturePath === "string" && signaturePath) {
+      const removed = await safeRemoveAsset(signaturePath, `signers/${signer.id}`);
+      if (!removed) console.warn("Deleted signer, but signature cleanup skipped or failed.");
+    }
+    await createAuditLog({
+      tableName: "finance_authorized_signers",
+      recordId: signer.id,
+      action: "delete",
+      note: `Deleted unused authorized signer ${signer.display_name}`,
+    });
+    setSignerForm((current) => current.id === signer.id ? emptySignerForm() : current);
+    setSaving(false);
+    await loadSettings();
+  };
+
   if (loading) {
     return (
       <AuthGuard>
@@ -448,8 +513,12 @@ export default function DocumentSettingsPage() {
                   <AssetPreview path={signer.signature_storage_path} urls={assetUrls} fallback="Signature" />
                   <div style={actionGroupStyle}>
                     <button type="button" onClick={() => setSignerForm(signer)} style={secondaryButtonStyle}>Edit</button>
+                    <button type="button" onClick={() => { void setSignerActive(signer, !signer.is_active); }} disabled={saving} style={secondaryButtonStyle}>
+                      {signer.is_active ? "Deactivate" : "Activate"}
+                    </button>
                     {signer.id ? <input type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" onChange={(event) => uploadSignature(signer, event)} /> : null}
                     {signer.signature_storage_path ? <button type="button" onClick={() => removeSignature(signer)} style={dangerButtonStyle}>Remove Signature</button> : null}
+                    <button type="button" onClick={() => { void deleteSigner(signer); }} disabled={saving} style={dangerButtonStyle}>Delete Signer</button>
                   </div>
                 </div>
               </div>

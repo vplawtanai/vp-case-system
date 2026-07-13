@@ -346,15 +346,15 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
         return;
       }
 
+      const loadedQuotation = quotationRes.data as QuotationRow;
       const [itemRes, lookupData] = await Promise.all([
         supabase.from("finance_quotation_items").select("*").eq("quotation_id", quotationId).order("sort_order", { ascending: true }),
-        loadLookups(),
+        loadLookups(loadedQuotation.authorized_signer_key),
       ]);
       if (itemRes.error) {
         console.warn("Failed to load quotation items for edit", { quotationId, error: itemRes.error });
       }
 
-      const loadedQuotation = quotationRes.data as QuotationRow;
       setQuotation(loadedQuotation);
       setLookups(lookupData);
       setForm({
@@ -891,15 +891,23 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
   );
 }
 
-async function loadLookups(): Promise<LookupState> {
-  const [clientsRes, casesRes, mattersRes, companyRes, signersRes] = await Promise.all([
+async function loadLookups(preservedSignerKey?: string | null): Promise<LookupState> {
+  const [clientsRes, casesRes, mattersRes, companyRes, signersRes, preservedSignerRes] = await Promise.all([
     supabase.from("clients").select("id, name, tax_id, email, phone, address").order("name", { ascending: true }),
     supabase.from("cases").select("id, file_no, title, client_name").order("created_at", { ascending: false }),
     supabase.from("advisory_matters").select("id, matter_no, title").order("created_at", { ascending: false }),
     supabase.from("finance_company_profiles").select("*").eq("id", "default").maybeSingle(),
     supabase.from("finance_authorized_signers").select("*").eq("is_active", true).order("sort_order", { ascending: true }),
+    preservedSignerKey
+      ? supabase.from("finance_authorized_signers").select("*").eq("signer_key", preservedSignerKey).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
   ]);
-  const signers = signersRes.error ? AUTHORIZED_SIGNERS : ((signersRes.data || []) as DbAuthorizedSigner[]).map(normalizeAuthorizedSigner).filter((signer) => signer.key);
+  const signerRows = signersRes.error ? [] : ((signersRes.data || []) as DbAuthorizedSigner[]);
+  const preservedSigner = preservedSignerRes.error || !preservedSignerRes.data ? null : normalizeAuthorizedSigner(preservedSignerRes.data as DbAuthorizedSigner);
+  if (preservedSigner && !signerRows.some((signer) => signer.signer_key === preservedSigner.key)) {
+    signerRows.push(preservedSignerRes.data as DbAuthorizedSigner);
+  }
+  const signers = signersRes.error ? AUTHORIZED_SIGNERS : signerRows.map(normalizeAuthorizedSigner).filter((signer) => signer.key);
 
   return {
     clients: (clientsRes.data || []) as ClientRow[],

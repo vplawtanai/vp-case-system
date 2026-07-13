@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element -- Private signed document assets must render eagerly and reliably in Browser Print. */
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import {
@@ -105,6 +105,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
   const [signers, setSigners] = useState<AuthorizedSigner[]>(AUTHORIZED_SIGNERS);
   const [logoUrl, setLogoUrl] = useState("");
   const [signerSignatureUrl, setSignerSignatureUrl] = useState("");
+  const [showSignerSignature, setShowSignerSignature] = useState(() => searchParams.get("signature") !== "0");
   const [loading, setLoading] = useState(true);
   const [errorText, setErrorText] = useState("");
   const logoImageRef = useRef<HTMLImageElement | null>(null);
@@ -216,23 +217,34 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
   const excludedText = getSnapshotText(documentSnapshot, "excluded_services") || quotation?.excluded_services?.trim() || "";
   const signer = resolveQuotationSigner(quotation, signers);
 
-  const printWhenReady = async () => {
-    await waitForPrintReadiness([logoImageRef.current, signerSignatureImageRef.current]);
+  const printWhenReady = useCallback(async () => {
+    await waitForPrintReadiness([logoImageRef.current, showSignerSignature ? signerSignatureImageRef.current : null]);
     window.requestAnimationFrame(() => window.print());
-  };
+  }, [showSignerSignature]);
 
   useEffect(() => {
     if (searchParams.get("print") !== "1" || loading || !quotation || hasOpenedPrintDialog.current) return;
     hasOpenedPrintDialog.current = true;
     const timer = window.setTimeout(() => { void printWhenReady(); }, 0);
     return () => window.clearTimeout(timer);
-  }, [loading, quotation, searchParams]);
+  }, [loading, quotation, searchParams, printWhenReady]);
+
+  const updateSignatureOption = (nextValue: boolean) => {
+    setShowSignerSignature(nextValue);
+    const url = new URL(window.location.href);
+    url.searchParams.set("signature", nextValue ? "1" : "0");
+    window.history.replaceState(null, "", url);
+  };
 
   return (
     <div className="quotation-preview-shell">
       <style>{printCss}</style>
       <div className="print-hidden" style={toolbarStyle}>
         <span style={printHintStyle}>เพื่อผลลัพธ์ที่ดีที่สุด กรุณาใช้ Print → Save as PDF และปิด Headers &amp; Footers</span>
+        <label style={signatureToggleStyle}>
+          <input type="checkbox" checked={showSignerSignature} onChange={(event) => updateSignatureOption(event.target.checked)} />
+          แสดงลายเซ็นผู้เสนอราคา / Show authorized signer signature
+        </label>
         <Link href={quotationId ? `/finance/quotations/${quotationId}` : "/finance/quotations"} style={secondaryButtonStyle}>
           Back to Quotation
         </Link>
@@ -371,7 +383,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
               name={signer.name}
               position={signer.position}
               email={signer.email}
-              signatureUrl={signerSignatureUrl}
+              signatureUrl={showSignerSignature ? signerSignatureUrl : ""}
               signatureImageRef={signerSignatureImageRef}
               onSignatureError={() => setSignerSignatureUrl("")}
             />
@@ -718,6 +730,7 @@ const toolbarStyle: React.CSSProperties = {
   marginBottom: 16,
 };
 const printHintStyle: React.CSSProperties = { color: "#6B7280", fontSize: 12, fontWeight: 700, marginRight: "auto" };
+const signatureToggleStyle: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 700, color: "#374151" };
 
 const documentStyle: React.CSSProperties = {
   maxWidth: 920,

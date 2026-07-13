@@ -82,7 +82,7 @@ export const AUTHORIZED_SIGNERS: AuthorizedSigner[] = [
     key: "preecha",
     displayName: "นายปรีชา ฤกษ์งาม",
     nickname: "ทนายเป้า",
-    positionTh: "หุ้นส่วนผู้จัดการ",
+    positionTh: "หุ้นส่วนบริหาร",
     positionEn: "Managing Partner",
     email: "preecha@vplawyer.com",
     default: true,
