@@ -352,7 +352,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
               {quotation.note ? <p className="quotation-thai-text" style={noteParagraphStyle}>{quotation.note}</p> : null}
               <div className="quotation-thai-text" style={standardConditionsStyle}>
                 <p style={standardConditionStyle}>ใบเสนอราคานี้ไม่ใช่ใบแจ้งหนี้หรือใบเสร็จรับเงิน</p>
-                <p style={standardConditionStyle}>ค่าธรรมเนียมศาล ค่าธรรมเนียมราชการ ค่าเดินทาง ค่าที่พัก ค่าถ่ายเอกสาร ค่าจัดส่ง ค่าแปลเอกสาร และค่าใช้จ่ายนอกกระเป๋าอื่น ๆ ไม่รวมอยู่ในใบเสนอราคานี้ เว้นแต่ระบุไว้โดยชัดแจ้ง</p>
+                <p style={standardConditionStyle}>ค่าธรรมเนียมศาล ค่าธรรมเนียมราชการ ค่าเดินทาง ค่าที่พัก ค่าถ่ายเอกสาร ค่าจัดส่ง ค่าแปลเอกสาร และค่าใช้จ่ายอื่นที่สำนักงานสำรองจ่ายแทนลูกค้า ไม่รวมอยู่ในใบเสนอราคานี้ เว้นแต่จะระบุไว้โดยชัดแจ้ง</p>
                 <p style={standardConditionStyle}>การเริ่มงานขึ้นอยู่กับการยืนยันจากลูกความและ/หรือเงื่อนไขการชำระเงินที่คู่สัญญาตกลงกัน</p>
                 <p style={standardConditionStyle}>ใบเสนอราคานี้มีผลถึงวันที่ Valid Until ที่ระบุไว้ข้างต้น</p>
               </div>
@@ -427,7 +427,7 @@ function LogoMark({ logoUrl, imageRef, onError }: { logoUrl: string; imageRef: R
 function SignatureBlock({ title, name, position, email, signatureUrl, signatureImageRef, onSignatureError }: { title: string; name: string; position: string; email: string; signatureUrl: string; signatureImageRef: React.RefObject<HTMLImageElement | null> | null; onSignatureError?: () => void }) {
   return (
     <div style={signatureBlockStyle}>
-      <div style={signatureTitleStyle}>{title}</div>
+      <div className="quotation-signature-title" style={signatureTitleStyle}>{title}</div>
       {signatureUrl ? (
         <div className="quotation-signature-viewport" style={signatureViewportStyle}>
           <img ref={signatureImageRef} className="quotation-signature-image" src={signatureUrl} alt="Authorized signer signature" loading="eager" onError={onSignatureError} style={signatureImageStyle} />
@@ -666,8 +666,11 @@ const printCss = `
       margin-top: 8px !important;
     }
     .signature-section > div {
-      padding: 10px !important;
+      padding: 8px !important;
       min-height: 0 !important;
+    }
+    .quotation-signature-title {
+      margin-bottom: 16px !important;
     }
     .quotation-logo-image,
     .quotation-signature-image {
@@ -693,7 +696,7 @@ const printCss = `
     .quotation-signature-viewport,
     .quotation-signature-blank {
       width: 62mm !important;
-      height: 21mm !important;
+      height: 19mm !important;
       margin-bottom: 0 !important;
       overflow: visible !important;
     }
@@ -884,14 +887,14 @@ const signatureGridStyle: React.CSSProperties = {
 const signatureBlockStyle: React.CSSProperties = {
   border: "1px solid #d1d5db",
   borderRadius: 6,
-  padding: 10,
+  padding: 8,
 };
-const signatureTitleStyle: React.CSSProperties = { fontSize: 13, fontWeight: 900, marginBottom: 20, color: "#15803D" };
-const signatureViewportStyle: React.CSSProperties = { width: 252, height: 104, display: "flex", alignItems: "flex-end", overflow: "visible", marginBottom: 0 };
+const signatureTitleStyle: React.CSSProperties = { fontSize: 13, fontWeight: 900, marginBottom: 12, color: "#15803D" };
+const signatureViewportStyle: React.CSSProperties = { width: 252, height: 96, display: "flex", alignItems: "flex-end", overflow: "visible", marginBottom: 0 };
 const signatureImageStyle: React.CSSProperties = { width: 156, height: 76, display: "block", objectFit: "contain", objectPosition: "left bottom", background: "transparent", transform: "scale(1.6)", transformOrigin: "left bottom" };
-const signatureBlankSpaceStyle: React.CSSProperties = { width: 252, height: 104, marginBottom: 0 };
-const signatureLineStyle: React.CSSProperties = { borderBottom: "1px solid #111827", marginBottom: 7 };
-const signatureFieldStyle: React.CSSProperties = { marginTop: 5, fontSize: 12, color: "#374151" };
+const signatureBlankSpaceStyle: React.CSSProperties = { width: 252, height: 96, marginBottom: 0 };
+const signatureLineStyle: React.CSSProperties = { borderBottom: "1px solid #111827", marginBottom: 4 };
+const signatureFieldStyle: React.CSSProperties = { marginTop: 4, fontSize: 12, color: "#374151" };
 
 const primaryButtonStyle: React.CSSProperties = { border: "1px solid #111827", background: "#111827", color: "#ffffff", borderRadius: 6, padding: "9px 12px", fontWeight: 800, cursor: "pointer" };
 const secondaryButtonStyle: React.CSSProperties = { border: "1px solid #d1d5db", background: "#ffffff", color: "#111827", borderRadius: 6, padding: "9px 12px", fontWeight: 800, textDecoration: "none" };
