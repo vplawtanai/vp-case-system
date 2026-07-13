@@ -709,6 +709,7 @@ const printCss = `
       height: auto !important;
       max-width: 100% !important;
       max-height: 100% !important;
+      margin-left: 6mm !important;
       object-position: left bottom !important;
     }
     .quotation-signature-viewport,
@@ -915,7 +916,7 @@ const signatureBlockStyle: React.CSSProperties = {
 };
 const signatureTitleStyle: React.CSSProperties = { alignSelf: "start", fontSize: 13, fontWeight: 900, lineHeight: "22px", margin: 0, color: "#15803D" };
 const signatureViewportStyle: React.CSSProperties = { width: 252, height: 92, display: "flex", alignItems: "flex-end", overflow: "visible" };
-const signatureImageStyle: React.CSSProperties = { display: "block", width: "auto", height: "auto", maxWidth: "100%", maxHeight: "100%", objectFit: "contain", objectPosition: "left bottom", background: "transparent" };
+const signatureImageStyle: React.CSSProperties = { display: "block", width: "auto", height: "auto", maxWidth: "100%", maxHeight: "100%", marginLeft: 24, objectFit: "contain", objectPosition: "left bottom", background: "transparent" };
 const signatureBlankSpaceStyle: React.CSSProperties = { width: 252, height: 92 };
 const signatureLineStyle: React.CSSProperties = { borderBottom: "1px solid #111827" };
 const signaturePostLineSpacerStyle: React.CSSProperties = { height: 10 };
