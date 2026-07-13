@@ -387,25 +387,28 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
             </div>
           </section>
 
-          <section className="signature-section" style={signatureGridStyle}>
-            <SignatureBlock
-              title="ผู้เสนอราคา / Service Provider"
-              name={signer.name}
-              position={signer.position}
-              email={signer.email}
-              signatureUrl={showSignerSignature ? signerSignatureUrl : ""}
-              signatureImageRef={signerSignatureImageRef}
-              onSignatureError={() => setSignerSignatureUrl("")}
-            />
-            <SignatureBlock
-              title="ผู้ยอมรับใบเสนอราคา / Client Acceptance"
-              name="____________________"
-              position="____________________"
-              email=""
-              signatureUrl=""
-              signatureImageRef={null}
-              onSignatureError={undefined}
-            />
+          <section className="quotation-signature-group" style={signatureGroupStyle}>
+            <h2 className="quotation-signatures-heading" style={signatureSectionTitleStyle}>การลงนาม / Signatures</h2>
+            <div className="signature-section" style={signatureGridStyle}>
+              <SignatureBlock
+                title="ผู้เสนอราคา / Service Provider"
+                name={signer.name}
+                position={signer.position}
+                email={signer.email}
+                signatureUrl={showSignerSignature ? signerSignatureUrl : ""}
+                signatureImageRef={signerSignatureImageRef}
+                onSignatureError={() => setSignerSignatureUrl("")}
+              />
+              <SignatureBlock
+                title="ผู้ยอมรับใบเสนอราคา / Client Acceptance"
+                name="____________________"
+                position="____________________"
+                email=""
+                signatureUrl=""
+                signatureImageRef={null}
+                onSignatureError={undefined}
+              />
+            </div>
           </section>
         </article>
       ) : null}
@@ -702,10 +705,20 @@ const printCss = `
       page-break-inside: avoid;
       margin-top: 10px !important;
     }
+    .quotation-signature-group {
+      break-inside: avoid;
+      page-break-inside: avoid;
+      margin-top: 4mm !important;
+      margin-bottom: 4mm !important;
+    }
+    .quotation-signatures-heading {
+      margin-bottom: 3mm !important;
+    }
     .signature-section {
       break-inside: avoid;
       page-break-inside: avoid;
-      margin-top: 8px !important;
+      margin-top: 0 !important;
+      gap: 4.5mm !important;
     }
     .signature-section > div {
       height: auto !important;
@@ -906,7 +919,7 @@ const rightTdStyle: React.CSSProperties = { ...tdStyle, textAlign: "right", whit
 
 const totalsSectionStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "minmax(0, 1fr) 310px",
+  gridTemplateColumns: "minmax(0, 58fr) minmax(0, 42fr)",
   gap: 24,
   alignItems: "start",
   marginTop: 18,
@@ -923,9 +936,9 @@ const standardConditionStyle: React.CSSProperties = { margin: 0, fontSize: 12.2,
 const totalsBoxStyle: React.CSSProperties = {
   display: "grid",
   gap: 5,
-  border: "1px solid #bbf7d0",
+  border: "1px solid #cce8d5",
   borderRadius: 6,
-  padding: 14,
+  padding: 12,
   background: "#F0FDF4",
 };
 const totalLineStyle: React.CSSProperties = { display: "flex", alignItems: "flex-start", gap: 14, fontSize: 12.5, lineHeight: 1.5, color: "#374151" };
@@ -937,10 +950,13 @@ const totalStrongValueStyle: React.CSSProperties = { ...totalValueStyle, color: 
 const signatureGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "1fr 1fr",
-  gap: 38,
-  marginTop: 20,
+  gap: 18,
+  marginTop: 0,
   alignItems: "start",
 };
+
+const signatureGroupStyle: React.CSSProperties = { breakInside: "avoid", marginTop: 24, marginBottom: 16 };
+const signatureSectionTitleStyle: React.CSSProperties = { ...panelTitleStyle, marginBottom: 12 };
 
 const signatureBlockStyle: React.CSSProperties = {
   border: "1px solid #d9e1dc",
