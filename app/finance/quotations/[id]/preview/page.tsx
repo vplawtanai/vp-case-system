@@ -666,8 +666,10 @@ const printCss = `
       margin-top: 8px !important;
     }
     .signature-section > div {
-      padding: 8px !important;
+      height: auto !important;
       min-height: 0 !important;
+      align-self: start !important;
+      padding: 8px 8px 6px !important;
     }
     .quotation-signature-title {
       margin-bottom: 16px !important;
@@ -882,12 +884,16 @@ const signatureGridStyle: React.CSSProperties = {
   gridTemplateColumns: "1fr 1fr",
   gap: 38,
   marginTop: 20,
+  alignItems: "start",
 };
 
 const signatureBlockStyle: React.CSSProperties = {
   border: "1px solid #d1d5db",
   borderRadius: 6,
-  padding: 8,
+  height: "auto",
+  minHeight: 0,
+  alignSelf: "start",
+  padding: "8px 8px 6px",
 };
 const signatureTitleStyle: React.CSSProperties = { fontSize: 13, fontWeight: 900, marginBottom: 12, color: "#15803D" };
 const signatureViewportStyle: React.CSSProperties = { width: 252, height: 96, display: "flex", alignItems: "flex-end", overflow: "visible", marginBottom: 0 };
