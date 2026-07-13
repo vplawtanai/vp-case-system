@@ -95,6 +95,8 @@ type AssetStorageClient = {
   };
 };
 
+// Deprecated native export endpoint. Browser Print -> Save as PDF is the supported quotation export workflow.
+// Retained for future use; do not surface it in the quotation UI.
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const authorization = request.headers.get("authorization");

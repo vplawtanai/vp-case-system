@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import {
   AUTHORIZED_SIGNERS,
   type AuthorizedSigner,
@@ -15,7 +15,7 @@ import {
   normalizeCompanyProfile,
 } from "../../../../../lib/companyProfile";
 import { supabase } from "../../../../../lib/supabase";
-import { DownloadQuotationPdfButton, QuotationGuard } from "../../shared";
+import { QuotationGuard } from "../../shared";
 
 type QuotationRow = {
   id: string;
@@ -92,6 +92,8 @@ export default function QuotationPreviewPage() {
 }
 
 function QuotationPreview({ quotationId }: { quotationId: string }) {
+  const searchParams = useSearchParams();
+  const hasOpenedPrintDialog = useRef(false);
   const [quotation, setQuotation] = useState<QuotationRow | null>(null);
   const [items, setItems] = useState<QuotationItemRow[]>([]);
   const [client, setClient] = useState<ClientRow | null>(null);
@@ -210,15 +212,21 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
   const excludedText = getSnapshotText(documentSnapshot, "excluded_services") || quotation?.excluded_services?.trim() || "";
   const signer = resolveQuotationSigner(quotation, signers);
 
+  useEffect(() => {
+    if (searchParams.get("print") !== "1" || loading || !quotation || hasOpenedPrintDialog.current) return;
+    hasOpenedPrintDialog.current = true;
+    const timer = window.setTimeout(() => window.print(), 50);
+    return () => window.clearTimeout(timer);
+  }, [loading, quotation, searchParams]);
+
   return (
     <div className="quotation-preview-shell">
       <style>{printCss}</style>
       <div className="print-hidden" style={toolbarStyle}>
-        <span style={printHintStyle}>เพื่อเอกสารที่สะอาด กรุณาปิด Headers and footers ในหน้าต่าง Print</span>
+        <span style={printHintStyle}>เพื่อผลลัพธ์ที่ดีที่สุด กรุณาใช้ Print → Save as PDF และปิด Headers &amp; Footers</span>
         <Link href={quotationId ? `/finance/quotations/${quotationId}` : "/finance/quotations"} style={secondaryButtonStyle}>
           Back to Quotation
         </Link>
-        {quotationId ? <DownloadQuotationPdfButton quotationId={quotationId} /> : null}
         <button type="button" onClick={() => window.print()} style={primaryButtonStyle}>
           Print
         </button>
