@@ -330,11 +330,20 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
           <section className="quotation-compact-block" style={sectionStyle}>
             <h2 style={sectionTitleStyle}>รายการค่าบริการ / Fee Items</h2>
             <table style={tableStyle}>
+              <colgroup>
+                <col style={{ width: "4%" }} />
+                <col style={{ width: "38%" }} />
+                <col style={{ width: "7%" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "10%" }} />
+                <col style={{ width: "13.5%" }} />
+                <col style={{ width: "13.5%" }} />
+              </colgroup>
               <thead>
                 <tr>
-                  <th style={thStyle}>No.</th>
+                  <th style={numberThStyle}>No.</th>
                   <th style={thStyle}>Description</th>
-                  <th style={rightThStyle}>Quantity</th>
+                  <th style={quantityThStyle}><span className="quotation-screen-heading">Quantity</span><span className="quotation-print-heading">Qty</span></th>
                   <th style={rightThStyle}>Unit Price</th>
                   <th style={rightThStyle}>VAT</th>
                   <th style={rightThStyle}><span className="quotation-screen-heading">Amount Before Tax</span><span className="quotation-print-heading">Before Tax</span></th>
@@ -346,9 +355,9 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
                   <tr><td style={tdStyle} colSpan={7}>No line items.</td></tr>
                 ) : items.map((item, index) => (
                   <tr key={item.id || index}>
-                    <td style={tdStyle}>{index + 1}</td>
+                    <td style={numberTdStyle}>{index + 1}</td>
                     <td style={descriptionTdStyle}>{item.description || "-"}</td>
-                    <td style={rightTdStyle}>{formatQuantity(item.quantity)}</td>
+                    <td style={quantityTdStyle}>{formatQuantity(item.quantity)}</td>
                     <td style={rightTdStyle}>{formatMoney(item.unit_price)}</td>
                     <td style={rightTdStyle}>{formatMoney(item.vat_amount)}</td>
                     <td style={rightTdStyle}>{formatMoney(item.amount_before_tax)}</td>
@@ -678,8 +687,7 @@ const printCss = `
     }
     .quotation-print-document th,
     .quotation-print-document td {
-      padding-top: 5px !important;
-      padding-bottom: 5px !important;
+      padding: 5px 7px !important;
     }
     .quotation-screen-heading {
       display: none;
@@ -886,9 +894,13 @@ const thStyle: React.CSSProperties = {
   color: "#1f2937",
   fontWeight: 800,
 };
+const numberThStyle: React.CSSProperties = { ...thStyle, textAlign: "center", whiteSpace: "nowrap" };
+const quantityThStyle: React.CSSProperties = { ...thStyle, textAlign: "center", whiteSpace: "nowrap" };
 const rightThStyle: React.CSSProperties = { ...thStyle, textAlign: "right", whiteSpace: "nowrap" };
 const tdStyle: React.CSSProperties = { padding: "11px 8px", borderBottom: "1px solid #edf0ee", fontSize: 11.5, verticalAlign: "top", fontWeight: 400 };
-const descriptionTdStyle: React.CSSProperties = { ...tdStyle, overflowWrap: "anywhere", lineHeight: 1.55 };
+const numberTdStyle: React.CSSProperties = { ...tdStyle, textAlign: "center", whiteSpace: "nowrap" };
+const quantityTdStyle: React.CSSProperties = { ...tdStyle, textAlign: "center", whiteSpace: "nowrap" };
+const descriptionTdStyle: React.CSSProperties = { ...tdStyle, wordBreak: "normal", overflowWrap: "normal", hyphens: "none", lineHeight: 1.55 };
 const rightTdStyle: React.CSSProperties = { ...tdStyle, textAlign: "right", whiteSpace: "nowrap" };
 
 const totalsSectionStyle: React.CSSProperties = {
