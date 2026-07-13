@@ -28,7 +28,10 @@ type CompanyForm = {
   company_name_en: string;
   tax_id: string;
   branch_label: string;
+  branch_th: string;
+  branch_en: string;
   address_th: string;
+  address_en: string;
   phone: string;
   email: string;
   website: string;
@@ -107,7 +110,10 @@ export default function DocumentSettingsPage() {
       company_name_en: company.companyNameEn,
       tax_id: company.taxId,
       branch_label: company.branchLabel,
+      branch_th: company.branchTh,
+      branch_en: company.branchEn,
       address_th: company.addressTh,
+      address_en: company.addressEn,
       phone: company.phone,
       email: company.email,
       website: company.website,
@@ -139,6 +145,7 @@ export default function DocumentSettingsPage() {
     const { error } = await supabase.from("finance_company_profiles").upsert({
       id: "default",
       ...companyForm,
+      branch_label: companyForm.branch_th.trim() || companyForm.branch_label || null,
       logo_storage_path: companyForm.logo_storage_path || null,
       updated_by_user_id: userId,
       updated_by_email: userEmail,
@@ -471,13 +478,17 @@ export default function DocumentSettingsPage() {
             <TextField label="Thai company name" value={companyForm.company_name_th} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, company_name_th: value })} />
             <TextField label="English company name" value={companyForm.company_name_en} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, company_name_en: value })} />
             <TextField label="Tax ID" value={companyForm.tax_id} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, tax_id: value })} />
-            <TextField label="Branch" value={companyForm.branch_label} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, branch_label: value })} />
+            <TextField label="Quotation prefix" value={companyForm.quotation_prefix} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, quotation_prefix: value })} />
+            <TextField label="สาขาภาษาไทย / Branch (TH)" value={companyForm.branch_th} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, branch_th: value })} />
+            <TextField label="สาขาภาษาอังกฤษ / Branch (EN)" value={companyForm.branch_en} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, branch_en: value })} />
             <TextField label="Phone" value={companyForm.phone} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, phone: value })} />
             <TextField label="Email" value={companyForm.email} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, email: value })} />
             <TextField label="Website" value={companyForm.website} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, website: value })} />
-            <TextField label="Quotation prefix" value={companyForm.quotation_prefix} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, quotation_prefix: value })} />
-            <label style={wideLabelStyle}>Address
+            <label style={wideLabelStyle}>ที่อยู่ภาษาไทย / Address (TH)
               <textarea value={companyForm.address_th} disabled={!isAdmin} onChange={(event) => setCompanyForm({ ...companyForm, address_th: event.target.value })} style={textareaStyle} />
+            </label>
+            <label style={wideLabelStyle}>ที่อยู่ภาษาอังกฤษ / Address (EN)
+              <textarea value={companyForm.address_en} disabled={!isAdmin} onChange={(event) => setCompanyForm({ ...companyForm, address_en: event.target.value })} style={textareaStyle} />
             </label>
             <label style={wideLabelStyle}>Description
               <textarea value={companyForm.description} disabled={!isAdmin} onChange={(event) => setCompanyForm({ ...companyForm, description: event.target.value })} style={textareaStyle} />
@@ -572,7 +583,10 @@ function getFallbackCompanyForm(): CompanyForm {
     company_name_en: profile.companyNameEn,
     tax_id: profile.taxId,
     branch_label: profile.branchLabel,
+    branch_th: profile.branchTh,
+    branch_en: profile.branchEn,
     address_th: profile.addressTh,
+    address_en: profile.addressEn,
     phone: profile.phone,
     email: profile.email,
     website: profile.website,

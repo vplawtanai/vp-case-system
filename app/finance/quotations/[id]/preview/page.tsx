@@ -281,9 +281,10 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
           <section className="quotation-compact-block" style={topGridStyle}>
             <div style={panelStyle}>
               <h2 style={panelTitleStyle}>ผู้ให้บริการ / Service Provider</h2>
-              <InfoLine label="Company" value={`${companyProfile.companyNameTh} / ${companyProfile.companyNameEn}`} />
-              <InfoLine label="Tax ID" value={`${companyProfile.taxId}${companyProfile.branchLabel ? ` (${companyProfile.branchLabel})` : ""}`} />
-              <InfoLine label="Address" value={companyProfile.addressTh} />
+              <BilingualInfoLine label="Company" thaiValue={companyProfile.companyNameTh} englishValue={companyProfile.companyNameEn} strong />
+              <InfoLine label="Tax ID" value={companyProfile.taxId} />
+              {companyProfile.branchTh || companyProfile.branchEn ? <BilingualInfoLine label="Branch" thaiValue={companyProfile.branchTh} englishValue={companyProfile.branchEn} /> : null}
+              <BilingualInfoLine label="Address" thaiValue={companyProfile.addressTh} englishValue={companyProfile.addressEn} />
               <InfoLine label="Phone" value={companyProfile.phone} />
               <InfoLine label="Email" value={companyProfile.email} />
               <InfoLine label="Website" value={companyProfile.website} />
@@ -408,6 +409,21 @@ function InfoLine({ label, value, strong = false, wide = false }: { label: strin
     <div style={wide ? wideInfoLineStyle : infoLineStyle}>
       <span style={infoLineLabelStyle}>{label}</span>
       <span style={strong ? strongInfoLineValueStyle : infoLineValueStyle}>{value || "-"}</span>
+    </div>
+  );
+}
+
+function BilingualInfoLine({ label, thaiValue, englishValue, strong = false }: { label: string; thaiValue: string; englishValue: string; strong?: boolean }) {
+  const hasThai = Boolean(thaiValue?.trim());
+  const hasEnglish = Boolean(englishValue?.trim());
+  return (
+    <div style={infoLineStyle}>
+      <span style={infoLineLabelStyle}>{label}</span>
+      <div style={bilingualInfoValueBlockStyle}>
+        {hasThai ? <span style={strong ? strongBilingualInfoLineValueStyle : bilingualInfoLineValueStyle}>{thaiValue}</span> : null}
+        {hasEnglish ? <span style={englishInfoLineValueStyle}>{englishValue}</span> : null}
+        {!hasThai && !hasEnglish ? <span style={infoLineValueStyle}>-</span> : null}
+      </div>
     </div>
   );
 }
@@ -562,6 +578,7 @@ function resolveCompanyProfile(snapshot: Record<string, unknown> | null, current
   const companyNameTh = getSnapshotText(snapshot, "company_name_th") || currentCompany.companyNameTh;
   const companyNameEn = getSnapshotText(snapshot, "company_name_en") || currentCompany.companyNameEn;
   const addressTh = getSnapshotText(snapshot, "address_th") || currentCompany.addressTh;
+  const branchTh = getSnapshotText(snapshot, "branch_th") || getSnapshotText(snapshot, "branch_label") || currentCompany.branchTh;
 
   return {
     nameTh: companyNameTh,
@@ -569,9 +586,12 @@ function resolveCompanyProfile(snapshot: Record<string, unknown> | null, current
     companyNameTh,
     companyNameEn,
     taxId: getSnapshotText(snapshot, "tax_id") || currentCompany.taxId,
-    branchLabel: getSnapshotText(snapshot, "branch_label") || currentCompany.branchLabel,
+    branchLabel: branchTh,
+    branchTh,
+    branchEn: getSnapshotText(snapshot, "branch_en") || currentCompany.branchEn,
     address: addressTh,
     addressTh,
+    addressEn: getSnapshotText(snapshot, "address_en") || currentCompany.addressEn,
     phone: getSnapshotText(snapshot, "phone") || currentCompany.phone,
     email: getSnapshotText(snapshot, "email") || currentCompany.email,
     website: getSnapshotText(snapshot, "website") || currentCompany.website,
@@ -839,6 +859,10 @@ const wideInfoLineStyle: React.CSSProperties = { ...infoLineStyle, gridColumn: "
 const infoLineLabelStyle: React.CSSProperties = { color: "#6b7280", fontWeight: 600 };
 const infoLineValueStyle: React.CSSProperties = { color: "#1f2937", fontWeight: 400, lineHeight: 1.55, overflowWrap: "anywhere" };
 const strongInfoLineValueStyle: React.CSSProperties = { ...infoLineValueStyle, fontWeight: 700 };
+const bilingualInfoValueBlockStyle: React.CSSProperties = { display: "grid", gap: 3, minWidth: 0 };
+const bilingualInfoLineValueStyle: React.CSSProperties = { ...infoLineValueStyle, whiteSpace: "pre-line" };
+const strongBilingualInfoLineValueStyle: React.CSSProperties = { ...strongInfoLineValueStyle, whiteSpace: "pre-line" };
+const englishInfoLineValueStyle: React.CSSProperties = { ...bilingualInfoLineValueStyle, color: "#6b7280", fontSize: 11.5 };
 
 const sectionStyle: React.CSSProperties = { marginBottom: 24 };
 const sectionTitleStyle: React.CSSProperties = { margin: "0 0 12px", fontSize: 15, fontWeight: 800, color: "#1f2937" };

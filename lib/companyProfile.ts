@@ -20,8 +20,11 @@ export type CompanyProfile = {
   companyNameEn: string;
   taxId: string;
   branchLabel: string;
+  branchTh: string;
+  branchEn: string;
   address: string;
   addressTh: string;
+  addressEn: string;
   phone: string;
   email: string;
   website: string;
@@ -37,7 +40,10 @@ export type DbCompanyProfile = {
   company_name_en?: string | null;
   tax_id?: string | null;
   branch_label?: string | null;
+  branch_th?: string | null;
+  branch_en?: string | null;
   address_th?: string | null;
+  address_en?: string | null;
   phone?: string | null;
   email?: string | null;
   website?: string | null;
@@ -67,8 +73,11 @@ export const VP_COMPANY_PROFILE: CompanyProfile = {
   companyNameEn: "VP Partners Co., Ltd.",
   taxId: "0105559032840 (สำนักงานใหญ่)",
   branchLabel: "สำนักงานใหญ่",
+  branchTh: "สำนักงานใหญ่",
+  branchEn: "",
   address: "เลขที่ 91/260 ถนนสุวินทวงศ์ แขวงมีนบุรี เขตมีนบุรี กรุงเทพมหานคร 10510",
   addressTh: "เลขที่ 91/260 ถนนสุวินทวงศ์ แขวงมีนบุรี เขตมีนบุรี กรุงเทพมหานคร 10510",
+  addressEn: "",
   phone: "06-6014-3225",
   email: "info@vplawyer.com",
   website: "vplawyer.com",
@@ -112,6 +121,7 @@ export function normalizeCompanyProfile(row?: DbCompanyProfile | null): CompanyP
   const companyNameTh = row?.company_name_th || VP_COMPANY_PROFILE.companyNameTh;
   const companyNameEn = row?.company_name_en || VP_COMPANY_PROFILE.companyNameEn;
   const addressTh = row?.address_th || VP_COMPANY_PROFILE.addressTh;
+  const branchTh = row?.branch_th || row?.branch_label || VP_COMPANY_PROFILE.branchTh;
 
   return {
     nameTh: companyNameTh,
@@ -119,9 +129,12 @@ export function normalizeCompanyProfile(row?: DbCompanyProfile | null): CompanyP
     companyNameTh,
     companyNameEn,
     taxId: row?.tax_id || VP_COMPANY_PROFILE.taxId,
-    branchLabel: row?.branch_label || VP_COMPANY_PROFILE.branchLabel,
+    branchLabel: branchTh,
+    branchTh,
+    branchEn: row?.branch_en || VP_COMPANY_PROFILE.branchEn,
     address: addressTh,
     addressTh,
+    addressEn: row?.address_en || VP_COMPANY_PROFILE.addressEn,
     phone: row?.phone || VP_COMPANY_PROFILE.phone,
     email: row?.email || VP_COMPANY_PROFILE.email,
     website: row?.website || VP_COMPANY_PROFILE.website,
