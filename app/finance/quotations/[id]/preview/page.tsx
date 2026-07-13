@@ -298,7 +298,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
             </div>
           </section>
 
-          <section className="quotation-compact-block" style={panelStyle}>
+          <section className="quotation-compact-block" style={{ ...panelStyle, marginBottom: 24 }}>
             <h2 style={panelTitleStyle}>ลูกค้า / Client</h2>
             <div style={clientGridStyle}>
               <InfoLine label="Client Name" value={clientName} strong />
@@ -612,7 +612,7 @@ const printCss = `
   @media print {
     @page {
       size: A4;
-      margin: 8mm;
+      margin: 10mm;
     }
     html,
     body {
@@ -738,25 +738,25 @@ const documentStyle: React.CSSProperties = {
   margin: "0 auto",
   background: "#ffffff",
   color: "#111827",
-  border: "1px solid #E5E7EB",
+  border: "1px solid #e5e7eb",
   borderRadius: 6,
-  boxShadow: "0 10px 32px rgba(15, 23, 42, 0.08)",
-  padding: "38px 42px",
+  boxShadow: "none",
+  padding: "40px 42px",
 };
 
 const documentHeaderStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  gap: 28,
-  borderBottom: "3px solid #16A344",
-  paddingBottom: 18,
-  marginBottom: 22,
+  gap: 24,
+  borderBottom: "2px solid #16A344",
+  paddingBottom: 16,
+  marginBottom: 24,
 };
 
 const providerHeaderStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: 14,
+  gap: 12,
   minWidth: 0,
 };
 
@@ -773,126 +773,126 @@ const companyMarkStyle: React.CSSProperties = {
   flex: "0 0 auto",
 };
 const companyLogoStyle: React.CSSProperties = {
-  width: 108,
-  height: 108,
+  width: 88,
+  height: 88,
   display: "block",
   objectFit: "contain",
   background: "transparent",
   flex: "0 0 auto",
 };
 
-const companyNameThaiStyle: React.CSSProperties = { fontSize: 17, fontWeight: 900, lineHeight: 1.35 };
-const companyNameStyle: React.CSSProperties = { fontSize: 15, fontWeight: 900, lineHeight: 1.35 };
-const companyMetaStyle: React.CSSProperties = { marginTop: 4, fontSize: 12, color: "#6b7280", fontWeight: 800 };
-const documentTitleBlockStyle: React.CSSProperties = { textAlign: "right", minWidth: 260 };
-const documentTitleStyle: React.CSSProperties = { margin: 0, fontSize: 30, fontWeight: 900, letterSpacing: 0, color: "#15803D" };
-const documentSubtitleStyle: React.CSSProperties = { marginTop: 1, fontSize: 16, color: "#6B7280", fontWeight: 800 };
+const companyNameThaiStyle: React.CSSProperties = { fontSize: 17, fontWeight: 800, lineHeight: 1.4, color: "#1f2937" };
+const companyNameStyle: React.CSSProperties = { marginTop: 1, fontSize: 14, fontWeight: 600, lineHeight: 1.4, color: "#374151" };
+const companyMetaStyle: React.CSSProperties = { marginTop: 4, fontSize: 12, color: "#6b7280", fontWeight: 400 };
+const documentTitleBlockStyle: React.CSSProperties = { textAlign: "right", minWidth: 220 };
+const documentTitleStyle: React.CSSProperties = { margin: 0, fontSize: 29, fontWeight: 800, letterSpacing: 0, color: "#15803D" };
+const documentSubtitleStyle: React.CSSProperties = { marginTop: 2, fontSize: 14, color: "#6B7280", fontWeight: 500 };
 const statusStyle: React.CSSProperties = {
   marginTop: 8,
   display: "inline-block",
   textTransform: "capitalize",
-  fontWeight: 900,
+  fontWeight: 700,
   border: "1px solid #d1d5db",
   borderRadius: 999,
-  padding: "4px 12px",
-  fontSize: 12,
+  padding: "4px 10px",
+  fontSize: 11.5,
 };
 
 const topGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "1fr 1fr",
-  gap: 14,
-  marginBottom: 14,
+  gap: 16,
+  marginBottom: 18,
 };
 
 const panelStyle: React.CSSProperties = {
-  border: "1px solid #E5E7EB",
+  border: "1px solid #e1e7e3",
   borderRadius: 6,
-  padding: 14,
+  padding: 16,
   minWidth: 0,
-  marginBottom: 14,
+  marginBottom: 0,
 };
 
 const panelTitleStyle: React.CSSProperties = {
-  margin: "0 0 10px",
+  margin: "0 0 12px",
   fontSize: 14,
-  fontWeight: 900,
+  fontWeight: 800,
   color: "#15803D",
 };
 
 const clientGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-  columnGap: 18,
+  columnGap: 24,
 };
 
 const infoLineStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "132px minmax(0, 1fr)",
-  gap: 8,
-  padding: "5px 0",
-  borderBottom: "1px solid #f3f4f6",
+  gap: 10,
+  padding: "6px 0",
+  borderBottom: "1px solid #f1f5f2",
   fontSize: 12,
 };
 
 const wideInfoLineStyle: React.CSSProperties = { ...infoLineStyle, gridColumn: "span 2" };
-const infoLineLabelStyle: React.CSSProperties = { color: "#6b7280", fontWeight: 800 };
-const infoLineValueStyle: React.CSSProperties = { color: "#111827", fontWeight: 600, lineHeight: 1.45, overflowWrap: "anywhere" };
-const strongInfoLineValueStyle: React.CSSProperties = { ...infoLineValueStyle, fontWeight: 900 };
+const infoLineLabelStyle: React.CSSProperties = { color: "#6b7280", fontWeight: 600 };
+const infoLineValueStyle: React.CSSProperties = { color: "#1f2937", fontWeight: 400, lineHeight: 1.55, overflowWrap: "anywhere" };
+const strongInfoLineValueStyle: React.CSSProperties = { ...infoLineValueStyle, fontWeight: 700 };
 
-const sectionStyle: React.CSSProperties = { marginBottom: 20 };
-const sectionTitleStyle: React.CSSProperties = { margin: "0 0 10px", fontSize: 15, fontWeight: 900 };
+const sectionStyle: React.CSSProperties = { marginBottom: 24 };
+const sectionTitleStyle: React.CSSProperties = { margin: "0 0 12px", fontSize: 15, fontWeight: 800, color: "#1f2937" };
 const documentTextSectionStyle: React.CSSProperties = { breakInside: "avoid" };
-const sectionDividerStyle: React.CSSProperties = { height: 2, width: 56, background: "#16A344", margin: "0 0 9px" };
+const sectionDividerStyle: React.CSSProperties = { height: 1, width: 56, background: "#16A344", margin: "0 0 12px" };
 const documentTextStyle: React.CSSProperties = {
-  fontSize: 12.8,
-  lineHeight: 1.62,
+  fontSize: 13,
+  lineHeight: 1.72,
   whiteSpace: "pre-wrap",
   color: "#1F2937",
-  paddingLeft: 2,
+  fontWeight: 400,
 };
 
 const tableStyle: React.CSSProperties = { width: "100%", borderCollapse: "collapse", tableLayout: "fixed" };
 const thStyle: React.CSSProperties = {
   textAlign: "left",
-  padding: "9px 7px",
-  borderBottom: "1px solid #86efac",
+  padding: "10px 8px",
+  borderBottom: "1px solid #bbf7d0",
   background: "#F0FDF4",
   fontSize: 10.5,
-  color: "#374151",
-  fontWeight: 900,
+  color: "#1f2937",
+  fontWeight: 800,
 };
 const rightThStyle: React.CSSProperties = { ...thStyle, textAlign: "right", whiteSpace: "nowrap" };
-const tdStyle: React.CSSProperties = { padding: "10px 7px", borderBottom: "1px solid #e5e7eb", fontSize: 11.5, verticalAlign: "top" };
-const descriptionTdStyle: React.CSSProperties = { ...tdStyle, overflowWrap: "anywhere", lineHeight: 1.45 };
+const tdStyle: React.CSSProperties = { padding: "11px 8px", borderBottom: "1px solid #edf0ee", fontSize: 11.5, verticalAlign: "top", fontWeight: 400 };
+const descriptionTdStyle: React.CSSProperties = { ...tdStyle, overflowWrap: "anywhere", lineHeight: 1.55 };
 const rightTdStyle: React.CSSProperties = { ...tdStyle, textAlign: "right", whiteSpace: "nowrap" };
 
 const totalsSectionStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "1fr 330px",
-  gap: 22,
+  gridTemplateColumns: "minmax(0, 1fr) 310px",
+  gap: 24,
   alignItems: "start",
   marginTop: 18,
 };
 
 const termsBoxStyle: React.CSSProperties = {
-  border: "1px solid #E5E7EB",
+  border: "1px solid #e1e7e3",
   borderRadius: 6,
-  padding: 11,
+  padding: 14,
 };
-const noteParagraphStyle: React.CSSProperties = { margin: "0 0 8px", fontSize: 12.5, lineHeight: 1.52, whiteSpace: "pre-wrap" };
-const standardConditionsStyle: React.CSSProperties = { display: "grid", gap: 8, margin: 0 };
-const standardConditionStyle: React.CSSProperties = { margin: 0, fontSize: 12.2, lineHeight: 1.48, fontWeight: 400 };
+const noteParagraphStyle: React.CSSProperties = { margin: "0 0 10px", fontSize: 12.5, lineHeight: 1.65, whiteSpace: "pre-wrap", fontWeight: 400 };
+const standardConditionsStyle: React.CSSProperties = { display: "grid", gap: 10, margin: 0 };
+const standardConditionStyle: React.CSSProperties = { margin: 0, fontSize: 12.2, lineHeight: 1.6, fontWeight: 400 };
 const totalsBoxStyle: React.CSSProperties = {
   display: "grid",
   gap: 5,
-  border: "1px solid #16A344",
+  border: "1px solid #bbf7d0",
   borderRadius: 6,
-  padding: 12,
+  padding: 14,
   background: "#F0FDF4",
 };
-const totalLineStyle: React.CSSProperties = { display: "flex", alignItems: "flex-start", gap: 12, fontSize: 12.5, lineHeight: 1.35 };
-const totalStrongLineStyle: React.CSSProperties = { ...totalLineStyle, borderTop: "2px solid #16A344", paddingTop: 7, fontSize: 15, color: "#15803D" };
+const totalLineStyle: React.CSSProperties = { display: "flex", alignItems: "flex-start", gap: 14, fontSize: 12.5, lineHeight: 1.5, color: "#374151" };
+const totalStrongLineStyle: React.CSSProperties = { ...totalLineStyle, borderTop: "1px solid #16A344", paddingTop: 9, marginTop: 2, fontSize: 15, color: "#15803D" };
 const totalLabelStyle: React.CSSProperties = { flex: "1 1 0", minWidth: 0, wordBreak: "normal", overflowWrap: "normal", hyphens: "none" };
 const totalValueStyle: React.CSSProperties = { flex: "0 0 auto", whiteSpace: "nowrap", textAlign: "right" };
 const totalStrongValueStyle: React.CSSProperties = { ...totalValueStyle, color: "#15803D" };
@@ -906,7 +906,7 @@ const signatureGridStyle: React.CSSProperties = {
 };
 
 const signatureBlockStyle: React.CSSProperties = {
-  border: "1px solid #d1d5db",
+  border: "1px solid #d9e1dc",
   borderRadius: 6,
   minHeight: 0,
   boxSizing: "border-box",
@@ -914,7 +914,7 @@ const signatureBlockStyle: React.CSSProperties = {
   gridTemplateRows: "22px 92px 1px 10px 22px 22px 22px 22px",
   padding: 16,
 };
-const signatureTitleStyle: React.CSSProperties = { alignSelf: "start", fontSize: 13, fontWeight: 900, lineHeight: "22px", margin: 0, color: "#15803D" };
+const signatureTitleStyle: React.CSSProperties = { alignSelf: "start", fontSize: 13, fontWeight: 800, lineHeight: "22px", margin: 0, color: "#15803D" };
 const signatureViewportStyle: React.CSSProperties = { width: 252, height: 92, display: "flex", alignItems: "flex-end", overflow: "visible" };
 const signatureImageStyle: React.CSSProperties = { display: "block", width: "auto", height: "auto", maxWidth: "100%", maxHeight: "100%", marginLeft: 24, objectFit: "contain", objectPosition: "left bottom", background: "transparent" };
 const signatureBlankSpaceStyle: React.CSSProperties = { width: 252, height: 92 };
