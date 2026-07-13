@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- Private signed document assets must render eagerly and reliably in Browser Print. */
+
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
@@ -105,6 +107,8 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
   const [signerSignatureUrl, setSignerSignatureUrl] = useState("");
   const [loading, setLoading] = useState(true);
   const [errorText, setErrorText] = useState("");
+  const logoImageRef = useRef<HTMLImageElement | null>(null);
+  const signerSignatureImageRef = useRef<HTMLImageElement | null>(null);
 
   useEffect(() => {
     const loadPreview = async () => {
@@ -212,10 +216,15 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
   const excludedText = getSnapshotText(documentSnapshot, "excluded_services") || quotation?.excluded_services?.trim() || "";
   const signer = resolveQuotationSigner(quotation, signers);
 
+  const printWhenReady = async () => {
+    await waitForPrintReadiness([logoImageRef.current, signerSignatureImageRef.current]);
+    window.requestAnimationFrame(() => window.print());
+  };
+
   useEffect(() => {
     if (searchParams.get("print") !== "1" || loading || !quotation || hasOpenedPrintDialog.current) return;
     hasOpenedPrintDialog.current = true;
-    const timer = window.setTimeout(() => window.print(), 50);
+    const timer = window.setTimeout(() => { void printWhenReady(); }, 0);
     return () => window.clearTimeout(timer);
   }, [loading, quotation, searchParams]);
 
@@ -227,7 +236,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
         <Link href={quotationId ? `/finance/quotations/${quotationId}` : "/finance/quotations"} style={secondaryButtonStyle}>
           Back to Quotation
         </Link>
-        <button type="button" onClick={() => window.print()} style={primaryButtonStyle}>
+        <button type="button" onClick={() => { void printWhenReady(); }} style={primaryButtonStyle}>
           Print
         </button>
       </div>
@@ -239,7 +248,11 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
         <article className="quotation-print-document" style={documentStyle}>
           <header style={documentHeaderStyle}>
             <div style={providerHeaderStyle}>
-              <LogoMark logoUrl={logoUrl} />
+              <LogoMark
+                logoUrl={logoUrl}
+                imageRef={logoImageRef}
+                onError={() => setLogoUrl("")}
+              />
               <div>
                 <div style={companyNameThaiStyle}>{companyProfile.companyNameTh}</div>
                 <div style={companyNameStyle}>{companyProfile.companyNameEn}</div>
@@ -359,6 +372,8 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
               position={signer.position}
               email={signer.email}
               signatureUrl={signerSignatureUrl}
+              signatureImageRef={signerSignatureImageRef}
+              onSignatureError={() => setSignerSignatureUrl("")}
             />
             <SignatureBlock
               title="ผู้ยอมรับใบเสนอราคา / Client Acceptance"
@@ -366,6 +381,8 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
               position="____________________"
               email=""
               signatureUrl=""
+              signatureImageRef={null}
+              onSignatureError={undefined}
             />
           </section>
         </article>
@@ -402,16 +419,16 @@ function DocumentTextSection({ title, value }: { title: string; value: string })
   );
 }
 
-function LogoMark({ logoUrl }: { logoUrl: string }) {
+function LogoMark({ logoUrl, imageRef, onError }: { logoUrl: string; imageRef: React.RefObject<HTMLImageElement | null>; onError: () => void }) {
   if (!logoUrl) return <div className="quotation-logo" style={companyMarkStyle}>VP</div>;
-  return <div className="quotation-logo" style={{ ...companyLogoFrameStyle, backgroundImage: `url("${logoUrl}")` }} />;
+  return <img ref={imageRef} className="quotation-logo quotation-logo-image" src={logoUrl} alt="VP Partners" loading="eager" onError={onError} style={companyLogoStyle} />;
 }
 
-function SignatureBlock({ title, name, position, email, signatureUrl }: { title: string; name: string; position: string; email: string; signatureUrl: string }) {
+function SignatureBlock({ title, name, position, email, signatureUrl, signatureImageRef, onSignatureError }: { title: string; name: string; position: string; email: string; signatureUrl: string; signatureImageRef: React.RefObject<HTMLImageElement | null> | null; onSignatureError?: () => void }) {
   return (
     <div style={signatureBlockStyle}>
       <div style={signatureTitleStyle}>{title}</div>
-      {signatureUrl ? <div style={{ ...signatureImageStyle, backgroundImage: `url("${signatureUrl}")` }} /> : <div style={signatureBlankSpaceStyle} />}
+      {signatureUrl ? <img ref={signatureImageRef} className="quotation-signature-image" src={signatureUrl} alt="Authorized signer signature" loading="eager" onError={onSignatureError} style={signatureImageStyle} /> : <div style={signatureBlankSpaceStyle} />}
       <div style={signatureLineStyle} />
       <div style={signatureFieldStyle}>Name: {name}</div>
       <div style={signatureFieldStyle}>Position: {position}</div>
@@ -429,6 +446,36 @@ function resolveQuotationSigner(quotation: QuotationRow | null, signers: Authori
     position: quotation?.authorized_signer_position || getSnapshotText(signerSnapshot, "position") || formatSignerPosition(fallbackSigner),
     email: quotation?.authorized_signer_email || getSnapshotText(signerSnapshot, "email") || fallbackSigner.email,
   };
+}
+
+async function waitForPrintReadiness(images: Array<HTMLImageElement | null>) {
+  const fontsReady = document.fonts?.ready?.catch(() => undefined) || Promise.resolve();
+  await Promise.race([
+    Promise.all([fontsReady, ...images.map(waitForImage)]),
+    new Promise<void>((resolve) => window.setTimeout(resolve, 3_500)),
+  ]);
+}
+
+async function waitForImage(image: HTMLImageElement | null) {
+  if (!image) return;
+
+  if (!image.complete) {
+    await new Promise<void>((resolve) => {
+      const settle = () => {
+        image.removeEventListener("load", settle);
+        image.removeEventListener("error", settle);
+        resolve();
+      };
+      image.addEventListener("load", settle, { once: true });
+      image.addEventListener("error", settle, { once: true });
+    });
+  }
+
+  try {
+    await image.decode?.();
+  } catch {
+    // The error handler switches to a safe visual fallback; printing must not wait indefinitely.
+  }
 }
 
 function getPreviewStatusStyle(status: string | null): React.CSSProperties {
@@ -598,14 +645,23 @@ const printCss = `
       page-break-inside: avoid;
       margin-top: 14px !important;
     }
-    .signature-section > div {
-      min-height: 88px !important;
-      padding: 8px !important;
+    .quotation-logo-image,
+    .quotation-signature-image {
+      display: block !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      background: transparent !important;
+      border: 0 !important;
+      box-shadow: none !important;
+      object-fit: contain !important;
     }
-    .quotation-logo {
-      background: #ffffff !important;
-      color: #111827 !important;
-      border: 2px solid #111827 !important;
+    .quotation-logo-image {
+      width: 28mm !important;
+      height: 28mm !important;
+    }
+    .quotation-signature-image {
+      width: 45mm !important;
+      height: 20mm !important;
     }
   }
 `;
@@ -644,6 +700,7 @@ const providerHeaderStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 14,
+  minWidth: 0,
 };
 
 const companyMarkStyle: React.CSSProperties = {
@@ -658,15 +715,12 @@ const companyMarkStyle: React.CSSProperties = {
   fontWeight: 900,
   flex: "0 0 auto",
 };
-const companyLogoFrameStyle: React.CSSProperties = {
-  width: 54,
-  height: 54,
-  borderRadius: 8,
-  background: "#ffffff",
-  border: "2px solid #111827",
-  backgroundSize: "contain",
-  backgroundRepeat: "no-repeat",
-  backgroundPosition: "center",
+const companyLogoStyle: React.CSSProperties = {
+  width: 108,
+  height: 108,
+  display: "block",
+  objectFit: "contain",
+  background: "transparent",
   flex: "0 0 auto",
 };
 
@@ -797,8 +851,8 @@ const signatureBlockStyle: React.CSSProperties = {
   minHeight: 145,
 };
 const signatureTitleStyle: React.CSSProperties = { fontSize: 13, fontWeight: 900, marginBottom: 12, color: "#15803D" };
-const signatureImageStyle: React.CSSProperties = { height: 52, backgroundSize: "contain", backgroundRepeat: "no-repeat", backgroundPosition: "left center", marginBottom: 8 };
-const signatureBlankSpaceStyle: React.CSSProperties = { height: 52, marginBottom: 8 };
+const signatureImageStyle: React.CSSProperties = { width: 156, height: 76, display: "block", objectFit: "contain", objectPosition: "left center", background: "transparent", marginBottom: 8 };
+const signatureBlankSpaceStyle: React.CSSProperties = { height: 76, marginBottom: 8 };
 const signatureLineStyle: React.CSSProperties = { borderBottom: "1px solid #111827", marginBottom: 12 };
 const signatureFieldStyle: React.CSSProperties = { marginTop: 8, fontSize: 12, color: "#374151" };
 
