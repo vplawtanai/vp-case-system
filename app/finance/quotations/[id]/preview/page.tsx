@@ -350,12 +350,12 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
             <div style={termsBoxStyle}>
               <h2 style={sectionTitleStyle}>หมายเหตุและเงื่อนไข / Notes and Conditions</h2>
               {quotation.note ? <p className="quotation-thai-text" style={noteParagraphStyle}>{quotation.note}</p> : null}
-              <ul className="quotation-thai-text" style={termsListStyle}>
-                <li>ใบเสนอราคานี้ไม่ใช่ใบแจ้งหนี้หรือใบเสร็จรับเงิน</li>
-                <li>ค่าธรรมเนียมศาล ค่าธรรมเนียมราชการ ค่าเดินทาง ค่าที่พัก ค่าถ่ายเอกสาร ค่าจัดส่ง ค่าแปลเอกสาร และค่าใช้จ่ายนอกกระเป๋าอื่น ๆ ไม่รวมอยู่ในใบเสนอราคานี้ เว้นแต่ระบุไว้โดยชัดแจ้ง</li>
-                <li>การเริ่มงานขึ้นอยู่กับการยืนยันจากลูกความและ/หรือเงื่อนไขการชำระเงินที่คู่สัญญาตกลงกัน</li>
-                <li>ใบเสนอราคานี้มีผลถึงวันที่ Valid Until ที่ระบุไว้ข้างต้น</li>
-              </ul>
+              <div className="quotation-thai-text" style={standardConditionsStyle}>
+                <p style={standardConditionStyle}>ใบเสนอราคานี้ไม่ใช่ใบแจ้งหนี้หรือใบเสร็จรับเงิน</p>
+                <p style={standardConditionStyle}>ค่าธรรมเนียมศาล ค่าธรรมเนียมราชการ ค่าเดินทาง ค่าที่พัก ค่าถ่ายเอกสาร ค่าจัดส่ง ค่าแปลเอกสาร และค่าใช้จ่ายนอกกระเป๋าอื่น ๆ ไม่รวมอยู่ในใบเสนอราคานี้ เว้นแต่ระบุไว้โดยชัดแจ้ง</p>
+                <p style={standardConditionStyle}>การเริ่มงานขึ้นอยู่กับการยืนยันจากลูกความและ/หรือเงื่อนไขการชำระเงินที่คู่สัญญาตกลงกัน</p>
+                <p style={standardConditionStyle}>ใบเสนอราคานี้มีผลถึงวันที่ Valid Until ที่ระบุไว้ข้างต้น</p>
+              </div>
             </div>
             <div style={totalsBoxStyle}>
               <TotalLine label="รวมรายการที่มี VAT / Vatable Subtotal" value={quotation.subtotal_vatable} />
@@ -663,7 +663,7 @@ const printCss = `
     .signature-section {
       break-inside: avoid;
       page-break-inside: avoid;
-      margin-top: 10px !important;
+      margin-top: 8px !important;
     }
     .signature-section > div {
       padding: 10px !important;
@@ -693,7 +693,7 @@ const printCss = `
     .quotation-signature-viewport,
     .quotation-signature-blank {
       width: 62mm !important;
-      height: 29mm !important;
+      height: 21mm !important;
       margin-bottom: 0 !important;
       overflow: visible !important;
     }
@@ -855,10 +855,11 @@ const totalsSectionStyle: React.CSSProperties = {
 const termsBoxStyle: React.CSSProperties = {
   border: "1px solid #E5E7EB",
   borderRadius: 6,
-  padding: 13,
+  padding: 11,
 };
-const noteParagraphStyle: React.CSSProperties = { margin: "0 0 10px", fontSize: 12.5, lineHeight: 1.58, whiteSpace: "pre-wrap" };
-const termsListStyle: React.CSSProperties = { margin: 0, paddingLeft: 18, fontSize: 12.2, lineHeight: 1.58 };
+const noteParagraphStyle: React.CSSProperties = { margin: "0 0 8px", fontSize: 12.5, lineHeight: 1.52, whiteSpace: "pre-wrap" };
+const standardConditionsStyle: React.CSSProperties = { display: "grid", gap: 8, margin: 0 };
+const standardConditionStyle: React.CSSProperties = { margin: 0, fontSize: 12.2, lineHeight: 1.48, fontWeight: 400 };
 const totalsBoxStyle: React.CSSProperties = {
   display: "grid",
   gap: 5,
@@ -877,20 +878,20 @@ const signatureGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "1fr 1fr",
   gap: 38,
-  marginTop: 28,
+  marginTop: 20,
 };
 
 const signatureBlockStyle: React.CSSProperties = {
   border: "1px solid #d1d5db",
   borderRadius: 6,
-  padding: 12,
+  padding: 10,
 };
-const signatureTitleStyle: React.CSSProperties = { fontSize: 13, fontWeight: 900, marginBottom: 14, color: "#15803D" };
-const signatureViewportStyle: React.CSSProperties = { width: 252, height: 112, display: "flex", alignItems: "flex-end", overflow: "visible", marginBottom: 0 };
+const signatureTitleStyle: React.CSSProperties = { fontSize: 13, fontWeight: 900, marginBottom: 20, color: "#15803D" };
+const signatureViewportStyle: React.CSSProperties = { width: 252, height: 104, display: "flex", alignItems: "flex-end", overflow: "visible", marginBottom: 0 };
 const signatureImageStyle: React.CSSProperties = { width: 156, height: 76, display: "block", objectFit: "contain", objectPosition: "left bottom", background: "transparent", transform: "scale(1.6)", transformOrigin: "left bottom" };
-const signatureBlankSpaceStyle: React.CSSProperties = { width: 252, height: 112, marginBottom: 0 };
-const signatureLineStyle: React.CSSProperties = { borderBottom: "1px solid #111827", marginBottom: 9 };
-const signatureFieldStyle: React.CSSProperties = { marginTop: 6, fontSize: 12, color: "#374151" };
+const signatureBlankSpaceStyle: React.CSSProperties = { width: 252, height: 104, marginBottom: 0 };
+const signatureLineStyle: React.CSSProperties = { borderBottom: "1px solid #111827", marginBottom: 7 };
+const signatureFieldStyle: React.CSSProperties = { marginTop: 5, fontSize: 12, color: "#374151" };
 
 const primaryButtonStyle: React.CSSProperties = { border: "1px solid #111827", background: "#111827", color: "#ffffff", borderRadius: 6, padding: "9px 12px", fontWeight: 800, cursor: "pointer" };
 const secondaryButtonStyle: React.CSSProperties = { border: "1px solid #d1d5db", background: "#ffffff", color: "#111827", borderRadius: 6, padding: "9px 12px", fontWeight: 800, textDecoration: "none" };
