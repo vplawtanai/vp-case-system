@@ -368,47 +368,49 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
             </div>
           </section>
 
-          <section className="quotation-keep-together" style={totalsSectionStyle}>
-            <div style={termsBoxStyle}>
-              <h2 style={sectionTitleStyle}>หมายเหตุและเงื่อนไข / Notes and Conditions</h2>
-              {quotation.note ? <p className="quotation-thai-text" style={noteParagraphStyle}>{quotation.note}</p> : null}
-              <div className="quotation-thai-text" style={standardConditionsStyle}>
-                <p style={standardConditionStyle}>ใบเสนอราคานี้ไม่ใช่ใบแจ้งหนี้หรือใบเสร็จรับเงิน</p>
-                <p style={standardConditionStyle}>ค่าธรรมเนียมศาล ค่าธรรมเนียมราชการ ค่าเดินทาง ค่าที่พัก ค่าถ่ายเอกสาร ค่าจัดส่ง ค่าแปลเอกสาร และค่าใช้จ่ายอื่นที่สำนักงานสำรองจ่ายแทนลูกค้า ไม่รวมอยู่ในใบเสนอราคานี้ เว้นแต่จะระบุไว้โดยชัดแจ้ง</p>
-                <p style={standardConditionStyle}>การเริ่มงานขึ้นอยู่กับการยืนยันจากลูกความและ/หรือเงื่อนไขการชำระเงินที่คู่สัญญาตกลงกัน</p>
-                <p style={standardConditionStyle}>ใบเสนอราคานี้มีผลถึงวันที่ Valid Until ที่ระบุไว้ข้างต้น</p>
+          <section className="quotation-final-section" style={finalSectionStyle}>
+            <div className="quotation-keep-together" style={totalsSectionStyle}>
+              <div style={termsBoxStyle}>
+                <h2 style={sectionTitleStyle}>หมายเหตุและเงื่อนไข / Notes and Conditions</h2>
+                {quotation.note ? <p className="quotation-thai-text" style={noteParagraphStyle}>{quotation.note}</p> : null}
+                <div className="quotation-thai-text" style={standardConditionsStyle}>
+                  <p style={standardConditionStyle}>ใบเสนอราคานี้ไม่ใช่ใบแจ้งหนี้หรือใบเสร็จรับเงิน</p>
+                  <p style={standardConditionStyle}>ค่าธรรมเนียมศาล ค่าธรรมเนียมราชการ ค่าเดินทาง ค่าที่พัก ค่าถ่ายเอกสาร ค่าจัดส่ง ค่าแปลเอกสาร และค่าใช้จ่ายอื่นที่สำนักงานสำรองจ่ายแทนลูกค้า ไม่รวมอยู่ในใบเสนอราคานี้ เว้นแต่จะระบุไว้โดยชัดแจ้ง</p>
+                  <p style={standardConditionStyle}>การเริ่มงานขึ้นอยู่กับการยืนยันจากลูกความและ/หรือเงื่อนไขการชำระเงินที่คู่สัญญาตกลงกัน</p>
+                  <p style={standardConditionStyle}>ใบเสนอราคานี้มีผลถึงวันที่ Valid Until ที่ระบุไว้ข้างต้น</p>
+                </div>
+              </div>
+              <div style={totalsBoxStyle}>
+                <TotalLine label="รวมรายการที่มี VAT / Vatable Subtotal" value={quotation.subtotal_vatable} />
+                <TotalLine label="รวมรายการที่ไม่มี VAT / Non-Vatable Subtotal" value={quotation.subtotal_non_vatable} />
+                <TotalLine label="ภาษีมูลค่าเพิ่ม / VAT" value={quotation.vat_amount} />
+                <TotalLine label="จำนวนเงินตามใบเสนอราคา / Quotation Total" value={quotation.grand_total} strong />
               </div>
             </div>
-            <div style={totalsBoxStyle}>
-              <TotalLine label="รวมรายการที่มี VAT / Vatable Subtotal" value={quotation.subtotal_vatable} />
-              <TotalLine label="รวมรายการที่ไม่มี VAT / Non-Vatable Subtotal" value={quotation.subtotal_non_vatable} />
-              <TotalLine label="ภาษีมูลค่าเพิ่ม / VAT" value={quotation.vat_amount} />
-              <TotalLine label="จำนวนเงินตามใบเสนอราคา / Quotation Total" value={quotation.grand_total} strong />
-            </div>
-          </section>
 
-          <section className="quotation-signature-group" style={signatureGroupStyle}>
-            <h2 className="quotation-signatures-heading" style={signatureSectionTitleStyle}>การลงนาม / Signatures</h2>
-            <div className="signature-section" style={signatureGridStyle}>
-              <SignatureBlock
-                title="ผู้เสนอราคา / Service Provider"
-                name={signer.name}
-                position={signer.position}
-                email={signer.email}
-                signatureUrl={showSignerSignature ? signerSignatureUrl : ""}
-                signatureImageRef={signerSignatureImageRef}
-                onSignatureError={() => setSignerSignatureUrl("")}
-              />
-              <SignatureBlock
-                title="ผู้ยอมรับใบเสนอราคา / Client Acceptance"
-                name="____________________"
-                position="____________________"
-                email=""
-                signatureUrl=""
-                signatureImageRef={null}
-                onSignatureError={undefined}
-              />
-            </div>
+            <section className="quotation-signature-group" style={signatureGroupStyle}>
+              <h2 className="quotation-signatures-heading" style={signatureSectionTitleStyle}>การลงนาม / Signatures</h2>
+              <div className="signature-section" style={signatureGridStyle}>
+                <SignatureBlock
+                  title="ผู้เสนอราคา / Service Provider"
+                  name={signer.name}
+                  position={signer.position}
+                  email={signer.email}
+                  signatureUrl={showSignerSignature ? signerSignatureUrl : ""}
+                  signatureImageRef={signerSignatureImageRef}
+                  onSignatureError={() => setSignerSignatureUrl("")}
+                />
+                <SignatureBlock
+                  title="ผู้ยอมรับใบเสนอราคา / Client Acceptance"
+                  name="____________________"
+                  position="____________________"
+                  email=""
+                  signatureUrl=""
+                  signatureImageRef={null}
+                  onSignatureError={undefined}
+                />
+              </div>
+            </section>
           </section>
         </article>
       ) : null}
@@ -703,12 +705,15 @@ const printCss = `
     .quotation-keep-together {
       break-inside: avoid;
       page-break-inside: avoid;
-      margin-top: 10px !important;
+      margin-top: 0 !important;
+    }
+    .quotation-final-section {
+      gap: 5.5mm !important;
     }
     .quotation-signature-group {
       break-inside: avoid;
       page-break-inside: avoid;
-      margin-top: 4mm !important;
+      margin-top: 0 !important;
       margin-bottom: 4mm !important;
     }
     .quotation-signatures-heading {
@@ -920,10 +925,10 @@ const rightTdStyle: React.CSSProperties = { ...tdStyle, textAlign: "right", whit
 const totalsSectionStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "minmax(0, 58fr) minmax(0, 42fr)",
-  gap: 24,
+  gap: 18,
   alignItems: "start",
-  marginTop: 18,
 };
+const finalSectionStyle: React.CSSProperties = { display: "grid", gap: 24, marginTop: 18 };
 
 const termsBoxStyle: React.CSSProperties = {
   border: "1px solid #e1e7e3",
@@ -955,7 +960,7 @@ const signatureGridStyle: React.CSSProperties = {
   alignItems: "start",
 };
 
-const signatureGroupStyle: React.CSSProperties = { breakInside: "avoid", marginTop: 24, marginBottom: 16 };
+const signatureGroupStyle: React.CSSProperties = { breakInside: "avoid", margin: 0, marginBottom: 16 };
 const signatureSectionTitleStyle: React.CSSProperties = { ...panelTitleStyle, marginBottom: 12 };
 
 const signatureBlockStyle: React.CSSProperties = {
