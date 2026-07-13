@@ -285,10 +285,18 @@ export default function DocumentSettingsPage() {
       return;
     }
 
-    const path = makeStoragePath(`signers/${signer.id}`, file.name);
+    let croppedSignature: File;
+    try {
+      croppedSignature = await cropSignatureImage(file);
+    } catch (cropError) {
+      alert(cropError instanceof SignatureCropError ? cropError.message : "ไม่สามารถเตรียมไฟล์ลายเซ็นได้ กรุณาเลือกภาพลายเซ็นใหม่");
+      return;
+    }
+
+    const path = makeStoragePath(`signers/${signer.id}`, toPngFileName(file.name));
     const oldPath = signer.signature_storage_path;
     const signerPrefix = `signers/${signer.id}`;
-    const { error: uploadError } = await supabase.storage.from(ASSET_BUCKET).upload(path, file, { upsert: false });
+    const { error: uploadError } = await supabase.storage.from(ASSET_BUCKET).upload(path, croppedSignature, { upsert: false });
     if (uploadError) {
       alert("Unable to upload signature.");
       return;
@@ -321,6 +329,7 @@ export default function DocumentSettingsPage() {
       action: "update",
       note: `Uploaded/replaced signature for ${signer.display_name}`,
     });
+    alert("ครอปพื้นที่ว่างและอัปโหลดลายเซ็นเรียบร้อยแล้ว");
     await loadSettings();
   };
 
@@ -542,8 +551,108 @@ function validateImage(file: File, allowedTypes: string[]) {
   return "";
 }
 
+class SignatureCropError extends Error {}
+
+async function cropSignatureImage(file: File) {
+  const sourceUrl = URL.createObjectURL(file);
+
+  try {
+    const image = new Image();
+    image.src = sourceUrl;
+    await image.decode();
+
+    if (!image.naturalWidth || !image.naturalHeight) throw new SignatureCropError("ไม่พบเส้นลายเซ็นในไฟล์ กรุณาเลือกภาพลายเซ็นใหม่");
+
+    const sourceCanvas = document.createElement("canvas");
+    sourceCanvas.width = image.naturalWidth;
+    sourceCanvas.height = image.naturalHeight;
+    const sourceContext = sourceCanvas.getContext("2d", { willReadFrequently: true });
+    if (!sourceContext) throw new SignatureCropError("ไม่สามารถเตรียมไฟล์ลายเซ็นได้ กรุณาเลือกภาพลายเซ็นใหม่");
+
+    sourceContext.drawImage(image, 0, 0);
+    const pixels = sourceContext.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+    const bounds = findSignatureBounds(pixels, file.type === "image/jpeg");
+    if (!bounds) throw new SignatureCropError("ไม่พบเส้นลายเซ็นในไฟล์ กรุณาเลือกภาพลายเซ็นใหม่");
+
+    const padding = Math.ceil(Math.max(bounds.width, bounds.height) * 0.06);
+    const crop = {
+      left: Math.max(0, bounds.left - padding),
+      top: Math.max(0, bounds.top - padding),
+      right: Math.min(sourceCanvas.width, bounds.right + padding),
+      bottom: Math.min(sourceCanvas.height, bounds.bottom + padding),
+    };
+    const cropWidth = crop.right - crop.left;
+    const cropHeight = crop.bottom - crop.top;
+    const scale = Math.min(1, 1200 / cropWidth, 600 / cropHeight);
+    const outputWidth = Math.max(1, Math.round(cropWidth * scale));
+    const outputHeight = Math.max(1, Math.round(cropHeight * scale));
+    const outputCanvas = document.createElement("canvas");
+    outputCanvas.width = outputWidth;
+    outputCanvas.height = outputHeight;
+    const outputContext = outputCanvas.getContext("2d");
+    if (!outputContext) throw new SignatureCropError("ไม่สามารถเตรียมไฟล์ลายเซ็นได้ กรุณาเลือกภาพลายเซ็นใหม่");
+
+    outputContext.drawImage(sourceCanvas, crop.left, crop.top, cropWidth, cropHeight, 0, 0, outputWidth, outputHeight);
+    const outputBlob = await canvasToPng(outputCanvas);
+    if (outputBlob.size > 2 * 1024 * 1024) throw new SignatureCropError("ไฟล์ลายเซ็นหลังครอปมีขนาดใหญ่เกินไป กรุณาเลือกภาพที่เล็กลง");
+
+    return new File([outputBlob], toPngFileName(file.name), { type: "image/png" });
+  } catch (error) {
+    if (error instanceof SignatureCropError) throw error;
+    throw new SignatureCropError("ไม่สามารถเตรียมไฟล์ลายเซ็นได้ กรุณาเลือกภาพลายเซ็นใหม่");
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+  }
+}
+
+function findSignatureBounds(imageData: ImageData, treatWhiteAsBackground: boolean) {
+  const { data, width, height } = imageData;
+  let left = width;
+  let top = height;
+  let right = -1;
+  let bottom = -1;
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const offset = (y * width + x) * 4;
+      const alpha = data[offset + 3];
+      if (alpha <= 12) continue;
+
+      const isNearWhite = data[offset] >= 250 && data[offset + 1] >= 250 && data[offset + 2] >= 250;
+      if (treatWhiteAsBackground && isNearWhite) continue;
+
+      left = Math.min(left, x);
+      top = Math.min(top, y);
+      right = Math.max(right, x);
+      bottom = Math.max(bottom, y);
+    }
+  }
+
+  return right < left || bottom < top ? null : {
+    left,
+    top,
+    right: right + 1,
+    bottom: bottom + 1,
+    width: right - left + 1,
+    height: bottom - top + 1,
+  };
+}
+
+function canvasToPng(canvas: HTMLCanvasElement) {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new SignatureCropError("ไม่สามารถเตรียมไฟล์ลายเซ็นได้ กรุณาเลือกภาพลายเซ็นใหม่"));
+    }, "image/png");
+  });
+}
+
 function sanitizeFileName(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "asset";
+}
+
+function toPngFileName(value: string) {
+  return `${value.replace(/\.[^.]+$/, "") || "signature"}.png`;
 }
 
 function makeStoragePath(prefix: string, fileName: string) {
