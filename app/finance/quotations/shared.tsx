@@ -219,10 +219,11 @@ export function QuotationGuard({ children }: { children: (access: QuotationAcces
   );
 }
 
-export function FinanceSubNav({ activePage, permissions }: { activePage: "quotations" | "ledger" | "claims" | "compensation"; permissions: UserPermissions }) {
+export function FinanceSubNav({ activePage, permissions }: { activePage: "quotations" | "fee-agreements" | "ledger" | "claims" | "compensation"; permissions: UserPermissions }) {
   return (
     <nav style={subNavStyle}>
       {permissions.canViewFinanceQuotations ? <Link href="/finance/quotations" style={activePage === "quotations" ? subNavActiveLinkStyle : subNavLinkStyle}>Quotations</Link> : null}
+      {permissions.canViewFinanceQuotations ? <Link href="/finance/fee-agreements" style={activePage === "fee-agreements" ? subNavActiveLinkStyle : subNavLinkStyle}>Fee Agreements</Link> : null}
       {permissions.canViewCompanyLedger ? <Link href="/finance/ledger" style={activePage === "ledger" ? subNavActiveLinkStyle : subNavLinkStyle}>Ledger</Link> : null}
       {permissions.canSubmitExpenseClaim || permissions.canViewOwnExpenseClaims || permissions.canViewAllExpenseClaims ? <Link href="/finance/expense-claims" style={activePage === "claims" ? subNavActiveLinkStyle : subNavLinkStyle}>Expense Claims</Link> : null}
       {permissions.canViewLawyerCompensation ? <Link href="/finance/compensation" style={activePage === "compensation" ? subNavActiveLinkStyle : subNavLinkStyle}>Lawyer Compensation</Link> : null}
@@ -723,11 +724,13 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
 }
 
 export function QuotationDetail({ access, quotationId }: { access: QuotationAccess; quotationId: string }) {
+  const router = useRouter();
   const [quotation, setQuotation] = useState<QuotationRow | null>(null);
   const [items, setItems] = useState<QuotationItemRow[]>([]);
   const [lookups, setLookups] = useState<LookupState>(getEmptyLookups());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [feeAgreementId, setFeeAgreementId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -746,9 +749,10 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
       return;
     }
 
-    const [itemRes, lookupRes] = await Promise.all([
+    const [itemRes, lookupRes, agreementRes] = await Promise.all([
       supabase.from("finance_quotation_items").select("*").eq("quotation_id", quotationId).order("sort_order", { ascending: true }),
       loadLookups(),
+      supabase.from("finance_fee_agreements").select("id").eq("source_type", "quotation").eq("source_quotation_id", quotationId).neq("status", "cancelled").maybeSingle(),
     ]);
     if (itemRes.error) {
       console.warn("Failed to load quotation items", { quotationId, error: itemRes.error });
@@ -756,9 +760,23 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
 
     setQuotation(quotationRes.data as QuotationRow);
     setItems((itemRes.data || []) as QuotationItemRow[]);
+    setFeeAgreementId(agreementRes.data?.id || null);
     setLookups(lookupRes);
     setLoading(false);
   }, [quotationId]);
+
+  const createFeeAgreement = async () => {
+    if (!quotation || saving) return;
+    setSaving(true);
+    const { data, error } = await supabase.rpc("create_finance_fee_agreement_from_quotation", { p_quotation_id: quotation.id });
+    const result = Array.isArray(data) ? data[0] : data;
+    if (error || !result?.fee_agreement_id) {
+      alert("Unable to create Fee Agreement draft.");
+      setSaving(false);
+      return;
+    }
+    router.push(`/finance/fee-agreements/${result.fee_agreement_id}`);
+  };
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -821,6 +839,7 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
               <Link href="/finance/quotations" style={secondaryButtonStyle}>Back</Link>
               <Link href={`/finance/quotations/${quotation.id}/preview`} style={secondaryButtonStyle}>Preview</Link>
               <Link href={`/finance/quotations/${quotation.id}/preview?print=1`} style={secondaryButtonStyle} title="Open Browser Print for this quotation">Print</Link>
+              {quotation.status === "accepted" && access.permissions.canCreateFinanceQuotation ? (feeAgreementId ? <Link href={`/finance/fee-agreements/${feeAgreementId}`} style={primaryButtonStyle}>Open Fee Agreement</Link> : <button type="button" onClick={createFeeAgreement} disabled={saving} style={primaryButtonStyle}>สร้างข้อตกลงค่าบริการ</button>) : null}
               {quotation.status === "draft" && access.permissions.canEditFinanceQuotation ? <Link href={`/finance/quotations/${quotation.id}/edit`} style={primaryButtonStyle}>Edit Draft</Link> : null}
               {quotation.status === "draft" && access.permissions.canMarkFinanceQuotationSent ? <button type="button" onClick={() => updateStatus("sent")} disabled={saving} style={secondaryButtonStyle}>Mark Sent</button> : null}
               {quotation.status === "sent" && access.permissions.canMarkFinanceQuotationAccepted ? <button type="button" onClick={() => updateStatus("accepted")} disabled={saving} style={secondaryButtonStyle}>Mark Accepted</button> : null}
