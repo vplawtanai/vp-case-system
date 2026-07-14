@@ -181,3 +181,6 @@ Notifications: quotation review; accepted quotation without Agreement; Agreement
 Billing Plan migration may be applied only after this workflow and decision register are reviewed and no schema conflict is found. Sequence: review; approve/defer decisions; apply Billing Plan migration; verify objects/RPCs; commit/push migration and architecture documents; build Agreement/Plan UI and conversion; begin Invoice architecture only after Billing UI is proven.
 
 Assumptions: Quotation is implemented; Fee Agreement migration is applied/committed; `202607090010_create_finance_billing_plans.sql` is local and unapplied. Invoice, Payment, Receipt, Tax Center, Ledger integration, and the new allocation/compensation flow are future contracts, not current implementations.
+# Revenue Allocation Correction
+
+Billing Operations manages commercial documents, plans, invoices, payments, receipts, and authorized Ledger scopes, but does not configure or approve Revenue Allocation. Managing Partner approval occurs after confirmed payment; receipt and Ledger do not wait for it.

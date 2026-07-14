@@ -305,6 +305,10 @@ Allocation precedes Activation because activation freezes a financially material
 
 ## 20. Assumptions and Governance
 
+### Revenue Allocation Correction
+
+Fee Agreement activation does not require Revenue Allocation. Agreement-level allocation fields are legacy/optional hints only. Revenue Allocation is created per Confirmed Payment or Payment Allocation, approved by the Managing Partner, and only then freezes formula and recipients. Receipt and Ledger processes do not wait for allocation approval. VAT and excluded expenses never enter the compensation base; WHT remains subject to accounting policy.
+
 - Current technical access is Admin/Partner for the implemented finance surfaces; future business roles require explicit permission design.
 - Tax, receipt, void, credit-note, debit-note, WHT, and retention policy require accountant/legal approval before implementation.
 - Every future RPC should enforce the relevant transition server-side, lock its source row(s), use a fixed `search_path`, derive the actor from authenticated identity, and produce audit data.

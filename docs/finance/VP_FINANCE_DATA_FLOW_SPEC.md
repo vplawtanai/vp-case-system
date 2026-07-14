@@ -208,3 +208,6 @@ Next: review this standard; confirm VP decisions; apply and verify Billing Plan 
 ## 18. Assumptions and Scope
 
 `finance_billing_*`, invoices, payments, receipts, revenue allocation, and tax-center tables are not all production tables today. This document specifies their future contracts only. It does not create Invoice, Payment, Receipt, Ledger, or Compensation behavior.
+# Revenue Allocation Correction
+
+Canonical flow: Quotation → Fee Agreement → Billing Plan → Installment → Invoice → Payment Confirmed → Receipt → Ledger Posting → Revenue Allocation Draft → Managing Partner Approval → Compensation. Fee Agreement activation does not require allocation; allocation is determined after actual payment.
