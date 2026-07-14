@@ -82,6 +82,23 @@ type MatterRow = {
   title: string | null;
 };
 
+type PaymentTermsHeaderRow = { id: string; payment_method_type: string; client_summary: string | null };
+type PaymentInstallmentRow = {
+  id: string;
+  installment_no: number;
+  title: string;
+  calculation_type: string;
+  percentage: number | string | null;
+  trigger_type: string;
+  trigger_description: string | null;
+  due_date: string | null;
+  payment_due_days: number | string | null;
+  client_note: string | null;
+  amount_before_tax: number | string | null;
+  vat_amount: number | string | null;
+  total_amount: number | string | null;
+};
+
 export default function QuotationPreviewPage() {
   const params = useParams();
   const quotationId = Array.isArray(params.id) ? params.id[0] : params.id || "";
@@ -98,6 +115,8 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
   const hasOpenedPrintDialog = useRef(false);
   const [quotation, setQuotation] = useState<QuotationRow | null>(null);
   const [items, setItems] = useState<QuotationItemRow[]>([]);
+  const [paymentTerms, setPaymentTerms] = useState<PaymentTermsHeaderRow | null>(null);
+  const [paymentInstallments, setPaymentInstallments] = useState<PaymentInstallmentRow[]>([]);
   const [client, setClient] = useState<ClientRow | null>(null);
   const [caseItem, setCaseItem] = useState<CaseRow | null>(null);
   const [matter, setMatter] = useState<MatterRow | null>(null);
@@ -138,7 +157,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
       const loadedQuotation = quotationRes.data as QuotationRow;
       setQuotation(loadedQuotation);
 
-      const [itemsRes, clientRes, caseRes, matterRes, companyRes, signersRes] = await Promise.all([
+      const [itemsRes, clientRes, caseRes, matterRes, companyRes, signersRes, paymentTermsRes] = await Promise.all([
         supabase
           .from("finance_quotation_items")
           .select("*")
@@ -155,6 +174,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
           : Promise.resolve({ data: null, error: null }),
         supabase.from("finance_company_profiles").select("*").eq("id", "default").maybeSingle(),
         supabase.from("finance_authorized_signers").select("*").order("sort_order", { ascending: true }),
+        supabase.from("finance_quotation_payment_terms").select("id, payment_method_type, client_summary").eq("quotation_id", quotationId).maybeSingle(),
       ]);
 
       if (itemsRes.error) console.warn("Failed to load quotation preview items", itemsRes.error);
@@ -163,6 +183,16 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
       if (matterRes.error) console.warn("Failed to load quotation preview advisory matter", matterRes.error);
       if (companyRes.error) console.warn("Failed to load quotation preview company profile", companyRes.error);
       if (signersRes.error) console.warn("Failed to load quotation preview signers", signersRes.error);
+      if (paymentTermsRes.error) console.warn("Failed to load quotation preview payment terms", paymentTermsRes.error);
+
+      const paymentInstallmentsRes = paymentTermsRes.data
+        ? await supabase
+          .from("finance_quotation_payment_installments")
+          .select("id, installment_no, title, calculation_type, percentage, trigger_type, trigger_description, due_date, payment_due_days, client_note, amount_before_tax, vat_amount, total_amount")
+          .eq("payment_terms_id", paymentTermsRes.data.id)
+          .order("installment_no", { ascending: true })
+        : { data: [] as PaymentInstallmentRow[], error: null };
+      if (paymentInstallmentsRes.error) console.warn("Failed to load quotation preview payment installments", paymentInstallmentsRes.error);
 
       const documentSnapshot = getSnapshotObject(loadedQuotation.document_data_snapshot_json);
       const companySnapshot = getSnapshotObjectOrNull(documentSnapshot.company_profile) as DbCompanyProfile | null;
@@ -195,6 +225,8 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
       }
 
       setItems((itemsRes.data || []) as QuotationItemRow[]);
+      setPaymentTerms((paymentTermsRes.data || null) as PaymentTermsHeaderRow | null);
+      setPaymentInstallments((paymentInstallmentsRes.data || []) as PaymentInstallmentRow[]);
       setClient((clientRes.data || null) as ClientRow | null);
       setCaseItem((caseRes.data || null) as CaseRow | null);
       setMatter((matterRes.data || null) as MatterRow | null);
@@ -388,6 +420,8 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
               </div>
             </div>
 
+            <PaymentTermsPreview terms={paymentTerms} installments={paymentInstallments} />
+
             <section className="quotation-signature-group" style={signatureGroupStyle}>
               <h2 className="quotation-signatures-heading" style={signatureSectionTitleStyle}>การลงนาม / Signatures</h2>
               <div className="signature-section" style={signatureGridStyle}>
@@ -415,6 +449,33 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
         </article>
       ) : null}
     </div>
+  );
+}
+
+function PaymentTermsPreview({ terms, installments }: { terms: PaymentTermsHeaderRow | null; installments: PaymentInstallmentRow[] }) {
+  return (
+    <section className="quotation-keep-together" style={{ ...panelStyle, marginTop: 16 }}>
+      <h2 style={panelTitleStyle}>เงื่อนไขการชำระเงิน / Payment Terms</h2>
+      {!terms || installments.length === 0 ? <p style={noteParagraphStyle}>ไม่ได้บันทึกเงื่อนไขการชำระเงิน / Payment terms not recorded</p> : null}
+      {terms?.client_summary ? <div className="quotation-thai-text" style={noteParagraphStyle}>{terms.client_summary}</div> : null}
+      {installments.map((installment) => (
+        <div key={installment.id} className="quotation-payment-installment" style={{ borderTop: "1px solid #e5e7eb", paddingTop: 10, marginTop: 10, breakInside: "avoid", pageBreakInside: "avoid" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <strong>งวดที่ {installment.installment_no} / Installment {installment.installment_no}: {installment.title}</strong>
+            {installment.calculation_type === "percentage" && installment.percentage != null ? <span>{Number(installment.percentage).toFixed(6)}%</span> : null}
+          </div>
+          <div style={{ ...clientGridStyle, marginTop: 8 }}>
+            <InfoLine label="จำนวนเงินก่อน VAT / Before VAT" value={formatMoney(installment.amount_before_tax)} />
+            <InfoLine label="ภาษีมูลค่าเพิ่ม / VAT" value={formatMoney(installment.vat_amount)} />
+            <InfoLine label="ยอดรวม / Total" value={formatMoney(installment.total_amount)} strong />
+            {installment.trigger_description ? <InfoLine label="ถึงกำหนดเมื่อ / Trigger" value={installment.trigger_description} /> : null}
+            {installment.due_date ? <InfoLine label="Due Date" value={formatDate(installment.due_date)} /> : null}
+            <InfoLine label="ชำระภายใน / Payment Due" value={`${Number(installment.payment_due_days || 0)} วันนับแต่ได้รับใบแจ้งหนี้ / days after invoice`} />
+            {installment.client_note ? <InfoLine label="หมายเหตุสำหรับลูกค้า / Client Note" value={installment.client_note} wide /> : null}
+          </div>
+        </div>
+      ))}
+    </section>
   );
 }
 

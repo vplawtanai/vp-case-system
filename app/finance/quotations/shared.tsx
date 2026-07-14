@@ -910,7 +910,14 @@ function PaymentTermsEditor({ quotationId, quotationItems }: { quotationId: stri
       p_installments_json: payload,
     });
     if (error) {
-      console.error("Failed to save quotation payment terms", { quotationId, error });
+      console.error("Failed to save quotation payment terms", {
+        quotationId,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        payload,
+      });
       alert("ไม่สามารถบันทึกเงื่อนไขการชำระเงินได้ กรุณาตรวจสอบงวดและการจัดสรรยอดเงิน");
     } else await loadTerms();
     setSaving(false);
