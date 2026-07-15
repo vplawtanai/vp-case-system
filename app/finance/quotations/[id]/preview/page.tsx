@@ -55,6 +55,7 @@ type QuotationItemRow = {
   quantity: number | string | null;
   unit_price: number | string | null;
   amount_before_tax: number | string | null;
+  vat_applicable?: boolean | null;
   vat_amount: number | string | null;
   line_total: number | string | null;
   sort_order: number | null;
@@ -475,33 +476,40 @@ function PaymentTermsPreview({ terms, installments, allocations, quotationItems,
   if (!terms || installments.length === 0) return <section className="quotation-keep-together" style={{ ...panelStyle, marginTop: 16 }}><h2 style={panelTitleStyle}>เงื่อนไขการชำระเงิน / Payment Terms</h2><p style={noteParagraphStyle}>ไม่ได้บันทึกเงื่อนไขการชำระเงิน / Payment terms not recorded</p></section>;
   const sourceItems = quotationItems.filter((item) => item.id);
   const allocationsFor = (installmentId: string) => allocations.filter((item) => item.payment_installment_id === installmentId);
-  const isSummary = sourceItems.length > 0 && installments.every((installment) => {
+  const useCompactSummary = sourceItems.length === 1 && installments.every((installment) => {
     const rows = allocationsFor(installment.id);
-    const pct = Number(installment.percentage || 0);
-    return installment.calculation_type === "percentage" && rows.length === sourceItems.length && rows.every((row) => Number(row.allocation_percentage || 0) === pct);
+    return rows.length === 1 && rows[0].quotation_item_id === sourceItems[0].id;
   });
-  const hasVat = installments.some((installment) => Number(installment.vat_amount || 0) > 0);
+  const isPercentagePlan = installments.every((installment) => installment.calculation_type === "percentage");
   const heading = installments.length === 1 ? "ชำระเต็มจำนวน 1 งวด" : `แบ่งชำระจำนวน ${installments.length} งวด`;
-  const incomplete = String(status || "").toLowerCase() === "draft" && (isSummary ? installments.reduce((sum, installment) => sum + Number(installment.percentage || 0), 0) < 100 : allocations.reduce((sum, item) => sum + Number(item.allocated_total || 0), 0) < Number(quotationTotal || 0));
+  const incomplete = String(status || "").toLowerCase() === "draft" && (isPercentagePlan ? installments.reduce((sum, installment) => sum + Number(installment.percentage || 0), 0) < 100 : allocations.reduce((sum, item) => sum + Number(item.allocated_total || 0), 0) < Number(quotationTotal || 0));
+  const reconciliationWarnings = installments.flatMap((installment) => {
+    const rows = allocationsFor(installment.id);
+    const allocationTotals = rows.reduce((sum, row) => ({ beforeVat: roundCurrency(sum.beforeVat + Number(row.allocated_amount_before_tax || 0)), vat: roundCurrency(sum.vat + Number(row.allocated_vat_amount || 0)), total: roundCurrency(sum.total + Number(row.allocated_total || 0)) }), { beforeVat: 0, vat: 0, total: 0 });
+    const missingSource = rows.some((row) => !sourceItems.some((item) => item.id === row.quotation_item_id));
+    const mismatch = allocationTotals.beforeVat !== roundCurrency(Number(installment.amount_before_tax || 0)) || allocationTotals.vat !== roundCurrency(Number(installment.vat_amount || 0)) || allocationTotals.total !== roundCurrency(Number(installment.total_amount || 0));
+    return missingSource || mismatch ? [installment.installment_no] : [];
+  });
   return <section className="quotation-payment-terms-section" style={{ ...panelStyle, marginTop: 16 }}>
     {incomplete ? <p className="print-hidden" style={{ ...noteParagraphStyle, color: "#b45309" }}>เงื่อนไขการชำระเงินยังไม่ครบถ้วน</p> : null}
+    {String(status || "").toLowerCase() === "draft" && reconciliationWarnings.length > 0 ? <p className="print-hidden" style={{ ...noteParagraphStyle, color: "#b45309" }}>ตรวจพบข้อมูลการจัดสรรงวดที่ {reconciliationWarnings.join(", ")} ไม่สอดคล้องกับยอดที่บันทึกไว้ กรุณาตรวจสอบร่างใบเสนอราคา</p> : null}
     <h2 style={panelTitleStyle}>เงื่อนไขการชำระเงิน / Payment Terms</h2>
     <p className="quotation-thai-text" style={noteParagraphStyle}>{heading} | ยอดรวมตามใบเสนอราคา {formatMoney(quotationTotal)}<br />การเรียกเก็บเป็นไปตามความคืบหน้าของงานและเงื่อนไขที่ระบุในแต่ละงวด</p>
     {terms.client_summary ? <p className="quotation-thai-text" style={noteParagraphStyle}>{terms.client_summary}</p> : null}
-    {isSummary ? <>
+    {useCompactSummary ? <>
       <div style={feeTableWrapStyle}><table style={tableStyle}><thead><tr><th style={thStyle}>งวด / Installment</th><th style={thStyle}>เงื่อนไขการเรียกเก็บ / Billing Trigger</th><th style={rightThStyle}>สัดส่วน / Percentage</th><th style={thStyle}>กำหนดชำระ / Payment Due</th><th style={rightThStyle}>ยอดชำระ / Amount</th></tr></thead><tbody>
         {installments.map((installment) => <tr key={installment.id}><td style={tdStyle}>งวดที่ {installment.installment_no}</td><td style={tdStyle}>{paymentTriggerText(installment)}</td><td style={rightTdStyle}>{formatPercentage(installment.percentage)}</td><td style={tdStyle}>{paymentDueText(installment.payment_due_days)}</td><td style={rightTdStyle}>{formatMoney(installment.total_amount)}</td></tr>)}
         <tr><td colSpan={4} style={{ ...tdStyle, fontWeight: 700 }}>ยอดรวมตามใบเสนอราคา / Quotation Total</td><td style={{ ...rightTdStyle, fontWeight: 700 }}>{formatMoney(quotationTotal)}</td></tr>
       </tbody></table></div>
-      <p style={noteParagraphStyle}>แต่ละงวดคำนวณจากรายการค่าบริการตามสัดส่วนที่กำหนด{hasVat ? " โดยรวม VAT ตามรายการที่เกี่ยวข้อง" : ""}</p>
+      <p style={noteParagraphStyle}>แต่ละงวดคำนวณจากรายการค่าบริการรายการเดียวตามสัดส่วนที่กำหนด</p>
     </> : installments.map((installment) => {
       const rows = allocationsFor(installment.id);
-      return <div key={installment.id} className="quotation-payment-installment quotation-keep-together" style={{ borderTop: "1px solid #e5e7eb", paddingTop: 10, marginTop: 12 }}>
+      return <div key={installment.id} className="quotation-payment-installment" style={{ borderTop: "1px solid #e5e7eb", paddingTop: 10, marginTop: 12 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}><strong>งวดที่ {installment.installment_no}{isRedundantTitle(installment.title, installment.installment_no) ? "" : ` - ${installment.title}`}</strong>{installment.calculation_type === "percentage" ? <span>{formatPercentage(installment.percentage)}</span> : null}</div>
-        <p className="quotation-thai-text" style={noteParagraphStyle}>{paymentTriggerText(installment)}<br />{paymentDueText(installment.payment_due_days)}{installment.client_note ? ` | ${installment.client_note}` : ""}</p>
+        <p className="quotation-thai-text" style={noteParagraphStyle}><strong>เงื่อนไขการเรียกเก็บ / Billing Trigger:</strong> {paymentTriggerText(installment)}<br /><strong>กำหนดชำระ / Payment Due:</strong> {paymentDueText(installment.payment_due_days)}{installment.client_note ? <><br /><strong>หมายเหตุ / Note:</strong> {installment.client_note}</> : null}</p>
         <div style={feeTableWrapStyle}><table style={tableStyle}><thead><tr><th style={thStyle}>รายการ / Description</th><th style={rightThStyle}>จำนวนเงินก่อน VAT / Before VAT</th><th style={rightThStyle}>VAT</th><th style={rightThStyle}>ยอดรวม / Total</th></tr></thead><tbody>
-          {rows.map((row) => { const source = sourceItems.find((item) => item.id === row.quotation_item_id); return <tr key={`${installment.id}-${row.quotation_item_id}`}><td style={tdStyle}>{source?.description || (String(status).toLowerCase() === "draft" ? "ไม่พบรายการค่าบริการที่เชื่อมโยง" : "-")}</td><td style={rightTdStyle}>{formatMoney(row.allocated_amount_before_tax)}</td><td style={rightTdStyle}>{formatMoney(row.allocated_vat_amount)}</td><td style={rightTdStyle}>{formatMoney(row.allocated_total)}</td></tr>; })}
-          <tr><td style={{ ...tdStyle, fontWeight: 700 }}>รวมงวดที่ {installment.installment_no}</td><td style={{ ...rightTdStyle, fontWeight: 700 }}>{formatMoney(installment.amount_before_tax)}</td><td style={{ ...rightTdStyle, fontWeight: 700 }}>{formatMoney(installment.vat_amount)}</td><td style={{ ...rightTdStyle, fontWeight: 700 }}>{formatMoney(installment.total_amount)}</td></tr>
+          {rows.map((row) => { const source = sourceItems.find((item) => item.id === row.quotation_item_id); const noVat = source?.vat_applicable === false; return <tr key={`${installment.id}-${row.quotation_item_id}`} className="quotation-item-row"><td style={descriptionTdStyle}>{source?.description || (String(status).toLowerCase() === "draft" ? "ไม่พบรายการค่าบริการที่เชื่อมโยง" : "-")}</td><td style={rightTdStyle}>{formatMoney(row.allocated_amount_before_tax)}</td><td style={rightTdStyle}>{noVat ? "0.00 (No VAT)" : formatMoney(row.allocated_vat_amount)}</td><td style={rightTdStyle}>{formatMoney(row.allocated_total)}</td></tr>; })}
+          <tr className="quotation-installment-total"><td style={{ ...tdStyle, fontWeight: 700 }}>รวมงวดที่ {installment.installment_no} / Installment {installment.installment_no} Total</td><td style={{ ...rightTdStyle, fontWeight: 700 }}>{formatMoney(installment.amount_before_tax)}</td><td style={{ ...rightTdStyle, fontWeight: 700 }}>{formatMoney(installment.vat_amount)}</td><td style={{ ...rightTdStyle, fontWeight: 700 }}>{formatMoney(installment.total_amount)}</td></tr>
         </tbody></table></div>
       </div>;
     })}
@@ -516,6 +524,7 @@ function paymentTriggerText(installment: PaymentInstallmentRow) {
 }
 function paymentDueText(value: number | string | null) { const days = Number(value || 0); return days > 0 ? `ชำระภายใน ${days} วันนับแต่ได้รับใบแจ้งหนี้` : "ชำระทันทีเมื่อได้รับใบแจ้งหนี้"; }
 function formatPercentage(value: number | string | null) { const amount = Number(value || 0); return Number.isFinite(amount) ? `${amount.toLocaleString("en-US", { maximumFractionDigits: 6 })}%` : "-"; }
+function roundCurrency(value: number) { return Math.round((value + Number.EPSILON) * 100) / 100; }
 function isRedundantTitle(title: string, installmentNo: number) { return title.trim().toLowerCase() === `installment ${installmentNo}` || title.trim() === `งวดที่ ${installmentNo}`; }
 
 function InfoLine({ label, value, strong = false, wide = false }: { label: string; value: string; strong?: boolean; wide?: boolean }) {
@@ -806,6 +815,15 @@ const printCss = `
       break-inside: avoid;
       page-break-inside: avoid;
       margin-top: 0 !important;
+    }
+    .quotation-payment-installment > :first-child,
+    .quotation-payment-installment > p {
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+    .quotation-installment-total {
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
     .quotation-final-section {
       gap: 5.5mm !important;
