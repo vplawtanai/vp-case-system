@@ -607,16 +607,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
         return { ok: false, stage: "quotation", message: invalidPayloadMessage } as SaveAllResult;
       }
 
-      let { error: updateError } = await supabase.rpc("save_finance_quotation_draft", draftSavePayload);
-      // A production database that has not yet exposed the newer optional fields can
-      // still save legacy drafts only when no included/excluded text would be lost.
-      if (updateError && isDraftSaveFunctionResolutionError(updateError) && !form.included_services.trim() && !form.excluded_services.trim()) {
-        const { p_included_services, p_excluded_services, ...legacyDraftSavePayload } = draftSavePayload;
-        void p_included_services;
-        void p_excluded_services;
-        console.warn("Retrying quotation save with the legacy draft RPC signature", { rpc: "save_finance_quotation_draft", quotationId, code: updateError.code, message: updateError.message });
-        ({ error: updateError } = await supabase.rpc("save_finance_quotation_draft", legacyDraftSavePayload));
-      }
+      const { error: updateError } = await supabase.rpc("save_finance_quotation_draft", draftSavePayload);
       if (updateError) {
         console.error("Quotation save failed", {
           rpc: "save_finance_quotation_draft",
@@ -627,9 +618,10 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
           hint: updateError.hint,
           status: (updateError as typeof updateError & { status?: number }).status,
         });
-        alert("บันทึกข้อมูลใบเสนอราคาไม่สำเร็จ");
+        const message = getQuotationDraftSaveErrorMessage(updateError);
+        alert(message);
         setSaving(false);
-        return { ok: false, stage: "quotation", message: "บันทึกข้อมูลใบเสนอราคาไม่สำเร็จ" } as SaveAllResult;
+        return { ok: false, stage: "quotation", message } as SaveAllResult;
       }
 
       await createAuditLog({
@@ -1449,8 +1441,16 @@ function validateDraftSavePayload(payload: Record<string, unknown>, totals: Retu
   return hasInvalidItem ? "Quotation contains an invalid line item." : "";
 }
 
-function isDraftSaveFunctionResolutionError(error: { code?: string | null; message?: string | null }) {
-  return error.code === "PGRST202" || error.code === "42883" || /function .*save_finance_quotation_draft|could not find the function/i.test(error.message || "");
+function getQuotationDraftSaveErrorMessage(error: { code?: string | null; message?: string | null }) {
+  const message = error.message || "";
+  if (error.code === "23503" || /already used in Payment Terms|downstream documents|Payment Terms exist/i.test(message)) {
+    return /commercial amounts/i.test(message)
+      ? "ไม่สามารถแก้ไขยอดของรายการนี้ได้ เนื่องจากเงื่อนไขการชำระเงินอ้างอิงยอดเดิมอยู่ กรุณาปรับรายการและเงื่อนไขการชำระเงินให้สอดคล้องกัน"
+      : /Payment Terms exist/i.test(message)
+        ? "ไม่สามารถเพิ่มหรือลบรายการได้ เนื่องจากมีเงื่อนไขการชำระเงินอยู่ กรุณาปรับเงื่อนไขการชำระเงินก่อน"
+      : "ไม่สามารถลบรายการนี้ได้ เนื่องจากถูกนำไปใช้ในเงื่อนไขการชำระเงินแล้ว กรุณาปรับเงื่อนไขการชำระเงินก่อน";
+  }
+  return "บันทึกข้อมูลใบเสนอราคาไม่สำเร็จ";
 }
 
 function buildQuotationSnapshots(
@@ -1557,6 +1557,7 @@ function buildItemPayload(quotationId: string, items: QuotationItemRow[]) {
   return items.map((item, index) => {
     const normalized = normalizeItem(item, index);
     return {
+      id: normalized.id || null,
       quotation_id: quotationId,
       description: normalized.description.trim(),
       quantity: toAmount(normalized.quantity),
