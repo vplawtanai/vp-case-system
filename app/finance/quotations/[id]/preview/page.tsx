@@ -98,6 +98,15 @@ type PaymentInstallmentRow = {
   vat_amount: number | string | null;
   total_amount: number | string | null;
 };
+type PaymentAllocationRow = {
+  payment_installment_id: string;
+  quotation_item_id: string;
+  allocated_amount_before_tax: number | string;
+  allocated_vat_amount: number | string;
+  allocated_total: number | string;
+  allocation_percentage: number | string | null;
+  sort_order: number | null;
+};
 
 export default function QuotationPreviewPage() {
   const params = useParams();
@@ -117,6 +126,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
   const [items, setItems] = useState<QuotationItemRow[]>([]);
   const [paymentTerms, setPaymentTerms] = useState<PaymentTermsHeaderRow | null>(null);
   const [paymentInstallments, setPaymentInstallments] = useState<PaymentInstallmentRow[]>([]);
+  const [paymentAllocations, setPaymentAllocations] = useState<PaymentAllocationRow[]>([]);
   const [client, setClient] = useState<ClientRow | null>(null);
   const [caseItem, setCaseItem] = useState<CaseRow | null>(null);
   const [matter, setMatter] = useState<MatterRow | null>(null);
@@ -193,6 +203,14 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
           .order("installment_no", { ascending: true })
         : { data: [] as PaymentInstallmentRow[], error: null };
       if (paymentInstallmentsRes.error) console.warn("Failed to load quotation preview payment installments", paymentInstallmentsRes.error);
+      const paymentAllocationsRes = paymentInstallmentsRes.data?.length
+        ? await supabase
+          .from("finance_quotation_payment_installment_items")
+          .select("payment_installment_id, quotation_item_id, allocated_amount_before_tax, allocated_vat_amount, allocated_total, allocation_percentage, sort_order")
+          .in("payment_installment_id", paymentInstallmentsRes.data.map((installment) => installment.id))
+          .order("sort_order", { ascending: true })
+        : { data: [] as PaymentAllocationRow[], error: null };
+      if (paymentAllocationsRes.error) console.warn("Failed to load quotation preview payment allocations", paymentAllocationsRes.error);
 
       const documentSnapshot = getSnapshotObject(loadedQuotation.document_data_snapshot_json);
       const companySnapshot = getSnapshotObjectOrNull(documentSnapshot.company_profile) as DbCompanyProfile | null;
@@ -227,6 +245,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
       setItems((itemsRes.data || []) as QuotationItemRow[]);
       setPaymentTerms((paymentTermsRes.data || null) as PaymentTermsHeaderRow | null);
       setPaymentInstallments((paymentInstallmentsRes.data || []) as PaymentInstallmentRow[]);
+      setPaymentAllocations((paymentAllocationsRes.data || []) as PaymentAllocationRow[]);
       setClient((clientRes.data || null) as ClientRow | null);
       setCaseItem((caseRes.data || null) as CaseRow | null);
       setMatter((matterRes.data || null) as MatterRow | null);
@@ -420,7 +439,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
               </div>
             </div>
 
-            <PaymentTermsPreview terms={paymentTerms} installments={paymentInstallments} />
+            <PaymentTermsPreview terms={paymentTerms} installments={paymentInstallments} allocations={paymentAllocations} quotationItems={items} quotationTotal={quotation.grand_total} status={quotation.status} />
 
             <section className="quotation-signature-group" style={signatureGroupStyle}>
               <h2 className="quotation-signatures-heading" style={signatureSectionTitleStyle}>การลงนาม / Signatures</h2>
@@ -452,32 +471,52 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
   );
 }
 
-function PaymentTermsPreview({ terms, installments }: { terms: PaymentTermsHeaderRow | null; installments: PaymentInstallmentRow[] }) {
-  return (
-    <section className="quotation-keep-together" style={{ ...panelStyle, marginTop: 16 }}>
-      <h2 style={panelTitleStyle}>เงื่อนไขการชำระเงิน / Payment Terms</h2>
-      {!terms || installments.length === 0 ? <p style={noteParagraphStyle}>ไม่ได้บันทึกเงื่อนไขการชำระเงิน / Payment terms not recorded</p> : null}
-      {terms?.client_summary ? <div className="quotation-thai-text" style={noteParagraphStyle}>{terms.client_summary}</div> : null}
-      {installments.map((installment) => (
-        <div key={installment.id} className="quotation-payment-installment" style={{ borderTop: "1px solid #e5e7eb", paddingTop: 10, marginTop: 10, breakInside: "avoid", pageBreakInside: "avoid" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-            <strong>งวดที่ {installment.installment_no} / Installment {installment.installment_no}: {installment.title}</strong>
-            {installment.calculation_type === "percentage" && installment.percentage != null ? <span>{Number(installment.percentage).toFixed(6)}%</span> : null}
-          </div>
-          <div style={{ ...clientGridStyle, marginTop: 8 }}>
-            <InfoLine label="จำนวนเงินก่อน VAT / Before VAT" value={formatMoney(installment.amount_before_tax)} />
-            <InfoLine label="ภาษีมูลค่าเพิ่ม / VAT" value={formatMoney(installment.vat_amount)} />
-            <InfoLine label="ยอดรวม / Total" value={formatMoney(installment.total_amount)} strong />
-            {installment.trigger_description ? <InfoLine label="ถึงกำหนดเมื่อ / Trigger" value={installment.trigger_description} /> : null}
-            {installment.due_date ? <InfoLine label="Due Date" value={formatDate(installment.due_date)} /> : null}
-            <InfoLine label="ชำระภายใน / Payment Due" value={`${Number(installment.payment_due_days || 0)} วันนับแต่ได้รับใบแจ้งหนี้ / days after invoice`} />
-            {installment.client_note ? <InfoLine label="หมายเหตุสำหรับลูกค้า / Client Note" value={installment.client_note} wide /> : null}
-          </div>
-        </div>
-      ))}
-    </section>
-  );
+function PaymentTermsPreview({ terms, installments, allocations, quotationItems, quotationTotal, status }: { terms: PaymentTermsHeaderRow | null; installments: PaymentInstallmentRow[]; allocations: PaymentAllocationRow[]; quotationItems: QuotationItemRow[]; quotationTotal: number | string | null; status: string | null }) {
+  if (!terms || installments.length === 0) return <section className="quotation-keep-together" style={{ ...panelStyle, marginTop: 16 }}><h2 style={panelTitleStyle}>เงื่อนไขการชำระเงิน / Payment Terms</h2><p style={noteParagraphStyle}>ไม่ได้บันทึกเงื่อนไขการชำระเงิน / Payment terms not recorded</p></section>;
+  const sourceItems = quotationItems.filter((item) => item.id);
+  const allocationsFor = (installmentId: string) => allocations.filter((item) => item.payment_installment_id === installmentId);
+  const isSummary = sourceItems.length > 0 && installments.every((installment) => {
+    const rows = allocationsFor(installment.id);
+    const pct = Number(installment.percentage || 0);
+    return installment.calculation_type === "percentage" && rows.length === sourceItems.length && rows.every((row) => Number(row.allocation_percentage || 0) === pct);
+  });
+  const hasVat = installments.some((installment) => Number(installment.vat_amount || 0) > 0);
+  const heading = installments.length === 1 ? "ชำระเต็มจำนวน 1 งวด" : `แบ่งชำระจำนวน ${installments.length} งวด`;
+  const incomplete = String(status || "").toLowerCase() === "draft" && (isSummary ? installments.reduce((sum, installment) => sum + Number(installment.percentage || 0), 0) < 100 : allocations.reduce((sum, item) => sum + Number(item.allocated_total || 0), 0) < Number(quotationTotal || 0));
+  return <section className="quotation-payment-terms-section" style={{ ...panelStyle, marginTop: 16 }}>
+    {incomplete ? <p className="print-hidden" style={{ ...noteParagraphStyle, color: "#b45309" }}>เงื่อนไขการชำระเงินยังไม่ครบถ้วน</p> : null}
+    <h2 style={panelTitleStyle}>เงื่อนไขการชำระเงิน / Payment Terms</h2>
+    <p className="quotation-thai-text" style={noteParagraphStyle}>{heading} | ยอดรวมตามใบเสนอราคา {formatMoney(quotationTotal)}<br />การเรียกเก็บเป็นไปตามความคืบหน้าของงานและเงื่อนไขที่ระบุในแต่ละงวด</p>
+    {terms.client_summary ? <p className="quotation-thai-text" style={noteParagraphStyle}>{terms.client_summary}</p> : null}
+    {isSummary ? <>
+      <div style={feeTableWrapStyle}><table style={tableStyle}><thead><tr><th style={thStyle}>งวด / Installment</th><th style={thStyle}>เงื่อนไขการเรียกเก็บ / Billing Trigger</th><th style={rightThStyle}>สัดส่วน / Percentage</th><th style={thStyle}>กำหนดชำระ / Payment Due</th><th style={rightThStyle}>ยอดชำระ / Amount</th></tr></thead><tbody>
+        {installments.map((installment) => <tr key={installment.id}><td style={tdStyle}>งวดที่ {installment.installment_no}</td><td style={tdStyle}>{paymentTriggerText(installment)}</td><td style={rightTdStyle}>{formatPercentage(installment.percentage)}</td><td style={tdStyle}>{paymentDueText(installment.payment_due_days)}</td><td style={rightTdStyle}>{formatMoney(installment.total_amount)}</td></tr>)}
+        <tr><td colSpan={4} style={{ ...tdStyle, fontWeight: 700 }}>ยอดรวมตามใบเสนอราคา / Quotation Total</td><td style={{ ...rightTdStyle, fontWeight: 700 }}>{formatMoney(quotationTotal)}</td></tr>
+      </tbody></table></div>
+      <p style={noteParagraphStyle}>แต่ละงวดคำนวณจากรายการค่าบริการตามสัดส่วนที่กำหนด{hasVat ? " โดยรวม VAT ตามรายการที่เกี่ยวข้อง" : ""}</p>
+    </> : installments.map((installment) => {
+      const rows = allocationsFor(installment.id);
+      return <div key={installment.id} className="quotation-payment-installment quotation-keep-together" style={{ borderTop: "1px solid #e5e7eb", paddingTop: 10, marginTop: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}><strong>งวดที่ {installment.installment_no}{isRedundantTitle(installment.title, installment.installment_no) ? "" : ` - ${installment.title}`}</strong>{installment.calculation_type === "percentage" ? <span>{formatPercentage(installment.percentage)}</span> : null}</div>
+        <p className="quotation-thai-text" style={noteParagraphStyle}>{paymentTriggerText(installment)}<br />{paymentDueText(installment.payment_due_days)}{installment.client_note ? ` | ${installment.client_note}` : ""}</p>
+        <div style={feeTableWrapStyle}><table style={tableStyle}><thead><tr><th style={thStyle}>รายการ / Description</th><th style={rightThStyle}>จำนวนเงินก่อน VAT / Before VAT</th><th style={rightThStyle}>VAT</th><th style={rightThStyle}>ยอดรวม / Total</th></tr></thead><tbody>
+          {rows.map((row) => { const source = sourceItems.find((item) => item.id === row.quotation_item_id); return <tr key={`${installment.id}-${row.quotation_item_id}`}><td style={tdStyle}>{source?.description || (String(status).toLowerCase() === "draft" ? "ไม่พบรายการค่าบริการที่เชื่อมโยง" : "-")}</td><td style={rightTdStyle}>{formatMoney(row.allocated_amount_before_tax)}</td><td style={rightTdStyle}>{formatMoney(row.allocated_vat_amount)}</td><td style={rightTdStyle}>{formatMoney(row.allocated_total)}</td></tr>; })}
+          <tr><td style={{ ...tdStyle, fontWeight: 700 }}>รวมงวดที่ {installment.installment_no}</td><td style={{ ...rightTdStyle, fontWeight: 700 }}>{formatMoney(installment.amount_before_tax)}</td><td style={{ ...rightTdStyle, fontWeight: 700 }}>{formatMoney(installment.vat_amount)}</td><td style={{ ...rightTdStyle, fontWeight: 700 }}>{formatMoney(installment.total_amount)}</td></tr>
+        </tbody></table></div>
+      </div>;
+    })}
+  </section>;
 }
+
+function paymentTriggerText(installment: PaymentInstallmentRow) {
+  if (installment.trigger_type === "quotation_acceptance") return "เมื่อผู้ว่าจ้างตอบรับใบเสนอราคานี้";
+  if (installment.trigger_type === "agreement_effective") return "เมื่อข้อตกลงค่าบริการมีผลใช้บังคับ";
+  if (installment.trigger_type === "date") return installment.due_date ? `ถึงกำหนดชำระวันที่ ${formatDate(installment.due_date)}` : "ตามวันที่ระบุ";
+  return installment.trigger_description || "ตามเงื่อนไขที่ตกลงกัน";
+}
+function paymentDueText(value: number | string | null) { const days = Number(value || 0); return days > 0 ? `ชำระภายใน ${days} วันนับแต่ได้รับใบแจ้งหนี้` : "ชำระทันทีเมื่อได้รับใบแจ้งหนี้"; }
+function formatPercentage(value: number | string | null) { const amount = Number(value || 0); return Number.isFinite(amount) ? `${amount.toLocaleString("en-US", { maximumFractionDigits: 6 })}%` : "-"; }
+function isRedundantTitle(title: string, installmentNo: number) { return title.trim().toLowerCase() === `installment ${installmentNo}` || title.trim() === `งวดที่ ${installmentNo}`; }
 
 function InfoLine({ label, value, strong = false, wide = false }: { label: string; value: string; strong?: boolean; wide?: boolean }) {
   return (
