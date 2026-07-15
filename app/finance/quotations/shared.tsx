@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -118,6 +118,8 @@ type PaymentInstallment = {
 type PaymentTermsRow = { id: string; payment_method_type: PaymentMethodType; client_summary: string | null };
 type PaymentInstallmentRow = Omit<PaymentInstallment, "percentage" | "payment_due_days" | "items"> & { id: string; percentage: number | string | null; payment_due_days: number | string };
 type PaymentAllocationRow = { payment_installment_id: string; quotation_item_id: string; allocated_amount_before_tax: number | string; allocated_vat_amount: number | string; allocated_total: number | string };
+type PaymentTermsSnapshot = { ready: boolean; saved: string; current: string };
+type PendingNavigation = { href: string; label: string };
 
 type ClientRow = { id: string; name: string | null; tax_id?: string | null; email?: string | null; phone?: string | null; address?: string | null };
 type CaseRow = { id: number; file_no: string | null; title: string | null; client_name: string | null };
@@ -178,6 +180,57 @@ const emptyItem: QuotationItemRow = {
   line_total: 0,
   sort_order: 0,
 };
+
+function normalizedQuotationDraftSnapshot(form: FormState, items: QuotationItemRow[]) {
+  return JSON.stringify({
+    form: {
+      ...form,
+      client_id: form.client_id.trim(),
+      case_id: form.case_id.trim(),
+      advisory_matter_id: form.advisory_matter_id.trim(),
+      scope_of_legal_services: form.scope_of_legal_services.trim(),
+      included_services: form.included_services.trim(),
+      excluded_services: form.excluded_services.trim(),
+      note: form.note.trim(),
+      internal_note: form.internal_note.trim(),
+    },
+    items: items.map((item, index) => {
+      const normalized = normalizeItem(item, index);
+      return {
+        description: normalized.description.trim(),
+        quantity: toAmount(normalized.quantity),
+        unit_price: toAmount(normalized.unit_price),
+        vat_applicable: normalized.vat_applicable,
+        vat_rate: toAmount(normalized.vat_rate),
+        sort_order: index,
+      };
+    }),
+  });
+}
+
+function normalizedPaymentTermsSnapshot(method: PaymentMethodType, summary: string, installments: PaymentInstallment[]) {
+  return JSON.stringify({
+    method,
+    summary: summary.trim(),
+    installments: installments.map((installment, index) => ({
+      installment_no: index + 1,
+      title: installment.title.trim(),
+      calculation_type: installment.calculation_type,
+      percentage: installment.calculation_type === "percentage" ? toAmount(installment.percentage) : null,
+      trigger_type: installment.trigger_type,
+      trigger_description: installment.trigger_description.trim(),
+      due_date: installment.due_date,
+      payment_due_days: toAmount(installment.payment_due_days),
+      client_note: installment.client_note.trim(),
+      items: installment.items.map((item) => ({
+        quotation_item_id: item.quotation_item_id,
+        allocated_amount_before_tax: toAmount(item.allocated_amount_before_tax),
+        allocated_vat_amount: toAmount(item.allocated_vat_amount),
+        allocated_total: toAmount(item.allocated_total),
+      })),
+    })),
+  });
+}
 
 const profileSelect = [
   "role",
@@ -349,65 +402,94 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
   const [items, setItems] = useState<QuotationItemRow[]>([{ ...emptyItem }]);
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("");
+  const [savedDraftSnapshot, setSavedDraftSnapshot] = useState<string | null>(null);
+  const [paymentTermsSnapshot, setPaymentTermsSnapshot] = useState<PaymentTermsSnapshot>({ ready: !isEdit, saved: "", current: "" });
+  const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | null>(null);
+  const paymentTermsSaveRef = useRef<null | (() => Promise<boolean>)>(null);
 
   const totals = useMemo(() => computeTotals(items), [items]);
   const canSave = isEdit ? access.permissions.canEditFinanceQuotation : access.permissions.canCreateFinanceQuotation;
 
-  useEffect(() => {
-    const loadFormData = async () => {
-      setLoading(true);
-      if (!quotationId) {
-        const lookupData = await loadLookups();
-        setLookups(lookupData);
-        setForm((current) => ({ ...current, authorized_signer_key: getDefaultSigner(lookupData.signers).key }));
-        setLoading(false);
-        return;
-      }
-
-      const quotationRes = await supabase.from("finance_quotations").select("*").eq("id", quotationId).maybeSingle();
-      if (quotationRes.error || !quotationRes.data) {
-        console.error("Failed to load quotation for edit", { quotationId, error: quotationRes.error });
-        alert(quotationRes.error ? "Unable to load quotation." : "Quotation not found.");
-        setLoading(false);
-        return;
-      }
-
-      const loadedQuotation = quotationRes.data as QuotationRow;
-      const [itemRes, lookupData] = await Promise.all([
-        supabase.from("finance_quotation_items").select("*").eq("quotation_id", quotationId).order("sort_order", { ascending: true }),
-        loadLookups(loadedQuotation.authorized_signer_key),
-      ]);
-      if (itemRes.error) {
-        console.warn("Failed to load quotation items for edit", { quotationId, error: itemRes.error });
-      }
-
-      setQuotation(loadedQuotation);
+  const loadFormData = useCallback(async () => {
+    setLoading(true);
+    if (!quotationId) {
+      const lookupData = await loadLookups();
+      const nextForm = { ...emptyForm, authorized_signer_key: getDefaultSigner(lookupData.signers).key };
       setLookups(lookupData);
-      setForm({
-        client_id: loadedQuotation.client_id || "",
-        case_id: loadedQuotation.case_id ? String(loadedQuotation.case_id) : "",
-        advisory_matter_id: loadedQuotation.advisory_matter_id || "",
-        issue_date: loadedQuotation.issue_date || getDateKey(new Date()),
-        valid_until: loadedQuotation.valid_until || "",
-        scope_of_legal_services: loadedQuotation.scope_of_legal_services || "",
-        included_services: loadedQuotation.included_services || "",
-        excluded_services: loadedQuotation.excluded_services || "",
-        authorized_signer_key: loadedQuotation.authorized_signer_key || getDefaultSigner(lookupData.signers).key,
-        note: loadedQuotation.note || "",
-        internal_note: loadedQuotation.internal_note || "",
-      });
-      setItems(((itemRes.data || []) as QuotationItemRow[]).map((item, index) => ({
-        ...item,
-        quantity: String(item.quantity || 1),
-        unit_price: String(item.unit_price || 0),
-        vat_rate: String(item.vat_rate || 0),
-        sort_order: index,
-      })));
+      setForm(nextForm);
+      setItems([{ ...emptyItem }]);
+      setSavedDraftSnapshot(normalizedQuotationDraftSnapshot(nextForm, [{ ...emptyItem }]));
       setLoading(false);
-    };
+      return false;
+    }
 
-    loadFormData();
+    const quotationRes = await supabase.from("finance_quotations").select("*").eq("id", quotationId).maybeSingle();
+    if (quotationRes.error || !quotationRes.data) {
+      console.error("Failed to load quotation for edit", { quotationId, error: quotationRes.error });
+      alert(quotationRes.error ? "Unable to load quotation." : "Quotation not found.");
+      setLoading(false);
+      return false;
+    }
+
+    const loadedQuotation = quotationRes.data as QuotationRow;
+    const [itemRes, lookupData] = await Promise.all([
+      supabase.from("finance_quotation_items").select("*").eq("quotation_id", quotationId).order("sort_order", { ascending: true }),
+      loadLookups(loadedQuotation.authorized_signer_key),
+    ]);
+    if (itemRes.error) {
+      console.warn("Failed to load quotation items for edit", { quotationId, error: itemRes.error });
+    }
+
+    const nextForm: FormState = {
+      client_id: loadedQuotation.client_id || "",
+      case_id: loadedQuotation.case_id ? String(loadedQuotation.case_id) : "",
+      advisory_matter_id: loadedQuotation.advisory_matter_id || "",
+      issue_date: loadedQuotation.issue_date || getDateKey(new Date()),
+      valid_until: loadedQuotation.valid_until || "",
+      scope_of_legal_services: loadedQuotation.scope_of_legal_services || "",
+      included_services: loadedQuotation.included_services || "",
+      excluded_services: loadedQuotation.excluded_services || "",
+      authorized_signer_key: loadedQuotation.authorized_signer_key || getDefaultSigner(lookupData.signers).key,
+      note: loadedQuotation.note || "",
+      internal_note: loadedQuotation.internal_note || "",
+    };
+    const nextItems = ((itemRes.data || []) as QuotationItemRow[]).map((item, index) => ({
+      ...item,
+      quantity: String(item.quantity || 1),
+      unit_price: String(item.unit_price || 0),
+      vat_rate: String(item.vat_rate || 0),
+      sort_order: index,
+    }));
+    setQuotation(loadedQuotation);
+    setLookups(lookupData);
+    setForm(nextForm);
+    setItems(nextItems);
+    setSavedDraftSnapshot(normalizedQuotationDraftSnapshot(nextForm, nextItems));
+    setSaveMessage("");
+    setLoading(false);
+    return true;
   }, [quotationId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void loadFormData(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadFormData]);
+
+  const currentDraftSnapshot = useMemo(() => normalizedQuotationDraftSnapshot(form, items), [form, items]);
+  const isMainDirty = savedDraftSnapshot !== null && currentDraftSnapshot !== savedDraftSnapshot;
+  const isPaymentTermsDirty = paymentTermsSnapshot.ready && paymentTermsSnapshot.current !== paymentTermsSnapshot.saved;
+  const isDirty = isMainDirty || isPaymentTermsDirty;
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [isDirty]);
 
   const updateItem = (index: number, patch: Partial<QuotationItemRow>) => {
     setItems((current) => current.map((item, itemIndex) => itemIndex === index ? normalizeItem({ ...item, ...patch }, itemIndex) : item));
@@ -418,20 +500,20 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
   };
 
   const saveDraft = async () => {
-    if (saving) return;
+    if (saving) return false;
     if (!canSave) {
       alert("You do not have permission to save quotations.");
-      return;
+      return false;
     }
     if (isEdit && quotation?.status !== "draft") {
       alert("Only draft quotations can be edited.");
-      return;
+      return false;
     }
 
     const validationError = validateForm(form, items);
     if (validationError) {
       alert(validationError);
-      return;
+      return false;
     }
 
     setSaving(true);
@@ -500,9 +582,10 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
         p_items: buildItemPayload(quotationId, normalizedItems),
       });
       if (updateError) {
+        console.error("Failed to update quotation draft", { quotationId, code: updateError.code, message: updateError.message, details: updateError.details, hint: updateError.hint });
         alert("Unable to update quotation.");
         setSaving(false);
-        return;
+        return false;
       }
 
       await createAuditLog({
@@ -519,8 +602,18 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
         action: "update",
         note: `Replaced quotation line items for ${quotation?.quotation_no || quotationId}; item count ${normalizedItems.length}`,
       });
-      router.push(`/finance/quotations/${quotationId}`);
-      return;
+      const paymentTermsSaved = paymentTermsSaveRef.current ? await paymentTermsSaveRef.current() : true;
+      if (!paymentTermsSaved) {
+        setSaveMessage("บันทึกข้อมูลใบเสนอราคาแล้ว แต่บันทึกเงื่อนไขการชำระเงินไม่สำเร็จ");
+        alert("บันทึกข้อมูลใบเสนอราคาแล้ว แต่บันทึกเงื่อนไขการชำระเงินไม่สำเร็จ");
+        setSaving(false);
+        return false;
+      }
+      const reloaded = await loadFormData();
+      setSaving(false);
+      if (!reloaded) return false;
+      setSaveMessage("บันทึกร่างใบเสนอราคาเรียบร้อยแล้ว");
+      return true;
     }
 
     const { data: docNoData, error: docNoError } = await supabase.rpc("generate_finance_document_no", {
@@ -530,7 +623,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
     if (docNoError || !docNoData) {
       alert("Unable to generate quotation number.");
       setSaving(false);
-      return;
+      return false;
     }
     const createSnapshots = buildQuotationSnapshots(form, normalizedItems, currentTotals, lookups, String(docNoData));
 
@@ -551,7 +644,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
     if (insertError || !insertedQuotation) {
       alert("Unable to create quotation.");
       setSaving(false);
-      return;
+      return false;
     }
 
     const created = insertedQuotation as QuotationRow;
@@ -559,7 +652,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
     if (itemError) {
       alert("Quotation was created, but items could not be saved. Please review this draft before using it.");
       setSaving(false);
-      return;
+      return false;
     }
 
     await createAuditLog({
@@ -570,6 +663,27 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       note: `Created quotation ${created.quotation_no}; item count ${normalizedItems.length}; grand total ${formatMoney(currentTotals.grandTotal)}`,
     });
     router.push(`/finance/quotations/${created.id}`);
+    return true;
+  };
+
+  const requestNavigation = (href: string, label: string) => {
+    if (!isDirty) {
+      router.push(href);
+      return;
+    }
+    setPendingNavigation({ href, label });
+  };
+
+  const saveAndContinue = async () => {
+    if (!pendingNavigation) return;
+    const destination = pendingNavigation;
+    const saved = await saveDraft();
+    if (saved) {
+      setPendingNavigation(null);
+      router.push(destination.href);
+      return;
+    }
+    setPendingNavigation(null);
   };
 
   if (loading) {
@@ -616,7 +730,12 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
           <h1 style={pageTitleStyle}>{isEdit ? `Edit ${quotation?.quotation_no || "Quotation"}` : "New Quotation"}</h1>
           <p style={mutedTextStyle}>Create a standalone quotation. This does not create invoice, receipt, ledger, compensation, or legacy conversion records.</p>
         </div>
-        <Link href={isEdit && quotationId ? `/finance/quotations/${quotationId}` : "/finance/quotations"} style={secondaryButtonStyle}>Cancel</Link>
+        <div style={actionGroupStyle}>
+          <span style={isDirty ? unsavedIndicatorStyle : savedIndicatorStyle}>{isDirty ? "มีการแก้ไขที่ยังไม่ได้บันทึก / Unsaved changes" : "บันทึกแล้ว / Saved"}</span>
+          <button type="button" onClick={() => requestNavigation(isEdit && quotationId ? `/finance/quotations/${quotationId}` : "/finance/quotations", isEdit ? "กลับไปใบเสนอราคา / Back to Quotation" : "Back")} style={secondaryButtonStyle}>กลับไปใบเสนอราคา / Back to Quotation</button>
+          {isEdit && quotationId ? <button type="button" onClick={() => requestNavigation(`/finance/quotations/${quotationId}/preview`, "ดูตัวอย่าง / Preview")} style={secondaryButtonStyle}>ดูตัวอย่าง / Preview</button> : null}
+          {isEdit && quotationId ? <button type="button" onClick={() => requestNavigation(`/finance/quotations/${quotationId}/preview?print=1`, "พิมพ์ / Print")} style={secondaryButtonStyle}>พิมพ์ / Print</button> : null}
+        </div>
       </div>
 
       <div style={cardStyle}>
@@ -731,7 +850,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
         </div>
       </div>
 
-      {isEdit && quotationId && quotation?.status === "draft" ? <PaymentTermsEditor quotationId={quotationId} quotationItems={items} /> : null}
+      {isEdit && quotationId && quotation?.status === "draft" ? <PaymentTermsEditor quotationId={quotationId} quotationItems={items} onRegisterSave={(handler) => { paymentTermsSaveRef.current = handler; }} onSnapshotChange={setPaymentTermsSnapshot} /> : null}
       {!isEdit ? <p style={noticeTextStyle}>Payment Terms can be added after this quotation is first saved as a Draft.</p> : null}
 
       <div style={cardStyle}>
@@ -744,20 +863,33 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
           </label>
         </div>
         <div style={buttonRowStyle}>
-          <button type="button" onClick={saveDraft} disabled={saving} style={primaryButtonStyle}>{saving ? "Saving..." : "Save Draft"}</button>
+          {saveMessage ? <span style={noticeTextStyle}>{saveMessage}</span> : null}
+          <button type="button" onClick={saveDraft} disabled={saving} style={primaryButtonStyle}>{saving ? "Saving..." : isEdit ? "บันทึกร่างทั้งหมด / Save All Draft Changes" : "Save Draft"}</button>
         </div>
       </div>
+      {pendingNavigation ? <div style={dialogBackdropStyle} role="dialog" aria-modal="true" aria-labelledby="unsaved-changes-title">
+        <div style={dialogStyle}>
+          <h2 id="unsaved-changes-title" style={sectionTitleStyle}>มีการแก้ไขที่ยังไม่ได้บันทึก</h2>
+          <p style={mutedTextStyle}>คุณต้องการบันทึกร่างทั้งหมดก่อน{pendingNavigation.label}หรือไม่</p>
+          <div style={{ ...actionGroupStyle, justifyContent: "flex-end", marginTop: 18 }}>
+            <button type="button" onClick={() => setPendingNavigation(null)} disabled={saving} style={secondaryButtonStyle}>ยกเลิก / Cancel</button>
+            <button type="button" onClick={() => { const destination = pendingNavigation; setPendingNavigation(null); router.push(destination.href); }} disabled={saving} style={dangerButtonStyle}>ดำเนินการต่อโดยไม่บันทึก</button>
+            <button type="button" onClick={saveAndContinue} disabled={saving} style={primaryButtonStyle}>{saving ? "Saving..." : "บันทึกแล้วดำเนินการต่อ / Save and continue"}</button>
+          </div>
+        </div>
+      </div> : null}
     </>
   );
 }
 
-function PaymentTermsEditor({ quotationId, quotationItems }: { quotationId: string; quotationItems: QuotationItemRow[] }) {
+function PaymentTermsEditor({ quotationId, quotationItems, onRegisterSave, onSnapshotChange }: { quotationId: string; quotationItems: QuotationItemRow[]; onRegisterSave: (handler: (() => Promise<boolean>) | null) => void; onSnapshotChange: (snapshot: PaymentTermsSnapshot) => void }) {
   const [terms, setTerms] = useState<PaymentTermsRow | null>(null);
   const [method, setMethod] = useState<PaymentMethodType>("single");
   const [summary, setSummary] = useState("");
   const [installments, setInstallments] = useState<PaymentInstallment[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savedSnapshot, setSavedSnapshot] = useState("");
 
   const defaultAllocation = useCallback((): PaymentAllocation[] => quotationItems.filter((item) => item.id).map((item) => ({
     quotation_item_id: item.id as string,
@@ -782,6 +914,7 @@ function PaymentTermsEditor({ quotationId, quotationItems }: { quotationId: stri
     if (!header) {
       setTerms(null);
       setInstallments([]);
+      setSavedSnapshot(normalizedPaymentTermsSnapshot("single", "", []));
       setLoading(false);
       return;
     }
@@ -810,10 +943,9 @@ function PaymentTermsEditor({ quotationId, quotationItems }: { quotationId: stri
       setLoading(false);
       return;
     }
-    setTerms(header as PaymentTermsRow);
-    setMethod(header.payment_method_type as PaymentMethodType);
-    setSummary(header.client_summary || "");
-    setInstallments(rows.map((row) => ({
+    const nextMethod = header.payment_method_type as PaymentMethodType;
+    const nextSummary = header.client_summary || "";
+    const nextInstallments = rows.map((row) => ({
       installment_no: row.installment_no,
       title: row.title,
       calculation_type: row.calculation_type,
@@ -829,7 +961,12 @@ function PaymentTermsEditor({ quotationId, quotationItems }: { quotationId: stri
         allocated_vat_amount: toAmount(item.allocated_vat_amount),
         allocated_total: toAmount(item.allocated_total),
       })),
-    })));
+    }));
+    setTerms(header as PaymentTermsRow);
+    setMethod(nextMethod);
+    setSummary(nextSummary);
+    setInstallments(nextInstallments);
+    setSavedSnapshot(normalizedPaymentTermsSnapshot(nextMethod, nextSummary, nextInstallments));
     setLoading(false);
   }, [quotationId]);
 
@@ -837,6 +974,13 @@ function PaymentTermsEditor({ quotationId, quotationItems }: { quotationId: stri
     const timer = window.setTimeout(() => { void loadTerms(); }, 0);
     return () => window.clearTimeout(timer);
   }, [loadTerms]);
+
+  const currentSnapshot = useMemo(() => normalizedPaymentTermsSnapshot(method, summary, installments), [method, summary, installments]);
+
+  useEffect(() => {
+    onSnapshotChange({ ready: !loading, saved: savedSnapshot, current: currentSnapshot });
+    return () => onSnapshotChange({ ready: false, saved: "", current: "" });
+  }, [currentSnapshot, loading, onSnapshotChange, savedSnapshot]);
 
   const forcedTrigger = (nextMethod: PaymentMethodType): PaymentTriggerType | null => (
     nextMethod === "milestone" ? "case_milestone" : nextMethod === "recurring" ? "recurring_period" : nextMethod === "manual" ? "manual" : null
@@ -884,9 +1028,10 @@ function PaymentTermsEditor({ quotationId, quotationItems }: { quotationId: stri
     setSaving(false);
   };
   const saveTerms = async () => {
-    if (saving) return;
-    if (installments.length === 0) { alert("กรุณาเพิ่มอย่างน้อยหนึ่งงวด"); return; }
-    if (percentageTotal > 100) { alert("เปอร์เซ็นต์รวมต้องไม่เกิน 100%"); return; }
+    if (saving) return false;
+    if (!terms) return true;
+    if (installments.length === 0) { alert("กรุณาเพิ่มอย่างน้อยหนึ่งงวด"); return false; }
+    if (percentageTotal > 100) { alert("เปอร์เซ็นต์รวมต้องไม่เกิน 100%"); return false; }
     setSaving(true);
     const payload = installments.map((item, index) => ({
       installment_no: index + 1,
@@ -919,15 +1064,26 @@ function PaymentTermsEditor({ quotationId, quotationItems }: { quotationId: stri
         payload,
       });
       alert("ไม่สามารถบันทึกเงื่อนไขการชำระเงินได้ กรุณาตรวจสอบงวดและการจัดสรรยอดเงิน");
-    } else await loadTerms();
+      setSaving(false);
+      return false;
+    }
+    await loadTerms();
     setSaving(false);
+    return true;
   };
+
+  useEffect(() => {
+    onRegisterSave(saveTerms);
+    return () => onRegisterSave(null);
+    // The parent callback only stores this current-state handler in a ref.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [installments, method, summary, terms, saving]);
 
   if (loading) return <div style={cardStyle}>Loading payment terms...</div>;
   if (!terms) return <div style={cardStyle}><h2 style={sectionTitleStyle}>เงื่อนไขการชำระเงิน / Payment Terms</h2><p style={mutedTextStyle}>ยังไม่มีเงื่อนไขการชำระเงินสำหรับใบเสนอราคาฉบับร่างนี้</p><button type="button" onClick={createDefault} disabled={saving} style={primaryButtonStyle}>{saving ? "Creating..." : "สร้างเงื่อนไขชำระเต็มจำนวน / Create Full Payment Terms"}</button></div>;
 
   return <div style={cardStyle}>
-    <div style={sectionHeaderStyle}><div><h2 style={sectionTitleStyle}>เงื่อนไขการชำระเงิน / Payment Terms</h2><p style={mutedTextStyle}>บันทึกแยกจากข้อมูลใบเสนอราคา และใช้ได้เฉพาะ Draft</p></div><button type="button" onClick={saveTerms} disabled={saving} style={primaryButtonStyle}>{saving ? "Saving..." : "บันทึกเงื่อนไขการชำระเงิน / Save Payment Terms"}</button></div>
+    <div style={sectionHeaderStyle}><div><h2 style={sectionTitleStyle}>เงื่อนไขการชำระเงิน / Payment Terms</h2><p style={mutedTextStyle}>เงื่อนไขการชำระเงินจะบันทึกพร้อมกับร่างใบเสนอราคา</p></div></div>
     <div style={formGridStyle}>
       <label style={labelStyle}>วิธีชำระเงิน / Payment Method<select value={method} onChange={(event) => setPaymentMethod(event.target.value as PaymentMethodType)} style={inputStyle}><option value="single">ชำระครั้งเดียว / Single Payment</option><option value="installments">แบ่งชำระหลายงวด / Installments</option><option value="milestone">ตามขั้นตอนงาน / Milestone</option><option value="recurring">เรียกเก็บเป็นรอบ / Recurring</option><option value="manual">กำหนดเอง / Manual</option></select></label>
       <label style={wideLabelStyle}>สรุปสำหรับลูกค้า / Client Summary<textarea value={summary} onChange={(event) => setSummary(event.target.value)} style={textareaStyle} /></label>
@@ -1488,6 +1644,10 @@ const pageTitleStyle: CSSProperties = { margin: 0, fontSize: 26, color: "#111827
 const sectionTitleStyle: CSSProperties = { margin: 0, fontSize: 18, color: "#111827" };
 const mutedTextStyle: CSSProperties = { color: "#6b7280", margin: "6px 0 0", fontSize: 13 };
 const noticeTextStyle: CSSProperties = { color: "#92400e", background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 6, padding: "8px 10px", margin: "10px 0 0", fontSize: 13, fontWeight: 700 };
+const savedIndicatorStyle: CSSProperties = { color: "#166534", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, padding: "8px 10px", fontSize: 12, fontWeight: 700 };
+const unsavedIndicatorStyle: CSSProperties = { color: "#92400e", background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 6, padding: "8px 10px", fontSize: 12, fontWeight: 700 };
+const dialogBackdropStyle: CSSProperties = { position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, background: "rgba(15, 23, 42, 0.45)" };
+const dialogStyle: CSSProperties = { width: "min(100%, 520px)", background: "#ffffff", borderRadius: 8, padding: 20, boxShadow: "0 20px 40px rgba(15, 23, 42, 0.24)" };
 
 const tableWrapStyle: CSSProperties = { overflowX: "auto" };
 const tableStyle: CSSProperties = { width: "100%", borderCollapse: "collapse", minWidth: 900 };
