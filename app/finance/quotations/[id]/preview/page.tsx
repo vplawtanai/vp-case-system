@@ -261,7 +261,6 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
   const clientTaxId = getClientDisplayValue(quotation, client, "tax_id");
   const clientPhone = getClientDisplayValue(quotation, client, "phone");
   const clientEmail = getClientDisplayValue(quotation, client, "email");
-  const clientContact = getSnapshotText(quotation?.client_snapshot_json, "contact_person") || getSnapshotText(quotation?.client_snapshot_json, "contact_name") || "-";
   const matterLabel = getMatterLabel(quotation, caseItem, matter);
   const documentSnapshot = getSnapshotObject(quotation?.document_data_snapshot_json);
   const scopeText = getSnapshotText(documentSnapshot, "scope_of_legal_services") || quotation?.scope_of_legal_services?.trim() || getMatterDescription(quotation, caseItem, matter);
@@ -361,10 +360,9 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
             <div style={clientGridStyle}>
               <InfoLine label="Client Name" value={clientName} strong />
               <InfoLine label="Tax ID" value={clientTaxId} />
+              <InfoLine label="Address" value={clientAddress} wide />
               <InfoLine label="Phone" value={clientPhone} />
               <InfoLine label="Email" value={clientEmail} />
-              <InfoLine label="Contact Person" value={clientContact} />
-              <InfoLine label="Address" value={clientAddress} wide />
             </div>
           </section>
 
