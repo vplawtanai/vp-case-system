@@ -1582,8 +1582,7 @@ function buildQuotationSnapshots(
 function buildItemPayload(quotationId: string, items: QuotationItemRow[]) {
   return items.map((item, index) => {
     const normalized = normalizeItem(item, index);
-    return {
-      id: normalized.id || null,
+    const payload = {
       quotation_id: quotationId,
       description: normalized.description.trim(),
       quantity: toAmount(normalized.quantity),
@@ -1595,6 +1594,8 @@ function buildItemPayload(quotationId: string, items: QuotationItemRow[]) {
       line_total: toAmount(normalized.line_total),
       sort_order: index,
     };
+    // Omit id for new rows so PostgreSQL applies gen_random_uuid(); never send id: null.
+    return normalized.id ? { ...payload, id: normalized.id } : payload;
   });
 }
 
