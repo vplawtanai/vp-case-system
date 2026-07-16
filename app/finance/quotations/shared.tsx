@@ -127,6 +127,7 @@ type PaymentAllocationRow = { payment_installment_id: string; quotation_item_id:
 type PaymentTermsSnapshot = { ready: boolean; saved: string; current: string };
 type NewPaymentTermsPayload = { payment_method_type: PaymentMethodType; client_summary: string; allocation_mode: PaymentAllocationMode; installments: PaymentInstallment[] };
 type PaymentTermsValidationIssue = { message: string; installmentIndex: number; field: "title" | "trigger" | "trigger_description" | "due_date" | "payment_due_days" | "percentage" };
+type PaymentAllocationValidationIssue = { message: string; itemReference?: string };
 type PendingNavigation = { href: string; label: string };
 type SaveAllResult =
   | { ok: true }
@@ -340,7 +341,6 @@ function getPaymentTermsPlanValidationIssue(method: PaymentMethodType, installme
   for (const [installmentIndex, installment] of installments.entries()) {
     if (!installment.title.trim()) return { message: "กรุณากรอกชื่อรายการของแต่ละงวดให้ครบถ้วน", installmentIndex, field: "title" };
     if (!Number.isInteger(toAmount(installment.payment_due_days)) || toAmount(installment.payment_due_days) < 0) return { message: "จำนวนวันชำระเงินของแต่ละงวดต้องเป็นจำนวนเต็มที่ไม่ติดลบ", installmentIndex, field: "payment_due_days" };
-    if (allocationMode === "proportional_all_items" && installment.calculation_type === "percentage" && (toAmount(installment.percentage) <= 0 || toAmount(installment.percentage) > 100)) return { message: "เปอร์เซ็นต์ของแต่ละงวดต้องมากกว่า 0 และไม่เกิน 100%", installmentIndex, field: "percentage" };
     if (triggerUsesFixedCalendarDate(method, installment.trigger_type) && !isIsoDate(installment.due_date)) return { message: "กรุณาระบุวันครบกำหนดสำหรับงวดที่เลือก Specific date", installmentIndex, field: "due_date" };
     if (["case_milestone", "recurring_period", "manual"].includes(getEffectivePaymentTrigger(method, installment.trigger_type)) && !installment.trigger_description.trim()) return { message: "กรุณาระบุรายละเอียด Trigger ของแต่ละงวดให้ครบถ้วน", installmentIndex, field: "trigger_description" };
   }
@@ -350,6 +350,46 @@ function getPaymentTermsPlanValidationIssue(method: PaymentMethodType, installme
   if (method === "recurring" && installments.some((installment) => installment.trigger_type !== "recurring_period")) return { message: "วิธีเรียกเก็บเป็นรอบต้องใช้ Trigger แบบ Recurring period", installmentIndex: 0, field: "trigger" };
   if (method === "manual" && installments.some((installment) => installment.trigger_type !== "manual")) return { message: "วิธีกำหนดเองต้องใช้ Trigger แบบ Manual", installmentIndex: 0, field: "trigger" };
   return null;
+}
+
+function getPaymentAllocationValidationIssue(allocationMode: PaymentAllocationMode, installments: PaymentInstallment[], quotationItems: QuotationItemRow[], requireComplete = false): PaymentAllocationValidationIssue | null {
+  if (allocationMode === "proportional_all_items") {
+    const percentageInstallments = installments.filter((installment) => installment.calculation_type === "percentage");
+    if (percentageInstallments.length > 0) {
+      if (percentageInstallments.some((installment) => toAmount(installment.percentage) <= 0 || toAmount(installment.percentage) > 100)) return { message: "เปอร์เซ็นต์ของแต่ละงวดต้องมากกว่า 0 และไม่เกิน 100%" };
+      const total = normalizePercentage(percentageInstallments.reduce((sum, installment) => sum + toAmount(installment.percentage), 0));
+      if (total > 100) return { message: "สัดส่วนการชำระเงินรวมต้องไม่เกิน 100%" };
+      if (requireComplete && total !== 100) return { message: "สัดส่วนการชำระเงินต้องครบ 100% ก่อนส่งใบเสนอราคา" };
+    }
+    return null;
+  }
+
+  // Per-item installments retain percentage = 100 only to satisfy the legacy
+  // installment contract. Those values are never business allocation inputs.
+  for (const item of quotationItems) {
+    const reference = paymentReferenceForItem(item);
+    if (!reference) continue;
+    const total = normalizePercentage(installments.reduce((sum, installment) => sum + toAmount(installment.items.find((allocation) => paymentAllocationReference(allocation) === reference)?.allocation_percentage || 0), 0));
+    if (total > 100) return { message: `รายการ ${item.description.trim() || reference} จัดสรรเกิน 100%`, itemReference: reference };
+    if (requireComplete && total !== 100) return { message: `รายการ ${item.description.trim() || reference} ยังจัดสรรไม่ครบ`, itemReference: reference };
+  }
+  return null;
+}
+
+function logPaymentAllocationPreflight(allocationMode: PaymentAllocationMode, installments: PaymentInstallment[], quotationItems: QuotationItemRow[]) {
+  if (process.env.NODE_ENV === "production") return;
+  const perItemTotals = allocationMode === "per_item"
+    ? quotationItems.map((item) => {
+      const reference = paymentReferenceForItem(item);
+      return normalizePercentage(installments.reduce((sum, installment) => sum + toAmount(installment.items.find((allocation) => paymentAllocationReference(allocation) === reference)?.allocation_percentage || 0), 0));
+    })
+    : [];
+  console.debug("Quotation payment allocation preflight", {
+    allocationMode,
+    installmentCount: installments.length,
+    sourceItemCount: quotationItems.length,
+    perItemTotals,
+  });
 }
 
 function getPaymentTermsPlanValidationMessage(method: PaymentMethodType, installments: PaymentInstallment[], allocationMode: PaymentAllocationMode) {
@@ -800,6 +840,12 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       setSaving(false);
       return { ok: false, stage: "payment_terms", message: paymentTermsValidationIssue.message } as SaveAllResult;
     }
+    const allocationValidationIssue = getPaymentAllocationValidationIssue(draftTerms.allocation_mode, draftTerms.installments, normalizedItems);
+    if (allocationValidationIssue) {
+      alert(allocationValidationIssue.message);
+      setSaving(false);
+      return { ok: false, stage: "payment_terms", message: allocationValidationIssue.message } as SaveAllResult;
+    }
     const createSnapshots = buildQuotationSnapshots(form, normalizedItems, currentTotals, lookups, "");
     const atomicItems = normalizedItems.map((item, index) => ({
       client_item_key: item.client_item_key,
@@ -819,6 +865,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       setSaving(false);
       return { ok: false, stage: "payment_terms", message: allocationMappingError.message } as SaveAllResult;
     }
+    logPaymentAllocationPreflight(draftTerms.allocation_mode, draftTerms.installments, normalizedItems);
     const atomicPayload = {
       p_client_id: form.client_id,
       p_case_id: form.case_id ? Number(form.case_id) : null,
@@ -1276,16 +1323,16 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
   const quotationTotal = quotationItems.reduce((sum, item) => sum + toAmount(item.line_total), 0);
   const perItemPercentages = lineItemSource.map(({ reference }) => normalizePercentage(installments.reduce((sum, installment) => sum + toAmount(installment.items.find((allocation) => paymentAllocationReference(allocation) === reference)?.allocation_percentage || 0), 0)));
   const isPercentage = installments[0]?.calculation_type !== "fixed_amount";
-  const isOverPercentage = allocationMode === "proportional_all_items" && isPercentage && percentageTotal > 100;
-  const complete = allocationMode === "per_item" ? perItemPercentages.every((total) => total === 100) : isPercentage ? percentageTotal === 100 : fixedAllocated === quotationTotal;
-  const dueDaysAreValid = installments.every((item) => Number.isInteger(toAmount(item.payment_due_days)) && toAmount(item.payment_due_days) >= 0);
-  const percentagesAreValid = allocationMode === "per_item" || !isPercentage || installments.every((item) => toAmount(item.percentage) > 0 && toAmount(item.percentage) <= 100);
-  const isOverPerItem = allocationMode === "per_item" && perItemPercentages.some((total) => total > 100);
+  const allocationValidationIssue = getPaymentAllocationValidationIssue(allocationMode, installments, lineItemSource.map(({ item }) => item));
+  const allocationCompletionIssue = getPaymentAllocationValidationIssue(allocationMode, installments, lineItemSource.map(({ item }) => item), true);
+  const complete = allocationMode === "per_item"
+    ? !allocationCompletionIssue
+    : isPercentage ? percentageTotal === 100 : fixedAllocated === quotationTotal;
   const incompletePerItem = lineItemSource.map(({ item }, index) => ({ item, remaining: normalizePercentage(100 - perItemPercentages[index]) })).filter(({ remaining }) => remaining > 0);
   const paymentTermsValidationMessage = terms
     ? getPaymentTermsPlanValidationMessage(method, installments, allocationMode)
     : null;
-  const paymentTermsValid = !terms || (!isOverPercentage && !isOverPerItem && dueDaysAreValid && percentagesAreValid && !paymentTermsValidationMessage);
+  const paymentTermsValid = !terms || (!allocationValidationIssue && !paymentTermsValidationMessage);
 
   useEffect(() => {
     onValidityChange(paymentTermsValid);
@@ -1304,7 +1351,7 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
     if (saving) return false;
     if (!terms) return true;
     if (installments.length === 0) { alert("กรุณาเพิ่มอย่างน้อยหนึ่งงวด"); return false; }
-    if (!paymentTermsValid) { alert(isOverPerItem ? "มีรายการที่จัดสรรเกิน 100%" : isOverPercentage ? "สัดส่วนการชำระเงินรวมต้องไม่เกิน 100%" : "กรุณาตรวจสอบเงื่อนไขการชำระเงิน"); return false; }
+    if (!paymentTermsValid) { alert(allocationValidationIssue?.message || paymentTermsValidationMessage || "กรุณาตรวจสอบเงื่อนไขการชำระเงิน"); return false; }
     setSaving(true);
     const payload = installments.map((item, index) => ({
       installment_no: index + 1,
@@ -1322,6 +1369,7 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
         ? quotationItems.filter((quotationItem) => quotationItem.id).map((quotationItem, itemIndex) => ({ quotation_item_id: quotationItem.id, sort_order: itemIndex }))
         : item.items.filter((allocation) => allocationMode !== "per_item" || toAmount(allocation.allocation_percentage || 0) > 0).map((allocation, itemIndex) => ({ ...allocation, sort_order: itemIndex })),
     }));
+    logPaymentAllocationPreflight(allocationMode, installments, lineItemSource.map(({ item }) => item));
     const { error } = await supabase.rpc("save_finance_quotation_payment_terms_draft_v2", {
       p_quotation_id: quotationId,
       p_payment_method_type: method,
@@ -1352,7 +1400,7 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
     return () => onRegisterSave(null);
     // The parent callback only stores this current-state handler in a ref.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allocationMode, installments, method, summary, terms, saving]);
+  }, [allocationMode, allocationValidationIssue, installments, lineItemSource, method, paymentTermsValidationMessage, quotationItems, summary, terms, saving]);
 
   if (loading) return <div style={cardStyle}>Loading payment terms...</div>;
   if (!terms) return <div id="quotation-payment-terms" ref={sectionRef} tabIndex={-1} style={{ ...cardStyle, scrollMarginTop: 96 }}><h2 style={sectionTitleStyle}>เงื่อนไขการชำระเงิน / Payment Terms</h2><p style={mutedTextStyle}>ยังไม่มีเงื่อนไขการชำระเงินสำหรับใบเสนอราคาฉบับร่างนี้</p><button type="button" onClick={createDefault} disabled={saving} style={primaryButtonStyle}>{saving ? "Creating..." : "สร้างเงื่อนไขชำระเต็มจำนวน / Create Full Payment Terms"}</button></div>;
@@ -1364,7 +1412,7 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
       <label style={labelStyle}>รูปแบบการจัดสรร / Allocation Mode<select value={allocationMode} onChange={(event) => { const nextMode = event.target.value as PaymentAllocationMode; setAllocationMode(nextMode); if (nextMode === "per_item") setInstallments((current) => current.map((item) => ({ ...item, calculation_type: "percentage", percentage: "100" }))); }} style={inputStyle}><option value="proportional_all_items">แบ่งตามสัดส่วนทั้งใบ / Proportional across all items</option><option value="per_item">กำหนดแยกตามรายการ / Allocate by item</option></select></label>
       <label style={wideLabelStyle}>สรุปสำหรับลูกค้า / Client Summary<textarea value={summary} onChange={(event) => setSummary(event.target.value)} style={textareaStyle} /></label>
     </div>
-    <div style={isOverPercentage || isOverPerItem || paymentTermsValidationMessage ? errorNoticeTextStyle : noticeTextStyle}>{paymentTermsValidationMessage || (allocationMode === "per_item" ? (isOverPerItem ? "มีรายการที่จัดสรรเกิน 100%" : complete ? "ทุกรายการจัดสรรครบ 100% — พร้อมสำหรับการตรวจสอบก่อนส่ง" : incompletePerItem.map(({ item, remaining }) => `รายการ ${item.description || item.id || "-"} ยังจัดสรรไม่ครบ เหลือ ${remaining}% หรือ ${formatMoney(toAmount(item.line_total) * remaining / 100)} บาท`).join(" | ")) : isPercentage ? (isOverPercentage ? "รวมเกิน 100% กรุณาปรับสัดส่วน" : complete ? "รวม 100% — พร้อมสำหรับการตรวจสอบก่อนส่ง" : `รวม ${percentageTotal.toFixed(6).replace(/\.0+$/, "")}% — ยังขาด ${normalizePercentage(100 - percentageTotal).toFixed(6).replace(/\.0+$/, "")}%`) : `จัดสรรแล้ว ${formatMoney(fixedAllocated)} | คงเหลือ ${formatMoney(Math.max(0, quotationTotal - fixedAllocated))}`)} {!paymentTermsValidationMessage && allocationMode !== "per_item" && !isPercentage && (complete ? " | พร้อมสำหรับการตรวจสอบก่อนส่ง" : " | ยังไม่ครบสำหรับการส่งใบเสนอราคา")}</div>
+    <div style={allocationValidationIssue || paymentTermsValidationMessage ? errorNoticeTextStyle : noticeTextStyle}>{paymentTermsValidationMessage || allocationValidationIssue?.message || (allocationMode === "per_item" ? (complete ? "ทุกรายการจัดสรรครบ 100% — พร้อมสำหรับการตรวจสอบก่อนส่ง" : incompletePerItem.map(({ item, remaining }) => `รายการ ${item.description || item.id || "-"} ยังจัดสรรไม่ครบ เหลือ ${remaining}% หรือ ${formatMoney(toAmount(item.line_total) * remaining / 100)} บาท`).join(" | ")) : isPercentage ? (complete ? "รวม 100% — พร้อมสำหรับการตรวจสอบก่อนส่ง" : `รวม ${percentageTotal.toFixed(6).replace(/\.0+$/, "")}% — ยังขาด ${normalizePercentage(100 - percentageTotal).toFixed(6).replace(/\.0+$/, "")}%`) : `จัดสรรแล้ว ${formatMoney(fixedAllocated)} | คงเหลือ ${formatMoney(Math.max(0, quotationTotal - fixedAllocated))}`)} {!paymentTermsValidationMessage && !allocationValidationIssue && allocationMode !== "per_item" && !isPercentage && (complete ? " | พร้อมสำหรับการตรวจสอบก่อนส่ง" : " | ยังไม่ครบสำหรับการส่งใบเสนอราคา")}</div>
     {installments.map((installment, index) => <div key={index} style={{ ...cardStyle, marginTop: 12, background: "#f8fafc" }}>
       <div style={sectionHeaderStyle}><h3 style={sectionTitleStyle}>งวดที่ {index + 1} / Installment {index + 1}</h3>{method !== "single" ? <div style={actionGroupStyle}><button type="button" disabled={index === 0} onClick={() => setInstallments((current) => { const next = [...current]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; return normalizePaymentInstallments(next, method); })} style={smallButtonStyle}>Up</button><button type="button" disabled={index === installments.length - 1} onClick={() => setInstallments((current) => { const next = [...current]; [next[index], next[index + 1]] = [next[index + 1], next[index]]; return normalizePaymentInstallments(next, method); })} style={smallButtonStyle}>Down</button><button type="button" onClick={() => setInstallments((current) => normalizePaymentInstallments(current.filter((_, itemIndex) => itemIndex !== index), method))} style={dangerSmallButtonStyle}>Remove</button></div> : null}</div>
       <div style={formGridStyle}>
