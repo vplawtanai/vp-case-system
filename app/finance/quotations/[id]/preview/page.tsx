@@ -17,6 +17,7 @@ import {
   normalizeCompanyProfile,
 } from "../../../../../lib/companyProfile";
 import { supabase } from "../../../../../lib/supabase";
+import { getQuotationClientDisplayName } from "../../../../../lib/quotationClientDisplay";
 import { QuotationGuard } from "../../shared";
 
 type QuotationRow = {
@@ -56,6 +57,7 @@ type QuotationItemRow = {
   unit_price: number | string | null;
   amount_before_tax: number | string | null;
   vat_applicable?: boolean | null;
+  price_tax_mode?: "non_vat" | "vat_exclusive" | "vat_inclusive" | null;
   vat_amount: number | string | null;
   line_total: number | string | null;
   sort_order: number | null;
@@ -63,6 +65,7 @@ type QuotationItemRow = {
 
 type ClientRow = {
   id: string;
+  client_type?: string | null;
   name: string | null;
   tax_id?: string | null;
   email?: string | null;
@@ -175,7 +178,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
           .eq("quotation_id", quotationId)
           .order("sort_order", { ascending: true }),
         loadedQuotation.client_id
-          ? supabase.from("clients").select("id, name, tax_id, email, phone, address").eq("id", loadedQuotation.client_id).maybeSingle()
+          ? supabase.from("clients").select("id, client_type, name, tax_id, email, phone, address").eq("id", loadedQuotation.client_id).maybeSingle()
           : Promise.resolve({ data: null, error: null }),
         loadedQuotation.case_id
           ? supabase.from("cases").select("id, file_no, title, client_name").eq("id", loadedQuotation.case_id).maybeSingle()
@@ -258,9 +261,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
     loadPreview();
   }, [quotationId]);
 
-  const clientName = getClientDisplayValue(quotation, client, "name") || quotation?.client_id || "-";
   const clientAddress = getClientDisplayValue(quotation, client, "address");
-  const clientTaxId = getClientDisplayValue(quotation, client, "tax_id");
   const clientPhone = getClientDisplayValue(quotation, client, "phone");
   const clientEmail = getClientDisplayValue(quotation, client, "email");
   const matterLabel = getMatterLabel(quotation, caseItem, matter);
@@ -277,9 +278,8 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
   const displayPaymentTerms = frozenDocument ? frozenPayment.terms : paymentTerms;
   const displayInstallments = frozenDocument ? frozenPayment.installments : paymentInstallments;
   const displayAllocations = frozenDocument ? frozenPayment.allocations : paymentAllocations;
-  const displayClientName = frozenDocument ? getSnapshotText(frozenClient, "name") || quotation?.client_id || "-" : clientName;
+  const displayClientName = frozenDocument ? getSnapshotText(frozenClient, "client_display_name") || getQuotationClientDisplayName(getSnapshotText(frozenClient, "name"), getSnapshotText(frozenClient, "client_type")) || quotation?.client_id || "-" : getQuotationClientDisplayName(client?.name, client?.client_type);
   const displayClientAddress = frozenDocument ? getSnapshotText(frozenClient, "address") || "-" : clientAddress;
-  const displayClientTaxId = frozenDocument ? getSnapshotText(frozenClient, "tax_id") || "-" : clientTaxId;
   const displayClientPhone = frozenDocument ? getSnapshotText(frozenClient, "phone") || "-" : clientPhone;
   const displayClientEmail = frozenDocument ? getSnapshotText(frozenClient, "email") || "-" : clientEmail;
   const displayMatterLabel = frozenDocument ? getFrozenMatterLabel(frozenMatter) : matterLabel;
@@ -387,7 +387,6 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
             <h2 style={panelTitleStyle}>ลูกค้า / Client</h2>
             <div style={clientGridStyle}>
               <InfoLine label="Client Name" value={displayClientName} strong />
-              <InfoLine label="Tax ID" value={displayClientTaxId} />
               <InfoLine label="Address" value={displayClientAddress} wide />
               <InfoLine label="Phone" value={displayClientPhone} />
               <InfoLine label="Email" value={displayClientEmail} />
@@ -740,7 +739,7 @@ function getFrozenQuotationItems(snapshot: Record<string, unknown>): QuotationIt
       id: getSnapshotText(value, "quotation_item_id") || `snapshot-item-${index}`,
       description: getSnapshotText(value, "description"), quantity: getSnapshotText(value, "quantity"),
       unit_price: getSnapshotText(value, "unit_price"), amount_before_tax: getSnapshotText(value, "amount_before_tax"),
-      vat_applicable: value.vat_applicable === true, vat_amount: getSnapshotText(value, "vat_amount"),
+      vat_applicable: value.vat_applicable === true, price_tax_mode: getSnapshotText(value, "price_tax_mode") as QuotationItemRow["price_tax_mode"], vat_amount: getSnapshotText(value, "vat_amount"),
       line_total: getSnapshotText(value, "line_total"), sort_order: Number(getSnapshotText(value, "sort_order") || index),
     };
   });
