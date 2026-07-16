@@ -82,6 +82,7 @@ export type QuotationRow = {
 
 type QuotationItemRow = {
   id?: string;
+  client_item_key?: string;
   quotation_id?: string;
   description: string;
   quantity: number | string;
@@ -98,7 +99,8 @@ type PaymentMethodType = "single" | "installments" | "milestone" | "recurring" |
 type PaymentCalculationType = "percentage" | "fixed_amount";
 type PaymentTriggerType = "quotation_acceptance" | "agreement_effective" | "date" | "case_milestone" | "recurring_period" | "manual";
 type PaymentAllocation = {
-  quotation_item_id: string;
+  quotation_item_id?: string;
+  client_item_key?: string;
   allocated_amount_before_tax: number;
   allocated_vat_amount: number;
   allocated_total: number;
@@ -119,6 +121,7 @@ type PaymentTermsRow = { id: string; payment_method_type: PaymentMethodType; cli
 type PaymentInstallmentRow = Omit<PaymentInstallment, "percentage" | "payment_due_days" | "items"> & { id: string; percentage: number | string | null; payment_due_days: number | string };
 type PaymentAllocationRow = { payment_installment_id: string; quotation_item_id: string; allocated_amount_before_tax: number | string; allocated_vat_amount: number | string; allocated_total: number | string };
 type PaymentTermsSnapshot = { ready: boolean; saved: string; current: string };
+type NewPaymentTermsPayload = { payment_method_type: PaymentMethodType; client_summary: string; installments: PaymentInstallment[] };
 type PendingNavigation = { href: string; label: string };
 type SaveAllResult =
   | { ok: true }
@@ -183,6 +186,10 @@ const emptyItem: QuotationItemRow = {
   line_total: 0,
   sort_order: 0,
 };
+
+function createNewQuotationItem(index = 0): QuotationItemRow {
+  return { ...emptyItem, client_item_key: `item-${crypto.randomUUID()}`, sort_order: index };
+}
 
 function normalizedQuotationDraftSnapshot(form: FormState, items: QuotationItemRow[]) {
   return JSON.stringify({
@@ -416,7 +423,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
   const [lookups, setLookups] = useState<LookupState>(getEmptyLookups());
   const [quotation, setQuotation] = useState<QuotationRow | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
-  const [items, setItems] = useState<QuotationItemRow[]>([{ ...emptyItem }]);
+  const [items, setItems] = useState<QuotationItemRow[]>(() => quotationId ? [{ ...emptyItem }] : [createNewQuotationItem()]);
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState(() => searchParams.get("focus") === "payment-terms" ? "สร้างร่างใบเสนอราคาเรียบร้อยแล้ว กรุณากำหนดเงื่อนไขการชำระเงิน" : "");
@@ -425,6 +432,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
   const [paymentTermsValid, setPaymentTermsValid] = useState(true);
   const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | null>(null);
   const [focusPaymentTerms, setFocusPaymentTerms] = useState(() => searchParams.get("focus") === "payment-terms");
+  const [newPaymentTerms, setNewPaymentTerms] = useState<NewPaymentTermsPayload | null>(null);
   const paymentTermsSaveRef = useRef<null | (() => Promise<boolean>)>(null);
 
   const totals = useMemo(() => computeTotals(items), [items]);
@@ -437,8 +445,9 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       const nextForm = { ...emptyForm, authorized_signer_key: getDefaultSigner(lookupData.signers).key };
       setLookups(lookupData);
       setForm(nextForm);
-      setItems([{ ...emptyItem }]);
-      setSavedDraftSnapshot(normalizedQuotationDraftSnapshot(nextForm, [{ ...emptyItem }]));
+      const initialItems = [createNewQuotationItem()];
+      setItems(initialItems);
+      setSavedDraftSnapshot(normalizedQuotationDraftSnapshot(nextForm, initialItems));
       setLoading(false);
       return { ok: false, stage: "refetch", message: "Unable to load quotation form." } as SaveAllResult;
     }
@@ -653,69 +662,55 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       return { ok: true } as SaveAllResult;
     }
 
-    const { data: docNoData, error: docNoError } = await supabase.rpc("generate_finance_document_no", {
-      p_doc_type: "QT",
+    const draftTerms = newPaymentTerms;
+    if (!draftTerms) {
+      alert("กรุณาตรวจสอบเงื่อนไขการชำระเงินก่อนบันทึกร่างใบเสนอราคา");
+      setSaving(false);
+      return { ok: false, stage: "payment_terms", message: "Payment terms are not ready." } as SaveAllResult;
+    }
+    const createSnapshots = buildQuotationSnapshots(form, normalizedItems, currentTotals, lookups, "");
+    const atomicItems = normalizedItems.map((item, index) => ({
+      client_item_key: item.client_item_key,
+      description: item.description,
+      quantity: toAmount(item.quantity),
+      unit_price: toAmount(item.unit_price),
+      vat_applicable: item.vat_applicable,
+      vat_rate: toAmount(item.vat_rate),
+      sort_order: index,
+    }));
+    const atomicInstallments = buildAtomicPaymentInstallments(draftTerms.payment_method_type, draftTerms.installments, normalizedItems);
+    const { data, error } = await supabase.rpc("create_finance_quotation_draft_atomic", {
+      p_client_id: form.client_id,
+      p_case_id: form.case_id ? Number(form.case_id) : null,
+      p_advisory_matter_id: form.advisory_matter_id || null,
       p_issue_date: form.issue_date,
+      p_valid_until: form.valid_until || null,
+      p_scope_of_legal_services: form.scope_of_legal_services,
+      p_included_services: form.included_services,
+      p_excluded_services: form.excluded_services,
+      p_note: form.note,
+      p_internal_note: form.internal_note,
+      p_authorized_signer_key: quotationPayload.authorized_signer_key,
+      p_authorized_signer_name: quotationPayload.authorized_signer_name,
+      p_authorized_signer_position: quotationPayload.authorized_signer_position,
+      p_authorized_signer_email: quotationPayload.authorized_signer_email,
+      p_client_snapshot_json: createSnapshots.clientSnapshot,
+      p_matter_snapshot_json: createSnapshots.matterSnapshot,
+      p_document_data_snapshot_json: createSnapshots.documentSnapshot,
+      p_items: atomicItems,
+      p_payment_method_type: draftTerms.payment_method_type,
+      p_payment_client_summary: draftTerms.client_summary,
+      p_installments_json: atomicInstallments,
     });
-    if (docNoError || !docNoData) {
-      alert("Unable to generate quotation number.");
+    const created = Array.isArray(data) ? data[0] : data;
+    if (error || !created?.quotation_id) {
+      console.error("Atomic quotation draft creation failed", { error, itemCount: atomicItems.length, installmentCount: atomicInstallments.length });
+      alert(getAtomicDraftCreateErrorMessage(error));
       setSaving(false);
-      return { ok: false, stage: "quotation", message: "Unable to generate quotation number." } as SaveAllResult;
+      return { ok: false, stage: "quotation", message: "Atomic quotation draft creation failed." } as SaveAllResult;
     }
-    const createSnapshots = buildQuotationSnapshots(form, normalizedItems, currentTotals, lookups, String(docNoData));
-
-    const { data: insertedQuotation, error: insertError } = await supabase
-      .from("finance_quotations")
-      .insert({
-        ...quotationPayload,
-        quotation_no: String(docNoData),
-        client_snapshot_json: createSnapshots.clientSnapshot,
-        matter_snapshot_json: createSnapshots.matterSnapshot,
-        document_data_snapshot_json: createSnapshots.documentSnapshot,
-        created_by_user_id: access.userId,
-        created_by_email: access.userEmail,
-        created_by_name: access.userName,
-      })
-      .select("*")
-      .single();
-    if (insertError || !insertedQuotation) {
-      alert("Unable to create quotation.");
-      setSaving(false);
-      return { ok: false, stage: "quotation", message: "Unable to create quotation." } as SaveAllResult;
-    }
-
-    const created = insertedQuotation as QuotationRow;
-    const { error: itemError } = await supabase.from("finance_quotation_items").insert(buildItemPayload(created.id, normalizedItems));
-    if (itemError) {
-      console.error("Quotation draft was created but line items could not be saved", { quotationId: created.id, error: itemError });
-      alert("สร้างร่างใบเสนอราคาแล้ว แต่บันทึกรายการค่าบริการไม่สำเร็จ กรุณาเปิดร่างอีกครั้ง");
-      setSaving(false);
-      return { ok: false, stage: "quotation", message: "Quotation was created, but items could not be saved." } as SaveAllResult;
-    }
-
-    const itemRefetch = await supabase
-      .from("finance_quotation_items")
-      .select("*")
-      .eq("quotation_id", created.id)
-      .order("sort_order", { ascending: true });
-    if (itemRefetch.error || (itemRefetch.data || []).length !== normalizedItems.length) {
-      console.error("Created quotation line item refetch failed", { quotationId: created.id, error: itemRefetch.error, expectedCount: normalizedItems.length, actualCount: (itemRefetch.data || []).length });
-      alert("สร้างร่างใบเสนอราคาแล้ว แต่โหลดรายการค่าบริการกลับมาไม่สำเร็จ กรุณาเปิดร่างอีกครั้ง");
-      setSaving(false);
-      router.replace(`/finance/quotations/${created.id}/edit`);
-      return { ok: false, stage: "refetch", message: "Quotation was created but line item refetch failed." } as SaveAllResult;
-    }
-
-    await createAuditLog({
-      tableName: "finance_quotations",
-      recordId: created.id,
-      caseId: form.case_id ? Number(form.case_id) : null,
-      action: "create",
-      note: `Created quotation ${created.quotation_no}; item count ${normalizedItems.length}; grand total ${formatMoney(currentTotals.grandTotal)}`,
-    });
-    // The edit route reloads the persisted header and real item IDs before exposing Payment Terms.
     setSaving(false);
-    router.replace(`/finance/quotations/${created.id}/edit?focus=payment-terms`);
+    router.replace(`/finance/quotations/${created.quotation_id}/edit`);
     return { ok: true } as SaveAllResult;
   };
 
@@ -862,7 +857,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       <div style={cardStyle}>
         <div style={sectionHeaderStyle}>
           <h2 style={sectionTitleStyle}>Line Items / Fee Items</h2>
-          <button type="button" onClick={() => setItems((current) => [...current, normalizeItem({ ...emptyItem }, current.length)])} style={secondaryButtonStyle}>Add Item</button>
+          <button type="button" onClick={() => setItems((current) => [...current, isEdit ? normalizeItem({ ...emptyItem }, current.length) : createNewQuotationItem(current.length)])} style={secondaryButtonStyle}>Add Item</button>
         </div>
         <div style={tableWrapStyle}>
           <table style={tableStyle}>
@@ -904,8 +899,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
         </div>
       </div>
 
-      {isEdit && quotationId && quotation?.status === "draft" ? <PaymentTermsEditor quotationId={quotationId} quotationItems={items} autoFocus={focusPaymentTerms} onFocusHandled={() => { setFocusPaymentTerms(false); const url = new URL(window.location.href); url.searchParams.delete("focus"); window.history.replaceState(null, "", url); }} onRegisterSave={(handler) => { paymentTermsSaveRef.current = handler; }} onSnapshotChange={setPaymentTermsSnapshot} onValidityChange={setPaymentTermsValid} /> : null}
-      {!isEdit ? <div style={noticeTextStyle}>กรุณาสร้างร่างใบเสนอราคาก่อนกำหนดเงื่อนไขการชำระเงิน<br /><span style={mutedTextStyle}>ระบบต้องบันทึกรายการค่าบริการก่อน เพื่อเชื่อมแต่ละงวดกับรายการที่ถูกต้อง</span></div> : null}
+      {(!isEdit || (quotationId && quotation?.status === "draft")) ? <PaymentTermsEditor quotationId={quotationId} isNew={!isEdit} quotationItems={items} autoFocus={focusPaymentTerms} onFocusHandled={() => { setFocusPaymentTerms(false); const url = new URL(window.location.href); url.searchParams.delete("focus"); window.history.replaceState(null, "", url); }} onDraftPayloadChange={setNewPaymentTerms} onRegisterSave={(handler) => { paymentTermsSaveRef.current = handler; }} onSnapshotChange={setPaymentTermsSnapshot} onValidityChange={setPaymentTermsValid} /> : null}
 
       <div style={cardStyle}>
         <div style={formGridStyle}>
@@ -936,11 +930,11 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
   );
 }
 
-function PaymentTermsEditor({ quotationId, quotationItems, autoFocus, onFocusHandled, onRegisterSave, onSnapshotChange, onValidityChange }: { quotationId: string; quotationItems: QuotationItemRow[]; autoFocus: boolean; onFocusHandled: () => void; onRegisterSave: (handler: (() => Promise<boolean>) | null) => void; onSnapshotChange: (snapshot: PaymentTermsSnapshot) => void; onValidityChange: (valid: boolean) => void }) {
-  const [terms, setTerms] = useState<PaymentTermsRow | null>(null);
+function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onFocusHandled, onDraftPayloadChange, onRegisterSave, onSnapshotChange, onValidityChange }: { quotationId?: string; isNew: boolean; quotationItems: QuotationItemRow[]; autoFocus: boolean; onFocusHandled: () => void; onDraftPayloadChange: (payload: NewPaymentTermsPayload | null) => void; onRegisterSave: (handler: (() => Promise<boolean>) | null) => void; onSnapshotChange: (snapshot: PaymentTermsSnapshot) => void; onValidityChange: (valid: boolean) => void }) {
+  const [terms, setTerms] = useState<PaymentTermsRow | null>(() => isNew ? { id: "new", payment_method_type: "single", client_summary: null } : null);
   const [method, setMethod] = useState<PaymentMethodType>("single");
   const [summary, setSummary] = useState("");
-  const [installments, setInstallments] = useState<PaymentInstallment[]>([]);
+  const [installments, setInstallments] = useState<PaymentInstallment[]>(() => isNew ? [{ installment_no: 1, title: "ชำระเต็มจำนวน / Full Payment", calculation_type: "percentage", percentage: "100", trigger_type: "quotation_acceptance", trigger_description: "", due_date: "", payment_due_days: "0", client_note: "", items: [] }] : []);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const sectionRef = useRef<HTMLDivElement | null>(null);
@@ -948,14 +942,18 @@ function PaymentTermsEditor({ quotationId, quotationItems, autoFocus, onFocusHan
   const hasFocusedRef = useRef(false);
   const [savedSnapshot, setSavedSnapshot] = useState("");
 
-  const defaultAllocation = useCallback((): PaymentAllocation[] => quotationItems.filter((item) => item.id).map((item) => ({
-    quotation_item_id: item.id as string,
+  const defaultAllocation = useCallback((): PaymentAllocation[] => quotationItems.map((item) => ({
+    ...(item.id ? { quotation_item_id: item.id } : { client_item_key: item.client_item_key }),
     allocated_amount_before_tax: 0,
     allocated_vat_amount: 0,
     allocated_total: 0,
   })), [quotationItems]);
 
   const loadTerms = useCallback(async () => {
+    if (isNew || !quotationId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const { data: header, error: headerError } = await supabase
       .from("finance_quotation_payment_terms")
@@ -1025,7 +1023,7 @@ function PaymentTermsEditor({ quotationId, quotationItems, autoFocus, onFocusHan
     setInstallments(nextInstallments);
     setSavedSnapshot(normalizedPaymentTermsSnapshot(nextMethod, nextSummary, nextInstallments));
     setLoading(false);
-  }, [quotationId]);
+  }, [isNew, quotationId]);
 
   useEffect(() => {
     if (!autoFocus || loading || hasFocusedRef.current) return;
@@ -1042,6 +1040,11 @@ function PaymentTermsEditor({ quotationId, quotationItems, autoFocus, onFocusHan
     const timer = window.setTimeout(() => { void loadTerms(); }, 0);
     return () => window.clearTimeout(timer);
   }, [loadTerms]);
+
+  useEffect(() => {
+    if (!isNew) return;
+    onDraftPayloadChange({ payment_method_type: method, client_summary: summary, installments });
+  }, [installments, isNew, method, onDraftPayloadChange, summary]);
 
   const currentSnapshot = useMemo(() => normalizedPaymentTermsSnapshot(method, summary, installments), [method, summary, installments]);
 
@@ -1206,7 +1209,7 @@ function PaymentTermsEditor({ quotationId, quotationItems, autoFocus, onFocusHan
         <label style={labelStyle}>ชำระภายใน / Payment Due<div style={compactFieldGroupStyle}><select value={paymentDueChoice(installment.payment_due_days)} onChange={(event) => { const value = event.target.value; updateInstallment(index, { payment_due_days: value === "other" ? "" : value }); }} style={compactSelectStyle}>{paymentDueDayPresets.map((days) => <option key={days} value={days}>{days} days</option>)}<option value="other">Other</option></select>{paymentDueChoice(installment.payment_due_days) === "other" ? <input type="number" min="0" step="1" value={installment.payment_due_days} onChange={(event) => updateInstallment(index, { payment_due_days: event.target.value })} style={compactInputStyle} /> : null}</div>วันนับแต่ได้รับใบแจ้งหนี้ / days after invoice</label>
         <label style={wideLabelStyle}>หมายเหตุสำหรับลูกค้า / Client Note<textarea value={installment.client_note} onChange={(event) => updateInstallment(index, { client_note: event.target.value })} style={textareaStyle} /></label>
       </div>
-      {installment.calculation_type === "fixed_amount" ? <div style={tableWrapStyle}><h4 style={sectionTitleStyle}>Advanced Item Allocation</h4><table style={tableStyle}><thead><tr><th style={thStyle}>Quotation Item</th><th style={rightThStyle}>Before VAT</th><th style={rightThStyle}>VAT</th><th style={rightThStyle}>Total</th><th style={rightThStyle}>Remaining</th></tr></thead><tbody>{quotationItems.filter((item) => item.id).map((quotationItem) => { const allocation = installment.items.find((item) => item.quotation_item_id === quotationItem.id) || { quotation_item_id: quotationItem.id as string, allocated_amount_before_tax: 0, allocated_vat_amount: 0, allocated_total: 0 }; const allocatedElsewhere = installments.filter((_, installmentIndex) => installmentIndex !== index).reduce((sum, other) => sum + (other.items.find((item) => item.quotation_item_id === quotationItem.id)?.allocated_total || 0), 0); const patch = (field: keyof PaymentAllocation, value: string) => updateInstallment(index, { items: installment.items.some((item) => item.quotation_item_id === quotationItem.id) ? installment.items.map((item) => item.quotation_item_id === quotationItem.id ? { ...item, [field]: toAmount(value), allocated_total: field === "allocated_total" ? toAmount(value) : (field === "allocated_amount_before_tax" ? toAmount(value) : item.allocated_amount_before_tax) + (field === "allocated_vat_amount" ? toAmount(value) : item.allocated_vat_amount) } : item) : [...installment.items, { ...allocation, [field]: toAmount(value), allocated_total: field === "allocated_total" ? toAmount(value) : (field === "allocated_amount_before_tax" ? toAmount(value) : 0) + (field === "allocated_vat_amount" ? toAmount(value) : 0) }] }); return <tr key={quotationItem.id}><td style={tdStyle}>{quotationItem.description}</td><td style={rightTdStyle}><input type="number" min="0" step="0.01" value={allocation.allocated_amount_before_tax} onChange={(event) => patch("allocated_amount_before_tax", event.target.value)} style={compactInputStyle} /></td><td style={rightTdStyle}><input type="number" min="0" step="0.01" value={allocation.allocated_vat_amount} onChange={(event) => patch("allocated_vat_amount", event.target.value)} style={compactInputStyle} /></td><td style={rightTdStyle}>{formatMoney(allocation.allocated_amount_before_tax + allocation.allocated_vat_amount)}</td><td style={rightTdStyle}>{formatMoney(toAmount(quotationItem.line_total) - allocatedElsewhere - allocation.allocated_total)}</td></tr>; })}</tbody></table></div> : <p style={mutedTextStyle}>ระบบจะรวมทุกรายการค่าบริการและคำนวณ Before VAT, VAT และ Total จากเปอร์เซ็นต์ในฝั่งเซิร์ฟเวอร์</p>}
+      {installment.calculation_type === "fixed_amount" ? <div style={tableWrapStyle}><h4 style={sectionTitleStyle}>Advanced Item Allocation</h4><table style={tableStyle}><thead><tr><th style={thStyle}>Quotation Item</th><th style={rightThStyle}>Before VAT</th><th style={rightThStyle}>VAT</th><th style={rightThStyle}>Total</th><th style={rightThStyle}>Remaining</th></tr></thead><tbody>{quotationItems.filter((item) => item.id || item.client_item_key).map((quotationItem) => { const reference = paymentReferenceForItem(quotationItem); const allocation = installment.items.find((item) => paymentAllocationReference(item) === reference) || { ...(quotationItem.id ? { quotation_item_id: quotationItem.id } : { client_item_key: quotationItem.client_item_key }), allocated_amount_before_tax: 0, allocated_vat_amount: 0, allocated_total: 0 }; const allocatedElsewhere = installments.filter((_, installmentIndex) => installmentIndex !== index).reduce((sum, other) => sum + (other.items.find((item) => paymentAllocationReference(item) === reference)?.allocated_total || 0), 0); const patch = (field: keyof PaymentAllocation, value: string) => updateInstallment(index, { items: installment.items.some((item) => paymentAllocationReference(item) === reference) ? installment.items.map((item) => paymentAllocationReference(item) === reference ? { ...item, [field]: toAmount(value), allocated_total: field === "allocated_total" ? toAmount(value) : (field === "allocated_amount_before_tax" ? toAmount(value) : item.allocated_amount_before_tax) + (field === "allocated_vat_amount" ? toAmount(value) : item.allocated_vat_amount) } : item) : [...installment.items, { ...allocation, [field]: toAmount(value), allocated_total: field === "allocated_total" ? toAmount(value) : (field === "allocated_amount_before_tax" ? toAmount(value) : 0) + (field === "allocated_vat_amount" ? toAmount(value) : 0) }] }); return <tr key={reference}><td style={tdStyle}>{quotationItem.description}</td><td style={rightTdStyle}><input type="number" min="0" step="0.01" value={allocation.allocated_amount_before_tax} onChange={(event) => patch("allocated_amount_before_tax", event.target.value)} style={compactInputStyle} /></td><td style={rightTdStyle}><input type="number" min="0" step="0.01" value={allocation.allocated_vat_amount} onChange={(event) => patch("allocated_vat_amount", event.target.value)} style={compactInputStyle} /></td><td style={rightTdStyle}>{formatMoney(allocation.allocated_amount_before_tax + allocation.allocated_vat_amount)}</td><td style={rightTdStyle}>{formatMoney(toAmount(quotationItem.line_total) - allocatedElsewhere - allocation.allocated_total)}</td></tr>; })}</tbody></table></div> : <p style={mutedTextStyle}>ระบบจะรวมทุกรายการค่าบริการและคำนวณ Before VAT, VAT และ Total จากเปอร์เซ็นต์ในฝั่งเซิร์ฟเวอร์</p>}
     </div>)}
     {method !== "single" ? <button type="button" onClick={addInstallment} style={secondaryButtonStyle}>เพิ่มงวด / Add Installment</button> : null}
   </div>;
@@ -1612,6 +1615,54 @@ function buildItemPayload(quotationId: string, items: QuotationItemRow[]) {
     // Omit id for new rows so PostgreSQL applies gen_random_uuid(); never send id: null.
     return normalized.id ? { ...payload, id: normalized.id } : payload;
   });
+}
+
+function buildAtomicPaymentInstallments(method: PaymentMethodType, installments: PaymentInstallment[], quotationItems: QuotationItemRow[]) {
+  return installments.map((installment, index) => ({
+    installment_no: index + 1,
+    title: installment.title,
+    calculation_type: installment.calculation_type,
+    percentage: installment.calculation_type === "percentage" ? normalizePercentage(installment.percentage) : null,
+    trigger_type: getForcedPaymentTrigger(method) || installment.trigger_type,
+    trigger_description: installment.trigger_description || null,
+    due_date: installment.due_date || null,
+    payment_due_days: normalizePaymentDueDays(installment.payment_due_days),
+    client_note: installment.client_note || null,
+    sort_order: index,
+    items: installment.calculation_type === "percentage"
+      ? quotationItems.map((item, itemIndex) => ({ client_item_key: item.client_item_key, sort_order: itemIndex }))
+      : installment.items.map((allocation, itemIndex) => ({
+        client_item_key: allocation.client_item_key,
+        allocated_amount_before_tax: allocation.allocated_amount_before_tax,
+        allocated_vat_amount: allocation.allocated_vat_amount,
+        allocated_total: allocation.allocated_total,
+        sort_order: itemIndex,
+      })),
+  }));
+}
+
+function getAtomicDraftCreateErrorMessage(error: { message?: string | null } | null) {
+  const message = String(error?.message || "").toLowerCase();
+  if (message.includes("invalid line items")) return "กรุณากรอกรายการค่าบริการให้ครบถ้วน";
+  if (message.includes("allocation item") || message.includes("client item key")) return "พบรายการในเงื่อนไขการชำระเงินที่ไม่ตรงกับรายการค่าบริการ กรุณาตรวจสอบอีกครั้ง";
+  if (message.includes("percentage") && message.includes("exceed")) return "สัดส่วนการชำระเงินรวมต้องไม่เกิน 100%";
+  return "สร้างร่างใบเสนอราคาไม่สำเร็จ ข้อมูลยังไม่ถูกบันทึก";
+}
+
+function getForcedPaymentTrigger(method: PaymentMethodType): PaymentTriggerType | null {
+  if (method === "single") return "quotation_acceptance";
+  if (method === "milestone") return "case_milestone";
+  if (method === "recurring") return "recurring_period";
+  if (method === "manual") return "manual";
+  return null;
+}
+
+function paymentReferenceForItem(item: QuotationItemRow) {
+  return item.id || item.client_item_key || "";
+}
+
+function paymentAllocationReference(allocation: PaymentAllocation) {
+  return allocation.quotation_item_id || allocation.client_item_key || "";
 }
 
 function normalizeItem(item: QuotationItemRow, index: number): QuotationItemRow {
