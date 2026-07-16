@@ -1265,7 +1265,8 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
       p_user_name: access.userName,
     });
     if (error) {
-      alert("Unable to update quotation status.");
+      console.error("Unable to update quotation status", error);
+      alert(getQuotationStatusErrorMessage(error));
       setSaving(false);
       return;
     }
@@ -1291,7 +1292,7 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
             <div>
               <h1 style={pageTitleStyle}>{quotation.quotation_no}</h1>
               <p style={mutedTextStyle}>Quotation document record. No invoice, receipt, ledger posting, or compensation is created from this page.</p>
-              {quotation.status !== "draft" ? <p style={noticeTextStyle}>{getReadonlyMessage(quotation.status)}</p> : null}
+              {quotation.status !== "draft" ? <p style={noticeTextStyle}>{getReadonlyMessage(quotation.status)} Preview และ Print ใช้เอกสาร snapshot ที่ freeze ณ เวลาส่งใบเสนอราคา</p> : null}
             </div>
             <div style={actionGroupStyle}>
               <Link href="/finance/quotations" style={secondaryButtonStyle}>Back</Link>
@@ -1451,6 +1452,15 @@ function getQuotationDraftSaveErrorMessage(error: { code?: string | null; messag
       : "ไม่สามารถลบรายการนี้ได้ เนื่องจากถูกนำไปใช้ในเงื่อนไขการชำระเงินแล้ว กรุณาปรับเงื่อนไขการชำระเงินก่อน";
   }
   return "บันทึกข้อมูลใบเสนอราคาไม่สำเร็จ";
+}
+
+function getQuotationStatusErrorMessage(error: { message?: string | null }) {
+  const message = String(error.message || "").toLowerCase();
+  if (message.includes("payment terms are required")) return "ยังไม่ได้กำหนดเงื่อนไขการชำระเงิน";
+  if (message.includes("percentage payment installments")) return "สัดส่วนการชำระเงินยังไม่ครบ 100%";
+  if (message.includes("payment terms totals") || message.includes("payment allocation") || message.includes("quotation totals")) return "ยอดเงื่อนไขการชำระเงินไม่ตรงกับยอดใบเสนอราคา";
+  if (message.includes("installment") || message.includes("trigger data")) return "กรุณากรอกข้อมูลแต่ละงวดให้ครบก่อนส่งใบเสนอราคา";
+  return "ไม่สามารถเปลี่ยนสถานะใบเสนอราคาได้ กรุณาตรวจสอบข้อมูลก่อนส่ง";
 }
 
 function buildQuotationSnapshots(

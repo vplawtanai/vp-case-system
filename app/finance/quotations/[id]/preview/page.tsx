@@ -214,8 +214,10 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
       if (paymentAllocationsRes.error) console.warn("Failed to load quotation preview payment allocations", paymentAllocationsRes.error);
 
       const documentSnapshot = getSnapshotObject(loadedQuotation.document_data_snapshot_json);
-      const companySnapshot = getSnapshotObjectOrNull(documentSnapshot.company_profile) as DbCompanyProfile | null;
-      const signerSnapshot = getSnapshotObject(documentSnapshot.authorized_signer);
+      const companySnapshot = (getSnapshotObjectOrNull(documentSnapshot.company) || getSnapshotObjectOrNull(documentSnapshot.company_profile)) as DbCompanyProfile | null;
+      const signerSnapshot = getSnapshotObject(documentSnapshot.commercial).authorized_signer
+        ? getSnapshotObject(getSnapshotObject(documentSnapshot.commercial).authorized_signer)
+        : getSnapshotObject(documentSnapshot.authorized_signer);
       const currentCompany = normalizeCompanyProfile((companyRes.data || null) as DbCompanyProfile | null);
       const normalizedCompany = resolveCompanyProfile(companySnapshot, currentCompany);
       const normalizedSigners = signersRes.error
@@ -263,9 +265,34 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
   const clientEmail = getClientDisplayValue(quotation, client, "email");
   const matterLabel = getMatterLabel(quotation, caseItem, matter);
   const documentSnapshot = getSnapshotObject(quotation?.document_data_snapshot_json);
-  const scopeText = getSnapshotText(documentSnapshot, "scope_of_legal_services") || quotation?.scope_of_legal_services?.trim() || getMatterDescription(quotation, caseItem, matter);
-  const includedText = getSnapshotText(documentSnapshot, "included_services") || quotation?.included_services?.trim() || "";
-  const excludedText = getSnapshotText(documentSnapshot, "excluded_services") || quotation?.excluded_services?.trim() || "";
+  const frozenDocument = isFrozenQuotation(quotation) && Boolean(getSnapshotText(documentSnapshot, "frozen_at"));
+  const frozenClient = getSnapshotObject(documentSnapshot.client);
+  const frozenMatter = getSnapshotObject(documentSnapshot.matter);
+  const commercialSnapshot = getSnapshotObject(documentSnapshot.commercial);
+  const frozenItems = getFrozenQuotationItems(documentSnapshot);
+  const frozenPayment = getFrozenPaymentTerms(documentSnapshot);
+  const frozenQuotation = getSnapshotObject(documentSnapshot.quotation);
+  const frozenTotals = getSnapshotObject(documentSnapshot.totals);
+  const displayItems = frozenDocument ? frozenItems : items;
+  const displayPaymentTerms = frozenDocument ? frozenPayment.terms : paymentTerms;
+  const displayInstallments = frozenDocument ? frozenPayment.installments : paymentInstallments;
+  const displayAllocations = frozenDocument ? frozenPayment.allocations : paymentAllocations;
+  const displayClientName = frozenDocument ? getSnapshotText(frozenClient, "name") || quotation?.client_id || "-" : clientName;
+  const displayClientAddress = frozenDocument ? getSnapshotText(frozenClient, "address") || "-" : clientAddress;
+  const displayClientTaxId = frozenDocument ? getSnapshotText(frozenClient, "tax_id") || "-" : clientTaxId;
+  const displayClientPhone = frozenDocument ? getSnapshotText(frozenClient, "phone") || "-" : clientPhone;
+  const displayClientEmail = frozenDocument ? getSnapshotText(frozenClient, "email") || "-" : clientEmail;
+  const displayMatterLabel = frozenDocument ? getFrozenMatterLabel(frozenMatter) : matterLabel;
+  const displayQuotationNo = frozenDocument ? getSnapshotText(frozenQuotation, "quotation_no") || quotation?.quotation_no || "-" : quotation?.quotation_no || "-";
+  const displayIssueDate = frozenDocument ? getSnapshotText(frozenQuotation, "issue_date") || quotation?.issue_date : quotation?.issue_date;
+  const displayValidUntil = frozenDocument ? getSnapshotText(frozenQuotation, "valid_until") || quotation?.valid_until : quotation?.valid_until;
+  const displaySubtotalVatable = frozenDocument ? (getSnapshotText(frozenTotals, "subtotal_vatable") || quotation?.subtotal_vatable) ?? null : quotation?.subtotal_vatable ?? null;
+  const displaySubtotalNonVatable = frozenDocument ? (getSnapshotText(frozenTotals, "subtotal_non_vatable") || quotation?.subtotal_non_vatable) ?? null : quotation?.subtotal_non_vatable ?? null;
+  const displayVatAmount = frozenDocument ? (getSnapshotText(frozenTotals, "vat_amount") || quotation?.vat_amount) ?? null : quotation?.vat_amount ?? null;
+  const displayGrandTotal = frozenDocument ? (getSnapshotText(frozenTotals, "grand_total") || quotation?.grand_total) ?? null : quotation?.grand_total ?? null;
+  const scopeText = frozenDocument ? getSnapshotText(commercialSnapshot, "scope_of_legal_services") : getSnapshotText(documentSnapshot, "scope_of_legal_services") || quotation?.scope_of_legal_services?.trim() || getMatterDescription(quotation, caseItem, matter);
+  const includedText = frozenDocument ? getSnapshotText(commercialSnapshot, "included_services") : getSnapshotText(documentSnapshot, "included_services") || quotation?.included_services?.trim() || "";
+  const excludedText = frozenDocument ? getSnapshotText(commercialSnapshot, "excluded_services") : getSnapshotText(documentSnapshot, "excluded_services") || quotation?.excluded_services?.trim() || "";
   const signer = resolveQuotationSigner(quotation, signers);
   const engagementSections = [
     { title: "ขอบเขตงาน / Scope of Legal Services", value: scopeText },
@@ -311,6 +338,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
 
       {loading ? <div style={messageStyle}>Loading quotation preview...</div> : null}
       {!loading && errorText ? <div style={errorStyle}>{errorText}</div> : null}
+      {!loading && quotation && isFrozenQuotation(quotation) && !frozenDocument ? <div className="print-hidden" style={errorStyle}>เอกสารที่ส่งแล้วไม่มี snapshot ที่สมบูรณ์ กรุณาตรวจสอบความถูกต้องของเอกสารก่อนใช้งาน</div> : null}
 
       {!loading && quotation ? (
         <article className="quotation-print-document" style={documentStyle}>
@@ -347,22 +375,22 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
             </div>
             <div style={panelStyle}>
               <h2 style={panelTitleStyle}>ข้อมูลเอกสาร / Document Information</h2>
-              <InfoLine label="Quotation No." value={quotation.quotation_no || "-"} strong />
+              <InfoLine label="Quotation No." value={displayQuotationNo} strong />
               <InfoLine label="Status" value={quotation.status || "draft"} />
-              <InfoLine label="Issue Date" value={formatDate(quotation.issue_date)} />
-              <InfoLine label="Valid Until" value={formatDate(quotation.valid_until)} />
-              <InfoLine label="Reference / Linked Matter" value={matterLabel} />
+              <InfoLine label="Issue Date" value={formatDate(displayIssueDate || null)} />
+              <InfoLine label="Valid Until" value={formatDate(displayValidUntil || null)} />
+              <InfoLine label="Reference / Linked Matter" value={displayMatterLabel} />
             </div>
           </section>
 
           <section className="quotation-compact-block" style={{ ...panelStyle, marginBottom: 24 }}>
             <h2 style={panelTitleStyle}>ลูกค้า / Client</h2>
             <div style={clientGridStyle}>
-              <InfoLine label="Client Name" value={clientName} strong />
-              <InfoLine label="Tax ID" value={clientTaxId} />
-              <InfoLine label="Address" value={clientAddress} wide />
-              <InfoLine label="Phone" value={clientPhone} />
-              <InfoLine label="Email" value={clientEmail} />
+              <InfoLine label="Client Name" value={displayClientName} strong />
+              <InfoLine label="Tax ID" value={displayClientTaxId} />
+              <InfoLine label="Address" value={displayClientAddress} wide />
+              <InfoLine label="Phone" value={displayClientPhone} />
+              <InfoLine label="Email" value={displayClientEmail} />
             </div>
           </section>
 
@@ -400,9 +428,9 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
                 </tr>
               </thead>
               <tbody>
-                {items.length === 0 ? (
+                {displayItems.length === 0 ? (
                   <tr><td style={tdStyle} colSpan={7}>No line items.</td></tr>
-                ) : items.map((item, index) => (
+                ) : displayItems.map((item, index) => (
                   <tr key={item.id || index}>
                     <td style={numberTdStyle}>{index + 1}</td>
                     <td style={descriptionTdStyle}>{item.description || "-"}</td>
@@ -431,14 +459,14 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
                 </div>
               </div>
               <div style={totalsBoxStyle}>
-                <TotalLine label="รวมรายการที่มี VAT / Vatable Subtotal" value={quotation.subtotal_vatable} />
-                <TotalLine label="รวมรายการที่ไม่มี VAT / Non-Vatable Subtotal" value={quotation.subtotal_non_vatable} />
-                <TotalLine label="ภาษีมูลค่าเพิ่ม / VAT" value={quotation.vat_amount} />
-                <TotalLine label="จำนวนเงินตามใบเสนอราคา / Quotation Total" value={quotation.grand_total} strong />
+                <TotalLine label="รวมรายการที่มี VAT / Vatable Subtotal" value={displaySubtotalVatable} />
+                <TotalLine label="รวมรายการที่ไม่มี VAT / Non-Vatable Subtotal" value={displaySubtotalNonVatable} />
+                <TotalLine label="ภาษีมูลค่าเพิ่ม / VAT" value={displayVatAmount} />
+                <TotalLine label="จำนวนเงินตามใบเสนอราคา / Quotation Total" value={displayGrandTotal} strong />
               </div>
             </div>
 
-            <PaymentTermsPreview terms={paymentTerms} installments={paymentInstallments} allocations={paymentAllocations} quotationItems={items} quotationTotal={quotation.grand_total} status={quotation.status} />
+            <PaymentTermsPreview terms={displayPaymentTerms} installments={displayInstallments} allocations={displayAllocations} quotationItems={displayItems} quotationTotal={displayGrandTotal} status={quotation.status} />
 
             <section className="quotation-signature-group" style={signatureGroupStyle}>
               <h2 className="quotation-signatures-heading" style={signatureSectionTitleStyle}>การลงนาม / Signatures</h2>
@@ -594,12 +622,14 @@ function SignatureBlock({ title, name, position, email, signatureUrl, signatureI
 }
 
 function resolveQuotationSigner(quotation: QuotationRow | null, signers: AuthorizedSigner[]) {
-  const signerSnapshot = getSnapshotObject(quotation?.document_data_snapshot_json?.authorized_signer);
+  const documentSnapshot = getSnapshotObject(quotation?.document_data_snapshot_json);
+  const signerSnapshot = getSnapshotObject(getSnapshotObject(documentSnapshot.commercial).authorized_signer || documentSnapshot.authorized_signer);
   const fallbackSigner = getSignerByKey(signers, quotation?.authorized_signer_key);
+  const preferFrozen = isFrozenQuotation(quotation) && Boolean(getSnapshotText(documentSnapshot, "frozen_at"));
   return {
-    name: quotation?.authorized_signer_name || getSnapshotText(signerSnapshot, "name") || fallbackSigner.displayName,
-    position: quotation?.authorized_signer_position || getSnapshotText(signerSnapshot, "position") || formatSignerPosition(fallbackSigner),
-    email: quotation?.authorized_signer_email || getSnapshotText(signerSnapshot, "email") || fallbackSigner.email,
+    name: (preferFrozen ? getSnapshotText(signerSnapshot, "name") : quotation?.authorized_signer_name) || getSnapshotText(signerSnapshot, "name") || fallbackSigner.displayName,
+    position: (preferFrozen ? getSnapshotText(signerSnapshot, "position") : quotation?.authorized_signer_position) || getSnapshotText(signerSnapshot, "position") || formatSignerPosition(fallbackSigner),
+    email: (preferFrozen ? getSnapshotText(signerSnapshot, "email") : quotation?.authorized_signer_email) || getSnapshotText(signerSnapshot, "email") || fallbackSigner.email,
   };
 }
 
@@ -691,6 +721,54 @@ function getSnapshotObject(value: unknown): Record<string, unknown> {
 function getSnapshotObjectOrNull(value: unknown): Record<string, unknown> | null {
   const snapshot = getSnapshotObject(value);
   return Object.keys(snapshot).length > 0 ? snapshot : null;
+}
+
+function isFrozenQuotation(quotation: QuotationRow | null) {
+  return ["sent", "accepted", "cancelled"].includes(String(quotation?.status || "").toLowerCase());
+}
+
+function getFrozenMatterLabel(snapshot: Record<string, unknown>) {
+  const reference = getSnapshotText(snapshot, "file_no") || getSnapshotText(snapshot, "matter_no");
+  return [reference, getSnapshotText(snapshot, "title")].filter(Boolean).join(" - ") || "-";
+}
+
+function getFrozenQuotationItems(snapshot: Record<string, unknown>): QuotationItemRow[] {
+  const rows = Array.isArray(snapshot.items) ? snapshot.items : [];
+  return rows.map((item, index) => {
+    const value = getSnapshotObject(item);
+    return {
+      id: getSnapshotText(value, "quotation_item_id") || `snapshot-item-${index}`,
+      description: getSnapshotText(value, "description"), quantity: getSnapshotText(value, "quantity"),
+      unit_price: getSnapshotText(value, "unit_price"), amount_before_tax: getSnapshotText(value, "amount_before_tax"),
+      vat_applicable: value.vat_applicable === true, vat_amount: getSnapshotText(value, "vat_amount"),
+      line_total: getSnapshotText(value, "line_total"), sort_order: Number(getSnapshotText(value, "sort_order") || index),
+    };
+  });
+}
+
+function getFrozenPaymentTerms(snapshot: Record<string, unknown>) {
+  const payment = getSnapshotObject(snapshot.payment_terms);
+  if (!Object.keys(payment).length) return { terms: null as PaymentTermsHeaderRow | null, installments: [] as PaymentInstallmentRow[], allocations: [] as PaymentAllocationRow[] };
+  const installments = (Array.isArray(payment.installments) ? payment.installments : []).map((row, index) => {
+    const item = getSnapshotObject(row);
+    return {
+      id: `snapshot-installment-${index}`, installment_no: Number(getSnapshotText(item, "installment_no") || index + 1), title: getSnapshotText(item, "title"),
+      calculation_type: getSnapshotText(item, "calculation_type"), percentage: getSnapshotText(item, "percentage") || null,
+      trigger_type: getSnapshotText(item, "trigger_type"), trigger_description: getSnapshotText(item, "trigger_description") || null,
+      due_date: getSnapshotText(item, "due_date") || null, payment_due_days: getSnapshotText(item, "payment_due_days") || 0,
+      client_note: getSnapshotText(item, "client_note") || null, amount_before_tax: getSnapshotText(item, "amount_before_tax"),
+      vat_amount: getSnapshotText(item, "vat_amount"), total_amount: getSnapshotText(item, "total_amount"),
+    } as PaymentInstallmentRow;
+  });
+  const allocations = installments.flatMap((installment, installmentIndex) => {
+    const source = getSnapshotObject((Array.isArray(payment.installments) ? payment.installments : [])[installmentIndex]);
+    const items = Array.isArray(source.items) ? source.items : [];
+    return items.map((row, index) => {
+      const item = getSnapshotObject(row);
+      return { payment_installment_id: installment.id, quotation_item_id: getSnapshotText(item, "quotation_item_id"), allocated_amount_before_tax: getSnapshotText(item, "allocated_amount_before_tax"), allocated_vat_amount: getSnapshotText(item, "allocated_vat_amount"), allocated_total: getSnapshotText(item, "allocated_total"), allocation_percentage: null, sort_order: index };
+    });
+  });
+  return { terms: { id: "snapshot-payment-terms", payment_method_type: getSnapshotText(payment, "payment_method_type"), client_summary: getSnapshotText(payment, "client_summary") || null }, installments, allocations };
 }
 
 function resolveCompanyProfile(snapshot: Record<string, unknown> | null, currentCompany: CompanyProfile): CompanyProfile {
