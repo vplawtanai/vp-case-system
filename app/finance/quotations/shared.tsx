@@ -686,9 +686,23 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
     const created = insertedQuotation as QuotationRow;
     const { error: itemError } = await supabase.from("finance_quotation_items").insert(buildItemPayload(created.id, normalizedItems));
     if (itemError) {
-      alert("Quotation was created, but items could not be saved. Please review this draft before using it.");
+      console.error("Quotation draft was created but line items could not be saved", { quotationId: created.id, error: itemError });
+      alert("สร้างร่างใบเสนอราคาแล้ว แต่บันทึกรายการค่าบริการไม่สำเร็จ กรุณาเปิดร่างอีกครั้ง");
       setSaving(false);
       return { ok: false, stage: "quotation", message: "Quotation was created, but items could not be saved." } as SaveAllResult;
+    }
+
+    const itemRefetch = await supabase
+      .from("finance_quotation_items")
+      .select("*")
+      .eq("quotation_id", created.id)
+      .order("sort_order", { ascending: true });
+    if (itemRefetch.error || (itemRefetch.data || []).length !== normalizedItems.length) {
+      console.error("Created quotation line item refetch failed", { quotationId: created.id, error: itemRefetch.error, expectedCount: normalizedItems.length, actualCount: (itemRefetch.data || []).length });
+      alert("สร้างร่างใบเสนอราคาแล้ว แต่โหลดรายการค่าบริการกลับมาไม่สำเร็จ กรุณาเปิดร่างอีกครั้ง");
+      setSaving(false);
+      router.replace(`/finance/quotations/${created.id}/edit`);
+      return { ok: false, stage: "refetch", message: "Quotation was created but line item refetch failed." } as SaveAllResult;
     }
 
     await createAuditLog({
@@ -698,7 +712,9 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       action: "create",
       note: `Created quotation ${created.quotation_no}; item count ${normalizedItems.length}; grand total ${formatMoney(currentTotals.grandTotal)}`,
     });
-    router.push(`/finance/quotations/${created.id}`);
+    // The edit route reloads the persisted header and real item IDs before exposing Payment Terms.
+    setSaving(false);
+    router.replace(`/finance/quotations/${created.id}/edit`);
     return { ok: true } as SaveAllResult;
   };
 
@@ -768,7 +784,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
           <p style={mutedTextStyle}>Create a standalone quotation. This does not create invoice, receipt, ledger, compensation, or legacy conversion records.</p>
         </div>
         <div style={actionGroupStyle}>
-          <span style={isDirty ? unsavedIndicatorStyle : savedIndicatorStyle}>{isDirty ? "มีการแก้ไขที่ยังไม่ได้บันทึก / Unsaved changes" : "บันทึกแล้ว / Saved"}</span>
+          <span style={isDirty ? unsavedIndicatorStyle : savedIndicatorStyle}>{!isEdit ? "ยังไม่ได้สร้างร่าง / Draft not created" : isDirty ? "มีการแก้ไขที่ยังไม่ได้บันทึก / Unsaved changes" : "บันทึกแล้ว / Saved"}</span>
           <button type="button" onClick={() => requestNavigation(isEdit && quotationId ? `/finance/quotations/${quotationId}` : "/finance/quotations", isEdit ? "กลับไปใบเสนอราคา / Back to Quotation" : "Back")} style={secondaryButtonStyle}>กลับไปใบเสนอราคา / Back to Quotation</button>
           {isEdit && quotationId ? <button type="button" onClick={() => requestNavigation(`/finance/quotations/${quotationId}/preview`, "ดูตัวอย่าง / Preview")} style={secondaryButtonStyle}>ดูตัวอย่าง / Preview</button> : null}
           {isEdit && quotationId ? <button type="button" onClick={() => requestNavigation(`/finance/quotations/${quotationId}/preview?print=1`, "พิมพ์ / Print")} style={secondaryButtonStyle}>พิมพ์ / Print</button> : null}
@@ -888,7 +904,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       </div>
 
       {isEdit && quotationId && quotation?.status === "draft" ? <PaymentTermsEditor quotationId={quotationId} quotationItems={items} onRegisterSave={(handler) => { paymentTermsSaveRef.current = handler; }} onSnapshotChange={setPaymentTermsSnapshot} onValidityChange={setPaymentTermsValid} /> : null}
-      {!isEdit ? <p style={noticeTextStyle}>Payment Terms can be added after this quotation is first saved as a Draft.</p> : null}
+      {!isEdit ? <p style={noticeTextStyle}>กรุณาสร้างร่างใบเสนอราคาก่อนกำหนดเงื่อนไขการชำระเงิน</p> : null}
 
       <div style={cardStyle}>
         <div style={formGridStyle}>
@@ -901,7 +917,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
         </div>
         <div style={buttonRowStyle}>
           {saveMessage ? <span style={noticeTextStyle}>{saveMessage}</span> : null}
-          <button type="button" onClick={() => { void saveDraft(); }} disabled={saveDisabled} style={primaryButtonStyle}>{saving ? "Saving..." : isEdit ? "บันทึกร่างทั้งหมด / Save All Draft Changes" : "Save Draft"}</button>
+          <button type="button" onClick={() => { void saveDraft(); }} disabled={saveDisabled} style={primaryButtonStyle}>{saving ? "Saving..." : isEdit ? "บันทึกร่างทั้งหมด / Save All Draft Changes" : "สร้างร่างใบเสนอราคา / Create Draft"}</button>
         </div>
       </div>
       {pendingNavigation ? <div style={dialogBackdropStyle} role="dialog" aria-modal="true" aria-labelledby="unsaved-changes-title">
