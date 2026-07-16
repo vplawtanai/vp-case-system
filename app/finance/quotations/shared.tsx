@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import AuthGuard from "../../components/AuthGuard";
 import AppTopNav from "../../components/AppTopNav";
 import { createAuditLog } from "../../../lib/auditLog";
@@ -411,6 +411,7 @@ export function QuotationList({ access }: { access: QuotationAccess }) {
 
 export function QuotationForm({ access, quotationId }: { access: QuotationAccess; quotationId?: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const isEdit = Boolean(quotationId);
   const [lookups, setLookups] = useState<LookupState>(getEmptyLookups());
   const [quotation, setQuotation] = useState<QuotationRow | null>(null);
@@ -418,11 +419,12 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
   const [items, setItems] = useState<QuotationItemRow[]>([{ ...emptyItem }]);
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState("");
+  const [saveMessage, setSaveMessage] = useState(() => searchParams.get("focus") === "payment-terms" ? "สร้างร่างใบเสนอราคาเรียบร้อยแล้ว กรุณากำหนดเงื่อนไขการชำระเงิน" : "");
   const [savedDraftSnapshot, setSavedDraftSnapshot] = useState<string | null>(null);
   const [paymentTermsSnapshot, setPaymentTermsSnapshot] = useState<PaymentTermsSnapshot>({ ready: !isEdit, saved: "", current: "" });
   const [paymentTermsValid, setPaymentTermsValid] = useState(true);
   const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | null>(null);
+  const [focusPaymentTerms, setFocusPaymentTerms] = useState(() => searchParams.get("focus") === "payment-terms");
   const paymentTermsSaveRef = useRef<null | (() => Promise<boolean>)>(null);
 
   const totals = useMemo(() => computeTotals(items), [items]);
@@ -483,7 +485,6 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
     setForm(nextForm);
     setItems(nextItems);
     setSavedDraftSnapshot(normalizedQuotationDraftSnapshot(nextForm, nextItems));
-    setSaveMessage("");
     setLoading(false);
     return { ok: true } as SaveAllResult;
   }, [quotationId]);
@@ -714,7 +715,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
     });
     // The edit route reloads the persisted header and real item IDs before exposing Payment Terms.
     setSaving(false);
-    router.replace(`/finance/quotations/${created.id}/edit`);
+    router.replace(`/finance/quotations/${created.id}/edit?focus=payment-terms`);
     return { ok: true } as SaveAllResult;
   };
 
@@ -903,8 +904,8 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
         </div>
       </div>
 
-      {isEdit && quotationId && quotation?.status === "draft" ? <PaymentTermsEditor quotationId={quotationId} quotationItems={items} onRegisterSave={(handler) => { paymentTermsSaveRef.current = handler; }} onSnapshotChange={setPaymentTermsSnapshot} onValidityChange={setPaymentTermsValid} /> : null}
-      {!isEdit ? <p style={noticeTextStyle}>กรุณาสร้างร่างใบเสนอราคาก่อนกำหนดเงื่อนไขการชำระเงิน</p> : null}
+      {isEdit && quotationId && quotation?.status === "draft" ? <PaymentTermsEditor quotationId={quotationId} quotationItems={items} autoFocus={focusPaymentTerms} onFocusHandled={() => { setFocusPaymentTerms(false); const url = new URL(window.location.href); url.searchParams.delete("focus"); window.history.replaceState(null, "", url); }} onRegisterSave={(handler) => { paymentTermsSaveRef.current = handler; }} onSnapshotChange={setPaymentTermsSnapshot} onValidityChange={setPaymentTermsValid} /> : null}
+      {!isEdit ? <div style={noticeTextStyle}>กรุณาสร้างร่างใบเสนอราคาก่อนกำหนดเงื่อนไขการชำระเงิน<br /><span style={mutedTextStyle}>ระบบต้องบันทึกรายการค่าบริการก่อน เพื่อเชื่อมแต่ละงวดกับรายการที่ถูกต้อง</span></div> : null}
 
       <div style={cardStyle}>
         <div style={formGridStyle}>
@@ -917,7 +918,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
         </div>
         <div style={buttonRowStyle}>
           {saveMessage ? <span style={noticeTextStyle}>{saveMessage}</span> : null}
-          <button type="button" onClick={() => { void saveDraft(); }} disabled={saveDisabled} style={primaryButtonStyle}>{saving ? "Saving..." : isEdit ? "บันทึกร่างทั้งหมด / Save All Draft Changes" : "สร้างร่างใบเสนอราคา / Create Draft"}</button>
+          <button type="button" onClick={() => { void saveDraft(); }} disabled={saveDisabled} style={{ ...primaryButtonStyle, whiteSpace: "normal", textAlign: "center" }}>{saving ? "Saving..." : isEdit ? "บันทึกร่างทั้งหมด / Save All Draft Changes" : <>สร้างร่างและกำหนดเงื่อนไขการชำระเงิน<br /><span style={{ fontSize: 12, fontWeight: 500 }}>Create Draft and Set Payment Terms</span></>}</button>
         </div>
       </div>
       {pendingNavigation ? <div style={dialogBackdropStyle} role="dialog" aria-modal="true" aria-labelledby="unsaved-changes-title">
@@ -935,13 +936,16 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
   );
 }
 
-function PaymentTermsEditor({ quotationId, quotationItems, onRegisterSave, onSnapshotChange, onValidityChange }: { quotationId: string; quotationItems: QuotationItemRow[]; onRegisterSave: (handler: (() => Promise<boolean>) | null) => void; onSnapshotChange: (snapshot: PaymentTermsSnapshot) => void; onValidityChange: (valid: boolean) => void }) {
+function PaymentTermsEditor({ quotationId, quotationItems, autoFocus, onFocusHandled, onRegisterSave, onSnapshotChange, onValidityChange }: { quotationId: string; quotationItems: QuotationItemRow[]; autoFocus: boolean; onFocusHandled: () => void; onRegisterSave: (handler: (() => Promise<boolean>) | null) => void; onSnapshotChange: (snapshot: PaymentTermsSnapshot) => void; onValidityChange: (valid: boolean) => void }) {
   const [terms, setTerms] = useState<PaymentTermsRow | null>(null);
   const [method, setMethod] = useState<PaymentMethodType>("single");
   const [summary, setSummary] = useState("");
   const [installments, setInstallments] = useState<PaymentInstallment[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const sectionRef = useRef<HTMLDivElement | null>(null);
+  const paymentMethodRef = useRef<HTMLSelectElement | null>(null);
+  const hasFocusedRef = useRef(false);
   const [savedSnapshot, setSavedSnapshot] = useState("");
 
   const defaultAllocation = useCallback((): PaymentAllocation[] => quotationItems.filter((item) => item.id).map((item) => ({
@@ -1022,6 +1026,17 @@ function PaymentTermsEditor({ quotationId, quotationItems, onRegisterSave, onSna
     setSavedSnapshot(normalizedPaymentTermsSnapshot(nextMethod, nextSummary, nextInstallments));
     setLoading(false);
   }, [quotationId]);
+
+  useEffect(() => {
+    if (!autoFocus || loading || hasFocusedRef.current) return;
+    hasFocusedRef.current = true;
+    const frame = window.requestAnimationFrame(() => {
+      sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      (terms ? paymentMethodRef.current : sectionRef.current)?.focus({ preventScroll: true });
+      onFocusHandled();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [autoFocus, loading, onFocusHandled, terms]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void loadTerms(); }, 0);
@@ -1170,12 +1185,12 @@ function PaymentTermsEditor({ quotationId, quotationItems, onRegisterSave, onSna
   }, [installments, method, summary, terms, saving]);
 
   if (loading) return <div style={cardStyle}>Loading payment terms...</div>;
-  if (!terms) return <div style={cardStyle}><h2 style={sectionTitleStyle}>เงื่อนไขการชำระเงิน / Payment Terms</h2><p style={mutedTextStyle}>ยังไม่มีเงื่อนไขการชำระเงินสำหรับใบเสนอราคาฉบับร่างนี้</p><button type="button" onClick={createDefault} disabled={saving} style={primaryButtonStyle}>{saving ? "Creating..." : "สร้างเงื่อนไขชำระเต็มจำนวน / Create Full Payment Terms"}</button></div>;
+  if (!terms) return <div id="quotation-payment-terms" ref={sectionRef} tabIndex={-1} style={{ ...cardStyle, scrollMarginTop: 96 }}><h2 style={sectionTitleStyle}>เงื่อนไขการชำระเงิน / Payment Terms</h2><p style={mutedTextStyle}>ยังไม่มีเงื่อนไขการชำระเงินสำหรับใบเสนอราคาฉบับร่างนี้</p><button type="button" onClick={createDefault} disabled={saving} style={primaryButtonStyle}>{saving ? "Creating..." : "สร้างเงื่อนไขชำระเต็มจำนวน / Create Full Payment Terms"}</button></div>;
 
-  return <div style={cardStyle}>
+  return <div id="quotation-payment-terms" ref={sectionRef} tabIndex={-1} style={{ ...cardStyle, scrollMarginTop: 96 }}>
     <div style={sectionHeaderStyle}><div><h2 style={sectionTitleStyle}>เงื่อนไขการชำระเงิน / Payment Terms</h2><p style={mutedTextStyle}>เงื่อนไขการชำระเงินจะบันทึกพร้อมกับร่างใบเสนอราคา</p></div></div>
     <div style={formGridStyle}>
-      <label style={labelStyle}>วิธีชำระเงิน / Payment Method<select value={method} onChange={(event) => setPaymentMethod(event.target.value as PaymentMethodType)} style={inputStyle}><option value="single">ชำระครั้งเดียว / Single Payment</option><option value="installments">แบ่งชำระหลายงวด / Installments</option><option value="milestone">ตามขั้นตอนงาน / Milestone</option><option value="recurring">เรียกเก็บเป็นรอบ / Recurring</option><option value="manual">กำหนดเอง / Manual</option></select></label>
+      <label style={labelStyle}>วิธีชำระเงิน / Payment Method<select ref={paymentMethodRef} value={method} onChange={(event) => setPaymentMethod(event.target.value as PaymentMethodType)} style={inputStyle}><option value="single">ชำระครั้งเดียว / Single Payment</option><option value="installments">แบ่งชำระหลายงวด / Installments</option><option value="milestone">ตามขั้นตอนงาน / Milestone</option><option value="recurring">เรียกเก็บเป็นรอบ / Recurring</option><option value="manual">กำหนดเอง / Manual</option></select></label>
       <label style={wideLabelStyle}>สรุปสำหรับลูกค้า / Client Summary<textarea value={summary} onChange={(event) => setSummary(event.target.value)} style={textareaStyle} /></label>
     </div>
     <div style={isOverPercentage ? errorNoticeTextStyle : noticeTextStyle}>{isPercentage ? (isOverPercentage ? "รวมเกิน 100% กรุณาปรับสัดส่วน" : complete ? "รวม 100% — พร้อมสำหรับการตรวจสอบก่อนส่ง" : `รวม ${percentageTotal.toFixed(6).replace(/\.0+$/, "")}% — ยังขาด ${normalizePercentage(100 - percentageTotal).toFixed(6).replace(/\.0+$/, "")}%`) : `จัดสรรแล้ว ${formatMoney(fixedAllocated)} | คงเหลือ ${formatMoney(Math.max(0, quotationTotal - fixedAllocated))}`} {!isPercentage && (complete ? " | พร้อมสำหรับการตรวจสอบก่อนส่ง" : " | ยังไม่ครบสำหรับการส่งใบเสนอราคา")}</div>
