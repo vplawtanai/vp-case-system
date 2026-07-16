@@ -122,6 +122,7 @@ type PaymentInstallmentRow = Omit<PaymentInstallment, "percentage" | "payment_du
 type PaymentAllocationRow = { payment_installment_id: string; quotation_item_id: string; allocated_amount_before_tax: number | string; allocated_vat_amount: number | string; allocated_total: number | string };
 type PaymentTermsSnapshot = { ready: boolean; saved: string; current: string };
 type NewPaymentTermsPayload = { payment_method_type: PaymentMethodType; client_summary: string; installments: PaymentInstallment[] };
+type PaymentTermsValidationIssue = { message: string; installmentIndex: number; field: "title" | "trigger" | "trigger_description" | "due_date" | "payment_due_days" | "percentage" };
 type PendingNavigation = { href: string; label: string };
 type SaveAllResult =
   | { ok: true }
@@ -273,6 +274,14 @@ function getDefaultPaymentTrigger(method: PaymentMethodType): PaymentTriggerType
   return "quotation_acceptance";
 }
 
+function getEffectivePaymentTrigger(method: PaymentMethodType, selectedTrigger: PaymentTriggerType): PaymentTriggerType {
+  return ["milestone", "recurring", "manual"].includes(method) ? getDefaultPaymentTrigger(method) : selectedTrigger;
+}
+
+function triggerUsesFixedCalendarDate(method: PaymentMethodType, selectedTrigger: PaymentTriggerType) {
+  return getEffectivePaymentTrigger(method, selectedTrigger) === "date";
+}
+
 function createDefaultPaymentInstallment(
   installmentNo: number,
   method: PaymentMethodType,
@@ -295,42 +304,60 @@ function createDefaultPaymentInstallment(
 }
 
 function normalizePaymentInstallments(installments: PaymentInstallment[], method: PaymentMethodType) {
-  const trigger = getDefaultPaymentTrigger(method);
+  const forcedTrigger = ["milestone", "recurring", "manual"].includes(method) ? getDefaultPaymentTrigger(method) : null;
   return installments.map((installment, index) => {
     const installmentNo = index + 1;
     const title = isAutomaticInstallmentTitle(installment.title)
       ? (method === "single" ? fullPaymentInstallmentTitle : numberedInstallmentTitle(installmentNo))
       : installment.title;
+    const nextTrigger = method === "installments"
+      ? (installment.trigger_type === "recurring_period" ? "quotation_acceptance" : installment.trigger_type)
+      : forcedTrigger || installment.trigger_type;
     return {
       ...installment,
       installment_no: installmentNo,
       title,
-      trigger_type: method === "installments"
-        ? (installment.trigger_type === "recurring_period" ? "quotation_acceptance" : installment.trigger_type)
-        : trigger,
+      trigger_type: nextTrigger,
+      due_date: nextTrigger === "date" ? installment.due_date : "",
     };
   });
 }
 
-function getPaymentTermsPlanValidationMessage(method: PaymentMethodType, installments: PaymentInstallment[]) {
-  if (installments.length === 0) return "กรุณาเพิ่มอย่างน้อยหนึ่งงวดการชำระเงิน";
-  if (method === "single" && installments.length !== 1) return "การชำระครั้งเดียวต้องมีเพียงหนึ่งงวด";
-  if (method === "installments" && installments.length < 2) return "การแบ่งชำระหลายงวดต้องมีอย่างน้อยสองงวด";
-  if (new Set(installments.map((installment) => installment.calculation_type)).size > 1) return "ไม่สามารถใช้การคำนวณแบบเปอร์เซ็นต์และจำนวนเงินคงที่ร่วมกันได้";
+function getPaymentTermsPlanValidationIssue(method: PaymentMethodType, installments: PaymentInstallment[]): PaymentTermsValidationIssue | null {
+  if (installments.length === 0) return { message: "กรุณาเพิ่มอย่างน้อยหนึ่งงวดการชำระเงิน", installmentIndex: 0, field: "title" };
+  if (method === "single" && installments.length !== 1) return { message: "การชำระครั้งเดียวต้องมีเพียงหนึ่งงวด", installmentIndex: 0, field: "title" };
+  if (method === "installments" && installments.length < 2) return { message: "การแบ่งชำระหลายงวดต้องมีอย่างน้อยสองงวด", installmentIndex: 0, field: "title" };
+  if (new Set(installments.map((installment) => installment.calculation_type)).size > 1) return { message: "ไม่สามารถใช้การคำนวณแบบเปอร์เซ็นต์และจำนวนเงินคงที่ร่วมกันได้", installmentIndex: 0, field: "trigger" };
 
-  for (const installment of installments) {
-    if (!installment.title.trim()) return "กรุณากรอกชื่อรายการของแต่ละงวดให้ครบถ้วน";
-    if (!Number.isInteger(toAmount(installment.payment_due_days)) || toAmount(installment.payment_due_days) < 0) return "จำนวนวันชำระเงินของแต่ละงวดต้องเป็นจำนวนเต็มที่ไม่ติดลบ";
-    if (installment.calculation_type === "percentage" && (toAmount(installment.percentage) <= 0 || toAmount(installment.percentage) > 100)) return "เปอร์เซ็นต์ของแต่ละงวดต้องมากกว่า 0 และไม่เกิน 100%";
-    if (installment.trigger_type === "date" && !installment.due_date) return "กรุณาระบุวันครบกำหนดสำหรับงวดที่เลือก Specific date";
-    if (["case_milestone", "recurring_period", "manual"].includes(installment.trigger_type) && !installment.trigger_description.trim()) return "กรุณาระบุรายละเอียด Trigger ของแต่ละงวดให้ครบถ้วน";
+  for (const [installmentIndex, installment] of installments.entries()) {
+    if (!installment.title.trim()) return { message: "กรุณากรอกชื่อรายการของแต่ละงวดให้ครบถ้วน", installmentIndex, field: "title" };
+    if (!Number.isInteger(toAmount(installment.payment_due_days)) || toAmount(installment.payment_due_days) < 0) return { message: "จำนวนวันชำระเงินของแต่ละงวดต้องเป็นจำนวนเต็มที่ไม่ติดลบ", installmentIndex, field: "payment_due_days" };
+    if (installment.calculation_type === "percentage" && (toAmount(installment.percentage) <= 0 || toAmount(installment.percentage) > 100)) return { message: "เปอร์เซ็นต์ของแต่ละงวดต้องมากกว่า 0 และไม่เกิน 100%", installmentIndex, field: "percentage" };
+    if (triggerUsesFixedCalendarDate(method, installment.trigger_type) && !isIsoDate(installment.due_date)) return { message: "กรุณาระบุวันครบกำหนดสำหรับงวดที่เลือก Specific date", installmentIndex, field: "due_date" };
+    if (["case_milestone", "recurring_period", "manual"].includes(getEffectivePaymentTrigger(method, installment.trigger_type)) && !installment.trigger_description.trim()) return { message: "กรุณาระบุรายละเอียด Trigger ของแต่ละงวดให้ครบถ้วน", installmentIndex, field: "trigger_description" };
   }
 
-  if (method === "installments" && installments.some((installment) => installment.trigger_type === "recurring_period")) return "การแบ่งชำระหลายงวดไม่สามารถใช้ Trigger แบบ Recurring period ได้";
-  if (method === "milestone" && installments.some((installment) => installment.trigger_type !== "case_milestone")) return "วิธีชำระตามขั้นตอนงานต้องใช้ Trigger แบบ Case milestone";
-  if (method === "recurring" && installments.some((installment) => installment.trigger_type !== "recurring_period")) return "วิธีเรียกเก็บเป็นรอบต้องใช้ Trigger แบบ Recurring period";
-  if (method === "manual" && installments.some((installment) => installment.trigger_type !== "manual")) return "วิธีกำหนดเองต้องใช้ Trigger แบบ Manual";
+  if (method === "installments" && installments.some((installment) => installment.trigger_type === "recurring_period")) return { message: "การแบ่งชำระหลายงวดไม่สามารถใช้ Trigger แบบ Recurring period ได้", installmentIndex: 0, field: "trigger" };
+  if (method === "milestone" && installments.some((installment) => installment.trigger_type !== "case_milestone")) return { message: "วิธีชำระตามขั้นตอนงานต้องใช้ Trigger แบบ Case milestone", installmentIndex: 0, field: "trigger" };
+  if (method === "recurring" && installments.some((installment) => installment.trigger_type !== "recurring_period")) return { message: "วิธีเรียกเก็บเป็นรอบต้องใช้ Trigger แบบ Recurring period", installmentIndex: 0, field: "trigger" };
+  if (method === "manual" && installments.some((installment) => installment.trigger_type !== "manual")) return { message: "วิธีกำหนดเองต้องใช้ Trigger แบบ Manual", installmentIndex: 0, field: "trigger" };
   return null;
+}
+
+function getPaymentTermsPlanValidationMessage(method: PaymentMethodType, installments: PaymentInstallment[]) {
+  return getPaymentTermsPlanValidationIssue(method, installments)?.message || null;
+}
+
+function isIsoDate(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(`${value}T00:00:00Z`).getTime());
+}
+
+function focusPaymentTermsValidationIssue(issue: PaymentTermsValidationIssue) {
+  window.requestAnimationFrame(() => {
+    const input = document.getElementById(`payment-installment-${issue.installmentIndex}-${issue.field}`) as HTMLInputElement | HTMLSelectElement | null;
+    input?.scrollIntoView({ behavior: "smooth", block: "center" });
+    input?.focus({ preventScroll: true });
+  });
 }
 
 const profileSelect = [
@@ -585,7 +612,8 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
   const isMainDirty = savedDraftSnapshot !== null && currentDraftSnapshot !== savedDraftSnapshot;
   const isPaymentTermsDirty = paymentTermsSnapshot.ready && paymentTermsSnapshot.current !== paymentTermsSnapshot.saved;
   const isDirty = isMainDirty || isPaymentTermsDirty;
-  const saveDisabled = saving || !paymentTermsValid;
+  // New drafts keep Save enabled so invalid terms can scroll and focus the first field instead of silently blocking the action.
+  const saveDisabled = saving || (isEdit && !paymentTermsValid);
 
   useEffect(() => {
     if (!isDirty) return;
@@ -746,11 +774,12 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       setSaving(false);
       return { ok: false, stage: "payment_terms", message: "Payment terms are not ready." } as SaveAllResult;
     }
-    const paymentTermsValidationMessage = getPaymentTermsPlanValidationMessage(draftTerms.payment_method_type, draftTerms.installments);
-    if (paymentTermsValidationMessage) {
-      alert(paymentTermsValidationMessage);
+    const paymentTermsValidationIssue = getPaymentTermsPlanValidationIssue(draftTerms.payment_method_type, draftTerms.installments);
+    if (paymentTermsValidationIssue) {
+      alert(paymentTermsValidationIssue.message);
+      focusPaymentTermsValidationIssue(paymentTermsValidationIssue);
       setSaving(false);
-      return { ok: false, stage: "payment_terms", message: paymentTermsValidationMessage } as SaveAllResult;
+      return { ok: false, stage: "payment_terms", message: paymentTermsValidationIssue.message } as SaveAllResult;
     }
     const createSnapshots = buildQuotationSnapshots(form, normalizedItems, currentTotals, lookups, "");
     const atomicItems = normalizedItems.map((item, index) => ({
@@ -763,6 +792,13 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       sort_order: index,
     }));
     const atomicInstallments = buildAtomicPaymentInstallments(draftTerms.payment_method_type, draftTerms.installments, normalizedItems);
+    const allocationMappingError = getAtomicPaymentAllocationMappingError(atomicItems, atomicInstallments);
+    if (allocationMappingError) {
+      alert(allocationMappingError.message);
+      focusPaymentTermsValidationIssue(allocationMappingError.issue);
+      setSaving(false);
+      return { ok: false, stage: "payment_terms", message: allocationMappingError.message } as SaveAllResult;
+    }
     const atomicPayload = {
       p_client_id: form.client_id,
       p_case_id: form.case_id ? Number(form.case_id) : null,
@@ -791,7 +827,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
     if (error || !created?.quotation_id) {
       console.error("Atomic quotation draft creation failed", {
         rpc: "create_finance_quotation_draft_atomic",
-        payload: getSafeAtomicDraftPayloadDiagnostic(atomicPayload),
+        safePayload: getSafeAtomicDraftPayloadDiagnostic(atomicPayload),
         code: error?.code,
         message: error?.message,
         details: error?.details,
@@ -1148,9 +1184,15 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
   }, [currentSnapshot, loading, onSnapshotChange, savedSnapshot]);
 
   const forcedTrigger = (nextMethod: PaymentMethodType): PaymentTriggerType | null => (
-    nextMethod === "milestone" ? "case_milestone" : nextMethod === "recurring" ? "recurring_period" : nextMethod === "manual" ? "manual" : null
+    ["milestone", "recurring", "manual"].includes(nextMethod) ? getDefaultPaymentTrigger(nextMethod) : null
   );
-  const updateInstallment = (index: number, patch: Partial<PaymentInstallment>) => setInstallments((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
+  const updateInstallment = (index: number, patch: Partial<PaymentInstallment>) => setInstallments((current) => current.map((item, itemIndex) => {
+    if (itemIndex !== index) return item;
+    const next = { ...item, ...patch };
+    return patch.trigger_type && !triggerUsesFixedCalendarDate(method, patch.trigger_type)
+      ? { ...next, due_date: "" }
+      : next;
+  }));
   const paymentDueChoice = (value: number | string) => isPresetValue(value, paymentDueDayPresets) ? String(toAmount(value)) : "other";
   const percentageChoice = (value: number | string) => isPresetValue(value, percentagePresets) ? String(toAmount(value)) : "other";
   const setPaymentMethod = (nextMethod: PaymentMethodType) => {
@@ -1290,13 +1332,13 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
     {installments.map((installment, index) => <div key={index} style={{ ...cardStyle, marginTop: 12, background: "#f8fafc" }}>
       <div style={sectionHeaderStyle}><h3 style={sectionTitleStyle}>งวดที่ {index + 1} / Installment {index + 1}</h3>{method !== "single" ? <div style={actionGroupStyle}><button type="button" disabled={index === 0} onClick={() => setInstallments((current) => { const next = [...current]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; return normalizePaymentInstallments(next, method); })} style={smallButtonStyle}>Up</button><button type="button" disabled={index === installments.length - 1} onClick={() => setInstallments((current) => { const next = [...current]; [next[index], next[index + 1]] = [next[index + 1], next[index]]; return normalizePaymentInstallments(next, method); })} style={smallButtonStyle}>Down</button><button type="button" onClick={() => setInstallments((current) => normalizePaymentInstallments(current.filter((_, itemIndex) => itemIndex !== index), method))} style={dangerSmallButtonStyle}>Remove</button></div> : null}</div>
       <div style={formGridStyle}>
-        <label style={labelStyle}>ชื่อรายการ / Title<input value={installment.title} onChange={(event) => updateInstallment(index, { title: event.target.value })} style={inputStyle} /></label>
+        <label style={labelStyle}>ชื่อรายการ / Title<input id={`payment-installment-${index}-title`} value={installment.title} onChange={(event) => updateInstallment(index, { title: event.target.value })} style={inputStyle} /></label>
         <label style={labelStyle}>รูปแบบคำนวณ / Calculation<select value={installment.calculation_type} disabled={method === "single"} onChange={(event) => changeCalculationType(event.target.value as PaymentCalculationType)} style={inputStyle}><option value="percentage">Percentage</option><option value="fixed_amount">Fixed Amount</option></select></label>
-        {installment.calculation_type === "percentage" ? <label style={labelStyle}>เปอร์เซ็นต์ / Percentage<div style={compactFieldGroupStyle}><select value={percentageChoice(installment.percentage)} disabled={method === "single"} onChange={(event) => { const value = event.target.value; updateInstallment(index, { percentage: value === "other" ? "" : value }); }} style={compactSelectStyle}><option value="50">50%</option><option value="25">25%</option><option value="20">20%</option><option value="other">Other</option></select>{percentageChoice(installment.percentage) === "other" ? <input type="number" min="0.000001" max="100" step="0.000001" value={installment.percentage} onChange={(event) => updateInstallment(index, { percentage: event.target.value })} style={compactInputStyle} /> : null}</div></label> : null}
-        <label style={labelStyle}>ถึงกำหนดเมื่อ / Trigger<select value={forcedTrigger(method) || installment.trigger_type} disabled={Boolean(forcedTrigger(method))} onChange={(event) => updateInstallment(index, { trigger_type: event.target.value as PaymentTriggerType })} style={inputStyle}><option value="quotation_acceptance">Quotation acceptance</option><option value="agreement_effective">Agreement effective</option><option value="date">Specific date</option><option value="case_milestone">Case milestone</option>{method !== "installments" ? <option value="recurring_period">Recurring period</option> : null}<option value="manual">Manual</option></select></label>
-        {(forcedTrigger(method) || installment.trigger_type) === "date" ? <label style={labelStyle}>Due Date<input type="date" value={installment.due_date} onChange={(event) => updateInstallment(index, { due_date: event.target.value })} style={inputStyle} /></label> : null}
-        {["case_milestone", "recurring_period", "manual"].includes(forcedTrigger(method) || installment.trigger_type) ? <label style={wideLabelStyle}>รายละเอียด Trigger / Trigger Description<input value={installment.trigger_description} onChange={(event) => updateInstallment(index, { trigger_description: event.target.value })} style={inputStyle} /></label> : null}
-        <label style={labelStyle}>ชำระภายใน / Payment Due<div style={compactFieldGroupStyle}><select value={paymentDueChoice(installment.payment_due_days)} onChange={(event) => { const value = event.target.value; updateInstallment(index, { payment_due_days: value === "other" ? "" : value }); }} style={compactSelectStyle}>{paymentDueDayPresets.map((days) => <option key={days} value={days}>{days} days</option>)}<option value="other">Other</option></select>{paymentDueChoice(installment.payment_due_days) === "other" ? <input type="number" min="0" step="1" value={installment.payment_due_days} onChange={(event) => updateInstallment(index, { payment_due_days: event.target.value })} style={compactInputStyle} /> : null}</div>วันนับแต่ได้รับใบแจ้งหนี้ / days after invoice</label>
+        {installment.calculation_type === "percentage" ? <label style={labelStyle}>เปอร์เซ็นต์ / Percentage<div style={compactFieldGroupStyle}><select value={percentageChoice(installment.percentage)} disabled={method === "single"} onChange={(event) => { const value = event.target.value; updateInstallment(index, { percentage: value === "other" ? "" : value }); }} style={compactSelectStyle}><option value="50">50%</option><option value="25">25%</option><option value="20">20%</option><option value="other">Other</option></select>{percentageChoice(installment.percentage) === "other" ? <input id={`payment-installment-${index}-percentage`} type="number" min="0.000001" max="100" step="0.000001" value={installment.percentage} onChange={(event) => updateInstallment(index, { percentage: event.target.value })} style={compactInputStyle} /> : null}</div></label> : null}
+        <label style={labelStyle}>ถึงกำหนดเมื่อ / Trigger<select id={`payment-installment-${index}-trigger`} value={forcedTrigger(method) || installment.trigger_type} disabled={Boolean(forcedTrigger(method))} onChange={(event) => updateInstallment(index, { trigger_type: event.target.value as PaymentTriggerType })} style={inputStyle}><option value="quotation_acceptance">Quotation acceptance</option><option value="agreement_effective">Agreement effective</option><option value="date">Specific date</option><option value="case_milestone">Case milestone</option>{method !== "installments" ? <option value="recurring_period">Recurring period</option> : null}<option value="manual">Manual</option></select></label>
+        {triggerUsesFixedCalendarDate(method, installment.trigger_type) ? <label style={labelStyle}>Due Date<input id={`payment-installment-${index}-due_date`} type="date" value={installment.due_date} onChange={(event) => updateInstallment(index, { due_date: event.target.value })} style={inputStyle} /></label> : null}
+        {["case_milestone", "recurring_period", "manual"].includes(forcedTrigger(method) || installment.trigger_type) ? <label style={wideLabelStyle}>รายละเอียด Trigger / Trigger Description<input id={`payment-installment-${index}-trigger_description`} value={installment.trigger_description} onChange={(event) => updateInstallment(index, { trigger_description: event.target.value })} style={inputStyle} /></label> : null}
+        <label style={labelStyle}>ชำระภายใน / Payment Due<div style={compactFieldGroupStyle}><select id={`payment-installment-${index}-payment_due_days`} value={paymentDueChoice(installment.payment_due_days)} onChange={(event) => { const value = event.target.value; updateInstallment(index, { payment_due_days: value === "other" ? "" : value }); }} style={compactSelectStyle}>{paymentDueDayPresets.map((days) => <option key={days} value={days}>{days} days</option>)}<option value="other">Other</option></select>{paymentDueChoice(installment.payment_due_days) === "other" ? <input id={`payment-installment-${index}-payment_due_days`} type="number" min="0" step="1" value={installment.payment_due_days} onChange={(event) => updateInstallment(index, { payment_due_days: event.target.value })} style={compactInputStyle} /> : null}</div>วันนับแต่ได้รับใบแจ้งหนี้ / days after invoice</label>
         <label style={wideLabelStyle}>หมายเหตุสำหรับลูกค้า / Client Note<textarea value={installment.client_note} onChange={(event) => updateInstallment(index, { client_note: event.target.value })} style={textareaStyle} /></label>
       </div>
       {installment.calculation_type === "fixed_amount" ? <div style={tableWrapStyle}><h4 style={sectionTitleStyle}>Advanced Item Allocation</h4><table style={tableStyle}><thead><tr><th style={thStyle}>Quotation Item</th><th style={rightThStyle}>Before VAT</th><th style={rightThStyle}>VAT</th><th style={rightThStyle}>Total</th><th style={rightThStyle}>Remaining</th></tr></thead><tbody>{quotationItems.filter((item) => item.id || item.client_item_key).map((quotationItem) => { const reference = paymentReferenceForItem(quotationItem); const allocation = installment.items.find((item) => paymentAllocationReference(item) === reference) || { ...(quotationItem.id ? { quotation_item_id: quotationItem.id } : { client_item_key: quotationItem.client_item_key }), allocated_amount_before_tax: 0, allocated_vat_amount: 0, allocated_total: 0 }; const allocatedElsewhere = installments.filter((_, installmentIndex) => installmentIndex !== index).reduce((sum, other) => sum + (other.items.find((item) => paymentAllocationReference(item) === reference)?.allocated_total || 0), 0); const patch = (field: keyof PaymentAllocation, value: string) => updateInstallment(index, { items: installment.items.some((item) => paymentAllocationReference(item) === reference) ? installment.items.map((item) => paymentAllocationReference(item) === reference ? { ...item, [field]: toAmount(value), allocated_total: field === "allocated_total" ? toAmount(value) : (field === "allocated_amount_before_tax" ? toAmount(value) : item.allocated_amount_before_tax) + (field === "allocated_vat_amount" ? toAmount(value) : item.allocated_vat_amount) } : item) : [...installment.items, { ...allocation, [field]: toAmount(value), allocated_total: field === "allocated_total" ? toAmount(value) : (field === "allocated_amount_before_tax" ? toAmount(value) : 0) + (field === "allocated_vat_amount" ? toAmount(value) : 0) }] }); return <tr key={reference}><td style={tdStyle}>{quotationItem.description}</td><td style={rightTdStyle}><input type="number" min="0" step="0.01" value={allocation.allocated_amount_before_tax} onChange={(event) => patch("allocated_amount_before_tax", event.target.value)} style={compactInputStyle} /></td><td style={rightTdStyle}><input type="number" min="0" step="0.01" value={allocation.allocated_vat_amount} onChange={(event) => patch("allocated_vat_amount", event.target.value)} style={compactInputStyle} /></td><td style={rightTdStyle}>{formatMoney(allocation.allocated_amount_before_tax + allocation.allocated_vat_amount)}</td><td style={rightTdStyle}>{formatMoney(toAmount(quotationItem.line_total) - allocatedElsewhere - allocation.allocated_total)}</td></tr>; })}</tbody></table></div> : <p style={mutedTextStyle}>ระบบจะรวมทุกรายการค่าบริการและคำนวณ Before VAT, VAT และ Total จากเปอร์เซ็นต์ในฝั่งเซิร์ฟเวอร์</p>}
@@ -1729,6 +1771,28 @@ function buildAtomicPaymentInstallments(method: PaymentMethodType, installments:
         sort_order: itemIndex,
       })),
   }));
+}
+
+function getAtomicPaymentAllocationMappingError(
+  items: Array<{ client_item_key?: string }>,
+  installments: Array<{ items?: Array<{ client_item_key?: string }> }>,
+) {
+  const itemKeys = items.map((item) => item.client_item_key || "");
+  if (itemKeys.some((key) => !key) || new Set(itemKeys).size !== itemKeys.length) {
+    return {
+      message: "พบรายการค่าบริการที่ไม่สามารถจับคู่กับเงื่อนไขการชำระเงินได้",
+      issue: { message: "", installmentIndex: 0, field: "title" as const },
+    };
+  }
+  for (const [installmentIndex, installment] of installments.entries()) {
+    if ((installment.items || []).some((allocation) => !allocation.client_item_key || !itemKeys.includes(allocation.client_item_key))) {
+      return {
+        message: "พบรายการในเงื่อนไขการชำระเงินที่ไม่ตรงกับรายการค่าบริการ",
+        issue: { message: "", installmentIndex, field: "trigger" as const },
+      };
+    }
+  }
+  return null;
 }
 
 function getAtomicDraftCreateErrorMessage(error: { message?: string | null } | null) {
