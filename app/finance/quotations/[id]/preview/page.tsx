@@ -86,7 +86,7 @@ type MatterRow = {
   title: string | null;
 };
 
-type PaymentTermsHeaderRow = { id: string; payment_method_type: string; client_summary: string | null };
+type PaymentTermsHeaderRow = { id: string; payment_method_type: string; client_summary: string | null; allocation_mode?: "proportional_all_items" | "per_item" | null };
 type PaymentInstallmentRow = {
   id: string;
   installment_no: number;
@@ -188,7 +188,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
           : Promise.resolve({ data: null, error: null }),
         supabase.from("finance_company_profiles").select("*").eq("id", "default").maybeSingle(),
         supabase.from("finance_authorized_signers").select("*").order("sort_order", { ascending: true }),
-        supabase.from("finance_quotation_payment_terms").select("id, payment_method_type, client_summary").eq("quotation_id", quotationId).maybeSingle(),
+        supabase.from("finance_quotation_payment_terms").select("id, payment_method_type, client_summary, allocation_mode").eq("quotation_id", quotationId).maybeSingle(),
       ]);
 
       if (itemsRes.error) console.warn("Failed to load quotation preview items", itemsRes.error);
@@ -501,7 +501,8 @@ function PaymentTermsPreview({ terms, installments, allocations, quotationItems,
   if (!terms || installments.length === 0) return <section className="quotation-keep-together" style={{ ...panelStyle, marginTop: 16 }}><h2 style={panelTitleStyle}>เงื่อนไขการชำระเงิน / Payment Terms</h2><p style={noteParagraphStyle}>ไม่ได้บันทึกเงื่อนไขการชำระเงิน / Payment terms not recorded</p></section>;
   const sourceItems = quotationItems.filter((item) => item.id);
   const allocationsFor = (installmentId: string) => allocations.filter((item) => item.payment_installment_id === installmentId);
-  const useCompactSummary = sourceItems.length === 1 && installments.every((installment) => {
+  const isPerItem = terms.allocation_mode === "per_item";
+  const useCompactSummary = !isPerItem && sourceItems.length === 1 && installments.every((installment) => {
     const rows = allocationsFor(installment.id);
     return rows.length === 1 && rows[0].quotation_item_id === sourceItems[0].id;
   });
@@ -530,7 +531,7 @@ function PaymentTermsPreview({ terms, installments, allocations, quotationItems,
     </> : installments.map((installment) => {
       const rows = allocationsFor(installment.id);
       return <div key={installment.id} className="quotation-payment-installment" style={{ borderTop: "1px solid #e5e7eb", paddingTop: 10, marginTop: 12 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}><strong>งวดที่ {installment.installment_no}{isRedundantTitle(installment.title, installment.installment_no) ? "" : ` - ${installment.title}`}</strong>{installment.calculation_type === "percentage" ? <span>{formatPercentage(installment.percentage)}</span> : null}</div>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}><strong>งวดที่ {installment.installment_no}{isRedundantTitle(installment.title, installment.installment_no) ? "" : ` - ${installment.title}`}</strong>{isPerItem ? <span>สัดส่วนคำนวณจากรายการที่รวมในงวดนี้</span> : installment.calculation_type === "percentage" ? <span>{formatPercentage(installment.percentage)}</span> : null}</div>
         <p className="quotation-thai-text" style={noteParagraphStyle}><strong>เงื่อนไขการเรียกเก็บ / Billing Trigger:</strong> {paymentTriggerText(installment)}<br /><strong>กำหนดชำระ / Payment Due:</strong> {paymentDueText(installment.payment_due_days)}{installment.client_note ? <><br /><strong>หมายเหตุ / Note:</strong> {installment.client_note}</> : null}</p>
         <div style={feeTableWrapStyle}><table style={tableStyle}><thead><tr><th style={thStyle}>รายการ / Description</th><th style={rightThStyle}>จำนวนเงินก่อน VAT / Before VAT</th><th style={rightThStyle}>VAT</th><th style={rightThStyle}>ยอดรวม / Total</th></tr></thead><tbody>
           {rows.map((row) => { const source = sourceItems.find((item) => item.id === row.quotation_item_id); const noVat = source?.vat_applicable === false; return <tr key={`${installment.id}-${row.quotation_item_id}`} className="quotation-item-row"><td style={descriptionTdStyle}>{source?.description || (String(status).toLowerCase() === "draft" ? "ไม่พบรายการค่าบริการที่เชื่อมโยง" : "-")}</td><td style={rightTdStyle}>{formatMoney(row.allocated_amount_before_tax)}</td><td style={rightTdStyle}>{noVat ? "0.00 (No VAT)" : formatMoney(row.allocated_vat_amount)}</td><td style={rightTdStyle}>{formatMoney(row.allocated_total)}</td></tr>; })}
@@ -767,7 +768,7 @@ function getFrozenPaymentTerms(snapshot: Record<string, unknown>) {
       return { payment_installment_id: installment.id, quotation_item_id: getSnapshotText(item, "quotation_item_id"), allocated_amount_before_tax: getSnapshotText(item, "allocated_amount_before_tax"), allocated_vat_amount: getSnapshotText(item, "allocated_vat_amount"), allocated_total: getSnapshotText(item, "allocated_total"), allocation_percentage: null, sort_order: index };
     });
   });
-  return { terms: { id: "snapshot-payment-terms", payment_method_type: getSnapshotText(payment, "payment_method_type"), client_summary: getSnapshotText(payment, "client_summary") || null }, installments, allocations };
+  return { terms: { id: "snapshot-payment-terms", payment_method_type: getSnapshotText(payment, "payment_method_type"), allocation_mode: (getSnapshotText(payment, "allocation_mode") === "per_item" ? "per_item" : "proportional_all_items") as PaymentTermsHeaderRow["allocation_mode"], client_summary: getSnapshotText(payment, "client_summary") || null }, installments, allocations };
 }
 
 function resolveCompanyProfile(snapshot: Record<string, unknown> | null, currentCompany: CompanyProfile): CompanyProfile {

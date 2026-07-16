@@ -331,16 +331,16 @@ function normalizePaymentInstallments(installments: PaymentInstallment[], method
   });
 }
 
-function getPaymentTermsPlanValidationIssue(method: PaymentMethodType, installments: PaymentInstallment[]): PaymentTermsValidationIssue | null {
+function getPaymentTermsPlanValidationIssue(method: PaymentMethodType, installments: PaymentInstallment[], allocationMode: PaymentAllocationMode = "proportional_all_items"): PaymentTermsValidationIssue | null {
   if (installments.length === 0) return { message: "กรุณาเพิ่มอย่างน้อยหนึ่งงวดการชำระเงิน", installmentIndex: 0, field: "title" };
   if (method === "single" && installments.length !== 1) return { message: "การชำระครั้งเดียวต้องมีเพียงหนึ่งงวด", installmentIndex: 0, field: "title" };
   if (method === "installments" && installments.length < 2) return { message: "การแบ่งชำระหลายงวดต้องมีอย่างน้อยสองงวด", installmentIndex: 0, field: "title" };
-  if (new Set(installments.map((installment) => installment.calculation_type)).size > 1) return { message: "ไม่สามารถใช้การคำนวณแบบเปอร์เซ็นต์และจำนวนเงินคงที่ร่วมกันได้", installmentIndex: 0, field: "trigger" };
+  if (allocationMode === "proportional_all_items" && new Set(installments.map((installment) => installment.calculation_type)).size > 1) return { message: "ไม่สามารถใช้การคำนวณแบบเปอร์เซ็นต์และจำนวนเงินคงที่ร่วมกันได้", installmentIndex: 0, field: "trigger" };
 
   for (const [installmentIndex, installment] of installments.entries()) {
     if (!installment.title.trim()) return { message: "กรุณากรอกชื่อรายการของแต่ละงวดให้ครบถ้วน", installmentIndex, field: "title" };
     if (!Number.isInteger(toAmount(installment.payment_due_days)) || toAmount(installment.payment_due_days) < 0) return { message: "จำนวนวันชำระเงินของแต่ละงวดต้องเป็นจำนวนเต็มที่ไม่ติดลบ", installmentIndex, field: "payment_due_days" };
-    if (installment.calculation_type === "percentage" && (toAmount(installment.percentage) <= 0 || toAmount(installment.percentage) > 100)) return { message: "เปอร์เซ็นต์ของแต่ละงวดต้องมากกว่า 0 และไม่เกิน 100%", installmentIndex, field: "percentage" };
+    if (allocationMode === "proportional_all_items" && installment.calculation_type === "percentage" && (toAmount(installment.percentage) <= 0 || toAmount(installment.percentage) > 100)) return { message: "เปอร์เซ็นต์ของแต่ละงวดต้องมากกว่า 0 และไม่เกิน 100%", installmentIndex, field: "percentage" };
     if (triggerUsesFixedCalendarDate(method, installment.trigger_type) && !isIsoDate(installment.due_date)) return { message: "กรุณาระบุวันครบกำหนดสำหรับงวดที่เลือก Specific date", installmentIndex, field: "due_date" };
     if (["case_milestone", "recurring_period", "manual"].includes(getEffectivePaymentTrigger(method, installment.trigger_type)) && !installment.trigger_description.trim()) return { message: "กรุณาระบุรายละเอียด Trigger ของแต่ละงวดให้ครบถ้วน", installmentIndex, field: "trigger_description" };
   }
@@ -352,8 +352,8 @@ function getPaymentTermsPlanValidationIssue(method: PaymentMethodType, installme
   return null;
 }
 
-function getPaymentTermsPlanValidationMessage(method: PaymentMethodType, installments: PaymentInstallment[]) {
-  return getPaymentTermsPlanValidationIssue(method, installments)?.message || null;
+function getPaymentTermsPlanValidationMessage(method: PaymentMethodType, installments: PaymentInstallment[], allocationMode: PaymentAllocationMode) {
+  return getPaymentTermsPlanValidationIssue(method, installments, allocationMode)?.message || null;
 }
 
 function isIsoDate(value: string) {
@@ -793,7 +793,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       setSaving(false);
       return { ok: false, stage: "payment_terms", message: "Payment terms are not ready." } as SaveAllResult;
     }
-    const paymentTermsValidationIssue = getPaymentTermsPlanValidationIssue(draftTerms.payment_method_type, draftTerms.installments);
+    const paymentTermsValidationIssue = getPaymentTermsPlanValidationIssue(draftTerms.payment_method_type, draftTerms.installments, draftTerms.allocation_mode);
     if (paymentTermsValidationIssue) {
       alert(paymentTermsValidationIssue.message);
       focusPaymentTermsValidationIssue(paymentTermsValidationIssue);
@@ -1273,11 +1273,11 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
   const isOverPercentage = allocationMode === "proportional_all_items" && isPercentage && percentageTotal > 100;
   const complete = allocationMode === "per_item" ? perItemPercentages.every((total) => total === 100) : isPercentage ? percentageTotal === 100 : fixedAllocated === quotationTotal;
   const dueDaysAreValid = installments.every((item) => Number.isInteger(toAmount(item.payment_due_days)) && toAmount(item.payment_due_days) >= 0);
-  const percentagesAreValid = !isPercentage || installments.every((item) => toAmount(item.percentage) > 0 && toAmount(item.percentage) <= 100);
+  const percentagesAreValid = allocationMode === "per_item" || !isPercentage || installments.every((item) => toAmount(item.percentage) > 0 && toAmount(item.percentage) <= 100);
   const isOverPerItem = allocationMode === "per_item" && perItemPercentages.some((total) => total > 100);
   const incompletePerItem = quotationItems.map((item, index) => ({ item, remaining: normalizePercentage(100 - perItemPercentages[index]) })).filter(({ remaining }) => remaining > 0);
   const paymentTermsValidationMessage = terms
-    ? getPaymentTermsPlanValidationMessage(method, installments)
+    ? getPaymentTermsPlanValidationMessage(method, installments, allocationMode)
     : null;
   const paymentTermsValid = !terms || (!isOverPercentage && !isOverPerItem && dueDaysAreValid && percentagesAreValid && !paymentTermsValidationMessage);
 
@@ -1298,7 +1298,7 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
     if (saving) return false;
     if (!terms) return true;
     if (installments.length === 0) { alert("กรุณาเพิ่มอย่างน้อยหนึ่งงวด"); return false; }
-    if (!paymentTermsValid) { alert(isOverPercentage || isOverPerItem ? "เปอร์เซ็นต์รวมต้องไม่เกิน 100%" : "กรุณาตรวจสอบเปอร์เซ็นต์และจำนวนวันชำระเงิน"); return false; }
+    if (!paymentTermsValid) { alert(isOverPerItem ? "มีรายการที่จัดสรรเกิน 100%" : isOverPercentage ? "สัดส่วนการชำระเงินรวมต้องไม่เกิน 100%" : "กรุณาตรวจสอบเงื่อนไขการชำระเงิน"); return false; }
     setSaving(true);
     const payload = installments.map((item, index) => ({
       installment_no: index + 1,
@@ -1346,7 +1346,7 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
     return () => onRegisterSave(null);
     // The parent callback only stores this current-state handler in a ref.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [installments, method, summary, terms, saving]);
+  }, [allocationMode, installments, method, summary, terms, saving]);
 
   if (loading) return <div style={cardStyle}>Loading payment terms...</div>;
   if (!terms) return <div id="quotation-payment-terms" ref={sectionRef} tabIndex={-1} style={{ ...cardStyle, scrollMarginTop: 96 }}><h2 style={sectionTitleStyle}>เงื่อนไขการชำระเงิน / Payment Terms</h2><p style={mutedTextStyle}>ยังไม่มีเงื่อนไขการชำระเงินสำหรับใบเสนอราคาฉบับร่างนี้</p><button type="button" onClick={createDefault} disabled={saving} style={primaryButtonStyle}>{saving ? "Creating..." : "สร้างเงื่อนไขชำระเต็มจำนวน / Create Full Payment Terms"}</button></div>;
@@ -1803,8 +1803,8 @@ function buildAtomicPaymentInstallments(method: PaymentMethodType, allocationMod
     allocation_mode: allocationMode,
     installment_no: index + 1,
     title: installment.title,
-    calculation_type: installment.calculation_type,
-    percentage: installment.calculation_type === "percentage" ? normalizePercentage(installment.percentage) : null,
+    calculation_type: allocationMode === "per_item" ? "percentage" : installment.calculation_type,
+    percentage: allocationMode === "per_item" ? 100 : installment.calculation_type === "percentage" ? normalizePercentage(installment.percentage) : null,
     trigger_type: getForcedPaymentTrigger(method) || installment.trigger_type,
     trigger_description: installment.trigger_description || null,
     due_date: installment.due_date || null,
