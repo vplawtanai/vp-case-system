@@ -1460,6 +1460,7 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [feeAgreementId, setFeeAgreementId] = useState<string | null>(null);
+  const feeAgreementCreatingRef = useRef(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -1495,15 +1496,20 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
   }, [quotationId]);
 
   const createFeeAgreement = async () => {
-    if (!quotation || saving) return;
+    if (!quotation || saving || feeAgreementCreatingRef.current) return;
+    feeAgreementCreatingRef.current = true;
     setSaving(true);
     const { data, error } = await supabase.rpc("create_finance_fee_agreement_from_quotation", { p_quotation_id: quotation.id });
     const result = Array.isArray(data) ? data[0] : data;
     if (error || !result?.fee_agreement_id) {
-      alert("Unable to create Fee Agreement draft.");
+      console.error("Unable to create Fee Agreement draft", error);
+      alert(error?.message || "Unable to create Fee Agreement draft.");
       setSaving(false);
+      feeAgreementCreatingRef.current = false;
       return;
     }
+    const agreementRes = await supabase.from("finance_fee_agreements").select("agreement_no").eq("id", result.fee_agreement_id).maybeSingle();
+    if (agreementRes.data?.agreement_no) alert(`สร้าง Fee Agreement ${agreementRes.data.agreement_no} แล้ว`);
     router.push(`/finance/fee-agreements/${result.fee_agreement_id}`);
   };
 
