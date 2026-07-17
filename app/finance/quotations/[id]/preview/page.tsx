@@ -508,7 +508,16 @@ function PaymentTermsPreview({ terms, installments, allocations, quotationItems,
   });
   const isPercentagePlan = installments.every((installment) => installment.calculation_type === "percentage");
   const heading = installments.length === 1 ? "ชำระเต็มจำนวน 1 งวด" : `แบ่งชำระจำนวน ${installments.length} งวด`;
-  const incomplete = String(status || "").toLowerCase() === "draft" && (isPercentagePlan ? installments.reduce((sum, installment) => sum + Number(installment.percentage || 0), 0) < 100 : allocations.reduce((sum, item) => sum + Number(item.allocated_total || 0), 0) < Number(quotationTotal || 0));
+  const incomplete = String(status || "").toLowerCase() === "draft" && (isPerItem
+    ? sourceItems.some((item) => {
+      const itemPercentage = allocations
+        .filter((allocation) => allocation.quotation_item_id === item.id)
+        .reduce((sum, allocation) => sum + Number(allocation.allocation_percentage || 0), 0);
+      return Math.abs(itemPercentage - 100) > 0.000001;
+    })
+    : isPercentagePlan
+      ? installments.reduce((sum, installment) => sum + Number(installment.percentage || 0), 0) < 100
+      : allocations.reduce((sum, item) => sum + Number(item.allocated_total || 0), 0) < Number(quotationTotal || 0));
   const reconciliationWarnings = installments.flatMap((installment) => {
     const rows = allocationsFor(installment.id);
     const allocationTotals = rows.reduce((sum, row) => ({ beforeVat: roundCurrency(sum.beforeVat + Number(row.allocated_amount_before_tax || 0)), vat: roundCurrency(sum.vat + Number(row.allocated_vat_amount || 0)), total: roundCurrency(sum.total + Number(row.allocated_total || 0)) }), { beforeVat: 0, vat: 0, total: 0 });
@@ -765,7 +774,7 @@ function getFrozenPaymentTerms(snapshot: Record<string, unknown>) {
     const items = Array.isArray(source.items) ? source.items : [];
     return items.map((row, index) => {
       const item = getSnapshotObject(row);
-      return { payment_installment_id: installment.id, quotation_item_id: getSnapshotText(item, "quotation_item_id"), allocated_amount_before_tax: getSnapshotText(item, "allocated_amount_before_tax"), allocated_vat_amount: getSnapshotText(item, "allocated_vat_amount"), allocated_total: getSnapshotText(item, "allocated_total"), allocation_percentage: null, sort_order: index };
+      return { payment_installment_id: installment.id, quotation_item_id: getSnapshotText(item, "quotation_item_id"), allocated_amount_before_tax: getSnapshotText(item, "allocated_amount_before_tax"), allocated_vat_amount: getSnapshotText(item, "allocated_vat_amount"), allocated_total: getSnapshotText(item, "allocated_total"), allocation_percentage: getSnapshotText(item, "allocation_percentage") || null, sort_order: index };
     });
   });
   return { terms: { id: "snapshot-payment-terms", payment_method_type: getSnapshotText(payment, "payment_method_type"), allocation_mode: (getSnapshotText(payment, "allocation_mode") === "per_item" ? "per_item" : "proportional_all_items") as PaymentTermsHeaderRow["allocation_mode"], client_summary: getSnapshotText(payment, "client_summary") || null }, installments, allocations };

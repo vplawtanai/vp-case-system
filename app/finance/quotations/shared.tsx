@@ -587,6 +587,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
   const [focusPaymentTerms, setFocusPaymentTerms] = useState(() => searchParams.get("focus") === "payment-terms");
   const [newPaymentTerms, setNewPaymentTerms] = useState<NewPaymentTermsPayload | null>(null);
   const paymentTermsSaveRef = useRef<null | (() => Promise<boolean>)>(null);
+  const saveInFlightRef = useRef(false);
 
   const totals = useMemo(() => computeTotals(items), [items]);
   const canSave = isEdit ? access.permissions.canEditFinanceQuotation : access.permissions.canCreateFinanceQuotation;
@@ -682,7 +683,9 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
   };
 
   const saveDraft = async () => {
-    if (saving) return { ok: false, stage: "quotation", message: "A save is already in progress." } as SaveAllResult;
+    if (saving || saveInFlightRef.current) return { ok: false, stage: "quotation", message: "A save is already in progress." } as SaveAllResult;
+    saveInFlightRef.current = true;
+    try {
     if (!canSave) {
       alert("You do not have permission to save quotations.");
       return { ok: false, stage: "quotation", message: "You do not have permission to save quotations." } as SaveAllResult;
@@ -909,6 +912,9 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
     setSaving(false);
     router.replace(`/finance/quotations/${created.quotation_id}/edit`);
     return { ok: true } as SaveAllResult;
+    } finally {
+      saveInFlightRef.current = false;
+    }
   };
 
   const requestNavigation = (href: string, label: string) => {
