@@ -122,6 +122,8 @@ type CalendarItem = {
   clientName: string;
   matterOrCaseTitle: string;
   link: string;
+  timelineStartTime?: string | null;
+  timelineEndTime?: string | null;
 };
 
 export default function CalendarPage() {
@@ -336,6 +338,8 @@ export default function CalendarPage() {
         clientName: caseItem?.client_name || "-",
         matterOrCaseTitle: renderCaseTitle(caseItem),
         link: `/cases/${item.case_id}#timeline`,
+        timelineStartTime: item.event_time,
+        timelineEndTime: item.event_end_time,
       });
     });
 
@@ -420,7 +424,9 @@ export default function CalendarPage() {
     return map;
   }, [calendarItems]);
 
-  const selectedItems = itemsByDate.get(selectedDate) || [];
+  const selectedItems = useMemo(() => {
+    return orderSelectedDateCaseTimelineItems(itemsByDate.get(selectedDate) || []);
+  }, [itemsByDate, selectedDate]);
   const actionQueueItems = useMemo(() => {
     const today = getDateKey(new Date());
 
@@ -592,6 +598,7 @@ export default function CalendarPage() {
               title={formatDisplayDate(selectedDate)}
               subtitle="Selected date"
               items={selectedItems}
+              showCaseTimelineTimes
             />
             <ItemPanel
               title="Overdue, today, and next 30 days"
@@ -611,11 +618,13 @@ function ItemPanel({
   subtitle,
   items,
   showDateLabels = false,
+  showCaseTimelineTimes = false,
 }: {
   title: string;
   subtitle: string;
   items: CalendarItem[];
   showDateLabels?: boolean;
+  showCaseTimelineTimes?: boolean;
 }) {
   return (
     <section style={panelStyle}>
@@ -633,6 +642,7 @@ function ItemPanel({
         <div style={itemListStyle}>
           {items.map((item) => {
             const isOverdue = isOverdueCalendarItem(item);
+            const timelineTime = showCaseTimelineTimes ? formatCaseTimelineTime(item) : "";
             return (
               <Link key={item.id} href={item.link} style={isOverdue ? overdueItemRowStyle : itemRowStyle}>
                 <div style={itemTopLineStyle}>
@@ -652,6 +662,9 @@ function ItemPanel({
                 <div style={isOverdue ? overdueItemMetaStyle : itemMetaStyle}>
                   {item.clientName} · {item.matterOrCaseTitle}
                 </div>
+                {timelineTime ? (
+                  <div style={isOverdue ? overdueItemTimeStyle : itemTimeStyle}>{timelineTime}</div>
+                ) : null}
                 <div style={isOverdue ? overdueItemMetaStyle : itemMetaStyle}>
                   {item.status}
                   {item.priority ? ` · ${item.priority}` : ""}
@@ -669,6 +682,77 @@ function ItemPanel({
 function renderDeadlineTitle(item: CaseDeadlineRow) {
   if (item.deadline_type === "other") return item.deadline_other || "Deadline";
   return item.deadline_type || "Deadline";
+}
+
+type TimelineTimeValue = {
+  label: string;
+  sortValue: number;
+};
+
+function getTimelineTimeValue(value?: string | null): TimelineTimeValue | null {
+  const rawValue = value?.trim() || "";
+  if (!rawValue) return null;
+
+  const timeMatch = rawValue.match(/^(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/);
+  if (timeMatch) {
+    const hour = Number(timeMatch[1]);
+    const minute = Number(timeMatch[2]);
+    if (hour > 23 || minute > 59 || (hour === 0 && minute === 0)) return null;
+
+    return {
+      label: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
+      sortValue: hour * 60 + minute,
+    };
+  }
+
+  const dateValue = new Date(rawValue);
+  if (Number.isNaN(dateValue.getTime())) return null;
+
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Bangkok",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(dateValue);
+  const hour = Number(parts.find((part) => part.type === "hour")?.value);
+  const minute = Number(parts.find((part) => part.type === "minute")?.value);
+  if (Number.isNaN(hour) || Number.isNaN(minute) || (hour === 0 && minute === 0)) return null;
+
+  return {
+    label: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
+    sortValue: hour * 60 + minute,
+  };
+}
+
+function formatCaseTimelineTime(item: CalendarItem) {
+  if (item.itemType !== "Case Timeline") return "";
+
+  const startTime = getTimelineTimeValue(item.timelineStartTime);
+  const endTime = getTimelineTimeValue(item.timelineEndTime);
+  if (!startTime) return "";
+
+  return endTime
+    ? `เวลา ${startTime.label}–${endTime.label} น.`
+    : `เวลา ${startTime.label} น.`;
+}
+
+function orderSelectedDateCaseTimelineItems(items: CalendarItem[]) {
+  const timelineItems = items.filter((item) => item.itemType === "Case Timeline");
+  if (timelineItems.length < 2) return items;
+
+  const sortedTimelineItems = [...timelineItems].sort((a, b) => {
+    const aTime = getTimelineTimeValue(a.timelineStartTime);
+    const bTime = getTimelineTimeValue(b.timelineStartTime);
+    if (aTime && bTime) return aTime.sortValue - bTime.sortValue;
+    if (aTime) return -1;
+    if (bTime) return 1;
+    return 0;
+  });
+
+  let timelineIndex = 0;
+  return items.map((item) => (
+    item.itemType === "Case Timeline" ? sortedTimelineItems[timelineIndex++] : item
+  ));
 }
 
 function renderCaseTitle(item?: CaseRow) {
@@ -1090,6 +1174,18 @@ const itemMetaStyle: CSSProperties = {
 
 const overdueItemMetaStyle: CSSProperties = {
   ...itemMetaStyle,
+  color: "#991b1b",
+};
+
+const itemTimeStyle: CSSProperties = {
+  color: "#0f2743",
+  fontSize: 12,
+  fontWeight: 850,
+  lineHeight: 1.35,
+};
+
+const overdueItemTimeStyle: CSSProperties = {
+  ...itemTimeStyle,
   color: "#991b1b",
 };
 
