@@ -52,17 +52,18 @@ function FeeAgreementList({ permissions }: { permissions: Parameters<typeof Fina
 
   return <main style={pageStyle}>
     <FinanceSubNav activePage="fee-agreements" permissions={permissions} />
-    <div style={headerStyle}><div><h1 style={{ margin: 0 }}>Fee Agreements</h1><p style={muted}>ข้อตกลงค่าบริการจากใบเสนอราคาที่รับรองแล้ว</p></div></div>
+    <div style={headerStyle}><div><h1 style={{ margin: 0 }}>สัญญาว่าจ้าง</h1><p style={muted}>ข้อตกลงค่าบริการจากใบเสนอราคาที่ได้รับการตอบรับแล้ว</p></div></div>
     <div style={filterStyle}>
       <input style={inputStyle} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ค้นหาเลขที่ข้อตกลง ลูกค้า หรือใบเสนอราคา" />
       <select style={selectStyle} value={status} onChange={(event) => setStatus(event.target.value)}>
         <option value="all">ทุกสถานะ</option>{["draft", "under_review", "sent", "signed", "completed", "cancelled", "active"].map((item) => <option key={item} value={item}>{statusLabel[item]}</option>)}
       </select>
     </div>
-    {loading ? <p>Loading Fee Agreements...</p> : error ? <div style={warning}>{error}</div> : filtered.length === 0 ? <div style={emptyStyle}>ยังไม่มี Fee Agreement ที่ตรงกับเงื่อนไข</div> : <div style={tableWrap}><table style={tableStyle}><thead><tr><th>Agreement</th><th>Client / Matter</th><th>Source Quotation</th><th>Status</th><th>Language</th><th>Effective</th><th>Updated</th><th>Action</th></tr></thead><tbody>{filtered.map((agreement) => {
+    {loading ? <p>กำลังโหลดสัญญาว่าจ้าง...</p> : error ? <div style={warning}>{error}</div> : filtered.length === 0 ? <div style={emptyStyle}>ยังไม่มีสัญญาว่าจ้างที่ตรงกับเงื่อนไข</div> : <div style={tableWrap}><table style={tableStyle}><thead><tr><th>เลขที่สัญญา</th><th>ลูกค้า / เรื่องหรือคดี</th><th>ใบเสนอราคาต้นทาง</th><th>สถานะ</th><th>ภาษา</th><th>วันที่มีผล</th><th>แก้ไขล่าสุด</th><th>การดำเนินการ</th></tr></thead><tbody>{filtered.map((agreement) => {
       const source = agreement.source_document_snapshot_json || {};
       const quotationNo = value(source.quotation_no, agreement.source_reference || "-");
-      return <tr key={agreement.id}><td><strong>{agreement.agreement_no || "Legacy agreement"}</strong><br /><span style={muted}>{agreement.title}</span></td><td>{snapshotText(agreement.client_snapshot_json, "name", "display_name")}<br /><span style={muted}>{snapshotText(agreement.matter_snapshot_json, "title", "file_no", "matter_no")}</span></td><td>{quotationNo}</td><td><StatusBadge status={agreement.status} /></td><td>{agreement.language_code === "en" ? "English" : "Thai"}</td><td>{date(agreement.effective_date)}</td><td>{date(agreement.updated_at)}</td><td><Link href={`/finance/fee-agreements/${agreement.id}`}>Open</Link></td></tr>;
+      const title = /^Fee Agreement\s*-\s*/i.test(agreement.title || "") ? "สัญญาว่าจ้างให้บริการทางกฎหมาย" : agreement.title;
+      return <tr key={agreement.id}><td><strong>{agreement.agreement_no || "ยังไม่มีเลขที่สัญญา"}</strong><br /><span style={muted}>{title}</span></td><td>{snapshotText(agreement.client_snapshot_json, "name", "display_name")}<br /><span style={muted}>{snapshotText(agreement.matter_snapshot_json, "title", "file_no", "matter_no")}</span></td><td>{quotationNo}</td><td><StatusBadge status={agreement.status} /></td><td>{agreement.language_code === "en" ? "English" : "ไทย"}</td><td>{date(agreement.effective_date)}</td><td>{date(agreement.updated_at)}</td><td><Link href={`/finance/fee-agreements/${agreement.id}`}>เปิด</Link></td></tr>;
     })}</tbody></table></div>}
   </main>;
 }

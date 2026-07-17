@@ -1508,7 +1508,17 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
       feeAgreementCreatingRef.current = false;
       return;
     }
-    const agreementRes = await supabase.from("finance_fee_agreements").select("agreement_no").eq("id", result.fee_agreement_id).maybeSingle();
+    const agreementRes = await supabase.from("finance_fee_agreements").select("agreement_no,title,effective_date,expiry_date,billing_method").eq("id", result.fee_agreement_id).maybeSingle();
+    if (result.created && agreementRes.data && /^Fee Agreement\s*-\s*/i.test(agreementRes.data.title || "")) {
+      const titleResult = await supabase.rpc("save_finance_fee_agreement_draft_metadata", {
+        p_fee_agreement_id: result.fee_agreement_id,
+        p_title: "สัญญาว่าจ้างให้บริการทางกฎหมาย",
+        p_effective_date: agreementRes.data.effective_date || null,
+        p_expiry_date: agreementRes.data.expiry_date || null,
+        p_billing_method: agreementRes.data.billing_method || "single",
+      });
+      if (titleResult.error) console.warn("Fee Agreement default title could not be saved", titleResult.error);
+    }
     if (agreementRes.data?.agreement_no) alert(`สร้าง Fee Agreement ${agreementRes.data.agreement_no} แล้ว`);
     router.push(`/finance/fee-agreements/${result.fee_agreement_id}`);
   };
