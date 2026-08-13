@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -111,6 +111,7 @@ export default function DocumentClauseDetailPage() {
   const [showPublishReview, setShowPublishReview] = useState(false);
   const [approvalNote, setApprovalNote] = useState("");
   const [approvalReference, setApprovalReference] = useState("");
+  const publishReviewRef = useRef<HTMLElement | null>(null);
 
   const selectedVersion = versions.find((version) => version.id === selectedVersionId) || null;
   const isDraft = !selectedVersion || selectedVersion.status === "draft";
@@ -368,6 +369,13 @@ export default function DocumentClauseDetailPage() {
     await loadVariables(version.id);
   };
 
+  const openPublishReview = () => {
+    setShowPublishReview(true);
+    window.requestAnimationFrame(() => {
+      publishReviewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
   const displayName = familyName || selectedVersion?.title || "ข้อสัญญามาตรฐาน";
 
   return (
@@ -390,9 +398,17 @@ export default function DocumentClauseDetailPage() {
                 </div>
                 <div className={styles.actionRow}>
                   <button type="button" className={styles.button} onClick={() => setEditingFamily((current) => !current)}>ข้อมูลข้อสัญญา</button>
+                  {selectedVersion?.status === "under_review" && isPartner ? <button type="button" className={styles.buttonPrimary} onClick={openPublishReview} disabled={saving}>เผยแพร่</button> : null}
                   {selectedVersion && ["published", "retired"].includes(selectedVersion.status) ? <button type="button" className={styles.buttonPrimary} onClick={() => void createNewVersion()} disabled={saving}>สร้างเวอร์ชันใหม่</button> : null}
                 </div>
               </header>
+
+              {selectedVersion?.status === "under_review" && !isPartner ? (
+                <div className={styles.notice}>
+                  <strong>เวอร์ชันนี้อยู่ระหว่างการตรวจทาน</strong>
+                  <div className={styles.helperText}>บัญชี Admin สามารถส่งกลับเป็นร่างได้ แต่เฉพาะ Partner เท่านั้นที่สามารถเผยแพร่ข้อสัญญาได้</div>
+                </div>
+              ) : null}
 
               {editingFamily ? (
                 <section className={styles.formPanel}>
@@ -449,7 +465,7 @@ export default function DocumentClauseDetailPage() {
                       <div><strong>อยู่ระหว่างการตรวจทาน</strong><div className={styles.helperText}>ถ้อยคำถูกล็อกระหว่างตรวจ หากต้องแก้ไขให้ส่งกลับเป็นฉบับร่าง</div></div>
                       <div className={styles.actionRow}>
                         <button type="button" className={styles.button} onClick={() => void transitionVersion("draft")} disabled={saving}>ส่งกลับเป็นร่าง</button>
-                        {isPartner ? <button type="button" className={styles.buttonPrimary} onClick={() => setShowPublishReview(true)} disabled={saving}>ตรวจเพื่อเผยแพร่</button> : <span className={styles.helperText}>Partner เท่านั้นที่เผยแพร่ได้</span>}
+                        {isPartner ? <button type="button" className={styles.buttonPrimary} onClick={openPublishReview} disabled={saving}>เผยแพร่</button> : <span className={styles.helperText}>เฉพาะ Partner เท่านั้นที่สามารถเผยแพร่ข้อสัญญาได้</span>}
                       </div>
                     </div>
                   ) : null}
@@ -480,7 +496,7 @@ export default function DocumentClauseDetailPage() {
               </section>
 
               {showPublishReview && selectedVersion?.status === "under_review" && isPartner ? (
-                <section className={styles.reviewPanel}>
+                <section ref={publishReviewRef} className={styles.reviewPanel}>
                   <div className={styles.sectionHeader}><div><h2 className={styles.sectionTitle}>ตรวจทานครั้งสุดท้ายก่อนเผยแพร่</h2><div className={styles.helperText}>การเผยแพร่จะล็อกถ้อยคำเวอร์ชันนี้อย่างถาวร หากต้องแก้ภายหลังต้องสร้างเวอร์ชันใหม่</div></div><button type="button" className={styles.button} onClick={() => setShowPublishReview(false)}>ปิด</button></div>
                   <div className={styles.summaryGrid}>
                     <Summary label="ข้อสัญญา" value={`${displayName} (${family.clause_code})`} />
