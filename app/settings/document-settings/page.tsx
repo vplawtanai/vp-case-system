@@ -438,7 +438,7 @@ export default function DocumentSettingsPage() {
   if (loading) {
     return (
       <AuthGuard>
-        <AppTopNav title="Settings" subtitle="Document Settings" activePage="account" />
+        <AppTopNav title="Settings" subtitle="Document Settings" activePage="settings" />
         <main style={pageStyle}><div style={cardStyle}>Loading document settings...</div></main>
       </AuthGuard>
     );
@@ -447,7 +447,7 @@ export default function DocumentSettingsPage() {
   if (!canManageSigners) {
     return (
       <AuthGuard>
-        <AppTopNav title="Settings" subtitle="Document Settings" activePage="account" />
+        <AppTopNav title="Settings" subtitle="Document Settings" activePage="settings" />
         <main style={pageStyle}>
           <div style={cardStyle}>
             <h1 style={pageTitleStyle}>No access</h1>
@@ -460,7 +460,7 @@ export default function DocumentSettingsPage() {
 
   return (
     <AuthGuard>
-      <AppTopNav title="Settings" subtitle="Document Settings" activePage="account" />
+      <AppTopNav title="Settings" subtitle="Document Settings" activePage="settings" />
       <main style={pageStyle}>
         <div style={sectionHeaderStyle}>
           <div>

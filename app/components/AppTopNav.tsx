@@ -21,6 +21,7 @@ type AppTopNavProps = {
     | "workload"
     | "officeWork"
     | "workloadSummary"
+    | "settings"
     | "account"
     | "users";
 };
@@ -49,6 +50,7 @@ type NavIconName =
   | "summary"
   | "clients"
   | "users"
+  | "settings"
   | "account"
   | "logout";
 
@@ -107,6 +109,12 @@ export default function AppTopNav({
         items: [
           { page: "clients" as const, label: "Clients", icon: "clients" as const, href: "/clients", visible: permissions.canViewDashboard },
           { page: "users" as const, label: "Users", icon: "users" as const, href: "/admin/users", visible: permissions.canManageUsers },
+        ],
+      },
+      {
+        title: "Settings",
+        items: [
+          { page: "settings" as const, label: "ตั้งค่าเอกสาร", icon: "settings" as const, href: "/settings/document-settings", visible: permissions.role === "admin" || permissions.role === "partner" },
         ],
       },
       {
@@ -195,6 +203,7 @@ export default function AppTopNav({
       | "workload"
       | "officeWork"
       | "workloadSummary"
+      | "settings"
       | "account"
       | "users"
   ) => {
@@ -208,6 +217,7 @@ export default function AppTopNav({
     if (page === "workloadSummary") return pathname === "/reports/workload-summary";
     if (page === "clients") return pathname === "/clients";
     if (page === "users") return pathname === "/admin/users";
+    if (page === "settings") return pathname.startsWith("/settings/document-settings");
     if (page === "account") return pathname.startsWith("/account");
     return activePage === page;
   };
@@ -442,6 +452,18 @@ function NavIcon({ name }: { name: NavIconName }) {
         <circle cx="12" cy="8" r="3" />
         <path d="M5 21a7 7 0 0 1 14 0" />
         <path d="M18 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1z" />
+      </svg>
+    );
+  }
+
+  if (name === "settings") {
+    return (
+      <svg {...common}>
+        <path d="M6 3h9l3 3v15H6z" />
+        <path d="M15 3v4h4" />
+        <path d="M9 11h6M9 15h6" />
+        <circle cx="11" cy="11" r="1" />
+        <circle cx="14" cy="15" r="1" />
       </svg>
     );
   }
