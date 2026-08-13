@@ -22,6 +22,9 @@ type AppTopNavProps = {
     | "officeWork"
     | "workloadSummary"
     | "settings"
+    | "documentSettings"
+    | "documentTemplates"
+    | "documentClauses"
     | "account"
     | "users";
 };
@@ -51,6 +54,8 @@ type NavIconName =
   | "clients"
   | "users"
   | "settings"
+  | "templates"
+  | "clauses"
   | "account"
   | "logout";
 
@@ -114,7 +119,9 @@ export default function AppTopNav({
       {
         title: "Settings",
         items: [
-          { page: "settings" as const, label: "ตั้งค่าเอกสาร", icon: "settings" as const, href: "/settings/document-settings", visible: permissions.role === "admin" || permissions.role === "partner" },
+          { page: "documentSettings" as const, label: "ตั้งค่าเอกสาร", icon: "settings" as const, href: "/settings/document-settings", visible: permissions.role === "admin" || permissions.role === "partner" },
+          { page: "documentTemplates" as const, label: "แม่แบบเอกสาร", icon: "templates" as const, href: "/settings/document-templates", visible: permissions.role === "admin" || permissions.role === "partner" },
+          { page: "documentClauses" as const, label: "คลังข้อสัญญา", icon: "clauses" as const, href: "/settings/document-clauses", visible: permissions.role === "admin" || permissions.role === "partner" },
         ],
       },
       {
@@ -204,6 +211,9 @@ export default function AppTopNav({
       | "officeWork"
       | "workloadSummary"
       | "settings"
+      | "documentSettings"
+      | "documentTemplates"
+      | "documentClauses"
       | "account"
       | "users"
   ) => {
@@ -217,7 +227,10 @@ export default function AppTopNav({
     if (page === "workloadSummary") return pathname === "/reports/workload-summary";
     if (page === "clients") return pathname === "/clients";
     if (page === "users") return pathname === "/admin/users";
-    if (page === "settings") return pathname.startsWith("/settings/document-settings");
+    if (page === "settings") return pathname.startsWith("/settings");
+    if (page === "documentSettings") return pathname.startsWith("/settings/document-settings");
+    if (page === "documentTemplates") return pathname.startsWith("/settings/document-templates");
+    if (page === "documentClauses") return pathname.startsWith("/settings/document-clauses");
     if (page === "account") return pathname.startsWith("/account");
     return activePage === page;
   };
@@ -464,6 +477,26 @@ function NavIcon({ name }: { name: NavIconName }) {
         <path d="M9 11h6M9 15h6" />
         <circle cx="11" cy="11" r="1" />
         <circle cx="14" cy="15" r="1" />
+      </svg>
+    );
+  }
+
+  if (name === "templates") {
+    return (
+      <svg {...common}>
+        <path d="M6 3h9l3 3v15H6z" />
+        <path d="M15 3v4h4M9 11h6M9 15h6" />
+        <path d="M4 7h2M4 12h2M4 17h2" />
+      </svg>
+    );
+  }
+
+  if (name === "clauses") {
+    return (
+      <svg {...common}>
+        <path d="M5 4h14v16H5z" />
+        <path d="M8 8h8M8 12h8M8 16h5" />
+        <path d="M3 7h2M3 12h2M3 17h2" />
       </svg>
     );
   }
