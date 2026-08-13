@@ -8,6 +8,7 @@ import {
   DocumentPlatformPage,
   RiskBadge,
   StatusBadge,
+  canApproveDocumentPlatform,
   formatDateTime,
   languageLabel,
   riskLabel,
@@ -115,7 +116,7 @@ export default function DocumentClauseDetailPage() {
 
   const selectedVersion = versions.find((version) => version.id === selectedVersionId) || null;
   const isDraft = !selectedVersion || selectedVersion.status === "draft";
-  const isPartner = access.role === "partner";
+  const canApprove = canApproveDocumentPlatform(access.role);
 
   const setEditorFromVersion = useCallback((version: ClauseVersionRow | null) => {
     if (!version) {
@@ -334,7 +335,7 @@ export default function DocumentClauseDetailPage() {
 
   const transitionVersion = async (nextStatus: string, note?: string, reference?: string) => {
     if (!selectedVersion || saving) return;
-    if ((nextStatus === "published" || nextStatus === "retired") && !isPartner) return;
+    if ((nextStatus === "published" || nextStatus === "retired") && !canApprove) return;
     const action = nextStatus === "under_review" ? "ส่งเวอร์ชันนี้ให้ตรวจ"
       : nextStatus === "draft" ? "ส่งเวอร์ชันนี้กลับเป็นฉบับร่าง"
         : nextStatus === "published" ? "เผยแพร่ถ้อยคำเวอร์ชันนี้"
@@ -398,17 +399,10 @@ export default function DocumentClauseDetailPage() {
                 </div>
                 <div className={styles.actionRow}>
                   <button type="button" className={styles.button} onClick={() => setEditingFamily((current) => !current)}>ข้อมูลข้อสัญญา</button>
-                  {selectedVersion?.status === "under_review" && isPartner ? <button type="button" className={styles.buttonPrimary} onClick={openPublishReview} disabled={saving}>เผยแพร่</button> : null}
+                  {selectedVersion?.status === "under_review" && canApprove ? <button type="button" className={styles.buttonPrimary} onClick={openPublishReview} disabled={saving}>เผยแพร่</button> : null}
                   {selectedVersion && ["published", "retired"].includes(selectedVersion.status) ? <button type="button" className={styles.buttonPrimary} onClick={() => void createNewVersion()} disabled={saving}>สร้างเวอร์ชันใหม่</button> : null}
                 </div>
               </header>
-
-              {selectedVersion?.status === "under_review" && !isPartner ? (
-                <div className={styles.notice}>
-                  <strong>เวอร์ชันนี้อยู่ระหว่างการตรวจทาน</strong>
-                  <div className={styles.helperText}>บัญชี Admin สามารถส่งกลับเป็นร่างได้ แต่เฉพาะ Partner เท่านั้นที่สามารถเผยแพร่ข้อสัญญาได้</div>
-                </div>
-              ) : null}
 
               {editingFamily ? (
                 <section className={styles.formPanel}>
@@ -465,12 +459,12 @@ export default function DocumentClauseDetailPage() {
                       <div><strong>อยู่ระหว่างการตรวจทาน</strong><div className={styles.helperText}>ถ้อยคำถูกล็อกระหว่างตรวจ หากต้องแก้ไขให้ส่งกลับเป็นฉบับร่าง</div></div>
                       <div className={styles.actionRow}>
                         <button type="button" className={styles.button} onClick={() => void transitionVersion("draft")} disabled={saving}>ส่งกลับเป็นร่าง</button>
-                        {isPartner ? <button type="button" className={styles.buttonPrimary} onClick={openPublishReview} disabled={saving}>เผยแพร่</button> : <span className={styles.helperText}>เฉพาะ Partner เท่านั้นที่สามารถเผยแพร่ข้อสัญญาได้</span>}
+                        {canApprove ? <button type="button" className={styles.buttonPrimary} onClick={openPublishReview} disabled={saving}>เผยแพร่</button> : null}
                       </div>
                     </div>
                   ) : null}
 
-                  {selectedVersion?.status === "published" && isPartner ? <div className={styles.actionRow}><button type="button" className={styles.buttonDanger} onClick={() => void transitionVersion("retired", approvalNote, approvalReference)} disabled={saving}>ยกเลิกการใช้งานเวอร์ชันนี้</button></div> : null}
+                  {selectedVersion?.status === "published" && canApprove ? <div className={styles.actionRow}><button type="button" className={styles.buttonDanger} onClick={() => void transitionVersion("retired", approvalNote, approvalReference)} disabled={saving}>ยกเลิกการใช้งานเวอร์ชันนี้</button></div> : null}
                 </div>
 
                 <aside className={styles.editorAside}>
@@ -495,7 +489,7 @@ export default function DocumentClauseDetailPage() {
                 </aside>
               </section>
 
-              {showPublishReview && selectedVersion?.status === "under_review" && isPartner ? (
+              {showPublishReview && selectedVersion?.status === "under_review" && canApprove ? (
                 <section ref={publishReviewRef} className={styles.reviewPanel}>
                   <div className={styles.sectionHeader}><div><h2 className={styles.sectionTitle}>ตรวจทานครั้งสุดท้ายก่อนเผยแพร่</h2><div className={styles.helperText}>การเผยแพร่จะล็อกถ้อยคำเวอร์ชันนี้อย่างถาวร หากต้องแก้ภายหลังต้องสร้างเวอร์ชันใหม่</div></div><button type="button" className={styles.button} onClick={() => setShowPublishReview(false)}>ปิด</button></div>
                   <div className={styles.summaryGrid}>

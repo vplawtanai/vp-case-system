@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import AuthGuard from "../components/AuthGuard";
 import AppTopNav from "../components/AppTopNav";
-import { buildPermissions } from "../../lib/permissions";
+import { buildPermissions, normalizeRole } from "../../lib/permissions";
 import { supabase } from "../../lib/supabase";
 import styles from "./document-platform.module.css";
 
@@ -15,6 +15,11 @@ export type DocumentPlatformAccess = {
   allowed: boolean;
   role: string;
 };
+
+export function canApproveDocumentPlatform(role?: string | null) {
+  const normalizedRole = normalizeRole(role);
+  return normalizedRole === "admin" || normalizedRole === "partner";
+}
 
 export function useDocumentPlatformAccess(): DocumentPlatformAccess {
   const [access, setAccess] = useState<DocumentPlatformAccess>({

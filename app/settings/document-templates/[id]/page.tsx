@@ -8,6 +8,7 @@ import {
   DocumentPlatformPage,
   RiskBadge,
   StatusBadge,
+  canApproveDocumentPlatform,
   documentTypeLabel,
   formatDateTime,
   friendlyError,
@@ -172,6 +173,7 @@ export default function DocumentTemplateDetailPage() {
 
   const selectedVersion = versions.find((version) => version.id === selectedVersionId) || null;
   const isDraft = selectedVersion?.status === "draft";
+  const canApprove = canApproveDocumentPlatform(access.role);
   const inactiveShell = template?.metadata_json?.inactive_shell === true
     || template?.metadata_json?.legal_wording_approved === false;
 
@@ -421,7 +423,7 @@ export default function DocumentTemplateDetailPage() {
 
   const transitionVersion = async (nextStatus: string) => {
     if (!selectedVersion || saving) return;
-    if ((nextStatus === "published" || nextStatus === "retired") && access.role !== "partner") return;
+    if ((nextStatus === "published" || nextStatus === "retired") && !canApprove) return;
     if (nextStatus === "published" && inactiveShell) return;
     const label = nextStatus === "under_review"
       ? "ส่งแม่แบบเวอร์ชันนี้ให้ตรวจ"
@@ -646,13 +648,13 @@ export default function DocumentTemplateDetailPage() {
                 <div className={styles.sectionHeader}>
                   <div>
                     <h2 className={styles.sectionTitle}>สถานะเวอร์ชัน</h2>
-                    <div className={styles.helperText}>การเผยแพร่และยกเลิกการใช้งานทำได้โดย Partner เท่านั้น</div>
+                    <div className={styles.helperText}>การเผยแพร่และยกเลิกการใช้งานเป็นอำนาจของ Admin และ Partner</div>
                   </div>
                   <div className={styles.actionRow}>
                     {selectedVersion?.status === "draft" ? <button type="button" className={styles.buttonPrimary} onClick={() => void transitionVersion("under_review")} disabled={saving}>ส่งตรวจ</button> : null}
                     {selectedVersion?.status === "under_review" ? <button type="button" className={styles.button} onClick={() => void transitionVersion("draft")} disabled={saving}>ส่งกลับเป็นร่าง</button> : null}
-                    {selectedVersion?.status === "under_review" && access.role === "partner" ? <button type="button" className={styles.buttonPrimary} onClick={() => void transitionVersion("published")} disabled={saving || inactiveShell}>เผยแพร่</button> : null}
-                    {selectedVersion?.status === "published" && access.role === "partner" ? <button type="button" className={styles.buttonDanger} onClick={() => void transitionVersion("retired")} disabled={saving}>ยกเลิกการใช้งาน</button> : null}
+                    {selectedVersion?.status === "under_review" && canApprove ? <button type="button" className={styles.buttonPrimary} onClick={() => void transitionVersion("published")} disabled={saving || inactiveShell}>เผยแพร่</button> : null}
+                    {selectedVersion?.status === "published" && canApprove ? <button type="button" className={styles.buttonDanger} onClick={() => void transitionVersion("retired")} disabled={saving}>ยกเลิกการใช้งาน</button> : null}
                   </div>
                 </div>
                 {selectedVersion && selectedVersion.status !== "draft" ? <div className={styles.notice}>เวอร์ชันสถานะนี้เป็นแบบอ่านอย่างเดียว โครงสร้างและข้อสัญญาไม่สามารถแก้ไขได้</div> : null}
