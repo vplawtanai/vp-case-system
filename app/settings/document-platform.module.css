@@ -84,6 +84,7 @@
 .surface,
 .notice,
 .error,
+.success,
 .emptyState,
 .accessState {
   border: 1px solid #dfe4ea;
@@ -112,6 +113,12 @@
   border-color: #efc4c4;
   background: #fff7f7;
   color: #9b1c1c;
+}
+
+.success {
+  border-color: #bbdfc5;
+  background: #eef9f1;
+  color: #23733b;
 }
 
 .emptyState,
@@ -286,6 +293,13 @@
   gap: 12px;
 }
 
+.filterBar {
+  display: grid;
+  grid-template-columns: minmax(240px, 2fr) repeat(3, minmax(150px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
 .summaryGrid {
   margin: 14px 0 18px;
 }
@@ -336,6 +350,175 @@
   color: #172033;
   font: inherit;
   font-weight: 600;
+}
+
+.breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-bottom: 14px;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.breadcrumb a {
+  color: #0f2743;
+  text-decoration: none;
+}
+
+.editorGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+  gap: 18px;
+  align-items: start;
+}
+
+.editorMain,
+.editorAside {
+  min-width: 0;
+}
+
+.editorMain {
+  display: grid;
+  gap: 16px;
+}
+
+.editorAside {
+  display: grid;
+  gap: 12px;
+}
+
+.wordingEditor {
+  width: 100%;
+  min-width: 0;
+  min-height: 420px;
+  box-sizing: border-box;
+  padding: 18px;
+  border: 1px solid #cfd6df;
+  border-radius: 6px;
+  background: #fff;
+  color: #172033;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.85;
+  resize: vertical;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.wordingEditor:disabled {
+  background: #fafbfc;
+  color: #344054;
+  opacity: 1;
+}
+
+.metricRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: -10px;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.lifecyclePanel,
+.reviewPanel {
+  padding: 16px;
+  border: 1px solid #bfd0e2;
+  border-radius: 8px;
+  background: #f7faff;
+}
+
+.lifecyclePanel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.reviewPanel {
+  display: grid;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.wordingPreview {
+  max-height: 420px;
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid #dfe4ea;
+  border-radius: 6px;
+  background: #fff;
+  color: #172033;
+  font-size: 14px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.variableList,
+.compactList {
+  display: grid;
+  gap: 9px;
+}
+
+.variableRow,
+.compactList > div {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid #edf0f3;
+}
+
+.variableRow:last-child,
+.compactList > div:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.compactList span {
+  color: #667085;
+  font-size: 11px;
+}
+
+.compactList strong {
+  max-width: 62%;
+  color: #344054;
+  font-size: 12px;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.historyList {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.historyRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+  padding: 12px 0;
+  border: 0;
+  border-bottom: 1px solid #e7ebef;
+  background: transparent;
+  color: #172033;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.historyRow:last-child {
+  border-bottom: 0;
 }
 
 .input,
@@ -435,6 +618,18 @@
   .summaryGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .filterBar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .editorGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .editorAside {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 700px) {
@@ -451,7 +646,9 @@
   }
 
   .formGrid,
-  .summaryGrid {
+  .summaryGrid,
+  .filterBar,
+  .editorAside {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -465,6 +662,18 @@
 
   .slotRow {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lifecyclePanel,
+  .historyRow {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .wordingEditor {
+    min-height: 360px;
+    padding: 14px;
+    font-size: 14px;
   }
 
   .table {
