@@ -537,6 +537,14 @@ export default function DocumentTemplateDetailPage() {
                 <div className={styles.actionRow}>
                   <StatusBadge status={selectedVersion?.status || template.status} />
                   <StatusBadge status={inactiveShell ? "inactive" : template.status} />
+                  {selectedVersion && ["draft", "under_review"].includes(selectedVersion.status) ? (
+                    <Link
+                      href={`/settings/document-templates/${template.id}/preview?version=${selectedVersion.id}`}
+                      className={styles.buttonPrimary}
+                    >
+                      ดูตัวอย่างแม่แบบ
+                    </Link>
+                  ) : null}
                 </div>
               </header>
 
