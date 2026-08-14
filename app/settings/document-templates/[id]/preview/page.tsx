@@ -8,7 +8,15 @@ import {
   DocumentPlatformPage,
   useDocumentPlatformAccess,
 } from "../../../document-platform-shared";
-import { VP_COMPANY_PROFILE } from "../../../../../lib/companyProfile";
+import {
+  DocumentIdentityFooter,
+  DocumentIdentityHeader,
+} from "../../../../components/DocumentIdentity";
+import {
+  type DocumentIdentity,
+  loadCurrentDocumentIdentity,
+  normalizeDocumentIdentity,
+} from "../../../../../lib/documentIdentity";
 import { supabase } from "../../../../../lib/supabase";
 import {
   type FeeAgreementSignatory,
@@ -92,7 +100,6 @@ type AgreementContextRow = {
   total_amount: number | string;
   client_snapshot_json: JsonObject | null;
   matter_snapshot_json: JsonObject | null;
-  company_snapshot_json: JsonObject | null;
   source_document_snapshot_json: JsonObject | null;
   commercial_terms_snapshot_json: JsonObject | null;
   signatories_json: unknown[] | null;
@@ -132,7 +139,8 @@ export default function DraftTemplatePreviewPage() {
   const [variableDefinitions, setVariableDefinitions] = useState<VariableDefinitionRow[]>([]);
   const [contexts, setContexts] = useState<AgreementContextRow[]>([]);
   const [contextId, setContextId] = useState("");
-  const [companyProfile, setCompanyProfile] = useState<JsonObject>({});
+  const [companyProfile, setCompanyProfile] = useState<DocumentIdentity>(() => normalizeDocumentIdentity(null));
+  const [logoUrl, setLogoUrl] = useState("");
 
   const loadPreview = useCallback(async () => {
     if (!access.allowed || !templateId) return;
@@ -153,15 +161,11 @@ export default function DraftTemplatePreviewPage() {
         .limit(100),
       supabase
         .from("finance_fee_agreements")
-        .select("id, agreement_no, title, status, language_code, effective_date, commencement_date, expiry_date, currency, amount_before_tax, vat_amount, total_amount, client_snapshot_json, matter_snapshot_json, company_snapshot_json, source_document_snapshot_json, commercial_terms_snapshot_json, signatories_json, created_at")
+        .select("id, agreement_no, title, status, language_code, effective_date, commencement_date, expiry_date, currency, amount_before_tax, vat_amount, total_amount, client_snapshot_json, matter_snapshot_json, source_document_snapshot_json, commercial_terms_snapshot_json, signatories_json, created_at")
         .eq("status", "draft")
         .order("updated_at", { ascending: false })
         .limit(100),
-      supabase
-        .from("finance_company_profiles")
-        .select("company_name_th, company_name_en, tax_id, branch_label, address_th, phone, email, website, description")
-        .eq("id", "default")
-        .maybeSingle(),
+      loadCurrentDocumentIdentity(supabase),
     ]);
 
     if (templateResult.error || versionsResult.error || !templateResult.data) {
@@ -275,7 +279,7 @@ export default function DraftTemplatePreviewPage() {
       ? []
       : ((contextsResult.data || []) as AgreementContextRow[]).filter((entry) => entry.language_code === targetVersion.language_code);
     if (contextsResult.error) console.warn("Draft Fee Agreement preview contexts are unavailable", contextsResult.error);
-    if (companyResult.error) console.warn("Current company profile is unavailable for Draft Template Preview", companyResult.error);
+    if (companyResult.error) console.warn("Current Document Settings identity is unavailable for Draft Template Preview", companyResult.error);
 
     setTemplate(templateRow);
     setVersion(targetVersion);
@@ -287,7 +291,8 @@ export default function DraftTemplatePreviewPage() {
     setVariableDefinitions((definitionsResult.data || []) as VariableDefinitionRow[]);
     setContexts(contextRows);
     setContextId(contextRows.some((entry) => entry.id === requestedContextId) ? requestedContextId : "");
-    setCompanyProfile(asObject(companyResult.data));
+    setCompanyProfile(companyResult.identity);
+    setLogoUrl(companyResult.logoUrl);
     setLoading(false);
   }, [access.allowed, requestedContextId, requestedVersionId, templateId]);
 
@@ -372,7 +377,7 @@ export default function DraftTemplatePreviewPage() {
                 <article className={styles.document}>
                   {sortedSections.map((section) => {
                     if (section.section_kind === "preamble") {
-                      return <Preamble key={section.id} template={template} section={section} variables={variableMap} />;
+                      return <Preamble key={section.id} template={template} section={section} variables={variableMap} identity={companyProfile} logoUrl={logoUrl} />;
                     }
                     if (section.section_kind === "execution") {
                       return <Execution key={section.id} section={section} requirements={requirements} signatories={signatories} variables={variableMap} />;
@@ -397,6 +402,7 @@ export default function DraftTemplatePreviewPage() {
                       </section>
                     );
                   })}
+                  <DocumentIdentityFooter identity={companyProfile} />
                 </article>
               )}
             </>
@@ -407,23 +413,17 @@ export default function DraftTemplatePreviewPage() {
   );
 }
 
-function Preamble({ template, section, variables }: { template: TemplateRow; section: SectionRow; variables: Record<string, string> }) {
+function Preamble({ template, section, variables, identity, logoUrl }: { template: TemplateRow; section: SectionRow; variables: Record<string, string>; identity: DocumentIdentity; logoUrl: string }) {
   const value = (key: string, label: string, fallback = "") => variables[key] || fallback || `[ยังไม่มีข้อมูล: ${label}]`;
   return (
     <section className={styles.preamble} data-section-code={section.section_code}>
-      <header className={styles.documentHeader}>
-        <div>
-          <div className={styles.brand}>VP</div>
-          <strong>{value("LAW_FIRM_NAME", "ชื่อสำนักงาน")}</strong>
-          <div>{value("LAW_FIRM_ADDRESS", "ที่อยู่สำนักงาน")}</div>
-          <div>เลขประจำตัวผู้เสียภาษี {value("LAW_FIRM_TAX_ID", "เลขประจำตัวผู้เสียภาษีสำนักงาน")}</div>
-        </div>
-        <div className={styles.documentIdentity}>
-          <h1>{value("AGREEMENT_TITLE", "ชื่อสัญญา", template.name)}</h1>
-          <span>Fee Agreement Template Preview</span>
-          <strong>{value("AGREEMENT_NO", "เลขที่สัญญา")}</strong>
-        </div>
-      </header>
+      <DocumentIdentityHeader
+        identity={identity}
+        logoUrl={logoUrl}
+        title={value("AGREEMENT_TITLE", "ชื่อสัญญา", template.name)}
+        subtitle="Fee Agreement Template Preview"
+        documentNo={value("AGREEMENT_NO", "เลขที่สัญญา")}
+      />
       <div className={styles.partyGrid}>
         <InfoBlock title="ผู้รับบริการ / ลูกค้า" rows={[
           ["ชื่อ", value("CLIENT_NAME", "ชื่อลูกค้า")],
@@ -493,7 +493,7 @@ function Diagnostic({ label, value }: { label: string; value: string }) {
   return <div><span>{label}</span><strong>{value}</strong></div>;
 }
 
-function resolveVariables(templateBindings: VariableBindingRow[], clauseBindings: VariableBindingRow[], definitions: VariableDefinitionRow[], context: AgreementContextRow | null, currentCompany: JsonObject, signatories: FeeAgreementSignatory[]): ResolvedVariable[] {
+function resolveVariables(templateBindings: VariableBindingRow[], clauseBindings: VariableBindingRow[], definitions: VariableDefinitionRow[], context: AgreementContextRow | null, currentCompany: DocumentIdentity, signatories: FeeAgreementSignatory[]): ResolvedVariable[] {
   const requiredById = new Map<string, boolean>();
   [...templateBindings, ...clauseBindings].forEach((binding) => {
     requiredById.set(binding.variable_definition_id, (requiredById.get(binding.variable_definition_id) || false) || binding.is_required);
@@ -511,20 +511,15 @@ function resolveVariables(templateBindings: VariableBindingRow[], clauseBindings
   });
 }
 
-function resolveValue(resolverKey: string, agreement: AgreementContextRow | null, currentCompany: JsonObject, signatories: FeeAgreementSignatory[]) {
+function resolveValue(resolverKey: string, agreement: AgreementContextRow | null, currentCompany: DocumentIdentity, signatories: FeeAgreementSignatory[]) {
   const client = asObject(agreement?.client_snapshot_json);
   const matter = asObject(agreement?.matter_snapshot_json);
-  const savedCompany = asObject(agreement?.company_snapshot_json);
-  const company = Object.keys(savedCompany).length ? savedCompany : currentCompany;
   const source = asObject(agreement?.source_document_snapshot_json);
   const sourceQuotation = asObject(source.quotation);
   const commercial = asObject(agreement?.commercial_terms_snapshot_json);
   const paymentTerms = asObject(commercial.payment_terms || source.payment_terms);
   const clientSigner = signatories.find((entry) => entry.party_type === "client");
   const firmSigner = signatories.find((entry) => entry.party_type === "firm");
-  const companyName = company.company_name_th || company.name || VP_COMPANY_PROFILE.companyNameTh;
-  const companyAddress = company.address_th || company.address || VP_COMPANY_PROFILE.addressTh;
-  const companyTaxId = company.tax_id || VP_COMPANY_PROFILE.taxId;
   const values: Record<string, unknown> = {
     "agreement.title": agreement?.title,
     "agreement.agreement_no": agreement?.agreement_no,
@@ -535,9 +530,9 @@ function resolveValue(resolverKey: string, agreement: AgreementContextRow | null
     "client.name": client.name || client.client_name || client.display_name,
     "client.address": client.address || client.address_th,
     "client.tax_id": client.tax_id,
-    "company.name": companyName,
-    "company.address": companyAddress,
-    "company.tax_id": companyTaxId,
+    "company.name": currentCompany.companyNameTh,
+    "company.address": currentCompany.addressTh,
+    "company.tax_id": currentCompany.taxId,
     "source.quotation_no": source.quotation_no || sourceQuotation.quotation_no,
     "matter.name": matter.name || matter.title || matter.file_no || matter.matter_no,
     "matter.service_scope": matter.service_scope || matter.scope_of_legal_services,

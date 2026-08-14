@@ -153,68 +153,6 @@
   margin-bottom: 22px;
 }
 
-.documentHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-  padding-bottom: 18px;
-  border-bottom: 3px solid #15803d;
-}
-
-.documentHeader > div {
-  min-width: 0;
-}
-
-.documentHeader > div:first-child {
-  color: #475569;
-  font-size: 12px;
-}
-
-.documentHeader > div:first-child strong {
-  display: block;
-  margin: 7px 0 3px;
-  color: #1f2937;
-  font-size: 15px;
-}
-
-.brand {
-  display: grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  border: 2px solid #15803d;
-  color: #15803d;
-  font-size: 17px;
-  font-weight: 950;
-}
-
-.documentIdentity {
-  text-align: right;
-}
-
-.documentIdentity h1 {
-  max-width: 420px;
-  margin: 0;
-  color: #15803d;
-  font-size: 25px;
-  line-height: 1.35;
-}
-
-.documentIdentity span,
-.documentIdentity strong {
-  display: block;
-}
-
-.documentIdentity span {
-  color: #64748b;
-  font-size: 12px;
-}
-
-.documentIdentity strong {
-  margin-top: 8px;
-}
-
 .partyGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -317,8 +255,7 @@
 }
 
 @media (max-width: 640px) {
-  .toolbar,
-  .documentHeader {
+  .toolbar {
     align-items: stretch;
     flex-direction: column;
   }
@@ -327,14 +264,9 @@
     width: fit-content;
   }
 
-  .contextField,
-  .documentIdentity h1 {
+  .contextField {
     width: 100%;
     max-width: none;
-  }
-
-  .documentIdentity {
-    text-align: left;
   }
 
   .diagnosticGrid,
