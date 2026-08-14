@@ -377,7 +377,7 @@ export default function DraftTemplatePreviewPage() {
                 <article className={styles.document}>
                   {sortedSections.map((section) => {
                     if (section.section_kind === "preamble") {
-                      return <Preamble key={section.id} template={template} section={section} variables={variableMap} identity={companyProfile} logoUrl={logoUrl} />;
+                      return <Preamble key={section.id} template={template} section={section} variables={variableMap} identity={companyProfile} logoUrl={logoUrl} languageCode={version.language_code} />;
                     }
                     if (section.section_kind === "execution") {
                       return <Execution key={section.id} section={section} requirements={requirements} signatories={signatories} variables={variableMap} />;
@@ -413,7 +413,7 @@ export default function DraftTemplatePreviewPage() {
   );
 }
 
-function Preamble({ template, section, variables, identity, logoUrl }: { template: TemplateRow; section: SectionRow; variables: Record<string, string>; identity: DocumentIdentity; logoUrl: string }) {
+function Preamble({ template, section, variables, identity, logoUrl, languageCode }: { template: TemplateRow; section: SectionRow; variables: Record<string, string>; identity: DocumentIdentity; logoUrl: string; languageCode: string }) {
   const value = (key: string, label: string, fallback = "") => variables[key] || fallback || `[ยังไม่มีข้อมูล: ${label}]`;
   return (
     <section className={styles.preamble} data-section-code={section.section_code}>
@@ -423,6 +423,7 @@ function Preamble({ template, section, variables, identity, logoUrl }: { templat
         title={value("AGREEMENT_TITLE", "ชื่อสัญญา", template.name)}
         subtitle="Fee Agreement Template Preview"
         documentNo={value("AGREEMENT_NO", "เลขที่สัญญา")}
+        languageCode={languageCode}
       />
       <div className={styles.partyGrid}>
         <InfoBlock title="ผู้รับบริการ / ลูกค้า" rows={[

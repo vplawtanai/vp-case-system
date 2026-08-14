@@ -181,7 +181,11 @@
 .legalSection,
 .execution {
   margin-top: 22px;
+}
+
+.execution {
   break-inside: avoid;
+  page-break-inside: avoid;
 }
 
 .legalSection h2,
@@ -191,10 +195,14 @@
   border-bottom: 1px solid #bbf7d0;
   color: #166534;
   font-size: 17px;
+  break-after: avoid;
+  page-break-after: avoid;
 }
 
 .clause {
   padding: 9px 0 3px;
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
 
 .clause + .clause {
@@ -286,6 +294,11 @@
 }
 
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 11mm;
+  }
+
   .toolbar,
   .previewMode,
   .diagnostics {
@@ -299,5 +312,24 @@
     padding: 0;
     border: 0;
     box-shadow: none;
+    font-size: 10pt;
+    line-height: 1.58;
+  }
+
+  .legalSection,
+  .execution {
+    margin-top: 5mm;
+  }
+
+  .legalSection h2,
+  .execution h2 {
+    margin-bottom: 2mm;
+    padding-bottom: 1.5mm;
+  }
+
+  .signatureGrid,
+  .signature {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 }

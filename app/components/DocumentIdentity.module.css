@@ -1,34 +1,37 @@
 .header {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1.12fr) minmax(240px, 0.88fr);
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-  padding-bottom: 18px;
+  gap: 32px;
+  padding-bottom: 20px;
   border-bottom: 3px solid #15803d;
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
 
 .provider {
   display: flex;
   min-width: 0;
-  max-width: 58%;
-  gap: 12px;
+  align-items: flex-start;
+  gap: 16px;
 }
 
 .logo {
-  width: 72px;
-  height: 58px;
+  width: 96px;
+  height: 72px;
   flex: 0 0 auto;
   object-fit: contain;
-  object-position: left top;
+  object-position: left center;
 }
 
 .logoMissing {
   display: grid;
-  width: 72px;
-  min-height: 48px;
+  width: 96px;
+  min-height: 64px;
+  box-sizing: border-box;
   flex: 0 0 auto;
   place-items: center;
-  padding: 5px;
+  padding: 7px;
   border: 1px dashed #94a3b8;
   color: #64748b;
   font-size: 10px;
@@ -39,33 +42,71 @@
 .providerText {
   display: grid;
   min-width: 0;
-  gap: 2px;
-  color: #475569;
-  font-size: 11px;
-  line-height: 1.45;
+  gap: 9px;
 }
 
-.providerText strong,
-.providerText span {
+.primaryIdentity,
+.providerMetadata {
+  display: grid;
+  min-width: 0;
+}
+
+.primaryIdentity {
+  gap: 1px;
+}
+
+.primaryIdentity strong,
+.primaryIdentity span,
+.providerMetadata span {
   overflow-wrap: anywhere;
 }
 
-.providerText strong {
+.primaryIdentity strong {
   color: #1f2937;
-  font-size: 15px;
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+.englishName {
+  color: #475569;
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.description {
+  color: #64748b;
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+.providerMetadata {
+  gap: 2px;
+  padding-top: 7px;
+  border-top: 1px solid #e5e7eb;
+  color: #64748b;
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.address {
+  color: #475569;
 }
 
 .documentIdentity {
+  display: grid;
   min-width: 0;
+  justify-items: end;
+  padding-top: 1px;
   text-align: right;
 }
 
 .documentIdentity h1 {
-  max-width: 380px;
+  max-width: 340px;
   margin: 0;
   color: #15803d;
-  font-size: 25px;
-  line-height: 1.35;
+  font-size: 24px;
+  line-height: 1.3;
   overflow-wrap: break-word;
 }
 
@@ -75,12 +116,15 @@
 }
 
 .documentIdentity span {
+  margin-top: 3px;
   color: #64748b;
-  font-size: 12px;
+  font-size: 11.5px;
 }
 
 .documentIdentity strong {
-  margin-top: 8px;
+  margin-top: 9px;
+  color: #334155;
+  font-size: 12.5px;
 }
 
 .footer {
@@ -89,12 +133,14 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 4px 14px;
-  margin-top: 26px;
-  padding-top: 9px;
+  margin-top: 24px;
+  padding-top: 8px;
   border-top: 1px solid #d1d5db;
   color: #64748b;
-  font-size: 10px;
+  font-size: 9.5px;
   line-height: 1.45;
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
 
 .footer strong {
@@ -103,10 +149,10 @@
 
 @media (max-width: 640px) {
   .header {
-    flex-direction: column;
+    grid-template-columns: 1fr;
+    gap: 18px;
   }
 
-  .provider,
   .documentIdentity,
   .documentIdentity h1 {
     width: 100%;
@@ -114,6 +160,105 @@
   }
 
   .documentIdentity {
+    justify-items: start;
+    padding-top: 14px;
+    border-top: 1px solid #e5e7eb;
     text-align: left;
+  }
+
+  .logo {
+    width: 84px;
+    height: 64px;
+  }
+
+  .logoMissing {
+    width: 84px;
+    min-height: 58px;
+  }
+
+  .footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 420px) {
+  .provider {
+    gap: 12px;
+  }
+
+  .logo {
+    width: 72px;
+    height: 58px;
+  }
+
+  .logoMissing {
+    width: 72px;
+    min-height: 52px;
+  }
+
+  .primaryIdentity strong {
+    font-size: 15.5px;
+  }
+}
+
+@media print {
+  .header {
+    grid-template-columns: minmax(0, 1.12fr) minmax(58mm, 0.88fr);
+    gap: 8mm;
+    padding-bottom: 4.5mm;
+  }
+
+  .logo {
+    width: 24mm;
+    height: 18mm;
+  }
+
+  .logoMissing {
+    width: 24mm;
+    min-height: 16mm;
+  }
+
+  .provider {
+    gap: 4mm;
+  }
+
+  .providerText {
+    gap: 2mm;
+  }
+
+  .primaryIdentity strong {
+    font-size: 12pt;
+  }
+
+  .englishName {
+    font-size: 8.5pt;
+  }
+
+  .description,
+  .providerMetadata {
+    font-size: 7.5pt;
+  }
+
+  .providerMetadata {
+    padding-top: 1.5mm;
+  }
+
+  .documentIdentity h1 {
+    font-size: 17pt;
+  }
+
+  .documentIdentity span {
+    font-size: 8pt;
+  }
+
+  .documentIdentity strong {
+    font-size: 8.5pt;
+  }
+
+  .footer {
+    margin-top: 6mm;
+    padding-top: 2mm;
+    font-size: 7pt;
   }
 }

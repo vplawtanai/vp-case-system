@@ -9,6 +9,7 @@ export function DocumentIdentityHeader({
   title,
   subtitle,
   documentNo,
+  languageCode = "th",
   className = "",
 }: {
   identity: DocumentIdentity;
@@ -16,9 +17,16 @@ export function DocumentIdentityHeader({
   title: string;
   subtitle: string;
   documentNo: string;
+  languageCode?: string;
   className?: string;
 }) {
-  const branch = [identity.branchTh, identity.branchEn].filter(Boolean).join(" / ");
+  const isThaiDocument = languageCode.toLowerCase().startsWith("th");
+  const address = isThaiDocument
+    ? identity.addressTh || identity.addressEn
+    : identity.addressEn || identity.addressTh;
+  const branch = isThaiDocument
+    ? identity.branchTh || identity.branchEn
+    : identity.branchEn || identity.branchTh;
   const contact = [identity.phone, identity.email, identity.website].filter(Boolean).join(" · ");
   return (
     <header className={`${styles.header} ${className}`.trim()}>
@@ -29,14 +37,19 @@ export function DocumentIdentityHeader({
           <div className={styles.logoMissing}>ยังไม่ได้ตั้งค่าโลโก้</div>
         )}
         <div className={styles.providerText}>
-          <strong>{identity.companyNameTh || "ยังไม่ได้ตั้งค่าชื่อสำนักงาน"}</strong>
-          {identity.companyNameEn ? <span>{identity.companyNameEn}</span> : null}
-          {identity.description ? <span>{identity.description}</span> : null}
-          <span>{identity.addressTh || "ยังไม่ได้ตั้งค่าที่อยู่สำนักงาน"}</span>
-          {identity.addressEn ? <span>{identity.addressEn}</span> : null}
-          <span>เลขประจำตัวผู้เสียภาษี: {identity.taxId || "ยังไม่ได้ตั้งค่า"}</span>
-          {branch ? <span>สาขา: {branch}</span> : null}
-          {contact ? <span>{contact}</span> : null}
+          <div className={styles.primaryIdentity}>
+            <strong>{identity.companyNameTh || "ยังไม่ได้ตั้งค่าชื่อสำนักงาน"}</strong>
+            {identity.companyNameEn ? <span className={styles.englishName}>{identity.companyNameEn}</span> : null}
+            {identity.description ? <span className={styles.description}>{identity.description}</span> : null}
+          </div>
+          <div className={styles.providerMetadata}>
+            <span className={styles.address}>{address || "ยังไม่ได้ตั้งค่าที่อยู่สำนักงาน"}</span>
+            <span>
+              เลขประจำตัวผู้เสียภาษี: {identity.taxId || "ยังไม่ได้ตั้งค่า"}
+              {branch ? ` · ${branch}` : ""}
+            </span>
+            {contact ? <span>{contact}</span> : null}
+          </div>
         </div>
       </div>
       <div className={styles.documentIdentity}>
