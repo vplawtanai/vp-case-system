@@ -286,6 +286,48 @@
   background: #fafbfc;
 }
 
+.targetContext {
+  margin: 12px 0;
+  padding: 9px 12px;
+  border-left: 3px solid #0f2743;
+  background: #f2f5f8;
+  color: #475467;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.targetContext strong {
+  color: #172033;
+}
+
+.formWarning {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-left: 3px solid #d97706;
+  background: #fff8eb;
+  color: #8a4b08;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.advancedPanel {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #dfe4ea;
+}
+
+.advancedSummary {
+  width: fit-content;
+  color: #0f2743;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.advancedBody {
+  margin-top: 14px;
+}
+
 .formGrid,
 .summaryGrid {
   display: grid;

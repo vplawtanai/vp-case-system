@@ -591,11 +591,13 @@ export default function DocumentTemplateDetailPage() {
                 ) : null}
                 {slotForm ? (
                   <SlotEditor
+                    key={slotForm.id || `new-${slotForm.template_section_id}`}
                     form={slotForm}
                     setForm={setSlotForm}
                     clauseVersions={clauseVersions}
                     clauseFamilies={clauseFamilies}
                     sections={sections}
+                    slots={slots}
                     templateCode={template.template_code}
                     saving={saving}
                     onSave={saveSlot}
@@ -719,9 +721,13 @@ function SectionEditor({ form, setForm, sections, saving, onSave }: { form: Sect
   );
 }
 
-function SlotEditor({ form, setForm, clauseVersions, clauseFamilies, sections, templateCode, saving, onSave }: { form: SlotForm; setForm: (form: SlotForm | null) => void; clauseVersions: ClauseVersionRow[]; clauseFamilies: ClauseFamilyRow[]; sections: SectionRow[]; templateCode: string; saving: boolean; onSave: () => Promise<void> }) {
+function SlotEditor({ form, setForm, clauseVersions, clauseFamilies, sections, slots, templateCode, saving, onSave }: { form: SlotForm; setForm: (form: SlotForm | null) => void; clauseVersions: ClauseVersionRow[]; clauseFamilies: ClauseFamilyRow[]; sections: SectionRow[]; slots: SlotRow[]; templateCode: string; saving: boolean; onSave: () => Promise<void> }) {
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [slotCodeEdited, setSlotCodeEdited] = useState(Boolean(form.id));
+  const familyById = useMemo(() => new Map(clauseFamilies.map((family) => [family.id, family])), [clauseFamilies]);
+  const currentSection = sections.find((section) => section.id === form.template_section_id) || null;
+
   const clauseOptions = useMemo(() => {
-    const familyById = new Map(clauseFamilies.map((family) => [family.id, family]));
     const currentSectionCode = sections.find((section) => section.id === form.template_section_id)?.section_code;
     const currentClauseCode = vpLegalServicesClauseSequence.find((item) => item.sectionCode === currentSectionCode)?.clauseCode;
     const logicalOrderByCode = new Map<string, number>(vpLegalServicesClauseSequence.map((item, index) => [item.clauseCode, index]));
@@ -730,7 +736,7 @@ function SlotEditor({ form, setForm, clauseVersions, clauseFamilies, sections, t
       .filter((clause) => clause.status === "published" || clause.id === form.clause_version_id)
       .map((clause, originalIndex) => ({
         clause,
-        clauseCode: familyById.get(clause.clause_id)?.clause_code || "ข้อสัญญา",
+        clauseCode: familyById.get(clause.clause_id)?.clause_code || "",
         originalIndex,
       }));
 
@@ -756,11 +762,25 @@ function SlotEditor({ form, setForm, clauseVersions, clauseFamilies, sections, t
       if (left.clause.version_no !== right.clause.version_no) return right.clause.version_no - left.clause.version_no;
       return left.originalIndex - right.originalIndex;
     });
-  }, [clauseFamilies, clauseVersions, form.clause_version_id, form.template_section_id, sections, templateCode]);
+  }, [clauseVersions, familyById, form.clause_version_id, form.template_section_id, sections, templateCode]);
+
+  const selectedClauseOption = clauseOptions.find(({ clause }) => clause.id === form.clause_version_id) || null;
+  const selectedLogicalEntry = templateCode === "VP-FA-LEGAL-SERVICES" && selectedClauseOption
+    ? vpLegalServicesClauseSequence.find((item) => item.clauseCode === selectedClauseOption.clauseCode) || null
+    : null;
+  const expectedSection = selectedLogicalEntry
+    ? sections.find((section) => section.section_code === selectedLogicalEntry.sectionCode) || null
+    : null;
+  const sectionMismatch = Boolean(expectedSection && currentSection && expectedSection.id !== currentSection.id);
+  const slotCodeConflict = Boolean(form.slot_code.trim()) && slots.some((slot) => (
+    slot.id !== form.id
+    && slot.template_section_id === form.template_section_id
+    && slot.slot_code.trim().toUpperCase() === form.slot_code.trim().toUpperCase()
+  ));
 
   const optionLabel = (clauseCode: string, clause: ClauseVersionRow) => {
     if (templateCode !== "VP-FA-LEGAL-SERVICES") {
-      return `${clauseCode} · ${clause.title} · รุ่น ${clause.version_no}${clause.status !== "published" ? ` (${clause.status})` : ""}`;
+      return `${clauseCode || "ข้อสัญญา"} · ${clause.title} · รุ่น ${clause.version_no}${clause.status !== "published" ? ` (${clause.status})` : ""}`;
     }
     const logicalEntry = vpLegalServicesClauseSequence.find((item) => item.clauseCode === clauseCode);
     const logicalSection = logicalEntry
@@ -770,30 +790,69 @@ function SlotEditor({ form, setForm, clauseVersions, clauseFamilies, sections, t
       ? logicalSection?.display_label || logicalSection?.display_number || `ข้อ ${logicalEntry.sectionNumber}`
       : "";
     const prefix = sectionLabel ? `${sectionLabel} · ` : "";
-    return `${prefix}${clauseCode} · ${clause.title} · รุ่น ${clause.version_no}${clause.status !== "published" ? ` (${clause.status})` : ""}`;
+    return `${prefix}${clauseCode || "ข้อสัญญา"} · ${clause.title} · รุ่น ${clause.version_no}${clause.status !== "published" ? ` (${clause.status})` : ""}`;
   };
+
+  const handleClauseChange = (clauseVersionId: string) => {
+    const selectedClause = clauseVersions.find((clause) => clause.id === clauseVersionId) || null;
+    const selectedClauseCode = selectedClause ? familyById.get(selectedClause.clause_id)?.clause_code || "" : "";
+    const proposedSlotCode = selectedClause
+      ? deriveSlotCode(selectedClauseCode, selectedClause.language_code)
+      : "";
+    const nextSlotCode = !form.id && !slotCodeEdited ? proposedSlotCode : form.slot_code;
+    const nextCodeConflicts = Boolean(nextSlotCode.trim()) && slots.some((slot) => (
+      slot.id !== form.id
+      && slot.template_section_id === form.template_section_id
+      && slot.slot_code.trim().toUpperCase() === nextSlotCode.trim().toUpperCase()
+    ));
+    if (nextCodeConflicts) setAdvancedOpen(true);
+    setForm({
+      ...form,
+      clause_version_id: clauseVersionId,
+      slot_code: nextSlotCode,
+    });
+  };
+
+  const currentSectionLabel = currentSection
+    ? `${currentSection.display_label || currentSection.display_number || `ลำดับ ${currentSection.sort_order}`} ${currentSection.title}`
+    : "ไม่พบข้อมูล Section";
+  const expectedSectionLabel = expectedSection
+    ? `${expectedSection.display_label || expectedSection.display_number || `ลำดับ ${expectedSection.sort_order}`} ${expectedSection.title}`
+    : "";
 
   return (
     <div className={styles.formPanel}>
       <div className={styles.sectionHeader}><h3 className={styles.sectionTitle}>{form.id ? "แก้ไขตำแหน่งข้อสัญญา" : "เพิ่มตำแหน่งข้อสัญญา"}</h3><button type="button" className={styles.button} onClick={() => setForm(null)}>ปิด</button></div>
+      <div className={styles.targetContext}>{form.id ? "กำลังแก้ไขข้อสัญญาใน:" : "กำลังเพิ่มข้อสัญญาใน:"} <strong>{currentSectionLabel}</strong></div>
       <div className={styles.formGrid}>
-        <label className={styles.field}>รหัสตำแหน่ง<input className={styles.input} value={form.slot_code} onChange={(event) => setForm({ ...form, slot_code: event.target.value.toUpperCase() })} /></label>
-        <label className={styles.fieldWide}>ข้อสัญญาจากคลัง<select className={styles.select} value={form.clause_version_id} onChange={(event) => setForm({ ...form, clause_version_id: event.target.value })}><option value="">ยังไม่เลือกข้อสัญญา</option>{clauseOptions.map(({ clause, clauseCode }) => <option key={clause.id} value={clause.id}>{optionLabel(clauseCode, clause)}</option>)}</select></label>
-        <label className={styles.field}>ลำดับ<input type="number" min="1" className={styles.input} value={form.sort_order} onChange={(event) => setForm({ ...form, sort_order: Number(event.target.value || 0) })} /><span className={styles.helperText}>ลำดับของข้อสัญญาภายในส่วนนี้ เช่น 1, 2, 3</span></label>
-        <label className={styles.field}>เลขที่แสดง<input className={styles.input} value={form.display_number} onChange={(event) => setForm({ ...form, display_number: event.target.value })} /></label>
-        <label className={styles.field}>ป้ายกำกับ<input className={styles.input} value={form.display_label} onChange={(event) => setForm({ ...form, display_label: event.target.value })} /></label>
-        <label className={styles.field}>รูปแบบเลข<select className={styles.select} value={form.numbering_style} onChange={(event) => setForm({ ...form, numbering_style: event.target.value })}>{numberingStyles.map((value) => <option key={value} value={value}>{numberingStyleLabel(value)}</option>)}</select>{form.numbering_style === "none" ? <span className={styles.helperText}>ใช้เมื่อ Section เป็นผู้แสดงเลขข้ออยู่แล้ว เพื่อไม่ให้เลขซ้ำ</span> : null}</label>
-        <label className={styles.field}>ระดับเลข<input type="number" min="0" max="8" className={styles.input} value={form.numbering_depth} onChange={(event) => setForm({ ...form, numbering_depth: Number(event.target.value || 0) })} /><span className={styles.helperText}>ระดับชั้นของเลขข้อ เช่น 1 → ข้อหลัก, 2 → ข้อย่อย, 3 → ข้อย่อยชั้นถัดไป</span>{form.numbering_style === "none" ? <span className={styles.helperText}>ระดับเลขนี้จะไม่แสดงในเอกสารฉบับสุดท้าย</span> : null}</label>
+        <label className={styles.fieldWide}>ข้อสัญญาจากคลัง<select className={styles.select} value={form.clause_version_id} onChange={(event) => handleClauseChange(event.target.value)}><option value="">ยังไม่เลือกข้อสัญญา</option>{clauseOptions.map(({ clause, clauseCode }) => <option key={clause.id} value={clause.id}>{optionLabel(clauseCode, clause)}</option>)}</select></label>
         <label className={styles.field}>ประเภทข้อ<select className={styles.select} value={form.clause_type} onChange={(event) => setForm({ ...form, clause_type: event.target.value })}>{clauseTypes.map((value) => <option key={value} value={value}>{clauseTypeLabel(value)}</option>)}</select></label>
         <label className={styles.field}>ระดับความสำคัญ<select className={styles.select} value={form.risk_level} onChange={(event) => setForm({ ...form, risk_level: event.target.value })}>{riskLevels.map((value) => <option key={value || "none"} value={value}>{value ? riskLabel(value) : "ไม่ระบุ"}</option>)}</select></label>
       </div>
+      {sectionMismatch ? <div className={styles.formWarning}>ข้อสัญญานี้โดยปกติใช้กับ <strong>{expectedSectionLabel}</strong> แต่ยังสามารถเลือกใช้ข้าม Section ได้</div> : null}
       <div className={styles.checkRow}>
         <label><input type="checkbox" checked={form.is_required} onChange={(event) => setForm({ ...form, is_required: event.target.checked, allow_suppress: event.target.checked ? false : form.allow_suppress })} /> บังคับใช้</label>
-        <label><input type="checkbox" checked={form.allow_override} onChange={(event) => setForm({ ...form, allow_override: event.target.checked })} /> แก้เฉพาะเอกสารได้</label>
-        <label><input type="checkbox" checked={form.allow_suppress} disabled={form.is_required} onChange={(event) => setForm({ ...form, allow_suppress: event.target.checked })} /> ซ่อนได้</label>
-        <label><input type="checkbox" checked={form.allow_custom_after} onChange={(event) => setForm({ ...form, allow_custom_after: event.target.checked })} /> เพิ่มข้อความต่อท้ายได้</label>
       </div>
-      <div className={styles.actionRow}><button type="button" className={styles.buttonPrimary} onClick={() => void onSave()} disabled={saving || !form.slot_code.trim() || form.sort_order < 1}>บันทึกตำแหน่งข้อสัญญา</button></div>
+      <details className={styles.advancedPanel} open={advancedOpen} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}>
+        <summary className={styles.advancedSummary}>ตัวเลือกขั้นสูง</summary>
+        <div className={styles.advancedBody}>
+          <div className={styles.formGrid}>
+            <label className={styles.field}>รหัสตำแหน่ง<input className={styles.input} value={form.slot_code} onChange={(event) => { setSlotCodeEdited(true); setForm({ ...form, slot_code: event.target.value.toUpperCase() }); }} /><span className={styles.helperText}>รหัสภายในของตำแหน่งข้อสัญญา ระบบสร้างให้อัตโนมัติจากข้อสัญญาที่เลือก โดยทั่วไปไม่ต้องแก้</span></label>
+            <label className={styles.field}>ลำดับ<input type="number" min="1" className={styles.input} value={form.sort_order} onChange={(event) => setForm({ ...form, sort_order: Number(event.target.value || 0) })} /><span className={styles.helperText}>ลำดับของข้อสัญญาภายในส่วนนี้ เช่น 1, 2, 3</span></label>
+            <label className={styles.field}>เลขที่แสดง<input className={styles.input} value={form.display_number} onChange={(event) => setForm({ ...form, display_number: event.target.value })} /></label>
+            <label className={styles.field}>ป้ายกำกับ<input className={styles.input} value={form.display_label} onChange={(event) => setForm({ ...form, display_label: event.target.value })} /><span className={styles.helperText}>ข้อความกำกับเฉพาะตำแหน่ง เช่น (ก), (ข) หรือชื่อย่อย หากไม่ต้องการให้เว้นว่าง</span></label>
+            <label className={styles.field}>รูปแบบเลข<select className={styles.select} value={form.numbering_style} onChange={(event) => setForm({ ...form, numbering_style: event.target.value })}>{numberingStyles.map((value) => <option key={value} value={value}>{numberingStyleLabel(value)}</option>)}</select>{form.numbering_style === "none" ? <span className={styles.helperText}>ใช้เมื่อ Section เป็นผู้แสดงเลขข้ออยู่แล้ว เพื่อไม่ให้เลขซ้ำ</span> : null}</label>
+            <label className={styles.field}>ระดับเลข<input type="number" min="0" max="8" className={styles.input} value={form.numbering_depth} onChange={(event) => setForm({ ...form, numbering_depth: Number(event.target.value || 0) })} /><span className={styles.helperText}>ระดับชั้นของเลขข้อ เช่น 1 → ข้อหลัก, 2 → ข้อย่อย, 3 → ข้อย่อยชั้นถัดไป</span>{form.numbering_style === "none" ? <span className={styles.helperText}>ระดับเลขนี้จะไม่แสดงในเอกสารฉบับสุดท้าย</span> : null}</label>
+          </div>
+          <div className={styles.checkRow}>
+            <label><input type="checkbox" checked={form.allow_override} onChange={(event) => setForm({ ...form, allow_override: event.target.checked })} /> แก้เฉพาะเอกสารได้</label>
+            <label><input type="checkbox" checked={form.allow_suppress} disabled={form.is_required} onChange={(event) => setForm({ ...form, allow_suppress: event.target.checked })} /> ซ่อนได้</label>
+            <label><input type="checkbox" checked={form.allow_custom_after} onChange={(event) => setForm({ ...form, allow_custom_after: event.target.checked })} /> เพิ่มข้อความต่อท้ายได้</label>
+          </div>
+        </div>
+      </details>
+      {slotCodeConflict ? <div className={styles.formWarning}>รหัสตำแหน่ง <strong>{form.slot_code}</strong> มีอยู่แล้วใน Section นี้ กรุณากำหนดรหัสอื่นในตัวเลือกขั้นสูง</div> : null}
+      <div className={styles.actionRow}><button type="button" className={styles.buttonPrimary} onClick={() => void onSave()} disabled={saving || !form.slot_code.trim() || form.sort_order < 1 || slotCodeConflict}>บันทึกตำแหน่งข้อสัญญา</button></div>
     </div>
   );
 }
@@ -807,7 +866,7 @@ function toSectionForm(section: SectionRow): SectionForm {
 }
 
 function emptySlotForm(sectionId: string, sortOrder: number): SlotForm {
-  return { id: "", template_section_id: sectionId, slot_code: "", clause_version_id: "", sort_order: sortOrder, parent_slot_id: "", display_number: "", display_label: "", numbering_style: "explicit", numbering_depth: 1, clause_type: "mandatory", alternative_group_id: "", is_required: true, allow_override: false, allow_suppress: false, allow_custom_after: false, risk_level: "", condition_rule_json: null, metadata_json: {} };
+  return { id: "", template_section_id: sectionId, slot_code: "", clause_version_id: "", sort_order: sortOrder, parent_slot_id: "", display_number: "", display_label: "", numbering_style: "none", numbering_depth: 1, clause_type: "mandatory", alternative_group_id: "", is_required: true, allow_override: false, allow_suppress: false, allow_custom_after: false, risk_level: "", condition_rule_json: null, metadata_json: {} };
 }
 
 function toSlotForm(slot: SlotRow): SlotForm {
@@ -837,4 +896,14 @@ function numberingStyleLabel(value: string) {
   if (value === "roman") return "เลขโรมัน";
   if (value === "none") return "ไม่แสดงเลข";
   return "ระบุเอง";
+}
+
+function deriveSlotCode(clauseCode: string, languageCode: string) {
+  const normalizedCode = clauseCode.trim().toUpperCase();
+  const normalizedLanguage = languageCode.trim().toUpperCase();
+  if (!normalizedCode || !["TH", "EN"].includes(normalizedLanguage)) return normalizedCode;
+  const languageSuffix = `-${normalizedLanguage}`;
+  return normalizedCode.endsWith(languageSuffix)
+    ? normalizedCode.slice(0, -languageSuffix.length)
+    : normalizedCode;
 }
