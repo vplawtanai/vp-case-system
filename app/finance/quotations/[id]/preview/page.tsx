@@ -24,6 +24,15 @@ type QuotationRow = {
   id: string;
   quotation_no: string | null;
   client_id: string | null;
+  customer_source_type?: "existing_client" | "prospect" | null;
+  prospect_name?: string | null;
+  prospect_phone?: string | null;
+  prospect_email?: string | null;
+  prospect_tax_id?: string | null;
+  prospect_address?: string | null;
+  matter_source_type?: "unlinked" | "case" | "advisory" | null;
+  unlinked_matter_name?: string | null;
+  unlinked_matter_description?: string | null;
   case_id: number | null;
   advisory_matter_id: string | null;
   issue_date: string | null;
@@ -262,6 +271,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
   }, [quotationId]);
 
   const clientAddress = getClientDisplayValue(quotation, client, "address");
+  const clientTaxId = getClientDisplayValue(quotation, client, "tax_id");
   const clientPhone = getClientDisplayValue(quotation, client, "phone");
   const clientEmail = getClientDisplayValue(quotation, client, "email");
   const matterLabel = getMatterLabel(quotation, caseItem, matter);
@@ -278,7 +288,10 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
   const displayPaymentTerms = frozenDocument ? frozenPayment.terms : paymentTerms;
   const displayInstallments = frozenDocument ? frozenPayment.installments : paymentInstallments;
   const displayAllocations = frozenDocument ? frozenPayment.allocations : paymentAllocations;
-  const displayClientName = frozenDocument ? getSnapshotText(frozenClient, "client_display_name") || getQuotationClientDisplayName(getSnapshotText(frozenClient, "name"), getSnapshotText(frozenClient, "client_type")) || quotation?.client_id || "-" : getQuotationClientDisplayName(client?.name, client?.client_type);
+  const displayClientName = frozenDocument
+    ? getSnapshotText(frozenClient, "client_display_name") || getQuotationClientDisplayName(getSnapshotText(frozenClient, "name"), getSnapshotText(frozenClient, "client_type")) || quotation?.client_id || "-"
+    : getSnapshotText(quotation?.client_snapshot_json, "client_display_name") || getQuotationClientDisplayName(getSnapshotText(quotation?.client_snapshot_json, "name") || client?.name, getSnapshotText(quotation?.client_snapshot_json, "client_type") || client?.client_type);
+  const displayClientTaxId = frozenDocument ? getSnapshotText(frozenClient, "tax_id") || "-" : clientTaxId;
   const displayClientAddress = frozenDocument ? getSnapshotText(frozenClient, "address") || "-" : clientAddress;
   const displayClientPhone = frozenDocument ? getSnapshotText(frozenClient, "phone") || "-" : clientPhone;
   const displayClientEmail = frozenDocument ? getSnapshotText(frozenClient, "email") || "-" : clientEmail;
@@ -387,6 +400,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
             <h2 style={panelTitleStyle}>ลูกค้า / Client</h2>
             <div style={clientGridStyle}>
               <InfoLine label="Client Name" value={displayClientName} strong />
+              <InfoLine label="Tax ID" value={displayClientTaxId} />
               <InfoLine label="Address" value={displayClientAddress} wide />
               <InfoLine label="Phone" value={displayClientPhone} />
               <InfoLine label="Email" value={displayClientEmail} />
@@ -700,11 +714,14 @@ function getMatterLabel(quotation: QuotationRow | null, caseItem: CaseRow | null
     const title = getSnapshotText(quotation.matter_snapshot_json, "title");
     return [matterNo, title].filter(Boolean).join(" - ") || String(quotation.advisory_matter_id || "Advisory");
   }
+  if (snapshotType === "unlinked") {
+    return getSnapshotText(quotation.matter_snapshot_json, "title") || quotation.unlinked_matter_name || "-";
+  }
   if (caseItem) return [caseItem.file_no, caseItem.title || caseItem.client_name].filter(Boolean).join(" - ") || String(caseItem.id);
   if (matter) return [matter.matter_no, matter.title].filter(Boolean).join(" - ") || matter.id;
   if (quotation.case_id) return `Case: ${quotation.case_id}`;
   if (quotation.advisory_matter_id) return `Advisory: ${quotation.advisory_matter_id}`;
-  return "-";
+  return quotation.unlinked_matter_name || getSnapshotText(quotation.matter_snapshot_json, "title") || "-";
 }
 
 function getMatterDescription(quotation: QuotationRow | null, caseItem: CaseRow | null, matter: MatterRow | null) {

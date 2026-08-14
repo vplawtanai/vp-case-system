@@ -42,7 +42,19 @@ export type QuotationStatus = "draft" | "sent" | "accepted" | "cancelled";
 export type QuotationRow = {
   id: string;
   quotation_no: string;
-  client_id: string;
+  client_id: string | null;
+  customer_source_type?: "existing_client" | "prospect" | null;
+  prospect_name?: string | null;
+  prospect_contact_person?: string | null;
+  prospect_phone?: string | null;
+  prospect_email?: string | null;
+  prospect_tax_id?: string | null;
+  prospect_address?: string | null;
+  matter_source_type?: "unlinked" | "case" | "advisory" | null;
+  unlinked_matter_name?: string | null;
+  unlinked_matter_description?: string | null;
+  client_linked_at?: string | null;
+  matter_linked_at?: string | null;
   case_id: number | null;
   advisory_matter_id: string | null;
   issue_date: string;
@@ -154,9 +166,19 @@ type LookupState = {
 };
 
 type FormState = {
+  customer_mode: "existing_client" | "prospect";
   client_id: string;
+  prospect_name: string;
+  prospect_contact_person: string;
+  prospect_phone: string;
+  prospect_email: string;
+  prospect_tax_id: string;
+  prospect_address: string;
+  matter_mode: "unlinked" | "case" | "advisory";
   case_id: string;
   advisory_matter_id: string;
+  unlinked_matter_name: string;
+  unlinked_matter_description: string;
   issue_date: string;
   valid_until: string;
   scope_of_legal_services: string;
@@ -168,9 +190,19 @@ type FormState = {
 };
 
 const emptyForm: FormState = {
+  customer_mode: "existing_client",
   client_id: "",
+  prospect_name: "",
+  prospect_contact_person: "",
+  prospect_phone: "",
+  prospect_email: "",
+  prospect_tax_id: "",
+  prospect_address: "",
+  matter_mode: "unlinked",
   case_id: "",
   advisory_matter_id: "",
+  unlinked_matter_name: "",
+  unlinked_matter_description: "",
   issue_date: getDateKey(new Date()),
   valid_until: "",
   scope_of_legal_services: "",
@@ -203,8 +235,16 @@ function normalizedQuotationDraftSnapshot(form: FormState, items: QuotationItemR
     form: {
       ...form,
       client_id: form.client_id.trim(),
+      prospect_name: form.prospect_name.trim(),
+      prospect_contact_person: form.prospect_contact_person.trim(),
+      prospect_phone: form.prospect_phone.trim(),
+      prospect_email: form.prospect_email.trim(),
+      prospect_tax_id: form.prospect_tax_id.trim(),
+      prospect_address: form.prospect_address.trim(),
       case_id: form.case_id.trim(),
       advisory_matter_id: form.advisory_matter_id.trim(),
+      unlinked_matter_name: form.unlinked_matter_name.trim(),
+      unlinked_matter_description: form.unlinked_matter_description.trim(),
       scope_of_legal_services: form.scope_of_legal_services.trim(),
       included_services: form.included_services.trim(),
       excluded_services: form.excluded_services.trim(),
@@ -547,7 +587,7 @@ export function QuotationList({ access }: { access: QuotationAccess }) {
               {!loading && quotations.map((quotation) => (
                 <tr key={quotation.id}>
                   <td style={tdStyle}><Link href={`/finance/quotations/${quotation.id}`} style={linkStyle}>{quotation.quotation_no}</Link></td>
-                  <td style={tdStyle}>{renderClientName(quotation.client_id, lookups.clients)}</td>
+                  <td style={tdStyle}>{renderQuotationClientName(quotation, lookups.clients)}</td>
                   <td style={tdStyle}>{renderMatterLink(quotation, lookups)}</td>
                   <td style={tdStyle}>{formatDate(quotation.issue_date)}</td>
                   <td style={tdStyle}>{formatDate(quotation.valid_until)}</td>
@@ -624,9 +664,19 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
     }
 
     const nextForm: FormState = {
+      customer_mode: loadedQuotation.customer_source_type || (loadedQuotation.client_id ? "existing_client" : "prospect"),
       client_id: loadedQuotation.client_id || "",
+      prospect_name: loadedQuotation.prospect_name || getSnapshotString(loadedQuotation.client_snapshot_json, "name"),
+      prospect_contact_person: loadedQuotation.prospect_contact_person || getSnapshotString(loadedQuotation.client_snapshot_json, "contact_person"),
+      prospect_phone: loadedQuotation.prospect_phone || getSnapshotString(loadedQuotation.client_snapshot_json, "phone"),
+      prospect_email: loadedQuotation.prospect_email || getSnapshotString(loadedQuotation.client_snapshot_json, "email"),
+      prospect_tax_id: loadedQuotation.prospect_tax_id || getSnapshotString(loadedQuotation.client_snapshot_json, "tax_id"),
+      prospect_address: loadedQuotation.prospect_address || getSnapshotString(loadedQuotation.client_snapshot_json, "address"),
+      matter_mode: loadedQuotation.case_id ? "case" : loadedQuotation.advisory_matter_id ? "advisory" : "unlinked",
       case_id: loadedQuotation.case_id ? String(loadedQuotation.case_id) : "",
       advisory_matter_id: loadedQuotation.advisory_matter_id || "",
+      unlinked_matter_name: loadedQuotation.unlinked_matter_name || getSnapshotString(loadedQuotation.matter_snapshot_json, "title"),
+      unlinked_matter_description: loadedQuotation.unlinked_matter_description || getSnapshotString(loadedQuotation.matter_snapshot_json, "description"),
       issue_date: loadedQuotation.issue_date || getDateKey(new Date()),
       valid_until: loadedQuotation.valid_until || "",
       scope_of_legal_services: loadedQuotation.scope_of_legal_services || "",
@@ -708,10 +758,13 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
     const selectedSigner = getSignerByKey(lookups.signers, form.authorized_signer_key);
     const signerPosition = formatSignerPosition(selectedSigner);
     const snapshots = buildQuotationSnapshots(form, normalizedItems, currentTotals, lookups, quotationNo);
+    const clientId = form.customer_mode === "existing_client" ? form.client_id : null;
+    const caseId = form.matter_mode === "case" && form.case_id ? Number(form.case_id) : null;
+    const advisoryMatterId = form.matter_mode === "advisory" ? form.advisory_matter_id || null : null;
     const quotationPayload = {
-      client_id: form.client_id,
-      case_id: form.case_id ? Number(form.case_id) : null,
-      advisory_matter_id: form.advisory_matter_id || null,
+      client_id: clientId,
+      case_id: caseId,
+      advisory_matter_id: advisoryMatterId,
       issue_date: form.issue_date,
       valid_until: form.valid_until || null,
       status: "draft" as const,
@@ -805,14 +858,14 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       await createAuditLog({
         tableName: "finance_quotations",
         recordId: quotationId,
-        caseId: form.case_id ? Number(form.case_id) : null,
+        caseId,
         action: "update",
         note: `Updated quotation ${quotation?.quotation_no || quotationId}; grand total ${formatMoney(toAmount(quotation?.grand_total))} -> ${formatMoney(currentTotals.grandTotal)}`,
       });
       await createAuditLog({
         tableName: "finance_quotation_items",
         recordId: quotationId,
-        caseId: form.case_id ? Number(form.case_id) : null,
+        caseId,
         action: "update",
         note: `Replaced quotation line items for ${quotation?.quotation_no || quotationId}; item count ${normalizedItems.length}`,
       });
@@ -870,9 +923,9 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
     }
     logPaymentAllocationPreflight(draftTerms.allocation_mode, draftTerms.installments, normalizedItems);
     const atomicPayload = {
-      p_client_id: form.client_id,
-      p_case_id: form.case_id ? Number(form.case_id) : null,
-      p_advisory_matter_id: form.advisory_matter_id || null,
+      p_client_id: form.customer_mode === "existing_client" ? form.client_id : null,
+      p_case_id: form.matter_mode === "case" && form.case_id ? Number(form.case_id) : null,
+      p_advisory_matter_id: form.matter_mode === "advisory" ? form.advisory_matter_id || null : null,
       p_issue_date: form.issue_date,
       p_valid_until: form.valid_until || null,
       p_scope_of_legal_services: form.scope_of_legal_services,
@@ -892,11 +945,11 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       p_payment_client_summary: draftTerms.client_summary,
       p_installments_json: atomicInstallments,
     };
-    const { data, error } = await supabase.rpc("create_finance_quotation_draft_atomic_v2", atomicPayload);
+    const { data, error } = await supabase.rpc("create_finance_quotation_draft_atomic_v3", atomicPayload);
     const created = Array.isArray(data) ? data[0] : data;
     if (error || !created?.quotation_id) {
       console.error("Atomic quotation draft creation failed", {
-        rpc: "create_finance_quotation_draft_atomic",
+        rpc: "create_finance_quotation_draft_atomic_v3",
         safePayload: getSafeAtomicDraftPayloadDiagnostic(atomicPayload),
         code: error?.code,
         message: error?.message,
@@ -992,24 +1045,64 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
 
       <div style={cardStyle}>
         <div className="quotation-header-form-grid" style={formGridStyle}>
-          <label style={labelStyle}>Client
-            <select value={form.client_id} onChange={(event) => setForm({ ...form, client_id: event.target.value })} style={inputStyle}>
-              <option value="">Select client</option>
-              {lookups.clients.map((client) => <option key={client.id} value={client.id}>{client.name || client.id}</option>)}
-            </select>
-          </label>
-          <label style={labelStyle}>Case (optional)
-            <select value={form.case_id} onChange={(event) => setForm({ ...form, case_id: event.target.value, advisory_matter_id: "" })} style={inputStyle}>
-              <option value="">No linked case</option>
-              {lookups.cases.map((item) => <option key={item.id} value={item.id}>{renderCaseLabel(item)}</option>)}
-            </select>
-          </label>
-          <label style={labelStyle}>Advisory Matter (optional)
-            <select value={form.advisory_matter_id} onChange={(event) => setForm({ ...form, advisory_matter_id: event.target.value, case_id: "" })} style={inputStyle}>
-              <option value="">No linked advisory matter</option>
-              {lookups.matters.map((item) => <option key={item.id} value={item.id}>{renderMatterLabel(item)}</option>)}
-            </select>
-          </label>
+          <div style={wideFieldGroupStyle}>
+            <div style={fieldHeadingStyle}>ลูกค้า / Customer</div>
+            <div style={segmentedControlStyle} role="group" aria-label="เลือกรูปแบบลูกค้า">
+              <button type="button" onClick={() => setForm((current) => ({ ...current, customer_mode: "existing_client", prospect_name: "", prospect_contact_person: "", prospect_phone: "", prospect_email: "", prospect_tax_id: "", prospect_address: "" }))} style={getSegmentButtonStyle(form.customer_mode === "existing_client")}>ลูกค้าในระบบ</button>
+              <button type="button" onClick={() => setForm((current) => ({ ...current, customer_mode: "prospect", client_id: "" }))} style={getSegmentButtonStyle(form.customer_mode === "prospect")}>ลูกค้าใหม่ / ผู้มุ่งหวัง</button>
+            </div>
+            {form.customer_mode === "existing_client" ? (
+              <label style={labelStyle}>เลือกลูกค้าในระบบ
+                <select value={form.client_id} onChange={(event) => setForm({ ...form, client_id: event.target.value })} style={inputStyle}>
+                  <option value="">เลือกลูกค้า</option>
+                  {lookups.clients.map((client) => <option key={client.id} value={client.id}>{client.name || client.id}</option>)}
+                </select>
+              </label>
+            ) : (
+              <div style={nestedFormGridStyle}>
+                <label style={labelStyle}>ชื่อบุคคล / บริษัท *<input value={form.prospect_name} onChange={(event) => setForm({ ...form, prospect_name: event.target.value })} style={inputStyle} /></label>
+                <label style={labelStyle}>ผู้ติดต่อ<input value={form.prospect_contact_person} onChange={(event) => setForm({ ...form, prospect_contact_person: event.target.value })} style={inputStyle} /></label>
+                <label style={labelStyle}>โทรศัพท์<input value={form.prospect_phone} onChange={(event) => setForm({ ...form, prospect_phone: event.target.value })} style={inputStyle} /></label>
+                <label style={labelStyle}>อีเมล<input type="email" value={form.prospect_email} onChange={(event) => setForm({ ...form, prospect_email: event.target.value })} style={inputStyle} /></label>
+                <label style={labelStyle}>เลขประจำตัวผู้เสียภาษี<input value={form.prospect_tax_id} onChange={(event) => setForm({ ...form, prospect_tax_id: event.target.value })} style={inputStyle} /></label>
+                <label style={{ ...labelStyle, gridColumn: "1 / -1" }}>ที่อยู่<textarea value={form.prospect_address} onChange={(event) => setForm({ ...form, prospect_address: event.target.value })} style={compactTextareaStyle} /></label>
+              </div>
+            )}
+            <p style={helperTextStyle}>{form.customer_mode === "prospect" ? "ข้อมูลนี้ใช้สำหรับใบเสนอราคาเท่านั้น ระบบจะไม่สร้างทะเบียนลูกค้าโดยอัตโนมัติ" : "ใช้ข้อมูลจากทะเบียนลูกค้าที่มีอยู่ในระบบ"}</p>
+          </div>
+
+          <div style={wideFieldGroupStyle}>
+            <div style={fieldHeadingStyle}>เรื่อง / งาน</div>
+            <div style={segmentedControlStyle} role="group" aria-label="เลือกรูปแบบเรื่องหรืองาน">
+              <button type="button" onClick={() => setForm((current) => ({ ...current, matter_mode: "unlinked", case_id: "", advisory_matter_id: "" }))} style={getSegmentButtonStyle(form.matter_mode === "unlinked")}>ยังไม่ผูกเรื่องในระบบ</button>
+              <button type="button" onClick={() => setForm((current) => ({ ...current, matter_mode: "case", advisory_matter_id: "", unlinked_matter_name: "", unlinked_matter_description: "" }))} style={getSegmentButtonStyle(form.matter_mode === "case")}>Case</button>
+              <button type="button" onClick={() => setForm((current) => ({ ...current, matter_mode: "advisory", case_id: "", unlinked_matter_name: "", unlinked_matter_description: "" }))} style={getSegmentButtonStyle(form.matter_mode === "advisory")}>Advisory</button>
+            </div>
+            {form.matter_mode === "case" ? (
+              <label style={labelStyle}>เลือก Case
+                <select value={form.case_id} onChange={(event) => setForm({ ...form, case_id: event.target.value, advisory_matter_id: "" })} style={inputStyle}>
+                  <option value="">เลือก Case</option>
+                  {lookups.cases.map((item) => <option key={item.id} value={item.id}>{renderCaseLabel(item)}</option>)}
+                </select>
+              </label>
+            ) : null}
+            {form.matter_mode === "advisory" ? (
+              <label style={labelStyle}>เลือก Advisory
+                <select value={form.advisory_matter_id} onChange={(event) => setForm({ ...form, advisory_matter_id: event.target.value, case_id: "" })} style={inputStyle}>
+                  <option value="">เลือก Advisory</option>
+                  {lookups.matters.map((item) => <option key={item.id} value={item.id}>{renderMatterLabel(item)}</option>)}
+                </select>
+              </label>
+            ) : null}
+            {form.matter_mode === "unlinked" ? (
+              <div style={nestedFormGridStyle}>
+                <label style={labelStyle}>ชื่อเรื่อง / ชื่องาน<input value={form.unlinked_matter_name} onChange={(event) => setForm({ ...form, unlinked_matter_name: event.target.value })} style={inputStyle} /></label>
+                <label style={{ ...labelStyle, gridColumn: "1 / -1" }}>รายละเอียดสั้น ๆ<textarea value={form.unlinked_matter_description} onChange={(event) => setForm({ ...form, unlinked_matter_description: event.target.value })} style={compactTextareaStyle} /></label>
+              </div>
+            ) : null}
+            <p style={helperTextStyle}>{form.matter_mode === "unlinked" ? "เว้นว่างได้ และสามารถเชื่อม Case หรือ Advisory ภายหลังโดยไม่สร้างรายการใหม่อัตโนมัติ" : "ใบเสนอราคาจะเชื่อมกับเรื่องที่เลือกไว้"}</p>
+          </div>
+
           <label style={labelStyle}>Issue Date
             <input type="date" value={form.issue_date} onChange={(event) => setForm({ ...form, issue_date: event.target.value })} style={inputStyle} />
           </label>
@@ -1460,6 +1553,10 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [feeAgreementId, setFeeAgreementId] = useState<string | null>(null);
+  const [linkClientId, setLinkClientId] = useState("");
+  const [linkMatterMode, setLinkMatterMode] = useState<"unlinked" | "case" | "advisory">("unlinked");
+  const [linkCaseId, setLinkCaseId] = useState("");
+  const [linkAdvisoryMatterId, setLinkAdvisoryMatterId] = useState("");
   const feeAgreementCreatingRef = useRef(false);
 
   const loadData = useCallback(async () => {
@@ -1488,10 +1585,15 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
       console.warn("Failed to load quotation items", { quotationId, error: itemRes.error });
     }
 
-    setQuotation(quotationRes.data as QuotationRow);
+    const loadedQuotation = quotationRes.data as QuotationRow;
+    setQuotation(loadedQuotation);
     setItems((itemRes.data || []) as QuotationItemRow[]);
     setFeeAgreementId(agreementRes.data?.id || null);
     setLookups(lookupRes);
+    setLinkClientId(loadedQuotation.client_id || "");
+    setLinkMatterMode(loadedQuotation.case_id ? "case" : loadedQuotation.advisory_matter_id ? "advisory" : "unlinked");
+    setLinkCaseId(loadedQuotation.case_id ? String(loadedQuotation.case_id) : "");
+    setLinkAdvisoryMatterId(loadedQuotation.advisory_matter_id || "");
     setLoading(false);
   }, [quotationId]);
 
@@ -1499,7 +1601,7 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
     if (!quotation || saving || feeAgreementCreatingRef.current) return;
     feeAgreementCreatingRef.current = true;
     setSaving(true);
-    const { data, error } = await supabase.rpc("create_finance_fee_agreement_from_quotation", { p_quotation_id: quotation.id });
+    const { data, error } = await supabase.rpc("create_finance_fee_agreement_from_quotation_v2", { p_quotation_id: quotation.id });
     const result = Array.isArray(data) ? data[0] : data;
     if (error || !result?.fee_agreement_id) {
       console.error("Unable to create Fee Agreement draft", error);
@@ -1523,6 +1625,44 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
     router.push(`/finance/fee-agreements/${result.fee_agreement_id}`);
   };
 
+  const linkMasterRecords = async () => {
+    if (!quotation || saving) return;
+    if (!linkClientId) {
+      alert("กรุณาเลือกลูกค้าในระบบก่อนสร้าง Fee Agreement");
+      return;
+    }
+    if (linkMatterMode === "case" && !linkCaseId) {
+      alert("กรุณาเลือก Case");
+      return;
+    }
+    if (linkMatterMode === "advisory" && !linkAdvisoryMatterId) {
+      alert("กรุณาเลือก Advisory");
+      return;
+    }
+    setSaving(true);
+    const { error } = await supabase.rpc("link_finance_quotation_master_records", {
+      p_quotation_id: quotation.id,
+      p_client_id: linkClientId,
+      p_case_id: linkMatterMode === "case" ? Number(linkCaseId) : null,
+      p_advisory_matter_id: linkMatterMode === "advisory" ? linkAdvisoryMatterId : null,
+    });
+    if (error) {
+      console.error("Unable to link accepted quotation to master records", { quotationId: quotation.id, error });
+      alert("เชื่อมข้อมูลลูกค้าหรือเรื่องไม่สำเร็จ กรุณาตรวจสอบข้อมูลอีกครั้ง");
+      setSaving(false);
+      return;
+    }
+    await createAuditLog({
+      tableName: "finance_quotations",
+      recordId: quotation.id,
+      caseId: linkMatterMode === "case" ? Number(linkCaseId) : null,
+      action: "update",
+      note: `Linked accepted quotation ${quotation.quotation_no} to Client/Matter before Fee Agreement conversion`,
+    });
+    await loadData();
+    setSaving(false);
+  };
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       loadData();
@@ -1543,7 +1683,7 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
     }
 
     setSaving(true);
-    const { error } = await supabase.rpc("set_finance_quotation_status", {
+    const { error } = await supabase.rpc("set_finance_quotation_status_v2", {
       p_quotation_id: quotation.id,
       p_next_status: nextStatus,
       p_cancel_reason: cancelReason,
@@ -1585,7 +1725,7 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
               <Link href="/finance/quotations" style={secondaryButtonStyle}>Back</Link>
               <Link href={`/finance/quotations/${quotation.id}/preview`} style={secondaryButtonStyle}>Preview</Link>
               <Link href={`/finance/quotations/${quotation.id}/preview?print=1`} style={secondaryButtonStyle} title="Open Browser Print for this quotation">Print</Link>
-              {quotation.status === "accepted" && access.permissions.canCreateFinanceQuotation ? (feeAgreementId ? <Link href={`/finance/fee-agreements/${feeAgreementId}`} style={primaryButtonStyle}>Open Fee Agreement</Link> : <button type="button" onClick={createFeeAgreement} disabled={saving} style={primaryButtonStyle}>สร้างข้อตกลงค่าบริการ</button>) : null}
+              {quotation.status === "accepted" && access.permissions.canCreateFinanceQuotation ? (feeAgreementId ? <Link href={`/finance/fee-agreements/${feeAgreementId}`} style={primaryButtonStyle}>Open Fee Agreement</Link> : quotation.client_id ? <button type="button" onClick={createFeeAgreement} disabled={saving} style={primaryButtonStyle}>สร้างข้อตกลงค่าบริการ</button> : null) : null}
               {quotation.status === "draft" && access.permissions.canEditFinanceQuotation ? <Link href={`/finance/quotations/${quotation.id}/edit`} style={primaryButtonStyle}>Edit Draft</Link> : null}
               {quotation.status === "draft" && access.permissions.canMarkFinanceQuotationSent ? <button type="button" onClick={() => updateStatus("sent")} disabled={saving} style={secondaryButtonStyle}>Mark Sent</button> : null}
               {quotation.status === "sent" && access.permissions.canMarkFinanceQuotationAccepted ? <button type="button" onClick={() => updateStatus("accepted")} disabled={saving} style={secondaryButtonStyle}>Mark Accepted</button> : null}
@@ -1593,11 +1733,49 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
             </div>
           </div>
 
+          {quotation.status === "accepted" && !feeAgreementId && access.permissions.canCreateFinanceQuotation && (
+            !quotation.client_id || (!quotation.case_id && !quotation.advisory_matter_id && quotation.matter_source_type === "unlinked")
+          ) ? (
+            <div style={cardStyle}>
+              <h2 style={sectionTitleStyle}>เชื่อมข้อมูลก่อนสร้าง Fee Agreement</h2>
+              <p style={mutedTextStyle}>เลือกทะเบียนลูกค้าที่ตรงกับผู้มุ่งหวัง และเชื่อม Case หรือ Advisory เมื่อพร้อม ระบบจะไม่สร้างข้อมูลใหม่อัตโนมัติและจะไม่แก้ snapshot ของใบเสนอราคาที่ส่งแล้ว</p>
+              <div style={{ ...formGridStyle, marginTop: 14 }}>
+                <label style={labelStyle}>ลูกค้าในระบบ *
+                  <select value={linkClientId} disabled={Boolean(quotation.client_id)} onChange={(event) => setLinkClientId(event.target.value)} style={inputStyle}>
+                    <option value="">เลือกลูกค้า</option>
+                    {lookups.clients.map((client) => <option key={client.id} value={client.id}>{client.name || client.id}</option>)}
+                  </select>
+                </label>
+                <div style={wideFieldGroupStyle}>
+                  <div style={fieldHeadingStyle}>เรื่อง / งาน</div>
+                  <div style={segmentedControlStyle}>
+                    <button type="button" onClick={() => { setLinkMatterMode("unlinked"); setLinkCaseId(""); setLinkAdvisoryMatterId(""); }} style={getSegmentButtonStyle(linkMatterMode === "unlinked")}>ยังไม่ผูกเรื่อง</button>
+                    <button type="button" onClick={() => { setLinkMatterMode("case"); setLinkAdvisoryMatterId(""); }} style={getSegmentButtonStyle(linkMatterMode === "case")}>Case</button>
+                    <button type="button" onClick={() => { setLinkMatterMode("advisory"); setLinkCaseId(""); }} style={getSegmentButtonStyle(linkMatterMode === "advisory")}>Advisory</button>
+                  </div>
+                  {linkMatterMode === "case" ? <select value={linkCaseId} onChange={(event) => setLinkCaseId(event.target.value)} style={inputStyle}><option value="">เลือก Case</option>{lookups.cases.map((item) => <option key={item.id} value={item.id}>{renderCaseLabel(item)}</option>)}</select> : null}
+                  {linkMatterMode === "advisory" ? <select value={linkAdvisoryMatterId} onChange={(event) => setLinkAdvisoryMatterId(event.target.value)} style={inputStyle}><option value="">เลือก Advisory</option>{lookups.matters.map((item) => <option key={item.id} value={item.id}>{renderMatterLabel(item)}</option>)}</select> : null}
+                </div>
+              </div>
+              {!quotation.client_id ? <p style={noticeTextStyle}>Fee Agreement ต้องอ้างอิงลูกค้าในระบบ กรุณาเชื่อมลูกค้าก่อนดำเนินการต่อ</p> : null}
+              <div style={buttonRowStyle}><button type="button" onClick={linkMasterRecords} disabled={saving} style={primaryButtonStyle}>บันทึกการเชื่อมข้อมูล</button></div>
+            </div>
+          ) : null}
+
           <div style={cardStyle}>
             <div style={detailGridStyle}>
               <Detail label="Status" value={<StatusBadge status={quotation.status} />} />
-              <Detail label="Client" value={renderClientName(quotation.client_id, lookups.clients)} />
+              <Detail label="ลูกค้า / Customer" value={renderQuotationClientName(quotation, lookups.clients)} />
+              <Detail label="ที่มาลูกค้า" value={quotation.customer_source_type === "prospect" || (!quotation.client_id && getSnapshotString(quotation.client_snapshot_json, "source_type") === "prospect") ? "ลูกค้าใหม่ / ผู้มุ่งหวัง" : "ลูกค้าในระบบ"} />
+              {quotation.customer_source_type === "prospect" || getSnapshotString(quotation.client_snapshot_json, "source_type") === "prospect" ? <>
+                <Detail label="ผู้ติดต่อ" value={quotation.prospect_contact_person || getSnapshotString(quotation.client_snapshot_json, "contact_person") || "-"} />
+                <Detail label="โทรศัพท์" value={quotation.prospect_phone || getSnapshotString(quotation.client_snapshot_json, "phone") || "-"} />
+                <Detail label="อีเมล" value={quotation.prospect_email || getSnapshotString(quotation.client_snapshot_json, "email") || "-"} />
+                <Detail label="เลขประจำตัวผู้เสียภาษี" value={quotation.prospect_tax_id || getSnapshotString(quotation.client_snapshot_json, "tax_id") || "-"} />
+                <Detail label="ที่อยู่" value={quotation.prospect_address || getSnapshotString(quotation.client_snapshot_json, "address") || "-"} />
+              </> : null}
               <Detail label="Linked Matter" value={renderMatterLink(quotation, lookups)} />
+              {!quotation.case_id && !quotation.advisory_matter_id ? <Detail label="รายละเอียดเรื่อง / งาน" value={quotation.unlinked_matter_description || getSnapshotString(quotation.matter_snapshot_json, "description") || "-"} /> : null}
               <Detail label="Issue Date" value={formatDate(quotation.issue_date)} />
               <Detail label="Valid Until" value={formatDate(quotation.valid_until)} />
               <Detail label="จำนวนเงินตามใบเสนอราคา / Quotation Total" value={formatMoney(toAmount(quotation.grand_total))} />
@@ -1695,9 +1873,12 @@ function getEmptyLookups(): LookupState {
 }
 
 function validateForm(form: FormState, items: QuotationItemRow[]) {
-  if (!form.client_id) return "Please select client.";
+  if (form.customer_mode === "existing_client" && !form.client_id) return "กรุณาเลือกลูกค้าในระบบ";
+  if (form.customer_mode === "prospect" && !form.prospect_name.trim()) return "กรุณาระบุชื่อบุคคลหรือบริษัทของลูกค้าใหม่";
   if (!form.issue_date) return "Please select issue date.";
   if (form.valid_until && form.valid_until < form.issue_date) return "Valid until cannot be before issue date.";
+  if (form.matter_mode === "case" && !form.case_id) return "กรุณาเลือก Case";
+  if (form.matter_mode === "advisory" && !form.advisory_matter_id) return "กรุณาเลือก Advisory";
   if (form.case_id && form.advisory_matter_id) return "Select either case or advisory matter, not both.";
   if (!form.authorized_signer_key) return "Please select authorized signer.";
   if (items.length === 0) return "Please add at least one line item.";
@@ -1710,8 +1891,12 @@ function validateForm(form: FormState, items: QuotationItemRow[]) {
 }
 
 function validateDraftSavePayload(payload: Record<string, unknown>, totals: ReturnType<typeof computeTotals>) {
-  const requiredStrings = ["p_quotation_id", "p_client_id", "p_issue_date", "p_authorized_signer_key"];
+  const requiredStrings = ["p_quotation_id", "p_issue_date", "p_authorized_signer_key"];
   if (requiredStrings.some((key) => typeof payload[key] !== "string" || !String(payload[key]).trim())) return "Required quotation fields are missing.";
+  const clientSnapshot = payload.p_client_snapshot_json && typeof payload.p_client_snapshot_json === "object"
+    ? payload.p_client_snapshot_json as Record<string, unknown>
+    : {};
+  if (!payload.p_client_id && (clientSnapshot.source_type !== "prospect" || !String(clientSnapshot.name || "").trim())) return "Prospect identity is missing.";
   if (payload.p_case_id && payload.p_advisory_matter_id) return "Select either case or advisory matter, not both.";
   if (typeof payload.p_issue_date === "string" && typeof payload.p_valid_until === "string" && payload.p_valid_until && payload.p_valid_until < payload.p_issue_date) return "Valid until cannot be before issue date.";
   const numericKeys = ["p_subtotal_vatable", "p_subtotal_non_vatable", "p_vat_amount", "p_grand_total"];
@@ -1743,6 +1928,7 @@ function getQuotationDraftSaveErrorMessage(error: { code?: string | null; messag
 
 function getQuotationStatusErrorMessage(error: { message?: string | null }) {
   const message = String(error.message || "").toLowerCase();
+  if (message.includes("prospect identity")) return "ข้อมูลลูกค้าใหม่ยังไม่ครบ กรุณากลับไปแก้ไขร่างใบเสนอราคา";
   if (message.includes("payment terms are required")) return "ยังไม่ได้กำหนดเงื่อนไขการชำระเงิน";
   if (message.includes("percentage payment installments")) return "สัดส่วนการชำระเงินยังไม่ครบ 100%";
   if (message.includes("payment terms totals") || message.includes("payment allocation") || message.includes("quotation totals")) return "ยอดเงื่อนไขการชำระเงินไม่ตรงกับยอดใบเสนอราคา";
@@ -1758,25 +1944,47 @@ function buildQuotationSnapshots(
   quotationNo: string
 ) {
   const client = lookups.clients.find((item) => item.id === form.client_id);
-  const caseItem = form.case_id ? lookups.cases.find((item) => String(item.id) === String(form.case_id)) : null;
-  const matter = form.advisory_matter_id ? lookups.matters.find((item) => item.id === form.advisory_matter_id) : null;
+  const caseItem = form.matter_mode === "case" && form.case_id ? lookups.cases.find((item) => String(item.id) === String(form.case_id)) : null;
+  const matter = form.matter_mode === "advisory" && form.advisory_matter_id ? lookups.matters.find((item) => item.id === form.advisory_matter_id) : null;
   const signer = getSignerByKey(lookups.signers, form.authorized_signer_key);
   const signerPosition = formatSignerPosition(signer);
   const normalizedItems = items.map((item, index) => normalizeItem(item, index));
 
-  const clientSnapshot: Record<string, unknown> = {
-    id: form.client_id,
-    name: client?.name || null,
-    client_type: client?.client_type || null,
-    client_display_name: getQuotationClientDisplayName(client?.name, client?.client_type),
-    tax_id: client?.tax_id || null,
-    email: client?.email || null,
-    phone: client?.phone || null,
-    address: client?.address || null,
-  };
-
-  const matterSnapshot: Record<string, unknown> | null = caseItem
+  const clientSnapshot: Record<string, unknown> = form.customer_mode === "prospect"
     ? {
+        source_type: "prospect",
+        id: null,
+        name: form.prospect_name.trim(),
+        client_type: null,
+        client_display_name: form.prospect_name.trim(),
+        contact_person: form.prospect_contact_person.trim() || null,
+        tax_id: form.prospect_tax_id.trim() || null,
+        email: form.prospect_email.trim() || null,
+        phone: form.prospect_phone.trim() || null,
+        address: form.prospect_address.trim() || null,
+      }
+    : {
+        source_type: "existing_client",
+        id: form.client_id,
+        name: client?.name || null,
+        client_type: client?.client_type || null,
+        client_display_name: getQuotationClientDisplayName(client?.name, client?.client_type),
+        tax_id: client?.tax_id || null,
+        email: client?.email || null,
+        phone: client?.phone || null,
+        address: client?.address || null,
+      };
+
+  const matterSnapshot: Record<string, unknown> | null = form.matter_mode === "unlinked"
+    ? {
+        source_type: "unlinked",
+        type: "unlinked",
+        title: form.unlinked_matter_name.trim() || null,
+        description: form.unlinked_matter_description.trim() || null,
+      }
+    : caseItem
+    ? {
+        source_type: "case",
         type: "case",
         id: caseItem.id,
         file_no: caseItem.file_no || null,
@@ -1785,16 +1993,17 @@ function buildQuotationSnapshots(
       }
     : matter
       ? {
+          source_type: "advisory",
           type: "advisory",
           id: matter.id,
           matter_no: matter.matter_no || null,
           title: matter.title || null,
         }
-      : form.case_id
-        ? { type: "case", id: form.case_id }
-        : form.advisory_matter_id
-          ? { type: "advisory", id: form.advisory_matter_id }
-          : null;
+      : form.matter_mode === "case" && form.case_id
+        ? { source_type: "case", type: "case", id: form.case_id }
+        : form.matter_mode === "advisory" && form.advisory_matter_id
+          ? { source_type: "advisory", type: "advisory", id: form.advisory_matter_id }
+          : { source_type: "unlinked", type: "unlinked", title: null, description: null };
 
   return {
     clientSnapshot,
@@ -1802,9 +2011,13 @@ function buildQuotationSnapshots(
     documentSnapshot: {
       document_type: "quotation",
       quotation_no: quotationNo || null,
-      client_id: form.client_id,
-      case_id: form.case_id ? Number(form.case_id) : null,
-      advisory_matter_id: form.advisory_matter_id || null,
+      customer_source_type: form.customer_mode,
+      client_id: form.customer_mode === "existing_client" ? form.client_id : null,
+      matter_source_type: form.matter_mode,
+      case_id: form.matter_mode === "case" && form.case_id ? Number(form.case_id) : null,
+      advisory_matter_id: form.matter_mode === "advisory" ? form.advisory_matter_id || null : null,
+      client: clientSnapshot,
+      matter: matterSnapshot,
       issue_date: form.issue_date,
       valid_until: form.valid_until || null,
       scope_of_legal_services: form.scope_of_legal_services.trim() || null,
@@ -1924,6 +2137,8 @@ function getAtomicPaymentAllocationMappingError(
 
 function getAtomicDraftCreateErrorMessage(error: { message?: string | null } | null) {
   const message = String(error?.message || "").toLowerCase();
+  if (message.includes("prospect name")) return "กรุณาระบุชื่อบุคคลหรือบริษัทของลูกค้าใหม่";
+  if (message.includes("quotation client not found")) return "ไม่พบลูกค้าที่เลือกในระบบ กรุณาเลือกใหม่";
   if (message.includes("invalid line items")) return "กรุณากรอกรายการค่าบริการให้ครบถ้วน";
   if (message.includes("allocation item") || message.includes("client item key")) return "พบรายการในเงื่อนไขการชำระเงินที่ไม่ตรงกับรายการค่าบริการ กรุณาตรวจสอบอีกครั้ง";
   if (message.includes("invalid installment data")) return "กรุณากรอกข้อมูลของแต่ละงวดให้ครบถ้วน";
@@ -2077,7 +2292,7 @@ function getReadonlyMessage(status: string | null) {
   return "Only draft quotations can be edited.";
 }
 
-function renderMatterLink(quotation: Pick<QuotationRow, "case_id" | "advisory_matter_id">, lookups: LookupState) {
+function renderMatterLink(quotation: Pick<QuotationRow, "case_id" | "advisory_matter_id" | "matter_snapshot_json" | "unlinked_matter_name">, lookups: LookupState) {
   if (quotation.case_id) {
     const caseItem = lookups.cases.find((item) => String(item.id) === String(quotation.case_id));
     return caseItem ? `Case: ${renderCaseLabel(caseItem)}` : `Case: ${quotation.case_id}`;
@@ -2086,11 +2301,16 @@ function renderMatterLink(quotation: Pick<QuotationRow, "case_id" | "advisory_ma
     const matter = lookups.matters.find((item) => item.id === quotation.advisory_matter_id);
     return matter ? `Advisory: ${renderMatterLabel(matter)}` : `Advisory: ${quotation.advisory_matter_id}`;
   }
-  return "Unlinked";
+  return quotation.unlinked_matter_name || getSnapshotString(quotation.matter_snapshot_json, "title") || "ยังไม่ผูกเรื่องในระบบ";
 }
 
-function renderClientName(clientId: string, clients: ClientRow[]) {
-  return clients.find((client) => client.id === clientId)?.name || clientId || "-";
+function renderQuotationClientName(quotation: Pick<QuotationRow, "client_id" | "client_snapshot_json" | "prospect_name">, clients: ClientRow[]) {
+  return clients.find((client) => client.id === quotation.client_id)?.name
+    || quotation.prospect_name
+    || getSnapshotString(quotation.client_snapshot_json, "client_display_name")
+    || getSnapshotString(quotation.client_snapshot_json, "name")
+    || quotation.client_id
+    || "-";
 }
 
 function renderCaseLabel(item: CaseRow) {
@@ -2099,6 +2319,11 @@ function renderCaseLabel(item: CaseRow) {
 
 function renderMatterLabel(item: MatterRow) {
   return [item.matter_no, item.title].filter(Boolean).join(" - ") || item.id;
+}
+
+function getSnapshotString(snapshot: Record<string, unknown> | null | undefined, key: string) {
+  const value = snapshot?.[key];
+  return typeof value === "string" ? value : "";
 }
 
 function formatMoney(value: number) {
@@ -2202,6 +2427,13 @@ const actionGroupStyle: CSSProperties = { display: "flex", flexWrap: "wrap", gap
 const formGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14 };
 const labelStyle: CSSProperties = { display: "flex", flexDirection: "column", gap: 6, color: "#374151", fontSize: 13, fontWeight: 700, minWidth: 0 };
 const wideLabelStyle: CSSProperties = { ...labelStyle, gridColumn: "1 / -1" };
+const wideFieldGroupStyle: CSSProperties = { gridColumn: "1 / -1", minWidth: 0, display: "grid", gap: 12, paddingBottom: 4 };
+const fieldHeadingStyle: CSSProperties = { color: "#111827", fontSize: 15, fontWeight: 800 };
+const segmentedControlStyle: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" };
+const segmentButtonStyle: CSSProperties = { border: "1px solid #d1d5db", background: "#ffffff", color: "#374151", borderRadius: 6, padding: "8px 12px", fontSize: 13, fontWeight: 700, cursor: "pointer" };
+const getSegmentButtonStyle = (active: boolean): CSSProperties => active ? { ...segmentButtonStyle, background: "#111827", borderColor: "#111827", color: "#ffffff" } : segmentButtonStyle;
+const nestedFormGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, minWidth: 0 };
+const helperTextStyle: CSSProperties = { color: "#6b7280", fontSize: 12, fontWeight: 500, margin: 0 };
 const inputStyle: CSSProperties = { width: "100%", border: "1px solid #d1d5db", borderRadius: 6, padding: "9px 10px", fontSize: 14, minWidth: 0 };
 const authorizedSignerLabelStyle: CSSProperties = { ...labelStyle, minWidth: 0 };
 const authorizedSignerSelectStyle: CSSProperties = { ...inputStyle, paddingRight: 36 };
@@ -2210,6 +2442,7 @@ const compactFieldGroupStyle: CSSProperties = { display: "flex", gap: 8, minWidt
 const compactSelectStyle: CSSProperties = { ...inputStyle, flex: 1, minWidth: 0 };
 const vatInputStyle: CSSProperties = { ...inputStyle, width: 80, marginTop: 6 };
 const textareaStyle: CSSProperties = { ...inputStyle, minHeight: 88, resize: "vertical" };
+const compactTextareaStyle: CSSProperties = { ...inputStyle, minHeight: 64, resize: "vertical" };
 
 const quotationHeaderFormCss = `
   @media (min-width: 960px) {
