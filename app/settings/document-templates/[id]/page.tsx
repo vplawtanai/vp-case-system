@@ -194,7 +194,9 @@ export default function DocumentTemplateDetailPage() {
   const isDraft = selectedVersion?.status === "draft";
   const canApprove = canApproveDocumentPlatform(access.role);
   const inactiveShell = template?.metadata_json?.inactive_shell === true
-    || template?.metadata_json?.legal_wording_approved === false;
+    || template?.metadata_json?.legal_wording_approved !== true
+    || selectedVersion?.definition_json?.inactive_shell === true
+    || selectedVersion?.definition_json?.legal_wording_approved !== true;
 
   const loadWorkspace = useCallback(async (preferredVersionId?: string) => {
     if (!access.allowed || !templateId) return;
