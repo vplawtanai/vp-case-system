@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, ChangeEvent } from "react";
 import AuthGuard from "../../components/AuthGuard";
 import AppTopNav from "../../components/AppTopNav";
@@ -54,6 +54,19 @@ type SignerForm = {
   sort_order: number;
 };
 
+type ServicePatternForm = {
+  id: string;
+  pattern_code: string;
+  display_name: string;
+  category: string;
+  short_description: string;
+  scope_text: string;
+  included_services_text: string;
+  excluded_services_text: string;
+  is_active: boolean;
+  sort_order: number;
+};
+
 export default function DocumentSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -64,7 +77,10 @@ export default function DocumentSettingsPage() {
   const [companyForm, setCompanyForm] = useState<CompanyForm>(getFallbackCompanyForm());
   const [signers, setSigners] = useState<SignerForm[]>([]);
   const [signerForm, setSignerForm] = useState<SignerForm>(emptySignerForm());
+  const [servicePatterns, setServicePatterns] = useState<ServicePatternForm[]>([]);
+  const [servicePatternForm, setServicePatternForm] = useState<ServicePatternForm>(emptyServicePatternForm());
   const [assetUrls, setAssetUrls] = useState<Record<string, string>>({});
+  const servicePatternFormRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = role === "admin";
   const canManageSigners = role === "admin" || role === "partner";
@@ -99,9 +115,10 @@ export default function DocumentSettingsPage() {
       return;
     }
 
-    const [companyRes, signersRes] = await Promise.all([
+    const [companyRes, signersRes, patternsRes] = await Promise.all([
       supabase.from("finance_company_profiles").select("*").eq("id", "default").maybeSingle(),
       supabase.from("finance_authorized_signers").select("*").order("sort_order", { ascending: true }),
+      supabase.from("finance_quotation_service_patterns").select("*").order("sort_order", { ascending: true }).order("display_name", { ascending: true }),
     ]);
 
     const company = normalizeCompanyProfile((companyRes.data || null) as DbCompanyProfile | null);
@@ -128,6 +145,12 @@ export default function DocumentSettingsPage() {
       ? signerRows.map(normalizeAuthorizedSigner).map(toSignerForm)
       : AUTHORIZED_SIGNERS.map(toSignerForm);
     setSigners(normalizedSigners);
+    if (patternsRes.error) {
+      console.warn("Unable to load quotation service patterns", { error: patternsRes.error });
+      setServicePatterns([]);
+    } else {
+      setServicePatterns(((patternsRes.data || []) as ServicePatternForm[]).map(toServicePatternForm));
+    }
     await Promise.all(normalizedSigners.map((signer) => loadAssetUrl(signer.signature_storage_path)));
     setLoading(false);
   }, [loadAssetUrl]);
@@ -138,6 +161,14 @@ export default function DocumentSettingsPage() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [loadSettings]);
+
+  useEffect(() => {
+    if (loading || window.location.hash !== "#quotation-service-patterns") return;
+    const timer = window.setTimeout(() => {
+      document.getElementById("quotation-service-patterns")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [loading]);
 
   const saveCompanyProfile = async () => {
     if (!isAdmin || saving) return;
@@ -435,6 +466,85 @@ export default function DocumentSettingsPage() {
     await loadSettings();
   };
 
+  const scrollToServicePatternForm = () => {
+    window.setTimeout(() => {
+      servicePatternFormRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 0);
+  };
+
+  const openServicePatternForm = (pattern?: ServicePatternForm) => {
+    setServicePatternForm(pattern ? { ...pattern } : emptyServicePatternForm());
+    scrollToServicePatternForm();
+  };
+
+  const saveServicePattern = async () => {
+    if (!canManageSigners || saving) return;
+    if (!servicePatternForm.pattern_code.trim() || !servicePatternForm.display_name.trim()) {
+      alert("กรุณาระบุรหัสและชื่อรูปแบบงาน");
+      return;
+    }
+    if (![servicePatternForm.scope_text, servicePatternForm.included_services_text, servicePatternForm.excluded_services_text].some((value) => value.trim())) {
+      alert("กรุณาระบุข้อความอย่างน้อยหนึ่งส่วน");
+      return;
+    }
+
+    setSaving(true);
+    const { data: patternId, error } = await supabase.rpc("save_finance_quotation_service_pattern", {
+      p_pattern_id: servicePatternForm.id || null,
+      p_pattern_code: servicePatternForm.pattern_code,
+      p_display_name: servicePatternForm.display_name,
+      p_category: servicePatternForm.category || null,
+      p_short_description: servicePatternForm.short_description || null,
+      p_scope_text: servicePatternForm.scope_text || null,
+      p_included_services_text: servicePatternForm.included_services_text || null,
+      p_excluded_services_text: servicePatternForm.excluded_services_text || null,
+      p_sort_order: Number(servicePatternForm.sort_order || 0),
+    });
+
+    if (error) {
+      console.error("Unable to save quotation service pattern", { code: error.code, message: error.message });
+      alert(error.code === "23505" ? "รหัสรูปแบบงานนี้มีอยู่แล้ว" : "ไม่สามารถบันทึกรูปแบบงานได้");
+      setSaving(false);
+      return;
+    }
+
+    await createAuditLog({
+      tableName: "finance_quotation_service_patterns",
+      recordId: typeof patternId === "string" ? patternId : servicePatternForm.id || servicePatternForm.pattern_code,
+      action: servicePatternForm.id ? "update" : "create",
+      note: `${servicePatternForm.id ? "Updated" : "Created"} quotation service pattern ${servicePatternForm.pattern_code.trim().toUpperCase()}`,
+    });
+    setServicePatternForm(emptyServicePatternForm());
+    setSaving(false);
+    await loadSettings();
+  };
+
+  const setServicePatternActive = async (pattern: ServicePatternForm, isActive: boolean) => {
+    if (!canManageSigners || !pattern.id || saving) return;
+    if (!window.confirm(isActive ? `เปิดใช้งานรูปแบบ “${pattern.display_name}” หรือไม่?` : `ปิดใช้งานรูปแบบ “${pattern.display_name}” หรือไม่?\nใบเสนอราคาเดิมจะไม่เปลี่ยนแปลง`)) return;
+
+    setSaving(true);
+    const { error } = await supabase.rpc("set_finance_quotation_service_pattern_active", {
+      p_pattern_id: pattern.id,
+      p_is_active: isActive,
+    });
+    if (error) {
+      console.error("Unable to update quotation service pattern status", { code: error.code, message: error.message });
+      alert("ไม่สามารถเปลี่ยนสถานะรูปแบบงานได้");
+      setSaving(false);
+      return;
+    }
+
+    await createAuditLog({
+      tableName: "finance_quotation_service_patterns",
+      recordId: pattern.id,
+      action: "update",
+      note: `${isActive ? "Activated" : "Deactivated"} quotation service pattern ${pattern.pattern_code}`,
+    });
+    setSaving(false);
+    await loadSettings();
+  };
+
   if (loading) {
     return (
       <AuthGuard>
@@ -502,6 +612,71 @@ export default function DocumentSettingsPage() {
             </div>
           </div>
           {isAdmin ? <button type="button" onClick={saveCompanyProfile} disabled={saving} style={primaryButtonStyle}>{saving ? "Saving..." : "Save Company Profile"}</button> : null}
+        </section>
+
+        <section id="quotation-service-patterns" style={cardStyle}>
+          <div style={sectionHeaderStyle}>
+            <div>
+              <h2 style={sectionTitleStyle}>รูปแบบขอบเขตงานใบเสนอราคา</h2>
+              <p style={mutedTextStyle}>จัดเก็บข้อความตั้งต้นสำหรับขอบเขตงาน งานที่รวม และงานที่ไม่รวม ผู้ใช้ยังแก้ข้อความในใบเสนอราคาแต่ละฉบับได้ตามปกติ</p>
+            </div>
+            <button type="button" onClick={() => openServicePatternForm()} style={primaryButtonStyle}>เพิ่มรูปแบบงาน</button>
+          </div>
+
+          {servicePatterns.length === 0 ? (
+            <div style={emptyStateStyle}>ยังไม่มีรูปแบบงานที่บันทึกไว้</div>
+          ) : (
+            <div style={patternListStyle}>
+              {servicePatterns.map((pattern) => (
+                <div key={pattern.id || pattern.pattern_code} style={patternRowStyle}>
+                  <div style={patternSummaryStyle}>
+                    <div style={actionGroupStyle}>
+                      <strong>{pattern.display_name}</strong>
+                      <span style={codeBadgeStyle}>{pattern.pattern_code}</span>
+                      {!pattern.is_active ? <span style={dangerBadgeStyle}>ปิดใช้งาน</span> : null}
+                    </div>
+                    <div style={mutedTextStyle}>{[pattern.category, pattern.short_description].filter(Boolean).join(" · ") || "ไม่มีคำอธิบายเพิ่มเติม"}</div>
+                    <div style={mutedTextStyle}>ลำดับ {pattern.sort_order} · {[pattern.scope_text && "ขอบเขตงาน", pattern.included_services_text && "งานที่รวม", pattern.excluded_services_text && "งานที่ไม่รวม"].filter(Boolean).join(" / ")}</div>
+                  </div>
+                  <div style={actionGroupStyle}>
+                    <button type="button" onClick={() => openServicePatternForm(pattern)} style={secondaryButtonStyle}>แก้ไข</button>
+                    <button type="button" onClick={() => { void setServicePatternActive(pattern, !pattern.is_active); }} disabled={saving} style={secondaryButtonStyle}>
+                      {pattern.is_active ? "ปิดใช้งาน" : "เปิดใช้งาน"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div ref={servicePatternFormRef} style={formPanelStyle}>
+            <h3 style={sectionTitleStyle}>{servicePatternForm.id ? "แก้ไขรูปแบบงาน" : "เพิ่มรูปแบบงาน"}</h3>
+            <p style={mutedTextStyle}>รูปแบบเป็นเพียงข้อความตั้งต้น การแก้ไขที่นี่จะไม่เปลี่ยนใบเสนอราคาที่บันทึกไปแล้ว</p>
+            <div style={formGridStyle}>
+              <TextField label="รหัสรูปแบบ *" value={servicePatternForm.pattern_code} onChange={(value) => setServicePatternForm({ ...servicePatternForm, pattern_code: value.toUpperCase() })} />
+              <TextField label="ชื่อรูปแบบ *" value={servicePatternForm.display_name} onChange={(value) => setServicePatternForm({ ...servicePatternForm, display_name: value })} />
+              <TextField label="หมวดงาน" value={servicePatternForm.category} onChange={(value) => setServicePatternForm({ ...servicePatternForm, category: value })} />
+              <label style={labelStyle}>ลำดับการแสดง
+                <input type="number" min="0" step="1" value={servicePatternForm.sort_order} onChange={(event) => setServicePatternForm({ ...servicePatternForm, sort_order: Math.max(0, Number.parseInt(event.target.value || "0", 10) || 0) })} style={inputStyle} />
+              </label>
+              <label style={wideLabelStyle}>คำอธิบายสั้น
+                <textarea value={servicePatternForm.short_description} onChange={(event) => setServicePatternForm({ ...servicePatternForm, short_description: event.target.value })} style={compactTextareaStyle} />
+              </label>
+              <label style={wideLabelStyle}>ขอบเขตงาน / Scope of Legal Services
+                <textarea value={servicePatternForm.scope_text} onChange={(event) => setServicePatternForm({ ...servicePatternForm, scope_text: event.target.value })} style={patternTextareaStyle} />
+              </label>
+              <label style={wideLabelStyle}>งานที่รวมอยู่ในค่าบริการ / Included Services
+                <textarea value={servicePatternForm.included_services_text} onChange={(event) => setServicePatternForm({ ...servicePatternForm, included_services_text: event.target.value })} style={patternTextareaStyle} />
+              </label>
+              <label style={wideLabelStyle}>งานหรือค่าใช้จ่ายที่ไม่รวม / Excluded Services
+                <textarea value={servicePatternForm.excluded_services_text} onChange={(event) => setServicePatternForm({ ...servicePatternForm, excluded_services_text: event.target.value })} style={patternTextareaStyle} />
+              </label>
+            </div>
+            <div style={actionGroupWithTopMarginStyle}>
+              <button type="button" onClick={saveServicePattern} disabled={saving} style={primaryButtonStyle}>{saving ? "กำลังบันทึก..." : "บันทึกรูปแบบงาน"}</button>
+              <button type="button" onClick={() => setServicePatternForm(emptyServicePatternForm())} disabled={saving} style={secondaryButtonStyle}>ล้างฟอร์ม</button>
+            </div>
+          </div>
         </section>
 
         <section style={cardStyle}>
@@ -609,6 +784,36 @@ function emptySignerForm(): SignerForm {
     is_active: true,
     is_default: false,
     sort_order: 0,
+  };
+}
+
+function emptyServicePatternForm(): ServicePatternForm {
+  return {
+    id: "",
+    pattern_code: "",
+    display_name: "",
+    category: "",
+    short_description: "",
+    scope_text: "",
+    included_services_text: "",
+    excluded_services_text: "",
+    is_active: true,
+    sort_order: 0,
+  };
+}
+
+function toServicePatternForm(pattern: Partial<ServicePatternForm>): ServicePatternForm {
+  return {
+    id: pattern.id || "",
+    pattern_code: pattern.pattern_code || "",
+    display_name: pattern.display_name || "",
+    category: pattern.category || "",
+    short_description: pattern.short_description || "",
+    scope_text: pattern.scope_text || "",
+    included_services_text: pattern.included_services_text || "",
+    excluded_services_text: pattern.excluded_services_text || "",
+    is_active: pattern.is_active !== false,
+    sort_order: Number(pattern.sort_order || 0),
   };
 }
 
@@ -767,6 +972,8 @@ const labelStyle: CSSProperties = { display: "flex", flexDirection: "column", ga
 const wideLabelStyle: CSSProperties = { ...labelStyle, gridColumn: "1 / -1" };
 const inputStyle: CSSProperties = { border: "1px solid #d1d5db", borderRadius: 6, padding: "9px 10px", fontSize: 14 };
 const textareaStyle: CSSProperties = { ...inputStyle, minHeight: 80, resize: "vertical" };
+const compactTextareaStyle: CSSProperties = { ...textareaStyle, minHeight: 64 };
+const patternTextareaStyle: CSSProperties = { ...textareaStyle, minHeight: 118, lineHeight: 1.55 };
 const primaryButtonStyle: CSSProperties = { border: "1px solid #15803d", background: "#16a344", color: "#fff", borderRadius: 6, padding: "9px 12px", fontWeight: 800, cursor: "pointer" };
 const secondaryButtonStyle: CSSProperties = { border: "1px solid #d1d5db", background: "#fff", color: "#111827", borderRadius: 6, padding: "8px 10px", fontWeight: 700, cursor: "pointer" };
 const dangerButtonStyle: CSSProperties = { ...secondaryButtonStyle, borderColor: "#b91c1c", color: "#b91c1c" };
@@ -780,3 +987,9 @@ const signerListStyle: CSSProperties = { display: "grid", gap: 12, marginBottom:
 const signerCardStyle: CSSProperties = { border: "1px solid #e5e7eb", borderRadius: 8, padding: 14 };
 const formPanelStyle: CSSProperties = { borderTop: "1px solid #e5e7eb", paddingTop: 16 };
 const checkRowStyle: CSSProperties = { display: "flex", gap: 18, margin: "14px 0", color: "#374151", fontWeight: 700 };
+const patternListStyle: CSSProperties = { display: "grid", gap: 10, marginBottom: 18 };
+const patternRowStyle: CSSProperties = { border: "1px solid #e5e7eb", borderRadius: 8, padding: 14, display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 14, flexWrap: "wrap" };
+const patternSummaryStyle: CSSProperties = { minWidth: 0, flex: "1 1 420px" };
+const codeBadgeStyle: CSSProperties = { display: "inline-flex", borderRadius: 4, background: "#f3f4f6", color: "#4b5563", padding: "3px 7px", fontSize: 11, fontWeight: 800 };
+const emptyStateStyle: CSSProperties = { border: "1px dashed #d1d5db", borderRadius: 8, color: "#6b7280", padding: 16, marginBottom: 18, fontSize: 13 };
+const actionGroupWithTopMarginStyle: CSSProperties = { ...actionGroupStyle, marginTop: 16 };

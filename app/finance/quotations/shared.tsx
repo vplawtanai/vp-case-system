@@ -148,6 +148,18 @@ type SaveAllResult =
 type ClientRow = { id: string; name: string | null; client_type?: string | null; tax_id?: string | null; email?: string | null; phone?: string | null; address?: string | null };
 type CaseRow = { id: number; file_no: string | null; title: string | null; client_name: string | null };
 type MatterRow = { id: string; matter_no: string | null; title: string | null };
+type ServicePatternRow = {
+  id: string;
+  pattern_code: string;
+  display_name: string;
+  category: string | null;
+  short_description: string | null;
+  scope_text: string | null;
+  included_services_text: string | null;
+  excluded_services_text: string | null;
+  is_active: boolean;
+  sort_order: number;
+};
 
 type QuotationAccess = {
   userId: string;
@@ -162,6 +174,7 @@ type LookupState = {
   cases: CaseRow[];
   matters: MatterRow[];
   signers: AuthorizedSigner[];
+  servicePatterns: ServicePatternRow[];
   companyProfile: CompanyProfile;
 };
 
@@ -184,6 +197,9 @@ type FormState = {
   scope_of_legal_services: string;
   included_services: string;
   excluded_services: string;
+  service_pattern_id: string;
+  service_pattern_code: string;
+  service_pattern_name: string;
   authorized_signer_key: string;
   note: string;
   internal_note: string;
@@ -208,6 +224,9 @@ const emptyForm: FormState = {
   scope_of_legal_services: "",
   included_services: "",
   excluded_services: "",
+  service_pattern_id: "",
+  service_pattern_code: "",
+  service_pattern_name: "",
   authorized_signer_key: DEFAULT_AUTHORIZED_SIGNER.key,
   note: "",
   internal_note: "",
@@ -248,6 +267,9 @@ function normalizedQuotationDraftSnapshot(form: FormState, items: QuotationItemR
       scope_of_legal_services: form.scope_of_legal_services.trim(),
       included_services: form.included_services.trim(),
       excluded_services: form.excluded_services.trim(),
+      service_pattern_id: form.service_pattern_id.trim(),
+      service_pattern_code: form.service_pattern_code.trim(),
+      service_pattern_name: form.service_pattern_name.trim(),
       note: form.note.trim(),
       internal_note: form.internal_note.trim(),
     },
@@ -682,6 +704,9 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       scope_of_legal_services: loadedQuotation.scope_of_legal_services || "",
       included_services: loadedQuotation.included_services || "",
       excluded_services: loadedQuotation.excluded_services || "",
+      service_pattern_id: getSnapshotString(loadedQuotation.document_data_snapshot_json, "service_pattern_id"),
+      service_pattern_code: getSnapshotString(loadedQuotation.document_data_snapshot_json, "service_pattern_code"),
+      service_pattern_name: getSnapshotString(loadedQuotation.document_data_snapshot_json, "service_pattern_name"),
       authorized_signer_key: loadedQuotation.authorized_signer_key || getDefaultSigner(lookupData.signers).key,
       note: loadedQuotation.note || "",
       internal_note: loadedQuotation.internal_note || "",
@@ -726,6 +751,34 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
 
   const updateItem = (index: number, patch: Partial<QuotationItemRow>) => {
     setItems((current) => current.map((item, itemIndex) => itemIndex === index ? normalizeItem({ ...item, ...patch }, itemIndex) : item));
+  };
+
+  const applyServicePattern = (patternId: string) => {
+    if (!patternId) {
+      setForm((current) => ({ ...current, service_pattern_id: "", service_pattern_code: "", service_pattern_name: "" }));
+      return;
+    }
+
+    const pattern = lookups.servicePatterns.find((item) => item.id === patternId);
+    if (!pattern) return;
+    const nextWording = {
+      scope_of_legal_services: pattern.scope_text || "",
+      included_services: pattern.included_services_text || "",
+      excluded_services: pattern.excluded_services_text || "",
+    };
+    const hasExistingWording = [form.scope_of_legal_services, form.included_services, form.excluded_services].some((value) => value.trim());
+    const changesWording = form.scope_of_legal_services !== nextWording.scope_of_legal_services
+      || form.included_services !== nextWording.included_services
+      || form.excluded_services !== nextWording.excluded_services;
+    if (hasExistingWording && changesWording && !window.confirm("การเลือกรูปแบบงานใหม่จะแทนที่ข้อความขอบเขตงาน งานที่รวม และงานที่ไม่รวมในฟอร์มนี้ ต้องการดำเนินการต่อหรือไม่?")) return;
+
+    setForm((current) => ({
+      ...current,
+      ...nextWording,
+      service_pattern_id: pattern.id,
+      service_pattern_code: pattern.pattern_code,
+      service_pattern_name: pattern.display_name,
+    }));
   };
 
   const removeItem = (index: number) => {
@@ -1123,6 +1176,25 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
 
       <div style={cardStyle}>
         <div style={formGridStyle}>
+          <div style={wideFieldGroupStyle}>
+            <div style={servicePatternHeaderStyle}>
+              <label style={servicePatternLabelStyle}>รูปแบบงาน / Service Pattern
+                <select value={form.service_pattern_id} onChange={(event) => applyServicePattern(event.target.value)} style={inputStyle}>
+                  <option value="">ไม่ใช้รูปแบบ / กรอกเอง</option>
+                  {form.service_pattern_id && !lookups.servicePatterns.some((pattern) => pattern.id === form.service_pattern_id) ? (
+                    <option value={form.service_pattern_id} disabled>รูปแบบเดิม: {form.service_pattern_name || form.service_pattern_code || "ไม่เปิดใช้งานแล้ว"}</option>
+                  ) : null}
+                  {lookups.servicePatterns.map((pattern) => (
+                    <option key={pattern.id} value={pattern.id}>
+                      {pattern.display_name}{pattern.category ? ` · ${pattern.category}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Link href="/settings/document-settings#quotation-service-patterns" target="_blank" rel="noreferrer" style={managePatternLinkStyle}>จัดการรูปแบบงาน</Link>
+            </div>
+            <p style={helperTextStyle}>รูปแบบงานช่วยเติมข้อความตั้งต้นทั้งสามส่วนครั้งเดียว หลังจากนั้นสามารถแก้ไขข้อความในใบเสนอราคาฉบับนี้ได้อย่างอิสระ</p>
+          </div>
           <label style={wideLabelStyle}>ขอบเขตงาน / Scope of Legal Services
             <textarea
               value={form.scope_of_legal_services}
@@ -1836,12 +1908,13 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
 }
 
 async function loadLookups(preservedSignerKey?: string | null): Promise<LookupState> {
-  const [clientsRes, casesRes, mattersRes, companyRes, signersRes, preservedSignerRes] = await Promise.all([
+  const [clientsRes, casesRes, mattersRes, companyRes, signersRes, patternsRes, preservedSignerRes] = await Promise.all([
     supabase.from("clients").select("id, client_type, name, tax_id, email, phone, address").order("name", { ascending: true }),
     supabase.from("cases").select("id, file_no, title, client_name").order("created_at", { ascending: false }),
     supabase.from("advisory_matters").select("id, matter_no, title").order("created_at", { ascending: false }),
     supabase.from("finance_company_profiles").select("*").eq("id", "default").maybeSingle(),
     supabase.from("finance_authorized_signers").select("*").eq("is_active", true).order("sort_order", { ascending: true }),
+    supabase.from("finance_quotation_service_patterns").select("id, pattern_code, display_name, category, short_description, scope_text, included_services_text, excluded_services_text, is_active, sort_order").eq("is_active", true).order("sort_order", { ascending: true }).order("display_name", { ascending: true }),
     preservedSignerKey
       ? supabase.from("finance_authorized_signers").select("*").eq("signer_key", preservedSignerKey).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
@@ -1852,6 +1925,7 @@ async function loadLookups(preservedSignerKey?: string | null): Promise<LookupSt
     signerRows.push(preservedSignerRes.data as DbAuthorizedSigner);
   }
   const signers = signersRes.error ? AUTHORIZED_SIGNERS : signerRows.map(normalizeAuthorizedSigner).filter((signer) => signer.key);
+  if (patternsRes.error) console.warn("Unable to load quotation service patterns", { error: patternsRes.error });
 
   return {
     clients: (clientsRes.data || []) as ClientRow[],
@@ -1859,6 +1933,7 @@ async function loadLookups(preservedSignerKey?: string | null): Promise<LookupSt
     matters: (mattersRes.data || []) as MatterRow[],
     companyProfile: normalizeCompanyProfile((companyRes.data || null) as DbCompanyProfile | null),
     signers: signers.length > 0 ? signers : AUTHORIZED_SIGNERS,
+    servicePatterns: patternsRes.error ? [] : (patternsRes.data || []) as ServicePatternRow[],
   };
 }
 
@@ -1869,6 +1944,7 @@ function getEmptyLookups(): LookupState {
     matters: [],
     companyProfile: normalizeCompanyProfile(null),
     signers: AUTHORIZED_SIGNERS,
+    servicePatterns: [],
   };
 }
 
@@ -2023,6 +2099,9 @@ function buildQuotationSnapshots(
       scope_of_legal_services: form.scope_of_legal_services.trim() || null,
       included_services: form.included_services.trim() || null,
       excluded_services: form.excluded_services.trim() || null,
+      service_pattern_id: form.service_pattern_id || null,
+      service_pattern_code: form.service_pattern_code || null,
+      service_pattern_name: form.service_pattern_name || null,
       company_profile: {
         company_name_th: lookups.companyProfile.companyNameTh,
         company_name_en: lookups.companyProfile.companyNameEn,
@@ -2434,6 +2513,9 @@ const segmentButtonStyle: CSSProperties = { border: "1px solid #d1d5db", backgro
 const getSegmentButtonStyle = (active: boolean): CSSProperties => active ? { ...segmentButtonStyle, background: "#111827", borderColor: "#111827", color: "#ffffff" } : segmentButtonStyle;
 const nestedFormGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, minWidth: 0 };
 const helperTextStyle: CSSProperties = { color: "#6b7280", fontSize: 12, fontWeight: 500, margin: 0 };
+const servicePatternHeaderStyle: CSSProperties = { display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap" };
+const servicePatternLabelStyle: CSSProperties = { ...labelStyle, flex: "1 1 360px" };
+const managePatternLinkStyle: CSSProperties = { color: "#166534", fontSize: 13, fontWeight: 700, textDecoration: "none", padding: "9px 0" };
 const inputStyle: CSSProperties = { width: "100%", border: "1px solid #d1d5db", borderRadius: 6, padding: "9px 10px", fontSize: 14, minWidth: 0 };
 const authorizedSignerLabelStyle: CSSProperties = { ...labelStyle, minWidth: 0 };
 const authorizedSignerSelectStyle: CSSProperties = { ...inputStyle, paddingRight: 36 };
