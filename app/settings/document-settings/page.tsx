@@ -79,6 +79,8 @@ export default function DocumentSettingsPage() {
   const [signerForm, setSignerForm] = useState<SignerForm>(emptySignerForm());
   const [servicePatterns, setServicePatterns] = useState<ServicePatternForm[]>([]);
   const [servicePatternForm, setServicePatternForm] = useState<ServicePatternForm>(emptyServicePatternForm());
+  const [isServicePatternFormOpen, setIsServicePatternFormOpen] = useState(false);
+  const [servicePatternFormActivation, setServicePatternFormActivation] = useState(0);
   const [assetUrls, setAssetUrls] = useState<Record<string, string>>({});
   const servicePatternFormRef = useRef<HTMLDivElement>(null);
 
@@ -169,6 +171,14 @@ export default function DocumentSettingsPage() {
     }, 80);
     return () => window.clearTimeout(timer);
   }, [loading]);
+
+  useEffect(() => {
+    if (!isServicePatternFormOpen || servicePatternFormActivation === 0) return;
+    const timer = window.setTimeout(() => {
+      servicePatternFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [isServicePatternFormOpen, servicePatternFormActivation]);
 
   const saveCompanyProfile = async () => {
     if (!isAdmin || saving) return;
@@ -466,15 +476,15 @@ export default function DocumentSettingsPage() {
     await loadSettings();
   };
 
-  const scrollToServicePatternForm = () => {
-    window.setTimeout(() => {
-      servicePatternFormRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 0);
-  };
-
   const openServicePatternForm = (pattern?: ServicePatternForm) => {
     setServicePatternForm(pattern ? { ...pattern } : emptyServicePatternForm());
-    scrollToServicePatternForm();
+    setIsServicePatternFormOpen(true);
+    setServicePatternFormActivation((current) => current + 1);
+  };
+
+  const closeServicePatternForm = () => {
+    setServicePatternForm(emptyServicePatternForm());
+    setIsServicePatternFormOpen(false);
   };
 
   const saveServicePattern = async () => {
@@ -514,7 +524,7 @@ export default function DocumentSettingsPage() {
       action: servicePatternForm.id ? "update" : "create",
       note: `${servicePatternForm.id ? "Updated" : "Created"} quotation service pattern ${servicePatternForm.pattern_code.trim().toUpperCase()}`,
     });
-    setServicePatternForm(emptyServicePatternForm());
+    closeServicePatternForm();
     setSaving(false);
     await loadSettings();
   };
@@ -649,34 +659,36 @@ export default function DocumentSettingsPage() {
             </div>
           )}
 
-          <div ref={servicePatternFormRef} style={formPanelStyle}>
-            <h3 style={sectionTitleStyle}>{servicePatternForm.id ? "แก้ไขรูปแบบงาน" : "เพิ่มรูปแบบงาน"}</h3>
-            <p style={mutedTextStyle}>รูปแบบเป็นเพียงข้อความตั้งต้น การแก้ไขที่นี่จะไม่เปลี่ยนใบเสนอราคาที่บันทึกไปแล้ว</p>
-            <div style={formGridStyle}>
-              <TextField label="รหัสรูปแบบ *" value={servicePatternForm.pattern_code} onChange={(value) => setServicePatternForm({ ...servicePatternForm, pattern_code: value.toUpperCase() })} />
-              <TextField label="ชื่อรูปแบบ *" value={servicePatternForm.display_name} onChange={(value) => setServicePatternForm({ ...servicePatternForm, display_name: value })} />
-              <TextField label="หมวดงาน" value={servicePatternForm.category} onChange={(value) => setServicePatternForm({ ...servicePatternForm, category: value })} />
-              <label style={labelStyle}>ลำดับการแสดง
-                <input type="number" min="0" step="1" value={servicePatternForm.sort_order} onChange={(event) => setServicePatternForm({ ...servicePatternForm, sort_order: Math.max(0, Number.parseInt(event.target.value || "0", 10) || 0) })} style={inputStyle} />
-              </label>
-              <label style={wideLabelStyle}>คำอธิบายสั้น
-                <textarea value={servicePatternForm.short_description} onChange={(event) => setServicePatternForm({ ...servicePatternForm, short_description: event.target.value })} style={compactTextareaStyle} />
-              </label>
-              <label style={wideLabelStyle}>ขอบเขตงาน / Scope of Legal Services
-                <textarea value={servicePatternForm.scope_text} onChange={(event) => setServicePatternForm({ ...servicePatternForm, scope_text: event.target.value })} style={patternTextareaStyle} />
-              </label>
-              <label style={wideLabelStyle}>งานที่รวมอยู่ในค่าบริการ / Included Services
-                <textarea value={servicePatternForm.included_services_text} onChange={(event) => setServicePatternForm({ ...servicePatternForm, included_services_text: event.target.value })} style={patternTextareaStyle} />
-              </label>
-              <label style={wideLabelStyle}>งานหรือค่าใช้จ่ายที่ไม่รวม / Excluded Services
-                <textarea value={servicePatternForm.excluded_services_text} onChange={(event) => setServicePatternForm({ ...servicePatternForm, excluded_services_text: event.target.value })} style={patternTextareaStyle} />
-              </label>
+          {isServicePatternFormOpen ? (
+            <div ref={servicePatternFormRef} style={servicePatternFormPanelStyle}>
+              <h3 style={sectionTitleStyle}>{servicePatternForm.id ? "แก้ไขรูปแบบงาน" : "เพิ่มรูปแบบงาน"}</h3>
+              <p style={mutedTextStyle}>รูปแบบเป็นเพียงข้อความตั้งต้น การแก้ไขที่นี่จะไม่เปลี่ยนใบเสนอราคาที่บันทึกไปแล้ว</p>
+              <div style={formGridStyle}>
+                <TextField label="รหัสรูปแบบ *" value={servicePatternForm.pattern_code} onChange={(value) => setServicePatternForm({ ...servicePatternForm, pattern_code: value.toUpperCase() })} />
+                <TextField label="ชื่อรูปแบบ *" value={servicePatternForm.display_name} onChange={(value) => setServicePatternForm({ ...servicePatternForm, display_name: value })} />
+                <TextField label="หมวดงาน" value={servicePatternForm.category} onChange={(value) => setServicePatternForm({ ...servicePatternForm, category: value })} />
+                <label style={labelStyle}>ลำดับการแสดง
+                  <input type="number" min="0" step="1" value={servicePatternForm.sort_order} onChange={(event) => setServicePatternForm({ ...servicePatternForm, sort_order: Math.max(0, Number.parseInt(event.target.value || "0", 10) || 0) })} style={inputStyle} />
+                </label>
+                <label style={wideLabelStyle}>คำอธิบายสั้น
+                  <textarea value={servicePatternForm.short_description} onChange={(event) => setServicePatternForm({ ...servicePatternForm, short_description: event.target.value })} style={compactTextareaStyle} />
+                </label>
+                <label style={wideLabelStyle}>ขอบเขตงาน / Scope of Legal Services
+                  <textarea value={servicePatternForm.scope_text} onChange={(event) => setServicePatternForm({ ...servicePatternForm, scope_text: event.target.value })} style={patternTextareaStyle} />
+                </label>
+                <label style={wideLabelStyle}>งานที่รวมอยู่ในค่าบริการ / Included Services
+                  <textarea value={servicePatternForm.included_services_text} onChange={(event) => setServicePatternForm({ ...servicePatternForm, included_services_text: event.target.value })} style={patternTextareaStyle} />
+                </label>
+                <label style={wideLabelStyle}>งานหรือค่าใช้จ่ายที่ไม่รวม / Excluded Services
+                  <textarea value={servicePatternForm.excluded_services_text} onChange={(event) => setServicePatternForm({ ...servicePatternForm, excluded_services_text: event.target.value })} style={patternTextareaStyle} />
+                </label>
+              </div>
+              <div style={actionGroupWithTopMarginStyle}>
+                <button type="button" onClick={saveServicePattern} disabled={saving} style={primaryButtonStyle}>{saving ? "กำลังบันทึก..." : "บันทึกรูปแบบงาน"}</button>
+                <button type="button" onClick={closeServicePatternForm} disabled={saving} style={secondaryButtonStyle}>ยกเลิก</button>
+              </div>
             </div>
-            <div style={actionGroupWithTopMarginStyle}>
-              <button type="button" onClick={saveServicePattern} disabled={saving} style={primaryButtonStyle}>{saving ? "กำลังบันทึก..." : "บันทึกรูปแบบงาน"}</button>
-              <button type="button" onClick={() => setServicePatternForm(emptyServicePatternForm())} disabled={saving} style={secondaryButtonStyle}>ล้างฟอร์ม</button>
-            </div>
-          </div>
+          ) : null}
         </section>
 
         <section style={cardStyle}>
@@ -986,6 +998,7 @@ const assetPreviewStyle: CSSProperties = { width: 120, height: 68, border: "1px 
 const signerListStyle: CSSProperties = { display: "grid", gap: 12, marginBottom: 18 };
 const signerCardStyle: CSSProperties = { border: "1px solid #e5e7eb", borderRadius: 8, padding: 14 };
 const formPanelStyle: CSSProperties = { borderTop: "1px solid #e5e7eb", paddingTop: 16 };
+const servicePatternFormPanelStyle: CSSProperties = { ...formPanelStyle, scrollMarginTop: 96 };
 const checkRowStyle: CSSProperties = { display: "flex", gap: 18, margin: "14px 0", color: "#374151", fontWeight: 700 };
 const patternListStyle: CSSProperties = { display: "grid", gap: 10, marginBottom: 18 };
 const patternRowStyle: CSSProperties = { border: "1px solid #e5e7eb", borderRadius: 8, padding: 14, display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 14, flexWrap: "wrap" };
