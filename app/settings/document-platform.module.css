@@ -328,6 +328,10 @@
   margin-top: 14px;
 }
 
+.editorScrollTarget {
+  scroll-margin-top: 96px;
+}
+
 .formGrid,
 .summaryGrid {
   display: grid;

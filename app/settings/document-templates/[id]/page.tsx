@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -97,6 +97,7 @@ type ClauseVersionRow = {
   language_code: string;
   title: string;
   status: string;
+  metadata_json: JsonObject | null;
 };
 
 type ClauseFamilyRow = {
@@ -184,6 +185,10 @@ export default function DocumentTemplateDetailPage() {
   const [effectiveTo, setEffectiveTo] = useState("");
   const [sectionForm, setSectionForm] = useState<SectionForm | null>(null);
   const [slotForm, setSlotForm] = useState<SlotForm | null>(null);
+  const familyEditorRef = useRef<HTMLDivElement | null>(null);
+  const versionEditorRef = useRef<HTMLDivElement | null>(null);
+  const sectionEditorRef = useRef<HTMLDivElement | null>(null);
+  const slotEditorRef = useRef<HTMLDivElement | null>(null);
 
   const selectedVersion = versions.find((version) => version.id === selectedVersionId) || null;
   const isDraft = selectedVersion?.status === "draft";
@@ -272,7 +277,7 @@ export default function DocumentTemplateDetailPage() {
 
     const publishedClausesResult = await supabase
       .from("document_clause_versions")
-      .select("id, clause_id, version_no, language_code, title, status")
+      .select("id, clause_id, version_no, language_code, title, status, metadata_json")
       .eq("language_code", activeVersion.language_code)
       .eq("status", "published")
       .order("title", { ascending: true })
@@ -289,7 +294,7 @@ export default function DocumentTemplateDetailPage() {
     if (missingAttachedIds.length > 0) {
       const attachedResult = await supabase
         .from("document_clause_versions")
-        .select("id, clause_id, version_no, language_code, title, status")
+        .select("id, clause_id, version_no, language_code, title, status, metadata_json")
         .in("id", missingAttachedIds)
         .limit(1000);
       if (!attachedResult.error) {
@@ -466,12 +471,44 @@ export default function DocumentTemplateDetailPage() {
   const openNewSection = () => {
     setSectionForm(emptySectionForm(Math.max(0, ...sections.map((section) => section.sort_order)) + 1));
     setSlotForm(null);
+    queueEditorScroll(() => sectionEditorRef.current);
   };
 
   const openNewSlot = (section: SectionRow) => {
     const sectionSlots = slots.filter((slot) => slot.template_section_id === section.id);
     setSlotForm(emptySlotForm(section.id, Math.max(0, ...sectionSlots.map((slot) => slot.sort_order)) + 1));
     setSectionForm(null);
+    queueEditorScroll(() => slotEditorRef.current);
+  };
+
+  const openSectionEditor = (section: SectionRow) => {
+    setSectionForm(toSectionForm(section));
+    setSlotForm(null);
+    queueEditorScroll(() => sectionEditorRef.current);
+  };
+
+  const openSlotEditor = (slot: SlotRow) => {
+    setSlotForm(toSlotForm(slot));
+    setSectionForm(null);
+    queueEditorScroll(() => slotEditorRef.current);
+  };
+
+  const toggleFamilyEditor = () => {
+    if (editingFamily) {
+      setEditingFamily(false);
+      return;
+    }
+    setEditingFamily(true);
+    queueEditorScroll(() => familyEditorRef.current);
+  };
+
+  const toggleVersionEditor = () => {
+    if (editingVersion) {
+      setEditingVersion(false);
+      return;
+    }
+    setEditingVersion(true);
+    queueEditorScroll(() => versionEditorRef.current);
   };
 
   return (
@@ -541,14 +578,14 @@ export default function DocumentTemplateDetailPage() {
                   </div>
                   {isDraft ? (
                     <div className={styles.actionRow}>
-                      <button type="button" className={styles.button} onClick={() => setEditingFamily((current) => !current)}>แก้ชื่อแม่แบบ</button>
-                      <button type="button" className={styles.button} onClick={() => setEditingVersion((current) => !current)}>แก้ช่วงวันที่</button>
+                      <button type="button" className={styles.button} onClick={toggleFamilyEditor}>แก้ชื่อแม่แบบ</button>
+                      <button type="button" className={styles.button} onClick={toggleVersionEditor}>แก้ช่วงวันที่</button>
                     </div>
                   ) : null}
                 </div>
 
                 {editingFamily ? (
-                  <div className={styles.formPanel}>
+                  <div ref={familyEditorRef} className={`${styles.formPanel} ${styles.editorScrollTarget}`}>
                     <label className={styles.fieldWide}>ชื่อแม่แบบ
                       <input className={styles.input} value={familyName} onChange={(event) => setFamilyName(event.target.value)} />
                     </label>
@@ -560,7 +597,7 @@ export default function DocumentTemplateDetailPage() {
                 ) : null}
 
                 {editingVersion ? (
-                  <div className={styles.formPanel}>
+                  <div ref={versionEditorRef} className={`${styles.formPanel} ${styles.editorScrollTarget}`}>
                     <div className={styles.formGrid}>
                       <label className={styles.field}>เริ่มใช้วันที่
                         <input type="date" className={styles.input} value={effectiveFrom} onChange={(event) => setEffectiveFrom(event.target.value)} />
@@ -587,21 +624,25 @@ export default function DocumentTemplateDetailPage() {
                 </div>
 
                 {sectionForm ? (
-                  <SectionEditor form={sectionForm} setForm={setSectionForm} sections={sections} saving={saving} onSave={saveSection} />
+                  <div ref={sectionEditorRef} className={styles.editorScrollTarget}>
+                    <SectionEditor form={sectionForm} setForm={setSectionForm} sections={sections} saving={saving} onSave={saveSection} />
+                  </div>
                 ) : null}
                 {slotForm ? (
-                  <SlotEditor
-                    key={slotForm.id || `new-${slotForm.template_section_id}`}
-                    form={slotForm}
-                    setForm={setSlotForm}
-                    clauseVersions={clauseVersions}
-                    clauseFamilies={clauseFamilies}
-                    sections={sections}
-                    slots={slots}
-                    templateCode={template.template_code}
-                    saving={saving}
-                    onSave={saveSlot}
-                  />
+                  <div ref={slotEditorRef} className={styles.editorScrollTarget}>
+                    <SlotEditor
+                      key={slotForm.id || `new-${slotForm.template_section_id}`}
+                      form={slotForm}
+                      setForm={setSlotForm}
+                      clauseVersions={clauseVersions}
+                      clauseFamilies={clauseFamilies}
+                      sections={sections}
+                      slots={slots}
+                      templateCode={template.template_code}
+                      saving={saving}
+                      onSave={saveSlot}
+                    />
+                  </div>
                 ) : null}
 
                 {sections.length === 0 ? <div className={styles.emptyState}>ยังไม่มีส่วนของเอกสารในเวอร์ชันนี้</div> : (
@@ -624,7 +665,7 @@ export default function DocumentTemplateDetailPage() {
                             </div>
                             {isDraft ? (
                               <div className={styles.actionRow}>
-                                <button type="button" className={styles.button} onClick={() => { setSectionForm(toSectionForm(section)); setSlotForm(null); }}>แก้ไขส่วน</button>
+                                <button type="button" className={styles.button} onClick={() => openSectionEditor(section)}>แก้ไขส่วน</button>
                                 <button type="button" className={styles.button} onClick={() => openNewSlot(section)}>เพิ่มข้อสัญญา</button>
                               </div>
                             ) : null}
@@ -655,7 +696,7 @@ export default function DocumentTemplateDetailPage() {
                                           {slot.allow_custom_after ? <span className={styles.badge}>เพิ่มข้อความต่อท้ายได้</span> : null}
                                         </div>
                                       </div>
-                                      {isDraft ? <button type="button" className={styles.button} onClick={() => { setSlotForm(toSlotForm(slot)); setSectionForm(null); }}>แก้ไขข้อสัญญา</button> : null}
+                                      {isDraft ? <button type="button" className={styles.button} onClick={() => openSlotEditor(slot)}>แก้ไขข้อสัญญา</button> : null}
                                     </div>
                                   );
                                 })}
@@ -724,6 +765,7 @@ function SectionEditor({ form, setForm, sections, saving, onSave }: { form: Sect
 function SlotEditor({ form, setForm, clauseVersions, clauseFamilies, sections, slots, templateCode, saving, onSave }: { form: SlotForm; setForm: (form: SlotForm | null) => void; clauseVersions: ClauseVersionRow[]; clauseFamilies: ClauseFamilyRow[]; sections: SectionRow[]; slots: SlotRow[]; templateCode: string; saving: boolean; onSave: () => Promise<void> }) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [slotCodeEdited, setSlotCodeEdited] = useState(Boolean(form.id));
+  const [riskEdited, setRiskEdited] = useState(Boolean(form.id));
   const familyById = useMemo(() => new Map(clauseFamilies.map((family) => [family.id, family])), [clauseFamilies]);
   const currentSection = sections.find((section) => section.id === form.template_section_id) || null;
 
@@ -796,6 +838,7 @@ function SlotEditor({ form, setForm, clauseVersions, clauseFamilies, sections, s
   const handleClauseChange = (clauseVersionId: string) => {
     const selectedClause = clauseVersions.find((clause) => clause.id === clauseVersionId) || null;
     const selectedClauseCode = selectedClause ? familyById.get(selectedClause.clause_id)?.clause_code || "" : "";
+    const selectedClauseRisk = selectedClause ? clauseRiskLevel(selectedClause) : "";
     const proposedSlotCode = selectedClause
       ? deriveSlotCode(selectedClauseCode, selectedClause.language_code)
       : "";
@@ -810,6 +853,7 @@ function SlotEditor({ form, setForm, clauseVersions, clauseFamilies, sections, s
       ...form,
       clause_version_id: clauseVersionId,
       slot_code: nextSlotCode,
+      risk_level: !form.id && !riskEdited && selectedClauseRisk ? selectedClauseRisk : form.risk_level,
     });
   };
 
@@ -827,7 +871,7 @@ function SlotEditor({ form, setForm, clauseVersions, clauseFamilies, sections, s
       <div className={styles.formGrid}>
         <label className={styles.fieldWide}>ข้อสัญญาจากคลัง<select className={styles.select} value={form.clause_version_id} onChange={(event) => handleClauseChange(event.target.value)}><option value="">ยังไม่เลือกข้อสัญญา</option>{clauseOptions.map(({ clause, clauseCode }) => <option key={clause.id} value={clause.id}>{optionLabel(clauseCode, clause)}</option>)}</select></label>
         <label className={styles.field}>ประเภทข้อ<select className={styles.select} value={form.clause_type} onChange={(event) => setForm({ ...form, clause_type: event.target.value })}>{clauseTypes.map((value) => <option key={value} value={value}>{clauseTypeLabel(value)}</option>)}</select></label>
-        <label className={styles.field}>ระดับความสำคัญ<select className={styles.select} value={form.risk_level} onChange={(event) => setForm({ ...form, risk_level: event.target.value })}>{riskLevels.map((value) => <option key={value || "none"} value={value}>{value ? riskLabel(value) : "ไม่ระบุ"}</option>)}</select></label>
+        <label className={styles.field}>ระดับความสำคัญ<select className={styles.select} value={form.risk_level} onChange={(event) => { setRiskEdited(true); setForm({ ...form, risk_level: event.target.value }); }}>{riskLevels.map((value) => <option key={value || "none"} value={value}>{value ? riskLabel(value) : "ไม่ระบุ"}</option>)}</select></label>
       </div>
       {sectionMismatch ? <div className={styles.formWarning}>ข้อสัญญานี้โดยปกติใช้กับ <strong>{expectedSectionLabel}</strong> แต่ยังสามารถเลือกใช้ข้าม Section ได้</div> : null}
       <div className={styles.checkRow}>
@@ -906,4 +950,19 @@ function deriveSlotCode(clauseCode: string, languageCode: string) {
   return normalizedCode.endsWith(languageSuffix)
     ? normalizedCode.slice(0, -languageSuffix.length)
     : normalizedCode;
+}
+
+function clauseRiskLevel(clause: ClauseVersionRow) {
+  const riskLevel = clause.metadata_json?.risk_level;
+  return typeof riskLevel === "string" && riskLevels.includes(riskLevel)
+    ? riskLevel
+    : "";
+}
+
+function queueEditorScroll(getTarget: () => HTMLElement | null) {
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
+      getTarget()?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
 }
