@@ -148,6 +148,20 @@ const sectionKinds = ["normal", "preamble", "schedule", "appendix", "execution"]
 const numberingStyles = ["explicit", "decimal", "roman", "thai_clause", "thai_appendix", "none"];
 const riskLevels = ["", "informational", "low", "medium", "high", "critical"];
 const clauseTypes = ["mandatory", "optional", "placeholder", "conditional"];
+const vpLegalServicesClauseSequence = [
+  { sectionCode: "SCOPE", clauseCode: "SCOPE-GENERAL-TH", sectionNumber: 2 },
+  { sectionCode: "INCLUDED_SERVICES", clauseCode: "INCLUDED-SERVICES-GENERAL-TH", sectionNumber: 3 },
+  { sectionCode: "EXCLUDED_SERVICES", clauseCode: "EXCLUDED-SERVICES-GENERAL-TH", sectionNumber: 4 },
+  { sectionCode: "FEES_PAYMENT", clauseCode: "FEES-PAYMENT-GENERAL-TH", sectionNumber: 5 },
+  { sectionCode: "CLIENT_OBLIGATIONS", clauseCode: "CLIENT-OBLIGATIONS-GENERAL-TH", sectionNumber: 6 },
+  { sectionCode: "FIRM_OBLIGATIONS", clauseCode: "FIRM-OBLIGATIONS-GENERAL-TH", sectionNumber: 7 },
+  { sectionCode: "EXPENSES", clauseCode: "EXPENSES-ADVANCES-GENERAL-TH", sectionNumber: 8 },
+  { sectionCode: "CONFIDENTIALITY", clauseCode: "CONFIDENTIALITY-DOCUMENTS-GENERAL-TH", sectionNumber: 9 },
+  { sectionCode: "COOPERATION_RELIANCE", clauseCode: "RELIANCE-INFORMATION-GENERAL-TH", sectionNumber: 10 },
+  { sectionCode: "TERMINATION", clauseCode: "TERMINATION-GENERAL-TH", sectionNumber: 11 },
+  { sectionCode: "GOVERNING_LAW", clauseCode: "GOVERNING-LAW-DISPUTES-TH", sectionNumber: 12 },
+  { sectionCode: "NOTICES_GENERAL", clauseCode: "NOTICES-GENERAL-TERMS-TH", sectionNumber: 13 },
+] as const;
 
 export default function DocumentTemplateDetailPage() {
   const params = useParams<{ id: string }>();
@@ -576,7 +590,16 @@ export default function DocumentTemplateDetailPage() {
                   <SectionEditor form={sectionForm} setForm={setSectionForm} sections={sections} saving={saving} onSave={saveSection} />
                 ) : null}
                 {slotForm ? (
-                  <SlotEditor form={slotForm} setForm={setSlotForm} clauseVersions={clauseVersions} clauseFamilies={clauseFamilies} saving={saving} onSave={saveSlot} />
+                  <SlotEditor
+                    form={slotForm}
+                    setForm={setSlotForm}
+                    clauseVersions={clauseVersions}
+                    clauseFamilies={clauseFamilies}
+                    sections={sections}
+                    templateCode={template.template_code}
+                    saving={saving}
+                    onSave={saveSlot}
+                  />
                 ) : null}
 
                 {sections.length === 0 ? <div className={styles.emptyState}>ยังไม่มีส่วนของเอกสารในเวอร์ชันนี้</div> : (
@@ -696,18 +719,71 @@ function SectionEditor({ form, setForm, sections, saving, onSave }: { form: Sect
   );
 }
 
-function SlotEditor({ form, setForm, clauseVersions, clauseFamilies, saving, onSave }: { form: SlotForm; setForm: (form: SlotForm | null) => void; clauseVersions: ClauseVersionRow[]; clauseFamilies: ClauseFamilyRow[]; saving: boolean; onSave: () => Promise<void> }) {
+function SlotEditor({ form, setForm, clauseVersions, clauseFamilies, sections, templateCode, saving, onSave }: { form: SlotForm; setForm: (form: SlotForm | null) => void; clauseVersions: ClauseVersionRow[]; clauseFamilies: ClauseFamilyRow[]; sections: SectionRow[]; templateCode: string; saving: boolean; onSave: () => Promise<void> }) {
+  const clauseOptions = useMemo(() => {
+    const familyById = new Map(clauseFamilies.map((family) => [family.id, family]));
+    const currentSectionCode = sections.find((section) => section.id === form.template_section_id)?.section_code;
+    const currentClauseCode = vpLegalServicesClauseSequence.find((item) => item.sectionCode === currentSectionCode)?.clauseCode;
+    const logicalOrderByCode = new Map<string, number>(vpLegalServicesClauseSequence.map((item, index) => [item.clauseCode, index]));
+
+    const options = clauseVersions
+      .filter((clause) => clause.status === "published" || clause.id === form.clause_version_id)
+      .map((clause, originalIndex) => ({
+        clause,
+        clauseCode: familyById.get(clause.clause_id)?.clause_code || "ข้อสัญญา",
+        originalIndex,
+      }));
+
+    if (templateCode !== "VP-FA-LEGAL-SERVICES") return options;
+
+    return options.sort((left, right) => {
+      const leftCurrent = left.clauseCode === currentClauseCode;
+      const rightCurrent = right.clauseCode === currentClauseCode;
+      if (leftCurrent !== rightCurrent) return leftCurrent ? -1 : 1;
+
+      const leftOrder = logicalOrderByCode.get(left.clauseCode);
+      const rightOrder = logicalOrderByCode.get(right.clauseCode);
+      if (leftOrder !== rightOrder) {
+        if (leftOrder === undefined) return 1;
+        if (rightOrder === undefined) return -1;
+        return leftOrder - rightOrder;
+      }
+
+      const codeOrder = left.clauseCode.localeCompare(right.clauseCode, "th");
+      if (codeOrder !== 0) return codeOrder;
+      const titleOrder = left.clause.title.localeCompare(right.clause.title, "th");
+      if (titleOrder !== 0) return titleOrder;
+      if (left.clause.version_no !== right.clause.version_no) return right.clause.version_no - left.clause.version_no;
+      return left.originalIndex - right.originalIndex;
+    });
+  }, [clauseFamilies, clauseVersions, form.clause_version_id, form.template_section_id, sections, templateCode]);
+
+  const optionLabel = (clauseCode: string, clause: ClauseVersionRow) => {
+    if (templateCode !== "VP-FA-LEGAL-SERVICES") {
+      return `${clauseCode} · ${clause.title} · รุ่น ${clause.version_no}${clause.status !== "published" ? ` (${clause.status})` : ""}`;
+    }
+    const logicalEntry = vpLegalServicesClauseSequence.find((item) => item.clauseCode === clauseCode);
+    const logicalSection = logicalEntry
+      ? sections.find((section) => section.section_code === logicalEntry.sectionCode)
+      : null;
+    const sectionLabel = logicalEntry
+      ? logicalSection?.display_label || logicalSection?.display_number || `ข้อ ${logicalEntry.sectionNumber}`
+      : "";
+    const prefix = sectionLabel ? `${sectionLabel} · ` : "";
+    return `${prefix}${clauseCode} · ${clause.title} · รุ่น ${clause.version_no}${clause.status !== "published" ? ` (${clause.status})` : ""}`;
+  };
+
   return (
     <div className={styles.formPanel}>
       <div className={styles.sectionHeader}><h3 className={styles.sectionTitle}>{form.id ? "แก้ไขตำแหน่งข้อสัญญา" : "เพิ่มตำแหน่งข้อสัญญา"}</h3><button type="button" className={styles.button} onClick={() => setForm(null)}>ปิด</button></div>
       <div className={styles.formGrid}>
         <label className={styles.field}>รหัสตำแหน่ง<input className={styles.input} value={form.slot_code} onChange={(event) => setForm({ ...form, slot_code: event.target.value.toUpperCase() })} /></label>
-        <label className={styles.fieldWide}>ข้อสัญญาจากคลัง<select className={styles.select} value={form.clause_version_id} onChange={(event) => setForm({ ...form, clause_version_id: event.target.value })}><option value="">ยังไม่เลือกข้อสัญญา</option>{clauseVersions.map((clause) => { const family = clauseFamilies.find((item) => item.id === clause.clause_id); return <option key={clause.id} value={clause.id}>{family?.clause_code || "ข้อสัญญา"} · {clause.title} · รุ่น {clause.version_no}{clause.status !== "published" ? ` (${clause.status})` : ""}</option>; })}</select></label>
-        <label className={styles.field}>ลำดับ<input type="number" min="1" className={styles.input} value={form.sort_order} onChange={(event) => setForm({ ...form, sort_order: Number(event.target.value || 0) })} /></label>
+        <label className={styles.fieldWide}>ข้อสัญญาจากคลัง<select className={styles.select} value={form.clause_version_id} onChange={(event) => setForm({ ...form, clause_version_id: event.target.value })}><option value="">ยังไม่เลือกข้อสัญญา</option>{clauseOptions.map(({ clause, clauseCode }) => <option key={clause.id} value={clause.id}>{optionLabel(clauseCode, clause)}</option>)}</select></label>
+        <label className={styles.field}>ลำดับ<input type="number" min="1" className={styles.input} value={form.sort_order} onChange={(event) => setForm({ ...form, sort_order: Number(event.target.value || 0) })} /><span className={styles.helperText}>ลำดับของข้อสัญญาภายในส่วนนี้ เช่น 1, 2, 3</span></label>
         <label className={styles.field}>เลขที่แสดง<input className={styles.input} value={form.display_number} onChange={(event) => setForm({ ...form, display_number: event.target.value })} /></label>
         <label className={styles.field}>ป้ายกำกับ<input className={styles.input} value={form.display_label} onChange={(event) => setForm({ ...form, display_label: event.target.value })} /></label>
-        <label className={styles.field}>รูปแบบเลข<select className={styles.select} value={form.numbering_style} onChange={(event) => setForm({ ...form, numbering_style: event.target.value })}>{numberingStyles.map((value) => <option key={value} value={value}>{numberingStyleLabel(value)}</option>)}</select></label>
-        <label className={styles.field}>ระดับเลข<input type="number" min="0" max="8" className={styles.input} value={form.numbering_depth} onChange={(event) => setForm({ ...form, numbering_depth: Number(event.target.value || 0) })} /></label>
+        <label className={styles.field}>รูปแบบเลข<select className={styles.select} value={form.numbering_style} onChange={(event) => setForm({ ...form, numbering_style: event.target.value })}>{numberingStyles.map((value) => <option key={value} value={value}>{numberingStyleLabel(value)}</option>)}</select>{form.numbering_style === "none" ? <span className={styles.helperText}>ใช้เมื่อ Section เป็นผู้แสดงเลขข้ออยู่แล้ว เพื่อไม่ให้เลขซ้ำ</span> : null}</label>
+        <label className={styles.field}>ระดับเลข<input type="number" min="0" max="8" className={styles.input} value={form.numbering_depth} onChange={(event) => setForm({ ...form, numbering_depth: Number(event.target.value || 0) })} /><span className={styles.helperText}>ระดับชั้นของเลขข้อ เช่น 1 → ข้อหลัก, 2 → ข้อย่อย, 3 → ข้อย่อยชั้นถัดไป</span>{form.numbering_style === "none" ? <span className={styles.helperText}>ระดับเลขนี้จะไม่แสดงในเอกสารฉบับสุดท้าย</span> : null}</label>
         <label className={styles.field}>ประเภทข้อ<select className={styles.select} value={form.clause_type} onChange={(event) => setForm({ ...form, clause_type: event.target.value })}>{clauseTypes.map((value) => <option key={value} value={value}>{clauseTypeLabel(value)}</option>)}</select></label>
         <label className={styles.field}>ระดับความสำคัญ<select className={styles.select} value={form.risk_level} onChange={(event) => setForm({ ...form, risk_level: event.target.value })}>{riskLevels.map((value) => <option key={value || "none"} value={value}>{value ? riskLabel(value) : "ไม่ระบุ"}</option>)}</select></label>
       </div>
