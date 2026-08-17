@@ -1911,10 +1911,11 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
     setItems((itemRes.data || []) as QuotationItemRow[]);
     setFeeAgreementId(agreementRes.data?.id || null);
     setLookups(lookupRes);
+    const canonicalMatterLink = getCanonicalQuotationMatterLink(loadedQuotation);
     setLinkClientId(loadedQuotation.client_id || "");
-    setLinkMatterMode(loadedQuotation.case_id ? "case" : loadedQuotation.advisory_matter_id ? "advisory" : "unlinked");
-    setLinkCaseId(loadedQuotation.case_id ? String(loadedQuotation.case_id) : "");
-    setLinkAdvisoryMatterId(loadedQuotation.advisory_matter_id || "");
+    setLinkMatterMode(canonicalMatterLink.mode);
+    setLinkCaseId(canonicalMatterLink.caseId);
+    setLinkAdvisoryMatterId(canonicalMatterLink.advisoryMatterId);
     setLoading(false);
   }, [quotationId]);
 
@@ -2030,6 +2031,13 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
     setSaving(false);
   };
 
+  const canonicalMatterLink = quotation ? getCanonicalQuotationMatterLink(quotation) : null;
+  const hasCanonicalMatter = Boolean(quotation?.case_id || quotation?.advisory_matter_id);
+  const requiresMasterRecordLink = Boolean(quotation && (
+    !quotation.client_id
+    || (!hasCanonicalMatter && linkMatterMode !== "unlinked")
+  ));
+
   return (
     <>
       <FinanceSubNav activePage="quotations" permissions={access.permissions} />
@@ -2040,13 +2048,13 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
             <div>
               <h1 style={pageTitleStyle}>{quotation.quotation_no}</h1>
               <p style={mutedTextStyle}>Quotation document record. No invoice, receipt, ledger posting, or compensation is created from this page.</p>
-              {quotation.status !== "draft" ? <p style={noticeTextStyle}>{getReadonlyMessage(quotation.status)} Preview และ Print ใช้เอกสาร snapshot ที่ freeze ณ เวลาส่งใบเสนอราคา</p> : null}
+              {quotation.status !== "draft" ? <p style={noticeTextStyle}>{getReadonlyMessage(quotation.status)}</p> : null}
             </div>
             <div style={actionGroupStyle}>
               <Link href="/finance/quotations" style={secondaryButtonStyle}>Back</Link>
               <Link href={`/finance/quotations/${quotation.id}/preview`} style={secondaryButtonStyle}>Preview</Link>
               <Link href={`/finance/quotations/${quotation.id}/preview?print=1`} style={secondaryButtonStyle} title="Open Browser Print for this quotation">Print</Link>
-              {quotation.status === "accepted" && access.permissions.canCreateFinanceQuotation ? (feeAgreementId ? <Link href={`/finance/fee-agreements/${feeAgreementId}`} style={primaryButtonStyle}>Open Fee Agreement</Link> : quotation.client_id ? <button type="button" onClick={createFeeAgreement} disabled={saving} style={primaryButtonStyle}>สร้างข้อตกลงค่าบริการ</button> : null) : null}
+              {quotation.status === "accepted" && access.permissions.canCreateFinanceQuotation && feeAgreementId ? <Link href={`/finance/fee-agreements/${feeAgreementId}`} style={primaryButtonStyle}>เปิดข้อตกลงค่าบริการ</Link> : null}
               {quotation.status === "draft" && access.permissions.canEditFinanceQuotation ? <Link href={`/finance/quotations/${quotation.id}/edit`} style={primaryButtonStyle}>Edit Draft</Link> : null}
               {quotation.status === "draft" && access.permissions.canMarkFinanceQuotationSent ? <button type="button" onClick={() => updateStatus("sent")} disabled={saving} style={secondaryButtonStyle}>Mark Sent</button> : null}
               {quotation.status === "sent" && access.permissions.canMarkFinanceQuotationAccepted ? <button type="button" onClick={() => updateStatus("accepted")} disabled={saving} style={secondaryButtonStyle}>Mark Accepted</button> : null}
@@ -2054,12 +2062,10 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
             </div>
           </div>
 
-          {quotation.status === "accepted" && !feeAgreementId && access.permissions.canCreateFinanceQuotation && (
-            !quotation.client_id || (!quotation.case_id && !quotation.advisory_matter_id && quotation.matter_source_type === "unlinked")
-          ) ? (
+          {quotation.status === "accepted" && !feeAgreementId && access.permissions.canCreateFinanceQuotation ? (
             <div style={cardStyle}>
-              <h2 style={sectionTitleStyle}>เชื่อมข้อมูลก่อนสร้าง Fee Agreement</h2>
-              <p style={mutedTextStyle}>เลือกทะเบียนลูกค้าที่ตรงกับผู้มุ่งหวัง และเชื่อม Case หรือ Advisory เมื่อพร้อม ระบบจะไม่สร้างข้อมูลใหม่อัตโนมัติและจะไม่แก้ snapshot ของใบเสนอราคาที่ส่งแล้ว</p>
+              <h2 style={sectionTitleStyle}>ตรวจสอบข้อมูลก่อนสร้างข้อตกลงค่าบริการ</h2>
+              <p style={mutedTextStyle}>ตรวจสอบลูกค้าและเรื่อง/งานที่จะเชื่อมกับข้อตกลงค่าบริการ ระบบจะไม่สร้างลูกค้า Case หรือ Advisory ใหม่โดยอัตโนมัติ และจะไม่แก้ไข snapshot ของใบเสนอราคาที่ส่งแล้ว</p>
               <div style={{ ...formGridStyle, marginTop: 14 }}>
                 <label style={labelStyle}>ลูกค้าในระบบ *
                   <select value={linkClientId} disabled={Boolean(quotation.client_id)} onChange={(event) => setLinkClientId(event.target.value)} style={inputStyle}>
@@ -2070,16 +2076,21 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
                 <div style={wideFieldGroupStyle}>
                   <div style={fieldHeadingStyle}>เรื่อง / งาน</div>
                   <div style={segmentedControlStyle}>
-                    <button type="button" onClick={() => { setLinkMatterMode("unlinked"); setLinkCaseId(""); setLinkAdvisoryMatterId(""); }} style={getSegmentButtonStyle(linkMatterMode === "unlinked")}>ยังไม่ผูกเรื่อง</button>
-                    <button type="button" onClick={() => { setLinkMatterMode("case"); setLinkAdvisoryMatterId(""); }} style={getSegmentButtonStyle(linkMatterMode === "case")}>Case</button>
-                    <button type="button" onClick={() => { setLinkMatterMode("advisory"); setLinkCaseId(""); }} style={getSegmentButtonStyle(linkMatterMode === "advisory")}>Advisory</button>
+                    <button type="button" disabled={hasCanonicalMatter} onClick={() => { setLinkMatterMode("unlinked"); setLinkCaseId(""); setLinkAdvisoryMatterId(""); }} style={getSegmentButtonStyle(linkMatterMode === "unlinked")}>ยังไม่ผูกเรื่อง</button>
+                    <button type="button" disabled={hasCanonicalMatter} onClick={() => { setLinkMatterMode("case"); setLinkAdvisoryMatterId(""); }} style={getSegmentButtonStyle(linkMatterMode === "case")}>Case</button>
+                    <button type="button" disabled={hasCanonicalMatter} onClick={() => { setLinkMatterMode("advisory"); setLinkCaseId(""); }} style={getSegmentButtonStyle(linkMatterMode === "advisory")}>Advisory</button>
                   </div>
-                  {linkMatterMode === "case" ? <select value={linkCaseId} onChange={(event) => setLinkCaseId(event.target.value)} style={inputStyle}><option value="">เลือก Case</option>{lookups.cases.map((item) => <option key={item.id} value={item.id}>{renderCaseLabel(item)}</option>)}</select> : null}
-                  {linkMatterMode === "advisory" ? <select value={linkAdvisoryMatterId} onChange={(event) => setLinkAdvisoryMatterId(event.target.value)} style={inputStyle}><option value="">เลือก Advisory</option>{lookups.matters.map((item) => <option key={item.id} value={item.id}>{renderMatterLabel(item)}</option>)}</select> : null}
+                  {linkMatterMode === "case" ? <select value={linkCaseId} disabled={Boolean(canonicalMatterLink?.caseId)} onChange={(event) => setLinkCaseId(event.target.value)} style={inputStyle}><option value="">เลือก Case</option>{lookups.cases.map((item) => <option key={item.id} value={item.id}>{renderCaseLabel(item)}</option>)}</select> : null}
+                  {linkMatterMode === "advisory" ? <select value={linkAdvisoryMatterId} disabled={Boolean(canonicalMatterLink?.advisoryMatterId)} onChange={(event) => setLinkAdvisoryMatterId(event.target.value)} style={inputStyle}><option value="">เลือก Advisory</option>{lookups.matters.map((item) => <option key={item.id} value={item.id}>{renderMatterLabel(item)}</option>)}</select> : null}
                 </div>
               </div>
-              {!quotation.client_id ? <p style={noticeTextStyle}>Fee Agreement ต้องอ้างอิงลูกค้าในระบบ กรุณาเชื่อมลูกค้าก่อนดำเนินการต่อ</p> : null}
-              <div style={buttonRowStyle}><button type="button" onClick={linkMasterRecords} disabled={saving} style={primaryButtonStyle}>บันทึกการเชื่อมข้อมูล</button></div>
+              {!quotation.client_id ? <p style={noticeTextStyle}>ข้อตกลงค่าบริการต้องอ้างอิงลูกค้าในระบบ กรุณาเชื่อมลูกค้าก่อนดำเนินการต่อ</p> : null}
+              {hasCanonicalMatter ? <p style={helperTextStyle}>เรื่อง/งานนี้เชื่อมกับใบเสนอราคาแล้วและจะใช้เป็นข้อมูลอ้างอิงของข้อตกลงค่าบริการ</p> : null}
+              <div style={buttonRowStyle}>
+                <button type="button" onClick={requiresMasterRecordLink ? linkMasterRecords : createFeeAgreement} disabled={saving} style={primaryButtonStyle}>
+                  {requiresMasterRecordLink ? "บันทึกการเชื่อมข้อมูล" : "ยืนยันและสร้างข้อตกลงค่าบริการ"}
+                </button>
+              </div>
             </div>
           ) : null}
 
@@ -2714,10 +2725,20 @@ function StatusBadge({ status }: { status: string | null }) {
 
 function getReadonlyMessage(status: string | null) {
   const normalized = String(status || "").toLowerCase();
-  if (normalized === "accepted") return "Accepted quotations are read-only. To change terms, cancel and create a new quotation.";
-  if (normalized === "cancelled") return "Cancelled quotations are read-only.";
-  if (normalized === "sent") return "Sent quotations cannot edit line items in this phase. Cancel and create a new quotation if terms change.";
-  return "Only draft quotations can be edited.";
+  if (normalized === "accepted") return "ลูกค้าตอบรับใบเสนอราคานี้แล้ว เอกสารจึงเป็นแบบอ่านอย่างเดียว หากต้องเปลี่ยนเงื่อนไข ให้ยกเลิกและจัดทำใบเสนอราคาใหม่ การดูตัวอย่างและการพิมพ์จะใช้ข้อมูลที่บันทึกไว้ ณ เวลาส่งใบเสนอราคา";
+  if (normalized === "cancelled") return "ใบเสนอราคานี้ถูกยกเลิกแล้วและเป็นแบบอ่านอย่างเดียว การดูตัวอย่างและการพิมพ์จะใช้ข้อมูลที่บันทึกไว้ ณ เวลาส่งใบเสนอราคา";
+  if (normalized === "sent") return "ใบเสนอราคานี้ส่งให้ลูกค้าแล้ว จึงไม่สามารถแก้ไขรายการหรือเงื่อนไขเดิมได้ หากต้องเปลี่ยนเงื่อนไข ให้ยกเลิกและจัดทำใบเสนอราคาใหม่ การดูตัวอย่างและการพิมพ์จะใช้ข้อมูลที่บันทึกไว้ ณ เวลาส่งใบเสนอราคา";
+  return "แก้ไขข้อมูลได้เฉพาะใบเสนอราคาที่ยังเป็นร่างเท่านั้น";
+}
+
+function getCanonicalQuotationMatterLink(quotation: Pick<QuotationRow, "case_id" | "advisory_matter_id">) {
+  if (quotation.case_id) {
+    return { mode: "case" as const, caseId: String(quotation.case_id), advisoryMatterId: "" };
+  }
+  if (quotation.advisory_matter_id) {
+    return { mode: "advisory" as const, caseId: "", advisoryMatterId: quotation.advisory_matter_id };
+  }
+  return { mode: "unlinked" as const, caseId: "", advisoryMatterId: "" };
 }
 
 function renderMatterLink(quotation: Pick<QuotationRow, "case_id" | "advisory_matter_id" | "matter_snapshot_json" | "unlinked_matter_name">, lookups: LookupState) {
