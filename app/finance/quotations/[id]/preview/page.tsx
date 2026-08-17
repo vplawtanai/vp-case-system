@@ -120,6 +120,7 @@ type PaymentAllocationRow = {
   allocation_percentage: number | string | null;
   sort_order: number | null;
 };
+type QuotationDocumentLanguage = "th" | "en";
 
 export default function QuotationPreviewPage() {
   const params = useParams();
@@ -276,6 +277,8 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
   const clientEmail = getClientDisplayValue(quotation, client, "email");
   const matterLabel = getMatterLabel(quotation, caseItem, matter);
   const documentSnapshot = getSnapshotObject(quotation?.document_data_snapshot_json);
+  const documentLanguage = getQuotationDocumentLanguage(documentSnapshot);
+  const isThaiDocument = documentLanguage === "th";
   const frozenDocument = isFrozenQuotation(quotation) && Boolean(getSnapshotText(documentSnapshot, "frozen_at"));
   const frozenClient = getSnapshotObject(documentSnapshot.client);
   const frozenMatter = getSnapshotObject(documentSnapshot.matter);
@@ -308,10 +311,13 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
   const excludedText = frozenDocument ? getSnapshotText(commercialSnapshot, "excluded_services") : getSnapshotText(documentSnapshot, "excluded_services") || quotation?.excluded_services?.trim() || "";
   const signer = resolveQuotationSigner(quotation, signers);
   const engagementSections = [
-    { title: "ขอบเขตงาน / Scope of Legal Services", value: scopeText },
-    { title: "งานที่รวมอยู่ในค่าบริการ / Included Services", value: includedText },
-    { title: "งานหรือค่าใช้จ่ายที่ไม่รวม / Excluded Services", value: excludedText },
+    { title: isThaiDocument ? "ขอบเขตงาน" : "Scope of Legal Services", value: scopeText },
+    { title: isThaiDocument ? "งานที่รวมอยู่ในค่าบริการ" : "Included Services", value: includedText },
+    { title: isThaiDocument ? "งานหรือค่าใช้จ่ายที่ไม่รวม" : "Excluded Services", value: excludedText },
   ].filter((section) => Boolean(section.value));
+  const normalizedStatus = String(quotation?.status || "draft").toLowerCase();
+  const documentStatusLabel = getDocumentStatusLabel(normalizedStatus, documentLanguage);
+  const showDocumentStatus = normalizedStatus === "draft" || normalizedStatus === "cancelled";
 
   const printWhenReady = useCallback(async () => {
     await waitForPrintReadiness([logoImageRef.current, showSignerSignature ? signerSignatureImageRef.current : null]);
@@ -369,47 +375,49 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
               </div>
             </div>
             <div style={documentTitleBlockStyle}>
-              <h1 style={documentTitleStyle}>ใบเสนอราคา</h1>
-              <div style={documentSubtitleStyle}>Quotation</div>
-              <div style={{ ...statusStyle, ...getPreviewStatusStyle(quotation.status) }}>{quotation.status || "draft"}</div>
+              <h1 style={documentTitleStyle}>{isThaiDocument ? "ใบเสนอราคา" : "Quotation"}</h1>
+              {!isThaiDocument ? <div style={documentSubtitleStyle}>Legal Services Quotation</div> : null}
+              {showDocumentStatus ? <div style={{ ...statusStyle, ...getPreviewStatusStyle(quotation.status) }}>{documentStatusLabel}</div> : null}
             </div>
           </header>
 
           <section className="quotation-compact-block" style={topGridStyle}>
             <div style={panelStyle}>
-              <h2 style={panelTitleStyle}>ผู้ให้บริการ / Service Provider</h2>
-              <BilingualInfoLine label="Company" thaiValue={companyProfile.companyNameTh} englishValue={companyProfile.companyNameEn} strong />
-              <InfoLine label="Tax ID" value={companyProfile.taxId} />
-              {companyProfile.branchTh || companyProfile.branchEn ? <BilingualInfoLine label="Branch" thaiValue={companyProfile.branchTh} englishValue={companyProfile.branchEn} /> : null}
-              <BilingualInfoLine label="Address" thaiValue={companyProfile.addressTh} englishValue={companyProfile.addressEn} />
-              <InfoLine label="Phone" value={companyProfile.phone} />
-              <InfoLine label="Email" value={companyProfile.email} />
-              <InfoLine label="Website" value={companyProfile.website} />
+              <h2 style={panelTitleStyle}>{isThaiDocument ? "ผู้ให้บริการ" : "Service Provider"}</h2>
+              {isThaiDocument
+                ? <InfoLine label="ชื่อบริษัท" value={companyProfile.companyNameTh} strong />
+                : <BilingualInfoLine label="Company" thaiValue={companyProfile.companyNameTh} englishValue={companyProfile.companyNameEn} strong />}
+              <InfoLine label={isThaiDocument ? "เลขประจำตัวผู้เสียภาษี" : "Tax ID"} value={companyProfile.taxId} />
+              {companyProfile.branchTh || companyProfile.branchEn ? <InfoLine label={isThaiDocument ? "สาขา" : "Branch"} value={isThaiDocument ? companyProfile.branchTh : companyProfile.branchEn || companyProfile.branchTh} /> : null}
+              <InfoLine label={isThaiDocument ? "ที่อยู่" : "Address"} value={isThaiDocument ? companyProfile.addressTh : companyProfile.addressEn || companyProfile.addressTh} />
+              <InfoLine label={isThaiDocument ? "โทรศัพท์" : "Phone"} value={companyProfile.phone} />
+              <InfoLine label={isThaiDocument ? "อีเมล" : "Email"} value={companyProfile.email} />
+              <InfoLine label={isThaiDocument ? "เว็บไซต์" : "Website"} value={companyProfile.website} />
             </div>
             <div style={panelStyle}>
-              <h2 style={panelTitleStyle}>ข้อมูลเอกสาร / Document Information</h2>
-              <InfoLine label="Quotation No." value={displayQuotationNo} strong />
-              <InfoLine label="Status" value={quotation.status || "draft"} />
-              <InfoLine label="Issue Date" value={formatDate(displayIssueDate || null)} />
-              <InfoLine label="Valid Until" value={formatDate(displayValidUntil || null)} />
-              <InfoLine label="Reference / Linked Matter" value={displayMatterLabel} />
+              <h2 style={panelTitleStyle}>{isThaiDocument ? "ข้อมูลเอกสาร" : "Document Information"}</h2>
+              <InfoLine label={isThaiDocument ? "เลขที่ใบเสนอราคา" : "Quotation No."} value={displayQuotationNo} strong />
+              {showDocumentStatus ? <InfoLine label={isThaiDocument ? "สถานะ" : "Status"} value={documentStatusLabel} /> : null}
+              <InfoLine label={isThaiDocument ? "วันที่ออกเอกสาร" : "Issue Date"} value={formatDocumentDate(displayIssueDate || null, documentLanguage)} />
+              <InfoLine label={isThaiDocument ? "ใช้ได้ถึงวันที่" : "Valid Until"} value={formatDocumentDate(displayValidUntil || null, documentLanguage)} />
+              <InfoLine label={isThaiDocument ? "เรื่องอ้างอิง" : "Reference / Linked Matter"} value={displayMatterLabel} />
             </div>
           </section>
 
           <section className="quotation-compact-block" style={{ ...panelStyle, marginBottom: 24 }}>
-            <h2 style={panelTitleStyle}>ลูกค้า / Client</h2>
+            <h2 style={panelTitleStyle}>{isThaiDocument ? "ลูกค้า" : "Client"}</h2>
             <div style={clientGridStyle}>
-              <InfoLine label="Client Name" value={displayClientName} strong />
-              <InfoLine label="Tax ID" value={displayClientTaxId} />
-              <InfoLine label="Address" value={displayClientAddress} wide />
-              <InfoLine label="Phone" value={displayClientPhone} />
-              <InfoLine label="Email" value={displayClientEmail} />
+              <InfoLine label={isThaiDocument ? "ชื่อลูกค้า" : "Client Name"} value={displayClientName} strong />
+              <InfoLine label={isThaiDocument ? "เลขประจำตัวผู้เสียภาษี" : "Tax ID"} value={displayClientTaxId} />
+              <InfoLine label={isThaiDocument ? "ที่อยู่" : "Address"} value={displayClientAddress} wide />
+              <InfoLine label={isThaiDocument ? "โทรศัพท์" : "Phone"} value={displayClientPhone} />
+              <InfoLine label={isThaiDocument ? "อีเมล" : "Email"} value={displayClientEmail} />
             </div>
           </section>
 
           {engagementSections.length > 0 ? (
             <section className="quotation-compact-block" style={{ ...panelStyle, marginBottom: 24 }}>
-              <h2 style={panelTitleStyle}>รายละเอียดการให้บริการ / Engagement Scope</h2>
+              <h2 style={panelTitleStyle}>{isThaiDocument ? "รายละเอียดการให้บริการ" : "Engagement Scope"}</h2>
               <div style={engagementScopeListStyle}>
                 {engagementSections.map((section, index) => <EngagementScopeSubsection key={section.title} title={section.title} value={section.value} withDivider={index > 0} />)}
               </div>
@@ -417,7 +425,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
           ) : null}
 
           <section className="quotation-compact-block" style={{ ...panelStyle, marginBottom: 24 }}>
-            <h2 style={panelTitleStyle}>รายการค่าบริการ / Fee Items</h2>
+            <h2 style={panelTitleStyle}>{isThaiDocument ? "รายการค่าบริการ" : "Fee Items"}</h2>
             <div style={feeTableWrapStyle}>
               <table style={tableStyle}>
               <colgroup>
@@ -431,18 +439,18 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
               </colgroup>
               <thead>
                 <tr>
-                  <th style={numberThStyle}>No.</th>
-                  <th style={thStyle}>Description</th>
-                  <th style={quantityThStyle}><span className="quotation-screen-heading">Quantity</span><span className="quotation-print-heading">Qty</span></th>
-                  <th style={rightThStyle}>Unit Price</th>
+                  <th style={numberThStyle}>{isThaiDocument ? "ลำดับ" : "No."}</th>
+                  <th style={thStyle}>{isThaiDocument ? "รายการ" : "Description"}</th>
+                  <th style={quantityThStyle}>{isThaiDocument ? "จำนวน" : "Quantity"}</th>
+                  <th style={rightThStyle}>{isThaiDocument ? "ราคาต่อหน่วย" : "Unit Price"}</th>
                   <th style={rightThStyle}>VAT</th>
-                  <th style={rightThStyle}><span className="quotation-screen-heading">Amount Before Tax</span><span className="quotation-print-heading">Before Tax</span></th>
-                  <th style={rightThStyle}><span className="quotation-screen-heading">Line Total</span><span className="quotation-print-heading">Total</span></th>
+                  <th style={rightThStyle}>{isThaiDocument ? "มูลค่าก่อน VAT" : "Amount Before VAT"}</th>
+                  <th style={rightThStyle}>{isThaiDocument ? "รวม" : "Total"}</th>
                 </tr>
               </thead>
               <tbody>
                 {displayItems.length === 0 ? (
-                  <tr><td style={tdStyle} colSpan={7}>No line items.</td></tr>
+                  <tr><td style={tdStyle} colSpan={7}>{isThaiDocument ? "ไม่มีรายการค่าบริการ" : "No line items."}</td></tr>
                 ) : displayItems.map((item, index) => (
                   <tr key={item.id || index}>
                     <td style={numberTdStyle}>{index + 1}</td>
@@ -462,46 +470,48 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
           <section className="quotation-final-section" style={finalSectionStyle}>
             <div className="quotation-keep-together" style={totalsSectionStyle}>
               <div style={termsBoxStyle}>
-                <h2 style={sectionTitleStyle}>หมายเหตุและเงื่อนไข / Notes and Conditions</h2>
+                <h2 style={sectionTitleStyle}>{isThaiDocument ? "หมายเหตุและเงื่อนไข" : "Notes and Conditions"}</h2>
                 {quotation.note ? <p className="quotation-thai-text" style={noteParagraphStyle}>{quotation.note}</p> : null}
                 <div className="quotation-thai-text" style={standardConditionsStyle}>
                   <p style={standardConditionStyle}>ใบเสนอราคานี้ไม่ใช่ใบแจ้งหนี้หรือใบเสร็จรับเงิน</p>
                   <p style={standardConditionStyle}>ค่าธรรมเนียมศาล ค่าธรรมเนียมราชการ ค่าเดินทาง ค่าที่พัก ค่าถ่ายเอกสาร ค่าจัดส่ง ค่าแปลเอกสาร และค่าใช้จ่ายอื่นที่สำนักงานสำรองจ่ายแทนลูกค้า ไม่รวมอยู่ในใบเสนอราคานี้ เว้นแต่จะระบุไว้โดยชัดแจ้ง</p>
                   <p style={standardConditionStyle}>การเริ่มงานขึ้นอยู่กับการยืนยันจากลูกความและ/หรือเงื่อนไขการชำระเงินที่คู่สัญญาตกลงกัน</p>
-                  <p style={standardConditionStyle}>ใบเสนอราคานี้มีผลถึงวันที่ Valid Until ที่ระบุไว้ข้างต้น</p>
+                  <p style={standardConditionStyle}>ใบเสนอราคานี้มีผลถึงวันที่ระบุไว้ในช่องใช้ได้ถึงวันที่ข้างต้น</p>
                 </div>
               </div>
               <div style={totalsBoxStyle}>
-                <TotalLine label="มูลค่าบริการก่อน VAT / Service Value Before VAT" value={roundCurrency(Number(displaySubtotalVatable || 0) + Number(displaySubtotalNonVatable || 0))} prominent />
-                <TotalLine label="รายการไม่อยู่ในบังคับ VAT / Non-VAT Service Value" value={displaySubtotalNonVatable} indented />
-                <TotalLine label="ฐานภาษีของรายการที่มี VAT / VAT Taxable Base" value={displaySubtotalVatable} indented />
-                <TotalLine label="ภาษีมูลค่าเพิ่ม / VAT" value={displayVatAmount} tax />
-                <TotalLine label="ยอดสุทธิที่ลูกค้าชำระ / Amount Payable" value={displayGrandTotal} strong />
+                <TotalLine label={isThaiDocument ? "มูลค่าบริการก่อน VAT" : "Service Value Before VAT"} value={roundCurrency(Number(displaySubtotalVatable || 0) + Number(displaySubtotalNonVatable || 0))} prominent />
+                <TotalLine label={isThaiDocument ? "รายการไม่อยู่ในบังคับ VAT" : "Non-VAT Service Value"} value={displaySubtotalNonVatable} indented />
+                <TotalLine label={isThaiDocument ? "ฐานภาษีของรายการที่มี VAT" : "VAT Taxable Base"} value={displaySubtotalVatable} indented />
+                <TotalLine label={isThaiDocument ? "ภาษีมูลค่าเพิ่ม" : "VAT"} value={displayVatAmount} tax />
+                <TotalLine label={isThaiDocument ? "ยอดสุทธิที่ลูกค้าชำระ" : "Amount Payable"} value={displayGrandTotal} strong />
               </div>
             </div>
 
-            <PaymentTermsPreview terms={displayPaymentTerms} installments={displayInstallments} allocations={displayAllocations} quotationItems={displayItems} quotationTotal={displayGrandTotal} status={quotation.status} />
+            <PaymentTermsPreview terms={displayPaymentTerms} installments={displayInstallments} allocations={displayAllocations} quotationItems={displayItems} quotationTotal={displayGrandTotal} status={quotation.status} language={documentLanguage} />
 
             <section className="quotation-signature-group" style={signatureGroupStyle}>
-              <h2 className="quotation-signatures-heading" style={signatureSectionTitleStyle}>การลงนาม / Signatures</h2>
+              <h2 className="quotation-signatures-heading" style={signatureSectionTitleStyle}>{isThaiDocument ? "การลงนาม" : "Signatures"}</h2>
               <div className="signature-section" style={signatureGridStyle}>
                 <SignatureBlock
-                  title="ผู้เสนอราคา / Service Provider"
+                  title={isThaiDocument ? "ผู้เสนอราคา / ผู้ให้บริการ" : "Service Provider"}
                   name={signer.name}
                   position={signer.position}
                   email={signer.email}
                   signatureUrl={showSignerSignature ? signerSignatureUrl : ""}
                   signatureImageRef={signerSignatureImageRef}
                   onSignatureError={() => setSignerSignatureUrl("")}
+                  language={documentLanguage}
                 />
                 <SignatureBlock
-                  title="ผู้ยอมรับใบเสนอราคา / Client Acceptance"
+                  title={isThaiDocument ? "ผู้ตอบรับใบเสนอราคา / ลูกค้า" : "Client Acceptance"}
                   name="____________________"
                   position="____________________"
                   email=""
                   signatureUrl=""
                   signatureImageRef={null}
                   onSignatureError={undefined}
+                  language={documentLanguage}
                 />
               </div>
             </section>
@@ -512,8 +522,9 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
   );
 }
 
-function PaymentTermsPreview({ terms, installments, allocations, quotationItems, quotationTotal, status }: { terms: PaymentTermsHeaderRow | null; installments: PaymentInstallmentRow[]; allocations: PaymentAllocationRow[]; quotationItems: QuotationItemRow[]; quotationTotal: number | string | null; status: string | null }) {
-  if (!terms || installments.length === 0) return <section className="quotation-keep-together" style={{ ...panelStyle, marginTop: 16 }}><h2 style={panelTitleStyle}>เงื่อนไขการชำระเงิน / Payment Terms</h2><p style={noteParagraphStyle}>ไม่ได้บันทึกเงื่อนไขการชำระเงิน / Payment terms not recorded</p></section>;
+function PaymentTermsPreview({ terms, installments, allocations, quotationItems, quotationTotal, status, language }: { terms: PaymentTermsHeaderRow | null; installments: PaymentInstallmentRow[]; allocations: PaymentAllocationRow[]; quotationItems: QuotationItemRow[]; quotationTotal: number | string | null; status: string | null; language: QuotationDocumentLanguage }) {
+  const isThai = language === "th";
+  if (!terms || installments.length === 0) return <section className="quotation-keep-together" style={{ ...panelStyle, marginTop: 16 }}><h2 style={panelTitleStyle}>{isThai ? "เงื่อนไขการชำระเงิน" : "Payment Terms"}</h2><p style={noteParagraphStyle}>{isThai ? "ไม่ได้บันทึกเงื่อนไขการชำระเงิน" : "Payment terms not recorded"}</p></section>;
   const sourceItems = quotationItems.filter((item) => item.id);
   const allocationsFor = (installmentId: string) => allocations.filter((item) => item.payment_installment_id === installmentId);
   const isPerItem = terms.allocation_mode === "per_item";
@@ -523,6 +534,7 @@ function PaymentTermsPreview({ terms, installments, allocations, quotationItems,
   });
   const isPercentagePlan = installments.every((installment) => installment.calculation_type === "percentage");
   const heading = installments.length === 1 ? "ชำระเต็มจำนวน 1 งวด" : `แบ่งชำระจำนวน ${installments.length} งวด`;
+  const paymentSummary = terms.client_summary?.trim() || (isThai ? heading : installments.length === 1 ? "Single payment" : `${installments.length} installments`);
   const incomplete = String(status || "").toLowerCase() === "draft" && (isPerItem
     ? sourceItems.some((item) => {
       const itemPercentage = allocations
@@ -543,39 +555,51 @@ function PaymentTermsPreview({ terms, installments, allocations, quotationItems,
   return <section className="quotation-payment-terms-section" style={{ ...panelStyle, marginTop: 16 }}>
     {incomplete ? <p className="print-hidden" style={{ ...noteParagraphStyle, color: "#b45309" }}>เงื่อนไขการชำระเงินยังไม่ครบถ้วน</p> : null}
     {String(status || "").toLowerCase() === "draft" && reconciliationWarnings.length > 0 ? <p className="print-hidden" style={{ ...noteParagraphStyle, color: "#b45309" }}>ตรวจพบข้อมูลการจัดสรรงวดที่ {reconciliationWarnings.join(", ")} ไม่สอดคล้องกับยอดที่บันทึกไว้ กรุณาตรวจสอบร่างใบเสนอราคา</p> : null}
-    <h2 style={panelTitleStyle}>เงื่อนไขการชำระเงิน / Payment Terms</h2>
-    <p className="quotation-thai-text" style={noteParagraphStyle}>{heading} | ยอดรวมตามใบเสนอราคา {formatMoney(quotationTotal)}<br />การเรียกเก็บเป็นไปตามความคืบหน้าของงานและเงื่อนไขที่ระบุในแต่ละงวด</p>
-    {terms.client_summary ? <p className="quotation-thai-text" style={noteParagraphStyle}>{terms.client_summary}</p> : null}
+    <h2 style={panelTitleStyle}>{isThai ? "เงื่อนไขการชำระเงิน" : "Payment Terms"}</h2>
+    <div className="quotation-payment-summary quotation-keep-together" style={paymentSummaryStyle}>
+      <strong>{isThai ? "สรุปการชำระเงิน" : "Payment Summary"}</strong>
+      <span className="quotation-thai-text">{paymentSummary}</span>
+      <span>{isThai ? "ยอดรวมตามใบเสนอราคา" : "Quotation Total"} {formatMoney(quotationTotal)}</span>
+    </div>
     {useCompactSummary ? <>
-      <div style={feeTableWrapStyle}><table style={tableStyle}><thead><tr><th style={thStyle}>งวด / Installment</th><th style={thStyle}>เงื่อนไขการเรียกเก็บ / Billing Trigger</th><th style={rightThStyle}>สัดส่วน / Percentage</th><th style={thStyle}>กำหนดชำระ / Payment Due</th><th style={rightThStyle}>ยอดชำระ / Amount</th></tr></thead><tbody>
-        {installments.map((installment) => <tr key={installment.id}><td style={tdStyle}>งวดที่ {installment.installment_no}</td><td style={tdStyle}>{paymentTriggerText(installment)}</td><td style={rightTdStyle}>{formatPercentage(installment.percentage)}</td><td style={tdStyle}>{paymentDueText(installment.payment_due_days)}</td><td style={rightTdStyle}>{formatMoney(installment.total_amount)}</td></tr>)}
-        <tr><td colSpan={4} style={{ ...tdStyle, fontWeight: 700 }}>ยอดรวมตามใบเสนอราคา / Quotation Total</td><td style={{ ...rightTdStyle, fontWeight: 700 }}>{formatMoney(quotationTotal)}</td></tr>
+      <div style={feeTableWrapStyle}><table style={tableStyle}><thead><tr><th style={thStyle}>{isThai ? "งวด" : "Installment"}</th><th style={thStyle}>{isThai ? "เงื่อนไขเรียกเก็บ" : "Billing Trigger"}</th><th style={rightThStyle}>{isThai ? "สัดส่วน" : "Percentage"}</th><th style={thStyle}>{isThai ? "กำหนดชำระ" : "Payment Due"}</th><th style={rightThStyle}>{isThai ? "ยอดรวม" : "Amount"}</th></tr></thead><tbody>
+        {installments.map((installment) => <tr key={installment.id}><td style={tdStyle}>{formatInstallmentTitle(installment, language)}</td><td style={tdStyle}>{paymentTriggerText(installment, language)}</td><td style={rightTdStyle}>{formatPercentage(installment.percentage)}</td><td style={tdStyle}>{paymentDueText(installment.payment_due_days, language)}</td><td style={rightTdStyle}>{formatMoney(installment.total_amount)}</td></tr>)}
+        <tr><td colSpan={4} style={{ ...tdStyle, fontWeight: 700 }}>{isThai ? "ยอดรวมตามใบเสนอราคา" : "Quotation Total"}</td><td style={{ ...rightTdStyle, fontWeight: 700 }}>{formatMoney(quotationTotal)}</td></tr>
       </tbody></table></div>
-      <p style={noteParagraphStyle}>แต่ละงวดคำนวณจากรายการค่าบริการรายการเดียวตามสัดส่วนที่กำหนด</p>
+      <p style={noteParagraphStyle}>{isThai ? "แต่ละงวดคำนวณจากรายการค่าบริการรายการเดียวตามสัดส่วนที่กำหนด" : "Each installment is calculated from the service item using the stated percentage."}</p>
     </> : installments.map((installment) => {
       const rows = allocationsFor(installment.id);
       return <div key={installment.id} className="quotation-payment-installment" style={{ borderTop: "1px solid #e5e7eb", paddingTop: 10, marginTop: 12 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}><strong>งวดที่ {installment.installment_no}{isRedundantTitle(installment.title, installment.installment_no) ? "" : ` - ${installment.title}`}</strong>{isPerItem ? <span>สัดส่วนคำนวณจากรายการที่รวมในงวดนี้</span> : installment.calculation_type === "percentage" ? <span>{formatPercentage(installment.percentage)}</span> : null}</div>
-        <p className="quotation-thai-text" style={noteParagraphStyle}><strong>เงื่อนไขการเรียกเก็บ / Billing Trigger:</strong> {paymentTriggerText(installment)}<br /><strong>กำหนดชำระ / Payment Due:</strong> {paymentDueText(installment.payment_due_days)}{installment.client_note ? <><br /><strong>หมายเหตุ / Note:</strong> {installment.client_note}</> : null}</p>
-        <div style={feeTableWrapStyle}><table style={tableStyle}><thead><tr><th style={thStyle}>รายการ / Description</th><th style={rightThStyle}>จำนวนเงินก่อน VAT / Before VAT</th><th style={rightThStyle}>VAT</th><th style={rightThStyle}>ยอดรวม / Total</th></tr></thead><tbody>
-          {rows.map((row) => { const source = sourceItems.find((item) => item.id === row.quotation_item_id); const noVat = source?.vat_applicable === false; return <tr key={`${installment.id}-${row.quotation_item_id}`} className="quotation-item-row"><td style={descriptionTdStyle}>{source?.description || (String(status).toLowerCase() === "draft" ? "ไม่พบรายการค่าบริการที่เชื่อมโยง" : "-")}</td><td style={rightTdStyle}>{formatMoney(row.allocated_amount_before_tax)}</td><td style={rightTdStyle}>{noVat ? "0.00 (No VAT)" : formatMoney(row.allocated_vat_amount)}</td><td style={rightTdStyle}>{formatMoney(row.allocated_total)}</td></tr>; })}
-          <tr className="quotation-installment-total"><td style={{ ...tdStyle, fontWeight: 700 }}>รวมงวดที่ {installment.installment_no} / Installment {installment.installment_no} Total</td><td style={{ ...rightTdStyle, fontWeight: 700 }}>{formatMoney(installment.amount_before_tax)}</td><td style={{ ...rightTdStyle, fontWeight: 700 }}>{formatMoney(installment.vat_amount)}</td><td style={{ ...rightTdStyle, fontWeight: 700 }}>{formatMoney(installment.total_amount)}</td></tr>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}><strong>{formatInstallmentTitle(installment, language)}</strong>{isPerItem ? <span>{isThai ? "ยอดงวดคำนวณจากรายการที่จัดสรร" : "Calculated from allocated items"}</span> : installment.calculation_type === "percentage" ? <span>{formatPercentage(installment.percentage)}</span> : null}</div>
+        <p className="quotation-thai-text" style={noteParagraphStyle}><strong>{isThai ? "เงื่อนไขเรียกเก็บ" : "Billing Trigger"}:</strong> {paymentTriggerText(installment, language)}<br /><strong>{isThai ? "กำหนดชำระ" : "Payment Due"}:</strong> {paymentDueText(installment.payment_due_days, language)}{installment.client_note ? <><br /><strong>{isThai ? "หมายเหตุ" : "Note"}:</strong> {installment.client_note}</> : null}</p>
+        <div style={feeTableWrapStyle}><table style={tableStyle}><thead><tr><th style={thStyle}>{isThai ? "รายการ" : "Description"}</th><th style={rightThStyle}>{isThai ? "มูลค่าก่อน VAT" : "Before VAT"}</th><th style={rightThStyle}>VAT</th><th style={rightThStyle}>{isThai ? "ยอดรวม" : "Total"}</th></tr></thead><tbody>
+          {rows.map((row) => { const source = sourceItems.find((item) => item.id === row.quotation_item_id); const noVat = source?.vat_applicable === false; return <tr key={`${installment.id}-${row.quotation_item_id}`} className="quotation-item-row"><td style={descriptionTdStyle}>{source?.description || (String(status).toLowerCase() === "draft" ? "ไม่พบรายการค่าบริการที่เชื่อมโยง" : "-")}</td><td style={rightTdStyle}>{formatMoney(row.allocated_amount_before_tax)}</td><td style={rightTdStyle}>{noVat ? formatMoney(0) : formatMoney(row.allocated_vat_amount)}</td><td style={rightTdStyle}>{formatMoney(row.allocated_total)}</td></tr>; })}
+          <tr className="quotation-installment-total"><td style={{ ...tdStyle, fontWeight: 700 }}>{isThai ? `รวมงวดที่ ${installment.installment_no}` : `Installment ${installment.installment_no} Total`}</td><td style={{ ...rightTdStyle, fontWeight: 700 }}>{formatMoney(installment.amount_before_tax)}</td><td style={{ ...rightTdStyle, fontWeight: 700 }}>{formatMoney(installment.vat_amount)}</td><td style={{ ...rightTdStyle, fontWeight: 700 }}>{formatMoney(installment.total_amount)}</td></tr>
         </tbody></table></div>
       </div>;
     })}
   </section>;
 }
 
-function paymentTriggerText(installment: PaymentInstallmentRow) {
-  if (installment.trigger_type === "quotation_acceptance") return "เมื่อผู้ว่าจ้างตอบรับใบเสนอราคานี้";
-  if (installment.trigger_type === "agreement_effective") return "เมื่อข้อตกลงค่าบริการมีผลใช้บังคับ";
-  if (installment.trigger_type === "date") return installment.due_date ? `ถึงกำหนดชำระวันที่ ${formatDate(installment.due_date)}` : "ตามวันที่ระบุ";
-  return installment.trigger_description || "ตามเงื่อนไขที่ตกลงกัน";
+function paymentTriggerText(installment: PaymentInstallmentRow, language: QuotationDocumentLanguage) {
+  if (installment.trigger_type === "quotation_acceptance") return language === "th" ? "เมื่อผู้ว่าจ้างตอบรับใบเสนอราคานี้" : "Upon client acceptance of this quotation";
+  if (installment.trigger_type === "agreement_effective") return language === "th" ? "เมื่อข้อตกลงค่าบริการมีผลใช้บังคับ" : "When the fee agreement becomes effective";
+  if (installment.trigger_type === "date") return installment.due_date ? `${language === "th" ? "ถึงกำหนดชำระวันที่" : "Due on"} ${formatDocumentDate(installment.due_date, language)}` : language === "th" ? "ตามวันที่ระบุ" : "On the specified date";
+  return installment.trigger_description || (language === "th" ? "ตามเงื่อนไขที่ตกลงกัน" : "As agreed by the parties");
 }
-function paymentDueText(value: number | string | null) { const days = Number(value || 0); return days > 0 ? `ชำระภายใน ${days} วันนับแต่ได้รับใบแจ้งหนี้` : "ชำระทันทีเมื่อได้รับใบแจ้งหนี้"; }
+function paymentDueText(value: number | string | null, language: QuotationDocumentLanguage) { const days = Number(value || 0); return language === "th" ? days > 0 ? `ชำระภายใน ${days} วันนับแต่ได้รับใบแจ้งหนี้` : "ชำระทันทีเมื่อได้รับใบแจ้งหนี้" : days > 0 ? `Within ${days} days after receipt of invoice` : "Immediately upon receipt of invoice"; }
 function formatPercentage(value: number | string | null) { const amount = Number(value || 0); return Number.isFinite(amount) ? `${amount.toLocaleString("en-US", { maximumFractionDigits: 6 })}%` : "-"; }
 function roundCurrency(value: number) { return Math.round((value + Number.EPSILON) * 100) / 100; }
-function isRedundantTitle(title: string, installmentNo: number) { return title.trim().toLowerCase() === `installment ${installmentNo}` || title.trim() === `งวดที่ ${installmentNo}`; }
+function isRedundantTitle(title: string, installmentNo: number) {
+  const normalized = title.trim().toLowerCase().replace(/\s+/g, " ");
+  return normalized === `installment ${installmentNo}`
+    || normalized === `งวดที่ ${installmentNo}`
+    || normalized === `งวดที่ ${installmentNo} / installment ${installmentNo}`;
+}
+function formatInstallmentTitle(installment: PaymentInstallmentRow, language: QuotationDocumentLanguage) {
+  const base = language === "th" ? `งวดที่ ${installment.installment_no}` : `Installment ${installment.installment_no}`;
+  return isRedundantTitle(installment.title, installment.installment_no) ? base : `${base} — ${installment.title.trim()}`;
+}
 
 function InfoLine({ label, value, strong = false, wide = false }: { label: string; value: string; strong?: boolean; wide?: boolean }) {
   return (
@@ -632,7 +656,8 @@ function LogoMark({ logoUrl, imageRef, onError }: { logoUrl: string; imageRef: R
   return <img ref={imageRef} className="quotation-logo quotation-logo-image" src={logoUrl} alt="VP Partners" loading="eager" onError={onError} style={companyLogoStyle} />;
 }
 
-function SignatureBlock({ title, name, position, email, signatureUrl, signatureImageRef, onSignatureError }: { title: string; name: string; position: string; email: string; signatureUrl: string; signatureImageRef: React.RefObject<HTMLImageElement | null> | null; onSignatureError?: () => void }) {
+function SignatureBlock({ title, name, position, email, signatureUrl, signatureImageRef, onSignatureError, language }: { title: string; name: string; position: string; email: string; signatureUrl: string; signatureImageRef: React.RefObject<HTMLImageElement | null> | null; onSignatureError?: () => void; language: QuotationDocumentLanguage }) {
+  const isThai = language === "th";
   return (
     <div className="quotation-signature-card" style={signatureBlockStyle}>
       <div className="quotation-signature-title" style={signatureTitleStyle}>{title}</div>
@@ -643,12 +668,12 @@ function SignatureBlock({ title, name, position, email, signatureUrl, signatureI
       ) : <div className="quotation-signature-blank" style={signatureBlankSpaceStyle} />}
       <div style={signatureLineStyle} />
       <div aria-hidden="true" style={signaturePostLineSpacerStyle} />
-      <div style={signatureFieldStyle}>Name: {name}</div>
-      <div style={signatureFieldStyle}>Position: {position}</div>
+      <div style={signatureFieldStyle}>{isThai ? "ชื่อ" : "Name"}: {name}</div>
+      <div style={signatureFieldStyle}>{isThai ? "ตำแหน่ง" : "Position"}: {position}</div>
       <div className="quotation-signature-email-row" aria-hidden={!email} style={{ ...signatureFieldStyle, visibility: email ? "visible" : "hidden" }}>
-        Email: {email || "-"}
+        {isThai ? "อีเมล" : "Email"}: {email || "-"}
       </div>
-      <div style={signatureFieldStyle}>Date: ____________________</div>
+      <div style={signatureFieldStyle}>{isThai ? "วันที่" : "Date"}: ____________________</div>
     </div>
   );
 }
@@ -701,6 +726,13 @@ function getPreviewStatusStyle(status: string | null): React.CSSProperties {
   if (normalized === "accepted") return { color: "#166534", background: "#dcfce7", borderColor: "#86efac" };
   if (normalized === "cancelled") return { color: "#991b1b", background: "#fee2e2", borderColor: "#fca5a5" };
   return { color: "#374151", background: "#f3f4f6", borderColor: "#d1d5db" };
+}
+
+function getDocumentStatusLabel(status: string, language: QuotationDocumentLanguage) {
+  if (language === "en") return status === "draft" ? "Draft for internal review" : status === "cancelled" ? "Cancelled" : status;
+  if (status === "draft") return "ร่างสำหรับตรวจสอบภายใน";
+  if (status === "cancelled") return "ยกเลิกแล้ว";
+  return status;
 }
 
 function getClientDisplayValue(quotation: QuotationRow | null, client: ClientRow | null, key: keyof ClientRow) {
@@ -835,8 +867,24 @@ function resolveCompanyProfile(snapshot: Record<string, unknown> | null, current
   };
 }
 
-function formatDate(value: string | null) {
-  return value ? String(value).slice(0, 10) : "-";
+function getQuotationDocumentLanguage(snapshot: Record<string, unknown>): QuotationDocumentLanguage {
+  const language = (getSnapshotText(snapshot, "language") || getSnapshotText(snapshot, "language_code") || "th").toLowerCase();
+  return language === "en" ? "en" : "th";
+}
+
+function formatDocumentDate(value: string | null, language: QuotationDocumentLanguage) {
+  const dateKey = String(value || "").slice(0, 10);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+  if (!match) return "-";
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return "-";
+  if (language === "th") {
+    const thaiMonths = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+    return `${day} ${thaiMonths[month - 1]} ${year + 543}`;
+  }
+  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Bangkok" }).format(new Date(Date.UTC(year, month - 1, day)));
 }
 
 function formatQuantity(value: number | string | null) {
@@ -905,6 +953,9 @@ const printCss = `
     .quotation-print-document table {
       page-break-inside: auto;
     }
+    .quotation-print-document thead {
+      display: table-header-group;
+    }
     .quotation-print-document tr {
       break-inside: avoid;
       page-break-inside: avoid;
@@ -929,6 +980,11 @@ const printCss = `
     }
     .quotation-payment-installment > :first-child,
     .quotation-payment-installment > p {
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+    .quotation-payment-terms-section > h2,
+    .quotation-compact-block > h2 {
       break-after: avoid;
       page-break-after: avoid;
     }
@@ -1166,6 +1222,17 @@ const termsBoxStyle: React.CSSProperties = {
   padding: 14,
 };
 const noteParagraphStyle: React.CSSProperties = { margin: "0 0 10px", fontSize: 12.5, lineHeight: 1.65, whiteSpace: "pre-wrap", fontWeight: 400 };
+const paymentSummaryStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 4,
+  marginBottom: 14,
+  padding: "10px 12px",
+  borderLeft: "3px solid #16A344",
+  background: "#f8faf9",
+  color: "#374151",
+  fontSize: 12,
+  lineHeight: 1.55,
+};
 const standardConditionsStyle: React.CSSProperties = { display: "grid", gap: 10, margin: 0 };
 const standardConditionStyle: React.CSSProperties = { margin: 0, fontSize: 12.2, lineHeight: 1.6, fontWeight: 400 };
 const totalsBoxStyle: React.CSSProperties = {
