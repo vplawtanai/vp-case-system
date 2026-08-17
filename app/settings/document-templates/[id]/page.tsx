@@ -379,6 +379,60 @@ export default function DocumentTemplateDetailPage() {
     setSaving(false);
   };
 
+  const certifyTemplateReadiness = async () => {
+    if (!template || !selectedVersion || !isDraft || !inactiveShell || !canApprove || saving) return;
+    const confirmed = window.confirm(
+      "ยืนยันว่าได้ตรวจสอบโครงสร้างและถ้อยคำทางกฎหมายของแม่แบบนี้แล้ว และอนุมัติให้ใช้เป็นแม่แบบสำหรับการดำเนินงานจริง เมื่อรับรองแล้วจึงสามารถส่งแม่แบบเข้าสู่ขั้นตอนตรวจทานเพื่อเผยแพร่ได้",
+    );
+    if (!confirmed) return;
+
+    setSaving(true);
+    setErrorText("");
+
+    const familyResult = await supabase.rpc("save_document_template_family_draft", {
+      p_template_id: template.id,
+      p_document_type: template.document_type,
+      p_template_code: template.template_code,
+      p_name: template.name,
+      p_language_code: template.language_code,
+      p_metadata_json: {
+        ...(template.metadata_json || {}),
+        inactive_shell: false,
+        legal_wording_approved: true,
+      },
+    });
+
+    if (familyResult.error) {
+      await loadWorkspace(selectedVersion.id);
+      setErrorText(friendlyError(familyResult.error, "รับรองข้อมูลแม่แบบไม่สำเร็จ แม่แบบยังไม่พร้อมส่งตรวจ"));
+      setSaving(false);
+      return;
+    }
+
+    const versionResult = await supabase.rpc("save_document_template_version_draft", {
+      p_template_version_id: selectedVersion.id,
+      p_template_id: template.id,
+      p_language_code: selectedVersion.language_code,
+      p_definition_json: {
+        ...selectedVersion.definition_json,
+        inactive_shell: false,
+        legal_wording_approved: true,
+      },
+      p_effective_from: selectedVersion.effective_from,
+      p_effective_to: selectedVersion.effective_to,
+    });
+
+    if (versionResult.error) {
+      await loadWorkspace(selectedVersion.id);
+      setErrorText(friendlyError(versionResult.error, "รับรองเวอร์ชันไม่สำเร็จ ระบบยังไม่ถือว่าแม่แบบพร้อมใช้งาน โปรดลองอีกครั้ง"));
+      setSaving(false);
+      return;
+    }
+
+    await loadWorkspace(selectedVersion.id);
+    setSaving(false);
+  };
+
   const saveSection = async () => {
     if (!selectedVersion || !sectionForm || !isDraft || saving) return;
     setSaving(true);
@@ -445,6 +499,7 @@ export default function DocumentTemplateDetailPage() {
   const transitionVersion = async (nextStatus: string) => {
     if (!selectedVersion || saving) return;
     if ((nextStatus === "published" || nextStatus === "retired") && !canApprove) return;
+    if (nextStatus === "under_review" && inactiveShell) return;
     if (nextStatus === "published" && inactiveShell) return;
     const label = nextStatus === "under_review"
       ? "ส่งแม่แบบเวอร์ชันนี้ให้ตรวจ"
@@ -561,7 +616,13 @@ export default function DocumentTemplateDetailPage() {
 
               {inactiveShell ? (
                 <div className={styles.notice}>
-                  แม่แบบนี้เป็นโครงสร้างเริ่มต้นที่ยังไม่มีถ้อยคำทางกฎหมายที่อนุมัติ จึงยังไม่เปิดให้เผยแพร่
+                  แม่แบบนี้ยังไม่ได้รับรองโครงสร้างและถ้อยคำทางกฎหมาย จึงยังไม่สามารถส่งตรวจหรือเผยแพร่ได้
+                </div>
+              ) : null}
+
+              {isDraft && !inactiveShell ? (
+                <div className={styles.notice}>
+                  แม่แบบนี้ได้รับการรับรองว่าพร้อมสำหรับการส่งตรวจ
                 </div>
               ) : null}
 
@@ -727,7 +788,22 @@ export default function DocumentTemplateDetailPage() {
                     <div className={styles.helperText}>การเผยแพร่และยกเลิกการใช้งานเป็นอำนาจของ Admin และ Partner</div>
                   </div>
                   <div className={styles.actionRow}>
-                    {selectedVersion?.status === "draft" ? <button type="button" className={styles.buttonPrimary} onClick={() => void transitionVersion("under_review")} disabled={saving}>ส่งตรวจ</button> : null}
+                    {selectedVersion?.status === "draft" && inactiveShell && canApprove ? (
+                      <button type="button" className={styles.buttonPrimary} onClick={() => void certifyTemplateReadiness()} disabled={saving}>
+                        รับรองแม่แบบพร้อมใช้งาน
+                      </button>
+                    ) : null}
+                    {selectedVersion?.status === "draft" ? (
+                      <button
+                        type="button"
+                        className={styles.buttonPrimary}
+                        onClick={() => void transitionVersion("under_review")}
+                        disabled={saving || inactiveShell}
+                        title={inactiveShell ? "ต้องรับรองแม่แบบพร้อมใช้งานก่อนส่งตรวจ" : undefined}
+                      >
+                        ส่งตรวจ
+                      </button>
+                    ) : null}
                     {selectedVersion?.status === "under_review" ? <button type="button" className={styles.button} onClick={() => void transitionVersion("draft")} disabled={saving}>ส่งกลับเป็นร่าง</button> : null}
                     {selectedVersion?.status === "under_review" && canApprove ? <button type="button" className={styles.buttonPrimary} onClick={() => void transitionVersion("published")} disabled={saving || inactiveShell}>เผยแพร่</button> : null}
                     {selectedVersion?.status === "published" && canApprove ? <button type="button" className={styles.buttonDanger} onClick={() => void transitionVersion("retired")} disabled={saving}>ยกเลิกการใช้งาน</button> : null}
