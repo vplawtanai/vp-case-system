@@ -141,6 +141,7 @@ type NewPaymentTermsPayload = { payment_method_type: PaymentMethodType; client_s
 type PaymentTermsValidationIssue = { message: string; installmentIndex: number; field: "title" | "trigger" | "trigger_description" | "due_date" | "payment_due_days" | "percentage" };
 type PaymentAllocationValidationIssue = { message: string; itemReference?: string; installmentIndex?: number };
 type PaymentInstallmentTotal = { beforeTax: number; vat: number; total: number };
+type PaymentLineItemSource = { item: QuotationItemRow; reference: string };
 type PendingNavigation = { href: string; label: string };
 type SaveAllResult =
   | { ok: true }
@@ -304,14 +305,16 @@ function normalizedPaymentTermsSnapshot(method: PaymentMethodType, summary: stri
       due_date: installment.due_date,
       payment_due_days: normalizePaymentDueDays(installment.payment_due_days),
       client_note: installment.client_note.trim(),
-      items: installment.items.map((item) => ({
-        quotation_item_id: item.quotation_item_id,
-        client_item_key: item.client_item_key,
-        allocated_amount_before_tax: toAmount(item.allocated_amount_before_tax),
-        allocated_vat_amount: toAmount(item.allocated_vat_amount),
-        allocated_total: toAmount(item.allocated_total),
-        allocation_percentage: item.allocation_percentage == null ? null : normalizePercentage(item.allocation_percentage),
-      })),
+      items: installment.items
+        .filter((item) => allocationMode !== "per_item" || toAmount(item.allocation_percentage || 0) > 0)
+        .map((item) => ({
+          quotation_item_id: item.quotation_item_id,
+          client_item_key: item.client_item_key,
+          allocated_amount_before_tax: toAmount(item.allocated_amount_before_tax),
+          allocated_vat_amount: toAmount(item.allocated_vat_amount),
+          allocated_total: toAmount(item.allocated_total),
+          allocation_percentage: item.allocation_percentage == null ? null : normalizePercentage(item.allocation_percentage),
+        })),
     })),
   });
 }
@@ -428,6 +431,21 @@ function getPaymentTermsPlanValidationIssue(method: PaymentMethodType, installme
 }
 
 function getPaymentAllocationValidationIssue(allocationMode: PaymentAllocationMode, installments: PaymentInstallment[], quotationItems: QuotationItemRow[], requireComplete = false): PaymentAllocationValidationIssue | null {
+  const itemReferences = new Set(quotationItems.map(paymentReferenceForItem).filter(Boolean));
+  for (const [installmentIndex, installment] of installments.entries()) {
+    const staleAllocation = installment.items.find((allocation) => {
+      const reference = paymentAllocationReference(allocation);
+      return reference && !itemReferences.has(reference);
+    });
+    if (staleAllocation) {
+      return {
+        message: `งวดที่ ${installmentIndex + 1} มีข้อมูลจัดสรรของรายการที่ถูกลบ กรุณาตรวจสอบอีกครั้ง`,
+        itemReference: paymentAllocationReference(staleAllocation),
+        installmentIndex,
+      };
+    }
+  }
+
   if (allocationMode === "proportional_all_items") {
     const percentageInstallments = installments.filter((installment) => installment.calculation_type === "percentage");
     if (percentageInstallments.length > 0) {
@@ -452,6 +470,14 @@ function getPaymentAllocationValidationIssue(allocationMode: PaymentAllocationMo
   for (const item of quotationItems) {
     const reference = paymentReferenceForItem(item);
     if (!reference) continue;
+    const missingInstallmentIndex = installments.findIndex((installment) => !installment.items.some((allocation) => paymentAllocationReference(allocation) === reference));
+    if (missingInstallmentIndex >= 0) {
+      return {
+        message: `รายการ ${item.description.trim() || reference} ยังไม่มีช่องจัดสรรสำหรับงวดที่ ${missingInstallmentIndex + 1}`,
+        itemReference: reference,
+        installmentIndex: missingInstallmentIndex,
+      };
+    }
     let cumulative = 0;
     let overLimitInstallment = -1;
     installments.forEach((installment, installmentIndex) => {
@@ -465,51 +491,65 @@ function getPaymentAllocationValidationIssue(allocationMode: PaymentAllocationMo
   return null;
 }
 
-function calculatePaymentInstallmentTotals(allocationMode: PaymentAllocationMode, installments: PaymentInstallment[], quotationItems: QuotationItemRow[]) {
+function calculatePaymentItemInstallmentTotals(allocationMode: PaymentAllocationMode, installments: PaymentInstallment[], quotationItem: QuotationItemRow) {
   const totals: PaymentInstallmentTotal[] = installments.map(() => ({ beforeTax: 0, vat: 0, total: 0 }));
-  const normalizedItems = quotationItems.map((item, index) => normalizeItem(item, index));
+  const source = normalizeItem(quotationItem, quotationItem.sort_order || 0);
+  const reference = paymentReferenceForItem(source);
 
   if (allocationMode === "proportional_all_items" && installments.some((installment) => installment.calculation_type === "fixed_amount")) {
     installments.forEach((installment, installmentIndex) => {
-      totals[installmentIndex] = installment.items.reduce((sum, allocation) => ({
-        beforeTax: roundMoney(sum.beforeTax + toAmount(allocation.allocated_amount_before_tax)),
-        vat: roundMoney(sum.vat + toAmount(allocation.allocated_vat_amount)),
-        total: roundMoney(sum.total + toAmount(allocation.allocated_total)),
-      }), { beforeTax: 0, vat: 0, total: 0 });
+      const allocation = installment.items.find((item) => paymentAllocationReference(item) === reference);
+      if (!allocation) return;
+      totals[installmentIndex] = {
+        beforeTax: roundMoney(toAmount(allocation.allocated_amount_before_tax)),
+        vat: roundMoney(toAmount(allocation.allocated_vat_amount)),
+        total: roundMoney(toAmount(allocation.allocated_total)),
+      };
     });
     return totals;
   }
 
-  normalizedItems.forEach((source) => {
-    const reference = paymentReferenceForItem(source);
-    const entries = installments.map((installment, installmentIndex) => ({
-      installmentIndex,
-      percentage: allocationMode === "per_item"
-        ? toAmount(installment.items.find((allocation) => paymentAllocationReference(allocation) === reference)?.allocation_percentage || 0)
-        : toAmount(installment.percentage),
-    })).filter((entry) => entry.percentage > 0);
-    const percentageTotal = normalizePercentage(entries.reduce((sum, entry) => sum + entry.percentage, 0));
-    let allocatedBeforeTax = 0;
-    let allocatedVat = 0;
+  const entries = installments.map((installment, installmentIndex) => ({
+    installmentIndex,
+    percentage: allocationMode === "per_item"
+      ? toAmount(installment.items.find((allocation) => paymentAllocationReference(allocation) === reference)?.allocation_percentage || 0)
+      : toAmount(installment.percentage),
+  })).filter((entry) => entry.percentage > 0);
+  const percentageTotal = normalizePercentage(entries.reduce((sum, entry) => sum + entry.percentage, 0));
+  let allocatedBeforeTax = 0;
+  let allocatedVat = 0;
 
-    entries.forEach((entry, entryIndex) => {
-      const isFinalCompleteEntry = entryIndex === entries.length - 1 && percentageTotal === 100;
-      const beforeTax = isFinalCompleteEntry
-        ? roundMoney(toAmount(source.amount_before_tax) - allocatedBeforeTax)
-        : roundMoney(toAmount(source.amount_before_tax) * entry.percentage / 100);
-      const vat = isFinalCompleteEntry
-        ? roundMoney(toAmount(source.vat_amount) - allocatedVat)
-        : roundMoney(toAmount(source.vat_amount) * entry.percentage / 100);
-      allocatedBeforeTax = roundMoney(allocatedBeforeTax + beforeTax);
-      allocatedVat = roundMoney(allocatedVat + vat);
-      totals[entry.installmentIndex] = {
-        beforeTax: roundMoney(totals[entry.installmentIndex].beforeTax + beforeTax),
-        vat: roundMoney(totals[entry.installmentIndex].vat + vat),
-        total: roundMoney(totals[entry.installmentIndex].total + beforeTax + vat),
+  entries.forEach((entry, entryIndex) => {
+    const isFinalCompleteEntry = entryIndex === entries.length - 1 && percentageTotal === 100;
+    const beforeTax = isFinalCompleteEntry
+      ? roundMoney(toAmount(source.amount_before_tax) - allocatedBeforeTax)
+      : roundMoney(toAmount(source.amount_before_tax) * entry.percentage / 100);
+    const vat = isFinalCompleteEntry
+      ? roundMoney(toAmount(source.vat_amount) - allocatedVat)
+      : roundMoney(toAmount(source.vat_amount) * entry.percentage / 100);
+    allocatedBeforeTax = roundMoney(allocatedBeforeTax + beforeTax);
+    allocatedVat = roundMoney(allocatedVat + vat);
+    totals[entry.installmentIndex] = {
+      beforeTax,
+      vat,
+      total: roundMoney(beforeTax + vat),
+    };
+  });
+
+  return totals;
+}
+
+function calculatePaymentInstallmentTotals(allocationMode: PaymentAllocationMode, installments: PaymentInstallment[], quotationItems: QuotationItemRow[]) {
+  const totals: PaymentInstallmentTotal[] = installments.map(() => ({ beforeTax: 0, vat: 0, total: 0 }));
+  quotationItems.forEach((item) => {
+    calculatePaymentItemInstallmentTotals(allocationMode, installments, item).forEach((itemTotal, installmentIndex) => {
+      totals[installmentIndex] = {
+        beforeTax: roundMoney(totals[installmentIndex].beforeTax + itemTotal.beforeTax),
+        vat: roundMoney(totals[installmentIndex].vat + itemTotal.vat),
+        total: roundMoney(totals[installmentIndex].total + itemTotal.total),
       };
     });
   });
-
   return totals;
 }
 
@@ -761,7 +801,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
   const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | null>(null);
   const [focusPaymentTerms, setFocusPaymentTerms] = useState(() => searchParams.get("focus") === "payment-terms");
   const [newPaymentTerms, setNewPaymentTerms] = useState<NewPaymentTermsPayload | null>(null);
-  const paymentTermsSaveRef = useRef<null | (() => Promise<boolean>)>(null);
+  const paymentTermsSaveRef = useRef<null | ((persistedItems?: QuotationItemRow[]) => Promise<boolean>)>(null);
   const saveInFlightRef = useRef(false);
 
   const totals = useMemo(() => computeTotals(items), [items]);
@@ -1035,7 +1075,25 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
         action: "update",
         note: `Replaced quotation line items for ${quotation?.quotation_no || quotationId}; item count ${normalizedItems.length}`,
       });
-      const paymentTermsSaved = paymentTermsSaveRef.current ? await paymentTermsSaveRef.current() : true;
+      const savedItemRes = await supabase
+        .from("finance_quotation_items")
+        .select("*")
+        .eq("quotation_id", quotationId)
+        .order("sort_order", { ascending: true });
+      if (savedItemRes.error || savedItemRes.data?.length !== normalizedItems.length) {
+        console.error("Failed to resolve saved quotation items before payment allocation save", {
+          quotationId,
+          expectedItemCount: normalizedItems.length,
+          actualItemCount: savedItemRes.data?.length ?? null,
+          error: savedItemRes.error,
+        });
+        alert("บันทึกรายการค่าบริการแล้ว แต่ไม่สามารถจับคู่รายการสำหรับเงื่อนไขการชำระเงินได้ กรุณาลองใหม่");
+        setSaving(false);
+        return { ok: false, stage: "refetch", message: "Unable to resolve saved quotation item ids." } as SaveAllResult;
+      }
+      const paymentTermsSaved = paymentTermsSaveRef.current
+        ? await paymentTermsSaveRef.current(savedItemRes.data as QuotationItemRow[])
+        : true;
       if (!paymentTermsSaved) {
         setSaveMessage("บันทึกข้อมูลใบเสนอราคาแล้ว แต่บันทึกเงื่อนไขการชำระเงินไม่สำเร็จ");
         alert("บันทึกข้อมูลใบเสนอราคาแล้ว แต่บันทึกเงื่อนไขการชำระเงินไม่สำเร็จ");
@@ -1339,7 +1397,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       <div style={cardStyle}>
         <div style={sectionHeaderStyle}>
           <h2 style={sectionTitleStyle}>Line Items / Fee Items</h2>
-          <button type="button" onClick={() => setItems((current) => [...current, isEdit ? normalizeItem({ ...emptyItem }, current.length) : createNewQuotationItem(current.length)])} style={secondaryButtonStyle}>Add Item</button>
+          <button type="button" onClick={() => setItems((current) => [...current, createNewQuotationItem(current.length)])} style={secondaryButtonStyle}>Add Item</button>
         </div>
         <div style={tableWrapStyle}>
           <table style={tableStyle}>
@@ -1410,7 +1468,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
   );
 }
 
-function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onFocusHandled, onDraftPayloadChange, onRegisterSave, onSnapshotChange, onValidityChange }: { quotationId?: string; isNew: boolean; quotationItems: QuotationItemRow[]; autoFocus: boolean; onFocusHandled: () => void; onDraftPayloadChange: (payload: NewPaymentTermsPayload | null) => void; onRegisterSave: (handler: (() => Promise<boolean>) | null) => void; onSnapshotChange: (snapshot: PaymentTermsSnapshot) => void; onValidityChange: (valid: boolean) => void }) {
+function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onFocusHandled, onDraftPayloadChange, onRegisterSave, onSnapshotChange, onValidityChange }: { quotationId?: string; isNew: boolean; quotationItems: QuotationItemRow[]; autoFocus: boolean; onFocusHandled: () => void; onDraftPayloadChange: (payload: NewPaymentTermsPayload | null) => void; onRegisterSave: (handler: ((persistedItems?: QuotationItemRow[]) => Promise<boolean>) | null) => void; onSnapshotChange: (snapshot: PaymentTermsSnapshot) => void; onValidityChange: (valid: boolean) => void }) {
   const [terms, setTerms] = useState<PaymentTermsRow | null>(() => isNew ? { id: "new", payment_method_type: "single", client_summary: null } : null);
   const [method, setMethod] = useState<PaymentMethodType>("single");
   const [summary, setSummary] = useState("");
@@ -1427,10 +1485,10 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
   quotationItemsRef.current = quotationItems;
   // This projection is the only source used by both the matrix and allocation mapping.
   // Allocation rows intentionally keep only stable references, never a duplicate description.
-  const lineItemSource = useMemo(() => quotationItems.map((item, index) => ({
+  const lineItemSource = useMemo<PaymentLineItemSource[]>(() => quotationItems.map((item, index) => ({
     item: normalizeItem(item, index),
     reference: paymentReferenceForItem(item),
-  })).filter((source) => Boolean(source.reference)), [quotationItems]);
+  })).filter((source): source is PaymentLineItemSource => Boolean(source.reference)), [quotationItems]);
 
   const defaultAllocation = useCallback((): PaymentAllocation[] => lineItemSource.map(({ item }) => ({
     ...(item.id ? { quotation_item_id: item.id } : { client_item_key: item.client_item_key }),
@@ -1439,6 +1497,31 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
     allocated_total: 0,
     allocation_percentage: 0,
   })), [lineItemSource]);
+
+  useEffect(() => {
+    if (loading) return;
+    const activeReferences = new Set(lineItemSource.map(({ reference }) => reference));
+    setInstallments((current) => {
+      let didChange = false;
+      const next = current.map((installment) => {
+        const retained = installment.items.filter((allocation) => activeReferences.has(paymentAllocationReference(allocation)));
+        const existingReferences = new Set(retained.map(paymentAllocationReference));
+        const missing = allocationMode === "per_item"
+          ? lineItemSource.filter(({ reference }) => !existingReferences.has(reference)).map(({ item }) => ({
+            ...(item.id ? { quotation_item_id: item.id } : { client_item_key: item.client_item_key }),
+            allocated_amount_before_tax: 0,
+            allocated_vat_amount: 0,
+            allocated_total: 0,
+            allocation_percentage: 0,
+          }))
+          : [];
+        if (retained.length === installment.items.length && missing.length === 0) return installment;
+        didChange = true;
+        return { ...installment, items: [...retained, ...missing] };
+      });
+      return didChange ? next : current;
+    });
+  }, [allocationMode, lineItemSource, loading]);
 
   const loadTerms = useCallback(async () => {
     if (isNew || !quotationId) {
@@ -1596,6 +1679,36 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
       return normalized;
     });
   };
+  const setPaymentAllocationMode = (nextMode: PaymentAllocationMode) => {
+    if (nextMode === allocationMode) return;
+    const hasPerItemValues = allocationMode === "per_item" && installments.some((installment) => (
+      installment.items.some((allocation) => toAmount(allocation.allocation_percentage || 0) > 0)
+    ));
+    if (nextMode === "proportional_all_items" && hasPerItemValues && !window.confirm("การเปลี่ยนเป็นการกระจายสัดส่วนเดียวกันจะไม่ใช้ค่าที่กรอกแยกตามรายการเมื่อบันทึก ต้องการเปลี่ยนโหมดหรือไม่?")) return;
+    setAllocationMode(nextMode);
+    if (nextMode === "per_item") {
+      setInstallments((current) => current.map((item) => ({ ...item, calculation_type: "percentage", percentage: "100" })));
+    }
+  };
+  const updatePerItemAllocation = (source: PaymentLineItemSource, installmentIndex: number, value: string) => {
+    setInstallments((current) => current.map((installment, currentIndex) => {
+      if (currentIndex !== installmentIndex) return installment;
+      const hasAllocation = installment.items.some((allocation) => paymentAllocationReference(allocation) === source.reference);
+      const nextAllocation: PaymentAllocation = {
+        ...(source.item.id ? { quotation_item_id: source.item.id } : { client_item_key: source.item.client_item_key }),
+        allocated_amount_before_tax: 0,
+        allocated_vat_amount: 0,
+        allocated_total: 0,
+        allocation_percentage: toAmount(value),
+      };
+      return {
+        ...installment,
+        items: hasAllocation
+          ? installment.items.map((allocation) => paymentAllocationReference(allocation) === source.reference ? { ...allocation, allocation_percentage: toAmount(value) } : allocation)
+          : [...installment.items, nextAllocation],
+      };
+    }));
+  };
   const scrollToInstallment = (installmentIndex: number) => {
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
@@ -1657,7 +1770,7 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
     else await loadTerms();
     setSaving(false);
   };
-  const saveTerms = async () => {
+  const saveTerms = async (persistedItems = quotationItems) => {
     if (saving) return false;
     if (!terms) return true;
     if (installments.length === 0) { alert("กรุณาเพิ่มอย่างน้อยหนึ่งงวด"); return false; }
@@ -1672,6 +1785,41 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
       return false;
     }
     setSaving(true);
+    const persistedItemsBySourceReference = new Map(lineItemSource.map(({ item, reference }, index) => {
+      const persisted = persistedItems.find((candidate) => candidate.id && candidate.id === item.id)
+        || persistedItems.find((candidate) => candidate.sort_order === item.sort_order)
+        || persistedItems[index];
+      return [reference, persisted] as const;
+    }));
+    const unresolvedItem = lineItemSource.find(({ reference }) => !persistedItemsBySourceReference.get(reference)?.id);
+    if (unresolvedItem) {
+      console.error("Unable to resolve quotation item for payment allocation", {
+        quotationId,
+        itemReference: unresolvedItem.reference,
+        sourceSortOrder: unresolvedItem.item.sort_order,
+      });
+      alert("ไม่สามารถจับคู่รายการค่าบริการกับเงื่อนไขการชำระเงินได้ กรุณาลองใหม่");
+      setSaving(false);
+      return false;
+    }
+    const mapAllocationToPersistedItem = (allocation: PaymentAllocation) => {
+      const persisted = persistedItemsBySourceReference.get(paymentAllocationReference(allocation));
+      if (!persisted?.id) return null;
+      return {
+        ...allocation,
+        quotation_item_id: persisted.id,
+        client_item_key: undefined,
+      };
+    };
+    const mappedInstallments = installments.map((installment) => ({
+      ...installment,
+      items: installment.items
+        .map(mapAllocationToPersistedItem)
+        .filter((allocation): allocation is NonNullable<typeof allocation> => Boolean(allocation)),
+    }));
+    const itemReferencesChanged = lineItemSource.some(({ reference }) => (
+      persistedItemsBySourceReference.get(reference)?.id !== reference
+    ));
     const payload = installments.map((item, index) => ({
       installment_no: index + 1,
       title: item.title,
@@ -1685,8 +1833,12 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
       client_note: item.client_note || null,
       sort_order: index,
       items: allocationMode === "proportional_all_items" && item.calculation_type === "percentage"
-        ? quotationItems.filter((quotationItem) => quotationItem.id).map((quotationItem, itemIndex) => ({ quotation_item_id: quotationItem.id, sort_order: itemIndex }))
-        : item.items.filter((allocation) => allocationMode !== "per_item" || toAmount(allocation.allocation_percentage || 0) > 0).map((allocation, itemIndex) => ({ ...allocation, sort_order: itemIndex })),
+        ? persistedItems.filter((quotationItem) => quotationItem.id).map((quotationItem, itemIndex) => ({ quotation_item_id: quotationItem.id, sort_order: itemIndex }))
+        : item.items
+          .filter((allocation) => allocationMode !== "per_item" || toAmount(allocation.allocation_percentage || 0) > 0)
+          .map(mapAllocationToPersistedItem)
+          .filter((allocation): allocation is NonNullable<typeof allocation> => Boolean(allocation))
+          .map((allocation, itemIndex) => ({ ...allocation, sort_order: itemIndex })),
     }));
     logPaymentAllocationPreflight(allocationMode, installments, lineItemSource.map(({ item }) => item));
     const { error } = await supabase.rpc("save_finance_quotation_payment_terms_draft_v2", {
@@ -1709,7 +1861,12 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
       setSaving(false);
       return false;
     }
-    await loadTerms();
+    if (itemReferencesChanged) {
+      setInstallments(mappedInstallments);
+      setSavedSnapshot(normalizedPaymentTermsSnapshot(method, effectiveSummary, mappedInstallments, allocationMode));
+    } else {
+      await loadTerms();
+    }
     setSaving(false);
     return true;
   };
@@ -1728,7 +1885,7 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
     <div style={sectionHeaderStyle}><div><h2 style={sectionTitleStyle}>เงื่อนไขการชำระเงิน / Payment Terms</h2><p style={mutedTextStyle}>เงื่อนไขการชำระเงินจะบันทึกพร้อมกับร่างใบเสนอราคา</p></div></div>
     <div style={formGridStyle}>
       <label style={labelStyle}>วิธีชำระเงิน / Payment Method<select ref={paymentMethodRef} value={method} onChange={(event) => setPaymentMethod(event.target.value as PaymentMethodType)} style={inputStyle}><option value="single">ชำระครั้งเดียว / Single Payment</option><option value="installments">แบ่งชำระหลายงวด / Installments</option><option value="milestone">ตามขั้นตอนงาน / Milestone</option><option value="recurring">เรียกเก็บเป็นรอบ / Recurring</option><option value="manual">กำหนดเอง / Manual</option></select></label>
-      <label style={labelStyle}>วิธีกระจายค่าบริการในแต่ละงวด<select value={allocationMode} onChange={(event) => { const nextMode = event.target.value as PaymentAllocationMode; setAllocationMode(nextMode); if (nextMode === "per_item") setInstallments((current) => current.map((item) => ({ ...item, calculation_type: "percentage", percentage: "100" }))); }} style={inputStyle}><option value="proportional_all_items">กระจายทุกรายการตามสัดส่วนเดียวกัน</option><option value="per_item">กำหนดสัดส่วนแยกแต่ละรายการ</option></select><span style={helperTextStyle}>กำหนดว่ารายการค่าบริการในใบเสนอราคาจะถูกกระจายเข้าแต่ละงวดอย่างไร ไม่เกี่ยวกับการแบ่งค่าตอบแทนภายในสำนักงาน</span></label>
+      <label style={labelStyle}>วิธีกระจายค่าบริการในแต่ละงวด<select value={allocationMode} onChange={(event) => setPaymentAllocationMode(event.target.value as PaymentAllocationMode)} style={inputStyle}><option value="proportional_all_items">กระจายทุกรายการตามสัดส่วนเดียวกัน</option><option value="per_item">กำหนดสัดส่วนแยกแต่ละรายการ</option></select><span style={helperTextStyle}>กำหนดว่ารายการค่าบริการในใบเสนอราคาจะถูกกระจายเข้าแต่ละงวดอย่างไร ไม่เกี่ยวกับการแบ่งค่าตอบแทนภายในสำนักงาน</span></label>
       <div style={wideFieldGroupStyle}>
         <div style={sectionHeaderStyle}><label htmlFor="payment-client-summary" style={fieldHeadingStyle}>สรุปเงื่อนไขสำหรับลูกค้า</label><button type="button" onClick={() => { setSummaryIsCustom(false); setSummary(generatedSummary); }} disabled={!summaryIsCustom} style={smallButtonStyle}>ใช้ข้อความอัตโนมัติ</button></div>
         <textarea id="payment-client-summary" value={effectiveSummary} onChange={(event) => { setSummary(event.target.value); setSummaryIsCustom(true); }} style={textareaStyle} />
@@ -1751,8 +1908,53 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
       </div>
       {allocationMode === "proportional_all_items" ? installment.calculation_type === "fixed_amount" ? <div style={tableWrapStyle}><h4 style={sectionTitleStyle}>Advanced Item Allocation</h4><table style={tableStyle}><thead><tr><th style={thStyle}>Quotation Item</th><th style={rightThStyle}>Before VAT</th><th style={rightThStyle}>VAT</th><th style={rightThStyle}>Total</th><th style={rightThStyle}>Remaining</th></tr></thead><tbody>{quotationItems.filter((item) => item.id || item.client_item_key).map((quotationItem) => { const reference = paymentReferenceForItem(quotationItem); const allocation = installment.items.find((item) => paymentAllocationReference(item) === reference) || { ...(quotationItem.id ? { quotation_item_id: quotationItem.id } : { client_item_key: quotationItem.client_item_key }), allocated_amount_before_tax: 0, allocated_vat_amount: 0, allocated_total: 0 }; const allocatedElsewhere = installments.filter((_, installmentIndex) => installmentIndex !== index).reduce((sum, other) => sum + (other.items.find((item) => paymentAllocationReference(item) === reference)?.allocated_total || 0), 0); const patch = (field: keyof PaymentAllocation, value: string) => updateInstallment(index, { items: installment.items.some((item) => paymentAllocationReference(item) === reference) ? installment.items.map((item) => paymentAllocationReference(item) === reference ? { ...item, [field]: toAmount(value), allocated_total: field === "allocated_total" ? toAmount(value) : (field === "allocated_amount_before_tax" ? toAmount(value) : item.allocated_amount_before_tax) + (field === "allocated_vat_amount" ? toAmount(value) : item.allocated_amount_before_tax) } : item) : [...installment.items, { ...allocation, [field]: toAmount(value), allocated_total: field === "allocated_total" ? toAmount(value) : (field === "allocated_amount_before_tax" ? toAmount(value) : 0) + (field === "allocated_vat_amount" ? toAmount(value) : 0) }] }); return <tr key={reference}><td style={tdStyle}>{quotationItem.description}</td><td style={rightTdStyle}><input type="number" min="0" step="0.01" value={allocation.allocated_amount_before_tax} onChange={(event) => patch("allocated_amount_before_tax", event.target.value)} style={compactInputStyle} /></td><td style={rightTdStyle}><input type="number" min="0" step="0.01" value={allocation.allocated_vat_amount} onChange={(event) => patch("allocated_vat_amount", event.target.value)} style={compactInputStyle} /></td><td style={rightTdStyle}>{formatMoney(allocation.allocated_amount_before_tax + allocation.allocated_vat_amount)}</td><td style={rightTdStyle}>{formatMoney(toAmount(quotationItem.line_total) - allocatedElsewhere - allocation.allocated_total)}</td></tr>; })}</tbody></table></div> : <p style={mutedTextStyle}>ระบบจะรวมทุกรายการค่าบริการและคำนวณ Before VAT, VAT และ Total จากเปอร์เซ็นต์ในฝั่งเซิร์ฟเวอร์</p> : null}
     </div>)}
-    {allocationMode === "per_item" && installments.every((installment) => installment.calculation_type === "percentage") ? <div style={{ ...cardStyle, marginTop: 12 }}><h3 style={sectionTitleStyle}>กระจายค่าบริการแยกตามรายการ</h3>{lineItemSource.map(({ item, reference: ref }) => { const total = normalizePercentage(installments.reduce((sum, installment) => sum + toAmount(installment.items.find((allocation) => paymentAllocationReference(allocation) === ref)?.allocation_percentage || 0), 0)); const remaining = normalizePercentage(100 - total); return <div key={ref} style={{ display: "grid", gridTemplateColumns: "minmax(180px, 2fr) repeat(auto-fit, minmax(110px, 1fr))", gap: 8, alignItems: "end", marginTop: 10 }}><strong>{item.description.trim() || "ยังไม่ได้ระบุชื่อรายการ"}<br /><span style={mutedTextStyle}>คงเหลือ {remaining}% หรือ {formatMoney(toAmount(item.line_total) * remaining / 100)}</span></strong>{installments.map((installment, installmentIndex) => { const allocation = installment.items.find((entry) => paymentAllocationReference(entry) === ref); const value = allocation?.allocation_percentage ?? 0; return <label key={installmentIndex} style={labelStyle}>งวดที่ {installmentIndex + 1} (%)<input id={`payment-allocation-${ref}-${installmentIndex}`} type="number" min="0" max="100" step="0.000001" value={value} onChange={(event) => { const next = installments.map((current, currentIndex) => currentIndex !== installmentIndex ? current : { ...current, items: current.items.some((entry) => paymentAllocationReference(entry) === ref) ? current.items.map((entry) => paymentAllocationReference(entry) === ref ? { ...entry, allocation_percentage: toAmount(event.target.value) } : entry) : [...current.items, { ...(item.id ? { quotation_item_id: item.id } : { client_item_key: item.client_item_key }), allocated_amount_before_tax: 0, allocated_vat_amount: 0, allocated_total: 0, allocation_percentage: toAmount(event.target.value) }] }); setInstallments(next); }} style={compactInputStyle} /></label>; })}</div>; })}</div> : null}
+    {allocationMode === "per_item" && installments.every((installment) => installment.calculation_type === "percentage") ? <PerItemAllocationMatrix sources={lineItemSource} installments={installments} onChange={updatePerItemAllocation} /> : null}
     {method !== "single" ? <button type="button" onClick={addInstallment} style={secondaryButtonStyle}>เพิ่มงวด</button> : null}
+  </div>;
+}
+
+function PerItemAllocationMatrix({ sources, installments, onChange }: { sources: PaymentLineItemSource[]; installments: PaymentInstallment[]; onChange: (source: PaymentLineItemSource, installmentIndex: number, value: string) => void }) {
+  return <div style={{ ...cardStyle, marginTop: 12 }}>
+    <h3 style={sectionTitleStyle}>กระจายค่าบริการแยกตามรายการ</h3>
+    <p style={mutedTextStyle}>กำหนดสัดส่วนของแต่ละรายการแยกกัน โดยแต่ละรายการต้องรวมครบ 100% ก่อนส่งใบเสนอราคา</p>
+    <div style={perItemMatrixListStyle}>
+      {sources.map((source) => {
+        const itemTotals = calculatePaymentItemInstallmentTotals("per_item", installments, source.item);
+        const allocatedPercentage = normalizePercentage(installments.reduce((sum, installment) => sum + toAmount(installment.items.find((allocation) => paymentAllocationReference(allocation) === source.reference)?.allocation_percentage || 0), 0));
+        const remainingPercentage = normalizePercentage(100 - allocatedPercentage);
+        const allocatedAmount = roundMoney(itemTotals.reduce((sum, total) => sum + total.total, 0));
+        const remainingAmount = roundMoney(toAmount(source.item.line_total) - allocatedAmount);
+        const isOverAllocated = remainingPercentage < 0;
+        return <div id={`payment-allocation-item-${source.reference}`} key={source.reference} tabIndex={-1} style={perItemMatrixRowStyle}>
+          <div style={perItemMatrixItemStyle}>
+            <strong style={perItemDescriptionStyle}>{source.item.description.trim() || "ยังไม่ได้ระบุชื่อรายการ"}</strong>
+            <span style={mutedTextStyle}>มูลค่ารายการ {formatMoney(toAmount(source.item.line_total))}</span>
+            <span style={isOverAllocated ? perItemErrorTextStyle : helperTextStyle}>
+              รวม {formatCompactPercentage(allocatedPercentage)} · {isOverAllocated ? "เกิน" : "คงเหลือ"} {formatCompactPercentage(Math.abs(remainingPercentage))} ({formatMoney(Math.abs(remainingAmount))})
+            </span>
+          </div>
+          <div style={perItemInstallmentGridStyle}>
+            {installments.map((installment, installmentIndex) => {
+              const allocation = installment.items.find((entry) => paymentAllocationReference(entry) === source.reference);
+              return <label key={installmentIndex} style={labelStyle}>
+                งวดที่ {installmentIndex + 1} (%)
+                <input
+                  id={`payment-allocation-${source.reference}-${installmentIndex}`}
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.000001"
+                  value={allocation?.allocation_percentage ?? 0}
+                  onChange={(event) => onChange(source, installmentIndex, event.target.value)}
+                  style={perItemPercentageInputStyle}
+                />
+                <span style={helperTextStyle}>ยอดงวด {formatMoney(itemTotals[installmentIndex]?.total || 0)}</span>
+              </label>;
+            })}
+          </div>
+        </div>;
+      })}
+    </div>
   </div>;
 }
 
@@ -2647,6 +2849,11 @@ const errorNoticeTextStyle: CSSProperties = { color: "#991b1b", background: "#fe
 const installmentAmountSummaryStyle: CSSProperties = { display: "grid", gap: 8, padding: "12px 14px", marginBottom: 14, border: "1px solid #bbf7d0", borderRadius: 6, background: "#f0fdf4", color: "#166534", fontSize: 13 };
 const installmentPercentageStyle: CSSProperties = { marginLeft: 10, color: "#374151", fontWeight: 600 };
 const installmentAmountGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, color: "#4b5563" };
+const perItemMatrixListStyle: CSSProperties = { display: "grid", gap: 12, marginTop: 14 };
+const perItemMatrixRowStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14, alignItems: "start", borderTop: "1px solid #e5e7eb", paddingTop: 12, scrollMarginTop: 96 };
+const perItemMatrixItemStyle: CSSProperties = { display: "grid", gap: 5, minWidth: 0 };
+const perItemDescriptionStyle: CSSProperties = { color: "#111827", fontSize: 14, overflowWrap: "anywhere" };
+const perItemInstallmentGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, minWidth: 0 };
 const savedIndicatorStyle: CSSProperties = { color: "#166534", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, padding: "8px 10px", fontSize: 12, fontWeight: 700 };
 const unsavedIndicatorStyle: CSSProperties = { color: "#92400e", background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 6, padding: "8px 10px", fontSize: 12, fontWeight: 700 };
 const dialogBackdropStyle: CSSProperties = { position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, background: "rgba(15, 23, 42, 0.45)" };
@@ -2677,10 +2884,12 @@ const segmentButtonStyle: CSSProperties = { border: "1px solid #d1d5db", backgro
 const getSegmentButtonStyle = (active: boolean): CSSProperties => active ? { ...segmentButtonStyle, background: "#111827", borderColor: "#111827", color: "#ffffff" } : segmentButtonStyle;
 const nestedFormGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, minWidth: 0 };
 const helperTextStyle: CSSProperties = { color: "#6b7280", fontSize: 12, fontWeight: 500, margin: 0 };
+const perItemErrorTextStyle: CSSProperties = { ...helperTextStyle, color: "#b91c1c", fontWeight: 700 };
 const servicePatternHeaderStyle: CSSProperties = { display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap" };
 const servicePatternLabelStyle: CSSProperties = { ...labelStyle, flex: "1 1 360px" };
 const managePatternLinkStyle: CSSProperties = { color: "#166534", fontSize: 13, fontWeight: 700, textDecoration: "none", padding: "9px 0" };
 const inputStyle: CSSProperties = { width: "100%", border: "1px solid #d1d5db", borderRadius: 6, padding: "9px 10px", fontSize: 14, minWidth: 0 };
+const perItemPercentageInputStyle: CSSProperties = { ...inputStyle, textAlign: "right" };
 const authorizedSignerLabelStyle: CSSProperties = { ...labelStyle, minWidth: 0 };
 const authorizedSignerSelectStyle: CSSProperties = { ...inputStyle, paddingRight: 36 };
 const compactInputStyle: CSSProperties = { ...inputStyle, width: 110, textAlign: "right" };
