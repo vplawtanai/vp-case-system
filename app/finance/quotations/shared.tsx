@@ -712,7 +712,7 @@ export function QuotationList({ access }: { access: QuotationAccess }) {
                 <th style={thStyle}>Issue Date</th>
                 <th style={thStyle}>Valid Until</th>
                 <th style={thStyle}>Status</th>
-                <th style={rightThStyle}>Quotation Total</th>
+                <th style={rightThStyle}>ยอดสุทธิ / Amount Payable</th>
                 <th style={thStyle}>Actions</th>
               </tr>
             </thead>
@@ -1365,7 +1365,10 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
                       <select value={item.price_tax_mode || (item.vat_applicable ? "vat_exclusive" : "non_vat")} onChange={(event) => { const price_tax_mode = event.target.value as NonNullable<QuotationItemRow["price_tax_mode"]>; updateItem(index, { price_tax_mode, vat_applicable: price_tax_mode !== "non_vat", vat_rate: price_tax_mode === "non_vat" ? 0 : (item.vat_rate || 7) }); }} style={inputStyle}><option value="non_vat">Non-VAT</option><option value="vat_exclusive">VAT Exclusive</option><option value="vat_inclusive">VAT Inclusive</option></select>
                       {(item.price_tax_mode || (item.vat_applicable ? "vat_exclusive" : "non_vat")) !== "non_vat" ? <input aria-label="VAT rate" type="number" min="0" step="0.01" value={item.vat_rate} onChange={(event) => updateItem(index, { vat_rate: event.target.value })} style={vatInputStyle} /> : null}
                     </td>
-                    <td style={rightTdStyle}>{formatMoney(toAmount(normalized.line_total))}</td>
+                    <td style={rightTdStyle}>
+                      <strong>{formatMoney(toAmount(normalized.line_total))}</strong>
+                      <LineItemVatExplanation item={normalized} />
+                    </td>
                     <td style={tdStyle}><button type="button" onClick={() => removeItem(index)} style={dangerSmallButtonStyle} disabled={items.length === 1}>Remove</button></td>
                   </tr>
                 );
@@ -1373,12 +1376,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
             </tbody>
           </table>
         </div>
-        <div style={totalsGridStyle}>
-          <SummaryLine label="รวมรายการที่มี VAT / Vatable Subtotal" value={totals.subtotalVatable} />
-          <SummaryLine label="รวมรายการที่ไม่มี VAT / Non-Vatable Subtotal" value={totals.subtotalNonVatable} />
-          <SummaryLine label="ภาษีมูลค่าเพิ่ม / VAT" value={totals.vatAmount} />
-          <SummaryLine label="จำนวนเงินตามใบเสนอราคา / Quotation Total" value={totals.grandTotal} strong />
-        </div>
+        <QuotationFinancialSummary subtotalVatable={totals.subtotalVatable} subtotalNonVatable={totals.subtotalNonVatable} vatAmount={totals.vatAmount} grandTotal={totals.grandTotal} />
       </div>
 
       {(!isEdit || (quotationId && quotation?.status === "draft")) ? <PaymentTermsEditor quotationId={quotationId} isNew={!isEdit} quotationItems={items} autoFocus={focusPaymentTerms} onFocusHandled={() => { setFocusPaymentTerms(false); const url = new URL(window.location.href); url.searchParams.delete("focus"); window.history.replaceState(null, "", url); }} onDraftPayloadChange={setNewPaymentTerms} onRegisterSave={(handler) => { paymentTermsSaveRef.current = handler; }} onSnapshotChange={setPaymentTermsSnapshot} onValidityChange={setPaymentTermsValid} /> : null}
@@ -1999,7 +1997,7 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
               {!quotation.case_id && !quotation.advisory_matter_id ? <Detail label="รายละเอียดเรื่อง / งาน" value={quotation.unlinked_matter_description || getSnapshotString(quotation.matter_snapshot_json, "description") || "-"} /> : null}
               <Detail label="Issue Date" value={formatDate(quotation.issue_date)} />
               <Detail label="Valid Until" value={formatDate(quotation.valid_until)} />
-              <Detail label="จำนวนเงินตามใบเสนอราคา / Quotation Total" value={formatMoney(toAmount(quotation.grand_total))} />
+              <Detail label="ยอดสุทธิที่ลูกค้าชำระ / Amount Payable" value={formatMoney(toAmount(quotation.grand_total))} />
               <Detail label="ขอบเขตงาน / Scope of Legal Services" value={quotation.scope_of_legal_services || "-"} />
               <Detail label="งานที่รวมอยู่ในค่าบริการ / Included Services" value={quotation.included_services || "-"} />
               <Detail label="งานหรือค่าใช้จ่ายที่ไม่รวม / Excluded Services" value={quotation.excluded_services || "-"} />
@@ -2029,18 +2027,13 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
                       <td style={rightTdStyle}>{formatMoney(toAmount(item.unit_price))}</td>
                       <td style={rightTdStyle}>{formatMoney(toAmount(item.amount_before_tax))}</td>
                       <td style={rightTdStyle}>{formatMoney(toAmount(item.vat_amount))}</td>
-                      <td style={rightTdStyle}>{formatMoney(toAmount(item.line_total))}</td>
+                      <td style={rightTdStyle}><strong>{formatMoney(toAmount(item.line_total))}</strong><LineItemVatExplanation item={item} /></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <div style={totalsGridStyle}>
-              <SummaryLine label="รวมรายการที่มี VAT / Vatable Subtotal" value={toAmount(quotation.subtotal_vatable)} />
-              <SummaryLine label="รวมรายการที่ไม่มี VAT / Non-Vatable Subtotal" value={toAmount(quotation.subtotal_non_vatable)} />
-              <SummaryLine label="ภาษีมูลค่าเพิ่ม / VAT" value={toAmount(quotation.vat_amount)} />
-              <SummaryLine label="จำนวนเงินตามใบเสนอราคา / Quotation Total" value={toAmount(quotation.grand_total)} strong />
-            </div>
+            <QuotationFinancialSummary subtotalVatable={toAmount(quotation.subtotal_vatable)} subtotalNonVatable={toAmount(quotation.subtotal_non_vatable)} vatAmount={toAmount(quotation.vat_amount)} grandTotal={toAmount(quotation.grand_total)} />
           </div>
 
           <div style={cardStyle}>
@@ -2473,13 +2466,32 @@ function computeTotals(items: QuotationItemRow[]) {
   };
 }
 
-function SummaryLine({ label, value, strong = false }: { label: string; value: number; strong?: boolean }) {
+function QuotationFinancialSummary({ subtotalVatable, subtotalNonVatable, vatAmount, grandTotal }: { subtotalVatable: number; subtotalNonVatable: number; vatAmount: number; grandTotal: number }) {
+  const serviceValueBeforeVat = roundMoney(subtotalVatable + subtotalNonVatable);
+  return <div style={totalsGridStyle}>
+    <SummaryLine label="มูลค่าบริการก่อน VAT / Service Value Before VAT" value={serviceValueBeforeVat} prominent />
+    <SummaryLine label="รายการไม่อยู่ในบังคับ VAT / Non-VAT Service Value" value={subtotalNonVatable} indented />
+    <SummaryLine label="ฐานภาษีของรายการที่มี VAT / VAT Taxable Base" value={subtotalVatable} indented />
+    <SummaryLine label="ภาษีมูลค่าเพิ่ม / VAT" value={vatAmount} tax />
+    <SummaryLine label="ยอดสุทธิที่ลูกค้าชำระ / Amount Payable" value={grandTotal} strong />
+  </div>;
+}
+
+function SummaryLine({ label, value, strong = false, prominent = false, indented = false, tax = false }: { label: string; value: number; strong?: boolean; prominent?: boolean; indented?: boolean; tax?: boolean }) {
+  const style = strong ? totalLineStyle : prominent ? summaryProminentLineStyle : indented ? summaryBreakdownLineStyle : tax ? summaryTaxLineStyle : summaryLineStyle;
   return (
-    <div style={strong ? totalLineStyle : summaryLineStyle}>
+    <div style={style}>
       <span>{label}</span>
       <strong>{formatMoney(value)}</strong>
     </div>
   );
+}
+
+function LineItemVatExplanation({ item }: { item: QuotationItemRow }) {
+  const mode = item.price_tax_mode || (item.vat_applicable ? "vat_exclusive" : "non_vat");
+  if (mode === "non_vat") return <div style={lineItemTaxExplanationStyle}>ไม่อยู่ในบังคับ VAT</div>;
+  if (mode === "vat_inclusive") return <div style={lineItemTaxExplanationStyle}>ฐาน {formatMoney(toAmount(item.amount_before_tax))} + VAT {formatMoney(toAmount(item.vat_amount))} = รวม {formatMoney(toAmount(item.line_total))} (รวม VAT แล้ว)</div>;
+  return <div style={lineItemTaxExplanationStyle}>ฐาน {formatMoney(toAmount(item.amount_before_tax))} + VAT {formatMoney(toAmount(item.vat_amount))} = รวม {formatMoney(toAmount(item.line_total))}</div>;
 }
 
 function Detail({ label, value }: { label: string; value: ReactNode }) {
@@ -2697,7 +2709,11 @@ const buttonRowStyle: CSSProperties = { display: "flex", justifyContent: "flex-e
 
 const totalsGridStyle: CSSProperties = { maxWidth: 420, marginLeft: "auto", marginTop: 16, display: "grid", gap: 8 };
 const summaryLineStyle: CSSProperties = { display: "flex", justifyContent: "space-between", gap: 16, fontSize: 14, color: "#374151" };
-const totalLineStyle: CSSProperties = { ...summaryLineStyle, fontSize: 16, color: "#111827", borderTop: "1px solid #e5e7eb", paddingTop: 8 };
+const summaryProminentLineStyle: CSSProperties = { ...summaryLineStyle, fontSize: 15, color: "#111827", fontWeight: 700, borderBottom: "1px solid #e5e7eb", paddingBottom: 8 };
+const summaryBreakdownLineStyle: CSSProperties = { ...summaryLineStyle, paddingLeft: 14, fontSize: 13, color: "#6b7280" };
+const summaryTaxLineStyle: CSSProperties = { ...summaryLineStyle, borderTop: "1px solid #e5e7eb", paddingTop: 8, color: "#374151" };
+const totalLineStyle: CSSProperties = { ...summaryLineStyle, fontSize: 16, color: "#166534", borderTop: "2px solid #16a34a", paddingTop: 10 };
+const lineItemTaxExplanationStyle: CSSProperties = { marginTop: 4, color: "#6b7280", fontSize: 11, fontWeight: 500, lineHeight: 1.45, whiteSpace: "normal", minWidth: 170 };
 
 const detailGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 };
 const detailLabelStyle: CSSProperties = { color: "#6b7280", fontSize: 12, fontWeight: 700, marginBottom: 4 };

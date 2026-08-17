@@ -446,7 +446,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
                 ) : displayItems.map((item, index) => (
                   <tr key={item.id || index}>
                     <td style={numberTdStyle}>{index + 1}</td>
-                    <td style={descriptionTdStyle}>{item.description || "-"}</td>
+                    <td style={descriptionTdStyle}>{item.description || "-"}<PreviewLineItemVatExplanation item={item} /></td>
                     <td style={quantityTdStyle}>{formatQuantity(item.quantity)}</td>
                     <td style={rightTdStyle}>{formatMoney(item.unit_price)}</td>
                     <td style={rightTdStyle}>{formatMoney(item.vat_amount)}</td>
@@ -472,10 +472,11 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
                 </div>
               </div>
               <div style={totalsBoxStyle}>
-                <TotalLine label="รวมรายการที่มี VAT / Vatable Subtotal" value={displaySubtotalVatable} />
-                <TotalLine label="รวมรายการที่ไม่มี VAT / Non-Vatable Subtotal" value={displaySubtotalNonVatable} />
-                <TotalLine label="ภาษีมูลค่าเพิ่ม / VAT" value={displayVatAmount} />
-                <TotalLine label="จำนวนเงินตามใบเสนอราคา / Quotation Total" value={displayGrandTotal} strong />
+                <TotalLine label="มูลค่าบริการก่อน VAT / Service Value Before VAT" value={roundCurrency(Number(displaySubtotalVatable || 0) + Number(displaySubtotalNonVatable || 0))} prominent />
+                <TotalLine label="รายการไม่อยู่ในบังคับ VAT / Non-VAT Service Value" value={displaySubtotalNonVatable} indented />
+                <TotalLine label="ฐานภาษีของรายการที่มี VAT / VAT Taxable Base" value={displaySubtotalVatable} indented />
+                <TotalLine label="ภาษีมูลค่าเพิ่ม / VAT" value={displayVatAmount} tax />
+                <TotalLine label="ยอดสุทธิที่ลูกค้าชำระ / Amount Payable" value={displayGrandTotal} strong />
               </div>
             </div>
 
@@ -600,13 +601,21 @@ function BilingualInfoLine({ label, thaiValue, englishValue, strong = false }: {
   );
 }
 
-function TotalLine({ label, value, strong = false }: { label: string; value: number | string | null; strong?: boolean }) {
+function TotalLine({ label, value, strong = false, prominent = false, indented = false, tax = false }: { label: string; value: number | string | null; strong?: boolean; prominent?: boolean; indented?: boolean; tax?: boolean }) {
+  const lineStyle = strong ? totalStrongLineStyle : prominent ? totalProminentLineStyle : indented ? totalBreakdownLineStyle : tax ? totalTaxLineStyle : totalLineStyle;
   return (
-    <div style={strong ? totalStrongLineStyle : totalLineStyle}>
+    <div style={lineStyle}>
       <span style={totalLabelStyle}>{label}</span>
       <strong style={strong ? totalStrongValueStyle : totalValueStyle}>{formatMoney(value)}</strong>
     </div>
   );
+}
+
+function PreviewLineItemVatExplanation({ item }: { item: QuotationItemRow }) {
+  const mode = item.price_tax_mode || (item.vat_applicable ? "vat_exclusive" : "non_vat");
+  if (mode === "non_vat") return <div style={lineItemTaxExplanationStyle}>ไม่อยู่ในบังคับ VAT</div>;
+  if (mode === "vat_inclusive") return <div style={lineItemTaxExplanationStyle}>ฐาน {formatMoney(item.amount_before_tax)} + VAT {formatMoney(item.vat_amount)} = รวม {formatMoney(item.line_total)} (รวม VAT แล้ว)</div>;
+  return <div style={lineItemTaxExplanationStyle}>ฐาน {formatMoney(item.amount_before_tax)} + VAT {formatMoney(item.vat_amount)} = รวม {formatMoney(item.line_total)}</div>;
 }
 
 function EngagementScopeSubsection({ title, value, withDivider }: { title: string; value: string; withDivider: boolean }) {
@@ -1141,6 +1150,7 @@ const numberTdStyle: React.CSSProperties = { ...tdStyle, textAlign: "center", wh
 const quantityTdStyle: React.CSSProperties = { ...tdStyle, textAlign: "center", whiteSpace: "nowrap" };
 const descriptionTdStyle: React.CSSProperties = { ...tdStyle, wordBreak: "normal", overflowWrap: "normal", hyphens: "none", lineHeight: 1.55 };
 const rightTdStyle: React.CSSProperties = { ...tdStyle, textAlign: "right", whiteSpace: "nowrap" };
+const lineItemTaxExplanationStyle: React.CSSProperties = { marginTop: 3, color: "#6b7280", fontSize: 9.5, lineHeight: 1.45, fontWeight: 400 };
 
 const totalsSectionStyle: React.CSSProperties = {
   display: "grid",
@@ -1167,6 +1177,9 @@ const totalsBoxStyle: React.CSSProperties = {
   background: "#F0FDF4",
 };
 const totalLineStyle: React.CSSProperties = { display: "flex", alignItems: "flex-start", gap: 14, fontSize: 12.5, lineHeight: 1.5, color: "#374151" };
+const totalProminentLineStyle: React.CSSProperties = { ...totalLineStyle, paddingBottom: 6, borderBottom: "1px solid #cce8d5", color: "#1f2937", fontWeight: 700 };
+const totalBreakdownLineStyle: React.CSSProperties = { ...totalLineStyle, paddingLeft: 9, fontSize: 11.2, color: "#6b7280" };
+const totalTaxLineStyle: React.CSSProperties = { ...totalLineStyle, borderTop: "1px solid #d1d5db", paddingTop: 6, marginTop: 1 };
 const totalStrongLineStyle: React.CSSProperties = { ...totalLineStyle, borderTop: "1px solid #16A344", paddingTop: 9, marginTop: 2, fontSize: 15, color: "#15803D" };
 const totalLabelStyle: React.CSSProperties = { flex: "1 1 0", minWidth: 0, wordBreak: "normal", overflowWrap: "normal", hyphens: "none" };
 const totalValueStyle: React.CSSProperties = { flex: "0 0 auto", whiteSpace: "nowrap", textAlign: "right" };
