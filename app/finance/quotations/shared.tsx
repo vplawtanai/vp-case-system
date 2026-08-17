@@ -801,7 +801,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
   const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | null>(null);
   const [focusPaymentTerms, setFocusPaymentTerms] = useState(() => searchParams.get("focus") === "payment-terms");
   const [newPaymentTerms, setNewPaymentTerms] = useState<NewPaymentTermsPayload | null>(null);
-  const paymentTermsSaveRef = useRef<null | ((persistedItems?: QuotationItemRow[]) => Promise<boolean>)>(null);
+  const [paymentTermsReloadVersion, setPaymentTermsReloadVersion] = useState(0);
   const saveInFlightRef = useRef(false);
 
   const totals = useMemo(() => computeTotals(items), [items]);
@@ -997,6 +997,45 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
     };
 
     if (isEdit && quotationId) {
+      if (!paymentTermsSnapshot.ready) {
+        alert("กรุณารอให้เงื่อนไขการชำระเงินโหลดเสร็จก่อนบันทึก");
+        setSaving(false);
+        return { ok: false, stage: "payment_terms", message: "Payment terms are still loading." } as SaveAllResult;
+      }
+
+      const draftTerms = newPaymentTerms;
+      if (draftTerms) {
+        const paymentTermsValidationIssue = getPaymentTermsPlanValidationIssue(draftTerms.payment_method_type, draftTerms.installments, draftTerms.allocation_mode);
+        if (paymentTermsValidationIssue) {
+          alert(paymentTermsValidationIssue.message);
+          focusPaymentTermsValidationIssue(paymentTermsValidationIssue);
+          setSaving(false);
+          return { ok: false, stage: "payment_terms", message: paymentTermsValidationIssue.message } as SaveAllResult;
+        }
+        const allocationValidationIssue = getPaymentAllocationValidationIssue(draftTerms.allocation_mode, draftTerms.installments, normalizedItems);
+        if (allocationValidationIssue) {
+          alert(allocationValidationIssue.message);
+          focusPaymentAllocationValidationIssue(allocationValidationIssue);
+          setSaving(false);
+          return { ok: false, stage: "payment_terms", message: allocationValidationIssue.message } as SaveAllResult;
+        }
+      }
+
+      const itemPayload = buildItemPayload(quotationId, normalizedItems);
+      const atomicInstallments = draftTerms
+        ? buildAtomicEditPaymentInstallments(draftTerms.payment_method_type, draftTerms.allocation_mode, draftTerms.installments, normalizedItems)
+        : null;
+      const allocationMappingError = draftTerms && atomicInstallments
+        ? getAtomicEditPaymentAllocationMappingError(normalizedItems, atomicInstallments)
+        : null;
+      if (allocationMappingError) {
+        alert(allocationMappingError.message);
+        focusPaymentAllocationValidationIssue(allocationMappingError.issue);
+        setSaving(false);
+        return { ok: false, stage: "payment_terms", message: allocationMappingError.message } as SaveAllResult;
+      }
+      if (draftTerms) logPaymentAllocationPreflight(draftTerms.allocation_mode, draftTerms.installments, normalizedItems);
+
       const draftSavePayload = {
         p_quotation_id: quotationId,
         p_client_id: quotationPayload.client_id,
@@ -1023,42 +1062,35 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
         p_updated_by_user_id: access.userId,
         p_updated_by_email: access.userEmail,
         p_updated_by_name: access.userName,
-        p_items: buildItemPayload(quotationId, normalizedItems),
+        p_items: itemPayload,
+        p_payment_method_type: draftTerms?.payment_method_type || null,
+        p_payment_client_summary: draftTerms?.client_summary || null,
+        p_allocation_mode: draftTerms?.allocation_mode || null,
+        p_installments_json: atomicInstallments,
       };
       const invalidPayloadMessage = validateDraftSavePayload(draftSavePayload, currentTotals);
       if (invalidPayloadMessage) {
-        console.error("Quotation save validation failed", { rpc: "save_finance_quotation_draft", payload: draftSavePayload, validation: invalidPayloadMessage });
+        console.error("Quotation save validation failed", { rpc: "save_finance_quotation_draft_atomic", safePayload: getSafeAtomicDraftPayloadDiagnostic(draftSavePayload), validation: invalidPayloadMessage });
         alert("ข้อมูลใบเสนอราคายังไม่ครบถ้วน กรุณาตรวจสอบรายการที่ระบุ");
         setSaving(false);
         return { ok: false, stage: "quotation", message: invalidPayloadMessage } as SaveAllResult;
       }
 
-      const { error: updateError } = await supabase.rpc("save_finance_quotation_draft", draftSavePayload);
+      const { error: updateError } = await supabase.rpc("save_finance_quotation_draft_atomic", draftSavePayload);
       if (updateError) {
-        console.error("Quotation save failed", {
-          rpc: "save_finance_quotation_draft",
-          payload: draftSavePayload,
+        console.error("Atomic quotation draft save failed", {
+          rpc: "save_finance_quotation_draft_atomic",
+          safePayload: getSafeAtomicDraftPayloadDiagnostic(draftSavePayload),
           code: updateError.code,
           message: updateError.message,
           details: updateError.details,
           hint: updateError.hint,
           status: (updateError as typeof updateError & { status?: number }).status,
         });
-        const message = getQuotationDraftSaveErrorMessage(updateError);
+        const message = getAtomicDraftEditErrorMessage(updateError);
         alert(message);
         setSaving(false);
         return { ok: false, stage: "quotation", message } as SaveAllResult;
-      }
-
-      const { error: taxModeError } = await supabase.rpc("apply_finance_quotation_draft_item_tax_modes", {
-        p_quotation_id: quotationId,
-        p_items: buildItemPayload(quotationId, normalizedItems),
-      });
-      if (taxModeError) {
-        console.error("Quotation tax-mode save failed", { quotationId, error: taxModeError });
-        alert(getQuotationDraftSaveErrorMessage(taxModeError));
-        setSaving(false);
-        return { ok: false, stage: "quotation", message: taxModeError.message } as SaveAllResult;
       }
 
       await createAuditLog({
@@ -1075,32 +1107,8 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
         action: "update",
         note: `Replaced quotation line items for ${quotation?.quotation_no || quotationId}; item count ${normalizedItems.length}`,
       });
-      const savedItemRes = await supabase
-        .from("finance_quotation_items")
-        .select("*")
-        .eq("quotation_id", quotationId)
-        .order("sort_order", { ascending: true });
-      if (savedItemRes.error || savedItemRes.data?.length !== normalizedItems.length) {
-        console.error("Failed to resolve saved quotation items before payment allocation save", {
-          quotationId,
-          expectedItemCount: normalizedItems.length,
-          actualItemCount: savedItemRes.data?.length ?? null,
-          error: savedItemRes.error,
-        });
-        alert("บันทึกรายการค่าบริการแล้ว แต่ไม่สามารถจับคู่รายการสำหรับเงื่อนไขการชำระเงินได้ กรุณาลองใหม่");
-        setSaving(false);
-        return { ok: false, stage: "refetch", message: "Unable to resolve saved quotation item ids." } as SaveAllResult;
-      }
-      const paymentTermsSaved = paymentTermsSaveRef.current
-        ? await paymentTermsSaveRef.current(savedItemRes.data as QuotationItemRow[])
-        : true;
-      if (!paymentTermsSaved) {
-        setSaveMessage("บันทึกข้อมูลใบเสนอราคาแล้ว แต่บันทึกเงื่อนไขการชำระเงินไม่สำเร็จ");
-        alert("บันทึกข้อมูลใบเสนอราคาแล้ว แต่บันทึกเงื่อนไขการชำระเงินไม่สำเร็จ");
-        setSaving(false);
-        return { ok: false, stage: "payment_terms", message: "บันทึกข้อมูลใบเสนอราคาแล้ว แต่บันทึกเงื่อนไขการชำระเงินไม่สำเร็จ" } as SaveAllResult;
-      }
       const reloaded = await loadFormData(false);
+      setPaymentTermsReloadVersion((current) => current + 1);
       setSaving(false);
       if (!reloaded.ok) return reloaded;
       setSaveMessage("บันทึกร่างใบเสนอราคาเรียบร้อยแล้ว");
@@ -1437,7 +1445,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
         <QuotationFinancialSummary subtotalVatable={totals.subtotalVatable} subtotalNonVatable={totals.subtotalNonVatable} vatAmount={totals.vatAmount} grandTotal={totals.grandTotal} />
       </div>
 
-      {(!isEdit || (quotationId && quotation?.status === "draft")) ? <PaymentTermsEditor quotationId={quotationId} isNew={!isEdit} quotationItems={items} autoFocus={focusPaymentTerms} onFocusHandled={() => { setFocusPaymentTerms(false); const url = new URL(window.location.href); url.searchParams.delete("focus"); window.history.replaceState(null, "", url); }} onDraftPayloadChange={setNewPaymentTerms} onRegisterSave={(handler) => { paymentTermsSaveRef.current = handler; }} onSnapshotChange={setPaymentTermsSnapshot} onValidityChange={setPaymentTermsValid} /> : null}
+      {(!isEdit || (quotationId && quotation?.status === "draft")) ? <PaymentTermsEditor key={`${quotationId || "new"}-${paymentTermsReloadVersion}`} quotationId={quotationId} isNew={!isEdit} quotationItems={items} autoFocus={focusPaymentTerms} onFocusHandled={() => { setFocusPaymentTerms(false); const url = new URL(window.location.href); url.searchParams.delete("focus"); window.history.replaceState(null, "", url); }} onDraftPayloadChange={setNewPaymentTerms} onSnapshotChange={setPaymentTermsSnapshot} onValidityChange={setPaymentTermsValid} /> : null}
 
       <div style={cardStyle}>
         <div style={formGridStyle}>
@@ -1468,7 +1476,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
   );
 }
 
-function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onFocusHandled, onDraftPayloadChange, onRegisterSave, onSnapshotChange, onValidityChange }: { quotationId?: string; isNew: boolean; quotationItems: QuotationItemRow[]; autoFocus: boolean; onFocusHandled: () => void; onDraftPayloadChange: (payload: NewPaymentTermsPayload | null) => void; onRegisterSave: (handler: ((persistedItems?: QuotationItemRow[]) => Promise<boolean>) | null) => void; onSnapshotChange: (snapshot: PaymentTermsSnapshot) => void; onValidityChange: (valid: boolean) => void }) {
+function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onFocusHandled, onDraftPayloadChange, onSnapshotChange, onValidityChange }: { quotationId?: string; isNew: boolean; quotationItems: QuotationItemRow[]; autoFocus: boolean; onFocusHandled: () => void; onDraftPayloadChange: (payload: NewPaymentTermsPayload | null) => void; onSnapshotChange: (snapshot: PaymentTermsSnapshot) => void; onValidityChange: (valid: boolean) => void }) {
   const [terms, setTerms] = useState<PaymentTermsRow | null>(() => isNew ? { id: "new", payment_method_type: "single", client_summary: null } : null);
   const [method, setMethod] = useState<PaymentMethodType>("single");
   const [summary, setSummary] = useState("");
@@ -1482,7 +1490,9 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
   const hasFocusedRef = useRef(false);
   const [savedSnapshot, setSavedSnapshot] = useState("");
   const quotationItemsRef = useRef(quotationItems);
-  quotationItemsRef.current = quotationItems;
+  useEffect(() => {
+    quotationItemsRef.current = quotationItems;
+  }, [quotationItems]);
   // This projection is the only source used by both the matrix and allocation mapping.
   // Allocation rows intentionally keep only stable references, never a duplicate description.
   const lineItemSource = useMemo<PaymentLineItemSource[]>(() => quotationItems.map((item, index) => ({
@@ -1501,26 +1511,29 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
   useEffect(() => {
     if (loading) return;
     const activeReferences = new Set(lineItemSource.map(({ reference }) => reference));
-    setInstallments((current) => {
-      let didChange = false;
-      const next = current.map((installment) => {
-        const retained = installment.items.filter((allocation) => activeReferences.has(paymentAllocationReference(allocation)));
-        const existingReferences = new Set(retained.map(paymentAllocationReference));
-        const missing = allocationMode === "per_item"
-          ? lineItemSource.filter(({ reference }) => !existingReferences.has(reference)).map(({ item }) => ({
-            ...(item.id ? { quotation_item_id: item.id } : { client_item_key: item.client_item_key }),
-            allocated_amount_before_tax: 0,
-            allocated_vat_amount: 0,
-            allocated_total: 0,
-            allocation_percentage: 0,
-          }))
-          : [];
-        if (retained.length === installment.items.length && missing.length === 0) return installment;
-        didChange = true;
-        return { ...installment, items: [...retained, ...missing] };
+    const timer = window.setTimeout(() => {
+      setInstallments((current) => {
+        let didChange = false;
+        const next = current.map((installment) => {
+          const retained = installment.items.filter((allocation) => activeReferences.has(paymentAllocationReference(allocation)));
+          const existingReferences = new Set(retained.map(paymentAllocationReference));
+          const missing = allocationMode === "per_item"
+            ? lineItemSource.filter(({ reference }) => !existingReferences.has(reference)).map(({ item }) => ({
+              ...(item.id ? { quotation_item_id: item.id } : { client_item_key: item.client_item_key }),
+              allocated_amount_before_tax: 0,
+              allocated_vat_amount: 0,
+              allocated_total: 0,
+              allocation_percentage: 0,
+            }))
+            : [];
+          if (retained.length === installment.items.length && missing.length === 0) return installment;
+          didChange = true;
+          return { ...installment, items: [...retained, ...missing] };
+        });
+        return didChange ? next : current;
       });
-      return didChange ? next : current;
-    });
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [allocationMode, lineItemSource, loading]);
 
   const loadTerms = useCallback(async () => {
@@ -1625,14 +1638,9 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
   const generatedSummary = useMemo(() => buildPaymentClientSummary(method, allocationMode, installments, quotationItems), [allocationMode, installments, method, quotationItems]);
 
   useEffect(() => {
-    if (summaryIsCustom) return;
-    setSummary((current) => current === generatedSummary ? current : generatedSummary);
-  }, [generatedSummary, summaryIsCustom]);
-
-  useEffect(() => {
-    if (!isNew) return;
-    onDraftPayloadChange({ payment_method_type: method, client_summary: summaryIsCustom ? summary : generatedSummary, allocation_mode: allocationMode, installments });
-  }, [allocationMode, generatedSummary, installments, isNew, method, onDraftPayloadChange, summary, summaryIsCustom]);
+    if (loading) return;
+    onDraftPayloadChange(terms ? { payment_method_type: method, client_summary: summaryIsCustom ? summary : generatedSummary, allocation_mode: allocationMode, installments } : null);
+  }, [allocationMode, generatedSummary, installments, loading, method, onDraftPayloadChange, summary, summaryIsCustom, terms]);
 
   const effectiveSummary = summaryIsCustom ? summary : generatedSummary;
   const currentSnapshot = useMemo(() => normalizedPaymentTermsSnapshot(method, effectiveSummary, installments, allocationMode), [allocationMode, effectiveSummary, method, installments]);
@@ -1770,114 +1778,6 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
     else await loadTerms();
     setSaving(false);
   };
-  const saveTerms = async (persistedItems = quotationItems) => {
-    if (saving) return false;
-    if (!terms) return true;
-    if (installments.length === 0) { alert("กรุณาเพิ่มอย่างน้อยหนึ่งงวด"); return false; }
-    if (!paymentTermsValid) {
-      const issue = allocationValidationIssue?.message || paymentTermsValidationMessage || "กรุณาตรวจสอบเงื่อนไขการชำระเงิน";
-      alert(issue);
-      if (allocationValidationIssue) focusPaymentAllocationValidationIssue(allocationValidationIssue);
-      else {
-        const planIssue = getPaymentTermsPlanValidationIssue(method, installments, allocationMode);
-        if (planIssue) focusPaymentTermsValidationIssue(planIssue);
-      }
-      return false;
-    }
-    setSaving(true);
-    const persistedItemsBySourceReference = new Map(lineItemSource.map(({ item, reference }, index) => {
-      const persisted = persistedItems.find((candidate) => candidate.id && candidate.id === item.id)
-        || persistedItems.find((candidate) => candidate.sort_order === item.sort_order)
-        || persistedItems[index];
-      return [reference, persisted] as const;
-    }));
-    const unresolvedItem = lineItemSource.find(({ reference }) => !persistedItemsBySourceReference.get(reference)?.id);
-    if (unresolvedItem) {
-      console.error("Unable to resolve quotation item for payment allocation", {
-        quotationId,
-        itemReference: unresolvedItem.reference,
-        sourceSortOrder: unresolvedItem.item.sort_order,
-      });
-      alert("ไม่สามารถจับคู่รายการค่าบริการกับเงื่อนไขการชำระเงินได้ กรุณาลองใหม่");
-      setSaving(false);
-      return false;
-    }
-    const mapAllocationToPersistedItem = (allocation: PaymentAllocation) => {
-      const persisted = persistedItemsBySourceReference.get(paymentAllocationReference(allocation));
-      if (!persisted?.id) return null;
-      return {
-        ...allocation,
-        quotation_item_id: persisted.id,
-        client_item_key: undefined,
-      };
-    };
-    const mappedInstallments = installments.map((installment) => ({
-      ...installment,
-      items: installment.items
-        .map(mapAllocationToPersistedItem)
-        .filter((allocation): allocation is NonNullable<typeof allocation> => Boolean(allocation)),
-    }));
-    const itemReferencesChanged = lineItemSource.some(({ reference }) => (
-      persistedItemsBySourceReference.get(reference)?.id !== reference
-    ));
-    const payload = installments.map((item, index) => ({
-      installment_no: index + 1,
-      title: item.title,
-      calculation_type: allocationMode === "per_item" ? "percentage" : item.calculation_type,
-      // Required by the legacy installment constraint only; per-item allocation percentages are authoritative.
-      percentage: allocationMode === "per_item" ? 100 : item.calculation_type === "percentage" ? normalizePercentage(item.percentage) : null,
-      trigger_type: forcedTrigger(method) || item.trigger_type,
-      trigger_description: item.trigger_description || null,
-      due_date: item.due_date || null,
-      payment_due_days: normalizePaymentDueDays(item.payment_due_days),
-      client_note: item.client_note || null,
-      sort_order: index,
-      items: allocationMode === "proportional_all_items" && item.calculation_type === "percentage"
-        ? persistedItems.filter((quotationItem) => quotationItem.id).map((quotationItem, itemIndex) => ({ quotation_item_id: quotationItem.id, sort_order: itemIndex }))
-        : item.items
-          .filter((allocation) => allocationMode !== "per_item" || toAmount(allocation.allocation_percentage || 0) > 0)
-          .map(mapAllocationToPersistedItem)
-          .filter((allocation): allocation is NonNullable<typeof allocation> => Boolean(allocation))
-          .map((allocation, itemIndex) => ({ ...allocation, sort_order: itemIndex })),
-    }));
-    logPaymentAllocationPreflight(allocationMode, installments, lineItemSource.map(({ item }) => item));
-    const { error } = await supabase.rpc("save_finance_quotation_payment_terms_draft_v2", {
-      p_quotation_id: quotationId,
-      p_payment_method_type: method,
-      p_client_summary: effectiveSummary,
-      p_allocation_mode: allocationMode,
-      p_installments_json: payload,
-    });
-    if (error) {
-      console.error("Failed to save quotation payment terms", {
-        quotationId,
-        code: error.code,
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        payload,
-      });
-      alert("ไม่สามารถบันทึกเงื่อนไขการชำระเงินได้ กรุณาตรวจสอบงวดและการจัดสรรยอดเงิน");
-      setSaving(false);
-      return false;
-    }
-    if (itemReferencesChanged) {
-      setInstallments(mappedInstallments);
-      setSavedSnapshot(normalizedPaymentTermsSnapshot(method, effectiveSummary, mappedInstallments, allocationMode));
-    } else {
-      await loadTerms();
-    }
-    setSaving(false);
-    return true;
-  };
-
-  useEffect(() => {
-    onRegisterSave(saveTerms);
-    return () => onRegisterSave(null);
-    // The parent callback only stores this current-state handler in a ref.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allocationMode, allocationValidationIssue, effectiveSummary, installments, lineItemSource, method, paymentTermsValidationMessage, quotationItems, terms, saving]);
-
   if (loading) return <div style={cardStyle}>Loading payment terms...</div>;
   if (!terms) return <div id="quotation-payment-terms" ref={sectionRef} tabIndex={-1} style={{ ...cardStyle, scrollMarginTop: 96 }}><h2 style={sectionTitleStyle}>เงื่อนไขการชำระเงิน / Payment Terms</h2><p style={mutedTextStyle}>ยังไม่มีเงื่อนไขการชำระเงินสำหรับใบเสนอราคาฉบับร่างนี้</p><button type="button" onClick={createDefault} disabled={saving} style={primaryButtonStyle}>{saving ? "Creating..." : "สร้างเงื่อนไขชำระเต็มจำนวน / Create Full Payment Terms"}</button></div>;
 
@@ -2506,7 +2406,9 @@ function buildItemPayload(quotationId: string, items: QuotationItemRow[]) {
       sort_order: index,
     };
     // Omit id for new rows so PostgreSQL applies gen_random_uuid(); never send id: null.
-    return normalized.id ? { ...payload, id: normalized.id } : payload;
+    return normalized.id
+      ? { ...payload, id: normalized.id }
+      : { ...payload, client_item_key: normalized.client_item_key };
   });
 }
 
@@ -2534,6 +2436,73 @@ function buildAtomicPaymentInstallments(method: PaymentMethodType, allocationMod
         sort_order: itemIndex,
       })),
   }));
+}
+
+function buildAtomicEditPaymentInstallments(method: PaymentMethodType, allocationMode: PaymentAllocationMode, installments: PaymentInstallment[], quotationItems: QuotationItemRow[]) {
+  const itemReference = (item: QuotationItemRow | PaymentAllocation) => (
+    "quotation_item_id" in item && item.quotation_item_id
+      ? { quotation_item_id: item.quotation_item_id }
+      : "id" in item && item.id
+        ? { quotation_item_id: item.id }
+        : { client_item_key: item.client_item_key }
+  );
+
+  return installments.map((installment, index) => ({
+    allocation_mode: allocationMode,
+    installment_no: index + 1,
+    title: installment.title,
+    calculation_type: allocationMode === "per_item" ? "percentage" : installment.calculation_type,
+    // Required only by the legacy installment constraint in per-item mode.
+    percentage: allocationMode === "per_item" ? 100 : installment.calculation_type === "percentage" ? normalizePercentage(installment.percentage) : null,
+    trigger_type: getForcedPaymentTrigger(method) || installment.trigger_type,
+    trigger_description: installment.trigger_description || null,
+    due_date: installment.due_date || null,
+    payment_due_days: normalizePaymentDueDays(installment.payment_due_days),
+    client_note: installment.client_note || null,
+    sort_order: index,
+    items: allocationMode === "proportional_all_items" && installment.calculation_type === "percentage"
+      ? quotationItems.map((item, itemIndex) => ({ ...itemReference(item), sort_order: itemIndex }))
+      : installment.items
+        .filter((allocation) => allocationMode !== "per_item" || toAmount(allocation.allocation_percentage || 0) > 0)
+        .map((allocation, itemIndex) => ({
+          ...itemReference(allocation),
+          allocated_amount_before_tax: allocation.allocated_amount_before_tax,
+          allocated_vat_amount: allocation.allocated_vat_amount,
+          allocated_total: allocation.allocated_total,
+          allocation_percentage: allocation.allocation_percentage,
+          sort_order: itemIndex,
+        })),
+  }));
+}
+
+function getAtomicEditPaymentAllocationMappingError(
+  items: QuotationItemRow[],
+  installments: Array<{ items?: Array<{ quotation_item_id?: string; client_item_key?: string }> }>,
+) {
+  const itemIds = new Set(items.map((item) => item.id).filter((id): id is string => Boolean(id)));
+  const itemKeys = new Set(items.map((item) => item.client_item_key).filter((key): key is string => Boolean(key)));
+  const unresolvedNewItem = items.find((item) => !item.id && !item.client_item_key);
+  if (unresolvedNewItem) {
+    return {
+      message: `ไม่สามารถจับคู่รายการ ${unresolvedNewItem.description.trim() || "ค่าบริการใหม่"} กับเงื่อนไขการชำระเงินได้`,
+      issue: { message: "", itemReference: "", installmentIndex: 0 },
+    };
+  }
+
+  for (const [installmentIndex, installment] of installments.entries()) {
+    const staleAllocation = (installment.items || []).find((allocation) => (
+      allocation.quotation_item_id
+        ? !itemIds.has(allocation.quotation_item_id)
+        : !allocation.client_item_key || !itemKeys.has(allocation.client_item_key)
+    ));
+    if (staleAllocation) {
+      return {
+        message: `งวดที่ ${installmentIndex + 1} มีข้อมูลจัดสรรที่ไม่ตรงกับรายการค่าบริการปัจจุบัน`,
+        issue: { message: "", itemReference: staleAllocation.quotation_item_id || staleAllocation.client_item_key, installmentIndex },
+      };
+    }
+  }
+  return null;
 }
 
 function getAtomicPaymentAllocationMappingError(
@@ -2571,6 +2540,16 @@ function getAtomicDraftCreateErrorMessage(error: { message?: string | null } | n
   return "สร้างร่างใบเสนอราคาไม่สำเร็จ ข้อมูลยังไม่ถูกบันทึก";
 }
 
+function getAtomicDraftEditErrorMessage(error: { code?: string | null; message?: string | null } | null) {
+  const message = String(error?.message || "").toLowerCase();
+  if (message.includes("allocation item") || message.includes("could not be mapped")) return "พบรายการในเงื่อนไขการชำระเงินที่ไม่ตรงกับรายการค่าบริการ กรุณาตรวจสอบอีกครั้ง";
+  if (message.includes("invalid installment data") || message.includes("invalid payment terms")) return "กรุณาตรวจสอบข้อมูลงวดและการจัดสรรค่าบริการ";
+  if (message.includes("percentage") && (message.includes("exceed") || message.includes("invalid"))) return "กรุณาตรวจสอบสัดส่วนการจัดสรรของแต่ละรายการ";
+  if (message.includes("only draft")) return "ใบเสนอราคานี้ไม่อยู่ในสถานะร่าง จึงไม่สามารถแก้ไขได้";
+  if (message.includes("not allowed")) return "คุณไม่มีสิทธิ์บันทึกใบเสนอราคานี้";
+  return getQuotationDraftSaveErrorMessage(error || {});
+}
+
 function getSafeAtomicDraftPayloadDiagnostic(payload: object) {
   const value = payload as {
     p_client_id?: string | null;
@@ -2579,6 +2558,7 @@ function getSafeAtomicDraftPayloadDiagnostic(payload: object) {
     p_issue_date?: string | null;
     p_valid_until?: string | null;
     p_payment_method_type?: string | null;
+    p_allocation_mode?: string | null;
     p_items?: Array<Record<string, unknown>>;
     p_installments_json?: Array<Record<string, unknown>>;
   };
@@ -2589,9 +2569,11 @@ function getSafeAtomicDraftPayloadDiagnostic(payload: object) {
     issueDate: value.p_issue_date || null,
     validUntil: value.p_valid_until || null,
     paymentMethodType: value.p_payment_method_type || null,
+    allocationMode: value.p_allocation_mode || null,
     itemCount: (value.p_items || []).length,
     installmentCount: (value.p_installments_json || []).length,
     items: (value.p_items || []).map((item) => ({
+      id: item.id || null,
       client_item_key: item.client_item_key || null,
       quantity: item.quantity || null,
       unit_price: item.unit_price || null,
@@ -2609,8 +2591,12 @@ function getSafeAtomicDraftPayloadDiagnostic(payload: object) {
       has_trigger_description: Boolean(String(installment.trigger_description || "").trim()),
       due_date: installment.due_date || null,
       payment_due_days: installment.payment_due_days ?? null,
-      allocation_client_item_keys: Array.isArray(installment.items)
-        ? installment.items.map((allocation) => (allocation && typeof allocation === "object" ? (allocation as Record<string, unknown>).client_item_key || null : null))
+      allocation_item_references: Array.isArray(installment.items)
+        ? installment.items.map((allocation) => {
+          if (!allocation || typeof allocation !== "object") return null;
+          const row = allocation as Record<string, unknown>;
+          return row.quotation_item_id || row.client_item_key || null;
+        })
         : [],
     })),
   };
