@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -39,6 +39,7 @@ type CustomClause = { title: string; content: string; sort_order: number };
 type LegalForm = { language: string; commencementDate: string; templateVersionId: string; scopeClarification: string; clientObligations: string; firmObligations: string; exclusions: string; expenses: string; confidentiality: string; termination: string; dispute: string; additionalTerms: string; internalNote: string; signatories: FeeAgreementSignatory[]; clauses: CustomClause[]; warnings: string[] };
 type MetadataForm = { title: string; effectiveDate: string; expiryDate: string; billingMethod: string };
 type ClientRow = { id: string; name: string | null; client_type: string | null; contact_name: string | null };
+type SaveDomain = "metadata" | "legal";
 
 const defaultTitle = "สัญญาว่าจ้างให้บริการทางกฎหมาย";
 const statusLabel: Record<string, string> = { draft: "ร่าง", under_review: "อยู่ระหว่างตรวจทาน", sent: "ส่งแล้ว", signed: "ลงนามแล้ว", completed: "เสร็จสมบูรณ์", cancelled: "ยกเลิก", active: "Active เดิม" };
@@ -69,8 +70,14 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
   const [agreement, setAgreement] = useState<Agreement | null>(null); const [items, setItems] = useState<Item[]>([]); const [quote, setQuote] = useState<Quote | null>(null); const [versions, setVersions] = useState<Version[]>([]); const [templates, setTemplates] = useState<Template[]>([]); const [templateContent, setTemplateContent] = useState<Json>({});
   const [authorizedSigners, setAuthorizedSigners] = useState<AuthorizedSigner[]>([]); const [clientContext, setClientContext] = useState<FeeAgreementClientContext>({ id: "", name: "", clientType: "", contactName: "" });
   const [metadata, setMetadata] = useState<MetadataForm>({ title: "", effectiveDate: "", expiryDate: "", billingMethod: "single" }); const [legal, setLegal] = useState<LegalForm>(emptyLegalForm);
-  const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [saving, setSaving] = useState(false); const [lifecycleSaving, setLifecycleSaving] = useState(false); const [message, setMessage] = useState(""); const [dirty, setDirty] = useState(false);
+  const [metadataBaseline, setMetadataBaseline] = useState(""); const [legalBaseline, setLegalBaseline] = useState("");
+  const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [savingDomain, setSavingDomain] = useState<SaveDomain | null>(null); const [lifecycleSaving, setLifecycleSaving] = useState(false); const [message, setMessage] = useState("");
+  const saveLock = useRef(false);
   const editable = Boolean(agreement && permissions.canEditFinanceQuotation && ["draft", "under_review"].includes(agreement.status));
+  const saving = savingDomain !== null;
+  const metadataDirty = Boolean(agreement && metadataBaseline && metadataFingerprint(metadata) !== metadataBaseline);
+  const legalDirty = Boolean(agreement && legalBaseline && legalFingerprint(legal, agreement) !== legalBaseline);
+  const dirty = metadataDirty || legalDirty;
 
   const load = useCallback(async () => {
     if (!id) { setError("ไม่พบสัญญาว่าจ้าง"); setLoading(false); return; }
@@ -102,38 +109,55 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
       clientType: text(clientSnapshot.client_type, currentClient?.client_type || ""),
       contactName: currentClient?.contact_name || "",
     };
+    const nextMetadata = { title: isDefaultTitle(row.title) ? defaultTitle : row.title, effectiveDate: row.effective_date || "", expiryDate: row.expiry_date || "", billingMethod: row.billing_method };
     const nextLegal = legalFrom(row);
     const proposedSignatories = nextLegal.signatories.length ? nextLegal.signatories : buildInitialFeeAgreementSignatories(nextClientContext, activeSigners);
     setAgreement(row); setItems((itemRes.data || []) as Item[]); setQuote((quoteRes.data || null) as Quote | null); setVersions((versionRes.data || []) as Version[]); setTemplates((templateRes.data || []) as Template[]);
     setTemplateContent(object(templateContentRes.data)); setAuthorizedSigners(activeSigners); setClientContext(nextClientContext);
-    setMetadata({ title: isDefaultTitle(row.title) ? defaultTitle : row.title, effectiveDate: row.effective_date || "", expiryDate: row.expiry_date || "", billingMethod: row.billing_method }); setLegal({ ...nextLegal, signatories: proposedSignatories }); setDirty(!nextLegal.signatories.length && proposedSignatories.length > 0); setLoading(false);
+    setMetadata(nextMetadata); setMetadataBaseline(metadataFingerprint(nextMetadata));
+    setLegal({ ...nextLegal, signatories: proposedSignatories }); setLegalBaseline(legalFingerprint(nextLegal, row)); setLoading(false);
   }, [id]);
   useEffect(() => { const timer = window.setTimeout(() => { void load(); }, 0); return () => window.clearTimeout(timer); }, [load]);
   useEffect(() => { const warn = (event: BeforeUnloadEvent) => { if (dirty) { event.preventDefault(); event.returnValue = ""; } }; window.addEventListener("beforeunload", warn); return () => window.removeEventListener("beforeunload", warn); }, [dirty]);
-  const setMeta = (next: MetadataForm) => { setMetadata(next); setDirty(true); };
-  const setLegalForm = (next: LegalForm) => { setLegal(next); setDirty(true); };
+  const setMeta = (next: MetadataForm) => { setMetadata(next); };
+  const setLegalForm = (next: LegalForm) => { setLegal(next); };
   const saveMetadata = async () => {
-    if (!agreement || !editable || saving) return;
+    if (!agreement || !editable || saveLock.current) return;
+    if (!metadataDirty) { setMessage("ไม่มีการเปลี่ยนแปลงที่ต้องบันทึก"); return; }
     if (!metadata.title.trim()) { setError("กรุณาระบุชื่อสัญญา"); return; }
     if (metadata.effectiveDate && metadata.expiryDate && metadata.expiryDate < metadata.effectiveDate) { setError("วันที่สิ้นสุดต้องไม่ก่อนวันที่มีผล"); return; }
-    setSaving(true); setError(""); setMessage("");
-    const result = await supabase.rpc("save_finance_fee_agreement_draft_metadata", { p_fee_agreement_id: agreement.id, p_title: metadata.title.trim(), p_effective_date: metadata.effectiveDate || null, p_expiry_date: metadata.expiryDate || null, p_billing_method: metadata.billingMethod });
-    if (result.error) setError(mapRpcError(result.error.message)); else { await load(); setMessage("บันทึกข้อมูลเอกสารและสร้างประวัติเวอร์ชันแล้ว"); }
-    setSaving(false);
+    const pendingLegal = legal; const preserveLegal = legalDirty;
+    saveLock.current = true; setSavingDomain("metadata"); setError(""); setMessage("");
+    try {
+      const result = await supabase.rpc("save_finance_fee_agreement_draft_metadata", { p_fee_agreement_id: agreement.id, p_title: metadata.title.trim(), p_effective_date: metadata.effectiveDate || null, p_expiry_date: metadata.expiryDate || null, p_billing_method: metadata.billingMethod });
+      if (result.error) setError(mapRpcError(result.error.message));
+      else { await load(); if (preserveLegal) setLegal(pendingLegal); setMessage("บันทึกการเปลี่ยนแปลงแล้ว"); }
+    } catch (saveError) {
+      console.error("Failed to save fee agreement metadata", saveError);
+      setError("ไม่สามารถบันทึกข้อมูลได้ กรุณาลองอีกครั้ง");
+    } finally {
+      saveLock.current = false; setSavingDomain(null);
+    }
   };
   const saveLegal = async () => {
-    if (!agreement || !editable || saving) return;
+    if (!agreement || !editable || saveLock.current) return;
+    if (!legalDirty) { setMessage("ไม่มีการเปลี่ยนแปลงที่ต้องบันทึก"); return; }
     const templateSelected = Boolean(legal.templateVersionId);
     const signatoryError = validateSignatories(legal.signatories, clientContext); const clauseError = templateSelected ? "" : validateClauses(legal.clauses);
     if (signatoryError || clauseError) { setError(signatoryError || clauseError || ""); return; }
-    setSaving(true); setError(""); setMessage("");
-    const terms = templateSelected
-      ? { ...object(agreement.legal_terms_json), internal_note: blank(legal.internalNote) }
-      : { scope_clarification: blank(legal.scopeClarification), client_obligations: blank(legal.clientObligations), firm_obligations: blank(legal.firmObligations), exclusions: blank(legal.exclusions), expenses_disbursements: blank(legal.expenses), confidentiality: blank(legal.confidentiality), termination_provisions: blank(legal.termination), dispute_jurisdiction: blank(legal.dispute), additional_terms: blank(legal.additionalTerms), internal_note: blank(legal.internalNote) };
-    const legacyClauses = templateSelected ? (agreement.custom_clauses_json || []) : [...legal.clauses].sort((a, b) => a.sort_order - b.sort_order);
-    const result = await supabase.rpc("save_finance_fee_agreement_draft_legal_terms", { p_fee_agreement_id: agreement.id, p_legal_terms_json: terms, p_signatories_json: resequenceFeeAgreementSignatories(legal.signatories), p_custom_clauses_json: legacyClauses, p_template_version_id: legal.templateVersionId || null, p_language_code: legal.language, p_commencement_date: legal.commencementDate || null });
-    if (result.error) setError(mapRpcError(result.error.message)); else { await load(); setMessage("บันทึกข้อกำหนดสัญญาและสร้างประวัติเวอร์ชันแล้ว"); }
-    setSaving(false);
+    const pendingMetadata = metadata; const preserveMetadata = metadataDirty;
+    const payload = legalSavePayload(legal, agreement);
+    saveLock.current = true; setSavingDomain("legal"); setError(""); setMessage("");
+    try {
+      const result = await supabase.rpc("save_finance_fee_agreement_draft_legal_terms", { p_fee_agreement_id: agreement.id, ...payload });
+      if (result.error) setError(mapRpcError(result.error.message));
+      else { await load(); if (preserveMetadata) setMetadata(pendingMetadata); setMessage("บันทึกการเปลี่ยนแปลงแล้ว"); }
+    } catch (saveError) {
+      console.error("Failed to save fee agreement legal terms", saveError);
+      setError("ไม่สามารถบันทึกข้อมูลได้ กรุณาลองอีกครั้ง");
+    } finally {
+      saveLock.current = false; setSavingDomain(null);
+    }
   };
   const changeStatus = async (next: "under_review" | "sent" | "signed" | "completed" | "cancelled") => {
     if (!agreement || !permissions.canEditFinanceQuotation || lifecycleSaving) return;
@@ -186,22 +210,33 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
   const source = object(agreement.source_document_snapshot_json); const commercialSnapshot = object(agreement.commercial_terms_snapshot_json); const commercial = object(commercialSnapshot.commercial); const sourceQuotationNo = text(source.quotation_no, quote?.quotation_no || text(agreement.source_reference)); const client = text(agreement.client_snapshot_json?.name, text(agreement.client_snapshot_json?.display_name)); const matter = text(agreement.matter_snapshot_json?.title, text(agreement.matter_snapshot_json?.file_no, agreement.case_id || agreement.advisory_matter_id ? "-" : "เรื่องของลูกค้า")); const title = isDefaultTitle(agreement.title) ? defaultTitle : agreement.title;
   return <main style={page}><FinanceSubNav activePage="fee-agreements" permissions={permissions as never} /><div style={actions}><Link href="/finance/fee-agreements">กลับไปหน้าสัญญาว่าจ้าง</Link>{agreement.source_quotation_id ? <Link href={`/finance/quotations/${agreement.source_quotation_id}`}>เปิดใบเสนอราคาต้นทาง</Link> : null}<Link href={`/finance/fee-agreements/${agreement.id}/preview`}>ดูตัวอย่าง / พิมพ์</Link></div>{error ? <div style={warning}>{error}</div> : null}{message ? <div style={success}>{message}</div> : null}
     <header className="fee-agreement-document-header" style={documentHeader}><div><p style={eyebrow}>FEE AGREEMENT</p><h1 style={documentTitle}>{title}</h1><p style={documentNumber}>{agreement.agreement_no || "ยังไม่มีเลขที่สัญญา"}</p></div><div style={headerMeta}><StatusBadge status={agreement.status} /><span>เวอร์ชัน {agreement.document_version}</span><span>{agreement.language_code === "en" ? "English" : "ภาษาไทย"}</span><span>แก้ไขล่าสุด {date(agreement.updated_at)}</span>{agreement.source_quotation_id ? <Link href={`/finance/quotations/${agreement.source_quotation_id}`}>ใบเสนอราคาต้นทาง {sourceQuotationNo}</Link> : <span>ใบเสนอราคาต้นทาง {sourceQuotationNo}</span>}</div></header>
-    <section style={card}><h2 style={sectionTitle}>ข้อมูลเอกสาร</h2><div style={grid}><Field label="สถานะ" value={<StatusBadge status={agreement.status} />} /><Field label="ภาษา" value={agreement.language_code === "en" ? "English" : "ไทย"} /><Field label="เวอร์ชันเอกสาร" value={agreement.document_version} /><Field label="วันที่มีผล" value={date(agreement.effective_date)} /><Field label="วันที่เริ่มงาน" value={date(agreement.commencement_date)} /><Field label="วันที่สิ้นสุด/เลิกสัญญา" value={date(agreement.expiry_date)} /></div>{editable ? <><div style={formGrid}><Input label="ชื่อสัญญา" value={metadata.title} disabled={saving} onChange={(title) => setMeta({ ...metadata, title })} /><Input label="วันที่มีผล" type="date" value={metadata.effectiveDate} disabled={saving} onChange={(effectiveDate) => setMeta({ ...metadata, effectiveDate })} /><Input label="วันที่สิ้นสุด/เลิกสัญญา" type="date" value={metadata.expiryDate} disabled={saving} onChange={(expiryDate) => setMeta({ ...metadata, expiryDate })} /></div><button style={primaryButton} disabled={saving} onClick={() => void saveMetadata()}>{saving ? "กำลังบันทึก..." : "บันทึกข้อมูลเอกสาร"}</button></> : null}</section>
+    <section style={card}><h2 style={sectionTitle}>ข้อมูลเอกสาร</h2><div style={grid}><Field label="สถานะ" value={<StatusBadge status={agreement.status} />} /><Field label="ภาษา" value={agreement.language_code === "en" ? "English" : "ไทย"} /><Field label="เวอร์ชันเอกสาร" value={agreement.document_version} /><Field label="วันที่มีผล" value={date(agreement.effective_date)} /><Field label="วันที่เริ่มงาน" value={date(agreement.commencement_date)} /><Field label="วันที่สิ้นสุด/เลิกสัญญา" value={date(agreement.expiry_date)} /></div>{editable ? <><div style={formGrid}><Input label="ชื่อสัญญา" value={metadata.title} disabled={saving} onChange={(title) => setMeta({ ...metadata, title })} /><Input label="วันที่มีผล" type="date" value={metadata.effectiveDate} disabled={saving} onChange={(effectiveDate) => setMeta({ ...metadata, effectiveDate })} /><Input label="วันที่สิ้นสุด/เลิกสัญญา" type="date" value={metadata.expiryDate} disabled={saving} onChange={(expiryDate) => setMeta({ ...metadata, expiryDate })} /></div><button style={primaryButton} disabled={saving || !metadataDirty} onClick={() => void saveMetadata()}>{saveButtonLabel(metadataDirty, savingDomain === "metadata")}</button></> : null}</section>
     <section style={card}><h2 style={sectionTitle}>ข้อมูลคู่สัญญาและแหล่งที่มา</h2><p style={notice}>ข้อมูลค่าบริการและเงื่อนไขทางการค้าส่วนนี้นำมาจากใบเสนอราคาที่ได้รับการตอบรับแล้ว จึงไม่สามารถแก้ไขจากหน้านี้ได้</p><div style={grid}><Field label="ลูกค้า" value={client} /><Field label="เรื่อง/คดี" value={matter} /><Field label="ใบเสนอราคาต้นทาง" value={agreement.source_quotation_id ? <Link href={`/finance/quotations/${agreement.source_quotation_id}`}>{sourceQuotationNo}</Link> : sourceQuotationNo} /><Field label="สถานะใบเสนอราคา" value={quoteStatus(quote?.status || source.status)} /></div></section>
     <section style={card}><h2 style={sectionTitle}>ขอบเขตการให้บริการ</h2><SnapshotText label="ขอบเขตงาน" value={commercial.scope_of_legal_services || source.scope_of_legal_services} /><SnapshotText label="งานที่รวมอยู่ในค่าบริการ" value={commercial.included_services || source.included_services} /><SnapshotText label="งานหรือค่าใช้จ่ายที่ไม่รวม" value={commercial.excluded_services || source.excluded_services} /></section>
     <section style={card}><h2 style={sectionTitle}>รายการค่าบริการ</h2>{items.length ? <ItemsTable items={items} currency={agreement.currency} /> : <div style={warning}>ไม่พบรายการค่าบริการในสัญญานี้</div>}</section>
     <section style={card}><h2 style={sectionTitle}>สรุปค่าบริการ</h2>{mismatch ? <div style={warning}>ยอดรวมรายการค่าบริการไม่ตรงกับจำนวนเงินตามสัญญา กรุณาตรวจสอบข้อมูลจากใบเสนอราคาต้นทาง</div> : null}<div style={summaryGrid}><SummaryCard label="รวมก่อน VAT" value={money(agreement.amount_before_tax, agreement.currency)} /><SummaryCard label="VAT" value={money(agreement.vat_amount, agreement.currency)} /><SummaryCard label="จำนวนเงินตามสัญญา" value={money(agreement.total_amount, agreement.currency)} prominent /></div></section>
     <section style={card}><h2 style={sectionTitle}>เงื่อนไขการชำระเงิน</h2><PaymentTerms payment={object(source.payment_terms)} currency={agreement.currency} /></section>
-    <section style={card}><h2 style={sectionTitle}>{templateMode ? "ข้อกำหนดจากแม่แบบ" : "ข้อกำหนดของสัญญา"}</h2>{editable ? <LegalTermsEditor value={legal} templates={templates} disabled={saving} onChange={setLegalForm} /> : null}{templateMode ? <><p style={notice}>ถ้อยคำทางกฎหมายของข้อตกลงนี้ใช้ Published Template เป็นแหล่งข้อมูลหลัก: <strong>{selectedTemplateName}</strong></p>{hiddenLegacyWording || hiddenLegacyClauses ? <div style={warning}>พบถ้อยคำแบบเดิมที่เคยบันทึกไว้ ระบบยังเก็บข้อมูลนั้นไว้เพื่อการตรวจสอบ แต่ Template mode จะไม่ใช้หรือแสดงถ้อยคำดังกล่าวในเอกสารลูกค้า</div> : null}{templateContentMatchesSelection ? <ResolvedTemplateSections template={templateContent} variables={templateVariables} showProvenance /> : <div style={warning}>{dirty ? "บันทึก Template ที่เลือกเพื่อโหลดข้อกำหนดที่ใช้กับข้อตกลงนี้" : "ไม่สามารถโหลดข้อกำหนดจากแม่แบบได้ กรุณารีเฟรชก่อนดำเนินการต่อ"}</div>}</> : editable ? null : <LegalTermsReadOnly legal={agreement.legal_terms_json} />}{editable ? <button style={primaryButton} disabled={saving} onClick={() => void saveLegal()}>{saving ? "กำลังบันทึก..." : templateMode ? "บันทึกการตั้งค่าแม่แบบและผู้ลงนาม" : "บันทึกข้อกำหนดสัญญา"}</button> : null}</section>
+    <section style={card}><h2 style={sectionTitle}>{templateMode ? "ข้อกำหนดจากแม่แบบ" : "ข้อกำหนดของสัญญา"}</h2>{editable ? <LegalTermsEditor value={legal} templates={templates} disabled={saving} onChange={setLegalForm} /> : null}{templateMode ? <><p style={notice}>ถ้อยคำทางกฎหมายของข้อตกลงนี้ใช้ Published Template เป็นแหล่งข้อมูลหลัก: <strong>{selectedTemplateName}</strong></p>{hiddenLegacyWording || hiddenLegacyClauses ? <div style={warning}>พบถ้อยคำแบบเดิมที่เคยบันทึกไว้ ระบบยังเก็บข้อมูลนั้นไว้เพื่อการตรวจสอบ แต่ Template mode จะไม่ใช้หรือแสดงถ้อยคำดังกล่าวในเอกสารลูกค้า</div> : null}{templateContentMatchesSelection ? <ResolvedTemplateSections template={templateContent} variables={templateVariables} showProvenance /> : <div style={warning}>{dirty ? "บันทึก Template ที่เลือกเพื่อโหลดข้อกำหนดที่ใช้กับข้อตกลงนี้" : "ไม่สามารถโหลดข้อกำหนดจากแม่แบบได้ กรุณารีเฟรชก่อนดำเนินการต่อ"}</div>}</> : editable ? null : <LegalTermsReadOnly legal={agreement.legal_terms_json} />}{editable ? <button style={primaryButton} disabled={saving || !legalDirty} onClick={() => void saveLegal()}>{saveButtonLabel(legalDirty, savingDomain === "legal")}</button> : null}</section>
     <section style={card}><h2 style={sectionTitle}>ผู้ลงนาม</h2>{editable ? <FeeAgreementSignatoryEditor value={legal.signatories} client={clientContext} authorizedSigners={authorizedSigners} signatureRequirements={effectiveSignatureRequirements} disabled={saving} onChange={(signatories) => setLegalForm({ ...legal, signatories })} /> : <SignatoryList value={agreement.signatories_json || []} clientName={clientContext.name} />}</section>
     <section style={card}><h2 style={sectionTitle}>{templateMode ? "ข้อยกเว้นหรือข้อความเฉพาะข้อตกลง" : "ข้อกำหนดเพิ่มเติม"}</h2>{templateMode ? <><p style={notice}>รายการนี้อ่านจากกลไก override และ custom clause ที่ผูกกับแม่แบบโดยตรง</p>{templateContentMatchesSelection ? <TemplateAgreementChanges template={templateContent} /> : <p style={muted}>บันทึก Template ที่เลือกเพื่อดูรายการเฉพาะข้อตกลง</p>}</> : editable ? <ClauseEditor value={legal.clauses} disabled={saving} onChange={(clauses) => setLegalForm({ ...legal, clauses })} /> : <ClauseList value={agreement.custom_clauses_json || []} />}</section>
-    <section style={card}><h2 style={sectionTitle}>หมายเหตุภายใน — ไม่แสดงในเอกสารลูกค้า</h2>{editable ? <><TextArea label="ใช้สำหรับการทำงานภายในสำนักงานเท่านั้น" value={legal.internalNote} disabled={saving} onChange={(internalNote) => setLegalForm({ ...legal, internalNote })} /><button style={primaryButton} disabled={saving} onClick={() => void saveLegal()}>{saving ? "กำลังบันทึก..." : "บันทึกผู้ลงนามและหมายเหตุภายใน"}</button></> : <p style={muted}>หมายเหตุภายในไม่แสดงในสถานะอ่านอย่างเดียวหรือเอกสารสำหรับลูกค้า</p>}</section>
+    <section style={card}><h2 style={sectionTitle}>หมายเหตุภายใน — ไม่แสดงในเอกสารลูกค้า</h2>{editable ? <><TextArea label="ใช้สำหรับการทำงานภายในสำนักงานเท่านั้น" value={legal.internalNote} disabled={saving} onChange={(internalNote) => setLegalForm({ ...legal, internalNote })} /><button style={primaryButton} disabled={saving || !legalDirty} onClick={() => void saveLegal()}>{saveButtonLabel(legalDirty, savingDomain === "legal")}</button></> : <p style={muted}>หมายเหตุภายในไม่แสดงในสถานะอ่านอย่างเดียวหรือเอกสารสำหรับลูกค้า</p>}</section>
     <section style={card}><h2 style={sectionTitle}>สถานะเอกสาร</h2><p style={notice}>{editable ? "สถานะร่างและอยู่ระหว่างตรวจทานยังแก้ไขได้ ผู้จัดการ Finance เท่านั้นที่เปลี่ยนสถานะได้" : "เอกสารสถานะนี้เป็นแบบอ่านอย่างเดียว และคงหลักฐานตาม snapshot ที่บันทึกไว้"}</p>{agreement.status === "under_review" && readinessIssues.length ? <div style={warning}><strong>ยังไม่สามารถส่งเอกสารให้ลูกค้าได้ กรุณาตรวจสอบ:</strong><ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>{readinessIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul></div> : null}{permissions.canEditFinanceQuotation ? <div style={actions}>{lifecycleActions(agreement.status).map((action) => <button key={action.status} style={action.status === "cancelled" ? dangerButton : secondaryButton} disabled={lifecycleSaving || (action.status === "sent" && readinessIssues.length > 0)} onClick={() => void changeStatus(action.status)}>{lifecycleSaving ? "กำลังดำเนินการ..." : action.label}</button>)}</div> : null}</section>
     <section style={card}><h2 style={sectionTitle}>ประวัติเวอร์ชัน</h2>{versions.length ? <div style={scroll}><table style={table}><thead><tr><th>เวอร์ชัน</th><th>รายการเปลี่ยนแปลง</th><th>ผู้ดำเนินการ</th><th>วันเวลา</th><th>เหตุผล</th></tr></thead><tbody>{versions.map((version) => <tr key={version.id}><td>v{version.version_no}</td><td>{versionEventLabel(version.event_type)}</td><td>{version.actor_name || version.actor_email || "-"}</td><td>{new Date(version.created_at).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}</td><td>{version.reason || "-"}</td></tr>)}</tbody></table></div> : <p style={muted}>ยังไม่มีประวัติเวอร์ชันสำหรับข้อมูลเดิม</p>}</section>
   <style jsx global>{`@media (max-width: 720px) { .fee-agreement-document-header { grid-template-columns: 1fr !important; } .fee-agreement-signatory-grid, .fee-agreement-clause-grid { grid-template-columns: minmax(0, 1fr) !important; } .fee-agreement-detail-table { min-width: 720px !important; } }`}</style></main>;
 }
 
 const emptyLegalForm: LegalForm = { language: "th", commencementDate: "", templateVersionId: "", scopeClarification: "", clientObligations: "", firmObligations: "", exclusions: "", expenses: "", confidentiality: "", termination: "", dispute: "", additionalTerms: "", internalNote: "", signatories: [], clauses: [], warnings: [] };
+function metadataFingerprint(value: MetadataForm) { return JSON.stringify({ title: value.title.trim(), effectiveDate: value.effectiveDate || null, expiryDate: value.expiryDate || null, billingMethod: value.billingMethod }); }
+function legalSavePayload(value: LegalForm, agreement: Agreement) {
+  const templateSelected = Boolean(value.templateVersionId);
+  const terms = templateSelected
+    ? { ...object(agreement.legal_terms_json), internal_note: blank(value.internalNote) }
+    : { scope_clarification: blank(value.scopeClarification), client_obligations: blank(value.clientObligations), firm_obligations: blank(value.firmObligations), exclusions: blank(value.exclusions), expenses_disbursements: blank(value.expenses), confidentiality: blank(value.confidentiality), termination_provisions: blank(value.termination), dispute_jurisdiction: blank(value.dispute), additional_terms: blank(value.additionalTerms), internal_note: blank(value.internalNote) };
+  const clauses = templateSelected ? (agreement.custom_clauses_json || []) : [...value.clauses].sort((a, b) => a.sort_order - b.sort_order);
+  return { p_legal_terms_json: terms, p_signatories_json: resequenceFeeAgreementSignatories(value.signatories), p_custom_clauses_json: clauses, p_template_version_id: value.templateVersionId || null, p_language_code: value.language, p_commencement_date: value.commencementDate || null };
+}
+function legalFingerprint(value: LegalForm, agreement: Agreement) { return JSON.stringify(legalSavePayload(value, agreement)); }
+function saveButtonLabel(isDirty: boolean, isSaving: boolean) { if (isSaving) return "กำลังบันทึก..."; return isDirty ? "บันทึกการเปลี่ยนแปลง" : "บันทึกแล้ว"; }
 function legalFrom(agreement: Agreement): LegalForm { const legal = object(agreement.legal_terms_json); const signs = parseSignatories(agreement.signatories_json); const clauses = parseClauses(agreement.custom_clauses_json); return { language: agreement.language_code || "th", commencementDate: agreement.commencement_date || "", templateVersionId: agreement.selected_template_version_id || "", scopeClarification: text(legal.scope_clarification, ""), clientObligations: text(legal.client_obligations, ""), firmObligations: text(legal.firm_obligations, ""), exclusions: text(legal.exclusions, ""), expenses: text(legal.expenses_disbursements, ""), confidentiality: text(legal.confidentiality, ""), termination: text(legal.termination_provisions, ""), dispute: text(legal.dispute_jurisdiction, ""), additionalTerms: text(legal.additional_terms, ""), internalNote: text(legal.internal_note, ""), signatories: signs.rows, clauses: clauses.rows, warnings: [...signs.warnings, ...clauses.warnings] }; }
 function parseSignatories(value: unknown) { const warnings: string[] = []; const rows = normalizeFeeAgreementSignatories(value); if (array(value).length !== rows.length || rows.some((row) => !row.name || !row.party_type)) warnings.push("พบข้อมูลผู้ลงนามเดิมที่ไม่สมบูรณ์ โปรดตรวจสอบและบันทึกใหม่"); return { rows, warnings }; }
 function parseClauses(value: unknown) { const warnings: string[] = []; const rows = array(value).flatMap((item, index) => { const row = object(item); const content = text(row.content, ""); const title = text(row.title, ""); if ((!title || !content) && Object.keys(row).length) warnings.push("พบข้อกำหนดเพิ่มเติมเดิมที่ไม่สมบูรณ์ โปรดตรวจสอบและบันทึกใหม่"); return title || content ? [{ title, content, sort_order: Number(row.sort_order || row.order || index + 1) || index + 1 }] : []; }); return { rows, warnings }; }
