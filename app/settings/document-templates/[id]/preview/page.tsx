@@ -460,12 +460,12 @@ function Execution({ section, requirements, signatories, variables, languageCode
   const minimumWitness = Math.max(requirements.witness_required === true ? 1 : 0, Number(requirements.minimum_witnesses || 0));
   return (
     <section className={styles.execution} data-section-code={section.section_code}>
-      <p>{feeAgreementClosingCopy({ mode: executionMode, hasWitnesses: witness.length > 0 || minimumWitness > 0, languageCode })}</p>
-      <div className={styles.signatureGrid}>
-        {signatureSlots("ผู้ให้บริการ", firm, minimumFirm)}
+      <p className={styles.executionAttestation}>{feeAgreementClosingCopy({ mode: executionMode, hasWitnesses: witness.length > 0 || minimumWitness > 0, languageCode })}</p>
+      <div className={`${styles.signatureGrid} ${styles.principalSignatureGrid}`}>
         {signatureSlots("ผู้ว่าจ้าง", client, minimumClient)}
-        {witness.length || minimumWitness ? signatureSlots("พยาน", witness, minimumWitness) : null}
+        {signatureSlots("ผู้ให้บริการ", firm, minimumFirm)}
       </div>
+      {witness.length || minimumWitness ? <div className={`${styles.signatureGrid} ${styles.witnessSignatureGrid}`}>{signatureSlots("พยาน", witness, minimumWitness)}</div> : null}
     </section>
   );
 }
