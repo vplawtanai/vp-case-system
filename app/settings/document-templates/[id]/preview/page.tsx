@@ -393,7 +393,6 @@ export default function DraftTemplatePreviewPage() {
                           const clause = slot.clause_version_id ? clauseById.get(slot.clause_version_id) : null;
                           return clause ? (
                             <div key={slot.id} className={styles.clause}>
-                              <h3>{slotTitle(slot, clause)}</h3>
                               <p>{interpolateControlledVariables(clause.content, variableMap)}</p>
                             </div>
                           ) : (
@@ -567,12 +566,6 @@ function interpolateControlledVariables(content: string, variables: Record<strin
 function sectionTitle(section: SectionRow) {
   const prefix = section.display_label || section.display_number || "";
   return prefix ? `${prefix} ${section.title}` : section.title;
-}
-
-function slotTitle(slot: SlotRow, clause: ClauseVersionRow) {
-  if (slot.numbering_style === "none") return clause.title;
-  const prefix = slot.display_label || slot.display_number || "";
-  return prefix ? `${prefix} ${clause.title}` : clause.title;
 }
 
 function contextLabel(context: AgreementContextRow) {

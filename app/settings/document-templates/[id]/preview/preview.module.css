@@ -200,19 +200,11 @@
 }
 
 .clause {
-  padding: 9px 0 3px;
-  break-inside: avoid;
-  page-break-inside: avoid;
+  padding: 6px 0 8px;
 }
 
 .clause + .clause {
   border-top: 1px solid #eef1f4;
-}
-
-.clause h3 {
-  margin: 0 0 5px;
-  color: #27364a;
-  font-size: 14px;
 }
 
 .clause p,
@@ -220,6 +212,8 @@
   margin: 0;
   white-space: pre-wrap;
   overflow-wrap: break-word;
+  orphans: 3;
+  widows: 3;
 }
 
 .missing {

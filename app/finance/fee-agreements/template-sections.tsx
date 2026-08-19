@@ -109,11 +109,10 @@ function slotIsRendered(slot: Json) {
 }
 
 function ResolvedClause({ clause, variables, showProvenance }: { clause: Json; variables: Record<string, string>; showProvenance: boolean }) {
-  const title = clauseTitle(clause);
   const content = interpolateControlledVariables(asText(clause.content, "-"), variables);
   const origin = asText(clause.origin_type);
   return <div style={clauseStyle} data-origin-type={origin || undefined}>
-    <h3 style={clauseTitleStyle}>{title}</h3>
+    {showProvenance ? <h3 style={clauseTitleStyle}>{clauseTitle(clause)}</h3> : null}
     {showProvenance && origin === "document_override" ? <div style={provenance}>ข้อความทดแทนเฉพาะข้อตกลงนี้</div> : null}
     {showProvenance && origin === "document_custom_clause" ? <div style={provenance}>ข้อความเฉพาะข้อตกลงนี้</div> : null}
     <p style={clauseContent}>{content}</p>
@@ -139,9 +138,9 @@ function clauseTitle(clause: Json) {
 
 const sectionStyle = { margin: "20px 0", breakInside: "auto" as const };
 const sectionTitle = { color: "#15803d", fontSize: 17, borderBottom: "1px solid #bbf7d0", paddingBottom: 6, margin: "0 0 10px", breakAfter: "avoid" as const };
-const clauseStyle = { padding: "8px 0", borderBottom: "1px solid #e5e7eb", breakInside: "avoid" as const };
+const clauseStyle = { padding: "6px 0 8px", borderBottom: "1px solid #e5e7eb", breakInside: "auto" as const };
 const clauseTitleStyle = { margin: "0 0 5px", fontSize: 14, color: "#1f2937" };
-const clauseContent = { whiteSpace: "pre-wrap" as const, lineHeight: 1.65, margin: 0 };
+const clauseContent = { whiteSpace: "pre-wrap" as const, lineHeight: 1.68, margin: 0, orphans: 3, widows: 3 };
 const muted = { color: "#64748b", fontSize: 13 };
 const provenance = { color: "#166534", fontSize: 12, marginBottom: 5 };
 const changeList = { display: "grid", gap: 10 };

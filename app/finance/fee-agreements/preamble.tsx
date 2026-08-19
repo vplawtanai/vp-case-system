@@ -64,10 +64,12 @@ export function FeeAgreementPreamble({
   if (!isThai) {
     return <section className="fee-agreement-preamble" data-section-kind="preamble" data-section-code={text(sectionRow.section_code, "PREAMBLE")} style={sectionStyle}>
       <h2 className="fee-agreement-section-title" style={heading}>{title}</h2>
-      <p style={paragraph}>This Legal Services Agreement is made on {agreementDate} between:</p>
-      <p style={partyParagraph}><strong>{clientName}</strong>{clientAddress ? `, of ${clientAddress}` : ""} (the “Client”);</p>
-      <p style={connector}>and</p>
-      <p style={partyParagraph}><strong>{firmName}</strong>{firmAddress ? `, of ${firmAddress}` : ""} (the “Service Provider”).</p>
+      <p style={openingParagraph}>This Legal Services Agreement is made on {agreementDate} between:</p>
+      <div style={partiesBlock}>
+        <p style={partyParagraph}><strong>{clientName}</strong>{clientAddress ? `, of ${clientAddress}` : ""} (the “Client”);</p>
+        <p style={connector}>and</p>
+        <p style={partyParagraph}><strong>{firmName}</strong>{firmAddress ? `, of ${firmAddress}` : ""} (the “Service Provider”).</p>
+      </div>
       {matterName ? <p style={paragraph}>The parties agree that the Service Provider will provide legal services concerning <strong>{matterName}</strong>, subject to the scope, fees, and terms of this Agreement.</p> : null}
       <p style={paragraph}>The Client and the Service Provider are collectively referred to as the “Parties”.</p>
     </section>;
@@ -75,23 +77,25 @@ export function FeeAgreementPreamble({
 
   return <section className="fee-agreement-preamble" data-section-kind="preamble" data-section-code={text(sectionRow.section_code, "PREAMBLE")} style={sectionStyle}>
     <h2 className="fee-agreement-section-title" style={heading}>{title}</h2>
-    <p style={paragraph}>สัญญาว่าจ้างให้บริการทางกฎหมายฉบับนี้ทำขึ้น ณ วันที่ <strong>{agreementDate}</strong> ระหว่าง</p>
-    <p style={partyParagraph}>
-      <strong>{clientName}</strong>
-      {clientAddress ? ` มีที่อยู่ ณ ${clientAddress}` : ""}
-      {!isIndividual && clientTaxId ? ` เลขประจำตัวผู้เสียภาษี ${clientTaxId}` : ""}
-      {clientRepresentation(clientSigner, clientName, isIndividual)}
-      {" "}(ต่อไปในสัญญานี้เรียกว่า “ผู้ว่าจ้าง”)
-    </p>
-    <p style={connector}>กับ</p>
-    <p style={partyParagraph}>
-      <strong>{firmName}</strong>
-      {firmAddress ? ` มีสำนักงานตั้งอยู่ ณ ${firmAddress}` : ""}
-      {firmTaxId ? ` เลขประจำตัวผู้เสียภาษี ${firmTaxId}` : ""}
-      {branch ? ` (${branch})` : ""}
-      {" "}(ต่อไปในสัญญานี้เรียกว่า “ผู้ให้บริการ”)
-    </p>
-    {matterName ? <p style={paragraph}>คู่สัญญาตกลงว่าจ้างและให้บริการทางกฎหมายเกี่ยวกับ <strong>{matterName}</strong> ตามขอบเขต ค่าบริการ และเงื่อนไขที่กำหนดไว้ในสัญญานี้</p> : null}
+    <p style={openingParagraph}>สัญญาว่าจ้างให้บริการทางกฎหมายฉบับนี้ทำขึ้น ณ วันที่ <strong>{agreementDate}</strong> ระหว่าง</p>
+    <div style={partiesBlock}>
+      <p style={partyParagraph}>
+        <strong>{clientName}</strong>
+        {clientAddress ? ` มีที่อยู่ ณ ${clientAddress}` : ""}
+        {!isIndividual && clientTaxId ? ` เลขประจำตัวผู้เสียภาษี ${clientTaxId}` : ""}
+        {clientRepresentation(clientSigner, clientName, isIndividual)}
+        {" "}(ต่อไปในสัญญานี้เรียกว่า “ผู้ว่าจ้าง”)
+      </p>
+      <p style={connector}>กับ</p>
+      <p style={partyParagraph}>
+        <strong>{firmName}</strong>
+        {firmAddress ? ` มีสำนักงานตั้งอยู่${firmAddress}` : ""}
+        {firmTaxId ? ` เลขประจำตัวผู้เสียภาษี ${firmTaxId}` : ""}
+        {branch ? ` (${branch})` : ""}
+        {" "}(ต่อไปในสัญญานี้เรียกว่า “ผู้ให้บริการ”)
+      </p>
+    </div>
+    {matterName ? <p style={paragraph}>คู่สัญญาตกลงว่าจ้างและให้บริการทางกฎหมายเกี่ยวกับเรื่อง “<strong>{matterName}</strong>” ตามขอบเขต ค่าบริการ และเงื่อนไขที่กำหนดไว้ในสัญญานี้</p> : null}
     <p style={paragraph}>ผู้ว่าจ้างและผู้ให้บริการรวมเรียกว่า “คู่สัญญา”</p>
   </section>;
 }
@@ -137,7 +141,9 @@ function firstText(...values: unknown[]) {
 }
 
 const sectionStyle = { margin: "20px 0", breakInside: "auto" as const };
-const heading = { color: "#15803d", fontSize: 17, borderBottom: "1px solid #bbf7d0", paddingBottom: 6, margin: "0 0 12px", breakAfter: "avoid" as const };
-const paragraph = { margin: "8px 0", lineHeight: 1.75, textAlign: "justify" as const, overflowWrap: "break-word" as const };
-const partyParagraph = { ...paragraph, paddingLeft: 16 };
-const connector = { margin: "8px 0", textAlign: "center" as const, fontWeight: 700 };
+const heading = { color: "#15803d", fontSize: 17, borderBottom: "1px solid #bbf7d0", paddingBottom: 6, margin: "0 0 10px", breakAfter: "avoid" as const };
+const paragraph = { margin: "7px 0", lineHeight: 1.72, textAlign: "justify" as const, overflowWrap: "break-word" as const, orphans: 3, widows: 3 };
+const openingParagraph = { ...paragraph, marginTop: 0 };
+const partiesBlock = { margin: "7px 0", breakInside: "avoid" as const, pageBreakInside: "avoid" as const };
+const partyParagraph = { ...paragraph, margin: "4px 0", paddingLeft: 14 };
+const connector = { margin: "3px 0", textAlign: "center" as const, fontWeight: 600 };
