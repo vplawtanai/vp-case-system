@@ -84,9 +84,9 @@ export function DocumentPlatformPage({
 export function DocumentPlatformSubnav() {
   const pathname = usePathname();
   const links = [
-    { href: "/settings/document-settings", label: "ตั้งค่าเอกสาร" },
-    { href: "/settings/document-templates", label: "แม่แบบเอกสาร" },
-    { href: "/settings/document-clauses", label: "คลังข้อสัญญา" },
+    { href: "/settings/document-settings", label: "Document Settings" },
+    { href: "/settings/document-templates", label: "Document Templates" },
+    { href: "/settings/document-clauses", label: "Clause Library" },
   ];
 
   return (

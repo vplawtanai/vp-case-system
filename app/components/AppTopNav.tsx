@@ -119,9 +119,9 @@ export default function AppTopNav({
       {
         title: "Settings",
         items: [
-          { page: "documentSettings" as const, label: "ตั้งค่าเอกสาร", icon: "settings" as const, href: "/settings/document-settings", visible: permissions.role === "admin" || permissions.role === "partner" },
-          { page: "documentTemplates" as const, label: "แม่แบบเอกสาร", icon: "templates" as const, href: "/settings/document-templates", visible: permissions.role === "admin" || permissions.role === "partner" },
-          { page: "documentClauses" as const, label: "คลังข้อสัญญา", icon: "clauses" as const, href: "/settings/document-clauses", visible: permissions.role === "admin" || permissions.role === "partner" },
+          { page: "documentSettings" as const, label: "Document Settings", icon: "settings" as const, href: "/settings/document-settings", visible: permissions.role === "admin" || permissions.role === "partner" },
+          { page: "documentTemplates" as const, label: "Document Templates", icon: "templates" as const, href: "/settings/document-templates", visible: permissions.role === "admin" || permissions.role === "partner" },
+          { page: "documentClauses" as const, label: "Clause Library", icon: "clauses" as const, href: "/settings/document-clauses", visible: permissions.role === "admin" || permissions.role === "partner" },
         ],
       },
       {
