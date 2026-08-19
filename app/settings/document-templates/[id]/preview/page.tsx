@@ -22,6 +22,7 @@ import {
   type FeeAgreementSignatory,
   normalizeFeeAgreementSignatories,
 } from "../../../../finance/fee-agreements/signatories";
+import { FeeAgreementPreamble } from "../../../../finance/fee-agreements/preamble";
 import styles from "./preview.module.css";
 
 type JsonObject = Record<string, unknown>;
@@ -91,6 +92,7 @@ type AgreementContextRow = {
   title: string;
   status: string;
   language_code: string;
+  agreement_date: string | null;
   effective_date: string | null;
   commencement_date: string | null;
   expiry_date: string | null;
@@ -103,7 +105,6 @@ type AgreementContextRow = {
   source_document_snapshot_json: JsonObject | null;
   commercial_terms_snapshot_json: JsonObject | null;
   signatories_json: unknown[] | null;
-  created_at: string;
 };
 
 type ResolvedVariable = {
@@ -161,7 +162,7 @@ export default function DraftTemplatePreviewPage() {
         .limit(100),
       supabase
         .from("finance_fee_agreements")
-        .select("id, agreement_no, title, status, language_code, effective_date, commencement_date, expiry_date, currency, amount_before_tax, vat_amount, total_amount, client_snapshot_json, matter_snapshot_json, source_document_snapshot_json, commercial_terms_snapshot_json, signatories_json, created_at")
+        .select("id, agreement_no, title, status, language_code, agreement_date, effective_date, commencement_date, expiry_date, currency, amount_before_tax, vat_amount, total_amount, client_snapshot_json, matter_snapshot_json, source_document_snapshot_json, commercial_terms_snapshot_json, signatories_json")
         .eq("status", "draft")
         .order("updated_at", { ascending: false })
         .limit(100),
@@ -377,7 +378,7 @@ export default function DraftTemplatePreviewPage() {
                 <article className={styles.document}>
                   {sortedSections.map((section) => {
                     if (section.section_kind === "preamble") {
-                      return <Preamble key={section.id} template={template} section={section} variables={variableMap} identity={companyProfile} logoUrl={logoUrl} languageCode={version.language_code} />;
+                      return <Preamble key={section.id} template={template} section={section} variables={variableMap} identity={companyProfile} logoUrl={logoUrl} languageCode={version.language_code} context={context} signatories={signatories} />;
                     }
                     if (section.section_kind === "execution") {
                       return <Execution key={section.id} section={section} requirements={requirements} signatories={signatories} variables={variableMap} />;
@@ -413,10 +414,10 @@ export default function DraftTemplatePreviewPage() {
   );
 }
 
-function Preamble({ template, section, variables, identity, logoUrl, languageCode }: { template: TemplateRow; section: SectionRow; variables: Record<string, string>; identity: DocumentIdentity; logoUrl: string; languageCode: string }) {
+function Preamble({ template, section, variables, identity, logoUrl, languageCode, context, signatories }: { template: TemplateRow; section: SectionRow; variables: Record<string, string>; identity: DocumentIdentity; logoUrl: string; languageCode: string; context: AgreementContextRow | null; signatories: FeeAgreementSignatory[] }) {
   const value = (key: string, label: string, fallback = "") => variables[key] || fallback || `[ยังไม่มีข้อมูล: ${label}]`;
   return (
-    <section className={styles.preamble} data-section-code={section.section_code}>
+    <>
       <DocumentIdentityHeader
         identity={identity}
         logoUrl={logoUrl}
@@ -425,22 +426,17 @@ function Preamble({ template, section, variables, identity, logoUrl, languageCod
         documentNo={value("AGREEMENT_NO", "เลขที่สัญญา")}
         languageCode={languageCode}
       />
-      <div className={styles.partyGrid}>
-        <InfoBlock title="ผู้รับบริการ / ลูกค้า" rows={[
-          ["ชื่อ", value("CLIENT_NAME", "ชื่อลูกค้า")],
-          ["เลขประจำตัวผู้เสียภาษี", value("CLIENT_TAX_ID", "เลขประจำตัวผู้เสียภาษีลูกค้า")],
-          ["ที่อยู่", value("CLIENT_ADDRESS", "ที่อยู่ลูกค้า")],
-          ["ผู้ลงนาม", value("CLIENT_SIGNATORY_NAME", "ผู้ลงนามลูกค้า")],
-          ["ตำแหน่ง/ฐานะ", value("CLIENT_SIGNATORY_TITLE", "ตำแหน่งผู้ลงนามลูกค้า")],
-        ]} />
-        <InfoBlock title="ข้อมูลเอกสารและเรื่องที่รับดำเนินการ" rows={[
-          ["วันที่สัญญา", value("AGREEMENT_DATE", "วันที่สัญญา")],
-          ["วันที่มีผล", value("EFFECTIVE_DATE", "วันที่มีผล")],
-          ["เรื่อง/คดี", value("MATTER_NAME", "ชื่อเรื่องหรือคดี")],
-          ["ใบเสนอราคาต้นทาง", value("SOURCE_QUOTATION_NO", "เลขที่ใบเสนอราคา")],
-        ]} />
-      </div>
-    </section>
+      <FeeAgreementPreamble
+        section={section}
+        variables={variables}
+        client={context?.client_snapshot_json}
+        matter={context?.matter_snapshot_json}
+        identity={identity}
+        signatories={signatories}
+        languageCode={languageCode}
+        placeholderMode={!context}
+      />
+    </>
   );
 }
 
@@ -486,10 +482,6 @@ function signatureSlots(title: string, rows: FeeAgreementSignatory[], minimum: n
   ));
 }
 
-function InfoBlock({ title, rows }: { title: string; rows: Array<[string, string]> }) {
-  return <div className={styles.infoBlock}><strong>{title}</strong>{rows.map(([label, value]) => <div className={styles.infoRow} key={label}><span>{label}</span><span>{value}</span></div>)}</div>;
-}
-
 function Diagnostic({ label, value }: { label: string; value: string }) {
   return <div><span>{label}</span><strong>{value}</strong></div>;
 }
@@ -524,7 +516,8 @@ function resolveValue(resolverKey: string, agreement: AgreementContextRow | null
   const values: Record<string, unknown> = {
     "agreement.title": agreement?.title,
     "agreement.agreement_no": agreement?.agreement_no,
-    "agreement.created_date": agreement?.created_at,
+    "agreement.agreement_date": agreement?.agreement_date,
+    "agreement.created_date": agreement?.agreement_date,
     "agreement.effective_date": agreement?.effective_date,
     "agreement.commencement_date": agreement?.commencement_date,
     "agreement.expiry_date": agreement?.expiry_date,
