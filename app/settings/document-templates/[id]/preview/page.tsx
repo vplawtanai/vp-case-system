@@ -23,6 +23,10 @@ import {
   normalizeFeeAgreementSignatories,
 } from "../../../../finance/fee-agreements/signatories";
 import { FeeAgreementPreamble } from "../../../../finance/fee-agreements/preamble";
+import {
+  feeAgreementClosingCopy,
+  normalizeFeeAgreementExecutionMode,
+} from "../../../../finance/fee-agreements/execution";
 import styles from "./preview.module.css";
 
 type JsonObject = Record<string, unknown>;
@@ -92,6 +96,7 @@ type AgreementContextRow = {
   title: string;
   status: string;
   language_code: string;
+  execution_mode: string | null;
   agreement_date: string | null;
   effective_date: string | null;
   commencement_date: string | null;
@@ -162,7 +167,7 @@ export default function DraftTemplatePreviewPage() {
         .limit(100),
       supabase
         .from("finance_fee_agreements")
-        .select("id, agreement_no, title, status, language_code, agreement_date, effective_date, commencement_date, expiry_date, currency, amount_before_tax, vat_amount, total_amount, client_snapshot_json, matter_snapshot_json, source_document_snapshot_json, commercial_terms_snapshot_json, signatories_json")
+        .select("id, agreement_no, title, status, language_code, execution_mode, agreement_date, effective_date, commencement_date, expiry_date, currency, amount_before_tax, vat_amount, total_amount, client_snapshot_json, matter_snapshot_json, source_document_snapshot_json, commercial_terms_snapshot_json, signatories_json")
         .eq("status", "draft")
         .order("updated_at", { ascending: false })
         .limit(100),
@@ -381,7 +386,7 @@ export default function DraftTemplatePreviewPage() {
                       return <Preamble key={section.id} template={template} section={section} variables={variableMap} identity={companyProfile} logoUrl={logoUrl} languageCode={version.language_code} context={context} signatories={signatories} />;
                     }
                     if (section.section_kind === "execution") {
-                      return <Execution key={section.id} section={section} requirements={requirements} signatories={signatories} variables={variableMap} />;
+                      return <Execution key={section.id} section={section} requirements={requirements} signatories={signatories} variables={variableMap} languageCode={version.language_code} executionMode={normalizeFeeAgreementExecutionMode(context?.execution_mode)} />;
                     }
                     const sectionSlots = slots
                       .filter((slot) => slot.template_section_id === section.id)
@@ -439,7 +444,7 @@ function Preamble({ template, section, variables, identity, logoUrl, languageCod
   );
 }
 
-function Execution({ section, requirements, signatories, variables }: { section: SectionRow; requirements: JsonObject; signatories: FeeAgreementSignatory[]; variables: Record<string, string> }) {
+function Execution({ section, requirements, signatories, variables, languageCode, executionMode }: { section: SectionRow; requirements: JsonObject; signatories: FeeAgreementSignatory[]; variables: Record<string, string>; languageCode: string; executionMode: "paper" | "electronic" }) {
   const rows = [...signatories];
   if (!rows.some((entry) => entry.party_type === "client") && variables.CLIENT_SIGNATORY_NAME) {
     rows.push({ name: variables.CLIENT_SIGNATORY_NAME, capacity: variables.CLIENT_SIGNATORY_TITLE || "", party_type: "client", sort_order: rows.length + 1 });
@@ -455,8 +460,7 @@ function Execution({ section, requirements, signatories, variables }: { section:
   const minimumWitness = Math.max(requirements.witness_required === true ? 1 : 0, Number(requirements.minimum_witnesses || 0));
   return (
     <section className={styles.execution} data-section-code={section.section_code}>
-      <h2>{sectionTitle(section)}</h2>
-      <p>คู่สัญญาได้อ่านและเข้าใจข้อกำหนดตามแม่แบบฉบับนี้แล้ว โดยพื้นที่ลงนามด้านล่างเป็นตัวอย่างรูปแบบเอกสารเท่านั้น</p>
+      <p>{feeAgreementClosingCopy({ mode: executionMode, hasWitnesses: witness.length > 0 || minimumWitness > 0, languageCode })}</p>
       <div className={styles.signatureGrid}>
         {signatureSlots("ผู้ให้บริการ", firm, minimumFirm)}
         {signatureSlots("ผู้ว่าจ้าง", client, minimumClient)}
