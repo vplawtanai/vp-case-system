@@ -836,7 +836,7 @@ export default function DocumentTemplateDetailPage() {
                           </div>
                           <div className={styles.sectionBody}>
                             {sectionSlots.length === 0 ? (
-                              <div className={styles.emptyState}>ยังไม่มีข้อสัญญาในส่วนนี้</div>
+                              <div className={styles.emptyState}>{emptySectionClauseMessage(section.section_kind)}</div>
                             ) : (
                               <div className={styles.slotList}>
                                 {sectionSlots.map((slot) => {
@@ -1083,6 +1083,16 @@ function SlotEditor({ form, setForm, clauseVersions, clauseFamilies, sections, s
 
 function emptySectionForm(sortOrder: number): SectionForm {
   return { id: "", section_code: "", title: "", sort_order: sortOrder, parent_section_id: "", display_number: "", display_label: "", numbering_style: "explicit", numbering_depth: 1, section_kind: "normal", is_required: true, allow_custom_after: false, risk_level: "", condition_rule_json: null, metadata_json: {} };
+}
+
+function emptySectionClauseMessage(sectionKind: string) {
+  if (sectionKind === "preamble") {
+    return "ส่วนนี้สร้างเนื้อหาอัตโนมัติจากข้อมูลสัญญาและคู่สัญญา ไม่ใช้ข้อสัญญาจาก Clause Library";
+  }
+  if (sectionKind === "execution") {
+    return "ส่วนนี้สร้างบทลงท้ายและส่วนลงนามอัตโนมัติตามข้อมูลผู้ลงนาม ไม่ใช้ข้อสัญญาจาก Clause Library";
+  }
+  return "ยังไม่มีข้อสัญญาในส่วนนี้";
 }
 
 function toSectionForm(section: SectionRow): SectionForm {
