@@ -164,7 +164,7 @@ const vpLegalServicesClauseSequence = [
   { sectionCode: "NOTICES_GENERAL", clauseCode: "NOTICES-GENERAL-TERMS-TH", sectionNumber: 13 },
 ] as const;
 
-function certificationErrorMessage(error: unknown, fallback: string) {
+function certificationErrorMessage(error: unknown, fallback: string, scope: "family" | "version") {
   const message = error && typeof error === "object" && "message" in error
     ? String(error.message)
     : "";
@@ -179,6 +179,25 @@ function certificationErrorMessage(error: unknown, fallback: string) {
   }
   if (message.includes("Not allowed to save document template")) {
     return "บัญชีนี้ไม่มีสิทธิ์รับรองแม่แบบ กรุณาติดต่อ Admin หรือ Partner";
+  }
+  if (message.includes("Invalid document template version data")) {
+    return "ข้อมูลเวอร์ชันแม่แบบไม่ถูกต้อง กรุณารีเฟรชและลองรับรองอีกครั้ง";
+  }
+  if (message.includes("Template effective date range is invalid")) {
+    return "ช่วงวันที่มีผลของเวอร์ชันแม่แบบไม่ถูกต้อง กรุณาตรวจสอบวันที่เริ่มต้นและสิ้นสุด";
+  }
+
+  const sanitizedMessage = message
+    .split(/\r?\n/, 1)[0]
+    .replace(/\b(?:DETAIL|HINT|CONTEXT):.*$/i, "")
+    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi, "[รหัสภายใน]")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 240);
+
+  if (sanitizedMessage) {
+    const prefix = scope === "family" ? "รับรองข้อมูลแม่แบบไม่สำเร็จ" : "รับรองเวอร์ชันไม่สำเร็จ";
+    return `${prefix}: ${sanitizedMessage}`;
   }
 
   return fallback;
@@ -457,28 +476,42 @@ export default function DocumentTemplateDetailPage() {
 
       if (familyResult.error) {
         await loadWorkspace(selectedVersion.id);
-        setErrorText(certificationErrorMessage(familyResult.error, "รับรองข้อมูลแม่แบบไม่สำเร็จ แม่แบบยังไม่พร้อมส่งตรวจ"));
+        setErrorText(certificationErrorMessage(familyResult.error, "รับรองข้อมูลแม่แบบไม่สำเร็จ แม่แบบยังไม่พร้อมส่งตรวจ", "family"));
         setSaving(false);
         return;
       }
     }
 
+    const certifiedDefinitionJson = {
+      ...selectedVersion.definition_json,
+      inactive_shell: false,
+      legal_wording_approved: true,
+    };
+
+    console.info("Template readiness certification request", {
+      familyStatus: template.status,
+      versionStatus: selectedVersion.status,
+      versionNumber: selectedVersion.version_no,
+      familyReadinessApproved,
+      versionReadinessApproved,
+      branch: template.status === "draft" ? "draft_family_then_version" : "active_family_version_only",
+      definitionKeys: Object.keys(certifiedDefinitionJson).sort(),
+      effectiveFromPresent: Boolean(selectedVersion.effective_from),
+      effectiveToPresent: Boolean(selectedVersion.effective_to),
+    });
+
     const versionResult = await supabase.rpc("save_document_template_version_draft", {
       p_template_version_id: selectedVersion.id,
       p_template_id: template.id,
       p_language_code: selectedVersion.language_code,
-      p_definition_json: {
-        ...selectedVersion.definition_json,
-        inactive_shell: false,
-        legal_wording_approved: true,
-      },
+      p_definition_json: certifiedDefinitionJson,
       p_effective_from: selectedVersion.effective_from,
       p_effective_to: selectedVersion.effective_to,
     });
 
     if (versionResult.error) {
       await loadWorkspace(selectedVersion.id);
-      setErrorText(certificationErrorMessage(versionResult.error, "รับรองเวอร์ชันไม่สำเร็จ ระบบยังไม่ถือว่าแม่แบบพร้อมใช้งาน โปรดลองอีกครั้ง"));
+      setErrorText(certificationErrorMessage(versionResult.error, "รับรองเวอร์ชันไม่สำเร็จ ระบบยังไม่ถือว่าแม่แบบพร้อมใช้งาน โปรดลองอีกครั้ง", "version"));
       setSaving(false);
       return;
     }
