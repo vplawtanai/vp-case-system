@@ -145,5 +145,5 @@ const heading = { color: "#15803d", fontSize: 17, borderBottom: "1px solid #bbf7
 const paragraph = { margin: "7px 0", lineHeight: 1.72, textAlign: "justify" as const, overflowWrap: "break-word" as const, orphans: 3, widows: 3 };
 const openingParagraph = { ...paragraph, marginTop: 0 };
 const partiesBlock = { margin: "7px 0", breakInside: "avoid" as const, pageBreakInside: "avoid" as const };
-const partyParagraph = { ...paragraph, margin: "4px 0", paddingLeft: 14 };
+const partyParagraph = { ...paragraph, margin: "4px 0", paddingInline: "1.75em" };
 const connector = { margin: "3px 0", textAlign: "center" as const, fontWeight: 600 };

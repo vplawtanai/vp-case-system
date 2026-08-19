@@ -458,8 +458,8 @@ function Execution({ section, requirements, signatories, variables }: { section:
       <h2>{sectionTitle(section)}</h2>
       <p>คู่สัญญาได้อ่านและเข้าใจข้อกำหนดตามแม่แบบฉบับนี้แล้ว โดยพื้นที่ลงนามด้านล่างเป็นตัวอย่างรูปแบบเอกสารเท่านั้น</p>
       <div className={styles.signatureGrid}>
-        {signatureSlots("ผู้ให้บริการ / สำนักงาน", firm, minimumFirm)}
-        {signatureSlots("ผู้รับบริการ / ลูกค้า", client, minimumClient)}
+        {signatureSlots("ผู้ให้บริการ", firm, minimumFirm)}
+        {signatureSlots("ผู้ว่าจ้าง", client, minimumClient)}
         {witness.length || minimumWitness ? signatureSlots("พยาน", witness, minimumWitness) : null}
       </div>
     </section>

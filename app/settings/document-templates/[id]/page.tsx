@@ -192,6 +192,9 @@ export default function DocumentTemplateDetailPage() {
 
   const selectedVersion = versions.find((version) => version.id === selectedVersionId) || null;
   const isDraft = selectedVersion?.status === "draft";
+  const isLatestLanguageVersion = selectedVersion
+    ? versions.every((version) => version.language_code !== selectedVersion.language_code || version.version_no <= selectedVersion.version_no)
+    : false;
   const canApprove = canApproveDocumentPlatform(access.role);
   const inactiveShell = template?.metadata_json?.inactive_shell === true
     || template?.metadata_json?.legal_wording_approved !== true
@@ -375,6 +378,23 @@ export default function DocumentTemplateDetailPage() {
     } else {
       setEditingVersion(false);
       await loadWorkspace(selectedVersion.id);
+    }
+    setSaving(false);
+  };
+
+  const clonePublishedVersion = async () => {
+    if (!selectedVersion || selectedVersion.status !== "published" || saving) return;
+    if (!window.confirm(`สร้างเวอร์ชันใหม่จากรุ่น ${selectedVersion.version_no} หรือไม่? เวอร์ชันที่เผยแพร่แล้วจะไม่ถูกแก้ไข และเวอร์ชันใหม่จะเริ่มเป็นฉบับร่างที่ต้องรับรองก่อนส่งตรวจ`)) return;
+
+    setSaving(true);
+    setErrorText("");
+    const { data, error } = await supabase.rpc("clone_document_template_version", {
+      p_source_template_version_id: selectedVersion.id,
+    });
+    if (error || !data) {
+      setErrorText(friendlyError(error, "สร้างเวอร์ชันฉบับร่างใหม่ไม่สำเร็จ"));
+    } else {
+      await loadWorkspace(String(data));
     }
     setSaving(false);
   };
@@ -806,6 +826,7 @@ export default function DocumentTemplateDetailPage() {
                     ) : null}
                     {selectedVersion?.status === "under_review" ? <button type="button" className={styles.button} onClick={() => void transitionVersion("draft")} disabled={saving}>ส่งกลับเป็นร่าง</button> : null}
                     {selectedVersion?.status === "under_review" && canApprove ? <button type="button" className={styles.buttonPrimary} onClick={() => void transitionVersion("published")} disabled={saving || inactiveShell}>เผยแพร่</button> : null}
+                    {selectedVersion?.status === "published" && isLatestLanguageVersion ? <button type="button" className={styles.buttonPrimary} onClick={() => void clonePublishedVersion()} disabled={saving}>สร้างเวอร์ชันใหม่</button> : null}
                     {selectedVersion?.status === "published" && canApprove ? <button type="button" className={styles.buttonDanger} onClick={() => void transitionVersion("retired")} disabled={saving}>ยกเลิกการใช้งาน</button> : null}
                   </div>
                 </div>
