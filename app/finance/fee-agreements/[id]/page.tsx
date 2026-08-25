@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { FinanceSubNav, QuotationGuard } from "../../quotations/shared";
 import { supabase } from "../../../../lib/supabase";
 import {
@@ -49,11 +49,13 @@ import {
   formatEvidenceFileSize,
   validateFeeAgreementEvidenceFile,
 } from "../signing-evidence";
+import { buildBillingPlanDraftFromFeeAgreement } from "../../billing-plans/draft";
 
 type Json = Record<string, unknown>;
 type Agreement = { id: string; agreement_no: string | null; title: string; client_id: string; case_id: number | null; advisory_matter_id: string | null; source_quotation_id: string | null; source_reference: string | null; status: string; agreement_date: string | null; effective_date: string | null; commencement_date: string | null; expiry_date: string | null; currency: string; amount_before_tax: number | string; vat_amount: number | string; total_amount: number | string; billing_method: string; language_code: string; execution_mode: string | null; legal_terms_json: Json | null; signatories_json: unknown[] | null; custom_clauses_json: unknown[] | null; selected_template_version_id: string | null; client_snapshot_json: Json | null; matter_snapshot_json: Json | null; source_document_snapshot_json: Json | null; commercial_terms_snapshot_json: Json | null; allocation_snapshot_json: Json | null; resolved_document_snapshot_json: Json | null; signed_document_snapshot_json: Json | null; executed_on: string | null; signed_at: string | null; signed_by_user_id: string | null; signed_evidence_reference: string | null; signed_evidence_json: Json | null; document_version: number; updated_at: string };
-type Item = { id: string; description: string; quantity: number | string; unit_price: number | string; vat_applicable: boolean; vat_rate: number | string; amount_before_tax: number | string; vat_amount: number | string; line_total: number | string; sort_order: number };
+type Item = { id: string; source_quotation_item_id: string | null; description: string; quantity: number | string; unit_price: number | string; vat_applicable: boolean; vat_rate: number | string; amount_before_tax: number | string; vat_amount: number | string; line_total: number | string; sort_order: number };
 type Quote = { id: string; quotation_no: string; status: string; issue_date: string | null; valid_until: string | null };
+type BillingPlanReference = { id: string; status: string };
 type Version = { id: string; version_no: number; event_type: string; reason: string | null; actor_name: string | null; actor_email: string | null; created_at: string };
 type Template = { id: string; language_code: string; version_no: number; document_templates?: { name?: string; template_code?: string } | null };
 type CustomClause = { title: string; content: string; sort_order: number };
@@ -91,13 +93,16 @@ export default function FeeAgreementDetailPage() { return <QuotationGuard>{(acce
 
 function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boolean } }) {
   const params = useParams(); const id = Array.isArray(params.id) ? params.id[0] : params.id || "";
+  const router = useRouter();
   const [agreement, setAgreement] = useState<Agreement | null>(null); const [items, setItems] = useState<Item[]>([]); const [quote, setQuote] = useState<Quote | null>(null); const [versions, setVersions] = useState<Version[]>([]); const [templates, setTemplates] = useState<Template[]>([]); const [templateContent, setTemplateContent] = useState<Json>({});
+  const [billingPlan, setBillingPlan] = useState<BillingPlanReference | null>(null); const [billingPlanCreating, setBillingPlanCreating] = useState(false);
   const [authorizedSigners, setAuthorizedSigners] = useState<AuthorizedSigner[]>([]); const [clientContext, setClientContext] = useState<FeeAgreementClientContext>({ id: "", name: "", clientType: "", contactName: "" });
   const [metadata, setMetadata] = useState<MetadataForm>({ title: "", agreementDate: "", effectiveDate: "", expiryDate: "", billingMethod: "single", executionMode: "paper" }); const [legal, setLegal] = useState<LegalForm>(emptyLegalForm);
   const [savedBaseline, setSavedBaseline] = useState("");
   const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [saving, setSaving] = useState(false); const [lifecycleSaving, setLifecycleSaving] = useState(false); const [message, setMessage] = useState("");
   const [paperSigningOpen, setPaperSigningOpen] = useState(false); const [paperSigning, setPaperSigning] = useState<PaperSigningForm>(emptyPaperSigningForm); const [paperSigningErrors, setPaperSigningErrors] = useState<PaperSigningErrors>({}); const [evidenceFile, setEvidenceFile] = useState<File | null>(null); const [paperSigningSaving, setPaperSigningSaving] = useState(false); const [evidenceOpening, setEvidenceOpening] = useState(false);
   const saveLock = useRef(false);
+  const billingPlanCreateLock = useRef(false);
   const paperSigningLock = useRef(false); const paperSigningPanelRef = useRef<HTMLDivElement>(null); const executedOnInputRef = useRef<HTMLInputElement>(null); const evidenceFileInputRef = useRef<HTMLInputElement>(null); const signingPartySummaryRef = useRef<HTMLDivElement>(null); const verificationInputRef = useRef<HTMLInputElement>(null);
   const editable = Boolean(agreement && permissions.canEditFinanceQuotation && ["draft", "under_review"].includes(agreement.status));
   const dirty = Boolean(agreement && savedBaseline && agreementFingerprint(metadata, legal, agreement) !== savedBaseline);
@@ -110,8 +115,8 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
     const row = header.data as Agreement;
     const storedDocument = selectStoredDocument(row);
     const storedTemplate = object(storedDocument.template);
-    const [itemRes, quoteRes, versionRes, templateRes, templateContentRes, signerRes, clientRes] = await Promise.all([
-      supabase.from("finance_fee_agreement_items").select("id,description,quantity,unit_price,vat_applicable,vat_rate,amount_before_tax,vat_amount,line_total,sort_order").eq("fee_agreement_id", id).order("sort_order").order("id"),
+    const [itemRes, quoteRes, versionRes, templateRes, templateContentRes, signerRes, clientRes, billingPlanRes] = await Promise.all([
+      supabase.from("finance_fee_agreement_items").select("id,source_quotation_item_id,description,quantity,unit_price,vat_applicable,vat_rate,amount_before_tax,vat_amount,line_total,sort_order").eq("fee_agreement_id", id).order("sort_order").order("id"),
       row.source_quotation_id ? supabase.from("finance_quotations").select("id,quotation_no,status,issue_date,valid_until").eq("id", row.source_quotation_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
       supabase.from("finance_fee_agreement_versions").select("id,version_no,event_type,reason,actor_name,actor_email,created_at").eq("fee_agreement_id", id).order("version_no", { ascending: false }),
       supabase.from("document_template_versions").select("id,language_code,version_no,document_templates!inner(name,template_code,document_type)").eq("status", "published").eq("document_templates.document_type", "fee_agreement").order("version_no", { ascending: false }),
@@ -120,8 +125,9 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
         : Promise.resolve({ data: storedTemplate, error: null }),
       supabase.from("finance_authorized_signers").select("id,signer_key,display_name,nickname,position_th,position_en,email,signature_storage_path,is_active,is_default,sort_order").eq("is_active", true).order("sort_order", { ascending: true }),
       row.client_id ? supabase.from("clients").select("id,name,client_type,contact_name").eq("id", row.client_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
+      supabase.from("finance_billing_plans").select("id,status").eq("fee_agreement_id", id).neq("status", "cancelled").order("created_at", { ascending: true }).limit(1).maybeSingle(),
     ]);
-    if (itemRes.error || quoteRes.error || versionRes.error || templateRes.error || templateContentRes.error || signerRes.error || clientRes.error) setError("โหลดข้อมูลบางส่วนไม่สำเร็จ กรุณารีเฟรชอีกครั้ง");
+    if (itemRes.error || quoteRes.error || versionRes.error || templateRes.error || templateContentRes.error || signerRes.error || clientRes.error || billingPlanRes.error) setError("โหลดข้อมูลบางส่วนไม่สำเร็จ กรุณารีเฟรชอีกครั้ง");
     if (signerRes.error) console.error("Failed to load authorized signers", signerRes.error);
     const activeSigners = signerRes.error ? [] : ((signerRes.data || []) as DbAuthorizedSigner[]).map(normalizeAuthorizedSigner).filter((signer) => signer.key && signer.isActive !== false);
     const currentClient = (clientRes.data || null) as ClientRow | null;
@@ -136,6 +142,7 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
     const nextLegal = legalFrom(row);
     const proposedSignatories = nextLegal.signatories.length ? nextLegal.signatories : buildInitialFeeAgreementSignatories(nextClientContext, activeSigners);
     setAgreement(row); setItems((itemRes.data || []) as Item[]); setQuote((quoteRes.data || null) as Quote | null); setVersions((versionRes.data || []) as Version[]); setTemplates((templateRes.data || []) as Template[]);
+    setBillingPlan((billingPlanRes.data || null) as BillingPlanReference | null);
     setTemplateContent(object(templateContentRes.data)); setAuthorizedSigners(activeSigners); setClientContext(nextClientContext);
     setMetadata(nextMetadata); setLegal({ ...nextLegal, signatories: proposedSignatories });
     setSavedBaseline(agreementFingerprint(nextMetadata, nextLegal, row)); setLoading(false);
@@ -163,6 +170,47 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
       setError("ไม่สามารถบันทึกข้อมูลได้ กรุณาลองอีกครั้ง");
     } finally {
       saveLock.current = false; setSaving(false);
+    }
+  };
+  const openOrCreateBillingPlan = async () => {
+    if (!agreement || !permissions.canEditFinanceQuotation || !["signed", "completed"].includes(agreement.status) || billingPlanCreateLock.current) return;
+    if (billingPlan) { router.push(`/finance/billing-plans/${billingPlan.id}`); return; }
+
+    billingPlanCreateLock.current = true; setBillingPlanCreating(true); setError(""); setMessage("");
+    try {
+      const existing = await supabase.from("finance_billing_plans").select("id,status").eq("fee_agreement_id", agreement.id).neq("status", "cancelled").order("created_at", { ascending: true }).limit(1).maybeSingle();
+      if (existing.error) throw existing.error;
+      if (existing.data) { router.push(`/finance/billing-plans/${existing.data.id}`); return; }
+
+      const draft = buildBillingPlanDraftFromFeeAgreement({
+        agreementNo: agreement.agreement_no,
+        agreementTitle: agreement.title,
+        billingMethod: agreement.billing_method,
+        sourceDocumentSnapshot: agreement.source_document_snapshot_json,
+        agreementItems: items,
+      });
+      if (!draft.ok) { setError(draft.message); return; }
+
+      const created = await supabase.rpc("save_finance_billing_plan_draft", {
+        p_billing_plan_id: null,
+        p_fee_agreement_id: agreement.id,
+        p_title: draft.payload.title,
+        p_description: draft.payload.description,
+        p_billing_method: draft.payload.billingMethod,
+        p_recurring_config_json: draft.payload.recurringConfig,
+        p_installments: draft.payload.installments,
+      });
+      if (created.error) {
+        const resolved = await supabase.from("finance_billing_plans").select("id,status").eq("fee_agreement_id", agreement.id).neq("status", "cancelled").order("created_at", { ascending: true }).limit(1).maybeSingle();
+        if (!resolved.error && resolved.data) { router.push(`/finance/billing-plans/${resolved.data.id}`); return; }
+        throw created.error;
+      }
+      router.push(`/finance/billing-plans/${String(created.data)}`);
+    } catch (billingPlanError) {
+      console.error("Failed to create or resolve Billing Plan", billingPlanError);
+      setError(mapBillingPlanError(billingPlanError));
+    } finally {
+      billingPlanCreateLock.current = false; setBillingPlanCreating(false);
     }
   };
   const changeStatus = async (next: FeeAgreementLifecycleTarget) => {
@@ -393,6 +441,12 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
       </div> : null}
       {permissions.canEditFinanceQuotation && destructiveLifecycleActions.length ? <div className="fee-agreement-workflow-destructive" style={workflowDestructive}><span style={workflowDestructiveLabel}>การดำเนินการอื่น</span><div>{destructiveLifecycleActions.map((action) => <button className="fee-agreement-workflow-cancel-button" key={action.status} style={workflowCancelButton} disabled={lifecycleSaving || paperSigningSaving || dirty} onClick={() => void changeStatus(action.status)}><WorkflowIcon name="cancel" />{lifecycleSaving || paperSigningSaving ? "กำลังดำเนินการ..." : action.label}</button>)}</div></div> : null}
     </section>
+    {permissions.canEditFinanceQuotation && ["signed", "completed"].includes(agreement.status) ? <section className="fee-agreement-finance-panel" style={{ ...card, ...financePanel }}>
+      <div className="fee-agreement-finance-panel-content" style={financePanelContent}>
+        <div><span style={financeEyebrow}>งานด้านการเงิน</span><h2 style={financeTitle}>{billingPlan ? "ดำเนินการแผนเรียกเก็บเงิน" : "สร้างแผนเรียกเก็บเงิน"}</h2><p style={financeDescription}>จัดกำหนดงวดและเงื่อนไขการเรียกเก็บเงินตามข้อตกลงค่าบริการ การสร้างแผนยังไม่เป็นการออกใบแจ้งหนี้</p>{billingPlan ? <span style={financePlanStatus}>สถานะแผน: {billingPlanStatusLabel(billingPlan.status)}</span> : null}</div>
+        <button className="fee-agreement-finance-button" type="button" style={financeButton} disabled={billingPlanCreating} onClick={() => void openOrCreateBillingPlan()}><BillingPlanIcon />{billingPlanCreating ? "กำลังเตรียมแผน..." : billingPlan ? "เปิดแผนเรียกเก็บเงิน" : "สร้างแผนเรียกเก็บเงิน"}</button>
+      </div>
+    </section> : null}
     <section style={card}><h2 style={sectionTitle}>ประวัติเวอร์ชัน</h2>{versions.length ? <div style={scroll}><table style={table}><thead><tr><th>เวอร์ชัน</th><th>รายการเปลี่ยนแปลง</th><th>ผู้ดำเนินการ</th><th>วันเวลา</th><th>เหตุผล</th></tr></thead><tbody>{versions.map((version) => <tr key={version.id}><td>v{version.version_no}</td><td>{feeAgreementVersionEventLabel(version.event_type)}</td><td>{version.actor_name || version.actor_email || "-"}</td><td>{new Date(version.created_at).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}</td><td>{version.reason || "-"}</td></tr>)}</tbody></table></div> : <p style={muted}>ยังไม่มีประวัติเวอร์ชันสำหรับข้อมูลเดิม</p>}</section>
   <style jsx global>{`
     .fee-agreement-navigation-link { transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease; }
@@ -422,6 +476,8 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
       .fee-agreement-workflow-overview, .fee-agreement-workflow-next { grid-template-columns: minmax(0, 1fr) !important; }
       .fee-agreement-paper-signing-grid { grid-template-columns: minmax(0, 1fr) !important; }
       .fee-agreement-workflow-primary-actions, .fee-agreement-workflow-primary-button { width: 100%; }
+      .fee-agreement-finance-panel-content { align-items: stretch !important; flex-direction: column; }
+      .fee-agreement-finance-button { width: 100%; }
       .fee-agreement-workflow-destructive { align-items: stretch !important; flex-direction: column; }
       .fee-agreement-workflow-cancel-button { width: 100%; }
     }
@@ -451,6 +507,8 @@ function parseClauses(value: unknown) { const warnings: string[] = []; const row
 function blank(value: string) { return value.trim() || null; }
 function validateSignatories(rows: FeeAgreementSignatory[], client: FeeAgreementClientContext) { const orders = new Set<number>(); const individual = client.clientType.trim().toLowerCase() === "individual"; for (const row of rows) { if (!row.name.trim()) return row.signing_mode === "attorney_in_fact" ? "กรุณาระบุชื่อผู้รับมอบอำนาจ" : "กรุณาระบุชื่อผู้ลงนาม"; if (!Object.hasOwn(partyLabel, row.party_type)) return "กรุณาเลือกฝ่ายของผู้ลงนามให้ถูกต้อง"; if (!Number.isInteger(row.sort_order) || row.sort_order < 1) return "ลำดับผู้ลงนามไม่ถูกต้อง กรุณาลองบันทึกอีกครั้ง"; if (orders.has(row.sort_order)) return "ลำดับผู้ลงนามซ้ำกัน กรุณาลองบันทึกอีกครั้ง"; if (row.party_type === "client" && !individual && row.name.trim() === client.name.trim()) return "ผู้ลงนามของนิติบุคคลต้องเป็นชื่อบุคคล ไม่ใช่ชื่อนิติบุคคล"; if (row.party_type === "client" && row.signing_mode === "self" && row.name.trim() !== client.name.trim()) return "ผู้ลงนามด้วยตนเองต้องตรงกับชื่อลูกค้า"; orders.add(row.sort_order); } return ""; }
 function validateClauses(rows: CustomClause[]) { for (const row of rows) { if (!row.title.trim() || !row.content.trim()) return "กรุณาระบุหัวข้อและเนื้อหาของข้อกำหนดเพิ่มเติม"; if (!Number.isFinite(row.sort_order) || row.sort_order < 1) return "ลำดับข้อกำหนดต้องเป็นตัวเลขตั้งแต่ 1"; } return ""; }
+function mapBillingPlanError(value: unknown) { const message = value && typeof value === "object" && "message" in value ? String(value.message) : String(value || ""); if (message.includes("signed, completed, or legacy active")) return "ข้อตกลงต้องอยู่ในสถานะลงนามแล้วหรือปิดกระบวนการเอกสารแล้วก่อนสร้างแผนเรียกเก็บเงิน"; if (message.includes("non-cancelled billing plan") || message.includes("uq_finance_billing_plans_active_agreement")) return "ข้อตกลงนี้มีแผนเรียกเก็บเงินที่ยังไม่ถูกยกเลิกอยู่แล้ว กรุณารีเฟรชเพื่อเปิดแผนเดิม"; if (message.includes("VAT allocation") || message.includes("preserve each fee agreement item")) return "ยอดจัดสรรหรือ VAT ไม่ตรงกับข้อตกลงค่าบริการ กรุณาตรวจสอบข้อมูลก่อนสร้างแผน"; if (message.includes("Not allowed")) return "คุณไม่มีสิทธิ์จัดการแผนเรียกเก็บเงิน"; return "ไม่สามารถสร้างแผนเรียกเก็บเงินได้ กรุณารีเฟรชและลองอีกครั้ง"; }
+function billingPlanStatusLabel(status: string) { return ({ draft: "ร่างแผนเรียกเก็บเงิน", active: "พร้อมดำเนินการเรียกเก็บเงิน", completed: "ดำเนินการครบแล้ว", cancelled: "ยกเลิก" } as Record<string, string>)[status] || status; }
 function mapRpcError(value: string) { if (value.includes("กรุณาบันทึกหลักฐานการลงนาม")) return value; if (value.includes("วันที่ทำสัญญา")) return "กรุณาระบุวันที่ทำสัญญาก่อนบันทึกว่าส่งเอกสารให้ลูกค้าแล้ว"; if (value.includes("Only draft or under review")) return "เอกสารนี้ไม่สามารถแก้ไขในสถานะปัจจุบันได้"; if (value.includes("Not allowed")) return "คุณไม่มีสิทธิ์ดำเนินการนี้"; if (value.includes("template")) return "Template ที่เลือกไม่พร้อมใช้งานหรือภาษาไม่ตรงกัน"; if (value.includes("legal document data")) return "กรุณาตรวจสอบข้อมูลเอกสารและผู้ลงนามก่อนบันทึกว่าส่งเอกสารให้ลูกค้าแล้ว"; if (value.includes("Billing Plan")) return "ต้องยกเลิกแผนเรียกเก็บเงินที่ยังมีผลก่อน"; if (value.includes("Invalid")) return "สถานะเอกสารไม่ถูกต้อง กรุณารีเฟรช"; return value || "ไม่สามารถบันทึกข้อมูลได้"; }
 function mapSigningError(value: string) { if (value.includes("Only a Sent")) return "เอกสารนี้ไม่ได้อยู่ในสถานะส่งเอกสารให้ลูกค้าแล้ว กรุณารีเฟรชหน้า"; if (value.includes("electronic agreement")) return "ไม่สามารถใช้หลักฐานการลงนามบนเอกสารกับรูปแบบลงนามทางอิเล็กทรอนิกส์"; if (value.includes("Actual signing date is required")) return "กรุณาระบุวันที่ลงนามจริง"; if (value.includes("cannot be in the future")) return "วันที่ลงนามจริงต้องไม่เป็นวันที่ในอนาคต"; if (value.includes("verification confirmation")) return "กรุณายืนยันว่าได้รับเอกสารที่ลงนามแล้วและตรวจสอบผู้ลงนามเรียบร้อยแล้ว"; if (value.includes("client signer")) return "ไม่พบผู้ลงนามฝ่ายลูกค้าตามที่กำหนด"; if (value.includes("firm signer")) return "ไม่พบผู้ลงนามฝ่ายสำนักงานตามที่กำหนด"; if (value.includes("witness identity")) return "จำนวนพยานยังไม่ครบตามที่แม่แบบกำหนด"; if (value.includes("Sent document snapshot")) return "ไม่พบข้อมูลเอกสารฉบับที่ส่ง กรุณาติดต่อผู้ดูแลระบบ"; if (value.includes("Uploaded executed document")) return "ไม่พบไฟล์หลักฐานที่อัปโหลด กรุณาเลือกไฟล์และลองอีกครั้ง"; if (value.includes("Not allowed")) return "คุณไม่มีสิทธิ์บันทึกหลักฐานการลงนาม"; return "บันทึกหลักฐานการลงนามไม่สำเร็จ กรุณาตรวจสอบข้อมูลและลองอีกครั้ง"; }
 function lifecycleActions(status: string): Array<{ status: FeeAgreementLifecycleTarget; label: string }> { if (status === "draft") return [lifecycleAction("under_review"), lifecycleAction("cancelled")]; if (status === "under_review") return [lifecycleAction("sent"), lifecycleAction("cancelled")]; if (status === "sent") return [lifecycleAction("signed"), lifecycleAction("cancelled")]; if (status === "signed") return [lifecycleAction("completed")]; return []; }
@@ -461,6 +519,7 @@ function Field({ label, value }: { label: string; value: ReactNode }) { return <
 function NavigationIcon({ name }: { name: "back" | "source" | "preview" | "print" }) { const common = { width: 17, height: 17, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true }; if (name === "back") return <svg {...common}><path d="M19 12H5M12 19l-7-7 7-7" /></svg>; if (name === "source") return <svg {...common}><path d="M6 3h9l3 3v15H6zM14 3v4h4M9 12h6M9 16h4" /></svg>; if (name === "preview") return <svg {...common}><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>; return <svg {...common}><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z" /></svg>; }
 function WorkflowIcon({ name }: { name: "lock" | "review" | "send" | "signed" | "completed" | "cancel" }) { const common = { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true }; if (name === "lock") return <svg {...common} style={{ flex: "0 0 auto" }}><rect x="5" y="10" width="14" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>; if (name === "review") return <svg {...common}><path d="M6 3h9l3 3v15H6zM14 3v4h4M9 12l2 2 4-4M9 18h6" /></svg>; if (name === "send") return <svg {...common}><path d="m3 11 18-8-8 18-2-8-8-2Z" /><path d="m11 13 4-4" /></svg>; if (name === "signed") return <svg {...common}><path d="M4 20h16M6 16l9-9 3 3-9 9H6v-3Z" /></svg>; if (name === "completed") return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="m8 12 3 3 5-6" /></svg>; return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="m9 9 6 6m0-6-6 6" /></svg>; }
 function StatusBadge({ status, prominent = false }: { status: string; prominent?: boolean }) { return <span style={{ ...badge, ...(badgeColor[status] || {}), ...(prominent ? workflowStatusBadge : {}) }}>{feeAgreementStatusLabel(status)}</span>; }
+function BillingPlanIcon() { return <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2h9l3 3v17H6z" /><path d="M14 2v4h4M9 11h6M9 15h6M9 19h4" /></svg>; }
 function SummaryCard({ label, value, prominent = false }: { label: string; value: string; prominent?: boolean }) { return <div style={{ ...summaryCard, ...(prominent ? summaryCardProminent : {}) }}><small style={prominent ? { color: "#166534" } : muted}>{label}</small><strong style={prominent ? summaryValueProminent : summaryValue}>{value}</strong></div>; }
 function SnapshotText({ label, value }: { label: string; value: unknown }) { return text(value, "") !== "" ? <div style={term}><strong>{label}</strong><div style={pre}>{text(value)}</div></div> : null; }
 function ItemsTable({ items, currency }: { items: Item[]; currency: string }) { return <div style={scroll}><table className="fee-agreement-detail-table" style={table}><thead><tr><th>ลำดับ</th><th>รายละเอียด</th><th>จำนวน</th><th>ราคาต่อหน่วย</th><th>VAT</th><th>ก่อน VAT</th><th>VAT</th><th>รวม</th></tr></thead><tbody>{items.map((item, index) => <tr key={item.id}><td>{index + 1}</td><td>{item.description}</td><td>{item.quantity}</td><td>{money(item.unit_price, currency)}</td><td>{item.vat_applicable ? `${item.vat_rate}%` : "ไม่มี VAT"}</td><td>{money(item.amount_before_tax, currency)}</td><td>{money(item.vat_amount, currency)}</td><td>{money(item.line_total, currency)}</td></tr>)}</tbody></table></div>; }
@@ -526,6 +585,13 @@ const legacyEvidenceNotice: CSSProperties = { padding: 12, borderRadius: 6, back
 const workflowDestructive: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginTop: 14, paddingTop: 14, borderTop: "1px solid #e2e8f0" };
 const workflowDestructiveLabel: CSSProperties = { color: "#64748b", fontSize: 12, fontWeight: 700 };
 const workflowCancelButton: CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 36, boxSizing: "border-box", padding: "8px 11px", border: "1px solid #fecaca", borderRadius: 6, background: "#fff", color: "#b91c1c", cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 700 };
+const financePanel: CSSProperties = { borderColor: "#bfdbfe", background: "#f8fbff" };
+const financePanelContent: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24 };
+const financeEyebrow: CSSProperties = { color: "#1d4ed8", fontSize: 12, fontWeight: 800 };
+const financeTitle: CSSProperties = { margin: "3px 0 5px", color: "#172033", fontSize: 18 };
+const financeDescription: CSSProperties = { maxWidth: 680, margin: 0, color: "#475569", fontSize: 14, lineHeight: 1.55 };
+const financePlanStatus: CSSProperties = { display: "inline-block", marginTop: 8, color: "#1e40af", fontSize: 13, fontWeight: 700 };
+const financeButton: CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, flex: "0 0 auto", minHeight: 42, padding: "10px 15px", border: "1px solid #1d4ed8", borderRadius: 6, background: "#1d4ed8", color: "#fff", cursor: "pointer", font: "inherit", fontWeight: 700 };
 const documentInformationGrid: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(240px,1.55fr) repeat(3,minmax(150px,1fr))", gap: 14, alignItems: "start", margin: "18px 0 10px" };
 const executionModeField: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(220px,.85fr) minmax(260px,1.15fr)", gap: 16, alignItems: "end", padding: "12px 14px", borderLeft: "3px solid #86a995", background: "#f8faf9" };
 const executionModeHelp: CSSProperties = { display: "grid", gap: 4, color: "#64748b", fontSize: 13, lineHeight: 1.45 };
