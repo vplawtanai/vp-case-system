@@ -153,17 +153,15 @@ function Preview({ id }: { id: string }) {
       .fee-agreement-document p {
         word-break: normal;
         overflow-wrap: normal;
-        text-wrap: pretty;
+        line-break: auto;
+        text-wrap: wrap;
       }
-      @supports (word-break: auto-phrase) {
-        .fee-agreement-document p { word-break: auto-phrase; }
+      .fee-agreement-document .thai-legal-token {
+        display: inline;
+        white-space: nowrap;
       }
-      .fee-agreement-document .thai-legal-phrase { white-space: nowrap; }
       .fee-agreement-fee-table th,
       .fee-agreement-fee-table td { box-sizing: border-box; }
-      @media (max-width: 640px) {
-        .fee-agreement-document .thai-legal-phrase { white-space: normal; }
-      }
       @media print {
         body { background: #fff !important; }
         .screen-controls, .fee-agreement-preview-readiness, nav, header:not(.fee-agreement-document-header), aside, button, [role="dialog"] { display: none !important; }

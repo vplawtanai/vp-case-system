@@ -151,17 +151,13 @@
   overflow-wrap: normal;
 }
 
-@supports (word-break: auto-phrase) {
-  .document p {
-    word-break: auto-phrase;
-  }
-}
-
 .document p {
-  text-wrap: pretty;
+  line-break: auto;
+  text-wrap: wrap;
 }
 
-.document :global(.thai-legal-phrase) {
+.document :global(.thai-legal-token) {
+  display: inline;
   white-space: nowrap;
 }
 
@@ -306,10 +302,6 @@
 
   .document {
     padding: 20px 16px;
-  }
-
-  .document :global(.thai-legal-phrase) {
-    white-space: normal;
   }
 
   .infoRow {

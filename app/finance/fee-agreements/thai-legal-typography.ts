@@ -1,94 +1,39 @@
 export type ThaiLegalTextUnit = {
   text: string;
   isWhitespace: boolean;
-};
-
-type WordSegment = {
-  segment: string;
-  isWordLike?: boolean;
+  protectFromBreak: boolean;
+  breakAfter: boolean;
 };
 
 const THAI_CHARACTER = /[\u0E00-\u0E7F]/u;
 const WHITESPACE = /^\s+$/u;
-const SENTENCE_PUNCTUATION = /[.!?;:。！？]$/u;
-const MAX_PROTECTED_CHARACTERS = 84;
-const MIN_STABLE_WORD_CHARACTERS = 5;
+const TERMINAL_PUNCTUATION = /[\p{Sentence_Terminal}\p{Terminal_Punctuation}]$/u;
 
 export function thaiLegalTextUnits(text: string, languageCode = "th"): ThaiLegalTextUnit[] {
   if (!text || !languageCode.toLowerCase().startsWith("th") || !THAI_CHARACTER.test(text)) {
-    return [{ text, isWhitespace: false }];
+    return [unchangedUnit(text)];
   }
 
   const Segmenter = Intl.Segmenter;
-  if (!Segmenter) return [{ text, isWhitespace: false }];
+  if (!Segmenter) return [unchangedUnit(text)];
 
-  const segments = [...new Segmenter("th", { granularity: "word" }).segment(text)]
-    .map((entry) => ({ segment: entry.segment, isWordLike: entry.isWordLike }));
-  const units: ThaiLegalTextUnit[] = [];
-  let run: WordSegment[] = [];
-
-  const flushRun = () => {
-    units.push(...splitProtectedRun(run));
-    run = [];
-  };
-
-  segments.forEach((segment) => {
-    if (WHITESPACE.test(segment.segment)) {
-      flushRun();
-      units.push({ text: segment.segment, isWhitespace: true });
-      return;
-    }
-    run.push(segment);
-  });
-  flushRun();
-
-  return units.length ? units : [{ text, isWhitespace: false }];
-}
-
-function splitProtectedRun(segments: WordSegment[]): ThaiLegalTextUnit[] {
-  const result: ThaiLegalTextUnit[] = [];
-  let remaining = segments;
-
-  while (characterCount(remaining) > MAX_PROTECTED_CHARACTERS) {
-    const cut = bestBreakIndex(remaining);
-    result.push({ text: remaining.slice(0, cut).map((entry) => entry.segment).join(""), isWhitespace: false });
-    remaining = remaining.slice(cut);
-  }
-
-  if (remaining.length) {
-    result.push({ text: remaining.map((entry) => entry.segment).join(""), isWhitespace: false });
-  }
-  return result;
-}
-
-function bestBreakIndex(segments: WordSegment[]) {
-  let characterTotal = 0;
-  let stableCut = 0;
-  let fallbackCut = 0;
-
-  for (let index = 0; index < segments.length - 1; index += 1) {
-    const current = segments[index];
+  const segments = [...new Segmenter("th", { granularity: "word" }).segment(text)];
+  return segments.map((entry, index) => {
     const next = segments[index + 1];
-    characterTotal += codePointLength(current.segment);
-    if (characterTotal > MAX_PROTECTED_CHARACTERS) break;
+    const isWhitespace = WHITESPACE.test(entry.segment);
+    const nextIsWhitespace = !next || WHITESPACE.test(next.segment);
+    const wordBoundary = entry.isWordLike === true && next?.isWordLike === true;
+    const punctuationBoundary = entry.isWordLike !== true && TERMINAL_PUNCTUATION.test(entry.segment);
 
-    fallbackCut = index + 1;
-    const stableWordBoundary = current.isWordLike === true
-      && next.isWordLike === true
-      && codePointLength(current.segment) >= MIN_STABLE_WORD_CHARACTERS
-      && codePointLength(next.segment) >= MIN_STABLE_WORD_CHARACTERS;
-    if (stableWordBoundary || SENTENCE_PUNCTUATION.test(current.segment)) {
-      stableCut = index + 1;
-    }
-  }
-
-  return stableCut || fallbackCut || 1;
+    return {
+      text: entry.segment,
+      isWhitespace,
+      protectFromBreak: entry.isWordLike === true && THAI_CHARACTER.test(entry.segment),
+      breakAfter: !isWhitespace && !nextIsWhitespace && (wordBoundary || punctuationBoundary),
+    };
+  });
 }
 
-function characterCount(segments: WordSegment[]) {
-  return segments.reduce((total, entry) => total + codePointLength(entry.segment), 0);
-}
-
-function codePointLength(value: string) {
-  return [...value].length;
+function unchangedUnit(text: string): ThaiLegalTextUnit {
+  return { text, isWhitespace: false, protectFromBreak: false, breakAfter: false };
 }
