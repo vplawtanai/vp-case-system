@@ -42,9 +42,16 @@ import {
   feeAgreementStatusLabel,
   feeAgreementVersionEventLabel,
 } from "../lifecycle";
+import {
+  buildFeeAgreementEvidencePath,
+  calculateSha256,
+  FEE_AGREEMENT_EVIDENCE_BUCKET,
+  formatEvidenceFileSize,
+  validateFeeAgreementEvidenceFile,
+} from "../signing-evidence";
 
 type Json = Record<string, unknown>;
-type Agreement = { id: string; agreement_no: string | null; title: string; client_id: string; case_id: number | null; advisory_matter_id: string | null; source_quotation_id: string | null; source_reference: string | null; status: string; agreement_date: string | null; effective_date: string | null; commencement_date: string | null; expiry_date: string | null; currency: string; amount_before_tax: number | string; vat_amount: number | string; total_amount: number | string; billing_method: string; language_code: string; execution_mode: string | null; legal_terms_json: Json | null; signatories_json: unknown[] | null; custom_clauses_json: unknown[] | null; selected_template_version_id: string | null; client_snapshot_json: Json | null; matter_snapshot_json: Json | null; source_document_snapshot_json: Json | null; commercial_terms_snapshot_json: Json | null; allocation_snapshot_json: Json | null; resolved_document_snapshot_json: Json | null; signed_document_snapshot_json: Json | null; document_version: number; updated_at: string };
+type Agreement = { id: string; agreement_no: string | null; title: string; client_id: string; case_id: number | null; advisory_matter_id: string | null; source_quotation_id: string | null; source_reference: string | null; status: string; agreement_date: string | null; effective_date: string | null; commencement_date: string | null; expiry_date: string | null; currency: string; amount_before_tax: number | string; vat_amount: number | string; total_amount: number | string; billing_method: string; language_code: string; execution_mode: string | null; legal_terms_json: Json | null; signatories_json: unknown[] | null; custom_clauses_json: unknown[] | null; selected_template_version_id: string | null; client_snapshot_json: Json | null; matter_snapshot_json: Json | null; source_document_snapshot_json: Json | null; commercial_terms_snapshot_json: Json | null; allocation_snapshot_json: Json | null; resolved_document_snapshot_json: Json | null; signed_document_snapshot_json: Json | null; executed_on: string | null; signed_at: string | null; signed_by_user_id: string | null; signed_evidence_reference: string | null; signed_evidence_json: Json | null; document_version: number; updated_at: string };
 type Item = { id: string; description: string; quantity: number | string; unit_price: number | string; vat_applicable: boolean; vat_rate: number | string; amount_before_tax: number | string; vat_amount: number | string; line_total: number | string; sort_order: number };
 type Quote = { id: string; quotation_no: string; status: string; issue_date: string | null; valid_until: string | null };
 type Version = { id: string; version_no: number; event_type: string; reason: string | null; actor_name: string | null; actor_email: string | null; created_at: string };
@@ -53,8 +60,10 @@ type CustomClause = { title: string; content: string; sort_order: number };
 type LegalForm = { language: string; commencementDate: string; templateVersionId: string; scopeClarification: string; clientObligations: string; firmObligations: string; exclusions: string; expenses: string; confidentiality: string; termination: string; dispute: string; additionalTerms: string; internalNote: string; signatories: FeeAgreementSignatory[]; clauses: CustomClause[]; warnings: string[] };
 type MetadataForm = { title: string; agreementDate: string; effectiveDate: string; expiryDate: string; billingMethod: string; executionMode: "paper" | "electronic" };
 type ClientRow = { id: string; name: string | null; client_type: string | null; contact_name: string | null };
+type PaperSigningForm = { executedOn: string; verificationConfirmed: boolean; note: string; reference: string };
 
 const defaultTitle = "สัญญาว่าจ้างให้บริการทางกฎหมาย";
+const emptyPaperSigningForm: PaperSigningForm = { executedOn: "", verificationConfirmed: false, note: "", reference: "" };
 const billingLabel: Record<string, string> = { single: "ชำระงวดเดียว", installments: "ชำระหลายงวด", milestone: "ชำระตามเหตุการณ์", recurring: "ชำระเป็นรอบ", manual: "กำหนดเอง" };
 const object = (value: unknown): Json => value && typeof value === "object" && !Array.isArray(value) ? value as Json : {};
 const array = (value: unknown) => Array.isArray(value) ? value : [];
@@ -63,12 +72,13 @@ const amount = (value: unknown) => Number(value || 0);
 const satang = (value: unknown) => Math.round(amount(value) * 100);
 const money = (value: unknown, currency = "THB") => `${amount(value).toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency === "THB" ? "บาท" : currency}`;
 const date = (value: unknown) => typeof value === "string" && value ? value.slice(0, 10) : "-";
+const dateTime = (value: unknown) => typeof value === "string" && value ? new Date(value).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" }) : "-";
 const isDefaultTitle = (value: string) => !value.trim() || /^Fee Agreement\s*-\s*/i.test(value);
 const sourceStatusLabel: Record<string, string> = { accepted: "ตอบรับแล้ว", sent: "ส่งแล้ว", draft: "ร่าง", cancelled: "ยกเลิก", expired: "หมดอายุ" };
 const quoteStatus = (status: unknown) => sourceStatusLabel[text(status, "")] || text(status);
 const legacyLegalKeys = ["scope_clarification", "client_obligations", "firm_obligations", "exclusions", "expenses_disbursements", "confidentiality", "termination_provisions", "dispute_jurisdiction", "additional_terms"];
 const selectStoredDocument = (agreement: Agreement): Json => {
-  if (agreement.status === "signed" && agreement.signed_document_snapshot_json) return agreement.signed_document_snapshot_json;
+  if (["signed", "completed"].includes(agreement.status) && agreement.signed_document_snapshot_json) return agreement.signed_document_snapshot_json;
   if (["sent", "signed", "completed", "cancelled"].includes(agreement.status) && agreement.resolved_document_snapshot_json) return agreement.resolved_document_snapshot_json;
   return {};
 };
@@ -84,14 +94,16 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
   const [metadata, setMetadata] = useState<MetadataForm>({ title: "", agreementDate: "", effectiveDate: "", expiryDate: "", billingMethod: "single", executionMode: "paper" }); const [legal, setLegal] = useState<LegalForm>(emptyLegalForm);
   const [savedBaseline, setSavedBaseline] = useState("");
   const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [saving, setSaving] = useState(false); const [lifecycleSaving, setLifecycleSaving] = useState(false); const [message, setMessage] = useState("");
+  const [paperSigningOpen, setPaperSigningOpen] = useState(false); const [paperSigning, setPaperSigning] = useState<PaperSigningForm>(emptyPaperSigningForm); const [evidenceFile, setEvidenceFile] = useState<File | null>(null); const [paperSigningSaving, setPaperSigningSaving] = useState(false); const [evidenceOpening, setEvidenceOpening] = useState(false);
   const saveLock = useRef(false);
+  const paperSigningLock = useRef(false); const paperSigningPanelRef = useRef<HTMLDivElement>(null); const evidenceFileInputRef = useRef<HTMLInputElement>(null);
   const editable = Boolean(agreement && permissions.canEditFinanceQuotation && ["draft", "under_review"].includes(agreement.status));
   const dirty = Boolean(agreement && savedBaseline && agreementFingerprint(metadata, legal, agreement) !== savedBaseline);
 
   const load = useCallback(async () => {
     if (!id) { setError("ไม่พบสัญญาว่าจ้าง"); setLoading(false); return; }
     setLoading(true); setError("");
-    const header = await supabase.from("finance_fee_agreements").select("id,agreement_no,title,client_id,case_id,advisory_matter_id,source_quotation_id,source_reference,status,agreement_date,effective_date,commencement_date,expiry_date,currency,amount_before_tax,vat_amount,total_amount,billing_method,language_code,execution_mode,legal_terms_json,signatories_json,custom_clauses_json,selected_template_version_id,client_snapshot_json,matter_snapshot_json,source_document_snapshot_json,commercial_terms_snapshot_json,allocation_snapshot_json,resolved_document_snapshot_json,signed_document_snapshot_json,document_version,updated_at").eq("id", id).maybeSingle();
+    const header = await supabase.from("finance_fee_agreements").select("id,agreement_no,title,client_id,case_id,advisory_matter_id,source_quotation_id,source_reference,status,agreement_date,effective_date,commencement_date,expiry_date,currency,amount_before_tax,vat_amount,total_amount,billing_method,language_code,execution_mode,legal_terms_json,signatories_json,custom_clauses_json,selected_template_version_id,client_snapshot_json,matter_snapshot_json,source_document_snapshot_json,commercial_terms_snapshot_json,allocation_snapshot_json,resolved_document_snapshot_json,signed_document_snapshot_json,executed_on,signed_at,signed_by_user_id,signed_evidence_reference,signed_evidence_json,document_version,updated_at").eq("id", id).maybeSingle();
     if (header.error || !header.data) { setError(header.error ? "ไม่สามารถโหลดสัญญาว่าจ้างได้" : "ไม่พบสัญญาว่าจ้าง"); setLoading(false); return; }
     const row = header.data as Agreement;
     const storedDocument = selectStoredDocument(row);
@@ -152,7 +164,8 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
     }
   };
   const changeStatus = async (next: FeeAgreementLifecycleTarget) => {
-    if (!agreement || !permissions.canEditFinanceQuotation || lifecycleSaving) return;
+    if (!agreement || !permissions.canEditFinanceQuotation || lifecycleSaving || paperSigningLock.current) return;
+    if (next === "signed") { openPaperSigning(); return; }
     if (dirty) { setError("กรุณาบันทึกการเปลี่ยนแปลงก่อนส่งตรวจทาน"); return; }
     if (next === "sent" && readinessIssues.length) { setError("ยังไม่สามารถบันทึกว่าส่งเอกสารให้ลูกค้าแล้วได้ กรุณาตรวจสอบรายการที่แสดงในส่วนสถานะเอกสาร"); return; }
     if (!window.confirm(feeAgreementLifecycleConfirmation(next))) return;
@@ -160,6 +173,78 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
     const result = await supabase.rpc("set_finance_fee_agreement_status", { p_fee_agreement_id: agreement.id, p_next_status: next });
     if (result.error) setError(mapRpcError(result.error.message)); else { await load(); setMessage(feeAgreementLifecycleSuccess(next)); }
     setLifecycleSaving(false);
+  };
+  const resetPaperSigning = () => {
+    setPaperSigning(emptyPaperSigningForm); setEvidenceFile(null); setPaperSigningOpen(false);
+    if (evidenceFileInputRef.current) evidenceFileInputRef.current.value = "";
+  };
+  const openPaperSigning = () => {
+    if (!agreement || agreement.status !== "sent") return;
+    if (normalizeFeeAgreementExecutionMode(agreement.execution_mode) !== "paper") {
+      setError("ข้อตกลงนี้กำหนดรูปแบบลงนามทางอิเล็กทรอนิกส์ ซึ่งยังไม่เปิดใช้งานในระบบ");
+      return;
+    }
+    setError(""); setMessage(""); setPaperSigning(emptyPaperSigningForm); setEvidenceFile(null); setPaperSigningOpen(true);
+    window.setTimeout(() => paperSigningPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  };
+  const recordPaperSigning = async () => {
+    if (!agreement || agreement.status !== "sent" || paperSigningLock.current) return;
+    if (!paperSigning.executedOn) { setError("กรุณาระบุวันที่ลงนามจริง"); return; }
+    if (!evidenceFile) { setError("กรุณาแนบเอกสารที่ลงนามแล้ว"); return; }
+    const fileError = validateFeeAgreementEvidenceFile(evidenceFile);
+    if (fileError) { setError(fileError); return; }
+    if (!paperSigning.verificationConfirmed) { setError("กรุณายืนยันว่าได้รับเอกสารที่ลงนามแล้วและตรวจสอบผู้ลงนามเรียบร้อยแล้ว"); return; }
+
+    paperSigningLock.current = true; setPaperSigningSaving(true); setError(""); setMessage("");
+    const storagePath = buildFeeAgreementEvidencePath(agreement.id, evidenceFile.type);
+    let uploaded = false;
+    try {
+      const sha256 = await calculateSha256(evidenceFile);
+      const upload = await supabase.storage.from(FEE_AGREEMENT_EVIDENCE_BUCKET).upload(storagePath, evidenceFile, { contentType: evidenceFile.type, upsert: false });
+      if (upload.error) { setError("อัปโหลดเอกสารที่ลงนามแล้วไม่สำเร็จ กรุณาลองอีกครั้ง"); console.error("Failed to upload Fee Agreement signing evidence", upload.error); return; }
+      uploaded = true;
+      const result = await supabase.rpc("record_finance_fee_agreement_paper_signed", {
+        p_fee_agreement_id: agreement.id,
+        p_executed_on: paperSigning.executedOn,
+        p_evidence_storage_path: storagePath,
+        p_evidence_filename: evidenceFile.name,
+        p_evidence_mime_type: evidenceFile.type,
+        p_evidence_size_bytes: evidenceFile.size,
+        p_evidence_sha256: sha256,
+        p_verification_confirmed: paperSigning.verificationConfirmed,
+        p_evidence_note: paperSigning.note.trim() || null,
+        p_evidence_reference: paperSigning.reference.trim() || null,
+      });
+      if (result.error) {
+        console.error("Failed to record Fee Agreement paper signing evidence", result.error);
+        setError(mapSigningError(result.error.message));
+        const cleanup = await supabase.storage.from(FEE_AGREEMENT_EVIDENCE_BUCKET).remove([storagePath]);
+        if (cleanup.error) console.warn("Unable to remove orphan Fee Agreement signing evidence", { storagePath, error: cleanup.error });
+        return;
+      }
+      uploaded = false;
+      resetPaperSigning(); await load(); setMessage("บันทึกหลักฐานและสถานะว่าลงนามแล้วเรียบร้อย");
+    } catch (signingError) {
+      console.error("Unexpected Fee Agreement paper signing failure", signingError);
+      setError("บันทึกหลักฐานการลงนามไม่สำเร็จ กรุณาลองอีกครั้ง");
+      if (uploaded) {
+        const cleanup = await supabase.storage.from(FEE_AGREEMENT_EVIDENCE_BUCKET).remove([storagePath]);
+        if (cleanup.error) console.warn("Unable to remove orphan Fee Agreement signing evidence", { storagePath, error: cleanup.error });
+      }
+    } finally {
+      paperSigningLock.current = false; setPaperSigningSaving(false);
+    }
+  };
+  const openSignedEvidence = async () => {
+    if (!agreement || evidenceOpening) return;
+    const evidenceFileData = object(object(agreement.signed_evidence_json).evidence_file);
+    const storagePath = text(evidenceFileData.storage_path, "");
+    if (!storagePath) { setError("ไม่พบไฟล์หลักฐานการลงนามสำหรับเอกสารนี้"); return; }
+    setEvidenceOpening(true); setError("");
+    const result = await supabase.storage.from(FEE_AGREEMENT_EVIDENCE_BUCKET).createSignedUrl(storagePath, 60 * 5);
+    setEvidenceOpening(false);
+    if (result.error) { console.error("Unable to open Fee Agreement signing evidence", result.error); setError("ไม่สามารถเปิดเอกสารที่ลงนามแล้วได้ กรุณาลองอีกครั้ง"); return; }
+    const anchor = window.document.createElement("a"); anchor.href = result.data.signedUrl; anchor.target = "_blank"; anchor.rel = "noopener noreferrer"; anchor.click();
   };
   const mismatch = useMemo(() => agreement ? satang(items.reduce((sum, item) => sum + amount(item.line_total), 0)) !== satang(agreement.total_amount) : false, [agreement, items]);
   const templateMode = Boolean(legal.templateVersionId);
@@ -202,6 +287,7 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
   })();
   if (loading) return <main style={page}>กำลังโหลดสัญญาว่าจ้าง...</main>; if (!agreement) return <main style={page}>{error || "ไม่พบสัญญาว่าจ้าง"}</main>;
   const source = object(agreement.source_document_snapshot_json); const commercialSnapshot = object(agreement.commercial_terms_snapshot_json); const commercial = object(commercialSnapshot.commercial); const sourceQuotationNo = text(source.quotation_no, quote?.quotation_no || text(agreement.source_reference)); const client = text(agreement.client_snapshot_json?.name, text(agreement.client_snapshot_json?.display_name)); const matter = text(agreement.matter_snapshot_json?.title, text(agreement.matter_snapshot_json?.file_no, agreement.case_id || agreement.advisory_matter_id ? "-" : "เรื่องของลูกค้า")); const title = isDefaultTitle(agreement.title) ? defaultTitle : agreement.title;
+  const signingEvidence = object(agreement.signed_evidence_json); const signingEvidenceFile = object(signingEvidence.evidence_file); const signingRecordedBy = object(signingEvidence.recorded_by);
   const availableLifecycleActions = lifecycleActions(agreement.status);
   const forwardLifecycleActions = availableLifecycleActions.filter((action) => action.status !== "cancelled");
   const destructiveLifecycleActions = availableLifecycleActions.filter((action) => action.status === "cancelled");
@@ -246,6 +332,7 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
     <section style={card}><h2 style={sectionTitle}>ผู้ลงนาม</h2>{editable ? <FeeAgreementSignatoryEditor value={legal.signatories} client={clientContext} authorizedSigners={authorizedSigners} signatureRequirements={effectiveSignatureRequirements} disabled={saving} onChange={(signatories) => setLegalForm({ ...legal, signatories })} /> : <SignatoryList value={agreement.signatories_json || []} clientName={clientContext.name} />}</section>
     <section style={card}><h2 style={sectionTitle}>{templateMode ? "ข้อยกเว้นหรือข้อความเฉพาะข้อตกลง" : "ข้อกำหนดเพิ่มเติม"}</h2>{templateMode ? <><p style={notice}>รายการนี้อ่านจากกลไก override และ custom clause ที่ผูกกับแม่แบบโดยตรง</p>{templateContentMatchesSelection ? <TemplateAgreementChanges template={templateContent} /> : null}</> : editable ? <ClauseEditor value={legal.clauses} disabled={saving} onChange={(clauses) => setLegalForm({ ...legal, clauses })} /> : <ClauseList value={agreement.custom_clauses_json || []} />}</section>
     <section style={card}><h2 style={sectionTitle}>หมายเหตุภายใน — ไม่แสดงในเอกสารลูกค้า</h2>{editable ? <TextArea label="ใช้สำหรับการทำงานภายในสำนักงานเท่านั้น" value={legal.internalNote} disabled={saving} onChange={(internalNote) => setLegalForm({ ...legal, internalNote })} /> : <p style={muted}>หมายเหตุภายในไม่แสดงในสถานะอ่านอย่างเดียวหรือเอกสารสำหรับลูกค้า</p>}</section>
+    {["signed", "completed"].includes(agreement.status) ? <section style={{ ...card, ...signingEvidenceSummary }}><div style={signingEvidenceHeading}><div><h2 style={sectionTitle}>หลักฐานการลงนาม</h2><p style={signingEvidenceIntro}>ข้อมูลภายในสำหรับยืนยันการรับและตรวจสอบเอกสารฉบับลงนาม</p></div>{Object.keys(signingEvidenceFile).length ? <button type="button" style={secondaryButton} disabled={evidenceOpening} onClick={() => void openSignedEvidence()}>{evidenceOpening ? "กำลังเปิด..." : "เปิดเอกสารที่ลงนามแล้ว"}</button> : null}</div>{Object.keys(signingEvidence).length ? <><div style={grid}><Field label="วันที่ลงนามจริง" value={date(agreement.executed_on || signingEvidence.executed_on)} /><Field label="ผู้บันทึก" value={text(signingRecordedBy.name, text(signingRecordedBy.email))} /><Field label="วันที่/เวลาบันทึก" value={dateTime(agreement.signed_at || signingEvidence.recorded_at)} /><Field label="ไฟล์หลักฐาน" value={text(signingEvidenceFile.file_name)} /><Field label="ประเภท/ขนาด" value={`${text(signingEvidenceFile.mime_type)} · ${formatEvidenceFileSize(signingEvidenceFile.size_bytes)}`} /><Field label="เลขอ้างอิง" value={text(signingEvidence.reference, text(agreement.signed_evidence_reference))} /></div>{text(signingEvidence.note, "") ? <div style={signingEvidenceNote}><strong>หมายเหตุหลักฐาน</strong><span>{text(signingEvidence.note)}</span></div> : null}</> : <div style={legacyEvidenceNotice}>ไม่มีหลักฐานการลงนามที่บันทึกในระบบเดิม</div>}</section> : null}
     <section style={{ ...card, ...workflowPanel }}><h2 style={sectionTitle}>สถานะเอกสาร</h2>
       <div className="fee-agreement-workflow-overview" style={workflowOverview}>
         <div style={workflowStatusBlock}>
@@ -258,9 +345,22 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
       {agreement.status === "under_review" && readinessIssues.length ? <div style={warning}><strong>ยังไม่สามารถบันทึกว่าส่งเอกสารให้ลูกค้าแล้วได้ กรุณาตรวจสอบ:</strong><ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>{readinessIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul></div> : null}
       {permissions.canEditFinanceQuotation && forwardLifecycleActions.length ? <div className="fee-agreement-workflow-next" style={workflowNext}>
         <div style={workflowNextCopy}><span style={workflowNextLabel}>ขั้นตอนถัดไป</span><strong style={workflowNextTitle}>{forwardLifecycleActions[0].label}</strong><span style={workflowNextDescription}>{feeAgreementActionDescription(forwardLifecycleActions[0].status)}</span></div>
-        <div className="fee-agreement-workflow-primary-actions" style={workflowPrimaryActions}>{forwardLifecycleActions.map((action) => <button className="fee-agreement-workflow-primary-button" key={action.status} style={workflowPrimaryButton} disabled={lifecycleSaving || dirty || (action.status === "sent" && readinessIssues.length > 0)} onClick={() => void changeStatus(action.status)}><WorkflowIcon name={workflowActionIcon(action.status)} />{lifecycleSaving ? "กำลังดำเนินการ..." : action.label}</button>)}</div>
+        <div className="fee-agreement-workflow-primary-actions" style={workflowPrimaryActions}>{forwardLifecycleActions.map((action) => <button className="fee-agreement-workflow-primary-button" key={action.status} style={workflowPrimaryButton} disabled={lifecycleSaving || paperSigningSaving || dirty || (action.status === "sent" && readinessIssues.length > 0) || (action.status === "signed" && normalizeFeeAgreementExecutionMode(agreement.execution_mode) !== "paper")} onClick={() => void changeStatus(action.status)}><WorkflowIcon name={workflowActionIcon(action.status)} />{lifecycleSaving || paperSigningSaving ? "กำลังดำเนินการ..." : action.label}</button>)}</div>
       </div> : null}
-      {permissions.canEditFinanceQuotation && destructiveLifecycleActions.length ? <div className="fee-agreement-workflow-destructive" style={workflowDestructive}><span style={workflowDestructiveLabel}>การดำเนินการอื่น</span><div>{destructiveLifecycleActions.map((action) => <button className="fee-agreement-workflow-cancel-button" key={action.status} style={workflowCancelButton} disabled={lifecycleSaving || dirty} onClick={() => void changeStatus(action.status)}><WorkflowIcon name="cancel" />{lifecycleSaving ? "กำลังดำเนินการ..." : action.label}</button>)}</div></div> : null}
+      {agreement.status === "sent" && normalizeFeeAgreementExecutionMode(agreement.execution_mode) !== "paper" ? <div style={warning}>การบันทึกหลักฐานการลงนามทางอิเล็กทรอนิกส์ยังไม่เปิดใช้งาน</div> : null}
+      {paperSigningOpen && agreement.status === "sent" ? <div ref={paperSigningPanelRef} className="fee-agreement-paper-signing-panel" style={paperSigningPanel}>
+        <div><h3 style={paperSigningTitle}>บันทึกหลักฐานการลงนามบนเอกสาร</h3><p style={paperSigningDescription}>กรอกข้อมูลจากเอกสารฉบับที่ได้รับคืนหลังลงนาม ระบบจะบันทึกวันที่จริงและไฟล์หลักฐานพร้อมสถานะลงนามแล้วในครั้งเดียว</p></div>
+        <div className="fee-agreement-paper-signing-grid" style={paperSigningGrid}>
+          <label style={labelStyle}>วันที่ลงนามจริง *<input style={input} type="date" value={paperSigning.executedOn} disabled={paperSigningSaving} onChange={(event) => setPaperSigning({ ...paperSigning, executedOn: event.target.value })} /></label>
+          <label style={labelStyle}>เอกสารที่ลงนามแล้ว *<input ref={evidenceFileInputRef} style={input} type="file" accept="application/pdf,image/jpeg,image/png" disabled={paperSigningSaving} onChange={(event) => setEvidenceFile(event.target.files?.[0] || null)} /><span style={fieldHelp}>PDF, JPEG หรือ PNG ขนาดไม่เกิน 25 MB</span></label>
+          <label style={labelStyle}>เลขอ้างอิง/ตำแหน่งแฟ้ม (ถ้ามี)<input style={input} value={paperSigning.reference} maxLength={500} disabled={paperSigningSaving} onChange={(event) => setPaperSigning({ ...paperSigning, reference: event.target.value })} /></label>
+          <label style={labelStyle}>หมายเหตุหลักฐาน (ถ้ามี)<textarea style={{ ...input, minHeight: 82, resize: "vertical" }} value={paperSigning.note} maxLength={4000} disabled={paperSigningSaving} onChange={(event) => setPaperSigning({ ...paperSigning, note: event.target.value })} /></label>
+        </div>
+        <SigningPartySummary signatories={legal.signatories} minimumClient={minimumClientSigners} minimumFirm={minimumFirmSigners} minimumWitness={minimumWitnesses} />
+        <label style={verificationConfirmation}><input type="checkbox" checked={paperSigning.verificationConfirmed} disabled={paperSigningSaving} onChange={(event) => setPaperSigning({ ...paperSigning, verificationConfirmed: event.target.checked })} /><span>ยืนยันว่าได้รับเอกสารที่ลงนามแล้วและได้ตรวจสอบผู้ลงนามตามข้อตกลง</span></label>
+        <div style={paperSigningActions}><button type="button" style={secondaryButton} disabled={paperSigningSaving} onClick={resetPaperSigning}>ยกเลิก</button><button className="fee-agreement-workflow-primary-button" type="button" style={workflowPrimaryButton} disabled={paperSigningSaving} onClick={() => void recordPaperSigning()}>{paperSigningSaving ? "กำลังบันทึกหลักฐาน..." : "ยืนยันการลงนาม"}</button></div>
+      </div> : null}
+      {permissions.canEditFinanceQuotation && destructiveLifecycleActions.length ? <div className="fee-agreement-workflow-destructive" style={workflowDestructive}><span style={workflowDestructiveLabel}>การดำเนินการอื่น</span><div>{destructiveLifecycleActions.map((action) => <button className="fee-agreement-workflow-cancel-button" key={action.status} style={workflowCancelButton} disabled={lifecycleSaving || paperSigningSaving || dirty} onClick={() => void changeStatus(action.status)}><WorkflowIcon name="cancel" />{lifecycleSaving || paperSigningSaving ? "กำลังดำเนินการ..." : action.label}</button>)}</div></div> : null}
     </section>
     <section style={card}><h2 style={sectionTitle}>ประวัติเวอร์ชัน</h2>{versions.length ? <div style={scroll}><table style={table}><thead><tr><th>เวอร์ชัน</th><th>รายการเปลี่ยนแปลง</th><th>ผู้ดำเนินการ</th><th>วันเวลา</th><th>เหตุผล</th></tr></thead><tbody>{versions.map((version) => <tr key={version.id}><td>v{version.version_no}</td><td>{feeAgreementVersionEventLabel(version.event_type)}</td><td>{version.actor_name || version.actor_email || "-"}</td><td>{new Date(version.created_at).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}</td><td>{version.reason || "-"}</td></tr>)}</tbody></table></div> : <p style={muted}>ยังไม่มีประวัติเวอร์ชันสำหรับข้อมูลเดิม</p>}</section>
   <style jsx global>{`
@@ -273,6 +373,7 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
     .fee-agreement-document-info-grid > * { min-width: 0; }
     .fee-agreement-expiry-field { grid-column: 1; }
     .fee-agreement-execution-mode-field { grid-column: 2 / -1; }
+    .fee-agreement-paper-signing-panel { scroll-margin-top: 84px; }
     @media (max-width: 900px) {
       .fee-agreement-document-info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
       .fee-agreement-expiry-field, .fee-agreement-execution-mode-field { grid-column: auto; }
@@ -288,6 +389,7 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
       .fee-agreement-signatory-grid, .fee-agreement-clause-grid { grid-template-columns: minmax(0, 1fr) !important; }
       .fee-agreement-detail-table { min-width: 720px !important; }
       .fee-agreement-workflow-overview, .fee-agreement-workflow-next { grid-template-columns: minmax(0, 1fr) !important; }
+      .fee-agreement-paper-signing-grid { grid-template-columns: minmax(0, 1fr) !important; }
       .fee-agreement-workflow-primary-actions, .fee-agreement-workflow-primary-button { width: 100%; }
       .fee-agreement-workflow-destructive { align-items: stretch !important; flex-direction: column; }
       .fee-agreement-workflow-cancel-button { width: 100%; }
@@ -318,10 +420,12 @@ function parseClauses(value: unknown) { const warnings: string[] = []; const row
 function blank(value: string) { return value.trim() || null; }
 function validateSignatories(rows: FeeAgreementSignatory[], client: FeeAgreementClientContext) { const orders = new Set<number>(); const individual = client.clientType.trim().toLowerCase() === "individual"; for (const row of rows) { if (!row.name.trim()) return row.signing_mode === "attorney_in_fact" ? "กรุณาระบุชื่อผู้รับมอบอำนาจ" : "กรุณาระบุชื่อผู้ลงนาม"; if (!Object.hasOwn(partyLabel, row.party_type)) return "กรุณาเลือกฝ่ายของผู้ลงนามให้ถูกต้อง"; if (!Number.isInteger(row.sort_order) || row.sort_order < 1) return "ลำดับผู้ลงนามไม่ถูกต้อง กรุณาลองบันทึกอีกครั้ง"; if (orders.has(row.sort_order)) return "ลำดับผู้ลงนามซ้ำกัน กรุณาลองบันทึกอีกครั้ง"; if (row.party_type === "client" && !individual && row.name.trim() === client.name.trim()) return "ผู้ลงนามของนิติบุคคลต้องเป็นชื่อบุคคล ไม่ใช่ชื่อนิติบุคคล"; if (row.party_type === "client" && row.signing_mode === "self" && row.name.trim() !== client.name.trim()) return "ผู้ลงนามด้วยตนเองต้องตรงกับชื่อลูกค้า"; orders.add(row.sort_order); } return ""; }
 function validateClauses(rows: CustomClause[]) { for (const row of rows) { if (!row.title.trim() || !row.content.trim()) return "กรุณาระบุหัวข้อและเนื้อหาของข้อกำหนดเพิ่มเติม"; if (!Number.isFinite(row.sort_order) || row.sort_order < 1) return "ลำดับข้อกำหนดต้องเป็นตัวเลขตั้งแต่ 1"; } return ""; }
-function mapRpcError(value: string) { if (value.includes("วันที่ทำสัญญา")) return "กรุณาระบุวันที่ทำสัญญาก่อนบันทึกว่าส่งให้ลูกค้าแล้ว"; if (value.includes("Only draft or under review")) return "เอกสารนี้ไม่สามารถแก้ไขในสถานะปัจจุบันได้"; if (value.includes("Not allowed")) return "คุณไม่มีสิทธิ์ดำเนินการนี้"; if (value.includes("template")) return "Template ที่เลือกไม่พร้อมใช้งานหรือภาษาไม่ตรงกัน"; if (value.includes("legal document data")) return "กรุณาตรวจสอบข้อมูลเอกสารและผู้ลงนามก่อนบันทึกว่าส่งให้ลูกค้าแล้ว"; if (value.includes("Billing Plan")) return "ต้องยกเลิกแผนเรียกเก็บเงินที่ยังมีผลก่อน"; if (value.includes("Invalid")) return "สถานะเอกสารไม่ถูกต้อง กรุณารีเฟรช"; return value || "ไม่สามารถบันทึกข้อมูลได้"; }
+function mapRpcError(value: string) { if (value.includes("กรุณาบันทึกหลักฐานการลงนาม")) return value; if (value.includes("วันที่ทำสัญญา")) return "กรุณาระบุวันที่ทำสัญญาก่อนบันทึกว่าส่งให้ลูกค้าแล้ว"; if (value.includes("Only draft or under review")) return "เอกสารนี้ไม่สามารถแก้ไขในสถานะปัจจุบันได้"; if (value.includes("Not allowed")) return "คุณไม่มีสิทธิ์ดำเนินการนี้"; if (value.includes("template")) return "Template ที่เลือกไม่พร้อมใช้งานหรือภาษาไม่ตรงกัน"; if (value.includes("legal document data")) return "กรุณาตรวจสอบข้อมูลเอกสารและผู้ลงนามก่อนบันทึกว่าส่งให้ลูกค้าแล้ว"; if (value.includes("Billing Plan")) return "ต้องยกเลิกแผนเรียกเก็บเงินที่ยังมีผลก่อน"; if (value.includes("Invalid")) return "สถานะเอกสารไม่ถูกต้อง กรุณารีเฟรช"; return value || "ไม่สามารถบันทึกข้อมูลได้"; }
+function mapSigningError(value: string) { if (value.includes("Only a Sent")) return "เอกสารนี้ไม่ได้อยู่ในสถานะส่งแล้ว กรุณารีเฟรชหน้า"; if (value.includes("electronic agreement")) return "ไม่สามารถใช้หลักฐานการลงนามบนเอกสารกับรูปแบบลงนามทางอิเล็กทรอนิกส์"; if (value.includes("Actual signing date is required")) return "กรุณาระบุวันที่ลงนามจริง"; if (value.includes("cannot be in the future")) return "วันที่ลงนามจริงต้องไม่เป็นวันที่ในอนาคต"; if (value.includes("verification confirmation")) return "กรุณายืนยันว่าได้รับเอกสารที่ลงนามแล้วและตรวจสอบผู้ลงนามเรียบร้อยแล้ว"; if (value.includes("client signer")) return "ไม่พบผู้ลงนามฝ่ายลูกค้าตามที่กำหนด"; if (value.includes("firm signer")) return "ไม่พบผู้ลงนามฝ่ายสำนักงานตามที่กำหนด"; if (value.includes("witness identity")) return "จำนวนพยานยังไม่ครบตามที่แม่แบบกำหนด"; if (value.includes("Sent document snapshot")) return "ไม่พบข้อมูลเอกสารฉบับที่ส่ง กรุณาติดต่อผู้ดูแลระบบ"; if (value.includes("Uploaded executed document")) return "ไม่พบไฟล์หลักฐานที่อัปโหลด กรุณาเลือกไฟล์และลองอีกครั้ง"; if (value.includes("Not allowed")) return "คุณไม่มีสิทธิ์บันทึกหลักฐานการลงนาม"; return "บันทึกหลักฐานการลงนามไม่สำเร็จ กรุณาตรวจสอบข้อมูลและลองอีกครั้ง"; }
 function lifecycleActions(status: string): Array<{ status: FeeAgreementLifecycleTarget; label: string }> { if (status === "draft") return [lifecycleAction("under_review"), lifecycleAction("cancelled")]; if (status === "under_review") return [lifecycleAction("sent"), lifecycleAction("cancelled")]; if (status === "sent") return [lifecycleAction("signed"), lifecycleAction("cancelled")]; if (status === "signed") return [lifecycleAction("completed")]; return []; }
 function lifecycleAction(status: FeeAgreementLifecycleTarget) { return { status, label: feeAgreementLifecycleActionLabel(status) }; }
 function workflowActionIcon(status: "under_review" | "sent" | "signed" | "completed" | "cancelled"): "review" | "send" | "signed" | "completed" | "cancel" { if (status === "under_review") return "review"; if (status === "sent") return "send"; if (status === "signed") return "signed"; if (status === "completed") return "completed"; return "cancel"; }
+function SigningPartySummary({ signatories, minimumClient, minimumFirm, minimumWitness }: { signatories: FeeAgreementSignatory[]; minimumClient: number; minimumFirm: number; minimumWitness: number }) { const groups: Array<{ party: "client" | "firm" | "witness"; label: string; minimum: number }> = [{ party: "client", label: "ผู้ลงนามฝ่ายลูกค้า", minimum: Math.max(1, minimumClient) }, { party: "firm", label: "ผู้ลงนามฝ่ายสำนักงาน", minimum: Math.max(1, minimumFirm) }, { party: "witness", label: "พยาน", minimum: minimumWitness }]; return <div style={signingPartySummary}><strong>ผู้ลงนามที่ต้องตรวจสอบ</strong><div style={signingPartyGrid}>{groups.map((group) => { const names = signatories.filter((signatory) => signatory.party_type === group.party && signatory.name.trim()).map((signatory) => signatory.name); if (group.party === "witness" && group.minimum === 0 && !names.length) return <div key={group.party} style={signingPartyRow}><span>{group.label}</span><span style={muted}>ไม่บังคับและไม่ได้ระบุ</span></div>; return <div key={group.party} style={signingPartyRow}><span>{group.label} (อย่างน้อย {group.minimum})</span><strong>{names.length ? names.join(" · ") : "ยังไม่มีข้อมูล"}</strong></div>; })}</div></div>; }
 function Field({ label, value }: { label: string; value: ReactNode }) { return <div><small style={muted}>{label}</small><div>{value}</div></div>; }
 function NavigationIcon({ name }: { name: "back" | "source" | "preview" | "print" }) { const common = { width: 17, height: 17, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true }; if (name === "back") return <svg {...common}><path d="M19 12H5M12 19l-7-7 7-7" /></svg>; if (name === "source") return <svg {...common}><path d="M6 3h9l3 3v15H6zM14 3v4h4M9 12h6M9 16h4" /></svg>; if (name === "preview") return <svg {...common}><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>; return <svg {...common}><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z" /></svg>; }
 function WorkflowIcon({ name }: { name: "lock" | "review" | "send" | "signed" | "completed" | "cancel" }) { const common = { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true }; if (name === "lock") return <svg {...common} style={{ flex: "0 0 auto" }}><rect x="5" y="10" width="14" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>; if (name === "review") return <svg {...common}><path d="M6 3h9l3 3v15H6zM14 3v4h4M9 12l2 2 4-4M9 18h6" /></svg>; if (name === "send") return <svg {...common}><path d="m3 11 18-8-8 18-2-8-8-2Z" /><path d="m11 13 4-4" /></svg>; if (name === "signed") return <svg {...common}><path d="M4 20h16M6 16l9-9 3 3-9 9H6v-3Z" /></svg>; if (name === "completed") return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="m8 12 3 3 5-6" /></svg>; return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="m9 9 6 6m0-6-6 6" /></svg>; }
@@ -366,6 +470,21 @@ const workflowNextTitle: CSSProperties = { color: "#172033", fontSize: 16 };
 const workflowNextDescription: CSSProperties = { color: "#475569", fontSize: 13, lineHeight: 1.45 };
 const workflowPrimaryActions: CSSProperties = { display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: 8 };
 const workflowPrimaryButton: CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 42, boxSizing: "border-box", padding: "10px 15px", border: "1px solid #172033", borderRadius: 6, background: "#172033", color: "#fff", cursor: "pointer", font: "inherit", fontWeight: 750 };
+const paperSigningPanel: CSSProperties = { display: "grid", gap: 16, marginTop: 14, padding: 16, border: "1px solid #a5b4fc", borderRadius: 7, background: "#fff", boxShadow: "0 8px 22px rgba(15,23,42,.08)" };
+const paperSigningTitle: CSSProperties = { margin: 0, color: "#172033", fontSize: 17 };
+const paperSigningDescription: CSSProperties = { margin: "5px 0 0", color: "#475569", fontSize: 13, lineHeight: 1.55 };
+const paperSigningGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 14 };
+const fieldHelp: CSSProperties = { color: "#64748b", fontSize: 12, lineHeight: 1.4 };
+const signingPartySummary: CSSProperties = { display: "grid", gap: 9, padding: 12, border: "1px solid #e2e8f0", borderRadius: 6, background: "#f8fafc", color: "#334155", fontSize: 13 };
+const signingPartyGrid: CSSProperties = { display: "grid", gap: 7 };
+const signingPartyRow: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, paddingTop: 7, borderTop: "1px solid #e2e8f0" };
+const verificationConfirmation: CSSProperties = { display: "flex", alignItems: "flex-start", gap: 10, padding: 12, border: "1px solid #bbf7d0", borderRadius: 6, background: "#f0fdf4", color: "#14532d", fontSize: 14, lineHeight: 1.5 };
+const paperSigningActions: CSSProperties = { display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: 8 };
+const signingEvidenceSummary: CSSProperties = { borderColor: "#bbf7d0", background: "#fbfffc" };
+const signingEvidenceHeading: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 14 };
+const signingEvidenceIntro: CSSProperties = { margin: "-7px 0 0", color: "#64748b", fontSize: 13 };
+const signingEvidenceNote: CSSProperties = { display: "grid", gap: 4, marginTop: 14, paddingTop: 12, borderTop: "1px solid #dcfce7", color: "#334155", fontSize: 13, whiteSpace: "pre-wrap" };
+const legacyEvidenceNotice: CSSProperties = { padding: 12, borderRadius: 6, background: "#f8fafc", color: "#64748b", fontSize: 13 };
 const workflowDestructive: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginTop: 14, paddingTop: 14, borderTop: "1px solid #e2e8f0" };
 const workflowDestructiveLabel: CSSProperties = { color: "#64748b", fontSize: 12, fontWeight: 700 };
 const workflowCancelButton: CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 36, boxSizing: "border-box", padding: "8px 11px", border: "1px solid #fecaca", borderRadius: 6, background: "#fff", color: "#b91c1c", cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 700 };
