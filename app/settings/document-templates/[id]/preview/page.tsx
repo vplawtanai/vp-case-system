@@ -380,7 +380,7 @@ export default function DraftTemplatePreviewPage() {
               {version.renderer_schema_version !== 3 ? (
                 <div className={styles.error}>แม่แบบนี้ไม่ใช่ Renderer schema v3 จึงไม่สามารถแสดงตัวอย่างด้วย renderer นี้ได้</div>
               ) : (
-                <article className={styles.document}>
+                <article className={styles.document} lang={version.language_code}>
                   {sortedSections.map((section) => {
                     if (section.section_kind === "preamble") {
                       return <Preamble key={section.id} template={template} section={section} variables={variableMap} identity={companyProfile} logoUrl={logoUrl} languageCode={version.language_code} context={context} signatories={signatories} />;

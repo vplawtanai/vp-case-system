@@ -147,6 +147,18 @@
   color: #1f2937;
   font-size: 14px;
   line-height: 1.72;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+@supports (word-break: auto-phrase) {
+  .document p {
+    word-break: auto-phrase;
+  }
+}
+
+.document p {
+  text-wrap: pretty;
 }
 
 .preamble {
@@ -175,7 +187,8 @@
 }
 
 .infoRow span:last-child {
-  overflow-wrap: anywhere;
+  word-break: normal;
+  overflow-wrap: normal;
 }
 
 .legalSection,
@@ -206,7 +219,8 @@
 .execution > p {
   margin: 0;
   white-space: pre-wrap;
-  overflow-wrap: break-word;
+  word-break: normal;
+  overflow-wrap: normal;
   orphans: 3;
   widows: 3;
 }
@@ -228,7 +242,7 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 24px;
-  margin-top: 28px;
+  margin-top: 20px;
 }
 
 .principalSignatureGrid {

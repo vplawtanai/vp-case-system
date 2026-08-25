@@ -44,11 +44,11 @@ export function DocumentIdentityHeader({
           </div>
           <div className={styles.providerMetadata}>
             <span className={styles.address}>{address || "ยังไม่ได้ตั้งค่าที่อยู่สำนักงาน"}</span>
-            <span>
+            <span className={styles.technicalMetadata}>
               เลขประจำตัวผู้เสียภาษี: {identity.taxId || "ยังไม่ได้ตั้งค่า"}
               {branch ? ` · ${branch}` : ""}
             </span>
-            {contact ? <span>{contact}</span> : null}
+            {contact ? <span className={styles.technicalMetadata}>{contact}</span> : null}
           </div>
         </div>
       </div>

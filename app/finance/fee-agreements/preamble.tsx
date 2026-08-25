@@ -142,7 +142,7 @@ function firstText(...values: unknown[]) {
 
 const sectionStyle = { margin: "20px 0", breakInside: "auto" as const };
 const heading = { color: "#15803d", fontSize: 17, borderBottom: "1px solid #bbf7d0", paddingBottom: 6, margin: "0 0 10px", breakAfter: "avoid" as const };
-const paragraph = { margin: "7px 0", lineHeight: 1.72, textAlign: "justify" as const, overflowWrap: "break-word" as const, orphans: 3, widows: 3 };
+const paragraph = { margin: "7px 0", lineHeight: 1.72, textAlign: "start" as const, overflowWrap: "normal" as const, orphans: 3, widows: 3 };
 const openingParagraph = { ...paragraph, marginTop: 0 };
 const partiesBlock = { margin: "7px 0", breakInside: "avoid" as const, pageBreakInside: "avoid" as const };
 const partyParagraph = { ...paragraph, margin: "4px 0", paddingInline: "1.75em" };
