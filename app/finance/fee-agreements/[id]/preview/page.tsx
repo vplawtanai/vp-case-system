@@ -65,6 +65,15 @@ const selectStoredDocument = (agreement: Agreement): Json => {
   return {};
 };
 
+async function waitForPreviewAssets() {
+  await window.document.fonts?.ready;
+  const images = Array.from(window.document.querySelectorAll<HTMLImageElement>(".fee-agreement-document img"));
+  await Promise.all(images.map((image) => image.complete ? Promise.resolve() : new Promise<void>((resolve) => {
+    image.addEventListener("load", () => resolve(), { once: true });
+    image.addEventListener("error", () => resolve(), { once: true });
+  })));
+}
+
 export default function FeeAgreementPreviewPage() {
   const params = useParams(); const id = Array.isArray(params.id) ? params.id[0] : params.id || "";
   return <QuotationGuard>{() => <Preview id={id} />}</QuotationGuard>;
@@ -110,7 +119,16 @@ function Preview({ id }: { id: string }) {
     setAgreement(row); setItems((itemRes.data || []) as Item[]); setLiveTemplate(asObject(templateRes.data)); setDocumentIdentity(identity); setLogoUrl(resolvedLogoUrl); setSignatureUrls(Object.fromEntries(signedSignatureEntries)); setLoading(false);
   }, [id]);
   useEffect(() => { const timer = window.setTimeout(() => { void load(); }, 0); return () => window.clearTimeout(timer); }, [load]);
-  useEffect(() => { if (params.get("print") === "1" && !loading && agreement && !printed.current) { printed.current = true; window.setTimeout(() => window.print(), 100); } }, [agreement, loading, params]);
+  const printWhenReady = useCallback(async () => {
+    await waitForPreviewAssets();
+    window.requestAnimationFrame(() => window.print());
+  }, []);
+  useEffect(() => {
+    if (params.get("print") !== "1" || loading || !agreement || printed.current) return;
+    printed.current = true;
+    const timer = window.setTimeout(() => { void printWhenReady(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [agreement, loading, params, printWhenReady]);
   const document = useMemo(() => {
     return agreement ? selectStoredDocument(agreement) : {};
   }, [agreement]);
@@ -138,7 +156,7 @@ function Preview({ id }: { id: string }) {
   const documentTitle = /^Fee Agreement\s*-\s*/i.test(agreement.title) || !agreement.title.trim() ? "สัญญาว่าจ้างให้บริการทางกฎหมาย" : string(snapAgreement.title, agreement.title);
   const coreLegalTerms = [legal.scope_clarification, legal.client_obligations, legal.firm_obligations, legal.confidentiality, legal.termination_provisions, legal.dispute_jurisdiction];
   const previewIncomplete = ["draft", "under_review"].includes(agreement.status) && (!agreement.agreement_no || !renderedItems.length || !agreement.agreement_date || !agreement.effective_date || !string(client.name, string(client.display_name, "")) || !signatories.some((entry) => entry.party_type === "client") || !signatories.some((entry) => entry.party_type === "firm") || (!agreement.selected_template_version_id && !coreLegalTerms.some((value) => string(value, ""))));
-  return <main style={shell}><div className="screen-controls" style={controls}><Link href={`/finance/fee-agreements/${agreement.id}`}>Back to Fee Agreement</Link><button type="button" onClick={() => window.print()}>Print</button><span>เพื่อเอกสารที่สะอาด กรุณาปิด Headers and footers ในหน้าต่าง Print</span></div>{error ? <div className="fee-agreement-preview-readiness" style={readinessNotice}>{error}</div> : null}{previewIncomplete ? <div className="fee-agreement-preview-readiness" style={readinessNotice}>เอกสารฉบับนี้ยังอยู่ระหว่างจัดทำและอาจมีข้อมูลไม่ครบถ้วน</div> : null}
+  return <main style={shell}><div className="screen-controls fee-agreement-preview-toolbar" style={controls}><div style={controlMessage}><PreviewControlIcon name="info" /><div><strong style={controlTitle}>ตรวจตัวอย่างเอกสารก่อนพิมพ์</strong><span style={controlText}>เพื่อให้เอกสาร PDF/สิ่งพิมพ์สะอาด กรุณาปิด “Headers and footers” ในหน้าต่าง Print</span></div></div><div className="fee-agreement-preview-actions" style={controlActions}><Link className="fee-agreement-preview-button fee-agreement-preview-back" href={`/finance/fee-agreements/${agreement.id}`} style={{ ...controlButton, ...controlBackButton }}><PreviewControlIcon name="back" />กลับไปหน้าข้อตกลง</Link><button className="fee-agreement-preview-button fee-agreement-preview-print" type="button" style={{ ...controlButton, ...controlPrintButton }} onClick={() => { void printWhenReady(); }}><PreviewControlIcon name="print" />พิมพ์</button></div></div>{error ? <div className="fee-agreement-preview-readiness" style={readinessNotice}>{error}</div> : null}{previewIncomplete ? <div className="fee-agreement-preview-readiness" style={readinessNotice}>เอกสารฉบับนี้ยังอยู่ระหว่างจัดทำและอาจมีข้อมูลไม่ครบถ้วน</div> : null}
     <LegalDocumentLayout className="fee-agreement-document" languageCode={agreement.language_code}><PreambleRenderer section={rendererV3 ? preambleSection : undefined} variables={preambleVariables} agreement={agreement} snapAgreement={snapAgreement} client={client} matter={matter} documentTitle={documentTitle} identity={documentIdentity} logoUrl={logoUrl} signatories={signatories} />
       {templateMode ? templateAvailable ? <ResolvedTemplateSections template={templateSnapshot} variables={variables} afterSection={(templateSection) => string(templateSection.section_code, "") === "FEES_PAYMENT" ? <CommercialTermsContent items={renderedItems} payment={asObject(source.payment_terms || commercialSnapshot.payment_terms)} total={asObject(total)} currency={currency} languageCode={agreement.language_code} /> : null} /> : <section style={section}><SectionTitle>ไม่สามารถแสดงข้อกำหนดจากแม่แบบ</SectionTitle><p style={pre}><ThaiLegalText text="กรุณากลับไปตรวจสอบแม่แบบเอกสารที่เลือกก่อนใช้เอกสารนี้กับผู้ว่าจ้าง" languageCode={agreement.language_code} /></p></section> : <>
         <section className="fee-agreement-content-section" style={section}><SectionTitle>ขอบเขตการให้บริการ</SectionTitle><p style={pre}><ThaiLegalText text={string(commercial.scope_of_legal_services, string(legal.scope_clarification, "-"))} languageCode={agreement.language_code} /></p>{([ ["งานที่รวมอยู่ในค่าบริการ", commercial.included_services], ["งานหรือค่าใช้จ่ายที่ไม่รวม", commercial.excluded_services] ] as Array<[string, unknown]>).filter(([, value]) => value).map(([label, value]) => <div key={label} style={term}><strong>{label}</strong><p style={pre}><ThaiLegalText text={string(value)} languageCode={agreement.language_code} /></p></div>)}</section>
@@ -160,10 +178,22 @@ function Preview({ id }: { id: string }) {
         .fee-agreement-witness-signatures { break-inside: auto; page-break-inside: auto; }
         .fee-agreement-section-title { break-after: avoid; page-break-after: avoid; }
       }
+      @media (max-width: 720px) {
+        .fee-agreement-preview-toolbar { grid-template-columns: minmax(0, 1fr) !important; }
+        .fee-agreement-preview-actions { display: grid !important; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+      }
+      @media (max-width: 460px) {
+        .fee-agreement-preview-actions { grid-template-columns: minmax(0, 1fr) !important; }
+      }
+      .fee-agreement-preview-button { transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease; }
+      .fee-agreement-preview-back:hover { background: #fef3c7 !important; border-color: #d6a633 !important; }
+      .fee-agreement-preview-print:hover { background: #26334c !important; border-color: #26334c !important; }
+      .fee-agreement-preview-button:focus-visible { outline: 3px solid rgba(217, 119, 6, .28); outline-offset: 2px; }
     `}</style></main>;
 }
 
 function SectionTitle({ children }: { children: string }) { return <h2 className="fee-agreement-section-title" style={sectionTitle}>{children}</h2>; }
+function PreviewControlIcon({ name }: { name: "info" | "back" | "print" }) { const common = { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true }; if (name === "info") return <svg {...common} style={{ flex: "0 0 auto", marginTop: 2 }}><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>; if (name === "back") return <svg {...common}><path d="M19 12H5M12 19l-7-7 7-7" /></svg>; return <svg {...common}><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z" /></svg>; }
 function variableValue(variables: Record<string, string>, key: string, fallback = "-") { return variables[key] || fallback; }
 function PreambleRenderer({ section: templateSection, variables, agreement, snapAgreement, client, matter, documentTitle, identity, logoUrl, signatories }: { section?: Json; variables: Record<string, string>; agreement: Agreement; snapAgreement: Json; client: Json; matter: Json; documentTitle: string; identity: DocumentIdentity; logoUrl: string; signatories: FeeAgreementSignatory[] }) {
   const agreementNo = variableValue(variables, "AGREEMENT_NO", string(snapAgreement.agreement_no, agreement.agreement_no || "-"));
@@ -222,7 +252,14 @@ function feeBodyStyle(column: FeeColumn): CSSProperties {
 }
 
 const shell = { width: "100%", maxWidth: 1180, margin: "0 auto", padding: 24 };
-const controls = { display: "flex", gap: 12, flexWrap: "wrap" as const, alignItems: "center", marginBottom: 16, color: "#475569", fontSize: 14 };
+const controls = { boxSizing: "border-box" as const, display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 16, alignItems: "center", width: "100%", maxWidth: 820, margin: "0 auto 16px", padding: "13px 14px", border: "1px solid #f0c76b", borderRadius: 8, background: "#fffbeb", color: "#78350f", boxShadow: "0 3px 12px rgba(120, 53, 15, 0.08)" };
+const controlMessage = { display: "flex", alignItems: "flex-start", gap: 10, minWidth: 0 };
+const controlTitle = { display: "block", marginBottom: 2, color: "#78350f", fontSize: 14 };
+const controlText = { display: "block", color: "#92400e", fontSize: 13, lineHeight: 1.5 };
+const controlActions = { display: "flex", alignItems: "center", flexWrap: "wrap" as const, justifyContent: "flex-end", gap: 8 };
+const controlButton = { boxSizing: "border-box" as const, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 38, padding: "8px 11px", border: "1px solid", borderRadius: 6, font: "inherit", fontSize: 14, fontWeight: 700, lineHeight: 1.25, textDecoration: "none", cursor: "pointer", whiteSpace: "nowrap" as const };
+const controlBackButton = { borderColor: "#d6b45f", background: "#fff", color: "#78350f" };
+const controlPrintButton = { borderColor: "#172033", background: "#172033", color: "#fff" };
 const readinessNotice = { maxWidth: 820, margin: "0 auto 14px", background: "#fff7ed", borderLeft: "3px solid #f59e0b", color: "#92400e", padding: "10px 12px", fontSize: 14 };
 const muted = { color: "#64748b", fontSize: 13 };
 const section = { margin: "20px 0" };
