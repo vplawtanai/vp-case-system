@@ -61,6 +61,8 @@ type LegalForm = { language: string; commencementDate: string; templateVersionId
 type MetadataForm = { title: string; agreementDate: string; effectiveDate: string; expiryDate: string; billingMethod: string; executionMode: "paper" | "electronic" };
 type ClientRow = { id: string; name: string | null; client_type: string | null; contact_name: string | null };
 type PaperSigningForm = { executedOn: string; verificationConfirmed: boolean; note: string; reference: string };
+type PaperSigningErrorKey = "executedOn" | "evidenceFile" | "signatories" | "verification";
+type PaperSigningErrors = Partial<Record<PaperSigningErrorKey, string>>;
 
 const defaultTitle = "สัญญาว่าจ้างให้บริการทางกฎหมาย";
 const emptyPaperSigningForm: PaperSigningForm = { executedOn: "", verificationConfirmed: false, note: "", reference: "" };
@@ -94,9 +96,9 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
   const [metadata, setMetadata] = useState<MetadataForm>({ title: "", agreementDate: "", effectiveDate: "", expiryDate: "", billingMethod: "single", executionMode: "paper" }); const [legal, setLegal] = useState<LegalForm>(emptyLegalForm);
   const [savedBaseline, setSavedBaseline] = useState("");
   const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [saving, setSaving] = useState(false); const [lifecycleSaving, setLifecycleSaving] = useState(false); const [message, setMessage] = useState("");
-  const [paperSigningOpen, setPaperSigningOpen] = useState(false); const [paperSigning, setPaperSigning] = useState<PaperSigningForm>(emptyPaperSigningForm); const [evidenceFile, setEvidenceFile] = useState<File | null>(null); const [paperSigningSaving, setPaperSigningSaving] = useState(false); const [evidenceOpening, setEvidenceOpening] = useState(false);
+  const [paperSigningOpen, setPaperSigningOpen] = useState(false); const [paperSigning, setPaperSigning] = useState<PaperSigningForm>(emptyPaperSigningForm); const [paperSigningErrors, setPaperSigningErrors] = useState<PaperSigningErrors>({}); const [evidenceFile, setEvidenceFile] = useState<File | null>(null); const [paperSigningSaving, setPaperSigningSaving] = useState(false); const [evidenceOpening, setEvidenceOpening] = useState(false);
   const saveLock = useRef(false);
-  const paperSigningLock = useRef(false); const paperSigningPanelRef = useRef<HTMLDivElement>(null); const evidenceFileInputRef = useRef<HTMLInputElement>(null);
+  const paperSigningLock = useRef(false); const paperSigningPanelRef = useRef<HTMLDivElement>(null); const executedOnInputRef = useRef<HTMLInputElement>(null); const evidenceFileInputRef = useRef<HTMLInputElement>(null); const signingPartySummaryRef = useRef<HTMLDivElement>(null); const verificationInputRef = useRef<HTMLInputElement>(null);
   const editable = Boolean(agreement && permissions.canEditFinanceQuotation && ["draft", "under_review"].includes(agreement.status));
   const dirty = Boolean(agreement && savedBaseline && agreementFingerprint(metadata, legal, agreement) !== savedBaseline);
 
@@ -174,8 +176,15 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
     if (result.error) setError(mapRpcError(result.error.message)); else { await load(); setMessage(feeAgreementLifecycleSuccess(next)); }
     setLifecycleSaving(false);
   };
+  const setPaperSigningFieldError = (key: PaperSigningErrorKey, value = "") => {
+    setPaperSigningErrors((current) => {
+      const next = { ...current };
+      if (value) next[key] = value; else delete next[key];
+      return next;
+    });
+  };
   const resetPaperSigning = () => {
-    setPaperSigning(emptyPaperSigningForm); setEvidenceFile(null); setPaperSigningOpen(false);
+    setPaperSigning(emptyPaperSigningForm); setPaperSigningErrors({}); setEvidenceFile(null); setPaperSigningOpen(false);
     if (evidenceFileInputRef.current) evidenceFileInputRef.current.value = "";
   };
   const openPaperSigning = () => {
@@ -184,16 +193,36 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
       setError("ข้อตกลงนี้กำหนดรูปแบบลงนามทางอิเล็กทรอนิกส์ ซึ่งยังไม่เปิดใช้งานในระบบ");
       return;
     }
-    setError(""); setMessage(""); setPaperSigning(emptyPaperSigningForm); setEvidenceFile(null); setPaperSigningOpen(true);
+    setError(""); setMessage(""); setPaperSigning(emptyPaperSigningForm); setPaperSigningErrors({}); setEvidenceFile(null); setPaperSigningOpen(true);
     window.setTimeout(() => paperSigningPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
   };
   const recordPaperSigning = async () => {
     if (!agreement || agreement.status !== "sent" || paperSigningLock.current) return;
-    if (!paperSigning.executedOn) { setError("กรุณาระบุวันที่ลงนามจริง"); return; }
-    if (!evidenceFile) { setError("กรุณาแนบเอกสารที่ลงนามแล้ว"); return; }
-    const fileError = validateFeeAgreementEvidenceFile(evidenceFile);
-    if (fileError) { setError(fileError); return; }
-    if (!paperSigning.verificationConfirmed) { setError("กรุณายืนยันว่าได้รับเอกสารที่ลงนามแล้วและตรวจสอบผู้ลงนามเรียบร้อยแล้ว"); return; }
+    const nextErrors: PaperSigningErrors = {};
+    if (!paperSigning.executedOn) nextErrors.executedOn = "กรุณาระบุวันที่ลงนามจริง";
+    if (!evidenceFile) nextErrors.evidenceFile = "กรุณาแนบเอกสารฉบับที่ลงนามแล้ว";
+    else {
+      const fileError = validateFeeAgreementEvidenceFile(evidenceFile);
+      if (fileError) nextErrors.evidenceFile = fileError;
+    }
+    const namedSignerCount = (partyType: "client" | "firm" | "witness") => legal.signatories.filter((signatory) => signatory.party_type === partyType && signatory.name.trim()).length;
+    const missingSigners: string[] = [];
+    if (namedSignerCount("client") < minimumClientSigners) missingSigners.push(`ผู้ลงนามฝ่ายลูกค้าอย่างน้อย ${minimumClientSigners} คน`);
+    if (namedSignerCount("firm") < minimumFirmSigners) missingSigners.push(`ผู้ลงนามฝ่ายสำนักงานอย่างน้อย ${minimumFirmSigners} คน`);
+    if (namedSignerCount("witness") < minimumWitnesses) missingSigners.push(`พยานอย่างน้อย ${minimumWitnesses} คน`);
+    if (missingSigners.length) nextErrors.signatories = `ข้อมูลผู้ลงนามยังไม่ครบ: ${missingSigners.join(" · ")}`;
+    if (!paperSigning.verificationConfirmed) nextErrors.verification = "กรุณายืนยันว่าได้รับเอกสารที่ลงนามแล้วและได้ตรวจสอบผู้ลงนามตามข้อตกลง";
+    if (Object.keys(nextErrors).length) {
+      setPaperSigningErrors(nextErrors); setError("");
+      const firstInvalid = (["executedOn", "evidenceFile", "signatories", "verification"] as PaperSigningErrorKey[]).find((key) => nextErrors[key]);
+      window.setTimeout(() => {
+        const target = firstInvalid === "executedOn" ? executedOnInputRef.current : firstInvalid === "evidenceFile" ? evidenceFileInputRef.current : firstInvalid === "signatories" ? signingPartySummaryRef.current : verificationInputRef.current;
+        target?.focus?.({ preventScroll: true }); target?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 0);
+      return;
+    }
+    setPaperSigningErrors({});
+    if (!evidenceFile) return;
 
     paperSigningLock.current = true; setPaperSigningSaving(true); setError(""); setMessage("");
     const storagePath = buildFeeAgreementEvidencePath(agreement.id, evidenceFile.type);
@@ -350,14 +379,15 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
       {agreement.status === "sent" && normalizeFeeAgreementExecutionMode(agreement.execution_mode) !== "paper" ? <div style={warning}>การบันทึกหลักฐานการลงนามทางอิเล็กทรอนิกส์ยังไม่เปิดใช้งาน</div> : null}
       {paperSigningOpen && agreement.status === "sent" ? <div ref={paperSigningPanelRef} className="fee-agreement-paper-signing-panel" style={paperSigningPanel}>
         <div><h3 style={paperSigningTitle}>บันทึกหลักฐานการลงนามบนเอกสาร</h3><p style={paperSigningDescription}>กรอกข้อมูลจากเอกสารฉบับที่ได้รับคืนหลังลงนาม ระบบจะบันทึกวันที่จริงและไฟล์หลักฐานพร้อมสถานะลงนามแล้วในครั้งเดียว</p></div>
+        {Object.keys(paperSigningErrors).length ? <div role="alert" aria-live="assertive" style={paperSigningValidationSummary}><strong>กรุณากรอกข้อมูลที่จำเป็นให้ครบก่อนยืนยันการลงนาม</strong><ul style={paperSigningValidationList}>{Object.values(paperSigningErrors).map((validationError) => <li key={validationError}>{validationError}</li>)}</ul></div> : null}
         <div className="fee-agreement-paper-signing-grid" style={paperSigningGrid}>
-          <label style={labelStyle}>วันที่ลงนามจริง *<input style={input} type="date" value={paperSigning.executedOn} disabled={paperSigningSaving} onChange={(event) => setPaperSigning({ ...paperSigning, executedOn: event.target.value })} /></label>
-          <label style={labelStyle}>เอกสารที่ลงนามแล้ว *<input ref={evidenceFileInputRef} style={input} type="file" accept="application/pdf,image/jpeg,image/png" disabled={paperSigningSaving} onChange={(event) => setEvidenceFile(event.target.files?.[0] || null)} /><span style={fieldHelp}>PDF, JPEG หรือ PNG ขนาดไม่เกิน 25 MB</span></label>
+          <label style={labelStyle}>วันที่ลงนามจริง *<input ref={executedOnInputRef} style={{ ...input, ...(paperSigningErrors.executedOn ? invalidInput : {}) }} type="date" value={paperSigning.executedOn} aria-invalid={Boolean(paperSigningErrors.executedOn)} aria-describedby={paperSigningErrors.executedOn ? "paper-signing-executed-on-error" : undefined} disabled={paperSigningSaving} onChange={(event) => { const executedOn = event.target.value; setPaperSigning({ ...paperSigning, executedOn }); if (executedOn) setPaperSigningFieldError("executedOn"); }} />{paperSigningErrors.executedOn ? <span id="paper-signing-executed-on-error" style={fieldErrorText}>{paperSigningErrors.executedOn}</span> : null}</label>
+          <label style={labelStyle}>เอกสารที่ลงนามแล้ว *<input ref={evidenceFileInputRef} style={{ ...input, ...(paperSigningErrors.evidenceFile ? invalidInput : {}) }} type="file" accept="application/pdf,image/jpeg,image/png" aria-invalid={Boolean(paperSigningErrors.evidenceFile)} aria-describedby={paperSigningErrors.evidenceFile ? "paper-signing-evidence-file-error" : "paper-signing-evidence-file-help"} disabled={paperSigningSaving} onChange={(event) => { const file = event.target.files?.[0] || null; setEvidenceFile(file); setPaperSigningFieldError("evidenceFile", file ? validateFeeAgreementEvidenceFile(file) : "กรุณาแนบเอกสารฉบับที่ลงนามแล้ว"); }} /><span id="paper-signing-evidence-file-help" style={fieldHelp}>PDF, JPEG หรือ PNG ขนาดไม่เกิน 25 MB</span>{paperSigningErrors.evidenceFile ? <span id="paper-signing-evidence-file-error" style={fieldErrorText}>{paperSigningErrors.evidenceFile}</span> : null}</label>
           <label style={labelStyle}>เลขอ้างอิง/ตำแหน่งแฟ้ม (ถ้ามี)<input style={input} value={paperSigning.reference} maxLength={500} disabled={paperSigningSaving} onChange={(event) => setPaperSigning({ ...paperSigning, reference: event.target.value })} /></label>
           <label style={labelStyle}>หมายเหตุหลักฐาน (ถ้ามี)<textarea style={{ ...input, minHeight: 82, resize: "vertical" }} value={paperSigning.note} maxLength={4000} disabled={paperSigningSaving} onChange={(event) => setPaperSigning({ ...paperSigning, note: event.target.value })} /></label>
         </div>
-        <SigningPartySummary signatories={legal.signatories} minimumClient={minimumClientSigners} minimumFirm={minimumFirmSigners} minimumWitness={minimumWitnesses} />
-        <label style={verificationConfirmation}><input type="checkbox" checked={paperSigning.verificationConfirmed} disabled={paperSigningSaving} onChange={(event) => setPaperSigning({ ...paperSigning, verificationConfirmed: event.target.checked })} /><span>ยืนยันว่าได้รับเอกสารที่ลงนามแล้วและได้ตรวจสอบผู้ลงนามตามข้อตกลง</span></label>
+        <div ref={signingPartySummaryRef} tabIndex={-1} style={paperSigningErrors.signatories ? invalidSection : undefined}><SigningPartySummary signatories={legal.signatories} minimumClient={minimumClientSigners} minimumFirm={minimumFirmSigners} minimumWitness={minimumWitnesses} />{paperSigningErrors.signatories ? <div style={fieldErrorText}>{paperSigningErrors.signatories}</div> : null}</div>
+        <label style={{ ...verificationConfirmation, ...(paperSigningErrors.verification ? invalidConfirmation : {}) }}><input ref={verificationInputRef} type="checkbox" checked={paperSigning.verificationConfirmed} aria-invalid={Boolean(paperSigningErrors.verification)} aria-describedby={paperSigningErrors.verification ? "paper-signing-verification-error" : undefined} disabled={paperSigningSaving} onChange={(event) => { const verificationConfirmed = event.target.checked; setPaperSigning({ ...paperSigning, verificationConfirmed }); if (verificationConfirmed) setPaperSigningFieldError("verification"); }} /><span>ยืนยันว่าได้รับเอกสารที่ลงนามแล้วและได้ตรวจสอบผู้ลงนามตามข้อตกลง{paperSigningErrors.verification ? <span id="paper-signing-verification-error" style={fieldErrorText}>{paperSigningErrors.verification}</span> : null}</span></label>
         <div style={paperSigningActions}><button type="button" style={secondaryButton} disabled={paperSigningSaving} onClick={resetPaperSigning}>ยกเลิก</button><button className="fee-agreement-workflow-primary-button" type="button" style={workflowPrimaryButton} disabled={paperSigningSaving} onClick={() => void recordPaperSigning()}>{paperSigningSaving ? "กำลังบันทึกหลักฐาน..." : "ยืนยันการลงนาม"}</button></div>
       </div> : null}
       {permissions.canEditFinanceQuotation && destructiveLifecycleActions.length ? <div className="fee-agreement-workflow-destructive" style={workflowDestructive}><span style={workflowDestructiveLabel}>การดำเนินการอื่น</span><div>{destructiveLifecycleActions.map((action) => <button className="fee-agreement-workflow-cancel-button" key={action.status} style={workflowCancelButton} disabled={lifecycleSaving || paperSigningSaving || dirty} onClick={() => void changeStatus(action.status)}><WorkflowIcon name="cancel" />{lifecycleSaving || paperSigningSaving ? "กำลังดำเนินการ..." : action.label}</button>)}</div></div> : null}
@@ -475,6 +505,12 @@ const paperSigningTitle: CSSProperties = { margin: 0, color: "#172033", fontSize
 const paperSigningDescription: CSSProperties = { margin: "5px 0 0", color: "#475569", fontSize: 13, lineHeight: 1.55 };
 const paperSigningGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 14 };
 const fieldHelp: CSSProperties = { color: "#64748b", fontSize: 12, lineHeight: 1.4 };
+const paperSigningValidationSummary: CSSProperties = { padding: "11px 12px", border: "1px solid #fecaca", borderRadius: 6, background: "#fef2f2", color: "#991b1b", fontSize: 13, lineHeight: 1.5 };
+const paperSigningValidationList: CSSProperties = { margin: "6px 0 0", paddingLeft: 20 };
+const invalidInput: CSSProperties = { borderColor: "#dc2626", boxShadow: "0 0 0 2px rgba(220,38,38,.1)" };
+const invalidSection: CSSProperties = { padding: 2, border: "1px solid #fca5a5", borderRadius: 7, outline: "none" };
+const invalidConfirmation: CSSProperties = { borderColor: "#fca5a5", background: "#fef2f2", color: "#991b1b" };
+const fieldErrorText: CSSProperties = { display: "block", color: "#b91c1c", fontSize: 12, fontWeight: 650, lineHeight: 1.4 };
 const signingPartySummary: CSSProperties = { display: "grid", gap: 9, padding: 12, border: "1px solid #e2e8f0", borderRadius: 6, background: "#f8fafc", color: "#334155", fontSize: 13 };
 const signingPartyGrid: CSSProperties = { display: "grid", gap: 7 };
 const signingPartyRow: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, paddingTop: 7, borderTop: "1px solid #e2e8f0" };
