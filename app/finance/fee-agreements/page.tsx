@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "r
 import Link from "next/link";
 import { FinanceSubNav, QuotationGuard } from "../quotations/shared";
 import { supabase } from "../../../lib/supabase";
+import { feeAgreementStatusLabel } from "./lifecycle";
 
 type Json = Record<string, unknown>;
 type Agreement = {
@@ -12,11 +13,6 @@ type Agreement = {
   client_snapshot_json: Json | null; matter_snapshot_json: Json | null; source_document_snapshot_json: Json | null;
 };
 
-const statusLabel: Record<string, string> = {
-  draft: "Draft / ร่าง", under_review: "Under Review / ตรวจทาน", sent: "Sent / ส่งแล้ว",
-  signed: "Signed / ลงนามแล้ว", completed: "Completed / เสร็จสมบูรณ์",
-  cancelled: "Cancelled / ยกเลิก", active: "Active / Legacy",
-};
 const value = (input: unknown, fallback = "-") => typeof input === "string" && input.trim() ? input : fallback;
 const date = (input: string | null) => input ? input.slice(0, 10) : "-";
 const snapshotText = (snapshot: Json | null, ...keys: string[]) => keys.map((key) => value(snapshot?.[key], "")).find(Boolean) || "-";
@@ -69,7 +65,7 @@ function FeeAgreementList({ permissions }: { permissions: Parameters<typeof Fina
       <label style={filterField}>
         <span style={filterLabel}>สถานะ</span>
         <select className="fee-agreement-filter-control" style={selectStyle} value={status} onChange={(event) => setStatus(event.target.value)}>
-          <option value="all">ทุกสถานะ</option>{["draft", "under_review", "sent", "signed", "completed", "cancelled", "active"].map((item) => <option key={item} value={item}>{statusLabel[item]}</option>)}
+          <option value="all">ทุกสถานะ</option>{["draft", "under_review", "sent", "signed", "completed", "cancelled", "active"].map((item) => <option key={item} value={item}>{feeAgreementStatusLabel(item)}</option>)}
         </select>
       </label>
     </section>
@@ -142,7 +138,7 @@ function FeeAgreementList({ permissions }: { permissions: Parameters<typeof Fina
   </main>;
 }
 
-function StatusBadge({ status }: { status: string }) { return <span style={{ ...badgeStyle, ...(badgeColors[status] || {}) }}>{statusLabel[status] || status}</span>; }
+function StatusBadge({ status }: { status: string }) { return <span style={{ ...badgeStyle, ...(badgeColors[status] || {}) }}>{feeAgreementStatusLabel(status)}</span>; }
 function ListIcon({ name }: { name: "search" | "open" }) { const common = { width: 17, height: 17, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true }; if (name === "search") return <svg {...common} style={searchIcon}><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>; return <svg {...common}><path d="M5 12h14M13 6l6 6-6 6" /></svg>; }
 
 const pageStyle: CSSProperties = { width: "100%", minWidth: 0 };

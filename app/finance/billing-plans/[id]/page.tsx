@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { QuotationGuard } from "../../quotations/shared";
 import { supabase } from "../../../../lib/supabase";
+import { feeAgreementStatusLabel } from "../../fee-agreements/lifecycle";
 
 type Json = Record<string, unknown>;
 type BillingPlan = { id: string; fee_agreement_id: string; status: string; billing_method: string; currency: string; amount_before_tax: number | string; vat_amount: number | string; total_amount: number | string; title: string | null; description: string | null; installment_count: number; created_at: string; updated_at: string };
@@ -159,7 +160,7 @@ function BillingPlanDetail() {
       <h2>Source Chain</h2>
       <div style={chainNodes}>
         {agreement?.source_quotation_id ? <><ChainNode title="Quotation" status={text(agreement.source_document_snapshot_json?.status, "")}><Link href={`/finance/quotations/${agreement.source_quotation_id}`}>{quotationNo}</Link></ChainNode><span style={chainArrow} aria-hidden="true">→</span></> : null}
-        <ChainNode title="Fee Agreement" status={agreement?.status || null}>{agreement ? <Link href={`/finance/fee-agreements/${agreement.id}`}>{text(agreement.agreement_no, agreement.title)}</Link> : <span style={unavailable}>Linked Fee Agreement unavailable</span>}</ChainNode>
+        <ChainNode title="Fee Agreement" status={agreement?.status || null} statusText={agreement ? feeAgreementStatusLabel(agreement.status) : undefined}>{agreement ? <Link href={`/finance/fee-agreements/${agreement.id}`}>{text(agreement.agreement_no, agreement.title)}</Link> : <span style={unavailable}>Linked Fee Agreement unavailable</span>}</ChainNode>
         <span style={chainArrow} aria-hidden="true">→</span>
         <ChainNode title="Billing Plan" status={plan.status} current>{text(plan.title, billingMethod[plan.billing_method] || plan.billing_method)}</ChainNode>
       </div>
@@ -169,7 +170,7 @@ function BillingPlanDetail() {
       <h2>Fee Agreement Reference</h2>
       {!agreement ? <div style={warning}>Integrity warning: linked Fee Agreement is unavailable.</div> : <div style={grid}>
         <Field label="Agreement" value={<Link href={`/finance/fee-agreements/${agreement.id}`}>{text(agreement.agreement_no, agreement.title)}</Link>} />
-        <Field label="Status" value={<StatusBadge status={agreement.status} label={planStatus[agreement.status] || agreement.status} />} />
+        <Field label="Status" value={<StatusBadge status={agreement.status} label={feeAgreementStatusLabel(agreement.status)} />} />
         <Field label="Client" value={client} />
         <Field label="Matter" value={agreement.case_id ? <Link href={`/cases/${agreement.case_id}`}>{matter}</Link> : agreement.advisory_matter_id ? <Link href={`/advisory/${agreement.advisory_matter_id}`}>{matter}</Link> : matter} />
       </div>}
@@ -217,7 +218,7 @@ function BillingPlanDetail() {
 
 function Field({ label, value }: { label: string; value: ReactNode }) { return <div><small style={{ color: "#64748b" }}>{label}</small><div>{value}</div></div>; }
 function StatusBadge({ status, label }: { status: string; label: string }) { return <span style={{ ...statusBadge, ...statusColor[status] }}>{label}</span>; }
-function ChainNode({ title, status, current = false, children }: { title: string; status: string | null; current?: boolean; children: ReactNode }) { return <div style={{ ...chainNode, ...(current ? chainCurrentNode : {}) }}><small style={{ color: "#64748b" }}>{title}</small>{status ? <StatusBadge status={status} label={planStatus[status] || status} /> : null}<div style={{ marginTop: 6, overflowWrap: "anywhere" }}>{children}</div></div>; }
+function ChainNode({ title, status, statusText, current = false, children }: { title: string; status: string | null; statusText?: string; current?: boolean; children: ReactNode }) { return <div style={{ ...chainNode, ...(current ? chainCurrentNode : {}) }}><small style={{ color: "#64748b" }}>{title}</small>{status ? <StatusBadge status={status} label={statusText || planStatus[status] || status} /> : null}<div style={{ marginTop: 6, overflowWrap: "anywhere" }}>{children}</div></div>; }
 
 const page: CSSProperties = { maxWidth: 1180, margin: "0 auto", padding: 24 };
 const card: CSSProperties = { background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, padding: 18, marginBottom: 16 };
