@@ -200,8 +200,7 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
     if (!agreement || agreement.status !== "sent" || paperSigningLock.current) return;
     const nextErrors: PaperSigningErrors = {};
     if (!paperSigning.executedOn) nextErrors.executedOn = "กรุณาระบุวันที่ลงนามจริง";
-    if (!evidenceFile) nextErrors.evidenceFile = "กรุณาแนบเอกสารฉบับที่ลงนามแล้ว";
-    else {
+    if (evidenceFile) {
       const fileError = validateFeeAgreementEvidenceFile(evidenceFile);
       if (fileError) nextErrors.evidenceFile = fileError;
     }
@@ -222,23 +221,25 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
       return;
     }
     setPaperSigningErrors({});
-    if (!evidenceFile) return;
 
     paperSigningLock.current = true; setPaperSigningSaving(true); setError(""); setMessage("");
-    const storagePath = buildFeeAgreementEvidencePath(agreement.id, evidenceFile.type);
+    const storagePath = evidenceFile ? buildFeeAgreementEvidencePath(agreement.id, evidenceFile.type) : null;
     let uploaded = false;
     try {
-      const sha256 = await calculateSha256(evidenceFile);
-      const upload = await supabase.storage.from(FEE_AGREEMENT_EVIDENCE_BUCKET).upload(storagePath, evidenceFile, { contentType: evidenceFile.type, upsert: false });
-      if (upload.error) { setError("อัปโหลดเอกสารที่ลงนามแล้วไม่สำเร็จ กรุณาลองอีกครั้ง"); console.error("Failed to upload Fee Agreement signing evidence", upload.error); return; }
-      uploaded = true;
+      let sha256: string | null = null;
+      if (evidenceFile && storagePath) {
+        sha256 = await calculateSha256(evidenceFile);
+        const upload = await supabase.storage.from(FEE_AGREEMENT_EVIDENCE_BUCKET).upload(storagePath, evidenceFile, { contentType: evidenceFile.type, upsert: false });
+        if (upload.error) { setError("อัปโหลดเอกสารที่ลงนามแล้วไม่สำเร็จ กรุณาลองอีกครั้ง"); console.error("Failed to upload Fee Agreement signing evidence", upload.error); return; }
+        uploaded = true;
+      }
       const result = await supabase.rpc("record_finance_fee_agreement_paper_signed", {
         p_fee_agreement_id: agreement.id,
         p_executed_on: paperSigning.executedOn,
         p_evidence_storage_path: storagePath,
-        p_evidence_filename: evidenceFile.name,
-        p_evidence_mime_type: evidenceFile.type,
-        p_evidence_size_bytes: evidenceFile.size,
+        p_evidence_filename: evidenceFile?.name || null,
+        p_evidence_mime_type: evidenceFile?.type || null,
+        p_evidence_size_bytes: evidenceFile?.size || null,
         p_evidence_sha256: sha256,
         p_verification_confirmed: paperSigning.verificationConfirmed,
         p_evidence_note: paperSigning.note.trim() || null,
@@ -247,8 +248,8 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
       if (result.error) {
         console.error("Failed to record Fee Agreement paper signing evidence", result.error);
         setError(mapSigningError(result.error.message));
-        const cleanup = await supabase.storage.from(FEE_AGREEMENT_EVIDENCE_BUCKET).remove([storagePath]);
-        if (cleanup.error) console.warn("Unable to remove orphan Fee Agreement signing evidence", { storagePath, error: cleanup.error });
+        const cleanup = storagePath ? await supabase.storage.from(FEE_AGREEMENT_EVIDENCE_BUCKET).remove([storagePath]) : null;
+        if (cleanup?.error) console.warn("Unable to remove orphan Fee Agreement signing evidence", { storagePath, error: cleanup.error });
         return;
       }
       uploaded = false;
@@ -256,7 +257,7 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
     } catch (signingError) {
       console.error("Unexpected Fee Agreement paper signing failure", signingError);
       setError("บันทึกหลักฐานการลงนามไม่สำเร็จ กรุณาลองอีกครั้ง");
-      if (uploaded) {
+      if (uploaded && storagePath) {
         const cleanup = await supabase.storage.from(FEE_AGREEMENT_EVIDENCE_BUCKET).remove([storagePath]);
         if (cleanup.error) console.warn("Unable to remove orphan Fee Agreement signing evidence", { storagePath, error: cleanup.error });
       }
@@ -316,7 +317,7 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
   })();
   if (loading) return <main style={page}>กำลังโหลดสัญญาว่าจ้าง...</main>; if (!agreement) return <main style={page}>{error || "ไม่พบสัญญาว่าจ้าง"}</main>;
   const source = object(agreement.source_document_snapshot_json); const commercialSnapshot = object(agreement.commercial_terms_snapshot_json); const commercial = object(commercialSnapshot.commercial); const sourceQuotationNo = text(source.quotation_no, quote?.quotation_no || text(agreement.source_reference)); const client = text(agreement.client_snapshot_json?.name, text(agreement.client_snapshot_json?.display_name)); const matter = text(agreement.matter_snapshot_json?.title, text(agreement.matter_snapshot_json?.file_no, agreement.case_id || agreement.advisory_matter_id ? "-" : "เรื่องของลูกค้า")); const title = isDefaultTitle(agreement.title) ? defaultTitle : agreement.title;
-  const signingEvidence = object(agreement.signed_evidence_json); const signingEvidenceFile = object(signingEvidence.evidence_file); const signingRecordedBy = object(signingEvidence.recorded_by);
+  const signingEvidence = object(agreement.signed_evidence_json); const signingEvidenceFile = object(signingEvidence.evidence_file); const signingRecordedBy = object(signingEvidence.recorded_by); const hasSigningEvidenceFile = text(signingEvidenceFile.storage_path, "") !== "";
   const availableLifecycleActions = lifecycleActions(agreement.status);
   const forwardLifecycleActions = availableLifecycleActions.filter((action) => action.status !== "cancelled");
   const destructiveLifecycleActions = availableLifecycleActions.filter((action) => action.status === "cancelled");
@@ -361,7 +362,7 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
     <section style={card}><h2 style={sectionTitle}>ผู้ลงนาม</h2>{editable ? <FeeAgreementSignatoryEditor value={legal.signatories} client={clientContext} authorizedSigners={authorizedSigners} signatureRequirements={effectiveSignatureRequirements} disabled={saving} onChange={(signatories) => setLegalForm({ ...legal, signatories })} /> : <SignatoryList value={agreement.signatories_json || []} clientName={clientContext.name} />}</section>
     <section style={card}><h2 style={sectionTitle}>{templateMode ? "ข้อยกเว้นหรือข้อความเฉพาะข้อตกลง" : "ข้อกำหนดเพิ่มเติม"}</h2>{templateMode ? <><p style={notice}>รายการนี้อ่านจากกลไก override และ custom clause ที่ผูกกับแม่แบบโดยตรง</p>{templateContentMatchesSelection ? <TemplateAgreementChanges template={templateContent} /> : null}</> : editable ? <ClauseEditor value={legal.clauses} disabled={saving} onChange={(clauses) => setLegalForm({ ...legal, clauses })} /> : <ClauseList value={agreement.custom_clauses_json || []} />}</section>
     <section style={card}><h2 style={sectionTitle}>หมายเหตุภายใน — ไม่แสดงในเอกสารลูกค้า</h2>{editable ? <TextArea label="ใช้สำหรับการทำงานภายในสำนักงานเท่านั้น" value={legal.internalNote} disabled={saving} onChange={(internalNote) => setLegalForm({ ...legal, internalNote })} /> : <p style={muted}>หมายเหตุภายในไม่แสดงในสถานะอ่านอย่างเดียวหรือเอกสารสำหรับลูกค้า</p>}</section>
-    {["signed", "completed"].includes(agreement.status) ? <section style={{ ...card, ...signingEvidenceSummary }}><div style={signingEvidenceHeading}><div><h2 style={sectionTitle}>หลักฐานการลงนาม</h2><p style={signingEvidenceIntro}>ข้อมูลภายในสำหรับยืนยันการรับและตรวจสอบเอกสารฉบับลงนาม</p></div>{Object.keys(signingEvidenceFile).length ? <button type="button" style={secondaryButton} disabled={evidenceOpening} onClick={() => void openSignedEvidence()}>{evidenceOpening ? "กำลังเปิด..." : "เปิดเอกสารที่ลงนามแล้ว"}</button> : null}</div>{Object.keys(signingEvidence).length ? <><div style={grid}><Field label="วันที่ลงนามจริง" value={date(agreement.executed_on || signingEvidence.executed_on)} /><Field label="ผู้บันทึก" value={text(signingRecordedBy.name, text(signingRecordedBy.email))} /><Field label="วันที่/เวลาบันทึก" value={dateTime(agreement.signed_at || signingEvidence.recorded_at)} /><Field label="ไฟล์หลักฐาน" value={text(signingEvidenceFile.file_name)} /><Field label="ประเภท/ขนาด" value={`${text(signingEvidenceFile.mime_type)} · ${formatEvidenceFileSize(signingEvidenceFile.size_bytes)}`} /><Field label="เลขอ้างอิง" value={text(signingEvidence.reference, text(agreement.signed_evidence_reference))} /></div>{text(signingEvidence.note, "") ? <div style={signingEvidenceNote}><strong>หมายเหตุหลักฐาน</strong><span>{text(signingEvidence.note)}</span></div> : null}</> : <div style={legacyEvidenceNotice}>ไม่มีหลักฐานการลงนามที่บันทึกในระบบเดิม</div>}</section> : null}
+    {["signed", "completed"].includes(agreement.status) ? <section style={{ ...card, ...signingEvidenceSummary }}><div style={signingEvidenceHeading}><div><h2 style={sectionTitle}>หลักฐานการลงนาม</h2><p style={signingEvidenceIntro}>ข้อมูลภายในสำหรับยืนยันการรับและตรวจสอบเอกสารฉบับลงนาม</p></div>{hasSigningEvidenceFile ? <button type="button" style={secondaryButton} disabled={evidenceOpening} onClick={() => void openSignedEvidence()}>{evidenceOpening ? "กำลังเปิด..." : "เปิดเอกสารที่ลงนามแล้ว"}</button> : null}</div>{Object.keys(signingEvidence).length ? <><div style={grid}><Field label="วันที่ลงนามจริง" value={date(agreement.executed_on || signingEvidence.executed_on)} /><Field label="ผู้บันทึก" value={text(signingRecordedBy.name, text(signingRecordedBy.email))} /><Field label="วันที่/เวลาบันทึก" value={dateTime(agreement.signed_at || signingEvidence.recorded_at)} />{hasSigningEvidenceFile ? <><Field label="ไฟล์หลักฐาน" value={text(signingEvidenceFile.file_name)} /><Field label="ประเภท/ขนาด" value={`${text(signingEvidenceFile.mime_type)} · ${formatEvidenceFileSize(signingEvidenceFile.size_bytes)}`} /></> : null}<Field label="เลขอ้างอิง" value={text(signingEvidence.reference, text(agreement.signed_evidence_reference))} /></div>{!hasSigningEvidenceFile ? <div style={optionalEvidenceNotice}>ไม่ได้จัดเก็บไฟล์เอกสารที่ลงนามไว้ในระบบ</div> : null}{text(signingEvidence.note, "") ? <div style={signingEvidenceNote}><strong>หมายเหตุหลักฐาน</strong><span>{text(signingEvidence.note)}</span></div> : null}</> : <div style={legacyEvidenceNotice}>ไม่มีหลักฐานการลงนามที่บันทึกในระบบเดิม</div>}</section> : null}
     <section style={{ ...card, ...workflowPanel }}><h2 style={sectionTitle}>สถานะเอกสาร</h2>
       <div className="fee-agreement-workflow-overview" style={workflowOverview}>
         <div style={workflowStatusBlock}>
@@ -378,12 +379,12 @@ function Detail({ permissions }: { permissions: { canEditFinanceQuotation: boole
       </div> : null}
       {agreement.status === "sent" && normalizeFeeAgreementExecutionMode(agreement.execution_mode) !== "paper" ? <div style={warning}>การบันทึกหลักฐานการลงนามทางอิเล็กทรอนิกส์ยังไม่เปิดใช้งาน</div> : null}
       {paperSigningOpen && agreement.status === "sent" ? <div ref={paperSigningPanelRef} className="fee-agreement-paper-signing-panel" style={paperSigningPanel}>
-        <div><h3 style={paperSigningTitle}>บันทึกหลักฐานการลงนามบนเอกสาร</h3><p style={paperSigningDescription}>กรอกข้อมูลจากเอกสารฉบับที่ได้รับคืนหลังลงนาม ระบบจะบันทึกวันที่จริงและไฟล์หลักฐานพร้อมสถานะลงนามแล้วในครั้งเดียว</p></div>
+        <div><h3 style={paperSigningTitle}>บันทึกหลักฐานการลงนามบนเอกสาร</h3><p style={paperSigningDescription}>กรอกข้อมูลจากเอกสารฉบับที่ได้รับคืนหลังลงนาม ระบบจะบันทึกวันที่จริง ข้อมูลการตรวจสอบ และไฟล์หากเลือกแนบ พร้อมสถานะลงนามแล้วในครั้งเดียว</p></div>
         {Object.keys(paperSigningErrors).length ? <div role="alert" aria-live="assertive" style={paperSigningValidationSummary}><strong>กรุณากรอกข้อมูลที่จำเป็นให้ครบก่อนยืนยันการลงนาม</strong><ul style={paperSigningValidationList}>{Object.values(paperSigningErrors).map((validationError) => <li key={validationError}>{validationError}</li>)}</ul></div> : null}
         <div className="fee-agreement-paper-signing-grid" style={paperSigningGrid}>
           <label style={labelStyle}>วันที่ลงนามจริง *<input ref={executedOnInputRef} style={{ ...input, ...(paperSigningErrors.executedOn ? invalidInput : {}) }} type="date" value={paperSigning.executedOn} aria-invalid={Boolean(paperSigningErrors.executedOn)} aria-describedby={paperSigningErrors.executedOn ? "paper-signing-executed-on-error" : undefined} disabled={paperSigningSaving} onChange={(event) => { const executedOn = event.target.value; setPaperSigning({ ...paperSigning, executedOn }); if (executedOn) setPaperSigningFieldError("executedOn"); }} />{paperSigningErrors.executedOn ? <span id="paper-signing-executed-on-error" style={fieldErrorText}>{paperSigningErrors.executedOn}</span> : null}</label>
-          <label style={labelStyle}>เอกสารที่ลงนามแล้ว *<input ref={evidenceFileInputRef} style={{ ...input, ...(paperSigningErrors.evidenceFile ? invalidInput : {}) }} type="file" accept="application/pdf,image/jpeg,image/png" aria-invalid={Boolean(paperSigningErrors.evidenceFile)} aria-describedby={paperSigningErrors.evidenceFile ? "paper-signing-evidence-file-error" : "paper-signing-evidence-file-help"} disabled={paperSigningSaving} onChange={(event) => { const file = event.target.files?.[0] || null; setEvidenceFile(file); setPaperSigningFieldError("evidenceFile", file ? validateFeeAgreementEvidenceFile(file) : "กรุณาแนบเอกสารฉบับที่ลงนามแล้ว"); }} /><span id="paper-signing-evidence-file-help" style={fieldHelp}>PDF, JPEG หรือ PNG ขนาดไม่เกิน 25 MB</span>{paperSigningErrors.evidenceFile ? <span id="paper-signing-evidence-file-error" style={fieldErrorText}>{paperSigningErrors.evidenceFile}</span> : null}</label>
-          <label style={labelStyle}>เลขอ้างอิง/ตำแหน่งแฟ้ม (ถ้ามี)<input style={input} value={paperSigning.reference} maxLength={500} disabled={paperSigningSaving} onChange={(event) => setPaperSigning({ ...paperSigning, reference: event.target.value })} /></label>
+          <label style={labelStyle}>เอกสารที่ลงนามแล้ว (ถ้ามี)<input ref={evidenceFileInputRef} style={{ ...input, ...(paperSigningErrors.evidenceFile ? invalidInput : {}) }} type="file" accept="application/pdf,image/jpeg,image/png" aria-invalid={Boolean(paperSigningErrors.evidenceFile)} aria-describedby={paperSigningErrors.evidenceFile ? "paper-signing-evidence-file-error" : "paper-signing-evidence-file-help"} disabled={paperSigningSaving} onChange={(event) => { const file = event.target.files?.[0] || null; setEvidenceFile(file); setPaperSigningFieldError("evidenceFile", file ? validateFeeAgreementEvidenceFile(file) : ""); }} /><span id="paper-signing-evidence-file-help" style={fieldHelp}>แนบไฟล์เมื่อประสงค์เก็บสำเนาเอกสารที่ลงนามแล้วไว้ในระบบ · PDF, JPEG หรือ PNG ขนาดไม่เกิน 25 MB</span>{paperSigningErrors.evidenceFile ? <span id="paper-signing-evidence-file-error" style={fieldErrorText}>{paperSigningErrors.evidenceFile}</span> : null}</label>
+          <label style={labelStyle}>เลขอ้างอิง/ตำแหน่งแฟ้ม (ถ้ามี)<input style={input} value={paperSigning.reference} maxLength={500} disabled={paperSigningSaving} onChange={(event) => setPaperSigning({ ...paperSigning, reference: event.target.value })} /><span style={fieldHelp}>เช่น เลขแฟ้ม หรือตำแหน่งจัดเก็บเอกสารต้นฉบับ</span></label>
           <label style={labelStyle}>หมายเหตุหลักฐาน (ถ้ามี)<textarea style={{ ...input, minHeight: 82, resize: "vertical" }} value={paperSigning.note} maxLength={4000} disabled={paperSigningSaving} onChange={(event) => setPaperSigning({ ...paperSigning, note: event.target.value })} /></label>
         </div>
         <div ref={signingPartySummaryRef} tabIndex={-1} style={paperSigningErrors.signatories ? invalidSection : undefined}><SigningPartySummary signatories={legal.signatories} minimumClient={minimumClientSigners} minimumFirm={minimumFirmSigners} minimumWitness={minimumWitnesses} />{paperSigningErrors.signatories ? <div style={fieldErrorText}>{paperSigningErrors.signatories}</div> : null}</div>
@@ -520,6 +521,7 @@ const signingEvidenceSummary: CSSProperties = { borderColor: "#bbf7d0", backgrou
 const signingEvidenceHeading: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 14 };
 const signingEvidenceIntro: CSSProperties = { margin: "-7px 0 0", color: "#64748b", fontSize: 13 };
 const signingEvidenceNote: CSSProperties = { display: "grid", gap: 4, marginTop: 14, paddingTop: 12, borderTop: "1px solid #dcfce7", color: "#334155", fontSize: 13, whiteSpace: "pre-wrap" };
+const optionalEvidenceNotice: CSSProperties = { marginTop: 12, padding: "10px 12px", borderRadius: 6, background: "#f8fafc", color: "#475569", fontSize: 13 };
 const legacyEvidenceNotice: CSSProperties = { padding: 12, borderRadius: 6, background: "#f8fafc", color: "#64748b", fontSize: 13 };
 const workflowDestructive: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginTop: 14, paddingTop: 14, borderTop: "1px solid #e2e8f0" };
 const workflowDestructiveLabel: CSSProperties = { color: "#64748b", fontSize: 12, fontWeight: 700 };
