@@ -316,7 +316,7 @@ function UnclassifiedSignerRow({ row, disabled, onChange, onRemove }: { row: Fee
 
 function RequirementSummary({ minimumClient, minimumFirm, minimumWitness, clientCount, firmCount, witnessCount }: { minimumClient: number; minimumFirm: number; minimumWitness: number; clientCount: number; firmCount: number; witnessCount: number }) {
   const requirements = [minimumClient ? `ฝ่ายลูกค้าอย่างน้อย ${minimumClient}` : "", minimumFirm ? `ฝ่ายสำนักงานอย่างน้อย ${minimumFirm}` : "", minimumWitness ? `พยานอย่างน้อย ${minimumWitness}` : ""].filter(Boolean);
-  if (!requirements.length) return <p style={requirement}>แม่แบบไม่กำหนดจำนวนผู้ลงนามขั้นต่ำเพิ่มเติม ระบบยังตรวจสอบความพร้อมก่อนบันทึกว่าส่งให้ลูกค้าแล้ว</p>;
+  if (!requirements.length) return <p style={requirement}>แม่แบบไม่กำหนดจำนวนผู้ลงนามขั้นต่ำเพิ่มเติม ระบบยังตรวจสอบความพร้อมก่อนบันทึกว่าส่งเอกสารให้ลูกค้าแล้ว</p>;
   const complete = clientCount >= minimumClient && firmCount >= minimumFirm && witnessCount >= minimumWitness;
   return <p style={{ ...requirement, ...(complete ? requirementReady : requirementPending) }}>ข้อกำหนดแม่แบบ: {requirements.join(" · ")} {complete ? "— ครบแล้ว" : "— ยังไม่ครบ"}</p>;
 }
