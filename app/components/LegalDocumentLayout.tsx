@@ -30,13 +30,12 @@ export function LegalDocumentLayout({
             background: #fff !important;
           }
 
-          body * {
-            visibility: hidden !important;
-          }
-
-          .legal-document-print-root,
-          .legal-document-print-root * {
-            visibility: visible !important;
+          body:has(.legal-document-print-root)
+            > :not(.legal-document-print-root):not(:has(.legal-document-print-root)),
+          body:has(.legal-document-print-root)
+            *:has(.legal-document-print-root)
+            > :not(.legal-document-print-root):not(:has(.legal-document-print-root)) {
+            display: none !important;
           }
 
           .legal-document-print-root {
