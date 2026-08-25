@@ -161,6 +161,10 @@
   text-wrap: pretty;
 }
 
+.document :global(.thai-legal-phrase) {
+  white-space: nowrap;
+}
+
 .preamble {
   margin-bottom: 22px;
 }
@@ -302,6 +306,10 @@
 
   .document {
     padding: 20px 16px;
+  }
+
+  .document :global(.thai-legal-phrase) {
+    white-space: normal;
   }
 
   .infoRow {

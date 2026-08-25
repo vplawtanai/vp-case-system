@@ -27,6 +27,7 @@ import {
   feeAgreementClosingCopy,
   normalizeFeeAgreementExecutionMode,
 } from "../../../../finance/fee-agreements/execution";
+import { ThaiLegalText } from "../../../../finance/fee-agreements/thai-legal-text";
 import styles from "./preview.module.css";
 
 type JsonObject = Record<string, unknown>;
@@ -398,7 +399,7 @@ export default function DraftTemplatePreviewPage() {
                           const clause = slot.clause_version_id ? clauseById.get(slot.clause_version_id) : null;
                           return clause ? (
                             <div key={slot.id} className={styles.clause}>
-                              <p>{interpolateControlledVariables(clause.content, variableMap)}</p>
+                              <p><ThaiLegalText text={interpolateControlledVariables(clause.content, variableMap)} languageCode={version.language_code} /></p>
                             </div>
                           ) : (
                             <div key={slot.id} className={styles.missing}>ไม่พบ Published Clause ที่ตำแหน่งนี้</div>
@@ -460,7 +461,7 @@ function Execution({ section, requirements, signatories, variables, languageCode
   const minimumWitness = Math.max(requirements.witness_required === true ? 1 : 0, Number(requirements.minimum_witnesses || 0));
   return (
     <section className={styles.execution} data-section-code={section.section_code}>
-      <p className={styles.executionAttestation}>{feeAgreementClosingCopy({ mode: executionMode, hasWitnesses: witness.length > 0 || minimumWitness > 0, languageCode })}</p>
+      <p className={styles.executionAttestation}><ThaiLegalText text={feeAgreementClosingCopy({ mode: executionMode, hasWitnesses: witness.length > 0 || minimumWitness > 0, languageCode })} languageCode={languageCode} /></p>
       <div className={`${styles.signatureGrid} ${styles.principalSignatureGrid}`}>
         {signatureSlots("ผู้ว่าจ้าง", client, minimumClient)}
         {signatureSlots("ผู้ให้บริการ", firm, minimumFirm)}

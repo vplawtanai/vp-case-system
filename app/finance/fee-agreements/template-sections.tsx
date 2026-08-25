@@ -1,4 +1,5 @@
 import { Fragment, type ReactNode } from "react";
+import { ThaiLegalText } from "./thai-legal-text";
 
 type Json = Record<string, unknown>;
 
@@ -26,6 +27,7 @@ export function ResolvedTemplateSections({
   showProvenance?: boolean;
   afterSection?: (section: Json) => ReactNode;
 }) {
+  const languageCode = asText(template.language_code, asText(template.language, "th"));
   const sections = asArray(template.sections)
     .filter((section) => !["preamble", "execution"].includes(asText(section.section_kind)))
     .filter((section) => conditionAllows(section.condition_evaluation))
@@ -51,10 +53,10 @@ export function ResolvedTemplateSections({
     return <section key={asText(section.section_id, asText(section.section_code))} style={sectionStyle} data-section-code={asText(section.section_code)}>
       <h2 className="fee-agreement-section-title" style={sectionTitle}>{displayTitle(section)}</h2>
       {slots.map((slot) => <Fragment key={asText(slot.slot_id, asText(slot.slot_code))}>
-        <ResolvedClause clause={slot} variables={variables} showProvenance={showProvenance} />
-        {(anchored.get(asText(slot.slot_id)) || []).map((clause) => <ResolvedClause key={asText(clause.custom_clause_id)} clause={clause} variables={variables} showProvenance={showProvenance} />)}
+        <ResolvedClause clause={slot} variables={variables} showProvenance={showProvenance} languageCode={languageCode} />
+        {(anchored.get(asText(slot.slot_id)) || []).map((clause) => <ResolvedClause key={asText(clause.custom_clause_id)} clause={clause} variables={variables} showProvenance={showProvenance} languageCode={languageCode} />)}
       </Fragment>)}
-      {unanchored.map((clause) => <ResolvedClause key={asText(clause.custom_clause_id)} clause={clause} variables={variables} showProvenance={showProvenance} />)}
+      {unanchored.map((clause) => <ResolvedClause key={asText(clause.custom_clause_id)} clause={clause} variables={variables} showProvenance={showProvenance} languageCode={languageCode} />)}
       {!slots.length && !customClauses.length ? <p style={muted}>ส่วนนี้ยังไม่มีข้อความที่ใช้กับข้อตกลง</p> : null}
       {afterSection?.(section)}
     </section>;
@@ -108,14 +110,14 @@ function slotIsRendered(slot: Json) {
   return !Object.keys(alternative).length || alternative.selected !== false;
 }
 
-function ResolvedClause({ clause, variables, showProvenance }: { clause: Json; variables: Record<string, string>; showProvenance: boolean }) {
+function ResolvedClause({ clause, variables, showProvenance, languageCode }: { clause: Json; variables: Record<string, string>; showProvenance: boolean; languageCode: string }) {
   const content = interpolateControlledVariables(asText(clause.content, "-"), variables);
   const origin = asText(clause.origin_type);
   return <div style={clauseStyle} data-origin-type={origin || undefined}>
     {showProvenance ? <h3 style={clauseTitleStyle}>{clauseTitle(clause)}</h3> : null}
     {showProvenance && origin === "document_override" ? <div style={provenance}>ข้อความทดแทนเฉพาะข้อตกลงนี้</div> : null}
     {showProvenance && origin === "document_custom_clause" ? <div style={provenance}>ข้อความเฉพาะข้อตกลงนี้</div> : null}
-    <p style={clauseContent}>{content}</p>
+    <p style={clauseContent}><ThaiLegalText text={content} languageCode={languageCode} /></p>
   </div>;
 }
 

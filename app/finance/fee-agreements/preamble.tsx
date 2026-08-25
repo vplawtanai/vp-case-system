@@ -1,5 +1,6 @@
 import type { DocumentIdentity } from "../../../lib/documentIdentity";
 import type { FeeAgreementSignatory } from "./signatories";
+import { ThaiLegalText } from "./thai-legal-text";
 
 type JsonObject = Record<string, unknown>;
 
@@ -77,26 +78,20 @@ export function FeeAgreementPreamble({
 
   return <section className="fee-agreement-preamble" data-section-kind="preamble" data-section-code={text(sectionRow.section_code, "PREAMBLE")} style={sectionStyle}>
     <h2 className="fee-agreement-section-title" style={heading}>{title}</h2>
-    <p style={openingParagraph}>สัญญาว่าจ้างให้บริการทางกฎหมายฉบับนี้ทำขึ้น ณ วันที่ <strong>{agreementDate}</strong> ระหว่าง</p>
+    <p style={openingParagraph}><ThaiLegalText text="สัญญาว่าจ้างให้บริการทางกฎหมายฉบับนี้ทำขึ้น ณ วันที่ " /><strong>{agreementDate}</strong><ThaiLegalText text=" ระหว่าง" /></p>
     <div style={partiesBlock}>
       <p style={partyParagraph}>
         <strong>{clientName}</strong>
-        {clientAddress ? ` มีที่อยู่ ณ ${clientAddress}` : ""}
-        {!isIndividual && clientTaxId ? ` เลขประจำตัวผู้เสียภาษี ${clientTaxId}` : ""}
-        {clientRepresentation(clientSigner, clientName, isIndividual)}
-        {" "}(ต่อไปในสัญญานี้เรียกว่า “ผู้ว่าจ้าง”)
+        <ThaiLegalText text={`${clientAddress ? ` มีที่อยู่ ณ ${clientAddress}` : ""}${!isIndividual && clientTaxId ? ` เลขประจำตัวผู้เสียภาษี ${clientTaxId}` : ""}${clientRepresentation(clientSigner, clientName, isIndividual)} (ต่อไปในสัญญานี้เรียกว่า “ผู้ว่าจ้าง”)`} />
       </p>
       <p style={connector}>กับ</p>
       <p style={partyParagraph}>
         <strong>{firmName}</strong>
-        {firmAddress ? ` มีสำนักงานตั้งอยู่${firmAddress}` : ""}
-        {firmTaxId ? ` เลขประจำตัวผู้เสียภาษี ${firmTaxId}` : ""}
-        {branch ? ` (${branch})` : ""}
-        {" "}(ต่อไปในสัญญานี้เรียกว่า “ผู้ให้บริการ”)
+        <ThaiLegalText text={`${firmAddress ? ` มีสำนักงานตั้งอยู่${firmAddress}` : ""}${firmTaxId ? ` เลขประจำตัวผู้เสียภาษี ${firmTaxId}` : ""}${branch ? ` (${branch})` : ""} (ต่อไปในสัญญานี้เรียกว่า “ผู้ให้บริการ”)`} />
       </p>
     </div>
-    {matterName ? <p style={paragraph}>คู่สัญญาตกลงว่าจ้างและให้บริการทางกฎหมายเกี่ยวกับเรื่อง “<strong>{matterName}</strong>” ตามขอบเขต ค่าบริการ และเงื่อนไขที่กำหนดไว้ในสัญญานี้</p> : null}
-    <p style={paragraph}>ผู้ว่าจ้างและผู้ให้บริการรวมเรียกว่า “คู่สัญญา”</p>
+    {matterName ? <p style={paragraph}><ThaiLegalText text="คู่สัญญาตกลงว่าจ้างและให้บริการทางกฎหมายเกี่ยวกับเรื่อง “" /><strong>{matterName}</strong><ThaiLegalText text="” ตามขอบเขต ค่าบริการ และเงื่อนไขที่กำหนดไว้ในสัญญานี้" /></p> : null}
+    <p style={paragraph}><ThaiLegalText text="ผู้ว่าจ้างและผู้ให้บริการรวมเรียกว่า “คู่สัญญา”" /></p>
   </section>;
 }
 
