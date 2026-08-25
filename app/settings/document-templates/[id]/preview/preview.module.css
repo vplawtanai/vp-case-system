@@ -137,16 +137,6 @@
 }
 
 .document {
-  width: min(820px, 100%);
-  box-sizing: border-box;
-  margin: 0 auto;
-  padding: 38px;
-  border: 1px solid #dfe4ea;
-  background: #fff;
-  box-shadow: 0 8px 26px rgb(15 39 67 / 9%);
-  color: #1f2937;
-  font-size: 14px;
-  line-height: 1.72;
   word-break: normal;
   overflow-wrap: normal;
 }
@@ -154,11 +144,6 @@
 .document p {
   line-break: auto;
   text-wrap: wrap;
-}
-
-.document :global(.thai-legal-token) {
-  display: inline;
-  white-space: nowrap;
 }
 
 .preamble {
@@ -273,10 +258,6 @@
   .diagnosticGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-
-  .document {
-    padding: 28px;
-  }
 }
 
 @media (max-width: 640px) {
@@ -294,54 +275,16 @@
     max-width: none;
   }
 
-  .diagnosticGrid,
-  .partyGrid,
-  .signatureGrid {
+  .diagnosticGrid {
     grid-template-columns: 1fr;
-  }
-
-  .document {
-    padding: 20px 16px;
-  }
-
-  .infoRow {
-    grid-template-columns: 1fr;
-    gap: 2px;
   }
 }
 
 @media print {
-  @page {
-    size: A4 portrait;
-    margin: 11mm;
-  }
-
   .toolbar,
   .previewMode,
   .diagnostics {
     display: none !important;
-  }
-
-  .document {
-    width: 100%;
-    max-width: none;
-    margin: 0;
-    padding: 0;
-    border: 0;
-    box-shadow: none;
-    font-size: 10pt;
-    line-height: 1.58;
-  }
-
-  .legalSection,
-  .execution {
-    margin-top: 5mm;
-  }
-
-  .legalSection h2,
-  .execution h2 {
-    margin-bottom: 2mm;
-    padding-bottom: 1.5mm;
   }
 
   .signatureGrid,
