@@ -1768,6 +1768,16 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
     ? getPaymentTermsPlanValidationMessage(method, installments, allocationMode)
     : null;
   const paymentTermsValid = !terms || (!allocationValidationIssue && !paymentTermsValidationMessage);
+  const allocationStatusMessage = paymentTermsValidationMessage || allocationValidationIssue?.message || (allocationMode === "per_item"
+    ? (complete
+      ? "ทุกรายการจัดสรรครบ 100% พร้อมสำหรับการตรวจสอบก่อนส่ง"
+      : incompletePerItem.map(({ item, remaining }) => `รายการ ${item.description || item.id || "-"} ยังจัดสรรไม่ครบ เหลือ ${remaining}% หรือ ${formatMoney(toAmount(item.line_total) * remaining / 100)}`).join(" | "))
+    : isPercentage
+      ? (complete
+        ? "สัดส่วนรวมครบ 100% พร้อมสำหรับการตรวจสอบก่อนส่ง"
+        : `สัดส่วนรวม ${percentageTotal.toFixed(6).replace(/\.0+$/, "")}% ยังขาด ${normalizePercentage(100 - percentageTotal).toFixed(6).replace(/\.0+$/, "")}%`)
+      : `จัดสรรแล้ว ${formatMoney(fixedAllocated)} คงเหลือ ${formatMoney(Math.max(0, quotationTotal - fixedAllocated))}${complete ? " พร้อมสำหรับการตรวจสอบก่อนส่ง" : " ยังไม่ครบสำหรับการส่งใบเสนอราคา"}`);
+  const allocationStatusHasError = Boolean(paymentTermsValidationMessage || allocationValidationIssue);
 
   useEffect(() => {
     onValidityChange(paymentTermsValid);
@@ -1790,13 +1800,7 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
     <div style={formGridStyle}>
       <label style={labelStyle}>วิธีชำระเงิน / Payment Method<select ref={paymentMethodRef} value={method} onChange={(event) => setPaymentMethod(event.target.value as PaymentMethodType)} style={inputStyle}><option value="single">ชำระครั้งเดียว / Single Payment</option><option value="installments">แบ่งชำระหลายงวด / Installments</option><option value="milestone">ตามขั้นตอนงาน / Milestone</option><option value="recurring">เรียกเก็บเป็นรอบ / Recurring</option><option value="manual">กำหนดเอง / Manual</option></select></label>
       <label style={labelStyle}>วิธีกระจายค่าบริการในแต่ละงวด<select value={allocationMode} onChange={(event) => setPaymentAllocationMode(event.target.value as PaymentAllocationMode)} style={inputStyle}><option value="proportional_all_items">กระจายทุกรายการตามสัดส่วนเดียวกัน</option><option value="per_item">กำหนดสัดส่วนแยกแต่ละรายการ</option></select><span style={helperTextStyle}>กำหนดว่ารายการค่าบริการในใบเสนอราคาจะถูกกระจายเข้าแต่ละงวดอย่างไร ไม่เกี่ยวกับการแบ่งค่าตอบแทนภายในสำนักงาน</span></label>
-      <div style={wideFieldGroupStyle}>
-        <div style={sectionHeaderStyle}><label htmlFor="payment-client-summary" style={fieldHeadingStyle}>สรุปเงื่อนไขสำหรับลูกค้า</label><button type="button" onClick={() => { setSummaryIsCustom(false); setSummary(generatedSummary); }} disabled={!summaryIsCustom} style={smallButtonStyle}>ใช้ข้อความอัตโนมัติ</button></div>
-        <textarea id="payment-client-summary" value={effectiveSummary} onChange={(event) => { setSummary(event.target.value); setSummaryIsCustom(true); }} style={textareaStyle} />
-        <p style={helperTextStyle}>{summaryIsCustom ? "กำลังใช้ข้อความที่แก้ไขเอง ระบบจะไม่เขียนทับเมื่อเปลี่ยนรายละเอียดงวด" : "ระบบสร้างข้อความนี้จากสัดส่วนและเงื่อนไขของแต่ละงวดโดยอัตโนมัติ สามารถแก้ไขเองได้"}</p>
-      </div>
     </div>
-    <div style={allocationValidationIssue || paymentTermsValidationMessage ? errorNoticeTextStyle : noticeTextStyle}>{paymentTermsValidationMessage || allocationValidationIssue?.message || (allocationMode === "per_item" ? (complete ? "ทุกรายการจัดสรรครบ 100% — พร้อมสำหรับการตรวจสอบก่อนส่ง" : incompletePerItem.map(({ item, remaining }) => `รายการ ${item.description || item.id || "-"} ยังจัดสรรไม่ครบ เหลือ ${remaining}% หรือ ${formatMoney(toAmount(item.line_total) * remaining / 100)}`).join(" | ")) : isPercentage ? (complete ? "สัดส่วนรวม 100% — พร้อมสำหรับการตรวจสอบก่อนส่ง" : `สัดส่วนรวม ${percentageTotal.toFixed(6).replace(/\.0+$/, "")}% — ยังขาด ${normalizePercentage(100 - percentageTotal).toFixed(6).replace(/\.0+$/, "")}%`) : `จัดสรรแล้ว ${formatMoney(fixedAllocated)} | คงเหลือ ${formatMoney(Math.max(0, quotationTotal - fixedAllocated))}`)} {!paymentTermsValidationMessage && !allocationValidationIssue && allocationMode !== "per_item" && !isPercentage && (complete ? " | พร้อมสำหรับการตรวจสอบก่อนส่ง" : " | ยังไม่ครบสำหรับการส่งใบเสนอราคา")}</div>
     {installments.map((installment, index) => <div id={`payment-installment-${index}`} key={index} tabIndex={-1} style={{ ...cardStyle, marginTop: 12, background: "#f8fafc", scrollMarginTop: 96 }}>
       <div style={sectionHeaderStyle}><h3 style={sectionTitleStyle}>งวดที่ {index + 1}</h3>{method !== "single" ? <div style={actionGroupStyle}><button type="button" title="เลื่อนงวดขึ้น" disabled={index === 0} onClick={() => setInstallments((current) => { const next = [...current]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; return normalizePaymentInstallments(next, method); })} style={smallButtonStyle}>เลื่อนขึ้น</button><button type="button" title="เลื่อนงวดลง" disabled={index === installments.length - 1} onClick={() => setInstallments((current) => { const next = [...current]; [next[index], next[index + 1]] = [next[index + 1], next[index]]; return normalizePaymentInstallments(next, method); })} style={smallButtonStyle}>เลื่อนลง</button><button type="button" onClick={() => setInstallments((current) => normalizePaymentInstallments(current.filter((_, itemIndex) => itemIndex !== index), method))} style={dangerSmallButtonStyle}>ลบงวด</button></div> : null}</div>
       <InstallmentAmountSummary total={installmentTotals[index]} percentage={allocationMode === "proportional_all_items" && installment.calculation_type === "percentage" ? toAmount(installment.percentage) : null} effectivePercentage={quotationTotal > 0 ? installmentTotals[index].total * 100 / quotationTotal : 0} perItem={allocationMode === "per_item"} />
@@ -1812,8 +1816,28 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
       </div>
       {allocationMode === "proportional_all_items" ? installment.calculation_type === "fixed_amount" ? <div style={tableWrapStyle}><h4 style={sectionTitleStyle}>Advanced Item Allocation</h4><table style={tableStyle}><thead><tr><th style={thStyle}>Quotation Item</th><th style={rightThStyle}>Before VAT</th><th style={rightThStyle}>VAT</th><th style={rightThStyle}>Total</th><th style={rightThStyle}>Remaining</th></tr></thead><tbody>{quotationItems.filter((item) => item.id || item.client_item_key).map((quotationItem) => { const reference = paymentReferenceForItem(quotationItem); const allocation = installment.items.find((item) => paymentAllocationReference(item) === reference) || { ...(quotationItem.id ? { quotation_item_id: quotationItem.id } : { client_item_key: quotationItem.client_item_key }), allocated_amount_before_tax: 0, allocated_vat_amount: 0, allocated_total: 0 }; const allocatedElsewhere = installments.filter((_, installmentIndex) => installmentIndex !== index).reduce((sum, other) => sum + (other.items.find((item) => paymentAllocationReference(item) === reference)?.allocated_total || 0), 0); const patch = (field: keyof PaymentAllocation, value: string) => updateInstallment(index, { items: installment.items.some((item) => paymentAllocationReference(item) === reference) ? installment.items.map((item) => paymentAllocationReference(item) === reference ? { ...item, [field]: toAmount(value), allocated_total: field === "allocated_total" ? toAmount(value) : (field === "allocated_amount_before_tax" ? toAmount(value) : item.allocated_amount_before_tax) + (field === "allocated_vat_amount" ? toAmount(value) : item.allocated_amount_before_tax) } : item) : [...installment.items, { ...allocation, [field]: toAmount(value), allocated_total: field === "allocated_total" ? toAmount(value) : (field === "allocated_amount_before_tax" ? toAmount(value) : 0) + (field === "allocated_vat_amount" ? toAmount(value) : 0) }] }); return <tr key={reference}><td style={tdStyle}>{quotationItem.description}</td><td style={rightTdStyle}><input type="number" min="0" step="0.01" value={allocation.allocated_amount_before_tax} onChange={(event) => patch("allocated_amount_before_tax", event.target.value)} style={compactInputStyle} /></td><td style={rightTdStyle}><input type="number" min="0" step="0.01" value={allocation.allocated_vat_amount} onChange={(event) => patch("allocated_vat_amount", event.target.value)} style={compactInputStyle} /></td><td style={rightTdStyle}>{formatMoney(allocation.allocated_amount_before_tax + allocation.allocated_vat_amount)}</td><td style={rightTdStyle}>{formatMoney(toAmount(quotationItem.line_total) - allocatedElsewhere - allocation.allocated_total)}</td></tr>; })}</tbody></table></div> : <p style={mutedTextStyle}>ระบบจะรวมทุกรายการค่าบริการและคำนวณ Before VAT, VAT และ Total จากเปอร์เซ็นต์ในฝั่งเซิร์ฟเวอร์</p> : null}
     </div>)}
-    {allocationMode === "per_item" && installments.every((installment) => installment.calculation_type === "percentage") ? <PerItemAllocationMatrix sources={lineItemSource} installments={installments} onChange={updatePerItemAllocation} /> : null}
     {method !== "single" ? <button type="button" onClick={addInstallment} style={secondaryButtonStyle}>เพิ่มงวด</button> : null}
+    {allocationMode === "per_item" && installments.every((installment) => installment.calculation_type === "percentage") ? <PerItemAllocationMatrix sources={lineItemSource} installments={installments} onChange={updatePerItemAllocation} /> : null}
+    <section style={{ ...allocationStatusPanelStyle, ...(allocationStatusHasError ? allocationStatusErrorStyle : complete ? allocationStatusCompleteStyle : allocationStatusIncompleteStyle) }} aria-live="polite">
+      <span style={allocationStatusLabelStyle}>สถานะการจัดสรรค่าบริการ</span>
+      <strong style={allocationStatusHeadingStyle}>{allocationStatusHasError ? "ต้องแก้ไขข้อมูล" : complete ? "ครบ 100%" : "ยังจัดสรรไม่ครบ"}</strong>
+      <span style={allocationStatusDetailStyle}>{allocationStatusMessage}</span>
+    </section>
+    <section style={paymentSummarySectionStyle}>
+      <div style={sectionHeaderStyle}>
+        <div>
+          <h3 style={sectionTitleStyle}>ข้อความสรุปที่จะแสดงในใบเสนอราคา</h3>
+          <p style={mutedTextStyle}>ระบบสร้างข้อความนี้จากงวดและเงื่อนไขการชำระเงินด้านบน เพื่อให้ลูกค้าอ่านเข้าใจง่าย</p>
+        </div>
+        {summaryIsCustom
+          ? <button type="button" onClick={() => { setSummaryIsCustom(false); setSummary(generatedSummary); }} style={smallButtonStyle}>คืนค่าเป็นข้อความจากระบบ</button>
+          : <button type="button" onClick={() => { setSummary(generatedSummary); setSummaryIsCustom(true); }} style={smallButtonStyle}>ปรับข้อความสำหรับลูกค้า</button>}
+      </div>
+      {summaryIsCustom ? <>
+        <textarea id="payment-client-summary" aria-label="ข้อความสรุปที่จะแสดงในใบเสนอราคา" value={summary} onChange={(event) => setSummary(event.target.value)} style={textareaStyle} />
+        <p style={paymentSummaryOverrideNoticeStyle}>การแก้ข้อความนี้เปลี่ยนเฉพาะข้อความที่แสดงในใบเสนอราคา ไม่เปลี่ยนจำนวนเงิน งวด หรือเงื่อนไขเรียกเก็บในระบบ</p>
+      </> : <div style={paymentSummaryOutputStyle} aria-live="polite">{generatedSummary || "ระบบจะสร้างข้อความสรุปเมื่อมีข้อมูลงวดการชำระเงิน"}</div>}
+    </section>
   </div>;
 }
 
@@ -2956,6 +2980,16 @@ const perItemMatrixRowStyle: CSSProperties = { display: "grid", gridTemplateColu
 const perItemMatrixItemStyle: CSSProperties = { display: "grid", gap: 5, minWidth: 0 };
 const perItemDescriptionStyle: CSSProperties = { color: "#111827", fontSize: 14, overflowWrap: "anywhere" };
 const perItemInstallmentGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, minWidth: 0 };
+const allocationStatusPanelStyle: CSSProperties = { display: "grid", gap: 3, marginTop: 16, padding: "11px 13px", borderLeft: "4px solid", borderRadius: 4, fontSize: 13 };
+const allocationStatusCompleteStyle: CSSProperties = { color: "#166534", borderColor: "#16a34a", background: "#f0fdf4" };
+const allocationStatusIncompleteStyle: CSSProperties = { color: "#92400e", borderColor: "#f59e0b", background: "#fffbeb" };
+const allocationStatusErrorStyle: CSSProperties = { color: "#991b1b", borderColor: "#dc2626", background: "#fef2f2" };
+const allocationStatusLabelStyle: CSSProperties = { fontSize: 12, fontWeight: 700 };
+const allocationStatusHeadingStyle: CSSProperties = { fontSize: 15 };
+const allocationStatusDetailStyle: CSSProperties = { fontWeight: 600, lineHeight: 1.5, overflowWrap: "anywhere" };
+const paymentSummarySectionStyle: CSSProperties = { display: "grid", gap: 12, marginTop: 18, paddingTop: 18, borderTop: "1px solid #d1d5db", minWidth: 0 };
+const paymentSummaryOutputStyle: CSSProperties = { padding: "13px 14px", borderLeft: "4px solid #64748b", background: "#f8fafc", color: "#1f2937", fontSize: 14, lineHeight: 1.65, whiteSpace: "pre-wrap", overflowWrap: "anywhere" };
+const paymentSummaryOverrideNoticeStyle: CSSProperties = { color: "#92400e", background: "#fffbeb", borderLeft: "4px solid #f59e0b", padding: "9px 11px", margin: 0, fontSize: 12, fontWeight: 600, lineHeight: 1.5 };
 const savedIndicatorStyle: CSSProperties = { color: "#166534", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, padding: "8px 10px", fontSize: 12, fontWeight: 700 };
 const unsavedIndicatorStyle: CSSProperties = { color: "#92400e", background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 6, padding: "8px 10px", fontSize: 12, fontWeight: 700 };
 const dialogBackdropStyle: CSSProperties = { position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, background: "rgba(15, 23, 42, 0.45)" };
