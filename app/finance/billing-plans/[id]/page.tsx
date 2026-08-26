@@ -248,9 +248,9 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
       </div>
     </section>
 
-    {canManage && plan.status === "draft" ? <section style={{ ...card, ...draftActions }}>
-      <div><strong>{dirty ? "มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก" : "ข้อมูลล่าสุดถูกบันทึกแล้ว"}</strong><p style={actionHelp}>ตรวจสอบกำหนดงวดและยอดจัดสรรให้ครบก่อนยืนยันว่าแผนพร้อมดำเนินการ</p></div>
-      <div className="billing-plan-workflow-controls" style={workflowControls}><div className="billing-plan-normal-actions" style={actionButtons}><button className="billing-plan-primary-button" type="button" style={primaryButton} disabled={dirty || saving || statusSaving} onClick={() => void changePlanStatus("active")}>{statusSaving ? "กำลังดำเนินการ..." : "ยืนยันแผนพร้อมดำเนินการ"}</button><button className="billing-plan-save-button" type="button" style={{ ...secondaryButton, ...(!dirty ? disabledSaveButton : {}) }} disabled={!dirty || saving || statusSaving} onClick={() => void saveDraft()}>{saving ? "กำลังบันทึก..." : dirty ? "บันทึกการเปลี่ยนแปลง" : "บันทึกแล้ว"}</button></div><div className="billing-plan-danger-actions" style={dangerActions}><button className="billing-plan-cancel-button" type="button" style={cancelButton} disabled={saving || statusSaving} onClick={() => void changePlanStatus("cancelled")}>ยกเลิกแผน</button></div></div>
+    {canManage && plan.status === "draft" ? <section aria-live="polite" style={{ ...saveStateNotice, ...(dirty ? dirtyStateNotice : savedStateNotice) }}>
+      <strong>{dirty ? "มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก" : "ข้อมูลล่าสุดถูกบันทึกแล้ว"}</strong>
+      <span>{dirty ? "ตรวจสอบข้อมูลให้ครบ แล้วบันทึกที่ส่วนตรวจสอบท้ายแผน" : "ตรวจสอบงวดและยอดจัดสรรทั้งหมดก่อนยืนยันแผนพร้อมดำเนินการ"}</span>
     </section> : null}
     {canManage && plan.status === "active" ? <section style={{ ...card, ...activeNotice }}><div><strong>แผนพร้อมดำเนินการเรียกเก็บเงิน</strong><p style={actionHelp}>งวดต่าง ๆ ยังไม่ถือว่าออกใบแจ้งหนี้จนกว่าจะดำเนินการในขั้นตอน Invoice</p></div><button className="billing-plan-cancel-button" type="button" style={cancelButton} disabled={statusSaving} onClick={() => void changePlanStatus("cancelled")}>{statusSaving ? "กำลังดำเนินการ..." : "ยกเลิกแผน"}</button></section> : null}
 
@@ -325,6 +325,36 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
         </article>;
       })}
     </section>
+    {canManage && plan.status === "draft" ? <section className="billing-plan-final-review" style={{ ...card, ...finalReviewCard }}>
+      <div style={finalReviewHeader}>
+        <span style={finalReviewEyebrow}>ขั้นตอนสุดท้าย</span>
+        <h2 style={finalReviewTitle}>ตรวจสอบแผนเรียกเก็บเงิน</h2>
+        <p style={finalReviewDescription}>ตรวจสอบงวด เงื่อนไข วันที่ครบกำหนด รายการค่าบริการ และยอดเงินทั้งหมดให้ครบถ้วนก่อนยืนยันแผนพร้อมดำเนินการ</p>
+      </div>
+      <div className="billing-plan-final-summary" style={finalSummaryGrid}>
+        <SummaryMetric label="จำนวนงวด" value={String(plan.installment_count)} />
+        <SummaryMetric label="มูลค่าก่อน VAT" value={money(plan.amount_before_tax, plan.currency)} />
+        <SummaryMetric label="VAT" value={money(plan.vat_amount, plan.currency)} />
+        <SummaryMetric label="ยอดรวม" value={money(plan.total_amount, plan.currency)} prominent />
+      </div>
+      <div style={{ ...finalReadinessNotice, ...(dirty ? finalReadinessPending : finalReadinessReady) }}>
+        <strong>{dirty ? "กรุณาบันทึกการเปลี่ยนแปลงก่อนยืนยันแผน" : "ข้อมูลล่าสุดถูกบันทึกแล้ว พร้อมสำหรับการยืนยัน"}</strong>
+        <span>{dirty ? "ปุ่มยืนยันจะพร้อมใช้งานเมื่อบันทึกข้อมูลล่าสุดสำเร็จ" : "การยืนยันจะเปลี่ยนแผนจากร่างเป็นพร้อมดำเนินการ"}</span>
+      </div>
+      <div className="billing-plan-workflow-controls" style={workflowControls}>
+        <div className="billing-plan-normal-actions" style={actionButtons}>
+          <button className="billing-plan-save-button" type="button" style={{ ...secondaryButton, ...(!dirty ? disabledSaveButton : {}) }} disabled={!dirty || saving || statusSaving} onClick={() => void saveDraft()}>{saving ? "กำลังบันทึก..." : dirty ? "บันทึกการเปลี่ยนแปลง" : "บันทึกแล้ว"}</button>
+          <button className="billing-plan-primary-button" type="button" style={primaryButton} disabled={dirty || saving || statusSaving} onClick={() => void changePlanStatus("active")}>{statusSaving ? "กำลังดำเนินการ..." : "ยืนยันแผนพร้อมดำเนินการ"}</button>
+        </div>
+      </div>
+      <div className="billing-plan-danger-actions" style={otherActions}>
+        <div style={otherActionsCopy}>
+          <strong>การดำเนินการอื่น</strong>
+          <span>ใช้เมื่อไม่ต้องการดำเนินการตามแผนนี้ต่อ การยกเลิกไม่ใช่การยืนยันแผน</span>
+        </div>
+        <button className="billing-plan-cancel-button" type="button" style={cancelButton} disabled={saving || statusSaving} onClick={() => void changePlanStatus("cancelled")}>ยกเลิกแผน</button>
+      </div>
+    </section> : null}
     <style jsx global>{`
       .billing-plan-navigation-link { transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease; }
       .billing-plan-navigation-back:hover { background: #f8fafc !important; border-color: #94a3b8 !important; color: #172033 !important; }
@@ -349,7 +379,7 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
         .billing-plan-status-panel { justify-items: start !important; min-width: 0 !important; border-left: 0 !important; border-top: 2px solid #bbf7d0; }
         .billing-plan-header-edit-grid { grid-template-columns: minmax(0, 1fr) !important; }
         .billing-plan-metadata-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; row-gap: 14px !important; }
-        .billing-plan-totals-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+        .billing-plan-totals-grid, .billing-plan-final-summary { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
         .billing-plan-installment-edit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
         .billing-plan-installment-title-field, .billing-plan-installment-description-field { grid-column: 1 / -1; }
       }
@@ -357,10 +387,10 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
         .billing-plan-page { padding: 14px !important; }
         .billing-plan-navigation-toolbar { grid-template-columns: minmax(0, 1fr) !important; }
         .billing-plan-navigation-link { width: 100%; justify-content: flex-start !important; white-space: normal !important; }
-        .billing-plan-metadata-grid, .billing-plan-totals-grid, .billing-plan-installment-edit-grid, .billing-plan-installment-financials, .billing-plan-installment-meta { grid-template-columns: minmax(0, 1fr) !important; }
+        .billing-plan-metadata-grid, .billing-plan-totals-grid, .billing-plan-final-summary, .billing-plan-installment-edit-grid, .billing-plan-installment-financials, .billing-plan-installment-meta { grid-template-columns: minmax(0, 1fr) !important; }
         .billing-plan-workflow-controls { width: 100%; align-items: stretch !important; }
         .billing-plan-normal-actions { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; width: 100%; }
-        .billing-plan-danger-actions { width: 100%; padding-left: 0 !important; border-left: 0 !important; padding-top: 10px; border-top: 1px solid #fecaca; }
+        .billing-plan-danger-actions { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; width: 100%; align-items: stretch !important; }
         .billing-plan-primary-button, .billing-plan-save-button, .billing-plan-cancel-button { width: 100%; }
         .billing-plan-metadata-grid > div, .billing-plan-summary-metric { padding: 9px 0 !important; border-left: 0 !important; border-top: 1px solid #e2e8f0; }
         .billing-plan-metadata-grid > div:first-child, .billing-plan-summary-metric:first-child { border-top: 0; }
@@ -426,12 +456,24 @@ const allocationTitle: CSSProperties = { margin: 0, color: "#334155", fontSize: 
 const allocationCount: CSSProperties = { color: "#64748b", fontSize: 12 };
 const label: CSSProperties = { display: "grid", gap: 6, color: "#334155", fontSize: 13 };
 const input: CSSProperties = { boxSizing: "border-box", width: "100%", minWidth: 0, border: "1px solid #cbd5e1", borderRadius: 6, padding: "9px 10px", background: "#fff", color: "#172033", font: "inherit" };
-const draftActions: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, borderColor: "#bfdbfe", background: "#f8fbff" };
+const saveStateNotice: CSSProperties = { display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: "4px 10px", margin: "-2px 0 16px", padding: "10px 14px", border: "1px solid", borderRadius: 6, fontSize: 13 };
+const dirtyStateNotice: CSSProperties = { borderColor: "#fed7aa", background: "#fff7ed", color: "#9a3412" };
+const savedStateNotice: CSSProperties = { borderColor: "#bbf7d0", background: "#f0fdf4", color: "#166534" };
 const activeNotice: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, borderColor: "#bbf7d0", background: "#f7fff9" };
 const actionHelp: CSSProperties = { margin: "4px 0 0", color: "#64748b", fontSize: 13 };
 const actionButtons: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 8 };
-const workflowControls: CSSProperties = { display: "flex", alignItems: "center", gap: 12 };
-const dangerActions: CSSProperties = { display: "flex", paddingLeft: 12, borderLeft: "1px solid #fecaca" };
+const workflowControls: CSSProperties = { display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12, marginTop: 16, padding: "0 20px" };
+const finalReviewCard: CSSProperties = { padding: 0, overflow: "hidden", borderColor: "#bbf7d0" };
+const finalReviewHeader: CSSProperties = { padding: "20px 20px 16px", borderBottom: "1px solid #dcfce7", background: "#f7fff9" };
+const finalReviewEyebrow: CSSProperties = { color: "#166534", fontSize: 11, fontWeight: 800 };
+const finalReviewTitle: CSSProperties = { margin: "4px 0 5px", color: "#172033", fontSize: 20 };
+const finalReviewDescription: CSSProperties = { maxWidth: 780, margin: 0, color: "#475569", fontSize: 14, lineHeight: 1.55 };
+const finalSummaryGrid: CSSProperties = { display: "grid", gridTemplateColumns: ".65fr 1fr .8fr 1.15fr", gap: 0, padding: "14px 20px", borderBottom: "1px solid #e2e8f0" };
+const finalReadinessNotice: CSSProperties = { display: "grid", gap: 3, margin: "16px 20px 0", padding: "10px 12px", border: "1px solid", borderRadius: 6, fontSize: 13 };
+const finalReadinessPending: CSSProperties = { borderColor: "#fed7aa", background: "#fff7ed", color: "#9a3412" };
+const finalReadinessReady: CSSProperties = { borderColor: "#bbf7d0", background: "#f0fdf4", color: "#166534" };
+const otherActions: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, marginTop: 18, padding: "16px 20px", borderTop: "1px solid #fecaca", background: "#fffafa" };
+const otherActionsCopy: CSSProperties = { display: "grid", gap: 3, color: "#7f1d1d", fontSize: 13 };
 const secondaryButton: CSSProperties = { minHeight: 38, padding: "8px 12px", border: "1px solid #94a3b8", borderRadius: 6, background: "#fff", color: "#334155", cursor: "pointer", font: "inherit", fontWeight: 700 };
 const disabledSaveButton: CSSProperties = { borderColor: "#cbd5e1", background: "#f8fafc", color: "#94a3b8" };
 const primaryButton: CSSProperties = { minHeight: 38, padding: "8px 13px", border: "1px solid #166534", borderRadius: 6, background: "#166534", color: "#fff", cursor: "pointer", font: "inherit", fontWeight: 700 };
