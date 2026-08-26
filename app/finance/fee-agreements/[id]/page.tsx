@@ -547,7 +547,7 @@ function AcceptedQuotationEngagementWorkspace({ agreement, items, quote, billing
   const matter = text(agreement.matter_snapshot_json?.title, text(agreement.matter_snapshot_json?.file_no, agreement.case_id || agreement.advisory_matter_id ? "-" : "ยังไม่ผูกเรื่อง"));
   const billingDescription = billingPlanNextStepDescription(billingPlan, true);
   const active = agreement.status === "engagement_confirmed";
-  return <main style={page}>
+  return <main className="accepted-engagement-workspace" style={page}>
     <FinanceSubNav activePage="fee-agreements" permissions={permissions as never} />
     <nav className="fee-agreement-navigation-toolbar" style={navigationToolbar} aria-label="การนำทางรายการการว่าจ้าง">
       <div className="fee-agreement-navigation-group" style={navigationGroup}>
@@ -556,14 +556,13 @@ function AcceptedQuotationEngagementWorkspace({ agreement, items, quote, billing
       </div>
     </nav>
     {error ? <div style={warning}>{error}</div> : null}{message ? <div style={success}>{message}</div> : null}
-    <header className="fee-agreement-document-header" style={documentHeader}>
-      <div><p style={eyebrow}>ACCEPTED QUOTATION ENGAGEMENT</p><h1 style={documentTitle}>การว่าจ้างตามใบเสนอราคา</h1><p style={documentNumber}>{sourceQuotationNo}</p></div>
-      <div style={headerMeta}><StatusBadge status={agreement.status} /><span>บันทึกการยืนยันเมื่อ {dateTime(agreement.engagement_confirmed_at)}</span><span>แก้ไขล่าสุด {date(agreement.updated_at)}</span></div>
+    <header className="accepted-engagement-hero" style={acceptedHero}>
+      <div style={acceptedHeroIdentity}><p style={eyebrow}>ACCEPTED QUOTATION ENGAGEMENT</p><h1 style={acceptedHeroTitle}>การว่าจ้างตามใบเสนอราคา</h1><p style={acceptedHeroReference}>ใบเสนอราคาต้นทาง <strong>{sourceQuotationNo}</strong></p></div>
+      <div className="accepted-engagement-hero-status" style={acceptedHeroStatus}><StatusBadge status={agreement.status} prominent /><div style={acceptedHeroMeta}><span>ลูกค้ายืนยันเมื่อ {dateTime(agreement.engagement_confirmed_at)}</span><span>แก้ไขล่าสุด {dateTime(agreement.updated_at)}</span></div></div>
     </header>
     <section style={{ ...card, ...acceptedEvidenceCard }}>
       <div style={acceptedSectionHeading}><div><span style={financeEyebrow}>หลักฐานการว่าจ้าง</span><h2 style={acceptedSectionTitle}>ข้อมูลยืนยันจากลูกค้า</h2></div><StatusBadge status={agreement.status} prominent /></div>
-      <p style={notice}>รายการนี้ยืนยันการว่าจ้างจากใบเสนอราคาที่ลูกค้าตอบรับแล้ว ไม่มีการสร้างสัญญาว่าจ้างแยกและไม่มีขั้นตอนลงนามสัญญา</p>
-      <div style={grid}>
+      <div className="accepted-engagement-evidence-grid" style={acceptedEvidenceGrid}>
         <Field label="ลูกค้า" value={client} />
         <Field label="เรื่อง/งาน" value={agreement.case_id ? <Link href={`/cases/${agreement.case_id}`}>{matter}</Link> : agreement.advisory_matter_id ? <Link href={`/advisory/${agreement.advisory_matter_id}`}>{matter}</Link> : matter} />
         <Field label="วันที่ลูกค้ายืนยันว่าจ้าง" value={date(agreement.engagement_confirmed_on)} />
@@ -572,24 +571,54 @@ function AcceptedQuotationEngagementWorkspace({ agreement, items, quote, billing
         <Field label="สถานะใบเสนอราคา" value={quoteStatus(quote?.status || source.status)} />
       </div>
       {agreement.engagement_confirmation_note ? <div style={acceptedConfirmationNote}><strong>หมายเหตุการยืนยัน</strong><span>{agreement.engagement_confirmation_note}</span></div> : null}
+      <p style={acceptedEvidenceNotice}>รายการนี้ยืนยันการว่าจ้างจากใบเสนอราคาที่ลูกค้าตอบรับแล้ว ไม่มีการสร้างสัญญาว่าจ้างแยกและไม่มีขั้นตอนลงนามสัญญา</p>
       {agreement.status === "cancelled" ? <div style={acceptedCancellationNotice}><strong>ยกเลิกเมื่อ {dateTime(agreement.cancelled_at)}</strong><span>{agreement.cancel_reason || "-"}</span></div> : null}
     </section>
-    <section style={card}><h2 style={sectionTitle}>ขอบเขตการให้บริการ</h2><SnapshotText label="ขอบเขตงาน" value={commercial.scope_of_legal_services || source.scope_of_legal_services} /><SnapshotText label="งานที่รวมอยู่ในค่าบริการ" value={commercial.included_services || source.included_services} /><SnapshotText label="งานหรือค่าใช้จ่ายที่ไม่รวม" value={commercial.excluded_services || source.excluded_services} /></section>
-    <section style={card}><h2 style={sectionTitle}>รายการค่าบริการตามใบเสนอราคา</h2>{items.length ? <ItemsTable items={items} currency={agreement.currency} /> : <div style={warning}>ไม่พบรายการค่าบริการจากใบเสนอราคาต้นทาง</div>}</section>
-    <section style={card}><h2 style={sectionTitle}>สรุปค่าบริการ</h2><div style={summaryGrid}><SummaryCard label="มูลค่าก่อน VAT" value={money(agreement.amount_before_tax, agreement.currency)} /><SummaryCard label="VAT" value={money(agreement.vat_amount, agreement.currency)} /><SummaryCard label="ยอดรวม" value={money(agreement.total_amount, agreement.currency)} prominent /></div></section>
-    <section style={card}><h2 style={sectionTitle}>เงื่อนไขการชำระเงิน</h2><PaymentTerms payment={object(source.payment_terms)} currency={agreement.currency} /></section>
-    {permissions.canEditFinanceQuotation && active ? <section className="fee-agreement-finance-panel" style={{ ...card, ...financePanel }}><div className="fee-agreement-finance-panel-content" style={financePanelContent}><div><span style={financeEyebrow}>ขั้นตอนถัดไป</span><h2 style={financeTitle}>{billingPlan ? "ดำเนินการตามแผนเรียกเก็บเงิน" : "สร้างแผนเรียกเก็บเงิน"}</h2><p style={financeDescription}>{billingDescription}</p>{billingPlan ? <span style={financePlanStatus}>สถานะแผน: {billingPlanStatusLabel(billingPlan.status)}</span> : null}</div><button className="fee-agreement-finance-button" type="button" style={financeButton} disabled={billingPlanCreating} onClick={onOpenBillingPlan}><BillingPlanIcon />{billingPlanCreating ? "กำลังเตรียมแผน..." : billingPlan ? "เปิดแผนเรียกเก็บเงิน" : "สร้างแผนเรียกเก็บเงิน"}</button></div></section> : null}
-    {permissions.canEditFinanceQuotation && active ? <section style={{ ...card, ...acceptedOtherActions }}><div><span style={workflowDestructiveLabel}>การดำเนินการอื่น</span><p style={acceptedOtherActionCopy}>ใช้เมื่อการว่าจ้างตามใบเสนอราคานี้ถูกยกเลิก ต้องยกเลิกแผนเรียกเก็บเงินที่ยังมีผลก่อน</p></div><button className="fee-agreement-workflow-cancel-button" type="button" style={workflowCancelButton} disabled={cancelling} onClick={onCancel}><WorkflowIcon name="cancel" />{cancelling ? "กำลังดำเนินการ..." : "ยกเลิกการว่าจ้าง"}</button></section> : null}
+    <section style={acceptedWorkspaceSection}>
+      <div style={acceptedWorkspaceHeading}><span style={acceptedSectionEyebrow}>ขอบเขตการว่าจ้าง</span><h2 style={acceptedWorkspaceTitle}>บริการที่ลูกค้าตอบรับ</h2></div>
+      <div style={acceptedScopeList}>
+        <AcceptedScopeItem label="ขอบเขตงาน" value={commercial.scope_of_legal_services || source.scope_of_legal_services} />
+        <AcceptedScopeItem label="งานที่รวมอยู่ในค่าบริการ" value={commercial.included_services || source.included_services} />
+        <AcceptedScopeItem label="งานหรือค่าใช้จ่ายที่ไม่รวม" value={commercial.excluded_services || source.excluded_services} />
+      </div>
+    </section>
+    <section style={acceptedWorkspaceSection}>
+      <div style={acceptedWorkspaceHeading}><span style={acceptedSectionEyebrow}>เงื่อนไขทางการค้า</span><h2 style={acceptedWorkspaceTitle}>รายการค่าบริการตามใบเสนอราคา</h2></div>
+      {items.length ? <ItemsTable items={items} currency={agreement.currency} presentation="engagement" /> : <div style={warning}>ไม่พบรายการค่าบริการจากใบเสนอราคาต้นทาง</div>}
+      <div style={acceptedSummaryBlock}><h3 style={acceptedSummaryTitle}>สรุปค่าบริการ</h3><div className="accepted-engagement-summary-grid" style={acceptedSummaryGrid}><SummaryCard label="มูลค่าก่อน VAT" value={money(agreement.amount_before_tax, agreement.currency)} /><SummaryCard label="VAT" value={money(agreement.vat_amount, agreement.currency)} /><SummaryCard label="ยอดรวม" value={money(agreement.total_amount, agreement.currency)} prominent /></div></div>
+    </section>
+    <section style={acceptedWorkspaceSection}>
+      <div style={acceptedWorkspaceHeading}><span style={acceptedSectionEyebrow}>กำหนดการชำระ</span><h2 style={acceptedWorkspaceTitle}>เงื่อนไขการชำระเงิน</h2></div>
+      <PaymentTerms payment={object(source.payment_terms)} currency={agreement.currency} presentation="engagement" />
+    </section>
+    {permissions.canEditFinanceQuotation && active ? <section className="fee-agreement-finance-panel" style={{ ...card, ...financePanel, ...acceptedFinalAction }}><div className="fee-agreement-finance-panel-content" style={financePanelContent}><div><span style={financeEyebrow}>ขั้นตอนถัดไป</span><h2 style={financeTitle}>{billingPlan ? "ดำเนินการตามแผนเรียกเก็บเงิน" : "จัดทำแผนเรียกเก็บเงิน"}</h2><p style={financeDescription}>{billingDescription}</p>{billingPlan ? <span style={financePlanStatus}>สถานะแผน: {billingPlanStatusLabel(billingPlan.status)}</span> : null}</div><button className="fee-agreement-finance-button" type="button" style={financeButton} disabled={billingPlanCreating} onClick={onOpenBillingPlan}><BillingPlanIcon />{billingPlanCreating ? "กำลังเตรียมแผน..." : billingPlan ? "เปิดแผนเรียกเก็บเงิน" : "สร้างแผนเรียกเก็บเงิน"}</button></div></section> : null}
+    {permissions.canEditFinanceQuotation && active ? <section className="accepted-engagement-other-actions" style={acceptedOtherActions}><div><span style={workflowDestructiveLabel}>การดำเนินการอื่น</span><p style={acceptedOtherActionCopy}>ใช้เมื่อการว่าจ้างตามใบเสนอราคานี้ถูกยกเลิก ต้องยกเลิกแผนเรียกเก็บเงินที่ยังมีผลก่อน</p></div><button className="fee-agreement-workflow-cancel-button" type="button" style={workflowCancelButton} disabled={cancelling} onClick={onCancel}><WorkflowIcon name="cancel" />{cancelling ? "กำลังดำเนินการ..." : "ยกเลิกการว่าจ้าง"}</button></section> : null}
     <style jsx global>{`
       .fee-agreement-navigation-link { transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease; }
       .fee-agreement-navigation-back:hover { background: #f8fafc !important; border-color: #94a3b8 !important; color: #172033 !important; }
       .fee-agreement-navigation-source:hover { background: #e0e7ff !important; border-color: #a5b4fc !important; color: #312e81 !important; }
       .fee-agreement-navigation-link:focus-visible, .fee-agreement-finance-button:focus-visible, .fee-agreement-workflow-cancel-button:focus-visible { outline: 3px solid rgba(37, 99, 235, .24); outline-offset: 2px; }
+      .accepted-engagement-fee-table { table-layout: fixed; }
+      .accepted-engagement-fee-table th { background: #f8fafc; color: #475569; font-size: 12px; font-weight: 750; line-height: 1.35; }
+      .accepted-engagement-fee-table th, .accepted-engagement-fee-table td { padding: 10px 9px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+      .accepted-engagement-fee-table .is-index, .accepted-engagement-fee-table .is-quantity { text-align: center; }
+      .accepted-engagement-fee-table .is-money { text-align: right; white-space: nowrap; }
+      .accepted-engagement-fee-table .is-vat { text-align: center; white-space: nowrap; }
+      .accepted-engagement-fee-table .is-description { overflow-wrap: anywhere; }
+      .accepted-engagement-installments > * { min-width: 0; }
       @media (max-width: 720px) {
+        .accepted-engagement-workspace { padding: 16px !important; }
         .fee-agreement-navigation-toolbar, .fee-agreement-finance-panel-content { align-items: stretch !important; flex-direction: column; }
         .fee-agreement-navigation-group { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; width: 100%; }
         .fee-agreement-navigation-link, .fee-agreement-finance-button, .fee-agreement-workflow-cancel-button { width: 100%; white-space: normal; }
-        .fee-agreement-document-header { grid-template-columns: minmax(0, 1fr) !important; }
+        .accepted-engagement-hero, .accepted-engagement-evidence-grid, .accepted-engagement-summary-grid, .accepted-engagement-installments { grid-template-columns: minmax(0, 1fr) !important; }
+        .accepted-engagement-hero-status { justify-items: start !important; text-align: left !important; }
+        .accepted-engagement-other-actions { align-items: stretch !important; flex-direction: column; }
+      }
+      @media (max-width: 480px) {
+        .accepted-engagement-installment-header { align-items: stretch !important; flex-direction: column; }
+        .accepted-engagement-installment-total { justify-items: start !important; }
+        .accepted-engagement-installment-conditions { grid-template-columns: minmax(0, 1fr) !important; }
       }
     `}</style>
   </main>;
@@ -637,8 +666,44 @@ function StatusBadge({ status, prominent = false }: { status: string; prominent?
 function BillingPlanIcon() { return <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2h9l3 3v17H6z" /><path d="M14 2v4h4M9 11h6M9 15h6M9 19h4" /></svg>; }
 function SummaryCard({ label, value, prominent = false }: { label: string; value: string; prominent?: boolean }) { return <div style={{ ...summaryCard, ...(prominent ? summaryCardProminent : {}) }}><small style={prominent ? { color: "#166534" } : muted}>{label}</small><strong style={prominent ? summaryValueProminent : summaryValue}>{value}</strong></div>; }
 function SnapshotText({ label, value }: { label: string; value: unknown }) { return text(value, "") !== "" ? <div style={term}><strong>{label}</strong><div style={pre}>{text(value)}</div></div> : null; }
-function ItemsTable({ items, currency }: { items: Item[]; currency: string }) { return <div style={scroll}><table className="fee-agreement-detail-table" style={table}><thead><tr><th>ลำดับ</th><th>รายละเอียด</th><th>จำนวน</th><th>ราคาต่อหน่วย</th><th>VAT</th><th>ก่อน VAT</th><th>VAT</th><th>รวม</th></tr></thead><tbody>{items.map((item, index) => <tr key={item.id}><td>{index + 1}</td><td>{item.description}</td><td>{item.quantity}</td><td>{money(item.unit_price, currency)}</td><td>{item.vat_applicable ? `${item.vat_rate}%` : "ไม่มี VAT"}</td><td>{money(item.amount_before_tax, currency)}</td><td>{money(item.vat_amount, currency)}</td><td>{money(item.line_total, currency)}</td></tr>)}</tbody></table></div>; }
-function PaymentTerms({ payment, currency }: { payment: Json; currency: string }) { const installments = array(payment.installments).map(object); if (!Object.keys(payment).length || !installments.length) return <p style={muted}>ยังไม่มีเงื่อนไขการชำระเงินที่บันทึกไว้</p>; return <><Field label="รูปแบบการชำระเงิน" value={billingLabel[text(payment.payment_method_type, "")] || text(payment.payment_method_type)} />{text(payment.client_summary, "") !== "" ? <p style={notice}>{text(payment.client_summary)}</p> : null}<div style={installmentGrid}>{installments.map((installment, index) => { const no = Number(installment.installment_no || index + 1); const customTitle = text(installment.title, ""); return <div key={`${installment.installment_no || index}`} style={installmentCard}><strong>งวดที่ {no}</strong>{!isGeneratedInstallmentTitle(customTitle, no) ? <div style={{ color: "#475569", marginTop: 2 }}>{customTitle}</div> : null}<div>จำนวนก่อน VAT: {money(installment.amount_before_tax, currency)}</div><div>VAT: {money(installment.vat_amount, currency)}</div><div>จำนวนรวม: {money(installment.total_amount, currency)}</div><InstallmentDue installment={installment} /><SnapshotText label="หมายเหตุสำหรับลูกค้า" value={installment.client_note} /><AllocatedItems value={array(installment.items)} currency={currency} /></div>; })}</div></>; }
+function AcceptedScopeItem({ label, value }: { label: string; value: unknown }) { return <article style={acceptedScopeItem}><h3 style={acceptedScopeTitle}>{label}</h3><div style={acceptedScopeText}>{text(value, "ไม่มีข้อมูลที่ระบุไว้")}</div></article>; }
+function ItemsTable({ items, currency, presentation = "default" }: { items: Item[]; currency: string; presentation?: "default" | "engagement" }) {
+  const engagement = presentation === "engagement";
+  return <div className={engagement ? "accepted-engagement-table-wrap" : undefined} style={scroll}>
+    <table className={`fee-agreement-detail-table${engagement ? " accepted-engagement-fee-table" : ""}`} style={{ ...table, ...(engagement ? acceptedFeeTable : {}) }}>
+      {engagement ? <colgroup><col style={{ width: "6%" }} /><col style={{ width: "28%" }} /><col style={{ width: "7%" }} /><col style={{ width: "13%" }} /><col style={{ width: "9%" }} /><col style={{ width: "13%" }} /><col style={{ width: "10%" }} /><col style={{ width: "14%" }} /></colgroup> : null}
+      <thead><tr><th className="is-index" scope="col">ลำดับ</th><th className="is-description" scope="col">รายละเอียด</th><th className="is-quantity" scope="col">จำนวน</th><th className="is-money" scope="col">ราคาต่อหน่วย</th><th className="is-vat" scope="col">อัตรา VAT</th><th className="is-money" scope="col">ก่อน VAT</th><th className="is-money" scope="col">VAT</th><th className="is-money" scope="col">รวม</th></tr></thead>
+      <tbody>{items.map((item, index) => <tr key={item.id}><td className="is-index">{index + 1}</td><td className="is-description">{item.description}</td><td className="is-quantity">{item.quantity}</td><td className="is-money">{money(item.unit_price, currency)}</td><td className="is-vat">{item.vat_applicable ? `${item.vat_rate}%` : "ไม่มี VAT"}</td><td className="is-money">{money(item.amount_before_tax, currency)}</td><td className="is-money">{money(item.vat_amount, currency)}</td><td className="is-money"><strong>{money(item.line_total, currency)}</strong></td></tr>)}</tbody>
+    </table>
+  </div>;
+}
+function PaymentTerms({ payment, currency, presentation = "default" }: { payment: Json; currency: string; presentation?: "default" | "engagement" }) {
+  const installments = array(payment.installments).map(object);
+  if (!Object.keys(payment).length || !installments.length) return <p style={muted}>ยังไม่มีเงื่อนไขการชำระเงินที่บันทึกไว้</p>;
+  if (presentation === "engagement") return <AcceptedEngagementPaymentTerms payment={payment} installments={installments} currency={currency} />;
+  return <><Field label="รูปแบบการชำระเงิน" value={billingLabel[text(payment.payment_method_type, "")] || text(payment.payment_method_type)} />{text(payment.client_summary, "") !== "" ? <p style={notice}>{text(payment.client_summary)}</p> : null}<div style={installmentGrid}>{installments.map((installment, index) => { const no = Number(installment.installment_no || index + 1); const customTitle = text(installment.title, ""); return <div key={`${installment.installment_no || index}`} style={installmentCard}><strong>งวดที่ {no}</strong>{!isGeneratedInstallmentTitle(customTitle, no) ? <div style={{ color: "#475569", marginTop: 2 }}>{customTitle}</div> : null}<div>จำนวนก่อน VAT: {money(installment.amount_before_tax, currency)}</div><div>VAT: {money(installment.vat_amount, currency)}</div><div>จำนวนรวม: {money(installment.total_amount, currency)}</div><InstallmentDue installment={installment} /><SnapshotText label="หมายเหตุสำหรับลูกค้า" value={installment.client_note} /><AllocatedItems value={array(installment.items)} currency={currency} /></div>; })}</div></>;
+}
+function AcceptedEngagementPaymentTerms({ payment, installments, currency }: { payment: Json; installments: Json[]; currency: string }) {
+  const method = billingLabel[text(payment.payment_method_type, "")] || text(payment.payment_method_type);
+  const clientSummary = text(payment.client_summary, "");
+  return <div style={acceptedPaymentTerms}>
+    <div style={acceptedPaymentMethod}><small style={muted}>รูปแบบการชำระเงิน</small><strong>{method}</strong></div>
+    {clientSummary ? <div style={acceptedClientSummary}><small style={acceptedClientSummaryLabel}>สรุปสำหรับลูกค้า</small><p style={acceptedClientSummaryText}>{clientSummary}</p></div> : null}
+    <div className="accepted-engagement-installments" style={acceptedInstallmentGrid}>{installments.map((installment, index) => {
+      const no = Number(installment.installment_no || index + 1);
+      const customTitle = text(installment.title, "");
+      return <article key={`${installment.installment_no || index}`} style={acceptedInstallmentCard}>
+        <div className="accepted-engagement-installment-header" style={acceptedInstallmentHeader}><div><span style={acceptedInstallmentNumber}>งวดที่ {no}</span>{!isGeneratedInstallmentTitle(customTitle, no) ? <div style={acceptedInstallmentCustomTitle}>{customTitle}</div> : null}</div><div className="accepted-engagement-installment-total" style={acceptedInstallmentTotal}><small>ยอดรวม</small><strong>{money(installment.total_amount, currency)}</strong></div></div>
+        <div style={acceptedInstallmentBreakdown}><span>ก่อน VAT <strong>{money(installment.amount_before_tax, currency)}</strong></span><span>VAT <strong>{money(installment.vat_amount, currency)}</strong></span></div>
+        <div className="accepted-engagement-installment-conditions" style={acceptedInstallmentConditions}><div style={acceptedInstallmentCondition}><small style={muted}>เงื่อนไขเรียกเก็บ</small><strong>{installmentTriggerDescription(installment)}</strong></div><div style={acceptedInstallmentCondition}><small style={muted}>กำหนดชำระ</small><strong>{installmentPaymentDueDescription(installment)}</strong></div></div>
+        {text(installment.client_note, "") ? <div style={acceptedInstallmentNote}><small style={muted}>หมายเหตุสำหรับลูกค้า</small><span>{text(installment.client_note)}</span></div> : null}
+        <AllocatedItems value={array(installment.items)} currency={currency} />
+      </article>;
+    })}</div>
+  </div>;
+}
+function installmentTriggerDescription(installment: Json) { const trigger = text(installment.trigger_type, ""); const detail = text(installment.trigger_description, ""); if (detail) return detail; if (trigger === "quotation_acceptance") return "เมื่อลูกค้าตอบรับใบเสนอราคา"; if (trigger === "agreement_effective") return "เมื่อการว่าจ้างมีผล"; if (trigger === "date") return installment.due_date ? `ตามวันที่ ${date(installment.due_date)}` : "ตามวันที่กำหนด"; if (trigger === "case_milestone") return "ตามขั้นตอนงานหรือคดี"; if (trigger === "recurring_period") return "ตามรอบเวลา"; return "ตามเงื่อนไขที่ตกลงกัน"; }
+function installmentPaymentDueDescription(installment: Json) { if (installment.due_date) return `วันที่ ${date(installment.due_date)}`; const days = Number(installment.payment_due_days); if (!Number.isFinite(days)) return "-"; return days > 0 ? `ภายใน ${days} วันนับแต่ถึงเงื่อนไขเรียกเก็บ` : "ชำระเมื่อถึงเงื่อนไขเรียกเก็บ"; }
 function InstallmentDue({ installment }: { installment: Json }) { const description = dueDescription(installment); return description ? <div style={{ marginTop: 6 }}><strong>ครบกำหนด:</strong> {description}</div> : null; }
 function AllocatedItems({ value, currency }: { value: unknown[]; currency: string }) { if (!value.length) return null; return <div style={{ marginTop: 8 }}><strong>รายการค่าบริการในงวดนี้</strong>{value.map((entry, index) => { const item = object(entry); return <div key={`${text(item.description, "item")}-${index}`} style={allocated}><span>{text(item.description)}</span><span>{money(item.allocated_total || item.line_total, currency)}</span></div>; })}</div>; }
 function LegalTermsEditor({ value, templates, disabled, onChange }: { value: LegalForm; templates: Template[]; disabled: boolean; onChange: (next: LegalForm) => void }) { const update = (key: keyof LegalForm, next: string) => onChange({ ...value, [key]: next }); const templateMode = Boolean(value.templateVersionId); return <><div style={formGrid}><label style={labelStyle}>ภาษา<select style={input} value={value.language} disabled={disabled} onChange={(event) => update("language", event.target.value)}><option value="th">ไทย</option><option value="en">English</option></select></label><label style={labelStyle}>Template version<select style={input} value={value.templateVersionId} disabled={disabled} onChange={(event) => update("templateVersionId", event.target.value)}><option value="">ไม่ใช้ Template / ใช้โครงสร้างมาตรฐาน</option>{templates.filter((template) => template.language_code === value.language).map((template) => <option key={template.id} value={template.id}>{template.document_templates?.template_code || "Template"} v{template.version_no} — {template.document_templates?.name || ""}</option>)}</select></label></div>{templateMode ? null : <><TermsGroup title="ขอบเขตและหน้าที่"><TextArea label="รายละเอียดขอบเขตเพิ่มเติม" value={value.scopeClarification} disabled={disabled} onChange={(next) => update("scopeClarification", next)} /><TextArea label="หน้าที่ของลูกค้า" value={value.clientObligations} disabled={disabled} onChange={(next) => update("clientObligations", next)} /><TextArea label="หน้าที่ของสำนักงาน" value={value.firmObligations} disabled={disabled} onChange={(next) => update("firmObligations", next)} /><TextArea label="งานที่ไม่รวม" value={value.exclusions} disabled={disabled} onChange={(next) => update("exclusions", next)} /></TermsGroup><TermsGroup title="ค่าใช้จ่ายและการคุ้มครองข้อมูล"><TextArea label="ค่าใช้จ่ายและเงินทดรอง" value={value.expenses} disabled={disabled} onChange={(next) => update("expenses", next)} /><TextArea label="การรักษาความลับ" value={value.confidentiality} disabled={disabled} onChange={(next) => update("confidentiality", next)} /></TermsGroup><TermsGroup title="การสิ้นสุดและข้อพิพาท"><TextArea label="การเลิกสัญญา" value={value.termination} disabled={disabled} onChange={(next) => update("termination", next)} /><TextArea label="กฎหมายที่ใช้บังคับ/เขตอำนาจ" value={value.dispute} disabled={disabled} onChange={(next) => update("dispute", next)} /></TermsGroup><TermsGroup title="ข้อกำหนดอื่น"><TextArea label="ข้อกำหนดเพิ่มเติม" value={value.additionalTerms} disabled={disabled} onChange={(next) => update("additionalTerms", next)} /></TermsGroup></>}{value.warnings.length ? <div style={warning}>{value.warnings.join(" ")}</div> : null}</>; }
@@ -712,12 +777,48 @@ const financeTitle: CSSProperties = { margin: "3px 0 5px", color: "#172033", fon
 const financeDescription: CSSProperties = { maxWidth: 680, margin: 0, color: "#475569", fontSize: 14, lineHeight: 1.55 };
 const financePlanStatus: CSSProperties = { display: "inline-block", marginTop: 8, color: "#1e40af", fontSize: 13, fontWeight: 700 };
 const financeButton: CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, flex: "0 0 auto", minHeight: 42, padding: "10px 15px", border: "1px solid #1d4ed8", borderRadius: 6, background: "#1d4ed8", color: "#fff", cursor: "pointer", font: "inherit", fontWeight: 700 };
-const acceptedEvidenceCard: CSSProperties = { borderColor: "#bbf7d0", background: "#fbfffc" };
+const acceptedHero: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(260px,.55fr)", gap: 32, alignItems: "center", padding: "20px 0 26px", marginBottom: 24, borderBottom: "2px solid #166534" };
+const acceptedHeroIdentity: CSSProperties = { minWidth: 0 };
+const acceptedHeroTitle: CSSProperties = { maxWidth: 720, margin: "7px 0 8px", color: "#172033", fontSize: 32, lineHeight: 1.2 };
+const acceptedHeroReference: CSSProperties = { margin: 0, color: "#475569", fontSize: 15 };
+const acceptedHeroStatus: CSSProperties = { display: "grid", justifyItems: "end", gap: 10, minWidth: 0, textAlign: "right" };
+const acceptedHeroMeta: CSSProperties = { display: "grid", gap: 4, color: "#64748b", fontSize: 12, lineHeight: 1.45 };
+const acceptedEvidenceCard: CSSProperties = { borderColor: "#bbf7d0", background: "#fbfffc", padding: 20, boxShadow: "0 1px 2px rgba(15,23,42,.03)" };
 const acceptedSectionHeading: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 10 };
 const acceptedSectionTitle: CSSProperties = { margin: "3px 0 0", color: "#172033", fontSize: 19 };
+const acceptedEvidenceGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: "16px 24px", padding: "16px 0 4px", borderTop: "1px solid #dcfce7" };
+const acceptedEvidenceNotice: CSSProperties = { margin: "16px 0 0", padding: "11px 12px", borderLeft: "3px solid #60a5fa", background: "#eff6ff", color: "#334155", fontSize: 13, lineHeight: 1.55 };
 const acceptedConfirmationNote: CSSProperties = { display: "grid", gap: 5, marginTop: 16, paddingTop: 14, borderTop: "1px solid #dcfce7", color: "#334155", fontSize: 13, whiteSpace: "pre-wrap" };
 const acceptedCancellationNotice: CSSProperties = { display: "grid", gap: 4, marginTop: 16, padding: 12, borderRadius: 6, background: "#fef2f2", color: "#991b1b", fontSize: 13 };
-const acceptedOtherActions: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 18, borderColor: "#fecaca", background: "#fff" };
+const acceptedWorkspaceSection: CSSProperties = { padding: "26px 2px", borderBottom: "1px solid #dbe3ee" };
+const acceptedWorkspaceHeading: CSSProperties = { display: "grid", gap: 4, marginBottom: 18 };
+const acceptedSectionEyebrow: CSSProperties = { color: "#64748b", fontSize: 11, fontWeight: 800, textTransform: "uppercase" };
+const acceptedWorkspaceTitle: CSSProperties = { margin: 0, color: "#14532d", fontSize: 21, lineHeight: 1.3 };
+const acceptedScopeList: CSSProperties = { display: "grid", gap: 12 };
+const acceptedScopeItem: CSSProperties = { padding: "15px 18px", borderLeft: "3px solid #a7c4b1", background: "#f8faf9" };
+const acceptedScopeTitle: CSSProperties = { margin: "0 0 7px", color: "#1e293b", fontSize: 15 };
+const acceptedScopeText: CSSProperties = { maxWidth: 980, color: "#334155", fontSize: 14, lineHeight: 1.7, whiteSpace: "pre-wrap", overflowWrap: "anywhere" };
+const acceptedFeeTable: CSSProperties = { minWidth: 980 };
+const acceptedSummaryBlock: CSSProperties = { marginTop: 20, paddingTop: 18, borderTop: "1px solid #e2e8f0" };
+const acceptedSummaryTitle: CSSProperties = { margin: "0 0 10px", color: "#475569", fontSize: 14 };
+const acceptedSummaryGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 12 };
+const acceptedPaymentTerms: CSSProperties = { display: "grid", gap: 14 };
+const acceptedPaymentMethod: CSSProperties = { display: "grid", gap: 4, width: "fit-content", minWidth: 220, padding: "10px 12px", border: "1px solid #e2e8f0", background: "#f8fafc" };
+const acceptedClientSummary: CSSProperties = { padding: "13px 15px", borderLeft: "3px solid #6366f1", background: "#f5f7ff" };
+const acceptedClientSummaryLabel: CSSProperties = { color: "#4f46e5", fontSize: 11, fontWeight: 800 };
+const acceptedClientSummaryText: CSSProperties = { margin: "4px 0 0", color: "#334155", fontSize: 14, lineHeight: 1.6 };
+const acceptedInstallmentGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 14 };
+const acceptedInstallmentCard: CSSProperties = { display: "grid", alignContent: "start", gap: 12, minWidth: 0, padding: 16, border: "1px solid #dbe3ee", borderRadius: 6, background: "#fff" };
+const acceptedInstallmentHeader: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, paddingBottom: 11, borderBottom: "1px solid #e2e8f0" };
+const acceptedInstallmentNumber: CSSProperties = { color: "#172033", fontSize: 16, fontWeight: 800 };
+const acceptedInstallmentCustomTitle: CSSProperties = { marginTop: 3, color: "#64748b", fontSize: 13 };
+const acceptedInstallmentTotal: CSSProperties = { display: "grid", justifyItems: "end", gap: 1, flex: "0 0 auto", color: "#166534" };
+const acceptedInstallmentBreakdown: CSSProperties = { display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: "6px 16px", color: "#64748b", fontSize: 12 };
+const acceptedInstallmentConditions: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 12, padding: "11px 12px", background: "#f8fafc" };
+const acceptedInstallmentCondition: CSSProperties = { display: "grid", gap: 3, minWidth: 0, color: "#334155", fontSize: 13, lineHeight: 1.5 };
+const acceptedInstallmentNote: CSSProperties = { display: "grid", gap: 3, color: "#334155", fontSize: 13, lineHeight: 1.5 };
+const acceptedFinalAction: CSSProperties = { marginTop: 28, marginBottom: 10, padding: 22, boxShadow: "0 8px 24px rgba(30,64,175,.08)" };
+const acceptedOtherActions: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 18, padding: "16px 2px 0", marginBottom: 8 };
 const acceptedOtherActionCopy: CSSProperties = { maxWidth: 720, margin: "5px 0 0", color: "#64748b", fontSize: 12, lineHeight: 1.5 };
 const documentInformationGrid: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(240px,1.55fr) repeat(3,minmax(150px,1fr))", gap: 14, alignItems: "start", margin: "18px 0 10px" };
 const executionModeField: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(220px,.85fr) minmax(260px,1.15fr)", gap: 16, alignItems: "end", padding: "12px 14px", borderLeft: "3px solid #86a995", background: "#f8faf9" };
