@@ -376,7 +376,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
             </div>
             <div style={documentTitleBlockStyle}>
               <h1 style={documentTitleStyle}>{isThaiDocument ? "ใบเสนอราคา" : "Quotation"}</h1>
-              {!isThaiDocument ? <div style={documentSubtitleStyle}>Legal Services Quotation</div> : null}
+              <div style={documentSubtitleStyle}>{isThaiDocument ? "Quotation" : "Legal Services Quotation"}</div>
               {showDocumentStatus ? <div style={{ ...statusStyle, ...getPreviewStatusStyle(quotation.status) }}>{documentStatusLabel}</div> : null}
             </div>
           </header>
