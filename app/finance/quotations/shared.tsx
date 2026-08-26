@@ -2899,10 +2899,17 @@ function getBangkokDateKey() {
 }
 
 function mapAcceptedEngagementError(message: string) {
+  if (message.includes("confirmation date is required")) return "กรุณาระบุวันที่ลูกค้ายืนยันว่าจ้าง";
   if (message.includes("future")) return "วันที่ลูกค้ายืนยันว่าจ้างต้องไม่เป็นวันที่ในอนาคต";
   if (message.includes("channel")) return "กรุณาเลือกช่องทางการยืนยันให้ถูกต้อง";
+  if (message.includes("note must not exceed")) return "หมายเหตุการยืนยันต้องไม่เกิน 4,000 ตัวอักษร";
+  if (message.includes("Quotation not found")) return "ไม่พบใบเสนอราคานี้ กรุณากลับไปที่รายการใบเสนอราคา";
   if (message.includes("Link this accepted prospect quotation")) return "กรุณาเชื่อมใบเสนอราคากับลูกค้าในระบบก่อนยืนยันการว่าจ้าง";
   if (message.includes("no frozen document snapshot")) return "ไม่พบ snapshot ของใบเสนอราคาที่ตอบรับ กรุณาติดต่อผู้ดูแลระบบ";
+  if (message.includes("Linked Client not found")) return "ไม่พบลูกค้าที่เชื่อมกับใบเสนอราคานี้ กรุณาตรวจสอบข้อมูลลูกค้า";
+  if (message.includes("Linked Case not found")) return "ไม่พบ Case ที่เชื่อมกับใบเสนอราคานี้ กรุณาตรวจสอบข้อมูลเรื่อง/งาน";
+  if (message.includes("Linked Advisory matter not found")) return "ไม่พบ Advisory ที่เชื่อมกับใบเสนอราคานี้ กรุณาตรวจสอบข้อมูลเรื่อง/งาน";
+  if (message.includes("Conflicting commercial engagements")) return "พบข้อมูลการว่าจ้างมากกว่าหนึ่งรายการสำหรับใบเสนอราคานี้ กรุณาติดต่อผู้ดูแลระบบก่อนดำเนินการต่อ";
   if (message.includes("already exists with different")) return "มีการบันทึกการว่าจ้างนี้แล้วด้วยข้อมูลยืนยันที่ต่างกัน กรุณารีเฟรชเพื่อตรวจสอบรายการเดิม";
   if (message.includes("formal Fee Agreement") || message.includes("formal Fee Agreement already exists")) return "ใบเสนอราคานี้มีสัญญาว่าจ้างอยู่แล้ว กรุณาเปิดรายการเดิม";
   if (message.includes("Not allowed")) return "คุณไม่มีสิทธิ์ยืนยันการว่าจ้างรายการนี้";
