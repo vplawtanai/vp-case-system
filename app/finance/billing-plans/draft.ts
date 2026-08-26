@@ -47,7 +47,7 @@ const stringValue = (value: unknown) => typeof value === "string" ? value.trim()
 const numberValue = (value: unknown) => Number(value ?? 0);
 const satang = (value: unknown) => Math.round(numberValue(value) * 100);
 
-function sourceTrigger(installment: Json): Pick<BillingPlanDraftInstallment, "trigger_type" | "trigger_description" | "due_date" | "milestone_code" | "recurring_period_start" | "recurring_period_end"> {
+function sourceTrigger(installment: Json, acceptedQuotationBasis: boolean): Pick<BillingPlanDraftInstallment, "trigger_type" | "trigger_description" | "due_date" | "milestone_code" | "recurring_period_start" | "recurring_period_end"> {
   const sourceType = stringValue(installment.trigger_type);
   const sourceDescription = stringValue(installment.trigger_description);
   const dueDays = Number(installment.payment_due_days);
@@ -75,7 +75,7 @@ function sourceTrigger(installment: Json): Pick<BillingPlanDraftInstallment, "tr
     if (!periodStart || !periodEnd) {
       return {
         trigger_type: "manual",
-        trigger_description: ["ตามรอบระยะเวลาที่กำหนดในข้อตกลง", ...detailParts].join(" · "),
+        trigger_description: [acceptedQuotationBasis ? "ตามรอบระยะเวลาที่กำหนดในการว่าจ้าง" : "ตามรอบระยะเวลาที่กำหนดในข้อตกลง", ...detailParts].join(" · "),
         due_date: stringValue(installment.due_date) || null,
         milestone_code: null,
         recurring_period_start: null,
@@ -90,7 +90,7 @@ function sourceTrigger(installment: Json): Pick<BillingPlanDraftInstallment, "tr
 
   return {
     trigger_type: supportedType,
-    trigger_description: detailParts.join(" · ") || (supportedType === "manual" ? "เงื่อนไขตามข้อตกลงค่าบริการ" : null),
+    trigger_description: detailParts.join(" · ") || (supportedType === "manual" ? acceptedQuotationBasis ? "เงื่อนไขตามใบเสนอราคาที่ตอบรับ" : "เงื่อนไขตามข้อตกลงค่าบริการ" : null),
     due_date: stringValue(installment.due_date) || null,
     milestone_code: stringValue(installment.milestone_code) || null,
     recurring_period_start: stringValue(installment.recurring_period_start) || null,
@@ -102,9 +102,11 @@ export function buildBillingPlanDraftFromFeeAgreement(input: {
   agreementNo: string | null;
   agreementTitle: string;
   billingMethod: string;
+  engagementBasis?: "formal_agreement" | "accepted_quotation" | null;
   sourceDocumentSnapshot: Json | null;
   agreementItems: BillingAgreementItem[];
 }): { ok: true; payload: BillingPlanDraftPayload } | { ok: false; message: string } {
+  const acceptedQuotationBasis = input.engagementBasis === "accepted_quotation";
   const paymentTerms = object(object(input.sourceDocumentSnapshot).payment_terms);
   const sourceInstallments = rows(paymentTerms.installments).map(object);
   if (!sourceInstallments.length) {
@@ -161,7 +163,7 @@ export function buildBillingPlanDraftFromFeeAgreement(input: {
       installment_no: installmentNo,
       sort_order: installmentIndex,
       title: stringValue(installment.title) || `งวดที่ ${installmentNo}`,
-      ...sourceTrigger(installment),
+      ...sourceTrigger(installment, acceptedQuotationBasis),
       items: mappedItems,
     });
   }

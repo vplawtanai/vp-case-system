@@ -10,7 +10,7 @@ import { feeAgreementStatusLabel } from "../../fee-agreements/lifecycle";
 
 type Json = Record<string, unknown>;
 type BillingPlan = { id: string; fee_agreement_id: string; status: string; billing_method: string; currency: string; amount_before_tax: number | string; vat_amount: number | string; total_amount: number | string; title: string | null; description: string | null; installment_count: number; recurring_config_json: Json | null; created_at: string; updated_at: string };
-type FeeAgreement = { id: string; agreement_no: string | null; title: string; client_id: string; case_id: number | null; advisory_matter_id: string | null; source_quotation_id: string | null; source_reference: string | null; status: string; client_snapshot_json: Json | null; matter_snapshot_json: Json | null; source_document_snapshot_json: Json | null };
+type FeeAgreement = { id: string; agreement_no: string | null; title: string; client_id: string; case_id: number | null; advisory_matter_id: string | null; source_quotation_id: string | null; source_reference: string | null; status: string; engagement_basis: "formal_agreement" | "accepted_quotation" | null; client_snapshot_json: Json | null; matter_snapshot_json: Json | null; source_document_snapshot_json: Json | null };
 type Installment = { id: string; installment_no: number; sort_order: number; title: string; trigger_description: string | null; trigger_type: string; due_date: string | null; milestone_code: string | null; recurring_period_start: string | null; recurring_period_end: string | null; status: string; ready_to_invoice_at: string | null; invoiced_at: string | null; cancelled_at: string | null; amount_before_tax: number | string; vat_amount: number | string; total_amount: number | string; created_at: string };
 type Allocation = { id: string; billing_installment_id: string; fee_agreement_item_id: string; amount_before_tax: number | string; vat_amount: number | string; total_amount: number | string; allocation_percent: number | string | null; sort_order: number; allocation_snapshot_json: Json | null; created_at: string };
 type AgreementItem = { id: string; description: string };
@@ -82,7 +82,7 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
     const [agreementResult, installmentsResult] = await Promise.all([
       supabase
         .from("finance_fee_agreements")
-        .select("id,agreement_no,title,client_id,case_id,advisory_matter_id,source_quotation_id,source_reference,status,client_snapshot_json,matter_snapshot_json,source_document_snapshot_json")
+        .select("id,agreement_no,title,client_id,case_id,advisory_matter_id,source_quotation_id,source_reference,status,engagement_basis,client_snapshot_json,matter_snapshot_json,source_document_snapshot_json")
         .eq("id", planRow.fee_agreement_id)
         .maybeSingle(),
       supabase
@@ -218,13 +218,16 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
   const client = text(agreement?.client_snapshot_json?.name, text(agreement?.client_snapshot_json?.display_name, "-"));
   const matter = text(agreement?.matter_snapshot_json?.title, text(agreement?.matter_snapshot_json?.file_no, agreement?.case_id || agreement?.advisory_matter_id ? "-" : "ข้อตกลงระดับลูกค้า"));
   const quotationNo = text(agreement?.source_document_snapshot_json?.quotation_no, text(agreement?.source_reference, "ใบเสนอราคาต้นทาง"));
+  const acceptedQuotationBasis = agreement?.engagement_basis === "accepted_quotation";
+  const engagementKindLabel = acceptedQuotationBasis ? "การว่าจ้างตามใบเสนอราคา" : "ข้อตกลงค่าบริการ";
+  const engagementReference = agreement ? acceptedQuotationBasis ? quotationNo : text(agreement.agreement_no, agreement.title) : "-";
   const allocationByInstallment = new Map<string, Allocation[]>();
   allocations.forEach((allocation) => allocationByInstallment.set(allocation.billing_installment_id, [...(allocationByInstallment.get(allocation.billing_installment_id) || []), allocation]));
   const agreementItemById = new Map(agreementItems.map((item) => [item.id, item.description]));
 
   return <main className="billing-plan-page" style={page}>
     {agreement ? <nav className="billing-plan-navigation-toolbar" style={navigationToolbar} aria-label="การนำทางเอกสารที่เกี่ยวข้อง">
-      <Link className="billing-plan-navigation-link billing-plan-navigation-back" style={{ ...navigationLink, ...navigationBackLink }} href={`/finance/fee-agreements/${agreement.id}`}><NavigationIcon name="back" /><span>กลับไปข้อตกลงค่าบริการ</span></Link>
+      <Link className="billing-plan-navigation-link billing-plan-navigation-back" style={{ ...navigationLink, ...navigationBackLink }} href={`/finance/fee-agreements/${agreement.id}`}><NavigationIcon name="back" /><span>{acceptedQuotationBasis ? "กลับไปการว่าจ้างตามใบเสนอราคา" : "กลับไปข้อตกลงค่าบริการ"}</span></Link>
       {agreement?.source_quotation_id ? <Link className="billing-plan-navigation-link billing-plan-navigation-source" style={{ ...navigationLink, ...navigationSourceLink }} href={`/finance/quotations/${agreement.source_quotation_id}`}><NavigationIcon name="source" /><span>เปิดใบเสนอราคาต้นทาง</span></Link> : null}
     </nav> : null}
     {error ? <div style={warning}>{error}</div> : null}
@@ -232,7 +235,7 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
 
     <section style={{ ...card, ...planHeaderCard }}>
       <div className="billing-plan-identity-header" style={planIdentityHeader}>
-        <div style={planIdentityCopy}><span style={planEyebrow}>BILLING PLAN</span><h1 style={planTitle}>{text(plan.status === "draft" ? draft.title : plan.title, "แผนเรียกเก็บเงิน")}</h1><p style={planReference}>{agreement ? `อ้างอิงข้อตกลง ${text(agreement.agreement_no, agreement.title)}` : "ไม่พบข้อตกลงค่าบริการอ้างอิง"}</p>{plan.status !== "draft" && plan.description ? <p style={description}>{plan.description}</p> : null}</div>
+        <div style={planIdentityCopy}><span style={planEyebrow}>BILLING PLAN</span><h1 style={planTitle}>{text(plan.status === "draft" ? draft.title : plan.title, "แผนเรียกเก็บเงิน")}</h1><p style={planReference}>{agreement ? `อ้างอิง${engagementKindLabel} ${engagementReference}` : "ไม่พบรายการการว่าจ้างอ้างอิง"}</p>{plan.status !== "draft" && plan.description ? <p style={description}>{plan.description}</p> : null}</div>
         <div className="billing-plan-status-panel" style={planStatusPanel}><span style={metaLabel}>สถานะแผน</span><StatusBadge status={plan.status} label={planStatus[plan.status] || plan.status} prominent /><span style={planUpdated}>แก้ไขล่าสุด {date(plan.updated_at)}</span></div>
       </div>
       {plan.status === "draft" && canManage ? <div className="billing-plan-header-edit-grid" style={headerEditGrid}>
@@ -258,16 +261,16 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
       <h2 style={sourceChainTitle}>เส้นทางเอกสารต้นทาง</h2>
       <div className="billing-plan-source-chain-nodes" style={chainNodes}>
         {agreement?.source_quotation_id ? <><ChainNode title="ใบเสนอราคา" status={text(agreement.source_document_snapshot_json?.status, "")}><Link href={`/finance/quotations/${agreement.source_quotation_id}`}>{quotationNo}</Link></ChainNode><span className="billing-plan-chain-arrow" style={chainArrow} aria-hidden="true">→</span></> : null}
-        <ChainNode title="ข้อตกลงค่าบริการ" status={agreement?.status || null} statusText={agreement ? feeAgreementStatusLabel(agreement.status) : undefined}>{agreement ? <Link href={`/finance/fee-agreements/${agreement.id}`}>{text(agreement.agreement_no, agreement.title)}</Link> : <span style={unavailable}>ไม่พบข้อตกลงค่าบริการที่เชื่อมไว้</span>}</ChainNode>
+        <ChainNode title={engagementKindLabel} status={agreement?.status || null} statusText={agreement ? feeAgreementStatusLabel(agreement.status) : undefined}>{agreement ? <Link href={`/finance/fee-agreements/${agreement.id}`}>{engagementReference}</Link> : <span style={unavailable}>ไม่พบรายการการว่าจ้างที่เชื่อมไว้</span>}</ChainNode>
         <span className="billing-plan-chain-arrow" style={chainArrow} aria-hidden="true">→</span>
         <ChainNode title="แผนเรียกเก็บเงิน" status={plan.status} current>{text(plan.title, billingMethod[plan.billing_method] || plan.billing_method)}</ChainNode>
       </div>
     </section>
 
     <section style={card}>
-      <h2 style={sectionTitle}>ข้อตกลงค่าบริการอ้างอิง</h2>
-      {!agreement ? <div style={warning}>ไม่พบข้อตกลงค่าบริการที่เชื่อมกับแผนนี้</div> : <div style={grid}>
-        <Field label="ข้อตกลง" value={<Link href={`/finance/fee-agreements/${agreement.id}`}>{text(agreement.agreement_no, agreement.title)}</Link>} />
+      <h2 style={sectionTitle}>{engagementKindLabel}อ้างอิง</h2>
+      {!agreement ? <div style={warning}>ไม่พบรายการการว่าจ้างที่เชื่อมกับแผนนี้</div> : <div style={grid}>
+        <Field label={engagementKindLabel} value={<Link href={`/finance/fee-agreements/${agreement.id}`}>{engagementReference}</Link>} />
         <Field label="สถานะ" value={<StatusBadge status={agreement.status} label={feeAgreementStatusLabel(agreement.status)} />} />
         <Field label="ลูกค้า" value={client} />
         <Field label="เรื่อง/คดี" value={agreement.case_id ? <Link href={`/cases/${agreement.case_id}`}>{matter}</Link> : agreement.advisory_matter_id ? <Link href={`/advisory/${agreement.advisory_matter_id}`}>{matter}</Link> : matter} />
@@ -299,7 +302,7 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
           <div style={installmentHeader}><div style={installmentHeadingCopy}><span style={installmentEyebrow}>งวดเรียกเก็บเงิน</span><h3 style={installmentTitle}>งวดที่ {installment.installment_no}</h3>{customInstallmentTitle ? <p style={installmentCustomTitle}>{customInstallmentTitle}</p> : null}</div><StatusBadge status={installment.status} label={installmentStatus[installment.status] || installment.status} /></div>
           {plan.status === "draft" && canManage && draftInstallment ? <div className="billing-plan-installment-edit-grid" style={installmentEditGrid}>
             <label className="billing-plan-installment-title-field" style={label}>ชื่องวด<input style={input} value={draftInstallment.title} disabled={saving || statusSaving} onChange={(event) => updateDraftInstallment(installment.id, { title: event.target.value })} /></label>
-            <label style={label}>เงื่อนไขเรียกเก็บ<select style={input} value={draftInstallment.trigger_type} disabled={saving || statusSaving} onChange={(event) => updateDraftInstallment(installment.id, { trigger_type: event.target.value })}><option value="agreement_effective">เมื่อข้อตกลงมีผล</option><option value="date">ตามวันที่</option><option value="case_milestone">ตามเหตุการณ์สำคัญ</option><option value="manual">กำหนดด้วยตนเอง</option><option value="recurring_period">ตามรอบระยะเวลา</option></select></label>
+            <label style={label}>เงื่อนไขเรียกเก็บ<select style={input} value={draftInstallment.trigger_type} disabled={saving || statusSaving} onChange={(event) => updateDraftInstallment(installment.id, { trigger_type: event.target.value })}><option value="agreement_effective">{acceptedQuotationBasis ? "เมื่อการว่าจ้างมีผล" : "เมื่อข้อตกลงมีผล"}</option><option value="date">ตามวันที่</option><option value="case_milestone">ตามเหตุการณ์สำคัญ</option><option value="manual">กำหนดด้วยตนเอง</option><option value="recurring_period">ตามรอบระยะเวลา</option></select></label>
             <label className="billing-plan-installment-description-field" style={label}>รายละเอียดเงื่อนไข<input style={input} value={draftInstallment.trigger_description} disabled={saving || statusSaving} onChange={(event) => updateDraftInstallment(installment.id, { trigger_description: event.target.value })} /></label>
             <label style={label}>วันที่ครบกำหนด<input style={input} type="date" value={draftInstallment.due_date} disabled={saving || statusSaving} onChange={(event) => updateDraftInstallment(installment.id, { due_date: event.target.value })} /></label>
             {draftInstallment.trigger_type === "case_milestone" ? <label style={label}>เหตุการณ์สำคัญ (ถ้ามี)<input style={input} value={draftInstallment.milestone_code} disabled={saving || statusSaving} onChange={(event) => updateDraftInstallment(installment.id, { milestone_code: event.target.value })} /></label> : null}
@@ -311,7 +314,7 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
             <SummaryMetric label="ยอดรวมงวด" value={money(installment.total_amount, plan.currency)} prominent compact />
           </div>
           <div className="billing-plan-installment-meta" style={installmentMetaGrid}>
-            <Field label="เงื่อนไขเรียกเก็บ" value={triggerType[installment.trigger_type] || installment.trigger_type} />
+            <Field label="เงื่อนไขเรียกเก็บ" value={installment.trigger_type === "agreement_effective" && acceptedQuotationBasis ? "เมื่อการว่าจ้างมีผล" : triggerType[installment.trigger_type] || installment.trigger_type} />
             {installment.trigger_description ? <Field label="รายละเอียดเงื่อนไข" value={installment.trigger_description} /> : null}
             {installment.due_date ? <Field label="วันที่ครบกำหนด" value={date(installment.due_date)} /> : null}
             {installment.milestone_code ? <Field label="เหตุการณ์สำคัญ" value={installment.milestone_code} /> : null}
@@ -321,7 +324,7 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
             {installment.cancelled_at ? <Field label="ยกเลิกเมื่อ" value={dateTime(installment.cancelled_at)} /> : null}
           </div>
           <div style={allocationHeading}><h4 style={allocationTitle}>รายการค่าบริการในงวดนี้</h4><span style={allocationCount}>{installmentAllocations.length} รายการ</span></div>
-          {installmentAllocations.length === 0 ? <div style={warning}>งวดนี้ไม่มีรายการค่าบริการที่จัดสรรไว้</div> : <div style={scroll}><table className="billing-plan-allocation-table" style={allocationTable}><colgroup>{allocationColumns.map((column) => <col key={column.key} style={{ width: column.width }} />)}</colgroup><thead><tr>{allocationColumns.map((column) => <th key={column.key} className={column.numeric ? "billing-plan-numeric-column" : undefined}>{column.label}</th>)}</tr></thead><tbody>{installmentAllocations.map((allocation) => <tr key={allocation.id}>{allocationColumns.map((column) => <td key={column.key} className={column.numeric ? "billing-plan-numeric-column" : undefined}>{allocationCell(column.key, allocation, agreementItemById.get(allocation.fee_agreement_item_id), plan.currency)}</td>)}</tr>)}</tbody></table></div>}
+          {installmentAllocations.length === 0 ? <div style={warning}>งวดนี้ไม่มีรายการค่าบริการที่จัดสรรไว้</div> : <div style={scroll}><table className="billing-plan-allocation-table" style={allocationTable}><colgroup>{allocationColumns.map((column) => <col key={column.key} style={{ width: column.width }} />)}</colgroup><thead><tr>{allocationColumns.map((column) => <th key={column.key} className={column.numeric ? "billing-plan-numeric-column" : undefined}>{column.key === "description" && acceptedQuotationBasis ? "รายการตามใบเสนอราคา" : column.label}</th>)}</tr></thead><tbody>{installmentAllocations.map((allocation) => <tr key={allocation.id}>{allocationColumns.map((column) => <td key={column.key} className={column.numeric ? "billing-plan-numeric-column" : undefined}>{allocationCell(column.key, allocation, agreementItemById.get(allocation.fee_agreement_item_id), plan.currency)}</td>)}</tr>)}</tbody></table></div>}
         </article>;
       })}
     </section>
@@ -410,7 +413,7 @@ function billingPlanDraft(plan: BillingPlan, installments: Installment[]): Draft
 function billingInstallmentDisplayTitle(title: string, installmentNo: number) { const value = title.trim(); const generated = new RegExp(`^(?:งวดที่\\s*${installmentNo}|Installment\\s*${installmentNo})(?:\\s*[/\\-—]\\s*(?:งวดที่\\s*${installmentNo}|Installment\\s*${installmentNo}))?$`, "i"); return generated.test(value) ? "" : value; }
 function allocationCell(key: AllocationColumnKey, allocation: Allocation, description: string | undefined, currency: string): ReactNode { if (key === "description") return description || <span style={unavailable}>ไม่พบรายการค่าบริการต้นทาง</span>; if (key === "amount_before_tax") return money(allocation.amount_before_tax, currency); if (key === "vat_amount") return money(allocation.vat_amount, currency); if (key === "total_amount") return <strong>{money(allocation.total_amount, currency)}</strong>; return allocation.allocation_percent === null ? <span style={mutedValue}>ตามยอดจริง</span> : `${numberValue(allocation.allocation_percent).toLocaleString("en-US", { maximumFractionDigits: 4 })}%`; }
 function validateBillingPlanDraft(draft: DraftForm) { for (const installment of draft.installments) { if (!installment.title.trim()) return `กรุณาระบุชื่องวดที่ ${installment.installment_no}`; if (installment.trigger_type === "date" && !installment.due_date) return `กรุณาระบุวันที่ครบกำหนดของงวดที่ ${installment.installment_no}`; if (installment.trigger_type === "case_milestone" && !installment.milestone_code.trim() && !installment.trigger_description.trim()) return `กรุณาระบุเหตุการณ์สำคัญของงวดที่ ${installment.installment_no}`; if (installment.trigger_type === "recurring_period" && (!installment.recurring_period_start || !installment.recurring_period_end || installment.recurring_period_end < installment.recurring_period_start)) return `กรุณาตรวจสอบรอบระยะเวลาของงวดที่ ${installment.installment_no}`; } return ""; }
-function billingPlanErrorMessage(value: unknown) { const message = value && typeof value === "object" && "message" in value ? String(value.message) : String(value || ""); if (message.includes("signed, completed, or legacy active")) return "ข้อตกลงค่าบริการไม่อยู่ในสถานะที่อนุญาตให้จัดการแผนเรียกเก็บเงิน"; if (message.includes("totals must match") || message.includes("allocations must exactly match") || message.includes("VAT allocations")) return "ยอดงวดหรือการจัดสรรไม่ตรงกับข้อตกลงค่าบริการ กรุณารีเฟรชและตรวจสอบข้อมูล"; if (message.includes("Only draft billing plans")) return "แผนนี้ไม่ใช่ร่างแล้ว จึงไม่สามารถแก้ไขได้"; if (message.includes("Not allowed")) return "คุณไม่มีสิทธิ์จัดการแผนเรียกเก็บเงิน"; return "ไม่สามารถบันทึกแผนเรียกเก็บเงินได้ กรุณาตรวจสอบข้อมูลและลองอีกครั้ง"; }
+function billingPlanErrorMessage(value: unknown) { const message = value && typeof value === "object" && "message" in value ? String(value.message) : String(value || ""); if (message.includes("eligible commercial engagement") || message.includes("signed, completed, or legacy active")) return "รายการการว่าจ้างไม่อยู่ในสถานะที่อนุญาตให้จัดการแผนเรียกเก็บเงิน"; if (message.includes("totals must match") || message.includes("allocations must exactly match") || message.includes("VAT allocations")) return "ยอดงวดหรือการจัดสรรไม่ตรงกับหลักฐานการว่าจ้าง กรุณารีเฟรชและตรวจสอบข้อมูล"; if (message.includes("Only draft billing plans")) return "แผนนี้ไม่ใช่ร่างแล้ว จึงไม่สามารถแก้ไขได้"; if (message.includes("Not allowed")) return "คุณไม่มีสิทธิ์จัดการแผนเรียกเก็บเงิน"; return "ไม่สามารถบันทึกแผนเรียกเก็บเงินได้ กรุณาตรวจสอบข้อมูลและลองอีกครั้ง"; }
 
 const page: CSSProperties = { maxWidth: 1180, margin: "0 auto", padding: 24 };
 const card: CSSProperties = { background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, padding: 18, marginBottom: 16 };

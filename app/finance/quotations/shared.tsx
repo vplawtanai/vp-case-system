@@ -143,6 +143,10 @@ type PaymentAllocationValidationIssue = { message: string; itemReference?: strin
 type PaymentInstallmentTotal = { beforeTax: number; vat: number; total: number };
 type PaymentLineItemSource = { item: QuotationItemRow; reference: string };
 type PendingNavigation = { href: string; label: string };
+type QuotationEngagementBasis = "formal_agreement" | "accepted_quotation";
+type QuotationEngagementReference = { id: string; engagement_basis: QuotationEngagementBasis | null; status: string; source_reference: string | null };
+type EngagementConfirmationForm = { confirmedOn: string; channel: string; note: string };
+type EngagementConfirmationErrors = Partial<Record<"confirmedOn" | "channel", string>>;
 type SaveAllResult =
   | { ok: true }
   | { ok: false; stage: "quotation" | "payment_terms" | "refetch"; message: string };
@@ -1873,12 +1877,20 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
   const [lookups, setLookups] = useState<LookupState>(getEmptyLookups());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [feeAgreementId, setFeeAgreementId] = useState<string | null>(null);
+  const [engagement, setEngagement] = useState<QuotationEngagementReference | null>(null);
   const [linkClientId, setLinkClientId] = useState("");
   const [linkMatterMode, setLinkMatterMode] = useState<"unlinked" | "case" | "advisory">("unlinked");
   const [linkCaseId, setLinkCaseId] = useState("");
   const [linkAdvisoryMatterId, setLinkAdvisoryMatterId] = useState("");
+  const [engagementChoice, setEngagementChoice] = useState<QuotationEngagementBasis | null>(null);
+  const [confirmationForm, setConfirmationForm] = useState<EngagementConfirmationForm>({ confirmedOn: "", channel: "", note: "" });
+  const [confirmationErrors, setConfirmationErrors] = useState<EngagementConfirmationErrors>({});
+  const [engagementMessage, setEngagementMessage] = useState("");
   const feeAgreementCreatingRef = useRef(false);
+  const engagementConfirmingRef = useRef(false);
+  const confirmationPanelRef = useRef<HTMLDivElement>(null);
+  const confirmationDateRef = useRef<HTMLInputElement>(null);
+  const confirmationChannelRef = useRef<HTMLSelectElement>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -1900,7 +1912,7 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
     const [itemRes, lookupRes, agreementRes] = await Promise.all([
       supabase.from("finance_quotation_items").select("*").eq("quotation_id", quotationId).order("sort_order", { ascending: true }),
       loadLookups(),
-      supabase.from("finance_fee_agreements").select("id").eq("source_type", "quotation").eq("source_quotation_id", quotationId).neq("status", "cancelled").maybeSingle(),
+      supabase.from("finance_fee_agreements").select("id,engagement_basis,status,source_reference").eq("source_type", "quotation").eq("source_quotation_id", quotationId).neq("status", "cancelled").maybeSingle(),
     ]);
     if (itemRes.error) {
       console.warn("Failed to load quotation items", { quotationId, error: itemRes.error });
@@ -1909,7 +1921,7 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
     const loadedQuotation = quotationRes.data as QuotationRow;
     setQuotation(loadedQuotation);
     setItems((itemRes.data || []) as QuotationItemRow[]);
-    setFeeAgreementId(agreementRes.data?.id || null);
+    setEngagement((agreementRes.data || null) as QuotationEngagementReference | null);
     setLookups(lookupRes);
     const canonicalMatterLink = getCanonicalQuotationMatterLink(loadedQuotation);
     setLinkClientId(loadedQuotation.client_id || "");
@@ -1945,6 +1957,53 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
     }
     if (agreementRes.data?.agreement_no) alert(`สร้าง Fee Agreement ${agreementRes.data.agreement_no} แล้ว`);
     router.push(`/finance/fee-agreements/${result.fee_agreement_id}`);
+  };
+
+  const openConfirmationPanel = () => {
+    setEngagementChoice("accepted_quotation");
+    setConfirmationErrors({});
+    setEngagementMessage("");
+    window.setTimeout(() => confirmationPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  };
+
+  const confirmAcceptedQuotationEngagement = async () => {
+    if (!quotation || saving || engagementConfirmingRef.current) return;
+    const nextErrors: EngagementConfirmationErrors = {};
+    if (!confirmationForm.confirmedOn) nextErrors.confirmedOn = "กรุณาระบุวันที่ลูกค้ายืนยันว่าจ้าง";
+    else if (confirmationForm.confirmedOn > getBangkokDateKey()) nextErrors.confirmedOn = "วันที่ลูกค้ายืนยันว่าจ้างต้องไม่เป็นวันที่ในอนาคต";
+    if (!confirmationForm.channel) nextErrors.channel = "กรุณาเลือกช่องทางการยืนยัน";
+    if (Object.keys(nextErrors).length) {
+      setConfirmationErrors(nextErrors);
+      setEngagementMessage("กรุณากรอกข้อมูลที่จำเป็นให้ครบก่อนยืนยันการว่าจ้าง");
+      const firstTarget = nextErrors.confirmedOn ? confirmationDateRef.current : confirmationChannelRef.current;
+      window.setTimeout(() => { firstTarget?.focus({ preventScroll: true }); firstTarget?.scrollIntoView({ behavior: "smooth", block: "center" }); }, 0);
+      return;
+    }
+
+    engagementConfirmingRef.current = true;
+    setSaving(true);
+    setEngagementMessage("");
+    try {
+      const { data, error } = await supabase.rpc("confirm_finance_accepted_quotation_engagement", {
+        p_quotation_id: quotation.id,
+        p_confirmed_on: confirmationForm.confirmedOn,
+        p_confirmation_channel: confirmationForm.channel,
+        p_confirmation_note: confirmationForm.note.trim() || null,
+      });
+      const result = Array.isArray(data) ? data[0] : data;
+      if (error || !result?.fee_agreement_id) {
+        console.error("Unable to confirm accepted quotation engagement", { quotationId: quotation.id, error });
+        setEngagementMessage(mapAcceptedEngagementError(error?.message || ""));
+        return;
+      }
+      router.push(`/finance/fee-agreements/${result.fee_agreement_id}`);
+    } catch (confirmationError) {
+      console.error("Unexpected accepted quotation engagement confirmation failure", confirmationError);
+      setEngagementMessage("ยืนยันการว่าจ้างไม่สำเร็จ กรุณารีเฟรชและลองอีกครั้ง");
+    } finally {
+      engagementConfirmingRef.current = false;
+      setSaving(false);
+    }
   };
 
   const linkMasterRecords = async () => {
@@ -2054,7 +2113,7 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
               <Link href="/finance/quotations" style={secondaryButtonStyle}>Back</Link>
               <Link href={`/finance/quotations/${quotation.id}/preview`} style={secondaryButtonStyle}>Preview</Link>
               <Link href={`/finance/quotations/${quotation.id}/preview?print=1`} style={secondaryButtonStyle} title="Open Browser Print for this quotation">Print</Link>
-              {quotation.status === "accepted" && access.permissions.canCreateFinanceQuotation && feeAgreementId ? <Link href={`/finance/fee-agreements/${feeAgreementId}`} style={primaryButtonStyle}>เปิดข้อตกลงค่าบริการ</Link> : null}
+              {quotation.status === "accepted" && access.permissions.canCreateFinanceQuotation && engagement ? <Link href={`/finance/fee-agreements/${engagement.id}`} style={primaryButtonStyle}>{engagement.engagement_basis === "accepted_quotation" ? "เปิดการว่าจ้างตามใบเสนอราคา" : "เปิดข้อตกลงค่าบริการ"}</Link> : null}
               {quotation.status === "draft" && access.permissions.canEditFinanceQuotation ? <Link href={`/finance/quotations/${quotation.id}/edit`} style={primaryButtonStyle}>Edit Draft</Link> : null}
               {quotation.status === "draft" && access.permissions.canMarkFinanceQuotationSent ? <button type="button" onClick={() => updateStatus("sent")} disabled={saving} style={secondaryButtonStyle}>Mark Sent</button> : null}
               {quotation.status === "sent" && access.permissions.canMarkFinanceQuotationAccepted ? <button type="button" onClick={() => updateStatus("accepted")} disabled={saving} style={secondaryButtonStyle}>Mark Accepted</button> : null}
@@ -2062,10 +2121,10 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
             </div>
           </div>
 
-          {quotation.status === "accepted" && !feeAgreementId && access.permissions.canCreateFinanceQuotation ? (
+          {quotation.status === "accepted" && !engagement && access.permissions.canCreateFinanceQuotation ? (
             <div style={cardStyle}>
-              <h2 style={sectionTitleStyle}>ตรวจสอบข้อมูลก่อนสร้างข้อตกลงค่าบริการ</h2>
-              <p style={mutedTextStyle}>ตรวจสอบลูกค้าและเรื่อง/งานที่จะเชื่อมกับข้อตกลงค่าบริการ ระบบจะไม่สร้างลูกค้า Case หรือ Advisory ใหม่โดยอัตโนมัติ และจะไม่แก้ไข snapshot ของใบเสนอราคาที่ส่งแล้ว</p>
+              <h2 style={sectionTitleStyle}>ลูกค้าตอบรับใบเสนอราคาแล้ว</h2>
+              <p style={mutedTextStyle}>ตรวจสอบลูกค้าและเรื่อง/งานก่อนเลือกวิธีดำเนินการต่อ ระบบจะไม่สร้างลูกค้า Case หรือ Advisory ใหม่โดยอัตโนมัติ และจะไม่แก้ไข snapshot ของใบเสนอราคาที่ส่งแล้ว</p>
               <div style={{ ...formGridStyle, marginTop: 14 }}>
                 <label style={labelStyle}>ลูกค้าในระบบ *
                   <select value={linkClientId} disabled={Boolean(quotation.client_id)} onChange={(event) => setLinkClientId(event.target.value)} style={inputStyle}>
@@ -2084,13 +2143,31 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
                   {linkMatterMode === "advisory" ? <select value={linkAdvisoryMatterId} disabled={Boolean(canonicalMatterLink?.advisoryMatterId)} onChange={(event) => setLinkAdvisoryMatterId(event.target.value)} style={inputStyle}><option value="">เลือก Advisory</option>{lookups.matters.map((item) => <option key={item.id} value={item.id}>{renderMatterLabel(item)}</option>)}</select> : null}
                 </div>
               </div>
-              {!quotation.client_id ? <p style={noticeTextStyle}>ข้อตกลงค่าบริการต้องอ้างอิงลูกค้าในระบบ กรุณาเชื่อมลูกค้าก่อนดำเนินการต่อ</p> : null}
-              {hasCanonicalMatter ? <p style={helperTextStyle}>เรื่อง/งานนี้เชื่อมกับใบเสนอราคาแล้วและจะใช้เป็นข้อมูลอ้างอิงของข้อตกลงค่าบริการ</p> : null}
-              <div style={buttonRowStyle}>
-                <button type="button" onClick={requiresMasterRecordLink ? linkMasterRecords : createFeeAgreement} disabled={saving} style={primaryButtonStyle}>
-                  {requiresMasterRecordLink ? "บันทึกการเชื่อมข้อมูล" : "ยืนยันและสร้างข้อตกลงค่าบริการ"}
-                </button>
-              </div>
+              {!quotation.client_id ? <p style={noticeTextStyle}>การดำเนินการต่อจำเป็นต้องอ้างอิงลูกค้าในระบบ กรุณาเชื่อมลูกค้าก่อน</p> : null}
+              {hasCanonicalMatter ? <p style={helperTextStyle}>เรื่อง/งานนี้เชื่อมกับใบเสนอราคาแล้วและจะใช้เป็นข้อมูลอ้างอิงของการว่าจ้าง</p> : null}
+              {requiresMasterRecordLink ? <div style={buttonRowStyle}><button type="button" onClick={linkMasterRecords} disabled={saving} style={primaryButtonStyle}>{saving ? "กำลังบันทึก..." : "บันทึกการเชื่อมข้อมูล"}</button></div> : <>
+                <div style={engagementDecisionIntroStyle}><strong>เลือกวิธีดำเนินการต่อให้ตรงกับการว่าจ้างจริง</strong><span>แต่ละทางเลือกใช้หลักฐานและขั้นตอนดำเนินงานต่างกัน</span></div>
+                <div style={engagementChoiceGridStyle}>
+                  <div style={{ ...engagementChoiceCardStyle, ...(engagementChoice === "formal_agreement" ? engagementChoiceActiveStyle : {}) }}>
+                    <div><span style={engagementChoiceEyebrowStyle}>มีเอกสารสัญญาแยก</span><h3 style={engagementChoiceTitleStyle}>จัดทำสัญญาว่าจ้าง</h3><p style={engagementChoiceDescriptionStyle}>ใช้เมื่อจะจัดทำสัญญาว่าจ้างแยกและดำเนินการตรวจทาน ส่ง และลงนาม</p></div>
+                    <button type="button" onClick={() => { setEngagementChoice("formal_agreement"); void createFeeAgreement(); }} disabled={saving} style={secondaryButtonStyle}>{saving && engagementChoice === "formal_agreement" ? "กำลังสร้าง..." : "จัดทำสัญญาว่าจ้าง"}</button>
+                  </div>
+                  <div style={{ ...engagementChoiceCardStyle, ...(engagementChoice === "accepted_quotation" ? engagementChoiceActiveStyle : {}) }}>
+                    <div><span style={engagementChoiceEyebrowStyle}>ไม่มีเอกสารสัญญาแยก</span><h3 style={engagementChoiceTitleStyle}>เริ่มงานตามใบเสนอราคาที่ตอบรับ</h3><p style={engagementChoiceDescriptionStyle}>ใช้เมื่อลูกค้ายืนยันว่าจ้างตามใบเสนอราคาและไม่จัดทำสัญญาแยก</p></div>
+                    <button type="button" onClick={openConfirmationPanel} disabled={saving} style={primaryButtonStyle}>บันทึกการยืนยันว่าจ้าง</button>
+                  </div>
+                </div>
+                {engagementChoice === "accepted_quotation" ? <div ref={confirmationPanelRef} tabIndex={-1} style={engagementConfirmationPanelStyle}>
+                  <div><h3 style={engagementChoiceTitleStyle}>ยืนยันการว่าจ้างตามใบเสนอราคา</h3><p style={engagementChoiceDescriptionStyle}>ระบบจะบันทึกใบเสนอราคาที่ตอบรับไว้เป็นหลักฐานการว่าจ้าง และเปิดขั้นตอนจัดทำแผนเรียกเก็บเงิน</p><p style={engagementConfirmationClarificationStyle}>ไม่ได้สร้างสัญญาว่าจ้างแยก และไม่มีขั้นตอนลงนามสัญญา</p></div>
+                  {engagementMessage ? <div role="alert" style={errorNoticeTextStyle}>{engagementMessage}</div> : null}
+                  <div style={formGridStyle}>
+                    <label style={labelStyle}>วันที่ลูกค้ายืนยันว่าจ้าง *<input ref={confirmationDateRef} type="date" value={confirmationForm.confirmedOn} aria-invalid={Boolean(confirmationErrors.confirmedOn)} onChange={(event) => { const confirmedOn = event.target.value; setConfirmationForm({ ...confirmationForm, confirmedOn }); if (confirmedOn) { setConfirmationErrors((current) => { const next = { ...current }; delete next.confirmedOn; return next; }); setEngagementMessage(""); } }} style={{ ...inputStyle, ...(confirmationErrors.confirmedOn ? invalidEngagementInputStyle : {}) }} />{confirmationErrors.confirmedOn ? <span style={engagementFieldErrorStyle}>{confirmationErrors.confirmedOn}</span> : null}</label>
+                    <label style={labelStyle}>ช่องทางการยืนยัน *<select ref={confirmationChannelRef} value={confirmationForm.channel} aria-invalid={Boolean(confirmationErrors.channel)} onChange={(event) => { const channel = event.target.value; setConfirmationForm({ ...confirmationForm, channel }); if (channel) { setConfirmationErrors((current) => { const next = { ...current }; delete next.channel; return next; }); setEngagementMessage(""); } }} style={{ ...inputStyle, ...(confirmationErrors.channel ? invalidEngagementInputStyle : {}) }}><option value="">เลือกช่องทาง</option><option value="line">LINE</option><option value="email">Email</option><option value="phone">โทรศัพท์</option><option value="meeting">นัด/ประชุม</option><option value="written">หนังสือ/ข้อความเป็นลายลักษณ์อักษร</option><option value="other">อื่น ๆ</option></select>{confirmationErrors.channel ? <span style={engagementFieldErrorStyle}>{confirmationErrors.channel}</span> : null}</label>
+                    <label style={wideLabelStyle}>หมายเหตุ (ถ้ามี)<textarea value={confirmationForm.note} maxLength={4000} onChange={(event) => setConfirmationForm({ ...confirmationForm, note: event.target.value })} style={textareaStyle} /></label>
+                  </div>
+                  <div style={engagementConfirmationActionsStyle}><button type="button" onClick={() => { setEngagementChoice(null); setConfirmationErrors({}); setEngagementMessage(""); }} disabled={saving} style={secondaryButtonStyle}>ยกเลิก</button><button type="button" onClick={() => void confirmAcceptedQuotationEngagement()} disabled={saving} style={primaryButtonStyle}>{saving ? "กำลังยืนยัน..." : "ยืนยันการว่าจ้างตามใบเสนอราคา"}</button></div>
+                </div> : null}
+              </>}
             </div>
           ) : null}
 
@@ -2791,6 +2868,24 @@ function getDateKey(value: Date) {
   return value.toISOString().slice(0, 10);
 }
 
+function getBangkokDateKey() {
+  const parts = new Intl.DateTimeFormat("en", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((entry) => entry.type === type)?.value || "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function mapAcceptedEngagementError(message: string) {
+  if (message.includes("future")) return "วันที่ลูกค้ายืนยันว่าจ้างต้องไม่เป็นวันที่ในอนาคต";
+  if (message.includes("channel")) return "กรุณาเลือกช่องทางการยืนยันให้ถูกต้อง";
+  if (message.includes("Link this accepted prospect quotation")) return "กรุณาเชื่อมใบเสนอราคากับลูกค้าในระบบก่อนยืนยันการว่าจ้าง";
+  if (message.includes("no frozen document snapshot")) return "ไม่พบ snapshot ของใบเสนอราคาที่ตอบรับ กรุณาติดต่อผู้ดูแลระบบ";
+  if (message.includes("already exists with different")) return "มีการบันทึกการว่าจ้างนี้แล้วด้วยข้อมูลยืนยันที่ต่างกัน กรุณารีเฟรชเพื่อตรวจสอบรายการเดิม";
+  if (message.includes("formal Fee Agreement") || message.includes("formal Fee Agreement already exists")) return "ใบเสนอราคานี้มีสัญญาว่าจ้างอยู่แล้ว กรุณาเปิดรายการเดิม";
+  if (message.includes("Not allowed")) return "คุณไม่มีสิทธิ์ยืนยันการว่าจ้างรายการนี้";
+  if (message.includes("Only accepted")) return "ใบเสนอราคาไม่ได้อยู่ในสถานะตอบรับแล้ว กรุณารีเฟรชหน้า";
+  return "ยืนยันการว่าจ้างไม่สำเร็จ กรุณารีเฟรชและลองอีกครั้ง";
+}
+
 function toAmount(value: number | string | null | undefined) {
   const amount = Number(value || 0);
   return Number.isFinite(amount) ? amount : 0;
@@ -2922,6 +3017,18 @@ const quotationHeaderFormCss = `
   }
 `;
 const buttonRowStyle: CSSProperties = { display: "flex", justifyContent: "flex-end", marginTop: 16 };
+const engagementDecisionIntroStyle: CSSProperties = { display: "grid", gap: 3, marginTop: 18, paddingTop: 16, borderTop: "1px solid #e5e7eb", color: "#111827", fontSize: 14 };
+const engagementChoiceGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(270px,1fr))", gap: 14, marginTop: 12 };
+const engagementChoiceCardStyle: CSSProperties = { display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 18, minWidth: 0, padding: 16, border: "1px solid #d1d5db", borderRadius: 8, background: "#fff" };
+const engagementChoiceActiveStyle: CSSProperties = { borderColor: "#64748b", boxShadow: "0 0 0 2px rgba(100,116,139,.12)" };
+const engagementChoiceEyebrowStyle: CSSProperties = { color: "#64748b", fontSize: 11, fontWeight: 800, textTransform: "uppercase" };
+const engagementChoiceTitleStyle: CSSProperties = { margin: "4px 0 5px", color: "#111827", fontSize: 17 };
+const engagementChoiceDescriptionStyle: CSSProperties = { margin: 0, color: "#64748b", fontSize: 13, lineHeight: 1.55 };
+const engagementConfirmationPanelStyle: CSSProperties = { display: "grid", gap: 14, marginTop: 16, padding: 16, scrollMarginTop: 96, border: "1px solid #93c5fd", borderRadius: 8, background: "#f8fbff" };
+const engagementConfirmationClarificationStyle: CSSProperties = { margin: "8px 0 0", color: "#1e40af", fontSize: 13, fontWeight: 700 };
+const engagementConfirmationActionsStyle: CSSProperties = { display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: 8 };
+const invalidEngagementInputStyle: CSSProperties = { borderColor: "#dc2626", boxShadow: "0 0 0 2px rgba(220,38,38,.1)" };
+const engagementFieldErrorStyle: CSSProperties = { color: "#b91c1c", fontSize: 12, fontWeight: 650 };
 
 const totalsGridStyle: CSSProperties = { maxWidth: 420, marginLeft: "auto", marginTop: 16, display: "grid", gap: 8 };
 const summaryLineStyle: CSSProperties = { display: "flex", justifyContent: "space-between", gap: 16, fontSize: 14, color: "#374151" };

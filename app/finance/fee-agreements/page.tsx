@@ -10,6 +10,7 @@ type Json = Record<string, unknown>;
 type Agreement = {
   id: string; agreement_no: string | null; title: string; status: string; language_code: string | null;
   effective_date: string | null; updated_at: string; source_quotation_id: string | null; source_reference: string | null;
+  engagement_basis: "formal_agreement" | "accepted_quotation" | null;
   client_snapshot_json: Json | null; matter_snapshot_json: Json | null; source_document_snapshot_json: Json | null;
 };
 
@@ -31,7 +32,7 @@ function FeeAgreementList({ permissions }: { permissions: Parameters<typeof Fina
   const load = useCallback(async () => {
     setLoading(true); setError("");
     const result = await supabase.from("finance_fee_agreements")
-      .select("id,agreement_no,title,status,language_code,effective_date,updated_at,source_quotation_id,source_reference,client_snapshot_json,matter_snapshot_json,source_document_snapshot_json")
+      .select("id,agreement_no,title,status,language_code,effective_date,updated_at,source_quotation_id,source_reference,engagement_basis,client_snapshot_json,matter_snapshot_json,source_document_snapshot_json")
       .order("updated_at", { ascending: false });
     if (result.error) setError("ไม่สามารถโหลดรายการข้อตกลงค่าบริการได้");
     else setAgreements((result.data || []) as Agreement[]);
@@ -50,8 +51,8 @@ function FeeAgreementList({ permissions }: { permissions: Parameters<typeof Fina
     <FinanceSubNav activePage="fee-agreements" permissions={permissions} />
 
     <header style={headerStyle}>
-      <h1 style={pageTitle}>สัญญาว่าจ้าง</h1>
-      <p style={pageSubtitle}>ข้อตกลงค่าบริการจากใบเสนอราคาที่ได้รับการตอบรับแล้ว</p>
+      <h1 style={pageTitle}>การว่าจ้าง / ข้อตกลงค่าบริการ</h1>
+      <p style={pageSubtitle}>ติดตามทั้งสัญญาว่าจ้างและการว่าจ้างที่ยืนยันจากใบเสนอราคาที่ตอบรับ</p>
     </header>
 
     <section className="fee-agreement-filter-toolbar" style={filterStyle} aria-label="ค้นหาและกรองสัญญาว่าจ้าง">
@@ -65,7 +66,7 @@ function FeeAgreementList({ permissions }: { permissions: Parameters<typeof Fina
       <label style={filterField}>
         <span style={filterLabel}>สถานะ</span>
         <select className="fee-agreement-filter-control" style={selectStyle} value={status} onChange={(event) => setStatus(event.target.value)}>
-          <option value="all">ทุกสถานะ</option>{["draft", "under_review", "sent", "signed", "completed", "cancelled", "active"].map((item) => <option key={item} value={item}>{feeAgreementStatusLabel(item)}</option>)}
+          <option value="all">ทุกสถานะ</option>{["draft", "under_review", "sent", "signed", "completed", "engagement_confirmed", "cancelled", "active"].map((item) => <option key={item} value={item}>{feeAgreementStatusLabel(item)}</option>)}
         </select>
       </label>
     </section>
@@ -77,20 +78,21 @@ function FeeAgreementList({ permissions }: { permissions: Parameters<typeof Fina
         <col style={{ width: 190 }} /><col style={{ width: 220 }} /><col style={{ width: 155 }} /><col style={{ width: 150 }} />
         <col style={{ width: 78 }} /><col style={{ width: 110 }} /><col style={{ width: 110 }} /><col style={{ width: 86 }} />
       </colgroup>
-      <thead><tr><th>เลขที่สัญญา</th><th>ลูกค้า / เรื่องหรือคดี</th><th>ใบเสนอราคาต้นทาง</th><th>สถานะ</th><th>ภาษา</th><th>วันที่มีผล</th><th>แก้ไขล่าสุด</th><th>ดำเนินการ</th></tr></thead>
+      <thead><tr><th>รายการการว่าจ้าง</th><th>ลูกค้า / เรื่องหรือคดี</th><th>ใบเสนอราคาต้นทาง</th><th>สถานะ</th><th>ภาษา</th><th>วันที่มีผล</th><th>แก้ไขล่าสุด</th><th>ดำเนินการ</th></tr></thead>
       <tbody>{filtered.map((agreement) => {
         const source = agreement.source_document_snapshot_json || {};
         const quotationNo = value(source.quotation_no, agreement.source_reference || "-");
         const title = /^Fee Agreement\s*-\s*/i.test(agreement.title || "") ? "สัญญาว่าจ้างให้บริการทางกฎหมาย" : agreement.title;
         const client = snapshotText(agreement.client_snapshot_json, "name", "display_name");
         const matter = snapshotText(agreement.matter_snapshot_json, "title", "file_no", "matter_no");
+        const acceptedQuotationBasis = agreement.engagement_basis === "accepted_quotation";
         return <tr key={agreement.id}>
-          <td><div style={cellStack}><strong style={agreementNumber}>{agreement.agreement_no || "ยังไม่มีเลขที่สัญญา"}</strong><span style={secondaryText}>{title}</span></div></td>
+          <td><div style={cellStack}><span style={{ ...basisBadge, ...(acceptedQuotationBasis ? acceptedBasisBadge : formalBasisBadge) }}>{acceptedQuotationBasis ? "ตามใบเสนอราคาที่ตอบรับ" : "สัญญาว่าจ้าง"}</span><strong style={agreementNumber}>{acceptedQuotationBasis ? quotationNo : agreement.agreement_no || "ยังไม่มีเลขที่สัญญา"}</strong><span style={secondaryText}>{title}</span></div></td>
           <td><div style={cellStack}><strong style={primaryText}>{client}</strong><span style={secondaryText}>{matter}</span></div></td>
           <td>{agreement.source_quotation_id ? <Link className="fee-agreement-source-link" style={sourceLink} href={`/finance/quotations/${agreement.source_quotation_id}`}>{quotationNo}</Link> : <span style={primaryText}>{quotationNo}</span>}</td>
           <td><StatusBadge status={agreement.status} /></td>
-          <td style={conciseCell}>{agreement.language_code === "en" ? "English" : "ไทย"}</td>
-          <td style={dateCell}>{date(agreement.effective_date)}</td>
+          <td style={conciseCell}>{acceptedQuotationBasis ? "-" : agreement.language_code === "en" ? "English" : "ไทย"}</td>
+          <td style={dateCell}>{acceptedQuotationBasis ? "-" : date(agreement.effective_date)}</td>
           <td style={dateCell}>{date(agreement.updated_at)}</td>
           <td><Link className="fee-agreement-open-link" style={openLink} href={`/finance/fee-agreements/${agreement.id}`}>เปิด<ListIcon name="open" /></Link></td>
         </tr>;
@@ -167,4 +169,7 @@ const loadingStyle: CSSProperties = { border: "1px solid #e2e8f0", borderRadius:
 const warning: CSSProperties = { background: "#fff7ed", color: "#9a3412", padding: 12, borderRadius: 6 };
 const emptyStyle: CSSProperties = { border: "1px dashed #cbd5e1", borderRadius: 8, padding: 28, background: "#f8fafc", color: "#64748b", textAlign: "center" };
 const badgeStyle: CSSProperties = { display: "inline-block", padding: "4px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700, lineHeight: 1.3, whiteSpace: "nowrap" };
-const badgeColors: Record<string, CSSProperties> = { draft: { background: "#e5e7eb", color: "#374151" }, under_review: { background: "#e0e7ff", color: "#3730a3" }, sent: { background: "#fef3c7", color: "#92400e" }, signed: { background: "#dcfce7", color: "#166534" }, completed: { background: "#dcfce7", color: "#166534" }, cancelled: { background: "#fee2e2", color: "#b91c1c" }, active: { background: "#dcfce7", color: "#166534" } };
+const basisBadge: CSSProperties = { width: "fit-content", padding: "3px 7px", borderRadius: 4, fontSize: 10, fontWeight: 800, lineHeight: 1.3 };
+const formalBasisBadge: CSSProperties = { background: "#f1f5f9", color: "#475569" };
+const acceptedBasisBadge: CSSProperties = { background: "#ecfdf5", color: "#047857" };
+const badgeColors: Record<string, CSSProperties> = { draft: { background: "#e5e7eb", color: "#374151" }, under_review: { background: "#e0e7ff", color: "#3730a3" }, sent: { background: "#fef3c7", color: "#92400e" }, signed: { background: "#dcfce7", color: "#166534" }, completed: { background: "#dcfce7", color: "#166534" }, engagement_confirmed: { background: "#dcfce7", color: "#166534" }, cancelled: { background: "#fee2e2", color: "#b91c1c" }, active: { background: "#dcfce7", color: "#166534" } };

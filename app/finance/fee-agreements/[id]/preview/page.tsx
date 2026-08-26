@@ -37,7 +37,7 @@ import {
 import { ThaiLegalText } from "../../thai-legal-text";
 
 type Json = Record<string, unknown>;
-type Agreement = { id: string; agreement_no: string | null; title: string; status: string; language_code: string; execution_mode: string | null; agreement_date: string | null; effective_date: string | null; commencement_date: string | null; expiry_date: string | null; currency: string; amount_before_tax: number | string; vat_amount: number | string; total_amount: number | string; client_snapshot_json: Json | null; matter_snapshot_json: Json | null; company_snapshot_json: Json | null; source_document_snapshot_json: Json | null; commercial_terms_snapshot_json: Json | null; legal_terms_json: Json | null; signatories_json: unknown[] | null; custom_clauses_json: unknown[] | null; selected_template_version_id: string | null; resolved_document_snapshot_json: Json | null; signed_document_snapshot_json: Json | null; created_at: string };
+type Agreement = { id: string; agreement_no: string | null; title: string; status: string; language_code: string; execution_mode: string | null; agreement_date: string | null; effective_date: string | null; commencement_date: string | null; expiry_date: string | null; currency: string; amount_before_tax: number | string; vat_amount: number | string; total_amount: number | string; client_snapshot_json: Json | null; matter_snapshot_json: Json | null; company_snapshot_json: Json | null; source_document_snapshot_json: Json | null; commercial_terms_snapshot_json: Json | null; legal_terms_json: Json | null; signatories_json: unknown[] | null; custom_clauses_json: unknown[] | null; selected_template_version_id: string | null; resolved_document_snapshot_json: Json | null; signed_document_snapshot_json: Json | null; engagement_basis: "formal_agreement" | "accepted_quotation" | null; source_quotation_id: string | null; source_reference: string | null; created_at: string };
 type Item = { id: string; description: string; quantity: number | string; unit_price: number | string; vat_applicable: boolean; vat_rate: number | string; amount_before_tax: number | string; vat_amount: number | string; line_total: number | string; sort_order: number };
 type FeeColumnKey = "index" | "description" | "quantity" | "unitPrice" | "vat" | "beforeVat" | "total";
 type FeeColumn = { key: FeeColumnKey; label: string; width: string; align: CSSProperties["textAlign"] };
@@ -84,9 +84,10 @@ function Preview({ id }: { id: string }) {
   const [agreement, setAgreement] = useState<Agreement | null>(null); const [items, setItems] = useState<Item[]>([]); const [liveTemplate, setLiveTemplate] = useState<Json>({}); const [documentIdentity, setDocumentIdentity] = useState<DocumentIdentity>(() => normalizeDocumentIdentity(null)); const [logoUrl, setLogoUrl] = useState(""); const [signatureUrls, setSignatureUrls] = useState<Record<string, string>>({}); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
   const load = useCallback(async () => {
     if (!id) { setError("ไม่พบ Fee Agreement"); setLoading(false); return; }
-    const header = await supabase.from("finance_fee_agreements").select("id,agreement_no,title,status,language_code,execution_mode,agreement_date,effective_date,commencement_date,expiry_date,currency,amount_before_tax,vat_amount,total_amount,client_snapshot_json,matter_snapshot_json,company_snapshot_json,source_document_snapshot_json,commercial_terms_snapshot_json,legal_terms_json,signatories_json,custom_clauses_json,selected_template_version_id,resolved_document_snapshot_json,signed_document_snapshot_json,created_at").eq("id", id).maybeSingle();
+    const header = await supabase.from("finance_fee_agreements").select("id,agreement_no,title,status,language_code,execution_mode,agreement_date,effective_date,commencement_date,expiry_date,currency,amount_before_tax,vat_amount,total_amount,client_snapshot_json,matter_snapshot_json,company_snapshot_json,source_document_snapshot_json,commercial_terms_snapshot_json,legal_terms_json,signatories_json,custom_clauses_json,selected_template_version_id,resolved_document_snapshot_json,signed_document_snapshot_json,engagement_basis,source_quotation_id,source_reference,created_at").eq("id", id).maybeSingle();
     if (header.error || !header.data) { setError("ไม่สามารถโหลด Fee Agreement ได้"); setLoading(false); return; }
     const row = header.data as Agreement;
+    if (row.engagement_basis === "accepted_quotation") { setAgreement(row); setLoading(false); return; }
     const [itemRes, templateRes, currentIdentityResult] = await Promise.all([
       supabase.from("finance_fee_agreement_items").select("id,description,quantity,unit_price,vat_applicable,vat_rate,amount_before_tax,vat_amount,line_total,sort_order").eq("fee_agreement_id", id).order("sort_order").order("id"),
       row.selected_template_version_id && ["draft", "under_review"].includes(row.status)
@@ -124,7 +125,7 @@ function Preview({ id }: { id: string }) {
     window.requestAnimationFrame(() => window.print());
   }, []);
   useEffect(() => {
-    if (params.get("print") !== "1" || loading || !agreement || printed.current) return;
+    if (params.get("print") !== "1" || loading || !agreement || agreement.engagement_basis === "accepted_quotation" || printed.current) return;
     printed.current = true;
     const timer = window.setTimeout(() => { void printWhenReady(); }, 0);
     return () => window.clearTimeout(timer);
@@ -133,6 +134,7 @@ function Preview({ id }: { id: string }) {
     return agreement ? selectStoredDocument(agreement) : {};
   }, [agreement]);
   if (loading) return <main style={shell}>Loading Fee Agreement preview...</main>; if (!agreement) return <main style={shell}>{error || "Fee Agreement not found."}</main>;
+  if (agreement.engagement_basis === "accepted_quotation") return <main style={shell}><div style={acceptedQuotationPreviewNotice}><h1 style={acceptedQuotationPreviewTitle}>รายการนี้ไม่มีเอกสารสัญญาสำหรับดูตัวอย่าง</h1><p style={acceptedQuotationPreviewCopy}>เป็นการว่าจ้างตามใบเสนอราคาที่ลูกค้าตอบรับ จึงไม่มีสัญญาว่าจ้างแยกและไม่มีเอกสารสำหรับพิมพ์จากหน้านี้</p><div style={acceptedQuotationPreviewActions}><Link href={`/finance/fee-agreements/${agreement.id}`} style={acceptedQuotationPreviewBack}>กลับไปการว่าจ้างตามใบเสนอราคา</Link>{agreement.source_quotation_id ? <Link href={`/finance/quotations/${agreement.source_quotation_id}/preview`} style={acceptedQuotationPreviewSource}>เปิดใบเสนอราคาต้นทาง</Link> : null}</div></div></main>;
   const snapAgreement = asObject(document.agreement); const source = asObject(document.source_quotation_snapshot || agreement.source_document_snapshot_json); const commercialSnapshot = asObject(document.commercial_terms || agreement.commercial_terms_snapshot_json); const commercial = asObject(commercialSnapshot.commercial); const legal = asObject(document.legal_terms || agreement.legal_terms_json); const sourceSnapshots = asObject(document.source_snapshots); const client = asObject(document.source_snapshots ? sourceSnapshots.client : agreement.client_snapshot_json); const matter = asObject(document.source_snapshots ? sourceSnapshots.matter : agreement.matter_snapshot_json); const templateSnapshot = Object.keys(asObject(document.template)).length ? asObject(document.template) : liveTemplate; const snapshotItems = Array.isArray(document.agreement_items) ? document.agreement_items.map(asObject) : [];
   const renderedItems = snapshotItems.length ? snapshotItems : items;
   const signatories = normalizeFeeAgreementSignatories(Array.isArray(document.signatories) ? document.signatories : (agreement.signatories_json || []));
@@ -252,6 +254,12 @@ function feeBodyStyle(column: FeeColumn): CSSProperties {
 }
 
 const shell = { width: "100%", maxWidth: 1180, margin: "0 auto", padding: 24 };
+const acceptedQuotationPreviewNotice: CSSProperties = { maxWidth: 720, margin: "48px auto", padding: 24, border: "1px solid #bfdbfe", borderRadius: 8, background: "#f8fbff", color: "#334155" };
+const acceptedQuotationPreviewTitle: CSSProperties = { margin: 0, color: "#172033", fontSize: 23 };
+const acceptedQuotationPreviewCopy: CSSProperties = { margin: "10px 0 18px", color: "#475569", lineHeight: 1.6 };
+const acceptedQuotationPreviewActions: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 8 };
+const acceptedQuotationPreviewBack: CSSProperties = { padding: "9px 12px", border: "1px solid #cbd5e1", borderRadius: 6, background: "#fff", color: "#334155", fontWeight: 700, textDecoration: "none" };
+const acceptedQuotationPreviewSource: CSSProperties = { padding: "9px 12px", border: "1px solid #c7d2fe", borderRadius: 6, background: "#eef2ff", color: "#3730a3", fontWeight: 700, textDecoration: "none" };
 const controls = { boxSizing: "border-box" as const, display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 16, alignItems: "center", width: "100%", maxWidth: 820, margin: "0 auto 16px", padding: "13px 14px", border: "1px solid #f0c76b", borderRadius: 8, background: "#fffbeb", color: "#78350f", boxShadow: "0 3px 12px rgba(120, 53, 15, 0.08)" };
 const controlMessage = { display: "flex", alignItems: "flex-start", gap: 10, minWidth: 0 };
 const controlTitle = { display: "block", marginBottom: 2, color: "#78350f", fontSize: 14 };
