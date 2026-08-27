@@ -22,6 +22,9 @@ export type UserPermissionProfile = {
   can_view_lawyer_compensation?: boolean | null;
   can_edit_lawyer_compensation?: boolean | null;
   can_void_lawyer_compensation?: boolean | null;
+  can_manage_finance_payments?: boolean | null;
+  can_confirm_finance_payments?: boolean | null;
+  can_reverse_finance_payments?: boolean | null;
   can_submit_office_work_log?: boolean | null;
   can_view_own_office_work_logs?: boolean | null;
   can_view_all_office_work_logs?: boolean | null;
@@ -309,6 +312,12 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
   const canEditLawyerCompensation = profile?.can_edit_lawyer_compensation === true;
   const canVoidLawyerCompensation = profile?.can_void_lawyer_compensation === true;
   const canManageFinanceQuotations = isPartnerUp(role);
+  const canManageFinancePayments =
+    isAdmin(role) || profile?.can_manage_finance_payments === true;
+  const canConfirmFinancePayments =
+    isAdmin(role) || profile?.can_confirm_finance_payments === true;
+  const canReverseFinancePayments =
+    isAdmin(role) || profile?.can_reverse_finance_payments === true;
   const canSubmitOfficeWorkLog = profile?.can_submit_office_work_log === true;
   const canViewOwnOfficeWorkLogs = profile?.can_view_own_office_work_logs === true;
   const canViewAllOfficeWorkLogs = profile?.can_view_all_office_work_logs === true;
@@ -343,6 +352,9 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
     canCancelFinanceQuotation: canManageFinanceQuotations,
     canMarkFinanceQuotationSent: canManageFinanceQuotations,
     canMarkFinanceQuotationAccepted: canManageFinanceQuotations,
+    canManageFinancePayments,
+    canConfirmFinancePayments,
+    canReverseFinancePayments,
     canUseExpenseClaims: canSubmitExpenseClaim || canViewOwnExpenseClaims || canViewAllExpenseClaims,
     canSubmitOfficeWorkLog,
     canViewOwnOfficeWorkLogs,

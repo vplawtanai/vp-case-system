@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { QuotationGuard } from "../../quotations/shared";
 import { feeAgreementStatusLabel } from "../../fee-agreements/lifecycle";
 import { supabase } from "../../../../lib/supabase";
+import { safePaymentError, settlementStatusLabels, type FinancePayment, type InvoiceSettlement } from "../../payments/shared";
 import {
   bangkokToday,
   displayText,
@@ -34,16 +35,19 @@ const invoiceSelect = "id,billing_plan_id,primary_billing_installment_id,fee_agr
 const itemSelect = "id,description,source_quantity,source_unit_price,allocation_percent,vat_applicable,vat_rate,tax_category,price_tax_mode,amount_before_vat,vat_amount,line_total,sort_order";
 
 export default function InvoiceDetailPage() {
-  return <QuotationGuard>{() => <InvoiceWorkspace />}</QuotationGuard>;
+  return <QuotationGuard>{(access) => <InvoiceWorkspace canManagePayments={access.permissions.canManageFinancePayments} />}</QuotationGuard>;
 }
 
-function InvoiceWorkspace() {
+function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean }) {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const [invoice, setInvoice] = useState<FinanceInvoice | null>(null);
   const [items, setItems] = useState<FinanceInvoiceItem[]>([]);
   const [plan, setPlan] = useState<BillingPlan | null>(null);
   const [installment, setInstallment] = useState<Installment | null>(null);
   const [agreement, setAgreement] = useState<FeeAgreement | null>(null);
+  const [settlement, setSettlement] = useState<InvoiceSettlement | null>(null);
+  const [linkedPayments, setLinkedPayments] = useState<FinancePayment[]>([]);
   const [form, setForm] = useState<InvoiceDraftForm>({ issueDate: "", dueDate: "", customerNote: "", paymentTermsText: "", internalNote: "", languageCode: "th" });
   const [baseline, setBaseline] = useState("");
   const [formErrors, setFormErrors] = useState<FormErrors>({});
@@ -51,6 +55,7 @@ function InvoiceWorkspace() {
   const [saving, setSaving] = useState(false);
   const [issuing, setIssuing] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [creatingPayment, setCreatingPayment] = useState(false);
   const [issuePanelOpen, setIssuePanelOpen] = useState(false);
   const [issueConfirmed, setIssueConfirmed] = useState(false);
   const [cancelPanelOpen, setCancelPanelOpen] = useState(false);
@@ -70,22 +75,31 @@ function InvoiceWorkspace() {
     }
     if (!invoiceResult.data) { setError("ไม่พบใบแจ้งหนี้"); setLoading(false); return; }
     const invoiceRow = invoiceResult.data as FinanceInvoice;
-    const [itemsResult, planResult, installmentResult, agreementResult] = await Promise.all([
+    const [itemsResult, planResult, installmentResult, agreementResult, settlementResult, paymentAllocationsResult] = await Promise.all([
       supabase.from("finance_invoice_items").select(itemSelect).eq("invoice_id", id).order("sort_order").order("id"),
       supabase.from("finance_billing_plans").select("id,title,status,billing_method").eq("id", invoiceRow.billing_plan_id).maybeSingle(),
       supabase.from("finance_billing_installments").select("id,installment_no,title,trigger_type,trigger_description,due_date,status,readiness_event_date,readiness_confirmed_at,readiness_reference,amount_before_tax,vat_amount,total_amount").eq("id", invoiceRow.primary_billing_installment_id).maybeSingle(),
       supabase.from("finance_fee_agreements").select("id,agreement_no,title,status,engagement_basis,source_reference").eq("id", invoiceRow.fee_agreement_id).maybeSingle(),
+      supabase.from("finance_invoice_settlement_summary").select("*").eq("invoice_id", id).maybeSingle(),
+      supabase.from("finance_payment_invoice_allocations").select("payment_id").eq("invoice_id", id),
     ]);
-    if (itemsResult.error || planResult.error || installmentResult.error || agreementResult.error) {
-      console.error("Failed to load Invoice source context", { items: itemsResult.error, plan: planResult.error, installment: installmentResult.error, agreement: agreementResult.error });
+    if (itemsResult.error || planResult.error || installmentResult.error || agreementResult.error || settlementResult.error || paymentAllocationsResult.error) {
+      console.error("Failed to load Invoice source context", { items: itemsResult.error, plan: planResult.error, installment: installmentResult.error, agreement: agreementResult.error, settlement: settlementResult.error, payments: paymentAllocationsResult.error });
       setError("โหลดข้อมูลต้นทางของใบแจ้งหนี้บางส่วนไม่สำเร็จ กรุณารีเฟรช");
     }
+    const paymentIds = [...new Set((paymentAllocationsResult.data || []).map((row) => String(row.payment_id)))];
+    const paymentsResult = paymentIds.length
+      ? await supabase.from("finance_payments").select("id,draft_origin_invoice_id,internal_reference,client_id,currency,status,cash_amount,wht_amount,settlement_amount,received_on,payment_method,receiving_bank_account_id,receiving_account_reference,external_transaction_reference,payer_name,note,created_at,updated_at,confirmed_at,cancelled_at,cancel_reason,reversed_at,reverse_reason").in("id", paymentIds).order("created_at", { ascending: false })
+      : { data: [], error: null };
+    if (paymentsResult.error) console.error("Failed to load linked Payments", paymentsResult.error);
     const nextForm = invoiceDraftForm(invoiceRow);
     setInvoice(invoiceRow);
     setItems((itemsResult.data || []) as FinanceInvoiceItem[]);
     setPlan((planResult.data || null) as BillingPlan | null);
     setInstallment((installmentResult.data || null) as Installment | null);
     setAgreement((agreementResult.data || null) as FeeAgreement | null);
+    setSettlement((settlementResult.data || null) as InvoiceSettlement | null);
+    setLinkedPayments((paymentsResult.data || []) as FinancePayment[]);
     setForm(nextForm);
     setBaseline(invoiceDraftFingerprint(nextForm));
     setFormErrors({});
@@ -184,6 +198,22 @@ function InvoiceWorkspace() {
       setError(safeInvoiceError(cancelError, "ยกเลิกร่างใบแจ้งหนี้ไม่สำเร็จ"));
     } finally {
       actionLock.current = false; setCancelling(false);
+    }
+  };
+
+  const createPaymentDraft = async () => {
+    if (!invoice || invoice.document_status !== "issued" || !canManagePayments || creatingPayment || actionLock.current || Number(settlement?.outstanding_amount || 0) <= 0) return;
+    actionLock.current = true; setCreatingPayment(true); setError(""); setMessage("");
+    try {
+      const result = await supabase.rpc("create_finance_payment_draft_from_invoice", { p_invoice_id: invoice.id });
+      if (result.error) throw result.error;
+      if (!result.data) throw new Error("Payment Draft ID was not returned");
+      router.push(`/finance/payments/${String(result.data)}`);
+    } catch (paymentError) {
+      console.error("Failed to create Payment Draft", paymentError);
+      setError(safePaymentError(paymentError, "สร้างร่างการรับชำระไม่สำเร็จ"));
+    } finally {
+      actionLock.current = false; setCreatingPayment(false);
     }
   };
 
@@ -290,7 +320,21 @@ function InvoiceWorkspace() {
       {isDraft && dirty ? <div style={{ ...neutralWarning, flexBasis: "100%", marginTop: 0 }}>กรุณาบันทึกการเปลี่ยนแปลงก่อนเปิด Preview หรือ Print เพื่อให้เอกสารตรงกับข้อมูลล่าสุด</div> : null}
     </section>
 
-    {invoice.document_status === "issued" ? <section style={nextStepZone}><span style={nextStepEyebrow}>ขั้นตอนถัดไป</span><h2 style={nextStepTitle}>รอรับชำระเงิน</h2><p style={nextStepDescription}>เมื่อได้รับชำระเงินแล้ว ให้บันทึกการรับชำระเพื่อดำเนินการในขั้นตอนการเงินถัดไป</p><p style={nextStepNote}>ขณะนี้ยังไม่มีการรับชำระหรือออกเอกสารทางการเงินอื่นจากใบแจ้งหนี้ฉบับนี้</p></section> : null}
+    {invoice.document_status === "issued" ? <section style={nextStepZone}>
+      <span style={nextStepEyebrow}>การชำระเงิน</span><h2 style={nextStepTitle}>สถานะการรับชำระ</h2><p style={nextStepDescription}>ยอดรับชำระยืนยันแล้วเป็นแหล่งข้อมูลทางการของสถานะการชำระ ใบแจ้งหนี้ไม่ถือเป็นหลักฐานว่าได้รับเงิน</p>
+      <div className="invoice-settlement-summary" style={settlementGrid}>
+        <Metric label="ยอดใบแจ้งหนี้" value={money(settlement?.invoice_gross_amount ?? invoice.total_amount, invoice.currency)} />
+        <Metric label="เงินสดที่ได้รับ" value={money(settlement?.confirmed_cash_allocated, invoice.currency)} />
+        <Metric label="เครดิตภาษีหัก ณ ที่จ่าย" value={money(settlement?.confirmed_wht_credit_allocated, invoice.currency)} />
+        <Metric label="ยอดชำระรวม" value={money(settlement?.economically_settled_amount, invoice.currency)} />
+        <Metric label="ยอดคงค้าง" value={money(settlement?.outstanding_amount, invoice.currency)} prominent />
+        <div style={metric}><small>สถานะการชำระ</small><StatusBadge status={settlement?.payment_status || "unpaid"} label={settlementStatusLabels[settlement?.payment_status || "unpaid"] || "ยังไม่ชำระ"} /></div>
+      </div>
+      {linkedPayments.length ? <div style={paymentHistory}><small style={fieldLabel}>รายการรับชำระที่เกี่ยวข้อง</small>{linkedPayments.map((payment) => <Link key={payment.id} style={paymentHistoryLink} href={`/finance/payments/${payment.id}`}><span>{payment.status === "draft" ? "ร่างการรับชำระ" : payment.status === "confirmed" ? "ยืนยันรับชำระแล้ว" : payment.status === "cancelled" ? "ยกเลิกร่างแล้ว" : "กลับรายการแล้ว"}</span><strong>{money(payment.settlement_amount, payment.currency)}</strong></Link>)}</div> : null}
+      {Number(settlement?.outstanding_amount || 0) > 0 && canManagePayments ? <button type="button" style={paymentButton} disabled={creatingPayment} onClick={() => void createPaymentDraft()}>{creatingPayment ? "กำลังเปิดร่างการรับชำระ..." : linkedPayments.some((payment) => payment.status === "draft") ? "เปิดร่างการรับชำระ" : "บันทึกการรับชำระ"}</button> : null}
+      {Number(settlement?.outstanding_amount || 0) > 0 && !canManagePayments ? <p style={nextStepNote}>คุณดูสถานะการชำระได้ แต่ไม่มีสิทธิ์สร้างหรือแก้ไขรายการรับชำระ</p> : null}
+      {Number(settlement?.outstanding_amount || 0) <= 0 ? <p style={settledNote}>ใบแจ้งหนี้นี้ชำระครบแล้ว จึงไม่สามารถสร้างรายการรับชำระเพิ่มได้</p> : null}
+    </section> : null}
 
     {isDraft ? <>
       <section style={finalActionZone}>
@@ -320,7 +364,7 @@ function InvoiceWorkspace() {
       .invoice-draft-settings { scroll-margin-top: 84px; }
       @media (max-width: 760px) {
         .invoice-workspace { padding: 14px !important; }
-        .invoice-navigation-toolbar, .invoice-identity-header, .invoice-total-grid, .invoice-final-summary { grid-template-columns: minmax(0, 1fr) !important; }
+        .invoice-navigation-toolbar, .invoice-identity-header, .invoice-total-grid, .invoice-final-summary, .invoice-settlement-summary { grid-template-columns: minmax(0, 1fr) !important; }
         .invoice-navigation-toolbar a { width: 100%; box-sizing: border-box; white-space: normal !important; }
         .invoice-source-nodes { display: grid !important; grid-template-columns: minmax(0, 1fr); }
         .invoice-source-arrow { display: none; }
@@ -334,7 +378,7 @@ function SectionHeading({ title, description }: { title: string; description: st
 function Field({ label, value }: { label: string; value: ReactNode }) { return <div style={{ minWidth: 0 }}><small style={fieldLabel}>{label}</small><div style={fieldValue}>{value}</div></div>; }
 function ReadOnlyValue({ label, value, multiline = false }: { label: string; value: string; multiline?: boolean }) { return <div style={readOnlyValue}><small style={fieldLabel}>{label}</small><div style={{ ...readOnlyText, ...(multiline ? readOnlyMultiline : {}) }}>{value}</div></div>; }
 function FormField({ label, helper, required = false, error, children }: { label: string; helper?: string; required?: boolean; error?: string; children: ReactNode }) { return <label style={formField}><span style={formLabel}>{label}{required ? <strong style={requiredMark}> *</strong> : null}</span>{children}{helper ? <small style={formHelper}>{helper}</small> : null}{error ? <small style={formError}>{error}</small> : null}</label>; }
-function StatusBadge({ status, label }: { status: string; label: string }) { return <span style={{ ...badge, ...(status === "draft" || status === "ready_to_invoice" ? amberBadge : status === "cancelled" || status === "voided" ? redBadge : greenBadge) }}>{label}</span>; }
+function StatusBadge({ status, label }: { status: string; label: string }) { return <span style={{ ...badge, ...(status === "draft" || status === "ready_to_invoice" || status === "partially_settled" ? amberBadge : status === "cancelled" || status === "voided" || status === "unpaid" ? redBadge : greenBadge) }}>{label}</span>; }
 function SourceNode({ label, current = false, children }: { label: string; current?: boolean; children: ReactNode }) { return <div style={{ ...sourceNode, ...(current ? currentNode : {}) }}><small style={fieldLabel}>{label}</small><div style={sourceNodeContent}>{children}</div></div>; }
 function Arrow() { return <span className="invoice-source-arrow" style={sourceArrow} aria-hidden="true">→</span>; }
 function Metric({ label, value, prominent = false }: { label: string; value: string; prominent?: boolean }) { return <div style={{ ...metric, ...(prominent ? prominentMetric : {}) }}><small>{label}</small><strong style={metricValue}>{value}</strong></div>; }
@@ -415,6 +459,11 @@ const nextStepEyebrow: CSSProperties = { color: "#1d4ed8", fontSize: 11, fontWei
 const nextStepTitle: CSSProperties = { margin: "5px 0", color: "#1e3a8a", fontSize: 21 };
 const nextStepDescription: CSSProperties = { margin: 0, color: "#334155", lineHeight: 1.6 };
 const nextStepNote: CSSProperties = { margin: "8px 0 0", color: "#64748b", fontSize: 12, lineHeight: 1.5 };
+const settlementGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10, marginTop: 16 };
+const paymentHistory: CSSProperties = { display: "grid", gap: 7, marginTop: 16, paddingTop: 14, borderTop: "1px solid #dbeafe" };
+const paymentHistoryLink: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "9px 11px", border: "1px solid #dbeafe", borderRadius: 6, background: "#fff", color: "#1d4ed8", textDecoration: "none" };
+const paymentButton: CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 44, marginTop: 16, padding: "10px 18px", border: "1px solid #166534", borderRadius: 6, background: "#166534", color: "#fff", font: "inherit", fontWeight: 800, cursor: "pointer" };
+const settledNote: CSSProperties = { margin: "14px 0 0", color: "#166534", fontWeight: 700 };
 const finalActionZone: CSSProperties = { marginBottom: 18, padding: 22, border: "1px solid #86efac", borderRadius: 8, background: "#f7fff9" };
 const finalEyebrow: CSSProperties = { color: "#15803d", fontSize: 11, fontWeight: 900 };
 const finalTitle: CSSProperties = { margin: "5px 0", color: "#14532d", fontSize: 22 };

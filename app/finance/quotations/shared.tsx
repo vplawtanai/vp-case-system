@@ -35,6 +35,9 @@ type Profile = {
   can_view_own_expense_claims?: boolean | null;
   can_view_all_expense_claims?: boolean | null;
   can_view_lawyer_compensation?: boolean | null;
+  can_manage_finance_payments?: boolean | null;
+  can_confirm_finance_payments?: boolean | null;
+  can_reverse_finance_payments?: boolean | null;
 };
 
 export type QuotationStatus = "draft" | "sent" | "accepted" | "cancelled";
@@ -637,6 +640,9 @@ const profileSelect = [
   "can_view_own_expense_claims",
   "can_view_all_expense_claims",
   "can_view_lawyer_compensation",
+  "can_manage_finance_payments",
+  "can_confirm_finance_payments",
+  "can_reverse_finance_payments",
 ].join(", ");
 
 export function QuotationGuard({ children }: { children: (access: QuotationAccess) => ReactNode }) {
