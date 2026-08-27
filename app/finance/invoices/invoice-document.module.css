@@ -1,0 +1,181 @@
+.document {
+  color: #1f2937;
+}
+
+.draftBanner {
+  margin: 5mm 0 4mm;
+  padding: 2.5mm 3mm;
+  border: 1px solid #f0c36a;
+  background: #fff9eb;
+  color: #7a4900;
+  font-size: 8pt;
+  font-weight: 800;
+  text-align: center;
+  print-color-adjust: exact;
+}
+
+.documentMeta,
+.customerPanel {
+  display: grid;
+  gap: 3mm;
+  margin-top: 5mm;
+}
+
+.documentMeta {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 3mm;
+  border: 1px solid #dfe4ea;
+  background: #f8fafc;
+}
+
+.customerPanel {
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
+}
+
+.customerBlock,
+.matterBlock {
+  min-width: 0;
+  padding: 3.5mm;
+  border: 1px solid #dfe4ea;
+}
+
+.section {
+  margin-top: 6mm;
+}
+
+.section h2 {
+  margin: 0 0 2.5mm;
+  padding-bottom: 1.5mm;
+  border-bottom: 1px solid #bbf7d0;
+  color: #166534;
+  font-size: 12pt;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+.label {
+  display: block;
+  margin-bottom: 1mm;
+  color: #64748b;
+  font-size: 7.5pt;
+}
+
+.value {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.contact {
+  margin-top: 1.5mm;
+  color: #64748b;
+  font-size: 8pt;
+  line-height: 1.5;
+}
+
+.tableWrap {
+  width: 100%;
+  overflow: visible;
+}
+
+.table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 8.2pt;
+}
+
+.table th,
+.table td {
+  padding: 2.3mm 1.8mm;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: top;
+}
+
+.table th {
+  border-top: 1px solid #cbd5e1;
+  border-bottom-color: #94a3b8;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 7.5pt;
+  text-align: left;
+  print-color-adjust: exact;
+}
+
+.table th:nth-child(n + 3),
+.table td:nth-child(n + 3) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.table th:nth-child(2),
+.table td:nth-child(2) {
+  text-align: center;
+}
+
+.table tbody tr {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.vatMeta {
+  display: block;
+  margin-top: 1mm;
+  color: #64748b;
+  font-size: 7pt;
+}
+
+.summary {
+  display: grid;
+  width: min(92mm, 100%);
+  margin: 4mm 0 0 auto;
+  border: 1px solid #dfe4ea;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.summaryRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 8mm;
+  padding: 2.2mm 3mm;
+  border-bottom: 1px solid #e5e7eb;
+  font-variant-numeric: tabular-nums;
+}
+
+.summaryRow:last-child {
+  border-bottom: 0;
+}
+
+.grandTotal {
+  background: #f0fdf4;
+  color: #166534;
+  font-size: 11pt;
+  font-weight: 900;
+  print-color-adjust: exact;
+}
+
+.notes {
+  display: grid;
+  gap: 3mm;
+}
+
+.note {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.note p {
+  margin: 1mm 0 0;
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+@media print {
+  .documentMeta,
+  .table th,
+  .grandTotal,
+  .draftBanner {
+    color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
