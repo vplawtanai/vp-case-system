@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { QuotationGuard } from "../../quotations/shared";
 import { supabase } from "../../../../lib/supabase";
 import { feeAgreementStatusLabel } from "../../fee-agreements/lifecycle";
@@ -11,11 +11,14 @@ import { feeAgreementStatusLabel } from "../../fee-agreements/lifecycle";
 type Json = Record<string, unknown>;
 type BillingPlan = { id: string; fee_agreement_id: string; status: string; billing_method: string; currency: string; amount_before_tax: number | string; vat_amount: number | string; total_amount: number | string; title: string | null; description: string | null; installment_count: number; recurring_config_json: Json | null; created_at: string; updated_at: string };
 type FeeAgreement = { id: string; agreement_no: string | null; title: string; client_id: string; case_id: number | null; advisory_matter_id: string | null; source_quotation_id: string | null; source_reference: string | null; status: string; engagement_basis: "formal_agreement" | "accepted_quotation" | null; client_snapshot_json: Json | null; matter_snapshot_json: Json | null; source_document_snapshot_json: Json | null };
-type Installment = { id: string; installment_no: number; sort_order: number; title: string; trigger_description: string | null; trigger_type: string; due_date: string | null; milestone_code: string | null; recurring_period_start: string | null; recurring_period_end: string | null; status: string; ready_to_invoice_at: string | null; invoiced_at: string | null; cancelled_at: string | null; amount_before_tax: number | string; vat_amount: number | string; total_amount: number | string; created_at: string };
+type Installment = { id: string; installment_no: number; sort_order: number; title: string; trigger_description: string | null; trigger_type: string; due_date: string | null; milestone_code: string | null; recurring_period_start: string | null; recurring_period_end: string | null; status: string; ready_to_invoice_at: string | null; readiness_event_date: string | null; readiness_confirmed_at: string | null; readiness_note: string | null; readiness_reference: string | null; invoiced_at: string | null; cancelled_at: string | null; amount_before_tax: number | string; vat_amount: number | string; total_amount: number | string; created_at: string };
 type Allocation = { id: string; billing_installment_id: string; fee_agreement_item_id: string; amount_before_tax: number | string; vat_amount: number | string; total_amount: number | string; allocation_percent: number | string | null; sort_order: number; allocation_snapshot_json: Json | null; created_at: string };
 type AgreementItem = { id: string; description: string };
+type InvoiceSummary = { id: string; primary_billing_installment_id: string; document_status: string; invoice_no: string | null; created_at: string };
 type DraftInstallment = { id: string; installment_no: number; sort_order: number; title: string; trigger_description: string; trigger_type: string; due_date: string; milestone_code: string; recurring_period_start: string; recurring_period_end: string };
 type DraftForm = { title: string; description: string; installments: DraftInstallment[] };
+type ReadinessForm = { eventDate: string; confirmed: boolean; note: string; reference: string };
+type ReadinessErrors = Partial<Record<"eventDate" | "confirmed", string>>;
 type AllocationColumnKey = "description" | "amount_before_tax" | "vat_amount" | "total_amount" | "allocation_percent";
 
 const numberValue = (value: number | string | null | undefined) => Number(value || 0);
@@ -27,6 +30,7 @@ const planStatus: Record<string, string> = { draft: "ร่างแผนเร
 const installmentStatus: Record<string, string> = { pending: "รอดำเนินการ", ready_to_invoice: "พร้อมออกใบแจ้งหนี้", invoiced: "ออกใบแจ้งหนี้แล้ว", cancelled: "ยกเลิก" };
 const billingMethod: Record<string, string> = { single: "งวดเดียว", installments: "หลายงวด", milestone: "ตามเหตุการณ์สำคัญ", recurring: "เรียกเก็บเป็นรอบ", manual: "กำหนดเอง" };
 const triggerType: Record<string, string> = { agreement_effective: "เมื่อข้อตกลงมีผล", date: "ตามวันที่", case_milestone: "ตามเหตุการณ์สำคัญ", manual: "กำหนดด้วยตนเอง", recurring_period: "ตามรอบระยะเวลา" };
+const invoiceStatus: Record<string, string> = { draft: "ร่างใบแจ้งหนี้", issued: "ออกใบแจ้งหนี้แล้ว", cancelled: "ยกเลิก", voided: "ยกเลิกเลขที่เอกสารแล้ว" };
 const allocationColumns: Array<{ key: AllocationColumnKey; label: string; width: string; numeric?: boolean }> = [
   { key: "description", label: "รายการตามข้อตกลง", width: "40%" },
   { key: "amount_before_tax", label: "ก่อน VAT", width: "17%", numeric: true },
@@ -41,20 +45,31 @@ export default function BillingPlanDetailPage() {
 
 function BillingPlanDetail({ canManage }: { canManage: boolean }) {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const [plan, setPlan] = useState<BillingPlan | null>(null);
   const [agreement, setAgreement] = useState<FeeAgreement | null>(null);
   const [installments, setInstallments] = useState<Installment[]>([]);
   const [allocations, setAllocations] = useState<Allocation[]>([]);
   const [agreementItems, setAgreementItems] = useState<AgreementItem[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceSummary[]>([]);
   const [draft, setDraft] = useState<DraftForm>({ title: "", description: "", installments: [] });
   const [savedBaseline, setSavedBaseline] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
+  const [installmentActionId, setInstallmentActionId] = useState<string | null>(null);
+  const [readinessInstallmentId, setReadinessInstallmentId] = useState<string | null>(null);
+  const [readinessForm, setReadinessForm] = useState<ReadinessForm>({ eventDate: "", confirmed: false, note: "", reference: "" });
+  const [readinessErrors, setReadinessErrors] = useState<ReadinessErrors>({});
+  const [readinessSummaryError, setReadinessSummaryError] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const saveLock = useRef(false);
   const statusLock = useRef(false);
+  const installmentActionLock = useRef(false);
+  const readinessPanelRef = useRef<HTMLDivElement>(null);
+  const readinessDateRef = useRef<HTMLInputElement>(null);
+  const readinessConfirmationRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -87,7 +102,7 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
         .maybeSingle(),
       supabase
         .from("finance_billing_installments")
-        .select("id,installment_no,sort_order,title,trigger_description,trigger_type,due_date,milestone_code,recurring_period_start,recurring_period_end,status,ready_to_invoice_at,invoiced_at,cancelled_at,amount_before_tax,vat_amount,total_amount,created_at")
+        .select("id,installment_no,sort_order,title,trigger_description,trigger_type,due_date,milestone_code,recurring_period_start,recurring_period_end,status,ready_to_invoice_at,readiness_event_date,readiness_confirmed_at,readiness_note,readiness_reference,invoiced_at,cancelled_at,amount_before_tax,vat_amount,total_amount,created_at")
         .eq("billing_plan_id", id)
         .order("installment_no")
         .order("sort_order")
@@ -97,6 +112,13 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
 
     const installmentRows = (installmentsResult.data || []) as Installment[];
     const installmentIds = installmentRows.map((installment) => installment.id);
+    const invoicesResult = installmentIds.length
+      ? await supabase
+        .from("finance_invoices")
+        .select("id,primary_billing_installment_id,document_status,invoice_no,created_at")
+        .in("primary_billing_installment_id", installmentIds)
+        .order("created_at")
+      : { data: [], error: null };
     const allocationsResult = installmentIds.length
       ? await supabase
         .from("finance_billing_installment_items")
@@ -117,13 +139,14 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
         .in("id", agreementItemIds)
       : { data: [], error: null };
 
-    if (agreementResult.error || installmentsResult.error || allocationsResult.error || agreementItemsResult.error) {
+    if (agreementResult.error || installmentsResult.error || allocationsResult.error || agreementItemsResult.error || invoicesResult.error) {
       setError("โหลดรายละเอียดแผนเรียกเก็บเงินบางส่วนไม่สำเร็จ กรุณารีเฟรช");
     }
     setAgreement((agreementResult.data || null) as FeeAgreement | null);
     setInstallments(installmentRows);
     setAllocations(allocationRows);
     setAgreementItems((agreementItemsResult.data || []) as AgreementItem[]);
+    setInvoices((invoicesResult.data || []) as InvoiceSummary[]);
     const nextDraft = billingPlanDraft(planRow, installmentRows);
     setDraft(nextDraft);
     setSavedBaseline(JSON.stringify(nextDraft));
@@ -131,6 +154,11 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
   }, [id]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (!readinessInstallmentId) return;
+    requestAnimationFrame(() => readinessPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
+  }, [readinessInstallmentId]);
 
   const dirty = Boolean(plan?.status === "draft" && savedBaseline && JSON.stringify(draft) !== savedBaseline);
   const updateDraftInstallment = (installmentId: string, patch: Partial<DraftInstallment>) => setDraft((current) => ({ ...current, installments: current.installments.map((installment) => installment.id === installmentId ? { ...installment, ...patch } : installment) }));
@@ -196,6 +224,65 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
       setError(billingPlanErrorMessage(statusError));
     } finally {
       statusLock.current = false; setStatusSaving(false);
+    }
+  };
+  const openReadinessPanel = (installment: Installment) => {
+    if (!canManage || plan?.status !== "active" || installment.status !== "pending") return;
+    setError(""); setMessage(""); setReadinessErrors({}); setReadinessSummaryError("");
+    setReadinessForm({ eventDate: bangkokToday(), confirmed: false, note: "", reference: "" });
+    setReadinessInstallmentId(installment.id);
+  };
+  const closeReadinessPanel = () => {
+    if (installmentActionId) return;
+    setReadinessInstallmentId(null); setReadinessErrors({}); setReadinessSummaryError("");
+  };
+  const confirmInstallmentReadiness = async (installment: Installment) => {
+    if (!canManage || plan?.status !== "active" || installment.status !== "pending" || installmentActionLock.current) return;
+    const nextErrors: ReadinessErrors = {};
+    if (!readinessForm.eventDate) nextErrors.eventDate = "กรุณาระบุวันที่ที่เงื่อนไขการเรียกเก็บเงินเกิดขึ้นจริง";
+    else if (readinessForm.eventDate > bangkokToday()) nextErrors.eventDate = "วันที่ยืนยันความพร้อมต้องไม่เป็นวันที่ในอนาคต";
+    if (!readinessForm.confirmed) nextErrors.confirmed = "กรุณายืนยันว่าเงื่อนไขการเรียกเก็บเงินของงวดนี้เกิดขึ้นแล้ว";
+    if (Object.keys(nextErrors).length) {
+      setReadinessErrors(nextErrors);
+      setReadinessSummaryError("กรุณากรอกข้อมูลที่จำเป็นให้ครบก่อนยืนยันความพร้อมออกใบแจ้งหนี้");
+      requestAnimationFrame(() => (nextErrors.eventDate ? readinessDateRef.current : readinessConfirmationRef.current)?.focus());
+      return;
+    }
+    installmentActionLock.current = true; setInstallmentActionId(installment.id); setError(""); setMessage(""); setReadinessSummaryError("");
+    try {
+      const result = await supabase.rpc("confirm_finance_billing_installment_ready", {
+        p_installment_id: installment.id,
+        p_readiness_event_date: readinessForm.eventDate,
+        p_human_confirmed: readinessForm.confirmed,
+        p_note: readinessForm.note.trim() || null,
+        p_reference: readinessForm.reference.trim() || null,
+      });
+      if (result.error) throw result.error;
+      setReadinessInstallmentId(null); setReadinessErrors({});
+      await load();
+      setMessage(`งวดที่ ${installment.installment_no} พร้อมสำหรับจัดทำใบแจ้งหนี้แล้ว`);
+    } catch (readinessError) {
+      console.error("Failed to confirm Billing Installment readiness", readinessError);
+      setReadinessSummaryError(billingReadinessErrorMessage(readinessError));
+    } finally {
+      installmentActionLock.current = false; setInstallmentActionId(null);
+    }
+  };
+  const createOrOpenInvoiceDraft = async (installment: Installment, existingInvoice?: InvoiceSummary) => {
+    if (existingInvoice) { router.push(`/finance/invoices/${existingInvoice.id}`); return; }
+    if (!canManage || plan?.status !== "active" || installment.status !== "ready_to_invoice" || installmentActionLock.current) return;
+    installmentActionLock.current = true; setInstallmentActionId(installment.id); setError(""); setMessage("");
+    try {
+      const result = await supabase.rpc("create_finance_invoice_draft_from_installment", { p_billing_installment_id: installment.id });
+      if (result.error) throw result.error;
+      const invoiceId = typeof result.data === "string" ? result.data : "";
+      if (!invoiceId) throw new Error("Invoice Draft id was not returned");
+      router.push(`/finance/invoices/${invoiceId}`);
+    } catch (invoiceError) {
+      console.error("Failed to create or open Invoice Draft", invoiceError);
+      setError(invoiceDraftErrorMessage(invoiceError));
+    } finally {
+      installmentActionLock.current = false; setInstallmentActionId(null);
     }
   };
 
@@ -298,6 +385,7 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
         const installmentAllocations = allocationByInstallment.get(installment.id) || [];
         const draftInstallment = draft.installments.find((row) => row.id === installment.id);
         const customInstallmentTitle = billingInstallmentDisplayTitle(installment.title, installment.installment_no);
+        const activeInvoice = invoices.find((invoice) => invoice.primary_billing_installment_id === installment.id && !["cancelled", "voided"].includes(invoice.document_status));
         return <article key={installment.id} style={installmentCard}>
           <div style={installmentHeader}><div style={installmentHeadingCopy}><span style={installmentEyebrow}>งวดเรียกเก็บเงิน</span><h3 style={installmentTitle}>งวดที่ {installment.installment_no}</h3>{customInstallmentTitle ? <p style={installmentCustomTitle}>{customInstallmentTitle}</p> : null}</div><StatusBadge status={installment.status} label={installmentStatus[installment.status] || installment.status} /></div>
           {plan.status === "draft" && canManage && draftInstallment ? <div className="billing-plan-installment-edit-grid" style={installmentEditGrid}>
@@ -319,12 +407,42 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
             {installment.due_date ? <Field label="วันที่ครบกำหนด" value={date(installment.due_date)} /> : null}
             {installment.milestone_code ? <Field label="เหตุการณ์สำคัญ" value={installment.milestone_code} /> : null}
             {installment.recurring_period_start || installment.recurring_period_end ? <Field label="รอบระยะเวลา" value={`${date(installment.recurring_period_start)} / ${date(installment.recurring_period_end)}`} /> : null}
+            {installment.readiness_event_date ? <Field label="วันที่เงื่อนไขเกิดขึ้นจริง" value={date(installment.readiness_event_date)} /> : null}
             {installment.ready_to_invoice_at ? <Field label="พร้อมออกใบแจ้งหนี้เมื่อ" value={dateTime(installment.ready_to_invoice_at)} /> : null}
+            {installment.readiness_reference ? <Field label="หลักฐานอ้างอิง" value={installment.readiness_reference} /> : null}
+            {installment.readiness_note ? <Field label="หมายเหตุความพร้อม" value={installment.readiness_note} /> : null}
             {installment.invoiced_at ? <Field label="ออกใบแจ้งหนี้เมื่อ" value={dateTime(installment.invoiced_at)} /> : null}
             {installment.cancelled_at ? <Field label="ยกเลิกเมื่อ" value={dateTime(installment.cancelled_at)} /> : null}
           </div>
           <div style={allocationHeading}><h4 style={allocationTitle}>รายการค่าบริการในงวดนี้</h4><span style={allocationCount}>{installmentAllocations.length} รายการ</span></div>
           {installmentAllocations.length === 0 ? <div style={warning}>งวดนี้ไม่มีรายการค่าบริการที่จัดสรรไว้</div> : <div style={scroll}><table className="billing-plan-allocation-table" style={allocationTable}><colgroup>{allocationColumns.map((column) => <col key={column.key} style={{ width: column.width }} />)}</colgroup><thead><tr>{allocationColumns.map((column) => <th key={column.key} className={column.numeric ? "billing-plan-numeric-column" : undefined}>{column.key === "description" && acceptedQuotationBasis ? "รายการตามใบเสนอราคา" : column.label}</th>)}</tr></thead><tbody>{installmentAllocations.map((allocation) => <tr key={allocation.id}>{allocationColumns.map((column) => <td key={column.key} className={column.numeric ? "billing-plan-numeric-column" : undefined}>{allocationCell(column.key, allocation, agreementItemById.get(allocation.fee_agreement_item_id), plan.currency)}</td>)}</tr>)}</tbody></table></div>}
+          {canManage && plan.status === "active" && installment.status === "pending" ? <div style={installmentNextStep}>
+            <div><span style={nextStepEyebrow}>ขั้นตอนถัดไป</span><strong style={nextStepTitle}>ยืนยันว่าพร้อมออกใบแจ้งหนี้</strong><p style={nextStepHelp}>ดำเนินการเมื่อเงื่อนไขการเรียกเก็บเงินของงวดนี้เกิดขึ้นจริงแล้วเท่านั้น</p></div>
+            <button className="billing-installment-primary-action" type="button" style={primaryButton} disabled={Boolean(installmentActionId)} onClick={() => openReadinessPanel(installment)}>ยืนยันว่าพร้อมออกใบแจ้งหนี้</button>
+          </div> : null}
+          {readinessInstallmentId === installment.id ? <div ref={readinessPanelRef} style={readinessPanel}>
+            <div style={readinessHeader}><div><span style={nextStepEyebrow}>การยืนยันโดยเจ้าหน้าที่</span><h4 style={readinessTitle}>ยืนยันความพร้อมออกใบแจ้งหนี้สำหรับงวดที่ {installment.installment_no}</h4></div><button type="button" style={closeButton} disabled={installmentActionId === installment.id} aria-label="ปิดแบบยืนยัน" onClick={closeReadinessPanel}>×</button></div>
+            <div style={readinessContext}>
+              <Field label="ชื่องวด" value={installment.title} />
+              <Field label="เงื่อนไขเรียกเก็บ" value={installment.trigger_description || triggerType[installment.trigger_type] || installment.trigger_type} />
+              <Field label="ยอดรวมงวด" value={money(installment.total_amount, plan.currency)} />
+              {installment.due_date ? <Field label="วันที่ครบกำหนด" value={date(installment.due_date)} /> : null}
+            </div>
+            {readinessSummaryError ? <div role="alert" style={validationSummary}>{readinessSummaryError}</div> : null}
+            <div className="billing-readiness-form-grid" style={readinessFormGrid}>
+              <label style={label}>วันที่เงื่อนไขเกิดขึ้นจริง <span style={requiredMark}>*</span><input ref={readinessDateRef} style={{ ...input, ...(readinessErrors.eventDate ? invalidInput : {}) }} type="date" value={readinessForm.eventDate} disabled={installmentActionId === installment.id} aria-invalid={Boolean(readinessErrors.eventDate)} onChange={(event) => { setReadinessForm({ ...readinessForm, eventDate: event.target.value }); setReadinessErrors((current) => ({ ...current, eventDate: undefined })); setReadinessSummaryError(""); }} />{readinessErrors.eventDate ? <span style={fieldError}>{readinessErrors.eventDate}</span> : null}</label>
+              <label style={label}>หลักฐาน/เลขอ้างอิง (ถ้ามี)<input style={input} value={readinessForm.reference} maxLength={500} disabled={installmentActionId === installment.id} onChange={(event) => setReadinessForm({ ...readinessForm, reference: event.target.value })} /></label>
+              <label className="billing-readiness-note" style={{ ...label, gridColumn: "1 / -1" }}>หมายเหตุภายใน (ถ้ามี)<textarea style={{ ...input, minHeight: 76, resize: "vertical" }} value={readinessForm.note} maxLength={2000} disabled={installmentActionId === installment.id} onChange={(event) => setReadinessForm({ ...readinessForm, note: event.target.value })} /></label>
+            </div>
+            <label style={{ ...confirmationLabel, ...(readinessErrors.confirmed ? invalidConfirmation : {}) }}><input ref={readinessConfirmationRef} type="checkbox" checked={readinessForm.confirmed} disabled={installmentActionId === installment.id} aria-invalid={Boolean(readinessErrors.confirmed)} onChange={(event) => { setReadinessForm({ ...readinessForm, confirmed: event.target.checked }); setReadinessErrors((current) => ({ ...current, confirmed: undefined })); setReadinessSummaryError(""); }} /><span>ยืนยันว่าเงื่อนไขการเรียกเก็บเงินของงวดนี้เกิดขึ้นแล้ว และพร้อมจัดทำใบแจ้งหนี้</span></label>
+            {readinessErrors.confirmed ? <span style={fieldError}>{readinessErrors.confirmed}</span> : null}
+            <div style={readinessActions}><button type="button" style={secondaryButton} disabled={installmentActionId === installment.id} onClick={closeReadinessPanel}>ยกเลิก</button><button className="billing-installment-primary-action" type="button" style={primaryButton} disabled={Boolean(installmentActionId)} onClick={() => void confirmInstallmentReadiness(installment)}>{installmentActionId === installment.id ? "กำลังยืนยัน..." : "ยืนยันความพร้อม"}</button></div>
+          </div> : null}
+          {plan.status === "active" && installment.status === "ready_to_invoice" ? <div style={installmentNextStep}>
+            <div><span style={nextStepEyebrow}>ขั้นตอนถัดไป</span><strong style={nextStepTitle}>{activeInvoice ? "เปิดร่างใบแจ้งหนี้" : "สร้างร่างใบแจ้งหนี้"}</strong><p style={nextStepHelp}>{activeInvoice ? `${invoiceStatus[activeInvoice.document_status] || activeInvoice.document_status} พร้อมให้ตรวจสอบ โดยยังไม่มีการออกเลขที่ใหม่` : "ระบบจะคัดลอกยอดและ VAT จากงวดนี้โดยตรง และยังไม่ออกเลขที่ใบแจ้งหนี้"}</p></div>
+            <button className="billing-installment-primary-action" type="button" style={primaryButton} disabled={Boolean(installmentActionId)} onClick={() => void createOrOpenInvoiceDraft(installment, activeInvoice)}>{installmentActionId === installment.id ? "กำลังดำเนินการ..." : activeInvoice ? "เปิดร่างใบแจ้งหนี้" : "สร้างร่างใบแจ้งหนี้"}</button>
+          </div> : null}
+          {activeInvoice && installment.status === "invoiced" ? <div style={installmentNextStep}><div><span style={nextStepEyebrow}>ใบแจ้งหนี้</span><strong style={nextStepTitle}>{activeInvoice.invoice_no || "เอกสารใบแจ้งหนี้"}</strong></div><Link style={{ ...primaryButton, textDecoration: "none", display: "inline-flex", alignItems: "center" }} href={`/finance/invoices/${activeInvoice.id}`}>เปิดใบแจ้งหนี้</Link></div> : null}
         </article>;
       })}
     </section>
@@ -363,12 +481,12 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
       .billing-plan-navigation-back:hover { background: #f8fafc !important; border-color: #94a3b8 !important; color: #172033 !important; }
       .billing-plan-navigation-source:hover { background: #e0e7ff !important; border-color: #a5b4fc !important; color: #312e81 !important; }
       .billing-plan-navigation-link:focus-visible { outline: 3px solid rgba(37, 99, 235, .24); outline-offset: 2px; }
-      .billing-plan-primary-button, .billing-plan-save-button, .billing-plan-cancel-button { transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease; }
-      .billing-plan-primary-button:hover:not(:disabled) { background: #14532d !important; border-color: #14532d !important; }
+      .billing-plan-primary-button, .billing-plan-save-button, .billing-plan-cancel-button, .billing-installment-primary-action { transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease; }
+      .billing-plan-primary-button:hover:not(:disabled), .billing-installment-primary-action:hover:not(:disabled) { background: #14532d !important; border-color: #14532d !important; }
       .billing-plan-save-button:hover:not(:disabled) { background: #f8fafc !important; border-color: #64748b !important; }
       .billing-plan-cancel-button:hover:not(:disabled) { background: #fef2f2 !important; border-color: #fca5a5 !important; }
-      .billing-plan-primary-button:focus-visible, .billing-plan-save-button:focus-visible, .billing-plan-cancel-button:focus-visible { outline: 3px solid rgba(37, 99, 235, .24); outline-offset: 2px; }
-      .billing-plan-primary-button:disabled, .billing-plan-save-button:disabled, .billing-plan-cancel-button:disabled { cursor: not-allowed !important; opacity: .58; }
+      .billing-plan-primary-button:focus-visible, .billing-plan-save-button:focus-visible, .billing-plan-cancel-button:focus-visible, .billing-installment-primary-action:focus-visible { outline: 3px solid rgba(37, 99, 235, .24); outline-offset: 2px; }
+      .billing-plan-primary-button:disabled, .billing-plan-save-button:disabled, .billing-plan-cancel-button:disabled, .billing-installment-primary-action:disabled { cursor: not-allowed !important; opacity: .58; }
       .billing-plan-allocation-table th, .billing-plan-allocation-table td { padding: 10px 9px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
       .billing-plan-allocation-table th { color: #475569; background: #f8fafc; font-size: 12px; font-weight: 750; text-align: left; white-space: nowrap; }
       .billing-plan-allocation-table td { color: #172033; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
@@ -384,6 +502,7 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
         .billing-plan-metadata-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; row-gap: 14px !important; }
         .billing-plan-totals-grid, .billing-plan-final-summary { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
         .billing-plan-installment-edit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+        .billing-readiness-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
         .billing-plan-installment-title-field, .billing-plan-installment-description-field { grid-column: 1 / -1; }
       }
       @media (max-width: 640px) {
@@ -394,7 +513,9 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
         .billing-plan-workflow-controls { width: 100%; align-items: stretch !important; }
         .billing-plan-normal-actions { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; width: 100%; }
         .billing-plan-danger-actions { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; width: 100%; align-items: stretch !important; }
-        .billing-plan-primary-button, .billing-plan-save-button, .billing-plan-cancel-button { width: 100%; }
+        .billing-plan-primary-button, .billing-plan-save-button, .billing-plan-cancel-button, .billing-installment-primary-action { width: 100%; }
+        .billing-readiness-form-grid { grid-template-columns: minmax(0, 1fr) !important; }
+        .billing-readiness-note { grid-column: auto !important; }
         .billing-plan-metadata-grid > div, .billing-plan-summary-metric { padding: 9px 0 !important; border-left: 0 !important; border-top: 1px solid #e2e8f0; }
         .billing-plan-metadata-grid > div:first-child, .billing-plan-summary-metric:first-child { border-top: 0; }
         .billing-plan-source-chain-nodes { display: grid !important; grid-template-columns: minmax(0, 1fr); }
@@ -412,7 +533,11 @@ function SummaryMetric({ label, value, prominent = false, compact = false }: { l
 function billingPlanDraft(plan: BillingPlan, installments: Installment[]): DraftForm { return { title: plan.title || "", description: plan.description || "", installments: installments.map((installment) => ({ id: installment.id, installment_no: installment.installment_no, sort_order: installment.sort_order, title: installment.title, trigger_description: installment.trigger_description || "", trigger_type: installment.trigger_type, due_date: installment.due_date || "", milestone_code: installment.milestone_code || "", recurring_period_start: installment.recurring_period_start || "", recurring_period_end: installment.recurring_period_end || "" })) }; }
 function billingInstallmentDisplayTitle(title: string, installmentNo: number) { const value = title.trim(); const generated = new RegExp(`^(?:งวดที่\\s*${installmentNo}|Installment\\s*${installmentNo})(?:\\s*[/\\-—]\\s*(?:งวดที่\\s*${installmentNo}|Installment\\s*${installmentNo}))?$`, "i"); return generated.test(value) ? "" : value; }
 function allocationCell(key: AllocationColumnKey, allocation: Allocation, description: string | undefined, currency: string): ReactNode { if (key === "description") return description || <span style={unavailable}>ไม่พบรายการค่าบริการต้นทาง</span>; if (key === "amount_before_tax") return money(allocation.amount_before_tax, currency); if (key === "vat_amount") return money(allocation.vat_amount, currency); if (key === "total_amount") return <strong>{money(allocation.total_amount, currency)}</strong>; return allocation.allocation_percent === null ? <span style={mutedValue}>ตามยอดจริง</span> : `${numberValue(allocation.allocation_percent).toLocaleString("en-US", { maximumFractionDigits: 4 })}%`; }
+function bangkokToday() { const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()); const value = Object.fromEntries(parts.map((part) => [part.type, part.value])); return `${value.year}-${value.month}-${value.day}`; }
 function validateBillingPlanDraft(draft: DraftForm) { for (const installment of draft.installments) { if (!installment.title.trim()) return `กรุณาระบุชื่องวดที่ ${installment.installment_no}`; if (installment.trigger_type === "date" && !installment.due_date) return `กรุณาระบุวันที่ครบกำหนดของงวดที่ ${installment.installment_no}`; if (installment.trigger_type === "case_milestone" && !installment.milestone_code.trim() && !installment.trigger_description.trim()) return `กรุณาระบุเหตุการณ์สำคัญของงวดที่ ${installment.installment_no}`; if (installment.trigger_type === "recurring_period" && (!installment.recurring_period_start || !installment.recurring_period_end || installment.recurring_period_end < installment.recurring_period_start)) return `กรุณาตรวจสอบรอบระยะเวลาของงวดที่ ${installment.installment_no}`; } return ""; }
+function billingReadinessErrorMessage(value: unknown) { const message = errorText(value); if (message.includes("Human readiness confirmation")) return "กรุณายืนยันว่าเงื่อนไขการเรียกเก็บเงินของงวดนี้เกิดขึ้นแล้ว"; if (message.includes("Actual readiness event date")) return "กรุณาระบุวันที่ที่เงื่อนไขการเรียกเก็บเงินเกิดขึ้นจริง"; if (message.includes("cannot be in the future")) return "วันที่ยืนยันความพร้อมต้องไม่เป็นวันที่ในอนาคต"; if (message.includes("active Billing Plan")) return "แผนเรียกเก็บเงินนี้ไม่ได้อยู่ในสถานะพร้อมดำเนินการ"; if (message.includes("Only a pending") || message.includes("readiness evidence is incomplete")) return "สถานะงวดเปลี่ยนไปแล้ว กรุณารีเฟรชและตรวจสอบอีกครั้ง"; if (message.includes("Not allowed")) return "คุณไม่มีสิทธิ์ยืนยันความพร้อมของงวดเรียกเก็บเงิน"; return "ยืนยันความพร้อมออกใบแจ้งหนี้ไม่สำเร็จ กรุณาตรวจสอบข้อมูลและลองอีกครั้ง"; }
+function invoiceDraftErrorMessage(value: unknown) { const message = errorText(value); if (message.includes("ready to invoice") || message.includes("active Billing Plan")) return "งวดนี้ยังไม่อยู่ในสถานะพร้อมออกใบแจ้งหนี้ กรุณารีเฟรชและตรวจสอบอีกครั้ง"; if (message.includes("active Invoice already exists")) return "งวดนี้มีใบแจ้งหนี้อยู่แล้ว กรุณารีเฟรชเพื่อเปิดเอกสารเดิม"; if (message.includes("do not reconcile") || message.includes("exactly copy") || message.includes("exactly match")) return "ยอดหรือรายการของงวดไม่ตรงกับหลักฐานต้นทาง จึงยังสร้างร่างใบแจ้งหนี้ไม่ได้"; if (message.includes("Not allowed")) return "คุณไม่มีสิทธิ์สร้างร่างใบแจ้งหนี้"; return "สร้างร่างใบแจ้งหนี้ไม่สำเร็จ กรุณาตรวจสอบข้อมูลและลองอีกครั้ง"; }
+function errorText(value: unknown) { return value && typeof value === "object" && "message" in value ? String(value.message) : String(value || ""); }
 function billingPlanErrorMessage(value: unknown) { const message = value && typeof value === "object" && "message" in value ? String(value.message) : String(value || ""); if (message.includes("eligible commercial engagement") || message.includes("signed, completed, or legacy active")) return "รายการการว่าจ้างไม่อยู่ในสถานะที่อนุญาตให้จัดการแผนเรียกเก็บเงิน"; if (message.includes("totals must match") || message.includes("allocations must exactly match") || message.includes("VAT allocations")) return "ยอดงวดหรือการจัดสรรไม่ตรงกับหลักฐานการว่าจ้าง กรุณารีเฟรชและตรวจสอบข้อมูล"; if (message.includes("Only draft billing plans")) return "แผนนี้ไม่ใช่ร่างแล้ว จึงไม่สามารถแก้ไขได้"; if (message.includes("Not allowed")) return "คุณไม่มีสิทธิ์จัดการแผนเรียกเก็บเงิน"; return "ไม่สามารถบันทึกแผนเรียกเก็บเงินได้ กรุณาตรวจสอบข้อมูลและลองอีกครั้ง"; }
 
 const page: CSSProperties = { maxWidth: 1180, margin: "0 auto", padding: 24 };
@@ -454,6 +579,23 @@ const installmentCustomTitle: CSSProperties = { margin: "3px 0 0", color: "#4755
 const installmentEditGrid: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(220px,1.25fr) minmax(180px,.75fr) minmax(220px,1fr) minmax(170px,.7fr)", gap: 12, margin: "14px 0", padding: 14, border: "1px solid #dbeafe", borderRadius: 6, background: "#f8fbff" };
 const installmentFinancials: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 0, marginTop: 14, padding: "12px 0", borderTop: "1px solid #e2e8f0", borderBottom: "1px solid #e2e8f0" };
 const installmentMetaGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: "10px 16px", padding: "13px 0 2px", color: "#334155", fontSize: 13 };
+const installmentNextStep: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 18, flexWrap: "wrap", marginTop: 18, padding: 14, border: "1px solid #bbf7d0", borderRadius: 6, background: "#f7fff9" };
+const nextStepEyebrow: CSSProperties = { display: "block", color: "#166534", fontSize: 11, fontWeight: 800 };
+const nextStepTitle: CSSProperties = { display: "block", marginTop: 3, color: "#172033", fontSize: 15 };
+const nextStepHelp: CSSProperties = { margin: "4px 0 0", color: "#475569", fontSize: 13, lineHeight: 1.45 };
+const readinessPanel: CSSProperties = { scrollMarginTop: 96, marginTop: 12, padding: 16, border: "1px solid #93c5fd", borderRadius: 8, background: "#f8fbff" };
+const readinessHeader: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 };
+const readinessTitle: CSSProperties = { margin: "3px 0 0", color: "#172033", fontSize: 17 };
+const closeButton: CSSProperties = { width: 34, height: 34, border: "1px solid #cbd5e1", borderRadius: 6, background: "#fff", color: "#475569", cursor: "pointer", fontSize: 22, lineHeight: 1 };
+const readinessContext: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12, margin: "14px 0", padding: 12, border: "1px solid #dbeafe", borderRadius: 6, background: "#fff", fontSize: 13 };
+const readinessFormGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 12 };
+const requiredMark: CSSProperties = { color: "#b91c1c" };
+const invalidInput: CSSProperties = { borderColor: "#dc2626", boxShadow: "0 0 0 1px #dc2626" };
+const validationSummary: CSSProperties = { marginBottom: 12, padding: "10px 12px", border: "1px solid #fecaca", borderRadius: 6, background: "#fef2f2", color: "#b91c1c", fontSize: 13, fontWeight: 700 };
+const fieldError: CSSProperties = { color: "#b91c1c", fontSize: 12, lineHeight: 1.4 };
+const confirmationLabel: CSSProperties = { display: "flex", alignItems: "flex-start", gap: 9, marginTop: 14, padding: 12, border: "1px solid #cbd5e1", borderRadius: 6, background: "#fff", color: "#172033", fontSize: 13, lineHeight: 1.5, cursor: "pointer" };
+const invalidConfirmation: CSSProperties = { borderColor: "#dc2626", background: "#fef2f2" };
+const readinessActions: CSSProperties = { display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: 8, marginTop: 14 };
 const allocationHeading: CSSProperties = { display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, margin: "18px 0 8px" };
 const allocationTitle: CSSProperties = { margin: 0, color: "#334155", fontSize: 15 };
 const allocationCount: CSSProperties = { color: "#64748b", fontSize: 12 };
