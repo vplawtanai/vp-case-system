@@ -11,6 +11,7 @@ import {
   bangkokToday,
   displayText,
   formatBangkokDateTime,
+  formatDocumentDate,
   invoiceDraftFingerprint,
   invoiceDraftForm,
   invoiceStatusLabels,
@@ -205,11 +206,11 @@ function InvoiceWorkspace() {
 
     <section style={{ ...surface, ...headerSurface }}>
       <div className="invoice-identity-header" style={identityHeader}>
-        <div><span style={eyebrow}>{isDraft ? "INVOICE DRAFT" : "INVOICE"}</span><h1 style={title}>{isDraft ? "ร่างใบแจ้งหนี้" : "ใบแจ้งหนี้"}</h1><p style={draftReference}>{invoice.invoice_no ? `เลขที่ ${invoice.invoice_no}` : `รหัสอ้างอิงร่างภายใน ${invoice.id.slice(0, 8).toUpperCase()}`}</p></div>
-        <div style={statusPanel}><span style={metaLabel}>สถานะเอกสาร</span><StatusBadge status={invoice.document_status} label={invoiceStatusLabels[invoice.document_status] || invoice.document_status} />{invoice.issued_at ? <span style={updatedText}>ออกเอกสาร {formatBangkokDateTime(invoice.issued_at)}</span> : null}<span style={updatedText}>สร้าง {formatBangkokDateTime(invoice.created_at)}</span><span style={updatedText}>แก้ไขล่าสุด {formatBangkokDateTime(invoice.updated_at)}</span></div>
+        <div><span style={eyebrow}>{isDraft ? "INVOICE DRAFT" : "INVOICE"}</span><h1 style={title}>{isDraft ? "ร่างใบแจ้งหนี้" : "ใบแจ้งหนี้"}</h1>{isDraft ? <p style={draftReference}>รหัสอ้างอิงร่างภายใน {invoice.id.slice(0, 8).toUpperCase()}</p> : <div style={officialNumber}><small>เลขที่ใบแจ้งหนี้</small><strong style={officialNumberValue}>{displayText(invoice.invoice_no)}</strong></div>}</div>
+        <div className="invoice-status-panel" style={{ ...statusPanel, ...(invoice.document_status === "issued" ? issuedStatusPanel : {}) }}><span style={metaLabel}>สถานะเอกสาร</span><StatusBadge status={invoice.document_status} label={invoiceStatusLabels[invoice.document_status] || invoice.document_status} />{invoice.issued_at ? <span style={updatedText}>ออกเอกสาร {formatBangkokDateTime(invoice.issued_at)}</span> : null}<span style={updatedText}>สร้าง {formatBangkokDateTime(invoice.created_at)}</span><span style={updatedText}>แก้ไขล่าสุด {formatBangkokDateTime(invoice.updated_at)}</span></div>
       </div>
       {isDraft ? <div style={numberNotice}><strong>ยังไม่มีเลขที่ใบแจ้งหนี้</strong><span>เลขที่ VP-IV จะถูกกำหนดเมื่อยืนยันออกใบแจ้งหนี้เท่านั้น</span></div> : null}
-      {invoice.document_status === "issued" ? <div style={issuedNotice}><strong>เอกสารออกแล้วและเป็นแบบอ่านอย่างเดียว</strong><span>ขั้นตอนถัดไปคือรอรับชำระเงิน การออกใบแจ้งหนี้ยังไม่ถือว่าได้รับชำระเงิน</span></div> : null}
+      {invoice.document_status === "issued" ? <div style={issuedNotice}><strong>เอกสารถูกออกแล้วและเป็นแบบอ่านอย่างเดียว</strong><span>ขั้นตอนถัดไปคือรอรับชำระเงิน</span><span>การออกใบแจ้งหนี้ยังไม่ถือว่าได้รับชำระเงิน</span></div> : null}
       {invoice.document_status === "cancelled" ? <div style={cancelledNotice}><strong>ร่างนี้ถูกยกเลิกแล้ว</strong><span>{displayText(invoice.cancel_reason)}</span></div> : null}
     </section>
 
@@ -235,7 +236,7 @@ function InvoiceWorkspace() {
         <Field label="แหล่งข้อมูล" value={engagementReference} />
       </div>
       <div style={addressBlock}><span style={fieldLabel}>ที่อยู่ออกเอกสาร</span><strong>{displayText(invoice.customer_billing_address)}</strong>{invoice.customer_phone || invoice.customer_email ? <span>{[invoice.customer_phone, invoice.customer_email].filter(Boolean).join(" · ")}</span> : null}</div>
-      {!invoice.customer_tax_id ? <div style={neutralWarning}>ยังไม่มีเลขประจำตัวผู้เสียภาษีของลูกค้า ระบบแสดงคำเตือนเพื่อให้ตรวจสอบ แต่ไม่บล็อกการออกเอกสารใน Phase นี้</div> : null}
+      {!invoice.customer_tax_id ? <div style={neutralWarning}>ยังไม่มีเลขประจำตัวผู้เสียภาษีของลูกค้า กรุณาตรวจสอบข้อมูลลูกค้าให้ถูกต้อง</div> : null}
     </section>
 
     <section style={surface}>
@@ -252,30 +253,44 @@ function InvoiceWorkspace() {
 
     <section style={surface}>
       <SectionHeading title="รายการค่าบริการ" description="รายการและยอดเงินคัดลอกจากงวดในแผนเรียกเก็บเงินและเป็นแบบอ่านอย่างเดียว" />
-      {items.length === 0 ? <div style={neutralWarning}>ไม่พบรายการค่าบริการในร่างใบแจ้งหนี้</div> : <div style={tableScroll}><table className="invoice-item-table" style={table}><colgroup><col style={{ width: "42%" }} /><col style={{ width: "13%" }} /><col style={{ width: "15%" }} /><col style={{ width: "14%" }} /><col style={{ width: "16%" }} /></colgroup><thead><tr><th>รายการ</th><th>VAT</th><th>มูลค่าก่อน VAT</th><th>VAT</th><th>ยอดรวม</th></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td><strong>{item.description}</strong>{item.allocation_percent !== null ? <small style={itemMeta}>สัดส่วนจากรายการต้นทาง {Number(item.allocation_percent).toLocaleString("en-US", { maximumFractionDigits: 4 })}%</small> : null}</td><td>{item.vat_applicable ? `${Number(item.vat_rate)}%` : "ไม่มี VAT"}</td><td>{money(item.amount_before_vat, invoice.currency)}</td><td>{money(item.vat_amount, invoice.currency)}</td><td><strong>{money(item.line_total, invoice.currency)}</strong></td></tr>)}</tbody></table></div>}
+      {items.length === 0 ? <div style={neutralWarning}>{isDraft ? "ไม่พบรายการค่าบริการในร่างใบแจ้งหนี้" : "ไม่พบรายการค่าบริการในใบแจ้งหนี้"}</div> : <div style={tableScroll}><table className="invoice-item-table" style={table}><colgroup><col style={{ width: "42%" }} /><col style={{ width: "13%" }} /><col style={{ width: "15%" }} /><col style={{ width: "14%" }} /><col style={{ width: "16%" }} /></colgroup><thead><tr><th>รายการ</th><th>VAT</th><th>มูลค่าก่อน VAT</th><th>VAT</th><th>ยอดรวม</th></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td><strong>{item.description}</strong>{item.allocation_percent !== null ? <small style={itemMeta}>สัดส่วนจากรายการต้นทาง {Number(item.allocation_percent).toLocaleString("en-US", { maximumFractionDigits: 4 })}%</small> : null}</td><td>{item.vat_applicable ? `${Number(item.vat_rate)}%` : "ไม่มี VAT"}</td><td>{money(item.amount_before_vat, invoice.currency)}</td><td>{money(item.vat_amount, invoice.currency)}</td><td><strong>{money(item.line_total, invoice.currency)}</strong></td></tr>)}</tbody></table></div>}
       <div className="invoice-total-grid" style={totalsGrid}><Metric label="มูลค่าก่อน VAT" value={money(invoice.amount_before_vat, invoice.currency)} /><Metric label="VAT" value={money(invoice.vat_amount, invoice.currency)} /><Metric label="ยอดรวม" value={money(invoice.total_amount, invoice.currency)} prominent /></div>
     </section>
 
-    <section ref={settingsRef} id="invoice-draft-settings" style={surface} className="invoice-draft-settings">
-      <SectionHeading title="ข้อมูลสำหรับออกใบแจ้งหนี้" description={isDraft ? "แก้ไขเฉพาะข้อมูลการนำเสนอเอกสาร รายการและยอดเงินต้นทางจะไม่เปลี่ยน" : "ข้อมูลที่ถูกล็อกเมื่อออกใบแจ้งหนี้"} />
+    {isDraft ? <section ref={settingsRef} id="invoice-draft-settings" style={surface} className="invoice-draft-settings">
+      <SectionHeading title="ข้อมูลสำหรับออกใบแจ้งหนี้" description="แก้ไขเฉพาะข้อมูลการนำเสนอเอกสาร รายการและยอดเงินต้นทางจะไม่เปลี่ยน" />
       <div style={formGrid}>
-        <FormField label="วันที่ออกเอกสาร" required error={formErrors.issueDate}><input ref={issueDateRef} style={inputStyle(Boolean(formErrors.issueDate))} type="date" value={form.issueDate} disabled={!isDraft || saving} onChange={(event) => updateForm("issueDate", event.target.value)} /></FormField>
-        <FormField label="วันที่ครบกำหนด" helper="ไม่บังคับ หากเงื่อนไขเรียกเก็บไม่มีวันที่แน่นอน" error={formErrors.dueDate}><input ref={dueDateRef} style={inputStyle(Boolean(formErrors.dueDate))} type="date" value={form.dueDate} disabled={!isDraft || saving} onChange={(event) => updateForm("dueDate", event.target.value)} /></FormField>
-        <FormField label="ภาษาเอกสาร"><select style={inputStyle(false)} value={form.languageCode} disabled={!isDraft || saving} onChange={(event) => updateForm("languageCode", event.target.value === "en" ? "en" : "th")}><option value="th">ไทย</option><option value="en">English</option></select></FormField>
+        <FormField label="วันที่ออกเอกสาร" required error={formErrors.issueDate}><input ref={issueDateRef} style={inputStyle(Boolean(formErrors.issueDate))} type="date" value={form.issueDate} disabled={saving} onChange={(event) => updateForm("issueDate", event.target.value)} /></FormField>
+        <FormField label="วันที่ครบกำหนด" helper="ไม่บังคับ หากเงื่อนไขเรียกเก็บไม่มีวันที่แน่นอน" error={formErrors.dueDate}><input ref={dueDateRef} style={inputStyle(Boolean(formErrors.dueDate))} type="date" value={form.dueDate} disabled={saving} onChange={(event) => updateForm("dueDate", event.target.value)} /></FormField>
+        <FormField label="ภาษาเอกสาร"><select style={inputStyle(false)} value={form.languageCode} disabled={saving} onChange={(event) => updateForm("languageCode", event.target.value === "en" ? "en" : "th")}><option value="th">ไทย</option><option value="en">English</option></select></FormField>
       </div>
       <div style={notesGrid}>
-        <FormField label="ข้อมูลการชำระเงิน" helper="แสดงในเอกสารสำหรับลูกค้า"><textarea style={textareaStyle} rows={4} value={form.paymentTermsText} disabled={!isDraft || saving} onChange={(event) => updateForm("paymentTermsText", event.target.value)} /></FormField>
-        <FormField label="หมายเหตุถึงลูกค้า" helper="แสดงในเอกสารสำหรับลูกค้า"><textarea style={textareaStyle} rows={4} value={form.customerNote} disabled={!isDraft || saving} onChange={(event) => updateForm("customerNote", event.target.value)} /></FormField>
-        <FormField label="หมายเหตุภายใน" helper="ใช้ภายในสำนักงานและไม่แสดงใน Preview/Print"><textarea style={textareaStyle} rows={4} value={form.internalNote} disabled={!isDraft || saving} onChange={(event) => updateForm("internalNote", event.target.value)} /></FormField>
+        <FormField label="ข้อมูลการชำระเงิน" helper="แสดงในเอกสารสำหรับลูกค้า"><textarea style={textareaStyle} rows={4} value={form.paymentTermsText} disabled={saving} onChange={(event) => updateForm("paymentTermsText", event.target.value)} /></FormField>
+        <FormField label="หมายเหตุถึงลูกค้า" helper="แสดงในเอกสารสำหรับลูกค้า"><textarea style={textareaStyle} rows={4} value={form.customerNote} disabled={saving} onChange={(event) => updateForm("customerNote", event.target.value)} /></FormField>
+        <FormField label="หมายเหตุภายใน" helper="ใช้ภายในสำนักงานและไม่แสดงใน Preview/Print"><textarea style={textareaStyle} rows={4} value={form.internalNote} disabled={saving} onChange={(event) => updateForm("internalNote", event.target.value)} /></FormField>
       </div>
-      {isDraft ? <div style={saveRow}><span style={dirty ? unsavedState : savedState}>{dirty ? "มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก" : "บันทึกแล้ว"}</span><button type="button" style={{ ...secondaryButton, ...(!dirty ? disabledButton : {}) }} disabled={!dirty || saving} onClick={() => void saveDraft()}>{saving ? "กำลังบันทึก..." : dirty ? "บันทึกการเปลี่ยนแปลง" : "บันทึกแล้ว"}</button></div> : null}
-    </section>
+      <div style={saveRow}><span style={dirty ? unsavedState : savedState}>{dirty ? "มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก" : "บันทึกแล้ว"}</span><button type="button" style={{ ...secondaryButton, ...(!dirty ? disabledButton : {}) }} disabled={!dirty || saving} onClick={() => void saveDraft()}>{saving ? "กำลังบันทึก..." : dirty ? "บันทึกการเปลี่ยนแปลง" : "บันทึกแล้ว"}</button></div>
+    </section> : <section style={surface}>
+      <SectionHeading title="ข้อมูลในใบแจ้งหนี้" description="ข้อมูลนี้ถูกล็อกเมื่อออกใบแจ้งหนี้และแสดงเป็นแบบอ่านอย่างเดียว" />
+      <div style={readOnlyGrid}>
+        <ReadOnlyValue label="วันที่ออกเอกสาร" value={formatDocumentDate(invoice.issue_date, "th")} />
+        <ReadOnlyValue label="วันที่ครบกำหนด" value={invoice.due_date ? formatDocumentDate(invoice.due_date, "th") : "ไม่ระบุ"} />
+        <ReadOnlyValue label="ภาษา" value={invoice.language_code === "en" ? "English" : "ไทย"} />
+      </div>
+      <div style={readOnlyNotesGrid}>
+        <ReadOnlyValue label="ข้อมูลการชำระเงิน" value={displayText(invoice.payment_terms_text, "ไม่ระบุ")} multiline />
+        <ReadOnlyValue label="หมายเหตุถึงลูกค้า" value={displayText(invoice.customer_note, "ไม่ระบุ")} multiline />
+        <div style={internalNoteBlock}><ReadOnlyValue label="หมายเหตุภายใน" value={displayText(invoice.internal_note, "ไม่ระบุ")} multiline /><small style={internalNoteHelper}>ข้อมูลภายในสำนักงาน ไม่แสดงใน Preview หรือ Print</small></div>
+      </div>
+    </section>}
 
     <section style={previewBand}>
-      <div><span style={eyebrow}>PREVIEW & PRINT</span><h2 style={previewTitle}>ตรวจสอบเอกสารที่ลูกค้าจะได้รับ</h2><p style={sectionDescription}>Preview และ Print ใช้รูปแบบ A4 เดียวกัน การเปิดหรือพิมพ์ร่างไม่ออกเลขที่ VP-IV และไม่เปลี่ยนสถานะเอกสาร</p></div>
+      <div><span style={eyebrow}>PREVIEW & PRINT</span><h2 style={previewTitle}>ตรวจสอบเอกสารที่ลูกค้าจะได้รับ</h2><p style={sectionDescription}>{isDraft ? "Preview และ Print ใช้รูปแบบ A4 เดียวกัน การเปิดหรือพิมพ์ร่างไม่ออกเลขที่ VP-IV และไม่เปลี่ยนสถานะเอกสาร" : "Preview และ Print ใช้ข้อมูลที่ถูกล็อกไว้เมื่อออกใบแจ้งหนี้ และไม่เปลี่ยนสถานะเอกสาร"}</p></div>
       <div style={previewActions}>{isDraft && dirty ? <><span style={{ ...secondaryButton, ...disabledButton }} aria-disabled="true">ดูตัวอย่าง</span><span style={{ ...primaryDarkButton, ...disabledButton }} aria-disabled="true">พิมพ์</span></> : <><Link style={secondaryButton} href={`/finance/invoices/${invoice.id}/preview`}>ดูตัวอย่าง</Link><Link style={primaryDarkButton} href={`/finance/invoices/${invoice.id}/preview?print=1`} target="_blank">พิมพ์</Link></>}</div>
       {isDraft && dirty ? <div style={{ ...neutralWarning, flexBasis: "100%", marginTop: 0 }}>กรุณาบันทึกการเปลี่ยนแปลงก่อนเปิด Preview หรือ Print เพื่อให้เอกสารตรงกับข้อมูลล่าสุด</div> : null}
     </section>
+
+    {invoice.document_status === "issued" ? <section style={nextStepZone}><span style={nextStepEyebrow}>ขั้นตอนถัดไป</span><h2 style={nextStepTitle}>รอรับชำระเงิน</h2><p style={nextStepDescription}>เมื่อได้รับชำระเงินแล้ว ให้บันทึกการรับชำระเพื่อดำเนินการในขั้นตอนการเงินถัดไป</p><p style={nextStepNote}>ขณะนี้ยังไม่มีการรับชำระหรือออกเอกสารทางการเงินอื่นจากใบแจ้งหนี้ฉบับนี้</p></section> : null}
 
     {isDraft ? <>
       <section style={finalActionZone}>
@@ -309,6 +324,7 @@ function InvoiceWorkspace() {
         .invoice-navigation-toolbar a { width: 100%; box-sizing: border-box; white-space: normal !important; }
         .invoice-source-nodes { display: grid !important; grid-template-columns: minmax(0, 1fr); }
         .invoice-source-arrow { display: none; }
+        .invoice-status-panel { min-width: 0 !important; justify-items: start !important; border-left: 0 !important; border-top: 2px solid #86efac; }
       }
     `}</style>
   </main>;
@@ -316,6 +332,7 @@ function InvoiceWorkspace() {
 
 function SectionHeading({ title, description }: { title: string; description: string }) { return <div style={sectionHeading}><h2 style={sectionTitle}>{title}</h2><p style={sectionDescription}>{description}</p></div>; }
 function Field({ label, value }: { label: string; value: ReactNode }) { return <div style={{ minWidth: 0 }}><small style={fieldLabel}>{label}</small><div style={fieldValue}>{value}</div></div>; }
+function ReadOnlyValue({ label, value, multiline = false }: { label: string; value: string; multiline?: boolean }) { return <div style={readOnlyValue}><small style={fieldLabel}>{label}</small><div style={{ ...readOnlyText, ...(multiline ? readOnlyMultiline : {}) }}>{value}</div></div>; }
 function FormField({ label, helper, required = false, error, children }: { label: string; helper?: string; required?: boolean; error?: string; children: ReactNode }) { return <label style={formField}><span style={formLabel}>{label}{required ? <strong style={requiredMark}> *</strong> : null}</span>{children}{helper ? <small style={formHelper}>{helper}</small> : null}{error ? <small style={formError}>{error}</small> : null}</label>; }
 function StatusBadge({ status, label }: { status: string; label: string }) { return <span style={{ ...badge, ...(status === "draft" || status === "ready_to_invoice" ? amberBadge : status === "cancelled" || status === "voided" ? redBadge : greenBadge) }}>{label}</span>; }
 function SourceNode({ label, current = false, children }: { label: string; current?: boolean; children: ReactNode }) { return <div style={{ ...sourceNode, ...(current ? currentNode : {}) }}><small style={fieldLabel}>{label}</small><div style={sourceNodeContent}>{children}</div></div>; }
@@ -337,6 +354,9 @@ const identityHeader: CSSProperties = { display: "grid", gridTemplateColumns: "m
 const eyebrow: CSSProperties = { color: "#64748b", fontSize: 11, fontWeight: 800, letterSpacing: 0 };
 const title: CSSProperties = { margin: "4px 0", color: "#172033", fontSize: 28 };
 const draftReference: CSSProperties = { margin: 0, color: "#64748b", fontSize: 13 };
+const officialNumber: CSSProperties = { display: "grid", gap: 2, marginTop: 8, color: "#475569" };
+const officialNumberValue: CSSProperties = { color: "#14532d", fontSize: 20, lineHeight: 1.25, fontVariantNumeric: "tabular-nums", overflowWrap: "anywhere" };
+const issuedStatusPanel: CSSProperties = { borderLeftColor: "#22c55e", background: "#f0fdf4" };
 const statusPanel: CSSProperties = { display: "grid", alignContent: "start", justifyItems: "end", gap: 7, minWidth: 210, padding: "8px 12px", borderLeft: "2px solid #fbbf24", background: "#fffbeb" };
 const metaLabel: CSSProperties = { color: "#64748b", fontSize: 11, fontWeight: 700 };
 const updatedText: CSSProperties = { color: "#64748b", fontSize: 12 };
@@ -367,6 +387,13 @@ const prominentMetric: CSSProperties = { background: "#f0fdf4", color: "#166534"
 const metricValue: CSSProperties = { color: "#172033", fontSize: 17, fontVariantNumeric: "tabular-nums", overflowWrap: "anywhere" };
 const formGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 14 };
 const notesGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))", gap: 14, marginTop: 16 };
+const readOnlyGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 1, border: "1px solid #e2e8f0", borderRadius: 6, overflow: "hidden", background: "#f8fafc" };
+const readOnlyNotesGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))", gap: 14, marginTop: 16 };
+const readOnlyValue: CSSProperties = { minWidth: 0, padding: 13, borderLeft: "1px solid #e2e8f0" };
+const readOnlyText: CSSProperties = { marginTop: 4, color: "#172033", fontWeight: 700, lineHeight: 1.55, overflowWrap: "anywhere" };
+const readOnlyMultiline: CSSProperties = { minHeight: 54, whiteSpace: "pre-wrap", fontWeight: 500 };
+const internalNoteBlock: CSSProperties = { border: "1px solid #dbeafe", borderRadius: 6, background: "#f8fbff" };
+const internalNoteHelper: CSSProperties = { display: "block", padding: "0 13px 12px", color: "#475569", fontSize: 11 };
 const formField: CSSProperties = { display: "grid", alignContent: "start", gap: 6, minWidth: 0 };
 const formLabel: CSSProperties = { color: "#334155", fontSize: 13, fontWeight: 700 };
 const requiredMark: CSSProperties = { color: "#b91c1c" };
@@ -383,6 +410,11 @@ const disabledButton: CSSProperties = { opacity: 0.55, cursor: "not-allowed" };
 const previewBand: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 18, marginBottom: 18, padding: "18px 20px", borderTop: "1px solid #cbd5e1", borderBottom: "1px solid #cbd5e1", background: "#f8fafc" };
 const previewTitle: CSSProperties = { margin: "4px 0 0", color: "#172033", fontSize: 19 };
 const previewActions: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 8 };
+const nextStepZone: CSSProperties = { marginBottom: 18, padding: "20px 22px", border: "1px solid #bfdbfe", borderRadius: 8, background: "#f8fbff" };
+const nextStepEyebrow: CSSProperties = { color: "#1d4ed8", fontSize: 11, fontWeight: 900 };
+const nextStepTitle: CSSProperties = { margin: "5px 0", color: "#1e3a8a", fontSize: 21 };
+const nextStepDescription: CSSProperties = { margin: 0, color: "#334155", lineHeight: 1.6 };
+const nextStepNote: CSSProperties = { margin: "8px 0 0", color: "#64748b", fontSize: 12, lineHeight: 1.5 };
 const finalActionZone: CSSProperties = { marginBottom: 18, padding: 22, border: "1px solid #86efac", borderRadius: 8, background: "#f7fff9" };
 const finalEyebrow: CSSProperties = { color: "#15803d", fontSize: 11, fontWeight: 900 };
 const finalTitle: CSSProperties = { margin: "5px 0", color: "#14532d", fontSize: 22 };
