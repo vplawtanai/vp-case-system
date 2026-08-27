@@ -8,6 +8,7 @@ import {
   numberValue,
   type FinanceInvoice,
   type FinanceInvoiceItem,
+  type InvoicePaymentDestination,
 } from "./shared";
 import styles from "./invoice-document.module.css";
 
@@ -18,6 +19,7 @@ export function InvoiceDocument({
   logoUrl,
   matter,
   installmentLabel,
+  paymentDestination,
 }: {
   invoice: FinanceInvoice;
   items: FinanceInvoiceItem[];
@@ -25,6 +27,7 @@ export function InvoiceDocument({
   logoUrl: string;
   matter: string;
   installmentLabel: string;
+  paymentDestination: InvoicePaymentDestination | null;
 }) {
   const thai = invoice.language_code !== "en";
   const labels = thai ? thaiLabels : englishLabels;
@@ -99,10 +102,16 @@ export function InvoiceDocument({
         </div>
       </section>
 
-      {invoice.payment_terms_text || invoice.customer_note ? (
+      {paymentDestination || invoice.payment_terms_text || invoice.customer_note ? (
         <section className={styles.section}>
           <h2>{labels.terms}</h2>
           <div className={styles.notes}>
+            {paymentDestination ? <div className={styles.paymentDestination}>
+              <strong>{labels.paymentAccount}</strong>
+              <span className={styles.bankName}>{displayText(paymentDestination.bankName, displayText(paymentDestination.shortName))}</span>
+              <span>{labels.accountName} {displayText(paymentDestination.accountName)}</span>
+              <span>{labels.accountNumber} {displayText(paymentDestination.accountNumber)}</span>
+            </div> : null}
             {invoice.payment_terms_text ? <DocumentNote label={labels.paymentInstructions} value={invoice.payment_terms_text} /> : null}
             {invoice.customer_note ? <DocumentNote label={labels.customerNote} value={invoice.customer_note} /> : null}
           </div>
@@ -152,6 +161,9 @@ const thaiLabels = {
   amountPayable: "ยอดรวมที่ต้องชำระ",
   terms: "เงื่อนไขและข้อมูลการชำระเงิน",
   paymentInstructions: "ข้อมูลการชำระเงิน",
+  paymentAccount: "บัญชีสำหรับรับชำระ",
+  accountName: "ชื่อบัญชี",
+  accountNumber: "เลขที่บัญชี",
   customerNote: "หมายเหตุถึงลูกค้า",
 };
 
@@ -181,5 +193,8 @@ const englishLabels = {
   amountPayable: "Amount Payable",
   terms: "Payment Terms and Notes",
   paymentInstructions: "Payment Instructions",
+  paymentAccount: "Payment Account",
+  accountName: "Account Name",
+  accountNumber: "Account Number",
   customerNote: "Customer Note",
 };

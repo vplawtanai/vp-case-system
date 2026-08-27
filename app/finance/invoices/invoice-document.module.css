@@ -159,6 +159,30 @@
   gap: 3mm;
 }
 
+.paymentDestination {
+  display: grid;
+  gap: 1mm;
+  padding: 3mm 3.5mm;
+  border: 1px solid #dbeafe;
+  border-left: 1mm solid #2563eb;
+  background: #f8fbff;
+  color: #334155;
+  line-height: 1.5;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  print-color-adjust: exact;
+}
+
+.paymentDestination > strong,
+.bankName {
+  color: #172033;
+}
+
+.bankName {
+  margin-top: 0.5mm;
+  font-weight: 800;
+}
+
 .note {
   break-inside: avoid;
   page-break-inside: avoid;
@@ -174,7 +198,8 @@
   .documentMeta,
   .table th,
   .grandTotal,
-  .draftBanner {
+  .draftBanner,
+  .paymentDestination {
     color-adjust: exact;
     print-color-adjust: exact;
   }

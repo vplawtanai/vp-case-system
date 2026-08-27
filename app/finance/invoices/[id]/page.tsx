@@ -10,7 +10,9 @@ import { supabase } from "../../../../lib/supabase";
 import { safePaymentError, settlementStatusLabels, type FinancePayment, type InvoiceSettlement } from "../../payments/shared";
 import {
   bangkokToday,
+  bankAccountPaymentDestination,
   displayText,
+  eligibleInvoicePaymentBankAccount,
   formatBangkokDateTime,
   formatDocumentDate,
   invoiceDraftFingerprint,
@@ -19,8 +21,10 @@ import {
   installmentStatusLabels,
   money,
   safeInvoiceError,
+  snapshotPaymentDestination,
   sourceQuotationNo,
   triggerLabels,
+  type FinanceBankAccount,
   type FinanceInvoice,
   type FinanceInvoiceItem,
   type InvoiceDraftForm,
@@ -29,9 +33,9 @@ import {
 type BillingPlan = { id: string; title: string | null; status: string; billing_method: string };
 type Installment = { id: string; installment_no: number; title: string; trigger_type: string; trigger_description: string | null; due_date: string | null; status: string; readiness_event_date: string | null; readiness_confirmed_at: string | null; readiness_reference: string | null; amount_before_tax: number | string; vat_amount: number | string; total_amount: number | string };
 type FeeAgreement = { id: string; agreement_no: string | null; title: string; status: string; engagement_basis: "formal_agreement" | "accepted_quotation" | null; source_reference: string | null };
-type FormErrors = Partial<Record<"issueDate" | "dueDate", string>>;
+type FormErrors = Partial<Record<"issueDate" | "dueDate" | "bankAccount", string>>;
 
-const invoiceSelect = "id,billing_plan_id,primary_billing_installment_id,fee_agreement_id,source_quotation_id,client_id,case_id,advisory_matter_id,invoice_no,document_status,issue_date,due_date,currency,language_code,customer_note,payment_terms_text,internal_note,amount_before_vat,vat_amount,total_amount,seller_name_th,seller_name_en,seller_tax_id,seller_branch,seller_address,seller_phone,seller_email,seller_website,customer_name,customer_tax_id,customer_branch,customer_billing_address,customer_phone,customer_email,seller_snapshot_json,customer_snapshot_json,matter_snapshot_json,source_snapshot_json,issued_snapshot_json,issued_at,cancelled_at,cancel_reason,created_at,updated_at";
+const invoiceSelect = "id,billing_plan_id,primary_billing_installment_id,fee_agreement_id,source_quotation_id,client_id,case_id,advisory_matter_id,invoice_no,document_status,issue_date,due_date,currency,language_code,customer_note,payment_terms_text,payment_destination_bank_account_id,payment_destination_snapshot_json,internal_note,amount_before_vat,vat_amount,total_amount,seller_name_th,seller_name_en,seller_tax_id,seller_branch,seller_address,seller_phone,seller_email,seller_website,customer_name,customer_tax_id,customer_branch,customer_billing_address,customer_phone,customer_email,seller_snapshot_json,customer_snapshot_json,matter_snapshot_json,source_snapshot_json,issued_snapshot_json,issued_at,cancelled_at,cancel_reason,created_at,updated_at";
 const itemSelect = "id,description,source_quantity,source_unit_price,allocation_percent,vat_applicable,vat_rate,tax_category,price_tax_mode,amount_before_vat,vat_amount,line_total,sort_order";
 
 export default function InvoiceDetailPage() {
@@ -48,7 +52,8 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
   const [agreement, setAgreement] = useState<FeeAgreement | null>(null);
   const [settlement, setSettlement] = useState<InvoiceSettlement | null>(null);
   const [linkedPayments, setLinkedPayments] = useState<FinancePayment[]>([]);
-  const [form, setForm] = useState<InvoiceDraftForm>({ issueDate: "", dueDate: "", customerNote: "", paymentTermsText: "", internalNote: "", languageCode: "th" });
+  const [bankAccounts, setBankAccounts] = useState<FinanceBankAccount[]>([]);
+  const [form, setForm] = useState<InvoiceDraftForm>({ issueDate: "", dueDate: "", customerNote: "", paymentTermsText: "", paymentDestinationBankAccountId: "", internalNote: "", languageCode: "th" });
   const [baseline, setBaseline] = useState("");
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [loading, setLoading] = useState(true);
@@ -66,6 +71,7 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
   const settingsRef = useRef<HTMLElement | null>(null);
   const issueDateRef = useRef<HTMLInputElement | null>(null);
   const dueDateRef = useRef<HTMLInputElement | null>(null);
+  const bankAccountRef = useRef<HTMLSelectElement | null>(null);
 
   const load = useCallback(async () => {
     const invoiceResult = await supabase.from("finance_invoices").select(invoiceSelect).eq("id", id).maybeSingle();
@@ -75,16 +81,17 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
     }
     if (!invoiceResult.data) { setError("ไม่พบใบแจ้งหนี้"); setLoading(false); return; }
     const invoiceRow = invoiceResult.data as FinanceInvoice;
-    const [itemsResult, planResult, installmentResult, agreementResult, settlementResult, paymentAllocationsResult] = await Promise.all([
+    const [itemsResult, planResult, installmentResult, agreementResult, settlementResult, paymentAllocationsResult, bankAccountsResult] = await Promise.all([
       supabase.from("finance_invoice_items").select(itemSelect).eq("invoice_id", id).order("sort_order").order("id"),
       supabase.from("finance_billing_plans").select("id,title,status,billing_method").eq("id", invoiceRow.billing_plan_id).maybeSingle(),
       supabase.from("finance_billing_installments").select("id,installment_no,title,trigger_type,trigger_description,due_date,status,readiness_event_date,readiness_confirmed_at,readiness_reference,amount_before_tax,vat_amount,total_amount").eq("id", invoiceRow.primary_billing_installment_id).maybeSingle(),
       supabase.from("finance_fee_agreements").select("id,agreement_no,title,status,engagement_basis,source_reference").eq("id", invoiceRow.fee_agreement_id).maybeSingle(),
       supabase.from("finance_invoice_settlement_summary").select("*").eq("invoice_id", id).maybeSingle(),
       supabase.from("finance_payment_invoice_allocations").select("payment_id").eq("invoice_id", id),
+      supabase.from("finance_bank_accounts").select("id,short_name,bank_name,account_name,account_number,is_active").order("short_name"),
     ]);
-    if (itemsResult.error || planResult.error || installmentResult.error || agreementResult.error || settlementResult.error || paymentAllocationsResult.error) {
-      console.error("Failed to load Invoice source context", { items: itemsResult.error, plan: planResult.error, installment: installmentResult.error, agreement: agreementResult.error, settlement: settlementResult.error, payments: paymentAllocationsResult.error });
+    if (itemsResult.error || planResult.error || installmentResult.error || agreementResult.error || settlementResult.error || paymentAllocationsResult.error || bankAccountsResult.error) {
+      console.error("Failed to load Invoice source context", { items: itemsResult.error, plan: planResult.error, installment: installmentResult.error, agreement: agreementResult.error, settlement: settlementResult.error, payments: paymentAllocationsResult.error, bankAccounts: bankAccountsResult.error });
       setError("โหลดข้อมูลต้นทางของใบแจ้งหนี้บางส่วนไม่สำเร็จ กรุณารีเฟรช");
     }
     const paymentIds = [...new Set((paymentAllocationsResult.data || []).map((row) => String(row.payment_id)))];
@@ -100,6 +107,7 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
     setAgreement((agreementResult.data || null) as FeeAgreement | null);
     setSettlement((settlementResult.data || null) as InvoiceSettlement | null);
     setLinkedPayments((paymentsResult.data || []) as FinancePayment[]);
+    setBankAccounts((bankAccountsResult.data || []) as FinanceBankAccount[]);
     setForm(nextForm);
     setBaseline(invoiceDraftFingerprint(nextForm));
     setFormErrors({});
@@ -114,26 +122,34 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
   const fingerprint = useMemo(() => invoiceDraftFingerprint(form), [form]);
   const dirty = Boolean(baseline) && fingerprint !== baseline;
   const isDraft = invoice?.document_status === "draft";
+  const eligibleBankAccounts = useMemo(() => bankAccounts.filter(eligibleInvoicePaymentBankAccount), [bankAccounts]);
+  const selectedBankAccount = useMemo(
+    () => bankAccounts.find((account) => account.id === form.paymentDestinationBankAccountId) || null,
+    [bankAccounts, form.paymentDestinationBankAccountId],
+  );
 
   const updateForm = <Key extends keyof InvoiceDraftForm>(key: Key, value: InvoiceDraftForm[Key]) => {
     setForm((current) => ({ ...current, [key]: value }));
     if (key === "issueDate" || key === "dueDate") setFormErrors((current) => ({ ...current, [key]: undefined }));
+    if (key === "paymentDestinationBankAccountId") setFormErrors((current) => ({ ...current, bankAccount: undefined }));
     setMessage("");
   };
 
-  const validateDates = (requireIssueDate: boolean) => {
+  const validateDraft = (requireIssueDate: boolean, requireBankAccount: boolean) => {
     const nextErrors: FormErrors = {};
     if (requireIssueDate && !form.issueDate) nextErrors.issueDate = "กรุณาระบุวันที่ออกเอกสาร";
     if (form.issueDate && form.dueDate && form.dueDate < form.issueDate) nextErrors.dueDate = "วันที่ครบกำหนดต้องไม่มาก่อนวันที่ออกเอกสาร";
     if (requireIssueDate && form.issueDate && form.issueDate > bangkokToday()) nextErrors.issueDate = "วันที่ออกใบแจ้งหนี้ต้องไม่เป็นวันในอนาคต";
+    if (requireBankAccount && !form.paymentDestinationBankAccountId) nextErrors.bankAccount = "กรุณาเลือกบัญชีสำหรับรับชำระ";
+    if (form.paymentDestinationBankAccountId && (!selectedBankAccount || !eligibleInvoicePaymentBankAccount(selectedBankAccount))) nextErrors.bankAccount = "บัญชีที่เลือกไม่พร้อมใช้งาน กรุณาเลือกบัญชีที่มีข้อมูลครบถ้วน";
     setFormErrors(nextErrors);
-    const first = nextErrors.issueDate ? issueDateRef.current : nextErrors.dueDate ? dueDateRef.current : null;
+    const first = nextErrors.issueDate ? issueDateRef.current : nextErrors.dueDate ? dueDateRef.current : nextErrors.bankAccount ? bankAccountRef.current : null;
     if (first) requestAnimationFrame(() => { first.scrollIntoView({ behavior: "smooth", block: "center" }); first.focus(); });
     return Object.keys(nextErrors).length === 0;
   };
 
   const saveDraft = async () => {
-    if (!invoice || !isDraft || !dirty || saving || actionLock.current || !validateDates(false)) return;
+    if (!invoice || !isDraft || !dirty || saving || actionLock.current || !validateDraft(false, false)) return;
     actionLock.current = true; setSaving(true); setError(""); setMessage("");
     try {
       const result = await supabase.rpc("save_finance_invoice_draft", {
@@ -142,12 +158,13 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
         p_due_date: form.dueDate || null,
         p_customer_note: form.customerNote,
         p_payment_terms_text: form.paymentTermsText,
+        p_payment_destination_bank_account_id: form.paymentDestinationBankAccountId || null,
         p_internal_note: form.internalNote,
         p_language_code: form.languageCode,
       });
       if (result.error) throw result.error;
       setBaseline(invoiceDraftFingerprint(form));
-      setInvoice((current) => current ? { ...current, issue_date: form.issueDate || null, due_date: form.dueDate || null, customer_note: form.customerNote.trim() || null, payment_terms_text: form.paymentTermsText.trim() || null, internal_note: form.internalNote.trim() || null, language_code: form.languageCode, updated_at: new Date().toISOString() } : current);
+      setInvoice((current) => current ? { ...current, issue_date: form.issueDate || null, due_date: form.dueDate || null, customer_note: form.customerNote.trim() || null, payment_terms_text: form.paymentTermsText.trim() || null, payment_destination_bank_account_id: form.paymentDestinationBankAccountId || null, internal_note: form.internalNote.trim() || null, language_code: form.languageCode, updated_at: new Date().toISOString() } : current);
       setMessage("บันทึกการเปลี่ยนแปลงแล้ว");
     } catch (saveError) {
       setError(safeInvoiceError(saveError, "บันทึกร่างใบแจ้งหนี้ไม่สำเร็จ"));
@@ -158,7 +175,7 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
 
   const openIssueReview = () => {
     setError(""); setMessage("");
-    if (!validateDates(true)) return;
+    if (!validateDraft(true, true)) return;
     if (dirty) {
       setError("กรุณาบันทึกการเปลี่ยนแปลงก่อนออกใบแจ้งหนี้");
       settingsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -170,7 +187,7 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
 
   const issueInvoice = async () => {
     if (!invoice || !isDraft || !issueConfirmed || issuing || actionLock.current) return;
-    if (!validateDates(true) || dirty) return;
+    if (!validateDraft(true, true) || dirty) return;
     actionLock.current = true; setIssuing(true); setError(""); setMessage("");
     try {
       const result = await supabase.rpc("issue_finance_invoice", { p_invoice_id: invoice.id, p_human_confirmed: true });
@@ -223,6 +240,9 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
   const matter = displayText(invoice.matter_snapshot_json?.title, displayText(invoice.matter_snapshot_json?.file_no, invoice.case_id || invoice.advisory_matter_id ? "เรื่อง/คดีที่เชื่อมไว้" : "ยังไม่ผูกเรื่อง"));
   const engagementReference = agreement ? agreement.engagement_basis === "accepted_quotation" ? displayText(agreement.source_reference, agreement.title) : displayText(agreement.agreement_no, agreement.title) : "-";
   const installmentLabel = installment ? `งวดที่ ${installment.installment_no}${installment.title ? ` · ${installment.title}` : ""}` : "-";
+  const paymentDestination = isDraft
+    ? bankAccountPaymentDestination(selectedBankAccount)
+    : snapshotPaymentDestination(invoice.issued_snapshot_json?.payment_destination);
 
   return <main className="invoice-workspace" style={page}>
     <nav className="invoice-navigation-toolbar" style={navigationToolbar} aria-label="การนำทางเอกสารที่เกี่ยวข้อง">
@@ -288,11 +308,21 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
     </section>
 
     {isDraft ? <section ref={settingsRef} id="invoice-draft-settings" style={surface} className="invoice-draft-settings">
-      <SectionHeading title="ข้อมูลสำหรับออกใบแจ้งหนี้" description="แก้ไขเฉพาะข้อมูลการนำเสนอเอกสาร รายการและยอดเงินต้นทางจะไม่เปลี่ยน" />
+      <SectionHeading title="ข้อมูลในใบแจ้งหนี้" description="แก้ไขเฉพาะข้อมูลการนำเสนอเอกสาร รายการและยอดเงินต้นทางจะไม่เปลี่ยน" />
       <div style={formGrid}>
         <FormField label="วันที่ออกเอกสาร" required error={formErrors.issueDate}><input ref={issueDateRef} style={inputStyle(Boolean(formErrors.issueDate))} type="date" value={form.issueDate} disabled={saving} onChange={(event) => updateForm("issueDate", event.target.value)} /></FormField>
         <FormField label="วันที่ครบกำหนด" helper="ไม่บังคับ หากเงื่อนไขเรียกเก็บไม่มีวันที่แน่นอน" error={formErrors.dueDate}><input ref={dueDateRef} style={inputStyle(Boolean(formErrors.dueDate))} type="date" value={form.dueDate} disabled={saving} onChange={(event) => updateForm("dueDate", event.target.value)} /></FormField>
         <FormField label="ภาษาเอกสาร"><select style={inputStyle(false)} value={form.languageCode} disabled={saving} onChange={(event) => updateForm("languageCode", event.target.value === "en" ? "en" : "th")}><option value="th">ไทย</option><option value="en">English</option></select></FormField>
+      </div>
+      <div className="invoice-bank-destination" style={bankDestinationPanel}>
+        <FormField label="บัญชีสำหรับรับชำระ" required helper="ต้องเลือกก่อนออกใบแจ้งหนี้ บัญชีนี้ใช้แจ้งให้ลูกค้าโอนชำระ ไม่ใช่การบันทึกว่ารับเงินจริงเข้าบัญชีใด" error={formErrors.bankAccount}>
+          <select ref={bankAccountRef} style={inputStyle(Boolean(formErrors.bankAccount))} value={form.paymentDestinationBankAccountId} disabled={saving} onChange={(event) => updateForm("paymentDestinationBankAccountId", event.target.value)}>
+            <option value="">เลือกบัญชีสำหรับรับชำระ</option>
+            {form.paymentDestinationBankAccountId && selectedBankAccount && !eligibleInvoicePaymentBankAccount(selectedBankAccount) ? <option value={selectedBankAccount.id} disabled>{displayText(selectedBankAccount.short_name)} — บัญชีนี้ไม่พร้อมใช้งาน</option> : null}
+            {eligibleBankAccounts.map((account) => <option key={account.id} value={account.id}>{displayText(account.short_name)} — {displayText(account.bank_name)} · {displayText(account.account_number)}</option>)}
+          </select>
+        </FormField>
+        {paymentDestination ? <div style={bankDestinationSummary}><strong>{displayText(paymentDestination.bankName, displayText(paymentDestination.shortName))}</strong><span>ชื่อบัญชี {displayText(paymentDestination.accountName)}</span><span>เลขที่บัญชี {displayText(paymentDestination.accountNumber)}</span></div> : eligibleBankAccounts.length === 0 ? <div style={neutralWarning}>ยังไม่มีบัญชีรับชำระที่เปิดใช้งานและมีข้อมูลครบถ้วน</div> : null}
       </div>
       <div style={notesGrid}>
         <FormField label="ข้อมูลการชำระเงิน" helper="แสดงในเอกสารสำหรับลูกค้า"><textarea style={textareaStyle} rows={4} value={form.paymentTermsText} disabled={saving} onChange={(event) => updateForm("paymentTermsText", event.target.value)} /></FormField>
@@ -306,6 +336,7 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
         <ReadOnlyValue label="วันที่ออกเอกสาร" value={formatDocumentDate(invoice.issue_date, "th")} />
         <ReadOnlyValue label="วันที่ครบกำหนด" value={invoice.due_date ? formatDocumentDate(invoice.due_date, "th") : "ไม่ระบุ"} />
         <ReadOnlyValue label="ภาษา" value={invoice.language_code === "en" ? "English" : "ไทย"} />
+        <ReadOnlyValue label="บัญชีสำหรับรับชำระ" value={paymentDestination ? `${displayText(paymentDestination.bankName, displayText(paymentDestination.shortName))}\nชื่อบัญชี ${displayText(paymentDestination.accountName)}\nเลขที่บัญชี ${displayText(paymentDestination.accountNumber)}` : "ไม่ได้ระบุในเอกสารฉบับนี้"} multiline />
       </div>
       <div style={readOnlyNotesGrid}>
         <ReadOnlyValue label="ข้อมูลการชำระเงิน" value={displayText(invoice.payment_terms_text, "ไม่ระบุ")} multiline />
@@ -345,7 +376,7 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
 
         {issuePanelOpen ? <div id="invoice-issue-confirmation" style={confirmationPanel}>
           <h3 style={confirmationTitle}>ยืนยันการออกใบแจ้งหนี้</h3>
-          <div style={confirmationGrid}><Field label="ลูกค้า" value={displayText(invoice.customer_name)} /><Field label="งวด" value={installmentLabel} /><Field label="มูลค่าก่อน VAT" value={money(invoice.amount_before_vat, invoice.currency)} /><Field label="VAT" value={money(invoice.vat_amount, invoice.currency)} /><Field label="ยอดรวม" value={money(invoice.total_amount, invoice.currency)} /><Field label="วันที่ออกเอกสาร" value={form.issueDate || "-"} /><Field label="วันที่ครบกำหนด" value={form.dueDate || "-"} /></div>
+          <div style={confirmationGrid}><Field label="ลูกค้า" value={displayText(invoice.customer_name)} /><Field label="งวด" value={installmentLabel} /><Field label="มูลค่าก่อน VAT" value={money(invoice.amount_before_vat, invoice.currency)} /><Field label="VAT" value={money(invoice.vat_amount, invoice.currency)} /><Field label="ยอดรวม" value={money(invoice.total_amount, invoice.currency)} /><Field label="วันที่ออกเอกสาร" value={form.issueDate || "-"} /><Field label="วันที่ครบกำหนด" value={form.dueDate || "-"} /><Field label="บัญชีสำหรับรับชำระ" value={paymentDestination ? `${displayText(paymentDestination.shortName)} · ${displayText(paymentDestination.accountNumber)}` : "-"} /></div>
           <label style={confirmCheck}><input type="checkbox" checked={issueConfirmed} onChange={(event) => setIssueConfirmed(event.target.checked)} />ยืนยันว่าตรวจสอบข้อมูลใบแจ้งหนี้ครบถ้วนแล้ว และต้องการออกใบแจ้งหนี้ฉบับนี้</label>
           <p style={confirmationHelp}>ระบบจะสร้างเลขที่อย่างเป็นทางการและทำให้เอกสารเป็นแบบอ่านอย่างเดียว การออกใบแจ้งหนี้ไม่ถือว่าได้รับชำระเงิน</p>
           <div style={confirmationActions}><button type="button" style={secondaryButton} disabled={issuing} onClick={() => setIssuePanelOpen(false)}>กลับไปตรวจสอบ</button><button type="button" style={{ ...issueButton, ...(!issueConfirmed ? disabledButton : {}) }} disabled={!issueConfirmed || issuing} onClick={() => void issueInvoice()}>{issuing ? "กำลังออกใบแจ้งหนี้..." : "ยืนยันออกใบแจ้งหนี้"}</button></div>
@@ -364,7 +395,7 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
       .invoice-draft-settings { scroll-margin-top: 84px; }
       @media (max-width: 760px) {
         .invoice-workspace { padding: 14px !important; }
-        .invoice-navigation-toolbar, .invoice-identity-header, .invoice-total-grid, .invoice-final-summary, .invoice-settlement-summary { grid-template-columns: minmax(0, 1fr) !important; }
+        .invoice-navigation-toolbar, .invoice-identity-header, .invoice-total-grid, .invoice-final-summary, .invoice-settlement-summary, .invoice-bank-destination { grid-template-columns: minmax(0, 1fr) !important; }
         .invoice-navigation-toolbar a { width: 100%; box-sizing: border-box; white-space: normal !important; }
         .invoice-source-nodes { display: grid !important; grid-template-columns: minmax(0, 1fr); }
         .invoice-source-arrow { display: none; }
@@ -430,6 +461,8 @@ const metric: CSSProperties = { display: "grid", gap: 5, minWidth: 0, padding: 1
 const prominentMetric: CSSProperties = { background: "#f0fdf4", color: "#166534" };
 const metricValue: CSSProperties = { color: "#172033", fontSize: 17, fontVariantNumeric: "tabular-nums", overflowWrap: "anywhere" };
 const formGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 14 };
+const bankDestinationPanel: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(240px,1.2fr) minmax(220px,1fr)", gap: 14, marginTop: 16, padding: 14, border: "1px solid #dbeafe", borderRadius: 6, background: "#f8fbff" };
+const bankDestinationSummary: CSSProperties = { display: "grid", alignContent: "center", gap: 4, minWidth: 0, padding: "10px 12px", borderLeft: "3px solid #2563eb", background: "#fff", color: "#475569", fontSize: 13, lineHeight: 1.45, overflowWrap: "anywhere" };
 const notesGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))", gap: 14, marginTop: 16 };
 const readOnlyGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 1, border: "1px solid #e2e8f0", borderRadius: 6, overflow: "hidden", background: "#f8fafc" };
 const readOnlyNotesGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))", gap: 14, marginTop: 16 };

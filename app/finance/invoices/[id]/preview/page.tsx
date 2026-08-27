@@ -16,15 +16,19 @@ import { supabase } from "../../../../../lib/supabase";
 import { InvoiceDocument } from "../../invoice-document";
 import {
   asJson,
+  bankAccountPaymentDestination,
   displayText,
+  snapshotPaymentDestination,
+  type FinanceBankAccount,
   type FinanceInvoice,
   type FinanceInvoiceItem,
+  type InvoicePaymentDestination,
   type Json,
 } from "../../shared";
 
 type Installment = { installment_no: number; title: string };
 
-const invoiceSelect = "id,billing_plan_id,primary_billing_installment_id,fee_agreement_id,source_quotation_id,client_id,case_id,advisory_matter_id,invoice_no,document_status,issue_date,due_date,currency,language_code,customer_note,payment_terms_text,internal_note,amount_before_vat,vat_amount,total_amount,seller_name_th,seller_name_en,seller_tax_id,seller_branch,seller_address,seller_phone,seller_email,seller_website,customer_name,customer_tax_id,customer_branch,customer_billing_address,customer_phone,customer_email,seller_snapshot_json,customer_snapshot_json,matter_snapshot_json,source_snapshot_json,issued_snapshot_json,issued_at,cancelled_at,cancel_reason,created_at,updated_at";
+const invoiceSelect = "id,billing_plan_id,primary_billing_installment_id,fee_agreement_id,source_quotation_id,client_id,case_id,advisory_matter_id,invoice_no,document_status,issue_date,due_date,currency,language_code,customer_note,payment_terms_text,payment_destination_bank_account_id,payment_destination_snapshot_json,internal_note,amount_before_vat,vat_amount,total_amount,seller_name_th,seller_name_en,seller_tax_id,seller_branch,seller_address,seller_phone,seller_email,seller_website,customer_name,customer_tax_id,customer_branch,customer_billing_address,customer_phone,customer_email,seller_snapshot_json,customer_snapshot_json,matter_snapshot_json,source_snapshot_json,issued_snapshot_json,issued_at,cancelled_at,cancel_reason,created_at,updated_at";
 const itemSelect = "id,description,source_quantity,source_unit_price,allocation_percent,vat_applicable,vat_rate,tax_category,price_tax_mode,amount_before_vat,vat_amount,line_total,sort_order";
 
 export default function InvoicePreviewPage() {
@@ -36,6 +40,7 @@ function InvoicePreview({ id }: { id: string }) {
   const [invoice, setInvoice] = useState<FinanceInvoice | null>(null);
   const [items, setItems] = useState<FinanceInvoiceItem[]>([]);
   const [installment, setInstallment] = useState<Installment | null>(null);
+  const [paymentDestination, setPaymentDestination] = useState<InvoicePaymentDestination | null>(null);
   const [identity, setIdentity] = useState<DocumentIdentity>(() => normalizeDocumentIdentity(null));
   const [logoUrl, setLogoUrl] = useState("");
   const [loading, setLoading] = useState(true);
@@ -49,17 +54,21 @@ function InvoicePreview({ id }: { id: string }) {
       setError("ไม่สามารถโหลดตัวอย่างใบแจ้งหนี้ได้"); setLoading(false); return;
     }
     const currentInvoice = result.data as FinanceInvoice;
-    const [itemsResult, installmentResult, currentIdentityResult] = await Promise.all([
+    const bankAccountPromise = currentInvoice.document_status === "draft" && currentInvoice.payment_destination_bank_account_id
+      ? supabase.from("finance_bank_accounts").select("id,short_name,bank_name,account_name,account_number,is_active").eq("id", currentInvoice.payment_destination_bank_account_id).maybeSingle()
+      : Promise.resolve({ data: null, error: null });
+    const [itemsResult, installmentResult, currentIdentityResult, bankAccountResult] = await Promise.all([
       supabase.from("finance_invoice_items").select(itemSelect).eq("invoice_id", id).order("sort_order").order("id"),
       supabase.from("finance_billing_installments").select("installment_no,title").eq("id", currentInvoice.primary_billing_installment_id).maybeSingle(),
       loadCurrentDocumentIdentity(supabase),
+      bankAccountPromise,
     ]);
-    if (itemsResult.error || installmentResult.error) {
-      console.error("Failed to load Invoice preview context", { items: itemsResult.error, installment: installmentResult.error });
+    if (itemsResult.error || installmentResult.error || bankAccountResult.error) {
+      console.error("Failed to load Invoice preview context", { items: itemsResult.error, installment: installmentResult.error, bankAccount: bankAccountResult.error });
       setError("โหลดรายการหรือข้อมูลงวดสำหรับตัวอย่างไม่สำเร็จ");
     }
 
-    const presentation = invoicePresentation(currentInvoice, (itemsResult.data || []) as FinanceInvoiceItem[]);
+    const presentation = invoicePresentation(currentInvoice, (itemsResult.data || []) as FinanceInvoiceItem[], (bankAccountResult.data || null) as FinanceBankAccount | null);
     const sellerSnapshot = presentation.seller;
     const normalizedSeller = normalizeDocumentIdentity(sellerSnapshot);
     const resolvedIdentity = presentation.invoice.document_status === "issued"
@@ -71,6 +80,7 @@ function InvoicePreview({ id }: { id: string }) {
 
     setInvoice(presentation.invoice);
     setItems(presentation.items);
+    setPaymentDestination(presentation.paymentDestination);
     setInstallment((installmentResult.data || null) as Installment | null);
     setIdentity(resolvedIdentity);
     setLogoUrl(resolvedLogoUrl);
@@ -104,7 +114,7 @@ function InvoicePreview({ id }: { id: string }) {
       <div style={controlActions}><Link style={backButton} href={`/finance/invoices/${invoice.id}`}>กลับไปใบแจ้งหนี้</Link><button type="button" style={printButton} onClick={() => window.print()}>พิมพ์ / บันทึก PDF</button></div>
     </div>
     {error ? <div style={errorNotice}>{error}</div> : null}
-    <InvoiceDocument invoice={invoice} items={items} identity={identity} logoUrl={logoUrl} matter={matter} installmentLabel={installmentLabel} />
+    <InvoiceDocument invoice={invoice} items={items} identity={identity} logoUrl={logoUrl} matter={matter} installmentLabel={installmentLabel} paymentDestination={paymentDestination} />
     <style jsx global>{`
       @media print {
         .invoice-preview-controls { display: none !important; }
@@ -116,14 +126,15 @@ function InvoicePreview({ id }: { id: string }) {
   </main>;
 }
 
-function invoicePresentation(invoice: FinanceInvoice, liveItems: FinanceInvoiceItem[]) {
+function invoicePresentation(invoice: FinanceInvoice, liveItems: FinanceInvoiceItem[], liveBankAccount: FinanceBankAccount | null) {
   if (invoice.document_status !== "issued" || !invoice.issued_snapshot_json) {
-    return { invoice, items: liveItems, seller: liveSeller(invoice) };
+    return { invoice, items: liveItems, seller: liveSeller(invoice), paymentDestination: bankAccountPaymentDestination(liveBankAccount) };
   }
   const snapshot = asJson(invoice.issued_snapshot_json);
   const frozenInvoice = asJson(snapshot.invoice);
   const frozenSeller = asJson(snapshot.seller);
   const frozenCustomer = asJson(snapshot.customer);
+  const frozenPaymentDestination = snapshotPaymentDestination(snapshot.payment_destination);
   const frozenItems = Array.isArray(snapshot.items) ? snapshot.items.map((value, index) => frozenInvoiceItem(value, index)) : [];
   return {
     invoice: {
@@ -136,6 +147,8 @@ function invoicePresentation(invoice: FinanceInvoice, liveItems: FinanceInvoiceI
       language_code: stringOrNull(frozenInvoice.language_code) || invoice.language_code,
       customer_note: stringOrNull(frozenInvoice.customer_note),
       payment_terms_text: stringOrNull(frozenInvoice.payment_terms_text),
+      payment_destination_bank_account_id: frozenPaymentDestination?.bankAccountId || null,
+      payment_destination_snapshot_json: frozenPaymentDestination ? asJson(snapshot.payment_destination) : null,
       amount_before_vat: valueOrFallback(frozenInvoice.amount_before_vat, invoice.amount_before_vat),
       vat_amount: valueOrFallback(frozenInvoice.vat_amount, invoice.vat_amount),
       total_amount: valueOrFallback(frozenInvoice.total_amount, invoice.total_amount),
@@ -150,6 +163,7 @@ function invoicePresentation(invoice: FinanceInvoice, liveItems: FinanceInvoiceI
     },
     items: frozenItems.length ? frozenItems : liveItems,
     seller: sellerIdentitySource(frozenSeller, invoice),
+    paymentDestination: frozenPaymentDestination,
   };
 }
 

@@ -17,6 +17,8 @@ export type FinanceInvoice = {
   language_code: string;
   customer_note: string | null;
   payment_terms_text: string | null;
+  payment_destination_bank_account_id: string | null;
+  payment_destination_snapshot_json: Json | null;
   internal_note: string | null;
   amount_before_vat: number | string;
   vat_amount: number | string;
@@ -68,8 +70,26 @@ export type InvoiceDraftForm = {
   dueDate: string;
   customerNote: string;
   paymentTermsText: string;
+  paymentDestinationBankAccountId: string;
   internalNote: string;
   languageCode: "th" | "en";
+};
+
+export type FinanceBankAccount = {
+  id: string;
+  short_name: string | null;
+  bank_name: string | null;
+  account_name: string | null;
+  account_number: string | null;
+  is_active: boolean;
+};
+
+export type InvoicePaymentDestination = {
+  bankAccountId: string | null;
+  shortName: string | null;
+  bankName: string | null;
+  accountName: string | null;
+  accountNumber: string | null;
 };
 
 export const invoiceStatusLabels: Record<string, string> = {
@@ -100,6 +120,7 @@ export function invoiceDraftForm(invoice: FinanceInvoice): InvoiceDraftForm {
     dueDate: invoice.due_date?.slice(0, 10) || "",
     customerNote: invoice.customer_note || "",
     paymentTermsText: invoice.payment_terms_text || "",
+    paymentDestinationBankAccountId: invoice.payment_destination_bank_account_id || "",
     internalNote: invoice.internal_note || "",
     languageCode: invoice.language_code === "en" ? "en" : "th",
   };
@@ -111,9 +132,37 @@ export function invoiceDraftFingerprint(form: InvoiceDraftForm) {
     dueDate: form.dueDate || "",
     customerNote: form.customerNote.trim(),
     paymentTermsText: form.paymentTermsText.trim(),
+    paymentDestinationBankAccountId: form.paymentDestinationBankAccountId,
     internalNote: form.internalNote.trim(),
     languageCode: form.languageCode,
   });
+}
+
+export function eligibleInvoicePaymentBankAccount(account: FinanceBankAccount) {
+  return account.is_active && Boolean(account.account_name?.trim()) && Boolean(account.account_number?.trim());
+}
+
+export function bankAccountPaymentDestination(account: FinanceBankAccount | null | undefined): InvoicePaymentDestination | null {
+  if (!account) return null;
+  return {
+    bankAccountId: account.id,
+    shortName: account.short_name?.trim() || null,
+    bankName: account.bank_name?.trim() || null,
+    accountName: account.account_name?.trim() || null,
+    accountNumber: account.account_number?.trim() || null,
+  };
+}
+
+export function snapshotPaymentDestination(value: unknown): InvoicePaymentDestination | null {
+  const snapshot = asJson(value);
+  const destination = {
+    bankAccountId: textValue(snapshot.bank_account_id),
+    shortName: textValue(snapshot.short_name),
+    bankName: textValue(snapshot.bank_name),
+    accountName: textValue(snapshot.account_name),
+    accountNumber: textValue(snapshot.account_number),
+  };
+  return Object.values(destination).some(Boolean) ? destination : null;
 }
 
 export function numberValue(value: number | string | null | undefined) {
@@ -177,6 +226,10 @@ export function asJson(value: unknown): Json {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Json : {};
 }
 
+function textValue(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
 export function safeInvoiceError(error: unknown, fallback: string) {
   const message = error && typeof error === "object" && "message" in error
     ? String((error as { message?: unknown }).message || "")
@@ -185,6 +238,8 @@ export function safeInvoiceError(error: unknown, fallback: string) {
   if (message.includes("issue date is required")) return "กรุณาระบุวันที่ออกเอกสาร";
   if (message.includes("issue date cannot be in the future")) return "วันที่ออกใบแจ้งหนี้ต้องไม่เป็นวันในอนาคต";
   if (message.includes("customer name is required")) return "ข้อมูลชื่อลูกค้าไม่ครบถ้วน กรุณาตรวจสอบข้อมูลต้นทางก่อนออกใบแจ้งหนี้";
+  if (message.includes("payment destination bank account is required")) return "กรุณาเลือกบัญชีสำหรับรับชำระก่อนออกใบแจ้งหนี้";
+  if (message.includes("payment bank account is not eligible") || message.includes("payment destination bank account is not eligible")) return "บัญชีสำหรับรับชำระที่เลือกไม่พร้อมใช้งาน กรุณาเลือกบัญชีที่มีข้อมูลครบถ้วน";
   if (message.includes("source Billing Installment to remain ready")) return "งวดต้นทางไม่ได้อยู่ในสถานะพร้อมออกใบแจ้งหนี้แล้ว กรุณารีเฟรชและตรวจสอบอีกครั้ง";
   if (message.includes("active Billing Plan")) return "แผนเรียกเก็บเงินต้นทางไม่ได้อยู่ในสถานะใช้งานแล้ว";
   if (message.includes("Only a Draft Invoice")) return "รายการนี้ไม่ได้อยู่ในสถานะร่างที่ดำเนินการได้";
