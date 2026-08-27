@@ -19,6 +19,16 @@ type DraftInstallment = { id: string; installment_no: number; sort_order: number
 type DraftForm = { title: string; description: string; installments: DraftInstallment[] };
 type ReadinessForm = { eventDate: string; confirmed: boolean; note: string; reference: string };
 type ReadinessErrors = Partial<Record<"eventDate" | "confirmed", string>>;
+type InvoiceDraftDiagnostic = {
+  operation: "create_finance_invoice_draft_from_installment";
+  timestamp: string;
+  billing_plan_id: string;
+  billing_installment_id: string;
+  error_code: string | null;
+  error_message: string;
+  error_details: string | null;
+  error_hint: string | null;
+};
 type AllocationColumnKey = "description" | "amount_before_tax" | "vat_amount" | "total_amount" | "allocation_percent";
 
 const numberValue = (value: number | string | null | undefined) => Number(value || 0);
@@ -64,6 +74,8 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
   const [readinessSummaryError, setReadinessSummaryError] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [invoiceDiagnostic, setInvoiceDiagnostic] = useState<InvoiceDraftDiagnostic | null>(null);
+  const [diagnosticCopyStatus, setDiagnosticCopyStatus] = useState("");
   const saveLock = useRef(false);
   const statusLock = useRef(false);
   const installmentActionLock = useRef(false);
@@ -271,7 +283,8 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
   const createOrOpenInvoiceDraft = async (installment: Installment, existingInvoice?: InvoiceSummary) => {
     if (existingInvoice) { router.push(`/finance/invoices/${existingInvoice.id}`); return; }
     if (!canManage || plan?.status !== "active" || installment.status !== "ready_to_invoice" || installmentActionLock.current) return;
-    installmentActionLock.current = true; setInstallmentActionId(installment.id); setError(""); setMessage("");
+    const billingPlanId = plan.id;
+    installmentActionLock.current = true; setInstallmentActionId(installment.id); setError(""); setMessage(""); setInvoiceDiagnostic(null); setDiagnosticCopyStatus("");
     try {
       const result = await supabase.rpc("create_finance_invoice_draft_from_installment", { p_billing_installment_id: installment.id });
       if (result.error) throw result.error;
@@ -280,9 +293,23 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
       router.push(`/finance/invoices/${invoiceId}`);
     } catch (invoiceError) {
       console.error("Failed to create or open Invoice Draft", invoiceError);
-      setError(invoiceDraftErrorMessage(invoiceError));
+      const presentation = invoiceDraftErrorPresentation(invoiceError);
+      setError(presentation.message);
+      if (!presentation.knownBusinessError) {
+        setInvoiceDiagnostic(buildInvoiceDraftDiagnostic(invoiceError, billingPlanId, installment.id));
+      }
     } finally {
       installmentActionLock.current = false; setInstallmentActionId(null);
+    }
+  };
+  const copyInvoiceDiagnostic = async () => {
+    if (!invoiceDiagnostic) return;
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(invoiceDiagnostic, null, 2));
+      setDiagnosticCopyStatus("คัดลอกข้อมูลตรวจสอบแล้ว");
+    } catch (copyError) {
+      console.error("Failed to copy Invoice Draft diagnostic", copyError);
+      setDiagnosticCopyStatus("คัดลอกไม่สำเร็จ กรุณาลองอีกครั้ง");
     }
   };
 
@@ -318,6 +345,20 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
       {agreement?.source_quotation_id ? <Link className="billing-plan-navigation-link billing-plan-navigation-source" style={{ ...navigationLink, ...navigationSourceLink }} href={`/finance/quotations/${agreement.source_quotation_id}`}><NavigationIcon name="source" /><span>เปิดใบเสนอราคาต้นทาง</span></Link> : null}
     </nav> : null}
     {error ? <div style={warning}>{error}</div> : null}
+    {invoiceDiagnostic ? <details style={diagnosticPanel}>
+      <summary style={diagnosticSummary}>ข้อมูลสำหรับตรวจสอบระบบ</summary>
+      <div style={diagnosticGrid}>
+        <DiagnosticField label="Error code" value={invoiceDiagnostic.error_code || "-"} />
+        <DiagnosticField label="Diagnostic message" value={invoiceDiagnostic.error_message || "-"} />
+        <DiagnosticField label="Details" value={invoiceDiagnostic.error_details || "-"} />
+        <DiagnosticField label="Hint" value={invoiceDiagnostic.error_hint || "-"} />
+        <DiagnosticField label="billing_installment_id" value={invoiceDiagnostic.billing_installment_id} />
+      </div>
+      <div style={diagnosticActions}>
+        <button type="button" style={diagnosticCopyButton} onClick={() => void copyInvoiceDiagnostic()}>คัดลอกข้อมูลตรวจสอบ</button>
+        {diagnosticCopyStatus ? <span role="status" style={diagnosticCopyStatusStyle}>{diagnosticCopyStatus}</span> : null}
+      </div>
+    </details> : null}
     {message ? <div style={success}>{message}</div> : null}
 
     <section style={{ ...card, ...planHeaderCard }}>
@@ -526,6 +567,7 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
 }
 
 function Field({ label, value }: { label: string; value: ReactNode }) { return <div><small style={{ color: "#64748b" }}>{label}</small><div>{value}</div></div>; }
+function DiagnosticField({ label, value }: { label: string; value: string }) { return <div style={diagnosticField}><span style={diagnosticLabel}>{label}</span><code style={diagnosticValue}>{value}</code></div>; }
 function StatusBadge({ status, label, prominent = false }: { status: string; label: string; prominent?: boolean }) { return <span style={{ ...statusBadge, ...statusColor[status], ...(prominent ? prominentStatusBadge : {}) }}>{label}</span>; }
 function NavigationIcon({ name }: { name: "back" | "source" }) { const common = { width: 17, height: 17, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true }; if (name === "back") return <svg {...common}><path d="M19 12H5M12 19l-7-7 7-7" /></svg>; return <svg {...common}><path d="M6 3h9l3 3v15H6zM14 3v4h4M9 12h6M9 16h4" /></svg>; }
 function ChainNode({ title, status, statusText, current = false, children }: { title: string; status: string | null; statusText?: string; current?: boolean; children: ReactNode }) { return <div style={{ ...chainNode, ...(current ? chainCurrentNode : {}) }}><small style={{ color: "#64748b" }}>{title}</small>{status ? <StatusBadge status={status} label={statusText || planStatus[status] || status} /> : null}<div style={{ marginTop: 6, overflowWrap: "anywhere" }}>{children}</div></div>; }
@@ -536,7 +578,9 @@ function allocationCell(key: AllocationColumnKey, allocation: Allocation, descri
 function bangkokToday() { const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()); const value = Object.fromEntries(parts.map((part) => [part.type, part.value])); return `${value.year}-${value.month}-${value.day}`; }
 function validateBillingPlanDraft(draft: DraftForm) { for (const installment of draft.installments) { if (!installment.title.trim()) return `กรุณาระบุชื่องวดที่ ${installment.installment_no}`; if (installment.trigger_type === "date" && !installment.due_date) return `กรุณาระบุวันที่ครบกำหนดของงวดที่ ${installment.installment_no}`; if (installment.trigger_type === "case_milestone" && !installment.milestone_code.trim() && !installment.trigger_description.trim()) return `กรุณาระบุเหตุการณ์สำคัญของงวดที่ ${installment.installment_no}`; if (installment.trigger_type === "recurring_period" && (!installment.recurring_period_start || !installment.recurring_period_end || installment.recurring_period_end < installment.recurring_period_start)) return `กรุณาตรวจสอบรอบระยะเวลาของงวดที่ ${installment.installment_no}`; } return ""; }
 function billingReadinessErrorMessage(value: unknown) { const message = errorText(value); if (message.includes("Human readiness confirmation")) return "กรุณายืนยันว่าเงื่อนไขการเรียกเก็บเงินของงวดนี้เกิดขึ้นแล้ว"; if (message.includes("Actual readiness event date")) return "กรุณาระบุวันที่ที่เงื่อนไขการเรียกเก็บเงินเกิดขึ้นจริง"; if (message.includes("cannot be in the future")) return "วันที่ยืนยันความพร้อมต้องไม่เป็นวันที่ในอนาคต"; if (message.includes("active Billing Plan")) return "แผนเรียกเก็บเงินนี้ไม่ได้อยู่ในสถานะพร้อมดำเนินการ"; if (message.includes("Only a pending") || message.includes("readiness evidence is incomplete")) return "สถานะงวดเปลี่ยนไปแล้ว กรุณารีเฟรชและตรวจสอบอีกครั้ง"; if (message.includes("Not allowed")) return "คุณไม่มีสิทธิ์ยืนยันความพร้อมของงวดเรียกเก็บเงิน"; return "ยืนยันความพร้อมออกใบแจ้งหนี้ไม่สำเร็จ กรุณาตรวจสอบข้อมูลและลองอีกครั้ง"; }
-function invoiceDraftErrorMessage(value: unknown) { const message = errorText(value); if (message.includes("ready to invoice") || message.includes("active Billing Plan")) return "งวดนี้ยังไม่อยู่ในสถานะพร้อมออกใบแจ้งหนี้ กรุณารีเฟรชและตรวจสอบอีกครั้ง"; if (message.includes("active Invoice already exists")) return "งวดนี้มีใบแจ้งหนี้อยู่แล้ว กรุณารีเฟรชเพื่อเปิดเอกสารเดิม"; if (message.includes("do not reconcile") || message.includes("exactly copy") || message.includes("exactly match")) return "ยอดหรือรายการของงวดไม่ตรงกับหลักฐานต้นทาง จึงยังสร้างร่างใบแจ้งหนี้ไม่ได้"; if (message.includes("Not allowed")) return "คุณไม่มีสิทธิ์สร้างร่างใบแจ้งหนี้"; return "สร้างร่างใบแจ้งหนี้ไม่สำเร็จ กรุณาตรวจสอบข้อมูลและลองอีกครั้ง"; }
+function invoiceDraftErrorPresentation(value: unknown): { message: string; knownBusinessError: boolean } { const message = errorText(value); if (message.includes("ready to invoice") || message.includes("active Billing Plan")) return { message: "งวดนี้ยังไม่อยู่ในสถานะพร้อมออกใบแจ้งหนี้ กรุณารีเฟรชและตรวจสอบอีกครั้ง", knownBusinessError: true }; if (message.includes("active Invoice already exists")) return { message: "งวดนี้มีใบแจ้งหนี้อยู่แล้ว กรุณารีเฟรชเพื่อเปิดเอกสารเดิม", knownBusinessError: true }; if (message.includes("do not reconcile") || message.includes("exactly copy") || message.includes("exactly match")) return { message: "ยอดหรือรายการของงวดไม่ตรงกับหลักฐานต้นทาง จึงยังสร้างร่างใบแจ้งหนี้ไม่ได้", knownBusinessError: true }; if (message.includes("Not allowed")) return { message: "คุณไม่มีสิทธิ์สร้างร่างใบแจ้งหนี้", knownBusinessError: true }; return { message: "สร้างร่างใบแจ้งหนี้ไม่สำเร็จ", knownBusinessError: false }; }
+function buildInvoiceDraftDiagnostic(value: unknown, billingPlanId: string, billingInstallmentId: string): InvoiceDraftDiagnostic { const error = value && typeof value === "object" ? value as Record<string, unknown> : {}; return { operation: "create_finance_invoice_draft_from_installment", timestamp: new Date().toISOString(), billing_plan_id: billingPlanId, billing_installment_id: billingInstallmentId, error_code: diagnosticText(error.code), error_message: diagnosticText(error.message) || diagnosticText(errorText(value)) || "Unknown RPC error", error_details: diagnosticText(error.details), error_hint: diagnosticText(error.hint) }; }
+function diagnosticText(value: unknown) { if (typeof value !== "string") return null; const normalized = value.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, " ").trim(); return normalized ? normalized.slice(0, 2000) : null; }
 function errorText(value: unknown) { return value && typeof value === "object" && "message" in value ? String(value.message) : String(value || ""); }
 function billingPlanErrorMessage(value: unknown) { const message = value && typeof value === "object" && "message" in value ? String(value.message) : String(value || ""); if (message.includes("eligible commercial engagement") || message.includes("signed, completed, or legacy active")) return "รายการการว่าจ้างไม่อยู่ในสถานะที่อนุญาตให้จัดการแผนเรียกเก็บเงิน"; if (message.includes("totals must match") || message.includes("allocations must exactly match") || message.includes("VAT allocations")) return "ยอดงวดหรือการจัดสรรไม่ตรงกับหลักฐานการว่าจ้าง กรุณารีเฟรชและตรวจสอบข้อมูล"; if (message.includes("Only draft billing plans")) return "แผนนี้ไม่ใช่ร่างแล้ว จึงไม่สามารถแก้ไขได้"; if (message.includes("Not allowed")) return "คุณไม่มีสิทธิ์จัดการแผนเรียกเก็บเงิน"; return "ไม่สามารถบันทึกแผนเรียกเก็บเงินได้ กรุณาตรวจสอบข้อมูลและลองอีกครั้ง"; }
 
@@ -549,6 +593,15 @@ const navigationBackLink: CSSProperties = { background: "#fff", borderColor: "#c
 const navigationSourceLink: CSSProperties = { background: "#eef2ff", borderColor: "#c7d2fe", color: "#3730a3" };
 const warning: CSSProperties = { background: "#fff7ed", color: "#9a3412", padding: 12, borderRadius: 6, marginBottom: 12 };
 const success: CSSProperties = { background: "#dcfce7", color: "#166534", padding: 12, borderRadius: 6, marginBottom: 12 };
+const diagnosticPanel: CSSProperties = { margin: "-4px 0 12px", padding: "0 12px 12px", border: "1px solid #dbe3ee", borderRadius: 6, background: "#f8fafc", color: "#334155" };
+const diagnosticSummary: CSSProperties = { padding: "11px 0", color: "#475569", fontSize: 13, fontWeight: 750, cursor: "pointer" };
+const diagnosticGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 };
+const diagnosticField: CSSProperties = { minWidth: 0, padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: 5, background: "#fff" };
+const diagnosticLabel: CSSProperties = { display: "block", marginBottom: 4, color: "#64748b", fontSize: 11, fontWeight: 700 };
+const diagnosticValue: CSSProperties = { display: "block", color: "#334155", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12, lineHeight: 1.45, overflowWrap: "anywhere", whiteSpace: "pre-wrap" };
+const diagnosticActions: CSSProperties = { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 10 };
+const diagnosticCopyButton: CSSProperties = { minHeight: 36, padding: "7px 11px", border: "1px solid #cbd5e1", borderRadius: 6, background: "#fff", color: "#334155", fontWeight: 700, cursor: "pointer" };
+const diagnosticCopyStatusStyle: CSSProperties = { color: "#475569", fontSize: 12 };
 const description: CSSProperties = { margin: "6px 0 0", color: "#64748b", lineHeight: 1.55, whiteSpace: "pre-wrap" };
 const planHeaderCard: CSSProperties = { padding: 0, overflow: "hidden" };
 const planIdentityHeader: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 24, alignItems: "start", padding: "20px 20px 16px" };
