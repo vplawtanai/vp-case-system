@@ -28,7 +28,7 @@ type PaymentAccess = {
   canReverse: boolean;
 };
 type InvoiceContext = { id: string; invoice_no: string | null; customer_name: string | null; currency: string; total_amount: number | string; document_status: string };
-type BankAccount = { id: string; short_name: string | null; bank_name: string | null; is_active: boolean };
+type BankAccount = { id: string; short_name: string | null; bank_name: string | null; account_name: string | null; account_number: string | null; is_active: boolean };
 type FormErrors = Partial<Record<"receivedOn" | "paymentMethod" | "bankAccount" | "cashAmount" | "whtAmount" | "allocation" | "confirmation", string>>;
 
 const paymentSelect = "id,draft_origin_invoice_id,internal_reference,client_id,currency,status,cash_amount,wht_amount,settlement_amount,received_on,payment_method,receiving_bank_account_id,receiving_account_reference,external_transaction_reference,payer_name,note,created_at,updated_at,confirmed_at,cancelled_at,cancel_reason,reversed_at,reverse_reason";
@@ -83,7 +83,7 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
     const [invoiceResult, settlementResult, bankResult] = await Promise.all([
       supabase.from("finance_invoices").select("id,invoice_no,customer_name,currency,total_amount,document_status").eq("id", allocationRow.invoice_id).maybeSingle(),
       supabase.from("finance_invoice_settlement_summary").select("*").eq("invoice_id", allocationRow.invoice_id).maybeSingle(),
-      supabase.from("finance_bank_accounts").select("id,short_name,bank_name,is_active").eq("is_active", true).order("short_name"),
+      supabase.from("finance_bank_accounts").select("id,short_name,bank_name,account_name,account_number,is_active").order("short_name"),
     ]);
     if (invoiceResult.error || settlementResult.error || bankResult.error) {
       console.error("Failed to load Payment context", { invoice: invoiceResult.error, settlement: settlementResult.error, bank: bankResult.error });
@@ -116,6 +116,8 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
   const authoritativeOutstanding = normalizedAmount(settlement?.outstanding_amount);
   const outstandingBefore = payment?.status === "confirmed" ? authoritativeOutstanding + currentAllocation : authoritativeOutstanding;
   const expectedOutstanding = Math.max(0, outstandingBefore - paymentSettlement);
+  const draftReceivingBankAccount = bankAccounts.find((account) => account.id === form.receivingBankAccountId) || null;
+  const savedReceivingBankAccount = bankAccounts.find((account) => account.id === payment?.receiving_bank_account_id) || null;
 
   const updateForm = <Key extends keyof PaymentForm>(key: Key, value: PaymentForm[Key]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -246,7 +248,7 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
         <div style={formGrid}>
           <FormField label="วันที่รับชำระจริง" required error={errors.receivedOn}><input ref={firstInputRef} style={inputStyle(Boolean(errors.receivedOn))} type="date" value={form.receivedOn} disabled={!access.canManage || saving} onChange={(event) => updateForm("receivedOn", event.target.value)} /></FormField>
           <FormField label="วิธีรับชำระ" required error={errors.paymentMethod}><select style={inputStyle(Boolean(errors.paymentMethod))} value={form.paymentMethod} disabled={!access.canManage || saving} onChange={(event) => updateForm("paymentMethod", event.target.value)}><option value="">เลือกวิธีรับชำระ</option>{Object.entries(paymentMethodLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></FormField>
-          <FormField label="บัญชีธนาคารที่รับเงิน" required={form.paymentMethod === "bank_transfer"} error={errors.bankAccount}><select style={inputStyle(Boolean(errors.bankAccount))} value={form.receivingBankAccountId} disabled={!access.canManage || saving} onChange={(event) => updateForm("receivingBankAccountId", event.target.value)}><option value="">ไม่ระบุ</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{displayText(account.short_name, account.bank_name || "บัญชีธนาคาร")}</option>)}</select></FormField>
+          <FormField label="บัญชีธนาคารที่รับเงิน" required={form.paymentMethod === "bank_transfer"} error={errors.bankAccount}><select style={inputStyle(Boolean(errors.bankAccount))} value={form.receivingBankAccountId} disabled={!access.canManage || saving} onChange={(event) => updateForm("receivingBankAccountId", event.target.value)}><option value="">ไม่ระบุ</option>{bankAccounts.filter((account) => account.is_active || account.id === form.receivingBankAccountId).map((account) => <option key={account.id} value={account.id}>{displayText(account.short_name, account.bank_name || "บัญชีธนาคาร")}{account.is_active ? "" : " (ไม่ใช้งาน)"}</option>)}</select></FormField>
           <FormField label="ชื่อผู้ชำระ"><input style={inputStyle(false)} value={form.payerName} disabled={!access.canManage || saving} onChange={(event) => updateForm("payerName", event.target.value)} /></FormField>
           <FormField label="เลขอ้างอิงรายการรับชำระ"><input style={inputStyle(false)} value={form.externalTransactionReference} disabled={!access.canManage || saving} onChange={(event) => updateForm("externalTransactionReference", event.target.value)} /></FormField>
           <FormField label="รายละเอียดบัญชี/ช่องทางรับเงิน"><input style={inputStyle(false)} value={form.receivingAccountReference} disabled={!access.canManage || saving} onChange={(event) => updateForm("receivingAccountReference", event.target.value)} /></FormField>
@@ -268,7 +270,11 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
 
       <section ref={reviewRef} style={reviewZone}>
         <span style={eyebrow}>ตรวจสอบขั้นสุดท้าย</span><h2 style={reviewTitle}>ตรวจสอบก่อนยืนยันรับชำระ</h2><p style={sectionDescription}>ตรวจสอบหลักฐาน วันที่ วิธีรับชำระ และยอดจัดสรรให้ครบถ้วนก่อนยืนยัน</p>
-        <div style={reviewGrid}><Field label="ใบแจ้งหนี้" value={displayText(invoice.invoice_no)} /><Field label="วันที่รับชำระจริง" value={form.receivedOn ? formatDocumentDate(form.receivedOn, "th") : "ยังไม่ระบุ"} /><Field label="วิธีรับชำระ" value={paymentMethodLabels[form.paymentMethod] || "ยังไม่ระบุ"} /><Field label="เงินสด" value={money(cash, payment.currency)} /><Field label="เครดิต WHT" value={money(wht, payment.currency)} /><Field label="ยอดรับชำระรวม" value={money(paymentSettlement, payment.currency)} /><Field label="จัดสรร" value={`${displayText(invoice.invoice_no)} · ${money(paymentSettlement, payment.currency)}`} /><Field label="คาดว่ายอดคงค้างหลังยืนยัน" value={money(expectedOutstanding, payment.currency)} /></div>
+        <div style={reviewGroups}>
+          <div style={reviewGroup}><h3 style={reviewGroupTitle}>ข้อมูลรายการ</h3><div style={reviewGrid}><Field label="ใบแจ้งหนี้" value={displayText(invoice.invoice_no)} /><Field label="วันที่รับชำระจริง" value={form.receivedOn ? formatDocumentDate(form.receivedOn, "th") : "ยังไม่ระบุ"} /><Field label="วิธีรับชำระ" value={paymentMethodLabels[form.paymentMethod] || "ยังไม่ระบุ"} /><Field label="บัญชีที่รับเงินจริง" value={<BankAccountIdentity account={draftReceivingBankAccount} paymentMethod={form.paymentMethod} />} />{form.payerName.trim() ? <Field label="ชื่อผู้ชำระ" value={form.payerName.trim()} /> : null}{form.externalTransactionReference.trim() ? <Field label="เลขอ้างอิงรายการรับชำระ" value={form.externalTransactionReference.trim()} /> : null}{form.receivingAccountReference.trim() ? <Field label="รายละเอียดบัญชี/ช่องทางรับเงิน" value={form.receivingAccountReference.trim()} /> : null}{form.note.trim() ? <Field label="หมายเหตุ" value={form.note.trim()} /> : null}</div></div>
+          <div style={reviewGroup}><h3 style={reviewGroupTitle}>ยอดเงิน</h3><div style={reviewGrid}><Field label="เงินสดที่ได้รับ" value={money(cash, payment.currency)} /><Field label="เครดิตภาษีหัก ณ ที่จ่าย" value={money(wht, payment.currency)} /><Field label="ยอดรับชำระรวม" value={<strong>{money(paymentSettlement, payment.currency)}</strong>} /></div></div>
+          <div style={reviewGroup}><h3 style={reviewGroupTitle}>การจัดสรร</h3><div style={reviewGrid}><Field label="จัดสรร" value={`${displayText(invoice.invoice_no)} · ${money(paymentSettlement, payment.currency)}`} /><Field label="คาดว่ายอดคงค้างหลังยืนยัน" value={<strong>{money(expectedOutstanding, payment.currency)}</strong>} /></div></div>
+        </div>
         {dirty ? <div style={neutralNotice}>กรุณาบันทึกการเปลี่ยนแปลงก่อนยืนยันรับชำระ</div> : null}
         {!access.canConfirm ? <div style={neutralNotice}>คุณไม่มีสิทธิ์ยืนยันรับชำระ กรุณาให้ผู้มีสิทธิ์ตรวจสอบและยืนยันรายการนี้</div> : null}
         {access.canConfirm && !confirmationOpen ? <button type="button" style={{ ...primaryButton, ...(dirty ? disabledButton : {}) }} disabled={dirty} onClick={openConfirmation}>ยืนยันรับชำระ</button> : null}
@@ -281,8 +287,10 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
     </> : <>
       <section style={surface}>
         <SectionHeading title="ข้อมูลการรับชำระ" description="ข้อมูลที่ยืนยันแล้วแสดงเป็นแบบอ่านอย่างเดียว" />
-        <div style={readOnlyGrid}><Field label="วันที่รับชำระจริง" value={payment.received_on ? formatDocumentDate(payment.received_on, "th") : "ไม่ระบุ"} /><Field label="วิธีรับชำระ" value={paymentMethodLabels[payment.payment_method || ""] || "ไม่ระบุ"} /><Field label="บัญชีรับเงิน" value={displayText(bankAccounts.find((account) => account.id === payment.receiving_bank_account_id)?.short_name, payment.receiving_account_reference || "ไม่ระบุ")} /><Field label="ผู้ชำระ" value={displayText(payment.payer_name)} /><Field label="เลขอ้างอิง" value={displayText(payment.external_transaction_reference)} /><Field label="หมายเหตุ" value={displayText(payment.note)} /></div>
-        <div style={summaryGrid}><Metric label="เงินสดที่ได้รับ" value={money(payment.cash_amount, payment.currency)} /><Metric label="เครดิต WHT" value={money(payment.wht_amount, payment.currency)} /><Metric label="ยอดรับชำระรวม" value={money(payment.settlement_amount, payment.currency)} prominent /><Metric label="ยอดคงค้างปัจจุบัน" value={money(settlement?.outstanding_amount, payment.currency)} /></div>
+        <div style={readOnlyGroups}>
+          <div style={readOnlyGroup}><h3 style={readOnlyGroupTitle}>ข้อมูลรายการ</h3><div style={readOnlyGrid}><Field label="สถานะ" value={<StatusBadge status={payment.status}>{paymentStatusLabels[payment.status] || payment.status}</StatusBadge>} /><Field label="ใบแจ้งหนี้" value={<Link href={`/finance/invoices/${invoice.id}`}>{displayText(invoice.invoice_no)}</Link>} /><Field label="วันที่รับชำระจริง" value={payment.received_on ? formatDocumentDate(payment.received_on, "th") : "ไม่ระบุ"} /><Field label="วิธีรับชำระ" value={paymentMethodLabels[payment.payment_method || ""] || "ไม่ระบุ"} /><Field label="บัญชีที่รับเงินจริง" value={<BankAccountIdentity account={savedReceivingBankAccount} paymentMethod={payment.payment_method || ""} />} />{payment.payer_name?.trim() ? <Field label="ชื่อผู้ชำระ" value={payment.payer_name.trim()} /> : null}{payment.external_transaction_reference?.trim() ? <Field label="เลขอ้างอิงรายการรับชำระ" value={payment.external_transaction_reference.trim()} /> : null}{payment.receiving_account_reference?.trim() ? <Field label="รายละเอียดบัญชี/ช่องทางรับเงิน" value={payment.receiving_account_reference.trim()} /> : null}{payment.note?.trim() ? <Field label="หมายเหตุ" value={payment.note.trim()} /> : null}</div></div>
+          <div style={readOnlyGroup}><h3 style={readOnlyGroupTitle}>ยอดเงินและการจัดสรร</h3><div style={summaryGrid}><Metric label="เงินสดที่ได้รับ" value={money(payment.cash_amount, payment.currency)} /><Metric label="เครดิตภาษีหัก ณ ที่จ่าย" value={money(payment.wht_amount, payment.currency)} /><Metric label="ยอดรับชำระรวม" value={money(payment.settlement_amount, payment.currency)} prominent /><Metric label="ยอดคงค้างปัจจุบัน" value={money(settlement?.outstanding_amount, payment.currency)} /></div><div style={confirmedAllocation}><Field label="จัดสรร" value={`${displayText(invoice.invoice_no)} · ${money(allocation.settlement_total, payment.currency)}`} /></div></div>
+        </div>
         {payment.status === "confirmed" ? <div style={nextStepNotice}>การรับชำระถูกบันทึกแล้ว เอกสารใบเสร็จ/ใบกำกับภาษียังเป็นขั้นตอนถัดไป</div> : null}
       </section>
     </>}
@@ -307,6 +315,7 @@ function Field({ label, value }: { label: string; value: ReactNode }) { return <
 function FormField({ label, helper, required = false, error, children }: { label: string; helper?: string; required?: boolean; error?: string; children: ReactNode }) { return <label style={formField}><span style={formLabel}>{label}{required ? <strong style={{ color: "#b91c1c" }}> *</strong> : null}</span>{children}{helper ? <small style={helperText}>{helper}</small> : null}{error ? <small style={formError}>{error}</small> : null}</label>; }
 function Metric({ label, value, prominent = false }: { label: string; value: string; prominent?: boolean }) { return <div style={{ ...metric, ...(prominent ? prominentMetric : {}) }}><small>{label}</small><strong style={metricValue}>{value}</strong></div>; }
 function StatusBadge({ status, children }: { status: string; children: ReactNode }) { return <span style={{ ...badge, ...(status === "draft" ? amberBadge : status === "confirmed" ? greenBadge : redBadge) }}>{children}</span>; }
+function BankAccountIdentity({ account, paymentMethod }: { account: BankAccount | null; paymentMethod: string }) { if (!account) return <span>{paymentMethod === "bank_transfer" ? "ยังไม่ระบุ" : "ไม่ใช้บัญชีธนาคารสำหรับวิธีรับชำระนี้"}</span>; return <div style={bankAccountIdentity}><strong>{displayText(account.short_name)} — {displayText(account.bank_name)}</strong>{account.account_number ? <span style={bankAccountDetail}>{account.account_number}{account.account_name ? ` · ${account.account_name}` : ""}</span> : null}</div>; }
 
 const page: CSSProperties = { maxWidth: 1080, margin: "0 auto", padding: 24, color: "#172033" };
 const surface: CSSProperties = { marginBottom: 18, padding: 20, border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff" };
@@ -347,14 +356,23 @@ const primaryButton: CSSProperties = { ...secondaryButton, minHeight: 44, border
 const disabledButton: CSSProperties = { opacity: 0.55, cursor: "not-allowed" };
 const reviewZone: CSSProperties = { ...surface, borderColor: "#86efac", background: "#f7fff9", scrollMarginTop: 84 };
 const reviewTitle: CSSProperties = { margin: "5px 0", color: "#14532d", fontSize: 22 };
-const reviewGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 16, margin: "16px 0" };
+const reviewGroups: CSSProperties = { display: "grid", gap: 18, margin: "18px 0" };
+const reviewGroup: CSSProperties = { paddingTop: 15, borderTop: "1px solid #bbf7d0" };
+const reviewGroupTitle: CSSProperties = { margin: "0 0 12px", color: "#166534", fontSize: 14 };
+const reviewGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(185px,1fr))", gap: 16 };
 const confirmationPanel: CSSProperties = { marginTop: 16, padding: 16, border: "1px solid #86efac", borderRadius: 6, background: "#fff" };
 const confirmationCheck: CSSProperties = { display: "flex", alignItems: "flex-start", gap: 9, padding: 12, border: "1px solid #cbd5e1", borderRadius: 6, fontWeight: 700, lineHeight: 1.5 };
 const invalidConfirmation: CSSProperties = { borderColor: "#dc2626", background: "#fef2f2" };
 const actionRow: CSSProperties = { display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: 8, marginTop: 14 };
 const neutralNotice: CSSProperties = { margin: "12px 0", padding: 11, borderLeft: "3px solid #f59e0b", background: "#fffbeb", color: "#92400e", fontSize: 13 };
 const readOnlyGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 16, padding: 14, border: "1px solid #e2e8f0", borderRadius: 6, background: "#f8fafc" };
+const readOnlyGroups: CSSProperties = { display: "grid", gap: 18 };
+const readOnlyGroup: CSSProperties = { minWidth: 0 };
+const readOnlyGroupTitle: CSSProperties = { margin: "0 0 9px", color: "#334155", fontSize: 14 };
 const summaryGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 12, marginTop: 16 };
+const confirmedAllocation: CSSProperties = { marginTop: 12, padding: 13, border: "1px solid #e2e8f0", borderRadius: 6, background: "#f8fafc" };
+const bankAccountIdentity: CSSProperties = { display: "grid", gap: 3, minWidth: 0 };
+const bankAccountDetail: CSSProperties = { color: "#64748b", fontSize: 12 };
 const nextStepNotice: CSSProperties = { marginTop: 16, padding: 13, border: "1px solid #bfdbfe", borderRadius: 6, background: "#eff6ff", color: "#1e40af" };
 const otherActions: CSSProperties = { marginBottom: 18, padding: 20, border: "1px solid #fecaca", borderRadius: 8, background: "#fff" };
 const otherTitle: CSSProperties = { margin: 0, color: "#7f1d1d", fontSize: 16 };
