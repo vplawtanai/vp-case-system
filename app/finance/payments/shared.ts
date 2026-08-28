@@ -35,6 +35,26 @@ export type PaymentAllocation = {
   settlement_total: number | string;
 };
 
+export type EffectivePaymentAllocation = {
+  payment_id: string;
+  invoice_id: string;
+  effective_cash_allocated: number | string;
+  effective_wht_credit_allocated: number | string;
+  effective_settlement_total: number | string;
+};
+
+export type PaymentAllocationReallocation = {
+  id: string;
+  payment_id: string;
+  source_invoice_id: string;
+  target_invoice_id: string;
+  cash_moved: number | string;
+  wht_moved: number | string;
+  settlement_moved: number | string;
+  reason: string;
+  created_at: string;
+};
+
 export type InvoiceSettlement = {
   invoice_id: string;
   invoice_no: string | null;
@@ -183,4 +203,31 @@ export function safePaymentError(error: unknown, fallback: string) {
     ["downstream records", "ไม่สามารถกลับรายการได้ เนื่องจากมีเอกสารขั้นตอนถัดไปแล้ว"],
   ];
   return mappings.find(([needle]) => message.includes(needle))?.[1] || fallback;
+}
+
+export function safePaymentReallocationError(error: unknown) {
+  const message = typeof error === "object" && error && "message" in error
+    ? String((error as { message?: unknown }).message || "")
+    : "";
+  const mappings: Array<[string, string]> = [
+    ["Not allowed to reallocate", "คุณไม่มีสิทธิ์ย้ายการจัดสรรยอดรับชำระ"],
+    ["FINANCE_PAYMENT_REALLOCATION_ACK_REQUIRED", "กรุณายืนยันว่ารายการรับเงินจริงถูกต้องและต้องการเปลี่ยนเฉพาะใบแจ้งหนี้"],
+    ["Only a Confirmed Payment", "ย้ายการจัดสรรได้เฉพาะรายการรับชำระที่ยืนยันแล้ว"],
+    ["Source and target Invoice must differ", "ใบแจ้งหนี้ต้นทางและปลายทางต้องเป็นคนละฉบับ"],
+    ["Payment reallocation reason is required", "กรุณาระบุเหตุผลในการย้ายการจัดสรรยอดรับชำระ"],
+    ["Payment reallocation reason is too long", "เหตุผลยาวเกินกำหนด กรุณาใช้ข้อความไม่เกิน 2,000 ตัวอักษร"],
+    ["FINANCE_PAYMENT_REALLOCATION_SOURCE_INSUFFICIENT", "ยอดเงินสดหรือเครดิต WHT ที่ย้ายเกินยอดปัจจุบันของใบแจ้งหนี้ต้นทาง"],
+    ["FINANCE_PAYMENT_REALLOCATION_CLIENT_MISMATCH", "ใบแจ้งหนี้ปลายทางต้องเป็นของลูกค้ารายเดียวกับรายการรับชำระ"],
+    ["FINANCE_PAYMENT_REALLOCATION_CURRENCY_MISMATCH", "ใบแจ้งหนี้ปลายทางต้องใช้สกุลเงินเดียวกับรายการรับชำระ"],
+    ["Target Invoice must be Issued", "ใบแจ้งหนี้ปลายทางต้องอยู่ในสถานะออกใบแจ้งหนี้แล้ว"],
+    ["FINANCE_PAYMENT_REALLOCATION_TARGET_CAPACITY_EXCEEDED", "ยอดที่ย้ายเกินความสามารถรับชำระของใบแจ้งหนี้ปลายทาง หรือมียอดร่างอื่นจองอยู่"],
+    ["FINANCE_PAYMENT_REALLOCATION_REQUEST_CONFLICT", "คำขอนี้มีข้อมูลเปลี่ยนแปลงหลังส่ง กรุณาปิดและเริ่มการย้ายยอดใหม่"],
+    ["FINANCE_PAYMENT_REALLOCATION_HAS_DOWNSTREAM_DEPENDENCIES", "ไม่สามารถย้ายยอดได้ เนื่องจากมีเอกสารหรือรายการขั้นตอนถัดไปที่เกี่ยวข้องแล้ว"],
+    ["Moved Cash and WHT", "กรุณาระบุเงินสดและเครดิต WHT ที่ย้ายเป็นจำนวนตั้งแต่ 0 ขึ้นไป และยอดรวมต้องมากกว่า 0"],
+    ["Payment, source Invoice, and target Invoice are required", "กรุณาเลือกใบแจ้งหนี้ต้นทางและปลายทางให้ครบถ้วน"],
+    ["Source Invoice not found", "ไม่พบใบแจ้งหนี้ต้นทาง กรุณารีเฟรชและลองใหม่"],
+    ["Target Invoice not found", "ไม่พบใบแจ้งหนี้ปลายทาง กรุณารีเฟรชและลองใหม่"],
+  ];
+  return mappings.find(([needle]) => message.includes(needle))?.[1]
+    || "ย้ายการจัดสรรยอดรับชำระไม่สำเร็จ กรุณารีเฟรชและลองใหม่";
 }

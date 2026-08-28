@@ -7,7 +7,7 @@ import { useParams, useRouter } from "next/navigation";
 import { QuotationGuard } from "../../quotations/shared";
 import { feeAgreementStatusLabel } from "../../fee-agreements/lifecycle";
 import { supabase } from "../../../../lib/supabase";
-import { safePaymentError, settlementStatusLabels, type FinancePayment, type InvoiceSettlement } from "../../payments/shared";
+import { paymentStatusLabels, safePaymentError, settlementStatusLabels, type EffectivePaymentAllocation, type FinancePayment, type InvoiceSettlement, type PaymentAllocationReallocation } from "../../payments/shared";
 import {
   bangkokToday,
   bankAccountPaymentDestination,
@@ -35,6 +35,7 @@ type Installment = { id: string; installment_no: number; title: string; trigger_
 type FeeAgreement = { id: string; agreement_no: string | null; title: string; status: string; engagement_basis: "formal_agreement" | "accepted_quotation" | null; source_reference: string | null };
 type FormErrors = Partial<Record<"issueDate" | "dueDate" | "bankAccount", string>>;
 type VoidFormErrors = Partial<Record<"reason" | "acknowledgement", string>>;
+type InvoicePaymentAllocation = { payment_id: string; cash_allocated: number | string; wht_credit_allocated: number | string; settlement_total: number | string };
 
 const invoiceSelect = "id,billing_plan_id,primary_billing_installment_id,fee_agreement_id,source_quotation_id,client_id,case_id,advisory_matter_id,invoice_no,document_status,issue_date,due_date,currency,language_code,customer_note,payment_terms_text,payment_destination_bank_account_id,payment_destination_snapshot_json,internal_note,amount_before_vat,vat_amount,total_amount,seller_name_th,seller_name_en,seller_tax_id,seller_branch,seller_address,seller_phone,seller_email,seller_website,customer_name,customer_tax_id,customer_branch,customer_billing_address,customer_phone,customer_email,seller_snapshot_json,customer_snapshot_json,matter_snapshot_json,source_snapshot_json,issued_snapshot_json,issued_at,voided_at,void_reason,cancelled_at,cancel_reason,created_at,updated_at";
 const itemSelect = "id,description,source_quantity,source_unit_price,allocation_percent,vat_applicable,vat_rate,tax_category,price_tax_mode,amount_before_vat,vat_amount,line_total,sort_order";
@@ -53,6 +54,9 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
   const [agreement, setAgreement] = useState<FeeAgreement | null>(null);
   const [settlement, setSettlement] = useState<InvoiceSettlement | null>(null);
   const [linkedPayments, setLinkedPayments] = useState<FinancePayment[]>([]);
+  const [rawPaymentAllocations, setRawPaymentAllocations] = useState<InvoicePaymentAllocation[]>([]);
+  const [effectivePaymentAllocations, setEffectivePaymentAllocations] = useState<EffectivePaymentAllocation[]>([]);
+  const [paymentReallocations, setPaymentReallocations] = useState<PaymentAllocationReallocation[]>([]);
   const [bankAccounts, setBankAccounts] = useState<FinanceBankAccount[]>([]);
   const [form, setForm] = useState<InvoiceDraftForm>({ issueDate: "", dueDate: "", customerNote: "", paymentTermsText: "", paymentDestinationBankAccountId: "", internalNote: "", languageCode: "th" });
   const [baseline, setBaseline] = useState("");
@@ -90,20 +94,29 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
     }
     if (!invoiceResult.data) { setError("ไม่พบใบแจ้งหนี้"); setLoading(false); return; }
     const invoiceRow = invoiceResult.data as FinanceInvoice;
-    const [itemsResult, planResult, installmentResult, agreementResult, settlementResult, paymentAllocationsResult, bankAccountsResult] = await Promise.all([
+    const [itemsResult, planResult, installmentResult, agreementResult, settlementResult, paymentAllocationsResult, effectiveAllocationsResult, paymentReallocationsResult, bankAccountsResult] = await Promise.all([
       supabase.from("finance_invoice_items").select(itemSelect).eq("invoice_id", id).order("sort_order").order("id"),
       supabase.from("finance_billing_plans").select("id,title,status,billing_method").eq("id", invoiceRow.billing_plan_id).maybeSingle(),
       supabase.from("finance_billing_installments").select("id,installment_no,title,trigger_type,trigger_description,due_date,status,readiness_event_date,readiness_confirmed_at,readiness_reference,amount_before_tax,vat_amount,total_amount").eq("id", invoiceRow.primary_billing_installment_id).maybeSingle(),
       supabase.from("finance_fee_agreements").select("id,agreement_no,title,status,engagement_basis,source_reference").eq("id", invoiceRow.fee_agreement_id).maybeSingle(),
       supabase.from("finance_invoice_settlement_summary").select("*").eq("invoice_id", id).maybeSingle(),
-      supabase.from("finance_payment_invoice_allocations").select("payment_id").eq("invoice_id", id),
+      supabase.from("finance_payment_invoice_allocations").select("payment_id,cash_allocated,wht_credit_allocated,settlement_total").eq("invoice_id", id),
+      supabase.from("finance_payment_effective_invoice_allocations").select("payment_id,invoice_id,effective_cash_allocated,effective_wht_credit_allocated,effective_settlement_total").eq("invoice_id", id),
+      supabase.from("finance_payment_allocation_reallocations").select("id,payment_id,source_invoice_id,target_invoice_id,cash_moved,wht_moved,settlement_moved,reason,created_at").or(`source_invoice_id.eq.${id},target_invoice_id.eq.${id}`).order("created_at", { ascending: false }),
       supabase.from("finance_bank_accounts").select("id,short_name,bank_name,account_name,account_number,is_active").order("short_name"),
     ]);
-    if (itemsResult.error || planResult.error || installmentResult.error || agreementResult.error || settlementResult.error || paymentAllocationsResult.error || bankAccountsResult.error) {
-      console.error("Failed to load Invoice source context", { items: itemsResult.error, plan: planResult.error, installment: installmentResult.error, agreement: agreementResult.error, settlement: settlementResult.error, payments: paymentAllocationsResult.error, bankAccounts: bankAccountsResult.error });
+    if (itemsResult.error || planResult.error || installmentResult.error || agreementResult.error || settlementResult.error || paymentAllocationsResult.error || effectiveAllocationsResult.error || paymentReallocationsResult.error || bankAccountsResult.error) {
+      console.error("Failed to load Invoice source context", { items: itemsResult.error, plan: planResult.error, installment: installmentResult.error, agreement: agreementResult.error, settlement: settlementResult.error, payments: paymentAllocationsResult.error, effectivePayments: effectiveAllocationsResult.error, paymentHistory: paymentReallocationsResult.error, bankAccounts: bankAccountsResult.error });
       setError("โหลดข้อมูลต้นทางของใบแจ้งหนี้บางส่วนไม่สำเร็จ กรุณารีเฟรช");
     }
-    const paymentIds = [...new Set((paymentAllocationsResult.data || []).map((row) => String(row.payment_id)))];
+    const rawAllocationRows = (paymentAllocationsResult.data || []) as InvoicePaymentAllocation[];
+    const effectiveAllocationRows = (effectiveAllocationsResult.data || []) as EffectivePaymentAllocation[];
+    const paymentReallocationRows = (paymentReallocationsResult.data || []) as PaymentAllocationReallocation[];
+    const paymentIds = [...new Set([
+      ...rawAllocationRows.map((row) => row.payment_id),
+      ...effectiveAllocationRows.map((row) => row.payment_id),
+      ...paymentReallocationRows.map((row) => row.payment_id),
+    ])];
     const paymentsResult = paymentIds.length
       ? await supabase.from("finance_payments").select("id,draft_origin_invoice_id,internal_reference,client_id,currency,status,cash_amount,wht_amount,settlement_amount,received_on,payment_method,receiving_bank_account_id,receiving_account_reference,external_transaction_reference,payer_name,note,created_at,updated_at,confirmed_at,cancelled_at,cancel_reason,reversed_at,reverse_reason").in("id", paymentIds).order("created_at", { ascending: false })
       : { data: [], error: null };
@@ -116,6 +129,9 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
     setAgreement((agreementResult.data || null) as FeeAgreement | null);
     setSettlement((settlementResult.data || null) as InvoiceSettlement | null);
     setLinkedPayments((paymentsResult.data || []) as FinancePayment[]);
+    setRawPaymentAllocations(rawAllocationRows);
+    setEffectivePaymentAllocations(effectiveAllocationRows);
+    setPaymentReallocations(paymentReallocationRows);
     setBankAccounts((bankAccountsResult.data || []) as FinanceBankAccount[]);
     setForm(nextForm);
     setBaseline(invoiceDraftFingerprint(nextForm));
@@ -134,8 +150,11 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
   const isDraft = invoice?.document_status === "draft";
   const isIssued = invoice?.document_status === "issued";
   const isVoided = invoice?.document_status === "voided";
-  const activePaymentDraft = linkedPayments.find((payment) => payment.status === "draft") || null;
-  const effectiveConfirmedPayment = linkedPayments.find((payment) => payment.status === "confirmed") || null;
+  const currentPaymentIds = useMemo(() => new Set(effectivePaymentAllocations.map((row) => row.payment_id)), [effectivePaymentAllocations]);
+  const currentLinkedPayments = useMemo(() => linkedPayments.filter((payment) => currentPaymentIds.has(payment.id) && (payment.status === "draft" || payment.status === "confirmed")), [currentPaymentIds, linkedPayments]);
+  const historicalLinkedPayments = useMemo(() => linkedPayments.filter((payment) => !currentPaymentIds.has(payment.id)), [currentPaymentIds, linkedPayments]);
+  const activePaymentDraft = currentLinkedPayments.find((payment) => payment.status === "draft") || null;
+  const effectiveConfirmedPayment = currentLinkedPayments.find((payment) => payment.status === "confirmed") || null;
   const hasEffectiveSettlement = Number(settlement?.economically_settled_amount || 0) > 0;
   const voidBlockedByPayment = Boolean(activePaymentDraft || effectiveConfirmedPayment || hasEffectiveSettlement);
   const eligibleBankAccounts = useMemo(() => bankAccounts.filter(eligibleInvoicePaymentBankAccount), [bankAccounts]);
@@ -422,7 +441,7 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
         <Field label="ยอดเดิม" value={money(invoice.total_amount, invoice.currency)} />
       </div>
       <div style={voidReasonBlock}><small style={fieldLabel}>เหตุผลภายในที่ยกเลิก</small><p>{displayText(invoice.void_reason)}</p></div>
-      {linkedPayments.length ? <div style={paymentHistory}><small style={fieldLabel}>ประวัติรายการรับชำระที่เกี่ยวข้อง</small>{linkedPayments.map((payment) => <Link key={payment.id} style={paymentHistoryLink} href={`/finance/payments/${payment.id}`}><span>{payment.status === "draft" ? "ร่างการรับชำระ" : payment.status === "confirmed" ? "ยืนยันรับชำระแล้ว" : payment.status === "cancelled" ? "ยกเลิกร่างแล้ว" : "กลับรายการแล้ว"}</span><strong>{money(payment.settlement_amount, payment.currency)}</strong></Link>)}</div> : null}
+      {linkedPayments.length ? <PaymentLinks title="ประวัติรายการรับชำระที่เกี่ยวข้อง" payments={linkedPayments} effectiveAllocations={effectivePaymentAllocations} rawAllocations={rawPaymentAllocations} reallocations={paymentReallocations} invoiceId={invoice.id} historical /> : null}
       <div style={replacementNextStep}><strong>สร้างใบแจ้งหนี้ใหม่จากงวดเดิม</strong><span>หากต้องการเรียกเก็บใหม่ ให้กลับไปยังแผนเรียกเก็บเงินและสร้างร่างใบแจ้งหนี้ใหม่ ระบบจะกำหนดเลขที่ VP-IV ใหม่เมื่อออกเอกสาร</span><Link style={replacementButton} href={`/finance/billing-plans/${invoice.billing_plan_id}`}>กลับไปสร้างใบแจ้งหนี้ใหม่</Link></div>
     </section> : null}
 
@@ -436,8 +455,9 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
         <Metric label="ยอดคงค้าง" value={money(settlement?.outstanding_amount, invoice.currency)} prominent />
         <div style={metric}><small>สถานะการชำระ</small><StatusBadge status={settlement?.payment_status || "unpaid"} label={settlementStatusLabels[settlement?.payment_status || "unpaid"] || "ยังไม่ชำระ"} /></div>
       </div>
-      {linkedPayments.length ? <div style={paymentHistory}><small style={fieldLabel}>รายการรับชำระที่เกี่ยวข้อง</small>{linkedPayments.map((payment) => <Link key={payment.id} style={paymentHistoryLink} href={`/finance/payments/${payment.id}`}><span>{payment.status === "draft" ? "ร่างการรับชำระ" : payment.status === "confirmed" ? "ยืนยันรับชำระแล้ว" : payment.status === "cancelled" ? "ยกเลิกร่างแล้ว" : "กลับรายการแล้ว"}</span><strong>{money(payment.settlement_amount, payment.currency)}</strong></Link>)}</div> : null}
-      {Number(settlement?.outstanding_amount || 0) > 0 && canManagePayments ? <button type="button" style={paymentButton} disabled={creatingPayment} onClick={() => void createPaymentDraft()}>{creatingPayment ? "กำลังเปิดร่างการรับชำระ..." : linkedPayments.some((payment) => payment.status === "draft") ? "เปิดร่างการรับชำระ" : "บันทึกการรับชำระ"}</button> : null}
+      {currentLinkedPayments.length ? <PaymentLinks title="การจัดสรรยอดรับชำระปัจจุบัน" payments={currentLinkedPayments} effectiveAllocations={effectivePaymentAllocations} rawAllocations={rawPaymentAllocations} reallocations={paymentReallocations} invoiceId={invoice.id} /> : null}
+      {historicalLinkedPayments.length ? <PaymentLinks title="ประวัติการจัดสรรที่ไม่ได้ตัดชำระใบแจ้งหนี้นี้แล้ว" payments={historicalLinkedPayments} effectiveAllocations={effectivePaymentAllocations} rawAllocations={rawPaymentAllocations} reallocations={paymentReallocations} invoiceId={invoice.id} historical /> : null}
+      {Number(settlement?.outstanding_amount || 0) > 0 && canManagePayments ? <button type="button" style={paymentButton} disabled={creatingPayment} onClick={() => void createPaymentDraft()}>{creatingPayment ? "กำลังเปิดร่างการรับชำระ..." : currentLinkedPayments.some((payment) => payment.status === "draft") ? "เปิดร่างการรับชำระ" : "บันทึกการรับชำระ"}</button> : null}
       {Number(settlement?.outstanding_amount || 0) > 0 && !canManagePayments ? <p style={nextStepNote}>คุณดูสถานะการชำระได้ แต่ไม่มีสิทธิ์สร้างหรือแก้ไขรายการรับชำระ</p> : null}
       {Number(settlement?.outstanding_amount || 0) <= 0 ? <p style={settledNote}>ใบแจ้งหนี้นี้ชำระครบแล้ว จึงไม่สามารถสร้างรายการรับชำระเพิ่มได้</p> : null}
     </section> : null}
@@ -510,6 +530,16 @@ function StatusBadge({ status, label }: { status: string; label: string }) { ret
 function SourceNode({ label, current = false, children }: { label: string; current?: boolean; children: ReactNode }) { return <div style={{ ...sourceNode, ...(current ? currentNode : {}) }}><small style={fieldLabel}>{label}</small><div style={sourceNodeContent}>{children}</div></div>; }
 function Arrow() { return <span className="invoice-source-arrow" style={sourceArrow} aria-hidden="true">→</span>; }
 function Metric({ label, value, prominent = false }: { label: string; value: string; prominent?: boolean }) { return <div style={{ ...metric, ...(prominent ? prominentMetric : {}) }}><small>{label}</small><strong style={metricValue}>{value}</strong></div>; }
+function PaymentLinks({ title, payments, effectiveAllocations, rawAllocations, reallocations, invoiceId, historical = false }: { title: string; payments: FinancePayment[]; effectiveAllocations: EffectivePaymentAllocation[]; rawAllocations: InvoicePaymentAllocation[]; reallocations: PaymentAllocationReallocation[]; invoiceId: string; historical?: boolean }) {
+  return <div style={{ ...paymentHistory, ...(historical ? historicalPaymentHistory : {}) }}><small style={fieldLabel}>{title}</small>{payments.map((payment) => {
+    const effective = effectiveAllocations.find((row) => row.payment_id === payment.id);
+    const original = rawAllocations.find((row) => row.payment_id === payment.id);
+    const latestMovement = reallocations.find((row) => row.payment_id === payment.id && (row.source_invoice_id === invoiceId || row.target_invoice_id === invoiceId));
+    const displayedAmount = effective?.effective_settlement_total ?? original?.settlement_total ?? latestMovement?.settlement_moved ?? 0;
+    const amountLabel = effective ? "ยอดที่ตัดชำระใบแจ้งหนี้นี้ในปัจจุบัน" : original ? "ยอดจัดสรรตั้งต้น" : "ยอดที่ย้ายล่าสุด";
+    return <Link key={payment.id} style={{ ...paymentHistoryLink, ...(historical ? historicalPaymentLink : {}) }} href={`/finance/payments/${payment.id}`}><span style={paymentHistoryIdentity}><strong>{paymentStatusLabels[payment.status] || payment.status}</strong><small>{amountLabel}</small></span><strong>{money(displayedAmount, payment.currency)}</strong></Link>;
+  })}</div>;
+}
 function NavigationLink({ href, icon, variant, children }: { href: string; icon: "back" | "document"; variant: "back" | "source"; children: ReactNode }) { return <Link style={{ ...navigationLink, ...(variant === "back" ? navigationBack : navigationSource) }} href={href}><NavigationIcon name={icon} />{children}</Link>; }
 function NavigationIcon({ name }: { name: "back" | "document" }) { const common = { width: 17, height: 17, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true }; return name === "back" ? <svg {...common}><path d="M19 12H5M12 19l-7-7 7-7" /></svg> : <svg {...common}><path d="M6 3h9l3 3v15H6zM14 3v4h4M9 12h6M9 16h4" /></svg>; }
 
@@ -596,6 +626,9 @@ const nextStepNote: CSSProperties = { margin: "8px 0 0", color: "#64748b", fontS
 const settlementGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10, marginTop: 16 };
 const paymentHistory: CSSProperties = { display: "grid", gap: 7, marginTop: 16, paddingTop: 14, borderTop: "1px solid #dbeafe" };
 const paymentHistoryLink: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "9px 11px", border: "1px solid #dbeafe", borderRadius: 6, background: "#fff", color: "#1d4ed8", textDecoration: "none" };
+const historicalPaymentHistory: CSSProperties = { borderTopColor: "#e2e8f0" };
+const historicalPaymentLink: CSSProperties = { borderColor: "#e2e8f0", background: "#f8fafc", color: "#475569" };
+const paymentHistoryIdentity: CSSProperties = { display: "grid", gap: 2, minWidth: 0 };
 const paymentButton: CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 44, marginTop: 16, padding: "10px 18px", border: "1px solid #166534", borderRadius: 6, background: "#166534", color: "#fff", font: "inherit", fontWeight: 800, cursor: "pointer" };
 const settledNote: CSSProperties = { margin: "14px 0 0", color: "#166534", fontWeight: 700 };
 const voidedHistorySection: CSSProperties = { marginBottom: 18, padding: 22, border: "1px solid #fecaca", borderRadius: 8, background: "#fffafa" };

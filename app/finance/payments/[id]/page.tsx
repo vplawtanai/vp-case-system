@@ -18,10 +18,12 @@ import {
   paymentMethodLabels,
   paymentStatusLabels,
   safePaymentError,
-  settlementStatusLabels,
+  safePaymentReallocationError,
+  type EffectivePaymentAllocation,
   type FinancePayment,
   type InvoiceSettlement,
   type PaymentAllocation,
+  type PaymentAllocationReallocation,
   type PaymentForm,
 } from "../shared";
 
@@ -29,10 +31,12 @@ type PaymentAccess = {
   canManage: boolean;
   canConfirm: boolean;
   canReverse: boolean;
+  canReallocate: boolean;
 };
-type InvoiceContext = { id: string; invoice_no: string | null; customer_name: string | null; currency: string; amount_before_vat: number | string; vat_amount: number | string; total_amount: number | string; document_status: string };
+type InvoiceContext = { id: string; invoice_no: string | null; customer_name: string | null; client_id: string; case_id: number | null; advisory_matter_id: string | null; matter_snapshot_json: Record<string, unknown> | null; currency: string; amount_before_vat: number | string; vat_amount: number | string; total_amount: number | string; document_status: string };
 type BankAccount = { id: string; short_name: string | null; bank_name: string | null; account_name: string | null; account_number: string | null; is_active: boolean };
 type FormErrors = Partial<Record<"receivedOn" | "paymentMethod" | "bankAccount" | "settlementTarget" | "cashAmount" | "whtAmount" | "whtRate" | "allocation" | "confirmation", string>>;
+type ReallocationErrors = Partial<Record<"source" | "target" | "cash" | "wht" | "reason" | "acknowledgement", string>>;
 type WhtMode = "none" | "calculated" | "manual";
 type WhtRateOption = "" | "1" | "2" | "3" | "5" | "10" | "custom";
 
@@ -40,17 +44,23 @@ const whtRatePresets = [1, 2, 3, 5, 10] as const;
 
 const paymentSelect = "id,draft_origin_invoice_id,internal_reference,client_id,currency,status,cash_amount,wht_amount,settlement_amount,received_on,payment_method,receiving_bank_account_id,receiving_account_reference,external_transaction_reference,payer_name,note,created_at,updated_at,confirmed_at,cancelled_at,cancel_reason,reversed_at,reverse_reason";
 const allocationSelect = "id,payment_id,invoice_id,cash_allocated,wht_credit_allocated,settlement_total";
+const invoiceContextSelect = "id,invoice_no,customer_name,client_id,case_id,advisory_matter_id,matter_snapshot_json,currency,amount_before_vat,vat_amount,total_amount,document_status";
+const effectiveAllocationSelect = "payment_id,invoice_id,effective_cash_allocated,effective_wht_credit_allocated,effective_settlement_total";
+const reallocationSelect = "id,payment_id,source_invoice_id,target_invoice_id,cash_moved,wht_moved,settlement_moved,reason,created_at";
 
 export default function PaymentDetailPage() {
-  return <QuotationGuard>{(access) => <PaymentWorkspace access={{ canManage: access.permissions.canManageFinancePayments, canConfirm: access.permissions.canConfirmFinancePayments, canReverse: access.permissions.canReverseFinancePayments }} />}</QuotationGuard>;
+  return <QuotationGuard canAccess={(access) => access.permissions.canManageFinancePayments || access.permissions.canConfirmFinancePayments || access.permissions.canReverseFinancePayments || access.permissions.canReallocateFinancePayments}>{(access) => <PaymentWorkspace access={{ canManage: access.permissions.canManageFinancePayments, canConfirm: access.permissions.canConfirmFinancePayments, canReverse: access.permissions.canReverseFinancePayments, canReallocate: access.permissions.canReallocateFinancePayments }} />}</QuotationGuard>;
 }
 
 function PaymentWorkspace({ access }: { access: PaymentAccess }) {
   const { id } = useParams<{ id: string }>();
   const [payment, setPayment] = useState<FinancePayment | null>(null);
-  const [allocation, setAllocation] = useState<PaymentAllocation | null>(null);
-  const [invoice, setInvoice] = useState<InvoiceContext | null>(null);
-  const [settlement, setSettlement] = useState<InvoiceSettlement | null>(null);
+  const [allocations, setAllocations] = useState<PaymentAllocation[]>([]);
+  const [effectiveAllocations, setEffectiveAllocations] = useState<EffectivePaymentAllocation[]>([]);
+  const [reallocations, setReallocations] = useState<PaymentAllocationReallocation[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceContext[]>([]);
+  const [settlements, setSettlements] = useState<InvoiceSettlement[]>([]);
+  const [candidateInvoices, setCandidateInvoices] = useState<InvoiceContext[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [form, setForm] = useState<PaymentForm>({ receivedOn: "", paymentMethod: "", receivingBankAccountId: "", receivingAccountReference: "", externalTransactionReference: "", payerName: "", note: "", cashAmount: "0.00", whtAmount: "0.00" });
   const [settlementTarget, setSettlementTarget] = useState("0.00");
@@ -67,14 +77,29 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
   const [exceptionMode, setExceptionMode] = useState<"cancel" | "reverse" | null>(null);
   const [exceptionReason, setExceptionReason] = useState("");
   const [processingException, setProcessingException] = useState(false);
+  const [reallocationOpen, setReallocationOpen] = useState(false);
+  const [reallocationSourceId, setReallocationSourceId] = useState("");
+  const [reallocationTargetId, setReallocationTargetId] = useState("");
+  const [reallocationCash, setReallocationCash] = useState("0.00");
+  const [reallocationWht, setReallocationWht] = useState("0.00");
+  const [reallocationReason, setReallocationReason] = useState("");
+  const [reallocationAcknowledged, setReallocationAcknowledged] = useState(false);
+  const [reallocationErrors, setReallocationErrors] = useState<ReallocationErrors>({});
+  const [reallocating, setReallocating] = useState(false);
+  const [reallocationRequestId, setReallocationRequestId] = useState("");
+  const [reallocationAttempted, setReallocationAttempted] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const actionLock = useRef(false);
   const firstInputRef = useRef<HTMLInputElement | null>(null);
   const reviewRef = useRef<HTMLElement | null>(null);
+  const reallocationRef = useRef<HTMLElement | null>(null);
+  const reallocationFirstInvalidRef = useRef<HTMLSelectElement | null>(null);
+  const reallocationLock = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError("");
     const paymentResult = await supabase.from("finance_payments").select(paymentSelect).eq("id", id).maybeSingle();
     if (paymentResult.error || !paymentResult.data) {
       console.error("Failed to load Payment", paymentResult.error);
@@ -83,30 +108,52 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
       return;
     }
     const paymentRow = paymentResult.data as FinancePayment;
-    const allocationsResult = await supabase.from("finance_payment_invoice_allocations").select(allocationSelect).eq("payment_id", id).order("created_at");
+    const [allocationsResult, effectiveResult, reallocationResult, candidateResult, bankResult] = await Promise.all([
+      supabase.from("finance_payment_invoice_allocations").select(allocationSelect).eq("payment_id", id).order("created_at"),
+      supabase.from("finance_payment_effective_invoice_allocations").select(effectiveAllocationSelect).eq("payment_id", id),
+      supabase.from("finance_payment_allocation_reallocations").select(reallocationSelect).eq("payment_id", id).order("created_at", { ascending: false }),
+      supabase.from("finance_invoices").select(invoiceContextSelect).eq("client_id", paymentRow.client_id).eq("currency", paymentRow.currency).eq("document_status", "issued").order("issue_date", { ascending: false }),
+      supabase.from("finance_bank_accounts").select("id,short_name,bank_name,account_name,account_number,is_active").order("short_name"),
+    ]);
     if (allocationsResult.error || !allocationsResult.data?.length) {
       console.error("Failed to load Payment allocation", allocationsResult.error);
       setError("ไม่สามารถโหลดการจัดสรรยอดรับชำระได้");
       setLoading(false);
       return;
     }
-    const allocationRow = allocationsResult.data[0] as PaymentAllocation;
-    const [invoiceResult, settlementResult, bankResult] = await Promise.all([
-      supabase.from("finance_invoices").select("id,invoice_no,customer_name,currency,amount_before_vat,vat_amount,total_amount,document_status").eq("id", allocationRow.invoice_id).maybeSingle(),
-      supabase.from("finance_invoice_settlement_summary").select("*").eq("invoice_id", allocationRow.invoice_id).maybeSingle(),
-      supabase.from("finance_bank_accounts").select("id,short_name,bank_name,account_name,account_number,is_active").order("short_name"),
+    if (effectiveResult.error || reallocationResult.error || candidateResult.error || bankResult.error) {
+      console.error("Failed to load Payment allocation context", { effective: effectiveResult.error, history: reallocationResult.error, candidates: candidateResult.error, bank: bankResult.error });
+      setError("โหลดข้อมูลการจัดสรรยอดรับชำระบางส่วนไม่สำเร็จ กรุณารีเฟรช");
+    }
+    const rawRows = (allocationsResult.data || []) as PaymentAllocation[];
+    const effectiveRows = (effectiveResult.data || []) as EffectivePaymentAllocation[];
+    const historyRows = (reallocationResult.data || []) as PaymentAllocationReallocation[];
+    const candidateRows = (candidateResult.data || []) as InvoiceContext[];
+    const invoiceIds = [...new Set([
+      ...rawRows.map((row) => row.invoice_id),
+      ...effectiveRows.map((row) => row.invoice_id),
+      ...historyRows.flatMap((row) => [row.source_invoice_id, row.target_invoice_id]),
+      ...candidateRows.map((row) => row.id),
+    ])];
+    const [invoiceResult, settlementResult] = await Promise.all([
+      invoiceIds.length ? supabase.from("finance_invoices").select(invoiceContextSelect).in("id", invoiceIds) : Promise.resolve({ data: [], error: null }),
+      invoiceIds.length ? supabase.from("finance_invoice_settlement_summary").select("*").in("invoice_id", invoiceIds) : Promise.resolve({ data: [], error: null }),
     ]);
-    if (invoiceResult.error || settlementResult.error || bankResult.error) {
-      console.error("Failed to load Payment context", { invoice: invoiceResult.error, settlement: settlementResult.error, bank: bankResult.error });
+    if (invoiceResult.error || settlementResult.error) {
+      console.error("Failed to load Payment Invoice context", { invoice: invoiceResult.error, settlement: settlementResult.error });
       setError("โหลดข้อมูลใบแจ้งหนี้หรือบัญชีรับเงินไม่สำเร็จ");
     }
     const nextForm = paymentForm(paymentRow);
-    const invoiceRow = (invoiceResult.data || null) as InvoiceContext | null;
+    const invoiceRows = (invoiceResult.data || []) as InvoiceContext[];
+    const invoiceRow = invoiceRows.find((row) => row.id === rawRows[0].invoice_id) || null;
     const assistance = paymentWhtAssistance(nextForm, invoiceRow);
     setPayment(paymentRow);
-    setAllocation(allocationRow);
-    setInvoice(invoiceRow);
-    setSettlement((settlementResult.data || null) as InvoiceSettlement | null);
+    setAllocations(rawRows);
+    setEffectiveAllocations(effectiveRows);
+    setReallocations(historyRows);
+    setInvoices(invoiceRows);
+    setSettlements((settlementResult.data || []) as InvoiceSettlement[]);
+    setCandidateInvoices(candidateRows);
     setBankAccounts((bankResult.data || []) as BankAccount[]);
     setForm(nextForm);
     setSettlementTarget(assistance.settlementTarget);
@@ -126,6 +173,10 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
   const fingerprint = useMemo(() => paymentFingerprint(form), [form]);
   const dirty = Boolean(baseline) && fingerprint !== baseline;
   const isDraft = payment?.status === "draft";
+  const allocation = allocations[0] || null;
+  const invoice = allocation ? invoices.find((row) => row.id === allocation.invoice_id) || null : null;
+  const settlement = invoice ? settlements.find((row) => row.invoice_id === invoice.id) || null : null;
+  const draftAllocationEditingLimited = isDraft && allocations.length > 1;
   const cash = normalizedAmount(form.cashAmount);
   const wht = normalizedAmount(form.whtAmount);
   const paymentSettlement = normalizedAmount(cash + wht);
@@ -145,6 +196,15 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
   const currentWhtBase = derivePaymentWhtBase(targetSettlement, invoiceTotals);
   const savedWhtBase = derivePaymentWhtBase(payment?.settlement_amount || 0, invoiceTotals);
   const savedWhtPreset = inferPaymentWhtPreset(payment?.settlement_amount || 0, payment?.wht_amount || 0, invoiceTotals, whtRatePresets);
+  const effectiveAllocationTotal = effectiveAllocations.reduce((sum, row) => normalizedAmount(sum + normalizedAmount(row.effective_settlement_total)), 0);
+  const selectedSourceAllocation = effectiveAllocations.find((row) => row.invoice_id === reallocationSourceId) || null;
+  const selectedTargetAllocation = effectiveAllocations.find((row) => row.invoice_id === reallocationTargetId) || null;
+  const selectedSourceInvoice = invoices.find((row) => row.id === reallocationSourceId) || null;
+  const selectedTargetInvoice = invoices.find((row) => row.id === reallocationTargetId) || null;
+  const reallocationCashAmount = normalizedAmount(reallocationCash);
+  const reallocationWhtAmount = normalizedAmount(reallocationWht);
+  const reallocationTotal = normalizedAmount(reallocationCashAmount + reallocationWhtAmount);
+  const crossMatterReallocation = Boolean(selectedSourceInvoice && selectedTargetInvoice && !sameInvoiceMatter(selectedSourceInvoice, selectedTargetInvoice));
 
   const updateForm = <Key extends keyof PaymentForm>(key: Key, value: PaymentForm[Key]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -206,7 +266,7 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
   const validate = (forConfirmation: boolean) => {
     const next: FormErrors = {};
     if (!hasValidCurrencyPrecision(settlementTarget) || targetSettlement <= 0) next.settlementTarget = "กรุณาระบุยอดที่ต้องการตัดชำระมากกว่า 0 และมีทศนิยมไม่เกิน 2 ตำแหน่ง";
-    if (targetSettlement > outstandingBefore) next.settlementTarget = "ยอดที่ต้องการตัดชำระเกินยอดคงค้างของใบแจ้งหนี้";
+    if (!draftAllocationEditingLimited && targetSettlement > outstandingBefore) next.settlementTarget = "ยอดที่ต้องการตัดชำระเกินยอดคงค้างของใบแจ้งหนี้";
     if (whtMode === "calculated" && !currentWhtBase.reliable) next.whtRate = "ไม่สามารถคำนวณฐาน WHT จากยอด Invoice ได้อย่างปลอดภัย กรุณาปรับยอด WHT เอง";
     if (whtMode === "calculated" && (!Number.isFinite(selectedWhtRate) || selectedWhtRate <= 0 || selectedWhtRate > 100)) next.whtRate = "กรุณาเลือกหรือระบุอัตราหัก ณ ที่จ่ายมากกว่า 0 และไม่เกิน 100%";
     if (whtMode === "manual" && (!hasValidCurrencyPrecision(form.whtAmount) || wht <= 0)) next.whtAmount = "กรุณาระบุเครดิตภาษีหัก ณ ที่จ่ายมากกว่า 0 และมีทศนิยมไม่เกิน 2 ตำแหน่ง";
@@ -215,7 +275,12 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
     if (!hasValidCurrencyPrecision(form.whtAmount) || wht < 0) next.whtAmount = "กรุณาระบุเครดิตภาษีหัก ณ ที่จ่ายตั้งแต่ 0 ขึ้นไป และมีทศนิยมไม่เกิน 2 ตำแหน่ง";
     if (Math.abs(paymentSettlement - targetSettlement) > 0.009) next.allocation = "เงินสดที่ได้รับ + เครดิตภาษีหัก ณ ที่จ่าย ต้องเท่ากับยอดที่ต้องการตัดชำระ";
     if (paymentSettlement <= 0) next.allocation = "ยอดรับชำระรวมต้องมากกว่า 0";
-    if (paymentSettlement > outstandingBefore) next.allocation = "ยอดจัดสรรเกินยอดคงค้างก่อนการรับชำระครั้งนี้";
+    if (!draftAllocationEditingLimited && paymentSettlement > outstandingBefore) next.allocation = "ยอดจัดสรรเกินยอดคงค้างก่อนการรับชำระครั้งนี้";
+    if (draftAllocationEditingLimited) {
+      const rawCash = normalizedAmount(allocations.reduce((sum, row) => sum + normalizedAmount(row.cash_allocated), 0));
+      const rawWht = normalizedAmount(allocations.reduce((sum, row) => sum + normalizedAmount(row.wht_credit_allocated), 0));
+      if (rawCash !== cash || rawWht !== wht) next.allocation = "ยอดรวมของรายการจัดสรรหลายใบแจ้งหนี้ไม่ตรงกับยอดรับชำระ กรุณาให้ผู้ดูแลตรวจสอบ";
+    }
     if (forConfirmation && !form.receivedOn) next.receivedOn = "กรุณาระบุวันที่รับชำระจริง";
     if (forConfirmation && form.receivedOn > bangkokToday()) next.receivedOn = "วันที่รับชำระจริงต้องไม่เป็นวันในอนาคต";
     if (forConfirmation && !form.paymentMethod) next.paymentMethod = "กรุณาเลือกวิธีรับชำระ";
@@ -225,7 +290,9 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
     return Object.keys(next).length === 0;
   };
 
-  const allocationPayload = () => [{ invoice_id: allocation?.invoice_id, cash_allocated: cash, wht_credit_allocated: wht }];
+  const allocationPayload = () => draftAllocationEditingLimited
+    ? allocations.map((row) => ({ invoice_id: row.invoice_id, cash_allocated: normalizedAmount(row.cash_allocated), wht_credit_allocated: normalizedAmount(row.wht_credit_allocated) }))
+    : [{ invoice_id: allocation?.invoice_id, cash_allocated: cash, wht_credit_allocated: wht }];
 
   const saveDraft = async () => {
     if (!payment || !allocation || !isDraft || !access.canManage || !dirty || saving || actionLock.current || !validate(false)) return;
@@ -302,6 +369,87 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
     }
   };
 
+  const openReallocation = () => {
+    const firstSource = effectiveAllocations[0]?.invoice_id || "";
+    setReallocationSourceId(firstSource);
+    setReallocationTargetId("");
+    setReallocationCash("0.00");
+    setReallocationWht("0.00");
+    setReallocationReason("");
+    setReallocationAcknowledged(false);
+    setReallocationErrors({});
+    setReallocationRequestId(crypto.randomUUID());
+    setReallocationAttempted(false);
+    setReallocationOpen(true);
+    setError(""); setMessage("");
+    requestAnimationFrame(() => reallocationRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
+
+  const closeReallocation = () => {
+    if (reallocating) return;
+    setReallocationOpen(false);
+    setReallocationErrors({});
+    setReallocationRequestId("");
+    setReallocationAttempted(false);
+  };
+
+  const beginChangedReallocationIntent = () => {
+    if (reallocationAttempted) {
+      setReallocationRequestId(crypto.randomUUID());
+      setReallocationAttempted(false);
+    }
+  };
+
+  const validateReallocation = () => {
+    const next: ReallocationErrors = {};
+    if (!selectedSourceAllocation) next.source = "กรุณาเลือกใบแจ้งหนี้ต้นทาง";
+    if (!selectedTargetInvoice) next.target = "กรุณาเลือกใบแจ้งหนี้ปลายทาง";
+    if (reallocationSourceId && reallocationSourceId === reallocationTargetId) next.target = "ใบแจ้งหนี้ต้นทางและปลายทางต้องเป็นคนละฉบับ";
+    if (!hasValidCurrencyPrecision(reallocationCash) || reallocationCashAmount < 0) next.cash = "กรุณาระบุเงินสดตั้งแต่ 0 ขึ้นไป และมีทศนิยมไม่เกิน 2 ตำแหน่ง";
+    if (!hasValidCurrencyPrecision(reallocationWht) || reallocationWhtAmount < 0) next.wht = "กรุณาระบุเครดิต WHT ตั้งแต่ 0 ขึ้นไป และมีทศนิยมไม่เกิน 2 ตำแหน่ง";
+    if (selectedSourceAllocation && reallocationCashAmount > normalizedAmount(selectedSourceAllocation.effective_cash_allocated)) next.cash = "เงินสดที่ย้ายเกินยอดปัจจุบันของใบแจ้งหนี้ต้นทาง";
+    if (selectedSourceAllocation && reallocationWhtAmount > normalizedAmount(selectedSourceAllocation.effective_wht_credit_allocated)) next.wht = "เครดิต WHT ที่ย้ายเกินยอดปัจจุบันของใบแจ้งหนี้ต้นทาง";
+    if (reallocationTotal <= 0) next.cash = "ยอดเงินสดและเครดิต WHT ที่ย้ายรวมกันต้องมากกว่า 0";
+    const targetSettlementSummary = settlements.find((row) => row.invoice_id === reallocationTargetId);
+    if (targetSettlementSummary && reallocationTotal > normalizedAmount(targetSettlementSummary.outstanding_amount)) next.target = "ยอดที่ย้ายเกินยอดคงค้างปัจจุบันของใบแจ้งหนี้ปลายทาง";
+    if (!reallocationReason.trim()) next.reason = "กรุณาระบุเหตุผลในการย้ายการจัดสรรยอดรับชำระ";
+    if (reallocationReason.trim().length > 2000) next.reason = "เหตุผลต้องไม่เกิน 2,000 ตัวอักษร";
+    if (!reallocationAcknowledged) next.acknowledgement = "กรุณายืนยันว่ารายการรับเงินจริงถูกต้องและต้องการเปลี่ยนเฉพาะใบแจ้งหนี้";
+    setReallocationErrors(next);
+    if (Object.keys(next).length) requestAnimationFrame(() => { reallocationFirstInvalidRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }); reallocationFirstInvalidRef.current?.focus(); });
+    return Object.keys(next).length === 0;
+  };
+
+  const submitReallocation = async () => {
+    if (!payment || payment.status !== "confirmed" || !access.canReallocate || reallocating || reallocationLock.current || !validateReallocation()) return;
+    reallocationLock.current = true; setReallocating(true); setReallocationAttempted(true); setError(""); setMessage("");
+    const requestId = reallocationRequestId || crypto.randomUUID();
+    if (!reallocationRequestId) setReallocationRequestId(requestId);
+    try {
+      const result = await supabase.rpc("reallocate_finance_payment_allocation", {
+        p_payment_id: payment.id,
+        p_source_invoice_id: reallocationSourceId,
+        p_target_invoice_id: reallocationTargetId,
+        p_cash_amount: reallocationCashAmount,
+        p_wht_amount: reallocationWhtAmount,
+        p_reason: reallocationReason.trim(),
+        p_acknowledged: true,
+        p_request_id: requestId,
+      });
+      if (result.error) throw result.error;
+      setReallocationOpen(false);
+      setReallocationRequestId("");
+      setReallocationAttempted(false);
+      await load();
+      setMessage("ย้ายการจัดสรรยอดรับชำระแล้ว รายการเงินจริงและยอดรับชำระรวมไม่เปลี่ยนแปลง");
+    } catch (reallocationError) {
+      console.error("Failed to reallocate Payment allocation", reallocationError);
+      setError(safePaymentReallocationError(reallocationError));
+    } finally {
+      reallocationLock.current = false; setReallocating(false);
+    }
+  };
+
   if (loading) return <main style={page}>กำลังโหลดข้อมูลการรับชำระ...</main>;
   if (!payment || !allocation || !invoice) return <main style={page}>{error || "ไม่พบข้อมูลการรับชำระ"}</main>;
 
@@ -321,8 +469,8 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
     </section>
 
     <section style={surface}>
-      <SectionHeading title="ใบแจ้งหนี้ต้นทาง" description="ตรวจสอบบริบทและยอดคงค้างก่อนบันทึกการรับชำระ" />
-      <div style={contextGrid}><Field label="ใบแจ้งหนี้" value={<Link href={`/finance/invoices/${invoice.id}`}>{displayText(invoice.invoice_no)}</Link>} /><Field label="ลูกค้า" value={displayText(invoice.customer_name)} /><Field label="ยอดใบแจ้งหนี้" value={money(settlement?.invoice_gross_amount ?? invoice.total_amount, invoice.currency)} /><Field label="รับชำระยืนยันแล้วก่อนรายการนี้" value={money(payment.status === "confirmed" ? normalizedAmount(settlement?.economically_settled_amount) - currentAllocation : settlement?.economically_settled_amount, invoice.currency)} /><Field label="ยอดคงค้างก่อนรายการนี้" value={money(outstandingBefore, invoice.currency)} /><Field label="สถานะการชำระปัจจุบัน" value={settlementStatusLabels[settlement?.payment_status || "unpaid"] || "ยังไม่ชำระ"} /><Field label="สกุลเงิน" value={invoice.currency} /></div>
+      <SectionHeading title="บริบทการรับชำระ" description="ตรวจสอบลูกค้า สกุลเงิน และใบแจ้งหนี้ที่เกี่ยวข้องกับรายการนี้" />
+      <div style={contextGrid}><Field label="ลูกค้า" value={displayText(invoice.customer_name)} /><Field label="ใบแจ้งหนี้ที่จัดสรร" value={`${payment.status === "confirmed" ? effectiveAllocations.length : allocations.length} ฉบับ`} /><Field label="ยอดรับชำระรวม" value={money(payment.settlement_amount, payment.currency)} /><Field label="สกุลเงิน" value={payment.currency} /></div>
     </section>
 
     {isDraft ? <>
@@ -342,22 +490,29 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
 
       <section style={surface}>
         <SectionHeading title="ยอดตัดชำระและภาษีหัก ณ ที่จ่าย" description="กำหนดยอดที่ต้องการตัดชำระ ระบบจะช่วยคำนวณเงินสดและเครดิตภาษีหัก ณ ที่จ่าย โดยยอด Invoice ไม่เปลี่ยนแปลง" />
+        {draftAllocationEditingLimited ? <div style={neutralNotice}>ร่างนี้มีการจัดสรรไปยังหลายใบแจ้งหนี้ ระบบจะแสดงและคงยอดเดิมครบทุกฉบับ การแก้สัดส่วนรายใบยังไม่รองรับในหน้านี้</div> : null}
         <div className="payment-settlement-entry-grid" style={settlementEntryGrid}>
-          <FormField label="ยอดที่ต้องการตัดชำระในครั้งนี้" helper={`ยอดคงค้างปัจจุบัน ${money(outstandingBefore, payment.currency)}`} required error={errors.settlementTarget}><input style={inputStyle(Boolean(errors.settlementTarget))} type="number" min="0" step="0.01" value={settlementTarget} disabled={!access.canManage || saving} onChange={(event) => updateSettlementTarget(event.target.value)} /></FormField>
-          <div style={whtChoiceField}><span style={formLabel}>ภาษีหัก ณ ที่จ่าย</span><div style={whtToggleGroup} role="group" aria-label="ภาษีหัก ณ ที่จ่าย"><button className="payment-wht-choice" type="button" aria-pressed={whtMode === "none"} style={{ ...whtToggleButton, ...(whtMode === "none" ? whtToggleButtonActive : {}) }} disabled={!access.canManage || saving} onClick={() => selectWhtMode(false)}>ไม่มีหัก ณ ที่จ่าย</button><button className="payment-wht-choice" type="button" aria-pressed={whtMode !== "none"} style={{ ...whtToggleButton, ...(whtMode !== "none" ? whtToggleButtonActive : {}) }} disabled={!access.canManage || saving} onClick={() => selectWhtMode(true)}>มีหัก ณ ที่จ่าย</button></div><small style={helperText}>ผู้ใช้เป็นผู้เลือกอัตราที่เหมาะสม ระบบไม่กำหนดอัตราจากประเภทบริการ</small></div>
+          <FormField label="ยอดที่ต้องการตัดชำระในครั้งนี้" helper={draftAllocationEditingLimited ? "ยอดรวมจากการจัดสรรทุกใบแจ้งหนี้" : `ยอดคงค้างปัจจุบัน ${money(outstandingBefore, payment.currency)}`} required error={errors.settlementTarget}><input style={inputStyle(Boolean(errors.settlementTarget))} type="number" min="0" step="0.01" value={settlementTarget} disabled={!access.canManage || saving || draftAllocationEditingLimited} onChange={(event) => updateSettlementTarget(event.target.value)} /></FormField>
+          <div style={whtChoiceField}><span style={formLabel}>ภาษีหัก ณ ที่จ่าย</span><div style={whtToggleGroup} role="group" aria-label="ภาษีหัก ณ ที่จ่าย"><button className="payment-wht-choice" type="button" aria-pressed={whtMode === "none"} style={{ ...whtToggleButton, ...(whtMode === "none" ? whtToggleButtonActive : {}) }} disabled={!access.canManage || saving || draftAllocationEditingLimited} onClick={() => selectWhtMode(false)}>ไม่มีหัก ณ ที่จ่าย</button><button className="payment-wht-choice" type="button" aria-pressed={whtMode !== "none"} style={{ ...whtToggleButton, ...(whtMode !== "none" ? whtToggleButtonActive : {}) }} disabled={!access.canManage || saving || draftAllocationEditingLimited} onClick={() => selectWhtMode(true)}>มีหัก ณ ที่จ่าย</button></div><small style={helperText}>ผู้ใช้เป็นผู้เลือกอัตราที่เหมาะสม ระบบไม่กำหนดอัตราจากประเภทบริการ</small></div>
         </div>
-        {whtMode === "calculated" ? <div style={whtRateSection}><span style={formLabel}>อัตราหัก ณ ที่จ่าย</span><div className="payment-wht-rate-grid" style={whtRateGrid}>{whtRatePresets.map((rate) => { const value = String(rate) as WhtRateOption; return <button className="payment-wht-rate" key={rate} type="button" aria-pressed={whtRateOption === value} style={{ ...whtRateButton, ...(whtRateOption === value ? whtRateButtonActive : {}) }} disabled={!access.canManage || saving} onClick={() => selectWhtRate(value)}>{rate}%</button>; })}<button className="payment-wht-rate" type="button" aria-pressed={whtRateOption === "custom"} style={{ ...whtRateButton, ...(whtRateOption === "custom" ? whtRateButtonActive : {}) }} disabled={!access.canManage || saving} onClick={() => selectWhtRate("custom")}>กำหนดเอง</button></div>{whtRateOption === "custom" ? <FormField label="อัตราที่กำหนดเอง" helper="มากกว่า 0 และไม่เกิน 100%" error={errors.whtRate}><div style={percentInputWrap}><input style={inputStyle(Boolean(errors.whtRate))} type="number" min="0" max="100" step="0.01" value={customWhtRate} disabled={!access.canManage || saving} onChange={(event) => updateCustomWhtRate(event.target.value)} /><span>%</span></div></FormField> : errors.whtRate ? <div role="alert" style={inlineError}>{errors.whtRate}</div> : null}</div> : null}
-        {whtMode === "manual" ? <div className="payment-manual-wht-grid" style={manualWhtSection}><div><strong>ปรับยอด WHT เอง</strong><p style={manualWhtHelp}>{currentWhtBase.reliable ? "ใช้เมื่อยอดตามเอกสารแตกต่างจากผลคำนวณ ระบบจะไม่เขียนทับยอดที่ระบุเอง" : "ยอด Invoice ไม่สามารถใช้คำนวณฐาน WHT ได้อย่างปลอดภัย กรุณาระบุเครดิต WHT ตามหลักฐานจริง"}</p></div><FormField label="เครดิตภาษีหัก ณ ที่จ่าย" required error={errors.whtAmount}><input style={inputStyle(Boolean(errors.whtAmount))} type="number" min="0" step="0.01" value={form.whtAmount} disabled={!access.canManage || saving} onChange={(event) => updateManualWhtAmount(event.target.value)} /></FormField></div> : null}
-        {whtMode !== "none" ? <div style={whtModeActions}>{whtMode === "calculated" ? <button type="button" style={textActionButton} disabled={!access.canManage || saving} onClick={() => { setWhtMode("manual"); setAssistedAmounts(settlementTarget, "manual", whtRateOption, customWhtRate, form.whtAmount); }}>ปรับยอด WHT เอง</button> : currentWhtBase.reliable ? <button type="button" style={textActionButton} disabled={!access.canManage || saving} onClick={() => { setWhtMode("calculated"); setAssistedAmounts(settlementTarget, "calculated"); }}>กลับไปคำนวณจากอัตรา</button> : null}</div> : null}
+        {whtMode === "calculated" && !draftAllocationEditingLimited ? <div style={whtRateSection}><span style={formLabel}>อัตราหัก ณ ที่จ่าย</span><div className="payment-wht-rate-grid" style={whtRateGrid}>{whtRatePresets.map((rate) => { const value = String(rate) as WhtRateOption; return <button className="payment-wht-rate" key={rate} type="button" aria-pressed={whtRateOption === value} style={{ ...whtRateButton, ...(whtRateOption === value ? whtRateButtonActive : {}) }} disabled={!access.canManage || saving} onClick={() => selectWhtRate(value)}>{rate}%</button>; })}<button className="payment-wht-rate" type="button" aria-pressed={whtRateOption === "custom"} style={{ ...whtRateButton, ...(whtRateOption === "custom" ? whtRateButtonActive : {}) }} disabled={!access.canManage || saving} onClick={() => selectWhtRate("custom")}>กำหนดเอง</button></div>{whtRateOption === "custom" ? <FormField label="อัตราที่กำหนดเอง" helper="มากกว่า 0 และไม่เกิน 100%" error={errors.whtRate}><div style={percentInputWrap}><input style={inputStyle(Boolean(errors.whtRate))} type="number" min="0" max="100" step="0.01" value={customWhtRate} disabled={!access.canManage || saving} onChange={(event) => updateCustomWhtRate(event.target.value)} /><span>%</span></div></FormField> : errors.whtRate ? <div role="alert" style={inlineError}>{errors.whtRate}</div> : null}</div> : null}
+        {whtMode === "manual" && !draftAllocationEditingLimited ? <div className="payment-manual-wht-grid" style={manualWhtSection}><div><strong>ปรับยอด WHT เอง</strong><p style={manualWhtHelp}>{currentWhtBase.reliable ? "ใช้เมื่อยอดตามเอกสารแตกต่างจากผลคำนวณ ระบบจะไม่เขียนทับยอดที่ระบุเอง" : "ยอด Invoice ไม่สามารถใช้คำนวณฐาน WHT ได้อย่างปลอดภัย กรุณาระบุเครดิต WHT ตามหลักฐานจริง"}</p></div><FormField label="เครดิตภาษีหัก ณ ที่จ่าย" required error={errors.whtAmount}><input style={inputStyle(Boolean(errors.whtAmount))} type="number" min="0" step="0.01" value={form.whtAmount} disabled={!access.canManage || saving} onChange={(event) => updateManualWhtAmount(event.target.value)} /></FormField></div> : null}
+        {whtMode !== "none" && !draftAllocationEditingLimited ? <div style={whtModeActions}>{whtMode === "calculated" ? <button type="button" style={textActionButton} disabled={!access.canManage || saving} onClick={() => { setWhtMode("manual"); setAssistedAmounts(settlementTarget, "manual", whtRateOption, customWhtRate, form.whtAmount); }}>ปรับยอด WHT เอง</button> : currentWhtBase.reliable ? <button type="button" style={textActionButton} disabled={!access.canManage || saving} onClick={() => { setWhtMode("calculated"); setAssistedAmounts(settlementTarget, "calculated"); }}>กลับไปคำนวณจากอัตรา</button> : null}</div> : null}
         <div style={assistedAmountSummary}>
           <Metric label="ยอดที่ต้องการตัดชำระ" value={money(targetSettlement, payment.currency)} prominent />
-          {whtMode !== "none" && currentWhtBase.reliable ? <Metric label="ฐานคำนวณภาษีหัก ณ ที่จ่าย" value={money(currentWhtBase.amount, payment.currency)} /> : null}
-          {whtMode === "calculated" && selectedWhtRate > 0 ? <Metric label="อัตรา WHT" value={`${selectedWhtRate.toLocaleString("en-US", { maximumFractionDigits: 4 })}%`} /> : null}
+          {whtMode !== "none" && currentWhtBase.reliable && !draftAllocationEditingLimited ? <Metric label="ฐานคำนวณภาษีหัก ณ ที่จ่าย" value={money(currentWhtBase.amount, payment.currency)} /> : null}
+          {whtMode === "calculated" && selectedWhtRate > 0 && !draftAllocationEditingLimited ? <Metric label="อัตรา WHT" value={`${selectedWhtRate.toLocaleString("en-US", { maximumFractionDigits: 4 })}%`} /> : null}
           <Metric label="เครดิตภาษีหัก ณ ที่จ่าย" value={money(wht, payment.currency)} />
           <Metric label="เงินสดที่ได้รับจริง" value={money(cash, payment.currency)} />
           <Metric label="ยอดตัดชำระรวม" value={money(paymentSettlement, payment.currency)} />
         </div>
-        <div className="payment-allocation-card" style={allocationCard}><div><small style={fieldLabel}>จัดสรรไปยังใบแจ้งหนี้</small><strong>{displayText(invoice.invoice_no)}</strong></div><span>เงินสด {money(cash, payment.currency)}</span><span>WHT {money(wht, payment.currency)}</span><strong>รวม {money(paymentSettlement, payment.currency)}</strong></div>
+        <div style={allocationList}>{allocations.map((row) => {
+          const rowInvoice = invoices.find((item) => item.id === row.invoice_id);
+          const rowCash = draftAllocationEditingLimited ? row.cash_allocated : cash;
+          const rowWht = draftAllocationEditingLimited ? row.wht_credit_allocated : wht;
+          const rowTotal = draftAllocationEditingLimited ? row.settlement_total : paymentSettlement;
+          return <AllocationSummaryCard key={row.id} invoice={rowInvoice || null} cash={rowCash} wht={rowWht} total={rowTotal} currency={payment.currency} />;
+        })}</div>
         {errors.allocation ? <div role="alert" style={inlineError}>{errors.allocation}</div> : null}
         {access.canManage ? <div style={saveRow}><span style={dirty ? unsavedState : savedState}>{dirty ? "มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก" : "บันทึกแล้ว"}</span><button type="button" style={{ ...secondaryButton, ...(!dirty ? disabledButton : {}) }} disabled={!dirty || saving} onClick={() => void saveDraft()}>{saving ? "กำลังบันทึก..." : dirty ? "บันทึกการเปลี่ยนแปลง" : "บันทึกแล้ว"}</button></div> : null}
       </section>
@@ -367,7 +522,7 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
         <div style={reviewGroups}>
           <div style={reviewGroup}><h3 style={reviewGroupTitle}>ข้อมูลรายการ</h3><div style={reviewGrid}><Field label="ใบแจ้งหนี้" value={displayText(invoice.invoice_no)} /><Field label="วันที่รับชำระจริง" value={form.receivedOn ? formatDocumentDate(form.receivedOn, "th") : "ยังไม่ระบุ"} /><Field label="วิธีรับชำระ" value={paymentMethodLabels[form.paymentMethod] || "ยังไม่ระบุ"} /><Field label="บัญชีที่รับเงินจริง" value={<BankAccountIdentity account={draftReceivingBankAccount} paymentMethod={form.paymentMethod} />} />{form.payerName.trim() ? <Field label="ชื่อผู้ชำระ" value={form.payerName.trim()} /> : null}{form.externalTransactionReference.trim() ? <Field label="เลขอ้างอิงรายการรับชำระ" value={form.externalTransactionReference.trim()} /> : null}{form.receivingAccountReference.trim() ? <Field label="รายละเอียดบัญชี/ช่องทางรับเงิน" value={form.receivingAccountReference.trim()} /> : null}{form.note.trim() ? <Field label="หมายเหตุ" value={form.note.trim()} /> : null}</div></div>
           <div style={reviewGroup}><h3 style={reviewGroupTitle}>ยอดเงิน</h3><div style={reviewGrid}><Field label="ยอดที่ต้องการตัดชำระ" value={<strong>{money(targetSettlement, payment.currency)}</strong>} /><Field label="ภาษีหัก ณ ที่จ่าย" value={whtMode === "none" ? "ไม่มี" : whtMode === "manual" ? "มี · ปรับยอดเอง" : selectedWhtRate > 0 ? `มี · ${selectedWhtRate.toLocaleString("en-US", { maximumFractionDigits: 4 })}%` : "มี · ยังไม่ระบุอัตรา"} />{whtMode !== "none" && currentWhtBase.reliable ? <Field label="ฐานคำนวณ WHT" value={money(currentWhtBase.amount, payment.currency)} /> : null}<Field label="เงินสดที่ได้รับจริง" value={money(cash, payment.currency)} /><Field label="เครดิต WHT" value={money(wht, payment.currency)} /><Field label="ยอดรับชำระรวม" value={<strong>{money(paymentSettlement, payment.currency)}</strong>} /></div></div>
-          <div style={reviewGroup}><h3 style={reviewGroupTitle}>การจัดสรร</h3><div style={reviewGrid}><Field label="จัดสรร" value={`${displayText(invoice.invoice_no)} · ${money(paymentSettlement, payment.currency)}`} /><Field label="คาดว่ายอดคงค้างหลังยืนยัน" value={<strong>{money(expectedOutstanding, payment.currency)}</strong>} /></div></div>
+          <div style={reviewGroup}><h3 style={reviewGroupTitle}>การจัดสรร</h3><div style={allocationList}>{allocations.map((row) => { const rowInvoice = invoices.find((item) => item.id === row.invoice_id); return <AllocationSummaryCard key={row.id} invoice={rowInvoice || null} cash={draftAllocationEditingLimited ? row.cash_allocated : cash} wht={draftAllocationEditingLimited ? row.wht_credit_allocated : wht} total={draftAllocationEditingLimited ? row.settlement_total : paymentSettlement} currency={payment.currency} />; })}</div>{!draftAllocationEditingLimited ? <div style={{ marginTop: 12 }}><Field label="คาดว่ายอดคงค้างหลังยืนยัน" value={<strong>{money(expectedOutstanding, payment.currency)}</strong>} /></div> : null}</div>
         </div>
         {dirty ? <div style={neutralNotice}>กรุณาบันทึกการเปลี่ยนแปลงก่อนยืนยันรับชำระ</div> : null}
         {!access.canConfirm ? <div style={neutralNotice}>คุณไม่มีสิทธิ์ยืนยันรับชำระ กรุณาให้ผู้มีสิทธิ์ตรวจสอบและยืนยันรายการนี้</div> : null}
@@ -382,16 +537,60 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
       <section style={surface}>
         <SectionHeading title="ข้อมูลการรับชำระ" description="ข้อมูลที่ยืนยันแล้วแสดงเป็นแบบอ่านอย่างเดียว" />
         <div style={readOnlyGroups}>
-          <div style={readOnlyGroup}><h3 style={readOnlyGroupTitle}>ข้อมูลรายการ</h3><div style={readOnlyGrid}><Field label="สถานะ" value={<StatusBadge status={payment.status}>{paymentStatusLabels[payment.status] || payment.status}</StatusBadge>} /><Field label="ใบแจ้งหนี้" value={<Link href={`/finance/invoices/${invoice.id}`}>{displayText(invoice.invoice_no)}</Link>} /><Field label="วันที่รับชำระจริง" value={payment.received_on ? formatDocumentDate(payment.received_on, "th") : "ไม่ระบุ"} /><Field label="วิธีรับชำระ" value={paymentMethodLabels[payment.payment_method || ""] || "ไม่ระบุ"} /><Field label="บัญชีที่รับเงินจริง" value={<BankAccountIdentity account={savedReceivingBankAccount} paymentMethod={payment.payment_method || ""} />} />{payment.payer_name?.trim() ? <Field label="ชื่อผู้ชำระ" value={payment.payer_name.trim()} /> : null}{payment.external_transaction_reference?.trim() ? <Field label="เลขอ้างอิงรายการรับชำระ" value={payment.external_transaction_reference.trim()} /> : null}{payment.receiving_account_reference?.trim() ? <Field label="รายละเอียดบัญชี/ช่องทางรับเงิน" value={payment.receiving_account_reference.trim()} /> : null}{payment.note?.trim() ? <Field label="หมายเหตุ" value={payment.note.trim()} /> : null}</div></div>
-          <div style={readOnlyGroup}><h3 style={readOnlyGroupTitle}>ยอดเงินและการจัดสรร</h3><div style={summaryGrid}><Metric label="ยอดตัดชำระ" value={money(payment.settlement_amount, payment.currency)} prominent />{normalizedAmount(payment.wht_amount) > 0 && savedWhtBase.reliable ? <Metric label="ฐานคำนวณ WHT" value={money(savedWhtBase.amount, payment.currency)} /> : null}{normalizedAmount(payment.wht_amount) > 0 && savedWhtPreset ? <Metric label="อัตรา WHT ที่อนุมานได้" value={`${savedWhtPreset}%`} /> : null}<Metric label="เงินสดที่ได้รับ" value={money(payment.cash_amount, payment.currency)} /><Metric label="เครดิต WHT" value={money(payment.wht_amount, payment.currency)} /><Metric label="ยอดรับชำระรวม" value={money(payment.settlement_amount, payment.currency)} /><Metric label="ยอดคงค้างปัจจุบัน" value={money(settlement?.outstanding_amount, payment.currency)} /></div><div style={confirmedAllocation}><Field label="จัดสรร" value={`${displayText(invoice.invoice_no)} · ${money(allocation.settlement_total, payment.currency)}`} /></div></div>
+          <div style={readOnlyGroup}><h3 style={readOnlyGroupTitle}>ข้อมูลรายการ</h3><div style={readOnlyGrid}><Field label="สถานะ" value={<StatusBadge status={payment.status}>{paymentStatusLabels[payment.status] || payment.status}</StatusBadge>} /><Field label="วันที่รับชำระจริง" value={payment.received_on ? formatDocumentDate(payment.received_on, "th") : "ไม่ระบุ"} /><Field label="วิธีรับชำระ" value={paymentMethodLabels[payment.payment_method || ""] || "ไม่ระบุ"} /><Field label="บัญชีที่รับเงินจริง" value={<BankAccountIdentity account={savedReceivingBankAccount} paymentMethod={payment.payment_method || ""} />} />{payment.payer_name?.trim() ? <Field label="ชื่อผู้ชำระ" value={payment.payer_name.trim()} /> : null}{payment.external_transaction_reference?.trim() ? <Field label="เลขอ้างอิงรายการรับชำระ" value={payment.external_transaction_reference.trim()} /> : null}{payment.receiving_account_reference?.trim() ? <Field label="รายละเอียดบัญชี/ช่องทางรับเงิน" value={payment.receiving_account_reference.trim()} /> : null}{payment.note?.trim() ? <Field label="หมายเหตุ" value={payment.note.trim()} /> : null}</div></div>
+          <div style={readOnlyGroup}><h3 style={readOnlyGroupTitle}>ยอดเงิน</h3><div style={summaryGrid}><Metric label="ยอดตัดชำระ" value={money(payment.settlement_amount, payment.currency)} prominent />{allocations.length === 1 && normalizedAmount(payment.wht_amount) > 0 && savedWhtBase.reliable ? <Metric label="ฐานคำนวณ WHT" value={money(savedWhtBase.amount, payment.currency)} /> : null}{allocations.length === 1 && normalizedAmount(payment.wht_amount) > 0 && savedWhtPreset ? <Metric label="อัตรา WHT ที่อนุมานได้" value={`${savedWhtPreset}%`} /> : null}<Metric label="เงินสดที่ได้รับ" value={money(payment.cash_amount, payment.currency)} /><Metric label="เครดิต WHT" value={money(payment.wht_amount, payment.currency)} /><Metric label="ยอดรับชำระรวม" value={money(payment.settlement_amount, payment.currency)} />{payment.status === "confirmed" ? <Metric label="ยอดที่จัดสรรปัจจุบัน" value={money(effectiveAllocationTotal, payment.currency)} /> : null}</div></div>
         </div>
         {payment.status === "confirmed" ? <div style={nextStepNotice}>การรับชำระถูกบันทึกแล้ว เอกสารใบเสร็จ/ใบกำกับภาษียังเป็นขั้นตอนถัดไป</div> : null}
       </section>
+
+      {payment.status === "confirmed" ? <section style={surface}>
+        <SectionHeading title="การจัดสรรปัจจุบัน" description="แสดงใบแจ้งหนี้ที่ได้รับการตัดชำระจากรายการนี้ในสถานะปัจจุบัน" />
+        <div className="payment-effective-allocation-grid" style={effectiveAllocationGrid}>{effectiveAllocations.map((row) => {
+          const rowInvoice = invoices.find((item) => item.id === row.invoice_id) || null;
+          const rowSettlement = settlements.find((item) => item.invoice_id === row.invoice_id) || null;
+          return <EffectiveAllocationCard key={row.invoice_id} allocation={row} invoice={rowInvoice} settlement={rowSettlement} currency={payment.currency} />;
+        })}</div>
+        {!effectiveAllocations.length ? <div style={neutralNotice}>ไม่มีใบแจ้งหนี้ที่ได้รับการจัดสรรยอดในปัจจุบัน</div> : null}
+      </section> : <section style={surface}><SectionHeading title="การจัดสรรตามรายการ" description="แสดงข้อมูลการจัดสรรเดิมเพื่อการตรวจสอบ รายการนี้ไม่อยู่ในสถานะยืนยันรับชำระแล้ว" /><div style={allocationList}>{allocations.map((row) => <AllocationSummaryCard key={row.id} invoice={invoices.find((item) => item.id === row.invoice_id) || null} cash={row.cash_allocated} wht={row.wht_credit_allocated} total={row.settlement_total} currency={payment.currency} />)}</div></section>}
+
+      <section style={surface}>
+        <details>
+          <summary style={historySummary}>ประวัติการย้ายยอด {reallocations.length ? `(${reallocations.length})` : ""}</summary>
+          <p style={sectionDescription}>เก็บรายการจัดสรรตั้งต้นและการย้ายยอดทุกครั้งเพื่อการตรวจสอบ โดยไม่เปลี่ยนรายการเงินจริง</p>
+          <div style={historyList}>
+            {allocations.map((row) => <HistoryRow key={`original-${row.id}`} title="การจัดสรรตั้งต้น" source={null} target={invoices.find((item) => item.id === row.invoice_id) || null} cash={row.cash_allocated} wht={row.wht_credit_allocated} total={row.settlement_total} reason={null} createdAt={null} currency={payment.currency} />)}
+            {reallocations.map((row) => <HistoryRow key={row.id} title="ย้ายการจัดสรร" source={invoices.find((item) => item.id === row.source_invoice_id) || null} target={invoices.find((item) => item.id === row.target_invoice_id) || null} cash={row.cash_moved} wht={row.wht_moved} total={row.settlement_moved} reason={row.reason} createdAt={row.created_at} currency={payment.currency} />)}
+          </div>
+        </details>
+      </section>
     </>}
 
+    {payment.status === "confirmed" && access.canReallocate ? <section ref={reallocationRef} style={financialActionSection}>
+      <h2 style={financialActionTitle}>การจัดสรรยอดรับชำระ</h2>
+      <p style={sectionDescription}>ใช้เมื่อรับเงินจริงถูกต้อง แต่ต้องเปลี่ยนใบแจ้งหนี้ที่ได้รับการตัดชำระ เงินสด บัญชีรับเงิน และยอดรับชำระรวมจะไม่เปลี่ยน</p>
+      {!reallocationOpen ? <button type="button" style={reallocationButton} onClick={openReallocation}>ย้ายการจัดสรรยอดรับชำระ</button> : <div style={reallocationPanel}>
+        <div style={coreWarning}><strong>รายการเงินจริงและยอดรับชำระรวมจะไม่เปลี่ยน</strong><span>ระบบจะเปลี่ยนเฉพาะใบแจ้งหนี้ที่ได้รับการตัดชำระ</span></div>
+        {Object.keys(reallocationErrors).length ? <div role="alert" style={validationSummary}>กรุณาตรวจสอบข้อมูลที่จำเป็นก่อนยืนยันการย้าย</div> : null}
+        <div className="payment-reallocation-form-grid" style={reallocationFormGrid}>
+          <FormField label="1. ใบแจ้งหนี้ต้นทาง" required error={reallocationErrors.source}><select ref={reallocationFirstInvalidRef} style={inputStyle(Boolean(reallocationErrors.source))} value={reallocationSourceId} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationSourceId(event.target.value); if (event.target.value === reallocationTargetId) setReallocationTargetId(""); setReallocationErrors((current) => ({ ...current, source: undefined, target: undefined })); }}><option value="">เลือกใบแจ้งหนี้ต้นทาง</option>{effectiveAllocations.map((row) => { const rowInvoice = invoices.find((item) => item.id === row.invoice_id); return <option key={row.invoice_id} value={row.invoice_id}>{displayText(rowInvoice?.invoice_no)} · {money(row.effective_settlement_total, payment.currency)}</option>; })}</select></FormField>
+          <FormField label="2. ใบแจ้งหนี้ปลายทาง" required error={reallocationErrors.target}><select style={inputStyle(Boolean(reallocationErrors.target))} value={reallocationTargetId} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationTargetId(event.target.value); setReallocationErrors((current) => ({ ...current, target: undefined })); }}><option value="">เลือกใบแจ้งหนี้ปลายทาง</option>{candidateInvoices.filter((row) => row.id !== reallocationSourceId && normalizedAmount(settlements.find((item) => item.invoice_id === row.id)?.outstanding_amount) > 0).map((row) => { const rowSettlement = settlements.find((item) => item.invoice_id === row.id); return <option key={row.id} value={row.id}>{displayText(row.invoice_no)} · คงค้าง {money(rowSettlement?.outstanding_amount, row.currency)}</option>; })}</select></FormField>
+        </div>
+        {selectedSourceAllocation ? <div style={selectedSourceSummary}><strong>{displayText(selectedSourceInvoice?.invoice_no)}</strong><span>{invoiceMatterLabel(selectedSourceInvoice)}</span><span>เงินสด {money(selectedSourceAllocation.effective_cash_allocated, payment.currency)}</span><span>WHT {money(selectedSourceAllocation.effective_wht_credit_allocated, payment.currency)}</span><strong>รวม {money(selectedSourceAllocation.effective_settlement_total, payment.currency)}</strong></div> : null}
+        {selectedTargetInvoice ? <div style={targetContext}><strong>ปลายทาง {displayText(selectedTargetInvoice.invoice_no)}</strong><span>{invoiceMatterLabel(selectedTargetInvoice)}</span><span>ยอดใบแจ้งหนี้ {money(selectedTargetInvoice.total_amount, payment.currency)} · คงค้าง {money(settlements.find((row) => row.invoice_id === selectedTargetInvoice.id)?.outstanding_amount, payment.currency)}</span></div> : null}
+        {crossMatterReallocation ? <div style={crossMatterWarning}>ใบแจ้งหนี้ปลายทางอยู่คนละคดี/งานกับใบแจ้งหนี้ต้นทาง กรุณาตรวจสอบให้แน่ใจก่อนยืนยัน</div> : null}
+        <div style={moveHeader}><h3 style={moveTitle}>3. ระบุยอดที่ย้าย</h3><button type="button" style={textActionButton} disabled={!selectedSourceAllocation || reallocating} onClick={() => { if (!selectedSourceAllocation) return; beginChangedReallocationIntent(); setReallocationCash(normalizedAmount(selectedSourceAllocation.effective_cash_allocated).toFixed(2)); setReallocationWht(normalizedAmount(selectedSourceAllocation.effective_wht_credit_allocated).toFixed(2)); setReallocationErrors((current) => ({ ...current, cash: undefined, wht: undefined })); }}>ย้ายยอดทั้งหมด</button></div>
+        <div className="payment-reallocation-form-grid" style={reallocationFormGrid}><FormField label="เงินสดที่ย้าย" required error={reallocationErrors.cash}><input style={inputStyle(Boolean(reallocationErrors.cash))} type="number" min="0" step="0.01" value={reallocationCash} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationCash(event.target.value); setReallocationErrors((current) => ({ ...current, cash: undefined })); }} /></FormField><FormField label="เครดิตภาษีหัก ณ ที่จ่ายที่ย้าย" required error={reallocationErrors.wht}><input style={inputStyle(Boolean(reallocationErrors.wht))} type="number" min="0" step="0.01" value={reallocationWht} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationWht(event.target.value); setReallocationErrors((current) => ({ ...current, wht: undefined })); }} /></FormField></div>
+        {selectedSourceAllocation && selectedTargetInvoice ? <ReallocationReview sourceInvoice={selectedSourceInvoice} targetInvoice={selectedTargetInvoice} source={selectedSourceAllocation} target={selectedTargetAllocation} cashMoved={reallocationCashAmount} whtMoved={reallocationWhtAmount} currency={payment.currency} /> : null}
+        <div style={unchangedTotals}><Metric label="ยอดรายการรับชำระ (ไม่เปลี่ยน)" value={money(payment.settlement_amount, payment.currency)} /><Metric label="เงินสดรวม (ไม่เปลี่ยน)" value={money(payment.cash_amount, payment.currency)} /><Metric label="เครดิต WHT รวม (ไม่เปลี่ยน)" value={money(payment.wht_amount, payment.currency)} /><Metric label="ยอดตัดชำระรวม (ไม่เปลี่ยน)" value={money(payment.settlement_amount, payment.currency)} prominent /></div>
+        <FormField label="4. เหตุผลในการย้ายการจัดสรรยอดรับชำระ" required error={reallocationErrors.reason}><textarea style={{ ...textareaStyle, ...(reallocationErrors.reason ? invalidInput : {}) }} rows={3} value={reallocationReason} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationReason(event.target.value); setReallocationErrors((current) => ({ ...current, reason: undefined })); }} /></FormField>
+        <label style={{ ...reallocationAcknowledgement, ...(reallocationErrors.acknowledgement ? invalidConfirmation : {}) }}><input type="checkbox" checked={reallocationAcknowledged} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationAcknowledged(event.target.checked); setReallocationErrors((current) => ({ ...current, acknowledgement: undefined })); }} /><span>ยืนยันว่ารายการรับเงินจริงถูกต้อง และต้องการเปลี่ยนเฉพาะใบแจ้งหนี้ที่ได้รับการตัดชำระ{reallocationErrors.acknowledgement ? <small style={formError}>{reallocationErrors.acknowledgement}</small> : null}</span></label>
+        <div style={actionRow}><button type="button" style={secondaryButton} disabled={reallocating} onClick={closeReallocation}>ยกเลิก</button><button type="button" style={primaryButton} disabled={reallocating} onClick={() => void submitReallocation()}>{reallocating ? "กำลังย้ายการจัดสรร..." : "ยืนยันการย้าย"}</button></div>
+      </div>}
+    </section> : null}
+
     {(payment.status === "draft" && access.canManage) || (payment.status === "confirmed" && access.canReverse) ? <section style={otherActions}>
-      <h2 style={otherTitle}>การดำเนินการอื่น</h2><p style={sectionDescription}>{payment.status === "draft" ? "ยกเลิกร่างเมื่อไม่ต้องการใช้รายการรับชำระนี้" : "การกลับรายการใช้เฉพาะเมื่อพบว่ารายการรับชำระที่ยืนยันแล้วไม่ถูกต้อง"}</p>
-      {!exceptionMode ? <button type="button" style={dangerOutlineButton} onClick={() => setExceptionMode(payment.status === "draft" ? "cancel" : "reverse")}>{payment.status === "draft" ? "ยกเลิกร่างการรับชำระ" : "กลับรายการรับชำระ"}</button> : <div style={exceptionPanel}><FormField label={exceptionMode === "cancel" ? "เหตุผลที่ยกเลิกร่าง" : "เหตุผลที่กลับรายการ"} required><textarea style={textareaStyle} rows={3} value={exceptionReason} onChange={(event) => setExceptionReason(event.target.value)} /></FormField><div style={actionRow}><button type="button" style={secondaryButton} disabled={processingException} onClick={() => { setExceptionMode(null); setExceptionReason(""); }}>ไม่ดำเนินการ</button><button type="button" style={{ ...dangerButton, ...(!exceptionReason.trim() ? disabledButton : {}) }} disabled={!exceptionReason.trim() || processingException} onClick={() => void runException()}>{processingException ? "กำลังดำเนินการ..." : exceptionMode === "cancel" ? "ยืนยันยกเลิกร่าง" : "ยืนยันกลับรายการ"}</button></div></div>}
+      <h2 style={otherTitle}>การดำเนินการอื่น</h2><p style={sectionDescription}>{payment.status === "draft" ? "ยกเลิกร่างเมื่อไม่ต้องการใช้รายการรับชำระนี้" : "ใช้เมื่อรายการรับชำระทั้งรายการถูกบันทึกผิด ไม่ใช่กรณีเลือกใบแจ้งหนี้ผิด เงินสดอาจต้องเข้าสู่กระบวนการแก้ไขแยกต่างหาก"}</p>
+      {!exceptionMode ? <button type="button" style={dangerOutlineButton} onClick={() => setExceptionMode(payment.status === "draft" ? "cancel" : "reverse")}>{payment.status === "draft" ? "ยกเลิกร่างการรับชำระ" : "แก้ไขรายการรับชำระที่บันทึกผิด"}</button> : <div style={exceptionPanel}><FormField label={exceptionMode === "cancel" ? "เหตุผลที่ยกเลิกร่าง" : "เหตุผลที่แก้ไขรายการรับชำระ"} required><textarea style={textareaStyle} rows={3} value={exceptionReason} onChange={(event) => setExceptionReason(event.target.value)} /></FormField><div style={actionRow}><button type="button" style={secondaryButton} disabled={processingException} onClick={() => { setExceptionMode(null); setExceptionReason(""); }}>ไม่ดำเนินการ</button><button type="button" style={{ ...dangerButton, ...(!exceptionReason.trim() ? disabledButton : {}) }} disabled={!exceptionReason.trim() || processingException} onClick={() => void runException()}>{processingException ? "กำลังดำเนินการ..." : exceptionMode === "cancel" ? "ยืนยันยกเลิกร่าง" : "ยืนยันแก้ไขรายการ"}</button></div></div>}
     </section> : null}
 
     <style jsx global>{`
@@ -399,6 +598,8 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
         .payment-workspace { padding: 14px !important; }
         .payment-header { grid-template-columns: minmax(0, 1fr) !important; }
         .payment-allocation-card { grid-template-columns: minmax(0, 1fr) !important; gap: 7px !important; }
+        .payment-effective-allocation-grid, .payment-reallocation-form-grid { grid-template-columns: minmax(0, 1fr) !important; }
+        .payment-comparison-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; }
         .payment-settlement-entry-grid, .payment-manual-wht-grid { grid-template-columns: minmax(0, 1fr) !important; }
         .payment-wht-rate-grid { grid-template-columns: repeat(3,minmax(0,1fr)) !important; }
       }
@@ -417,6 +618,51 @@ function Metric({ label, value, prominent = false }: { label: string; value: str
 function StatusBadge({ status, children }: { status: string; children: ReactNode }) { return <span style={{ ...badge, ...(status === "draft" ? amberBadge : status === "confirmed" ? greenBadge : redBadge) }}>{children}</span>; }
 function BankAccountIdentity({ account, paymentMethod }: { account: BankAccount | null; paymentMethod: string }) { if (!account) return <span>{paymentMethod === "bank_transfer" ? "ยังไม่ระบุ" : "ไม่ใช้บัญชีธนาคารสำหรับวิธีรับชำระนี้"}</span>; return <div style={bankAccountIdentity}><strong>{displayText(account.short_name)} — {displayText(account.bank_name)}</strong>{account.account_number ? <span style={bankAccountDetail}>{account.account_number}{account.account_name ? ` · ${account.account_name}` : ""}</span> : null}</div>; }
 function paymentWhtAssistance(form: PaymentForm, invoice: InvoiceContext | null): { settlementTarget: string; whtMode: WhtMode; whtRateOption: WhtRateOption } { const settlement = normalizedAmount(normalizedAmount(form.cashAmount) + normalizedAmount(form.whtAmount)); const wht = normalizedAmount(form.whtAmount); if (wht <= 0) return { settlementTarget: settlement.toFixed(2), whtMode: "none", whtRateOption: "" }; if (!invoice) return { settlementTarget: settlement.toFixed(2), whtMode: "manual", whtRateOption: "" }; const preset = inferPaymentWhtPreset(settlement, wht, { amountBeforeVat: invoice.amount_before_vat, vatAmount: invoice.vat_amount, totalAmount: invoice.total_amount }, whtRatePresets); return { settlementTarget: settlement.toFixed(2), whtMode: preset ? "calculated" : "manual", whtRateOption: preset ? String(preset) as WhtRateOption : "" }; }
+
+function AllocationSummaryCard({ invoice, cash, wht, total, currency }: { invoice: InvoiceContext | null; cash: number | string; wht: number | string; total: number | string; currency: string }) {
+  return <div className="payment-allocation-card" style={allocationCard}><div><small style={fieldLabel}>จัดสรรไปยังใบแจ้งหนี้</small><strong>{displayText(invoice?.invoice_no)}</strong><span style={matterText}>{invoiceMatterLabel(invoice)}</span></div><span>เงินสด {money(cash, currency)}</span><span>WHT {money(wht, currency)}</span><strong>รวม {money(total, currency)}</strong></div>;
+}
+
+function EffectiveAllocationCard({ allocation, invoice, settlement, currency }: { allocation: EffectivePaymentAllocation; invoice: InvoiceContext | null; settlement: InvoiceSettlement | null; currency: string }) {
+  return <article style={effectiveAllocationCard}><div style={effectiveAllocationHeader}><div><Link style={invoiceLink} href={`/finance/invoices/${allocation.invoice_id}`}>{displayText(invoice?.invoice_no)}</Link><p style={matterText}>{invoiceMatterLabel(invoice)}</p></div><span style={invoiceStatusBadge}>{invoiceStatusLabel(invoice?.document_status)}</span></div><div style={allocationMetrics}><Field label="ลูกค้า" value={displayText(invoice?.customer_name)} /><Field label="เงินสด" value={money(allocation.effective_cash_allocated, currency)} /><Field label="เครดิต WHT" value={money(allocation.effective_wht_credit_allocated, currency)} /><Field label="ยอดตัดชำระรวม" value={<strong>{money(allocation.effective_settlement_total, currency)}</strong>} /><Field label="ยอดใบแจ้งหนี้" value={money(invoice?.total_amount, currency)} /><Field label="ยอดคงค้างปัจจุบัน" value={money(settlement?.outstanding_amount, currency)} /></div></article>;
+}
+
+function HistoryRow({ title, source, target, cash, wht, total, reason, createdAt, currency }: { title: string; source: InvoiceContext | null; target: InvoiceContext | null; cash: number | string; wht: number | string; total: number | string; reason: string | null; createdAt: string | null; currency: string }) {
+  return <div style={historyRow}><div style={historyRowHeader}><strong>{title}</strong>{createdAt ? <span>{formatBangkokDateTime(createdAt)}</span> : null}</div><div style={historyRoute}>{source ? <span>จาก <Link href={`/finance/invoices/${source.id}`}>{displayText(source.invoice_no)}</Link></span> : null}<span>{source ? "ไปยัง" : "ใบแจ้งหนี้"} {target ? <Link href={`/finance/invoices/${target.id}`}>{displayText(target.invoice_no)}</Link> : "ไม่พบข้อมูล"}</span></div><div style={historyAmounts}><span>เงินสด {money(cash, currency)}</span><span>WHT {money(wht, currency)}</span><strong>รวม {money(total, currency)}</strong></div>{reason ? <p style={historyReason}>เหตุผล: {reason}</p> : null}</div>;
+}
+
+function ReallocationReview({ sourceInvoice, targetInvoice, source, target, cashMoved, whtMoved, currency }: { sourceInvoice: InvoiceContext | null; targetInvoice: InvoiceContext; source: EffectivePaymentAllocation; target: EffectivePaymentAllocation | null; cashMoved: number; whtMoved: number; currency: string }) {
+  const sourceCashAfter = normalizedAmount(normalizedAmount(source.effective_cash_allocated) - cashMoved);
+  const sourceWhtAfter = normalizedAmount(normalizedAmount(source.effective_wht_credit_allocated) - whtMoved);
+  const targetCashAfter = normalizedAmount(normalizedAmount(target?.effective_cash_allocated) + cashMoved);
+  const targetWhtAfter = normalizedAmount(normalizedAmount(target?.effective_wht_credit_allocated) + whtMoved);
+  return <div style={reviewComparison}><div><h3 style={comparisonTitle}>ก่อนย้าย</h3><AllocationComparisonRow invoice={sourceInvoice} cash={source.effective_cash_allocated} wht={source.effective_wht_credit_allocated} currency={currency} /><AllocationComparisonRow invoice={targetInvoice} cash={target?.effective_cash_allocated || 0} wht={target?.effective_wht_credit_allocated || 0} currency={currency} /></div><div style={movingSummary}><small>กำลังย้าย</small><strong>{money(cashMoved + whtMoved, currency)}</strong><span>เงินสด {money(cashMoved, currency)} · WHT {money(whtMoved, currency)}</span></div><div><h3 style={comparisonTitle}>หลังย้าย</h3><AllocationComparisonRow invoice={sourceInvoice} cash={sourceCashAfter} wht={sourceWhtAfter} currency={currency} /><AllocationComparisonRow invoice={targetInvoice} cash={targetCashAfter} wht={targetWhtAfter} currency={currency} /></div></div>;
+}
+
+function AllocationComparisonRow({ invoice, cash, wht, currency }: { invoice: InvoiceContext | null; cash: number | string; wht: number | string; currency: string }) {
+  return <div className="payment-comparison-row" style={comparisonRow}><strong>{displayText(invoice?.invoice_no)}</strong><span>Cash {money(cash, currency)}</span><span>WHT {money(wht, currency)}</span><strong>รวม {money(normalizedAmount(cash) + normalizedAmount(wht), currency)}</strong></div>;
+}
+
+function invoiceMatterLabel(invoice: InvoiceContext | null | undefined) {
+  if (!invoice) return "ไม่ระบุคดี/งาน";
+  const snapshot = invoice.matter_snapshot_json || {};
+  const references = [snapshot.file_no, snapshot.matter_no, snapshot.title, snapshot.name].filter((value, index, values) => typeof value === "string" && value.trim() && values.indexOf(value) === index) as string[];
+  if (references.length) return references.join(" - ");
+  if (invoice.case_id != null) return `Case ${invoice.case_id}`;
+  if (invoice.advisory_matter_id) return "Advisory";
+  return "ยังไม่ผูกคดี/งาน";
+}
+
+function sameInvoiceMatter(left: InvoiceContext, right: InvoiceContext) {
+  return left.case_id === right.case_id && left.advisory_matter_id === right.advisory_matter_id;
+}
+
+function invoiceStatusLabel(status?: string) {
+  if (status === "issued") return "ออกใบแจ้งหนี้แล้ว";
+  if (status === "voided") return "ยกเลิกแล้ว";
+  if (status === "cancelled") return "ยกเลิกร่างแล้ว";
+  return status || "ไม่ระบุ";
+}
 
 const page: CSSProperties = { maxWidth: 1080, margin: "0 auto", padding: 24, color: "#172033" };
 const surface: CSSProperties = { marginBottom: 18, padding: 20, border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff" };
@@ -442,6 +688,7 @@ const formLabel: CSSProperties = { color: "#334155", fontSize: 13, fontWeight: 7
 const helperText: CSSProperties = { color: "#64748b", fontSize: 11, lineHeight: 1.4 };
 const formError: CSSProperties = { color: "#b91c1c", fontSize: 12 };
 const inputStyle = (invalid: boolean): CSSProperties => ({ width: "100%", minHeight: 40, boxSizing: "border-box", padding: "8px 10px", border: `1px solid ${invalid ? "#dc2626" : "#cbd5e1"}`, borderRadius: 6, background: "#fff", color: "#172033", font: "inherit" });
+const invalidInput: CSSProperties = { borderColor: "#dc2626", boxShadow: "0 0 0 1px #dc2626" };
 const textareaStyle: CSSProperties = { ...inputStyle(false), minHeight: 90, resize: "vertical" };
 const settlementEntryGrid: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(220px, 0.8fr) minmax(300px, 1.2fr)", gap: 18, alignItems: "start" };
 const whtChoiceField: CSSProperties = { display: "grid", gap: 6, minWidth: 0 };
@@ -462,6 +709,8 @@ const metric: CSSProperties = { display: "grid", gap: 5, minWidth: 0, padding: 1
 const prominentMetric: CSSProperties = { borderColor: "#86efac", background: "#f0fdf4", color: "#166534" };
 const metricValue: CSSProperties = { color: "#172033", fontSize: 17, fontVariantNumeric: "tabular-nums", overflowWrap: "anywhere" };
 const allocationCard: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(180px,1fr) repeat(3,max-content)", alignItems: "center", gap: 18, marginTop: 16, padding: 14, border: "1px solid #cbd5e1", borderRadius: 6, background: "#f8fafc", fontVariantNumeric: "tabular-nums" };
+const allocationList: CSSProperties = { display: "grid", gap: 10 };
+const matterText: CSSProperties = { display: "block", margin: "3px 0 0", color: "#64748b", fontSize: 12, lineHeight: 1.45 };
 const inlineError: CSSProperties = { marginTop: 10, color: "#b91c1c", fontSize: 12 };
 const saveRow: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginTop: 18, paddingTop: 16, borderTop: "1px solid #e2e8f0" };
 const savedState: CSSProperties = { color: "#166534", fontSize: 13, fontWeight: 700 };
@@ -485,10 +734,40 @@ const readOnlyGroups: CSSProperties = { display: "grid", gap: 18 };
 const readOnlyGroup: CSSProperties = { minWidth: 0 };
 const readOnlyGroupTitle: CSSProperties = { margin: "0 0 9px", color: "#334155", fontSize: 14 };
 const summaryGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 12, marginTop: 16 };
-const confirmedAllocation: CSSProperties = { marginTop: 12, padding: 13, border: "1px solid #e2e8f0", borderRadius: 6, background: "#f8fafc" };
+const effectiveAllocationGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(290px,1fr))", gap: 12 };
+const effectiveAllocationCard: CSSProperties = { minWidth: 0, padding: 16, border: "1px solid #cbd5e1", borderRadius: 6, background: "#fff" };
+const effectiveAllocationHeader: CSSProperties = { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, paddingBottom: 12, borderBottom: "1px solid #e2e8f0" };
+const invoiceLink: CSSProperties = { color: "#166534", fontSize: 17, fontWeight: 800 };
+const invoiceStatusBadge: CSSProperties = { flexShrink: 0, padding: "4px 7px", borderRadius: 999, background: "#dcfce7", color: "#166534", fontSize: 11, fontWeight: 700 };
+const allocationMetrics: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 12, marginTop: 13 };
+const historySummary: CSSProperties = { cursor: "pointer", color: "#334155", fontSize: 15, fontWeight: 800 };
+const historyList: CSSProperties = { display: "grid", gap: 10, marginTop: 14 };
+const historyRow: CSSProperties = { padding: 13, border: "1px solid #e2e8f0", borderRadius: 6, background: "#f8fafc" };
+const historyRowHeader: CSSProperties = { display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8, color: "#475569", fontSize: 12 };
+const historyRoute: CSSProperties = { display: "flex", flexWrap: "wrap", gap: "4px 12px", marginTop: 7, color: "#334155", fontSize: 13 };
+const historyAmounts: CSSProperties = { display: "flex", flexWrap: "wrap", gap: "5px 14px", marginTop: 8, fontSize: 13, fontVariantNumeric: "tabular-nums" };
+const historyReason: CSSProperties = { margin: "7px 0 0", color: "#64748b", fontSize: 12, lineHeight: 1.5 };
 const bankAccountIdentity: CSSProperties = { display: "grid", gap: 3, minWidth: 0 };
 const bankAccountDetail: CSSProperties = { color: "#64748b", fontSize: 12 };
 const nextStepNotice: CSSProperties = { marginTop: 16, padding: 13, border: "1px solid #bfdbfe", borderRadius: 6, background: "#eff6ff", color: "#1e40af" };
+const financialActionSection: CSSProperties = { ...surface, borderColor: "#bfdbfe", background: "#f8fbff", scrollMarginTop: 84 };
+const financialActionTitle: CSSProperties = { margin: 0, color: "#1e3a8a", fontSize: 17 };
+const reallocationButton: CSSProperties = { ...secondaryButton, marginTop: 14, borderColor: "#93c5fd", color: "#1d4ed8" };
+const reallocationPanel: CSSProperties = { display: "grid", gap: 16, marginTop: 16, padding: 16, border: "1px solid #bfdbfe", borderRadius: 6, background: "#fff" };
+const coreWarning: CSSProperties = { display: "grid", gap: 3, padding: 13, borderLeft: "4px solid #2563eb", background: "#eff6ff", color: "#1e40af", fontSize: 13, lineHeight: 1.5 };
+const validationSummary: CSSProperties = { padding: 11, border: "1px solid #fca5a5", borderRadius: 6, background: "#fef2f2", color: "#b91c1c", fontSize: 13, fontWeight: 700 };
+const reallocationFormGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 14 };
+const selectedSourceSummary: CSSProperties = { display: "flex", alignItems: "center", flexWrap: "wrap", gap: "5px 14px", padding: 12, border: "1px solid #cbd5e1", borderRadius: 6, background: "#f8fafc", fontSize: 13, fontVariantNumeric: "tabular-nums" };
+const targetContext: CSSProperties = { display: "grid", gap: 3, padding: 12, border: "1px solid #bfdbfe", borderRadius: 6, background: "#eff6ff", color: "#1e40af", fontSize: 13 };
+const crossMatterWarning: CSSProperties = { padding: 12, borderLeft: "4px solid #f59e0b", background: "#fffbeb", color: "#92400e", fontSize: 13, fontWeight: 700, lineHeight: 1.5 };
+const moveHeader: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 };
+const moveTitle: CSSProperties = { margin: 0, color: "#334155", fontSize: 15 };
+const reviewComparison: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12, padding: 14, border: "1px solid #cbd5e1", borderRadius: 6, background: "#f8fafc" };
+const comparisonTitle: CSSProperties = { margin: "0 0 8px", color: "#334155", fontSize: 14 };
+const comparisonRow: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(110px,1fr) repeat(3,max-content)", gap: 10, padding: "8px 0", borderTop: "1px solid #e2e8f0", fontSize: 12, fontVariantNumeric: "tabular-nums" };
+const movingSummary: CSSProperties = { display: "grid", placeContent: "center", justifyItems: "center", gap: 3, minHeight: 92, padding: 12, border: "1px solid #93c5fd", borderRadius: 6, background: "#eff6ff", color: "#1e40af", fontSize: 12 };
+const unchangedTotals: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 10 };
+const reallocationAcknowledgement: CSSProperties = { display: "flex", alignItems: "flex-start", gap: 9, padding: 12, border: "1px solid #cbd5e1", borderRadius: 6, color: "#334155", fontSize: 13, fontWeight: 700, lineHeight: 1.5 };
 const otherActions: CSSProperties = { marginBottom: 18, padding: 20, border: "1px solid #fecaca", borderRadius: 8, background: "#fff" };
 const otherTitle: CSSProperties = { margin: 0, color: "#7f1d1d", fontSize: 16 };
 const dangerOutlineButton: CSSProperties = { ...secondaryButton, marginTop: 12, borderColor: "#fca5a5", color: "#b91c1c" };

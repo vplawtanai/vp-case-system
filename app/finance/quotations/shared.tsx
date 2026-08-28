@@ -38,6 +38,7 @@ type Profile = {
   can_manage_finance_payments?: boolean | null;
   can_confirm_finance_payments?: boolean | null;
   can_reverse_finance_payments?: boolean | null;
+  can_reallocate_finance_payments?: boolean | null;
 };
 
 export type QuotationStatus = "draft" | "sent" | "accepted" | "cancelled";
@@ -643,9 +644,10 @@ const profileSelect = [
   "can_manage_finance_payments",
   "can_confirm_finance_payments",
   "can_reverse_finance_payments",
+  "can_reallocate_finance_payments",
 ].join(", ");
 
-export function QuotationGuard({ children }: { children: (access: QuotationAccess) => ReactNode }) {
+export function QuotationGuard({ children, canAccess }: { children: (access: QuotationAccess) => ReactNode; canAccess?: (access: QuotationAccess) => boolean }) {
   const [loading, setLoading] = useState(true);
   const [access, setAccess] = useState<QuotationAccess | null>(null);
 
@@ -681,18 +683,20 @@ export function QuotationGuard({ children }: { children: (access: QuotationAcces
     loadAccess();
   }, []);
 
+  const allowed = Boolean(access && (canAccess ? canAccess(access) : access.permissions.canViewFinanceQuotations));
+
   return (
     <AuthGuard>
       <AppTopNav title="Finance" subtitle="Quotations" activePage="finance" />
       <main style={pageStyle}>
         {loading ? <div style={cardStyle}>Loading quotations...</div> : null}
-        {!loading && (!access || !access.permissions.canViewFinanceQuotations) ? (
+        {!loading && !allowed ? (
           <div style={cardStyle}>
             <h2 style={sectionTitleStyle}>No access</h2>
             <p style={mutedTextStyle}>You do not have permission to view Finance Quotations.</p>
           </div>
         ) : null}
-        {!loading && access?.permissions.canViewFinanceQuotations ? children(access) : null}
+        {!loading && access && allowed ? children(access) : null}
       </main>
     </AuthGuard>
   );
