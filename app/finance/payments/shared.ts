@@ -62,6 +62,20 @@ export type PaymentForm = {
   whtAmount: string;
 };
 
+export type PaymentInvoiceTotals = {
+  amountBeforeVat: number | string;
+  vatAmount: number | string;
+  totalAmount: number | string;
+};
+
+export type AssistedPaymentAmounts = {
+  settlement: number;
+  whtBase: number;
+  whtAmount: number;
+  cashAmount: number;
+  reliableBase: boolean;
+};
+
 export const paymentStatusLabels: Record<string, string> = {
   draft: "ร่างการรับชำระ",
   confirmed: "ยืนยันรับชำระแล้ว",
@@ -112,6 +126,41 @@ export function paymentFingerprint(form: PaymentForm) {
 export function normalizedAmount(value: string | number | null | undefined) {
   const amount = Number(value || 0);
   return Number.isFinite(amount) ? Math.round((amount + Number.EPSILON) * 100) / 100 : 0;
+}
+
+export function derivePaymentWhtBase(settlementValue: string | number, invoice: PaymentInvoiceTotals) {
+  const settlement = normalizedAmount(settlementValue);
+  const amountBeforeVat = normalizedAmount(invoice.amountBeforeVat);
+  const vatAmount = normalizedAmount(invoice.vatAmount);
+  const totalAmount = normalizedAmount(invoice.totalAmount);
+  const totalsReconcile = Math.abs(normalizedAmount(amountBeforeVat + vatAmount) - totalAmount) <= 0.01;
+  if (settlement <= 0 || totalAmount <= 0 || amountBeforeVat < 0 || vatAmount < 0 || !totalsReconcile || settlement > totalAmount + 0.01) {
+    return { amount: 0, reliable: false };
+  }
+  if (vatAmount === 0) return { amount: settlement, reliable: true };
+  return { amount: normalizedAmount((settlement * amountBeforeVat) / totalAmount), reliable: true };
+}
+
+export function calculateAssistedPaymentAmounts(settlementValue: string | number, rateValue: string | number, invoice: PaymentInvoiceTotals): AssistedPaymentAmounts {
+  const settlement = normalizedAmount(settlementValue);
+  const rate = Number(rateValue || 0);
+  const base = derivePaymentWhtBase(settlement, invoice);
+  const whtAmount = base.reliable && Number.isFinite(rate) && rate > 0
+    ? Math.min(settlement, normalizedAmount((base.amount * rate) / 100))
+    : 0;
+  return {
+    settlement,
+    whtBase: base.amount,
+    whtAmount,
+    cashAmount: normalizedAmount(settlement - whtAmount),
+    reliableBase: base.reliable,
+  };
+}
+
+export function inferPaymentWhtPreset(settlementValue: string | number, whtValue: string | number, invoice: PaymentInvoiceTotals, presets: readonly number[]) {
+  const expectedWht = normalizedAmount(whtValue);
+  if (expectedWht <= 0) return null;
+  return presets.find((rate) => calculateAssistedPaymentAmounts(settlementValue, rate, invoice).whtAmount === expectedWht) ?? null;
 }
 
 export function hasValidCurrencyPrecision(value: string) {
