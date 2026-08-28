@@ -14,7 +14,7 @@ type FeeAgreement = { id: string; agreement_no: string | null; title: string; cl
 type Installment = { id: string; installment_no: number; sort_order: number; title: string; trigger_description: string | null; trigger_type: string; due_date: string | null; milestone_code: string | null; recurring_period_start: string | null; recurring_period_end: string | null; status: string; ready_to_invoice_at: string | null; readiness_event_date: string | null; readiness_confirmed_at: string | null; readiness_note: string | null; readiness_reference: string | null; invoiced_at: string | null; cancelled_at: string | null; amount_before_tax: number | string; vat_amount: number | string; total_amount: number | string; created_at: string };
 type Allocation = { id: string; billing_installment_id: string; fee_agreement_item_id: string; amount_before_tax: number | string; vat_amount: number | string; total_amount: number | string; allocation_percent: number | string | null; sort_order: number; allocation_snapshot_json: Json | null; created_at: string };
 type AgreementItem = { id: string; description: string };
-type InvoiceSummary = { id: string; primary_billing_installment_id: string; document_status: string; invoice_no: string | null; created_at: string };
+type InvoiceSummary = { id: string; primary_billing_installment_id: string; document_status: string; invoice_no: string | null; issued_at: string | null; voided_at: string | null; cancelled_at: string | null; created_at: string };
 type DraftInstallment = { id: string; installment_no: number; sort_order: number; title: string; trigger_description: string; trigger_type: string; due_date: string; milestone_code: string; recurring_period_start: string; recurring_period_end: string };
 type DraftForm = { title: string; description: string; installments: DraftInstallment[] };
 type ReadinessForm = { eventDate: string; confirmed: boolean; note: string; reference: string };
@@ -40,7 +40,7 @@ const planStatus: Record<string, string> = { draft: "ร่างแผนเร
 const installmentStatus: Record<string, string> = { pending: "รอดำเนินการ", ready_to_invoice: "พร้อมออกใบแจ้งหนี้", invoiced: "ออกใบแจ้งหนี้แล้ว", cancelled: "ยกเลิก" };
 const billingMethod: Record<string, string> = { single: "งวดเดียว", installments: "หลายงวด", milestone: "ตามเหตุการณ์สำคัญ", recurring: "เรียกเก็บเป็นรอบ", manual: "กำหนดเอง" };
 const triggerType: Record<string, string> = { agreement_effective: "เมื่อข้อตกลงมีผล", date: "ตามวันที่", case_milestone: "ตามเหตุการณ์สำคัญ", manual: "กำหนดด้วยตนเอง", recurring_period: "ตามรอบระยะเวลา" };
-const invoiceStatus: Record<string, string> = { draft: "ร่างใบแจ้งหนี้", issued: "ออกใบแจ้งหนี้แล้ว", cancelled: "ยกเลิก", voided: "ยกเลิกเลขที่เอกสารแล้ว" };
+const invoiceStatus: Record<string, string> = { draft: "ร่างใบแจ้งหนี้", issued: "ออกใบแจ้งหนี้แล้ว", cancelled: "ยกเลิกร่างแล้ว", voided: "ยกเลิกแล้ว" };
 const allocationColumns: Array<{ key: AllocationColumnKey; label: string; width: string; numeric?: boolean }> = [
   { key: "description", label: "รายการตามข้อตกลง", width: "40%" },
   { key: "amount_before_tax", label: "ก่อน VAT", width: "17%", numeric: true },
@@ -127,7 +127,7 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
     const invoicesResult = installmentIds.length
       ? await supabase
         .from("finance_invoices")
-        .select("id,primary_billing_installment_id,document_status,invoice_no,created_at")
+        .select("id,primary_billing_installment_id,document_status,invoice_no,issued_at,voided_at,cancelled_at,created_at")
         .in("primary_billing_installment_id", installmentIds)
         .order("created_at")
       : { data: [], error: null };
@@ -426,7 +426,11 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
         const installmentAllocations = allocationByInstallment.get(installment.id) || [];
         const draftInstallment = draft.installments.find((row) => row.id === installment.id);
         const customInstallmentTitle = billingInstallmentDisplayTitle(installment.title, installment.installment_no);
-        const activeInvoice = invoices.find((invoice) => invoice.primary_billing_installment_id === installment.id && !["cancelled", "voided"].includes(invoice.document_status));
+        const installmentInvoices = invoices.filter((invoice) => invoice.primary_billing_installment_id === installment.id);
+        const activeInvoice = installmentInvoices.find((invoice) => !["cancelled", "voided"].includes(invoice.document_status));
+        const historicalInvoices = installmentInvoices
+          .filter((invoice) => ["cancelled", "voided"].includes(invoice.document_status))
+          .sort((left, right) => right.created_at.localeCompare(left.created_at));
         return <article key={installment.id} style={installmentCard}>
           <div style={installmentHeader}><div style={installmentHeadingCopy}><span style={installmentEyebrow}>งวดเรียกเก็บเงิน</span><h3 style={installmentTitle}>งวดที่ {installment.installment_no}</h3>{customInstallmentTitle ? <p style={installmentCustomTitle}>{customInstallmentTitle}</p> : null}</div><StatusBadge status={installment.status} label={installmentStatus[installment.status] || installment.status} /></div>
           {plan.status === "draft" && canManage && draftInstallment ? <div className="billing-plan-installment-edit-grid" style={installmentEditGrid}>
@@ -484,6 +488,13 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
             <button className="billing-installment-primary-action" type="button" style={primaryButton} disabled={Boolean(installmentActionId)} onClick={() => void createOrOpenInvoiceDraft(installment, activeInvoice)}>{installmentActionId === installment.id ? "กำลังดำเนินการ..." : activeInvoice ? "เปิดร่างใบแจ้งหนี้" : "สร้างร่างใบแจ้งหนี้"}</button>
           </div> : null}
           {activeInvoice && installment.status === "invoiced" ? <div style={installmentNextStep}><div><span style={nextStepEyebrow}>ใบแจ้งหนี้</span><strong style={nextStepTitle}>{activeInvoice.invoice_no || "เอกสารใบแจ้งหนี้"}</strong></div><Link style={{ ...primaryButton, textDecoration: "none", display: "inline-flex", alignItems: "center" }} href={`/finance/invoices/${activeInvoice.id}`}>เปิดใบแจ้งหนี้</Link></div> : null}
+          {historicalInvoices.length ? <section style={invoiceHistorySection} aria-label={`ประวัติใบแจ้งหนี้ของงวดที่ ${installment.installment_no}`}>
+            <div style={invoiceHistoryHeader}><div><span style={invoiceHistoryEyebrow}>ประวัติเอกสาร</span><h4 style={invoiceHistoryTitle}>ประวัติใบแจ้งหนี้</h4></div><span style={invoiceHistoryCount}>{historicalInvoices.length} รายการ</span></div>
+            <div style={invoiceHistoryList}>{historicalInvoices.map((historicalInvoice) => <div className="billing-plan-invoice-history-item" key={historicalInvoice.id} style={invoiceHistoryItem}>
+              <div style={invoiceHistoryIdentity}><strong style={invoiceHistoryNumber}>{historicalInvoice.invoice_no || "ร่างใบแจ้งหนี้ (ไม่มีเลขที่)"}</strong><div style={invoiceHistoryMeta}><StatusBadge status={historicalInvoice.document_status} label={invoiceStatus[historicalInvoice.document_status] || historicalInvoice.document_status} /><span>{invoiceHistoryTimestamp(historicalInvoice)}</span></div></div>
+              <Link className="billing-plan-invoice-history-link" style={invoiceHistoryLink} href={`/finance/invoices/${historicalInvoice.id}`}>เปิดใบแจ้งหนี้</Link>
+            </div>)}</div>
+          </section> : null}
         </article>;
       })}
     </section>
@@ -528,6 +539,9 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
       .billing-plan-cancel-button:hover:not(:disabled) { background: #fef2f2 !important; border-color: #fca5a5 !important; }
       .billing-plan-primary-button:focus-visible, .billing-plan-save-button:focus-visible, .billing-plan-cancel-button:focus-visible, .billing-installment-primary-action:focus-visible { outline: 3px solid rgba(37, 99, 235, .24); outline-offset: 2px; }
       .billing-plan-primary-button:disabled, .billing-plan-save-button:disabled, .billing-plan-cancel-button:disabled, .billing-installment-primary-action:disabled { cursor: not-allowed !important; opacity: .58; }
+      .billing-plan-invoice-history-link { transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease; }
+      .billing-plan-invoice-history-link:hover { background: #f8fafc !important; border-color: #94a3b8 !important; color: #172033 !important; }
+      .billing-plan-invoice-history-link:focus-visible { outline: 3px solid rgba(37, 99, 235, .24); outline-offset: 2px; }
       .billing-plan-allocation-table th, .billing-plan-allocation-table td { padding: 10px 9px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
       .billing-plan-allocation-table th { color: #475569; background: #f8fafc; font-size: 12px; font-weight: 750; text-align: left; white-space: nowrap; }
       .billing-plan-allocation-table td { color: #172033; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
@@ -555,6 +569,8 @@ function BillingPlanDetail({ canManage }: { canManage: boolean }) {
         .billing-plan-normal-actions { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; width: 100%; }
         .billing-plan-danger-actions { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; width: 100%; align-items: stretch !important; }
         .billing-plan-primary-button, .billing-plan-save-button, .billing-plan-cancel-button, .billing-installment-primary-action { width: 100%; }
+        .billing-plan-invoice-history-item { grid-template-columns: minmax(0, 1fr) !important; }
+        .billing-plan-invoice-history-link { width: 100%; box-sizing: border-box; }
         .billing-readiness-form-grid { grid-template-columns: minmax(0, 1fr) !important; }
         .billing-readiness-note { grid-column: auto !important; }
         .billing-plan-metadata-grid > div, .billing-plan-summary-metric { padding: 9px 0 !important; border-left: 0 !important; border-top: 1px solid #e2e8f0; }
@@ -574,6 +590,7 @@ function ChainNode({ title, status, statusText, current = false, children }: { t
 function SummaryMetric({ label, value, prominent = false, compact = false }: { label: string; value: string; prominent?: boolean; compact?: boolean }) { return <div className="billing-plan-summary-metric" style={{ ...summaryMetric, ...(compact ? compactSummaryMetric : {}), ...(prominent ? prominentSummaryMetric : {}) }}><small style={{ ...summaryMetricLabel, ...(prominent ? prominentSummaryMetricLabel : {}) }}>{label}</small><strong style={{ ...summaryMetricValue, ...(prominent ? prominentSummaryMetricValue : {}) }}>{value}</strong></div>; }
 function billingPlanDraft(plan: BillingPlan, installments: Installment[]): DraftForm { return { title: plan.title || "", description: plan.description || "", installments: installments.map((installment) => ({ id: installment.id, installment_no: installment.installment_no, sort_order: installment.sort_order, title: installment.title, trigger_description: installment.trigger_description || "", trigger_type: installment.trigger_type, due_date: installment.due_date || "", milestone_code: installment.milestone_code || "", recurring_period_start: installment.recurring_period_start || "", recurring_period_end: installment.recurring_period_end || "" })) }; }
 function billingInstallmentDisplayTitle(title: string, installmentNo: number) { const value = title.trim(); const generated = new RegExp(`^(?:งวดที่\\s*${installmentNo}|Installment\\s*${installmentNo})(?:\\s*[/\\-—]\\s*(?:งวดที่\\s*${installmentNo}|Installment\\s*${installmentNo}))?$`, "i"); return generated.test(value) ? "" : value; }
+function invoiceHistoryTimestamp(invoice: InvoiceSummary) { if (invoice.document_status === "voided") return `ยกเลิกเมื่อ ${dateTime(invoice.voided_at)}`; if (invoice.document_status === "cancelled") return `ยกเลิกร่างเมื่อ ${dateTime(invoice.cancelled_at)}`; return `สร้างเมื่อ ${dateTime(invoice.created_at)}`; }
 function allocationCell(key: AllocationColumnKey, allocation: Allocation, description: string | undefined, currency: string): ReactNode { if (key === "description") return description || <span style={unavailable}>ไม่พบรายการค่าบริการต้นทาง</span>; if (key === "amount_before_tax") return money(allocation.amount_before_tax, currency); if (key === "vat_amount") return money(allocation.vat_amount, currency); if (key === "total_amount") return <strong>{money(allocation.total_amount, currency)}</strong>; return allocation.allocation_percent === null ? <span style={mutedValue}>ตามยอดจริง</span> : `${numberValue(allocation.allocation_percent).toLocaleString("en-US", { maximumFractionDigits: 4 })}%`; }
 function bangkokToday() { const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()); const value = Object.fromEntries(parts.map((part) => [part.type, part.value])); return `${value.year}-${value.month}-${value.day}`; }
 function validateBillingPlanDraft(draft: DraftForm) { for (const installment of draft.installments) { if (!installment.title.trim()) return `กรุณาระบุชื่องวดที่ ${installment.installment_no}`; if (installment.trigger_type === "date" && !installment.due_date) return `กรุณาระบุวันที่ครบกำหนดของงวดที่ ${installment.installment_no}`; if (installment.trigger_type === "case_milestone" && !installment.milestone_code.trim() && !installment.trigger_description.trim()) return `กรุณาระบุเหตุการณ์สำคัญของงวดที่ ${installment.installment_no}`; if (installment.trigger_type === "recurring_period" && (!installment.recurring_period_start || !installment.recurring_period_end || installment.recurring_period_end < installment.recurring_period_start)) return `กรุณาตรวจสอบรอบระยะเวลาของงวดที่ ${installment.installment_no}`; } return ""; }
@@ -636,6 +653,17 @@ const installmentNextStep: CSSProperties = { display: "flex", justifyContent: "s
 const nextStepEyebrow: CSSProperties = { display: "block", color: "#166534", fontSize: 11, fontWeight: 800 };
 const nextStepTitle: CSSProperties = { display: "block", marginTop: 3, color: "#172033", fontSize: 15 };
 const nextStepHelp: CSSProperties = { margin: "4px 0 0", color: "#475569", fontSize: 13, lineHeight: 1.45 };
+const invoiceHistorySection: CSSProperties = { marginTop: 16, paddingTop: 14, borderTop: "1px solid #e2e8f0" };
+const invoiceHistoryHeader: CSSProperties = { display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, marginBottom: 9 };
+const invoiceHistoryEyebrow: CSSProperties = { display: "block", color: "#64748b", fontSize: 11, fontWeight: 750 };
+const invoiceHistoryTitle: CSSProperties = { margin: "3px 0 0", color: "#334155", fontSize: 15 };
+const invoiceHistoryCount: CSSProperties = { color: "#64748b", fontSize: 12 };
+const invoiceHistoryList: CSSProperties = { display: "grid", gap: 8 };
+const invoiceHistoryItem: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", alignItems: "center", gap: 12, padding: "10px 11px", border: "1px solid #e2e8f0", borderRadius: 6, background: "#f8fafc" };
+const invoiceHistoryIdentity: CSSProperties = { display: "grid", gap: 6, minWidth: 0 };
+const invoiceHistoryNumber: CSSProperties = { color: "#334155", fontSize: 14, overflowWrap: "anywhere" };
+const invoiceHistoryMeta: CSSProperties = { display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, color: "#64748b", fontSize: 12 };
+const invoiceHistoryLink: CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 38, padding: "8px 11px", border: "1px solid #cbd5e1", borderRadius: 6, background: "#fff", color: "#475569", fontSize: 13, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" };
 const readinessPanel: CSSProperties = { scrollMarginTop: 96, marginTop: 12, padding: 16, border: "1px solid #93c5fd", borderRadius: 8, background: "#f8fbff" };
 const readinessHeader: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 };
 const readinessTitle: CSSProperties = { margin: "3px 0 0", color: "#172033", fontSize: 17 };
@@ -688,4 +716,4 @@ const scroll: CSSProperties = { overflowX: "auto" };
 const allocationTable: CSSProperties = { width: "100%", minWidth: 760, border: "1px solid #e2e8f0", borderRadius: 6, borderSpacing: 0, tableLayout: "fixed" };
 const statusBadge: CSSProperties = { display: "inline-block", padding: "3px 8px", borderRadius: 999, fontSize: 12 };
 const prominentStatusBadge: CSSProperties = { padding: "5px 10px", fontSize: 13, fontWeight: 750 };
-const statusColor: Record<string, CSSProperties> = { draft: { background: "#e5e7eb", color: "#374151" }, active: { background: "#dcfce7", color: "#166534" }, completed: { background: "#dbeafe", color: "#1d4ed8" }, cancelled: { background: "#fee2e2", color: "#b91c1c" }, pending: { background: "#e5e7eb", color: "#374151" }, ready_to_invoice: { background: "#fef3c7", color: "#92400e" }, invoiced: { background: "#dbeafe", color: "#1d4ed8" }, sent: { background: "#dbeafe", color: "#1d4ed8" }, accepted: { background: "#dcfce7", color: "#166534" } };
+const statusColor: Record<string, CSSProperties> = { draft: { background: "#e5e7eb", color: "#374151" }, active: { background: "#dcfce7", color: "#166534" }, completed: { background: "#dbeafe", color: "#1d4ed8" }, cancelled: { background: "#fee2e2", color: "#b91c1c" }, voided: { background: "#fee2e2", color: "#b91c1c" }, pending: { background: "#e5e7eb", color: "#374151" }, ready_to_invoice: { background: "#fef3c7", color: "#92400e" }, invoiced: { background: "#dbeafe", color: "#1d4ed8" }, sent: { background: "#dbeafe", color: "#1d4ed8" }, accepted: { background: "#dcfce7", color: "#166534" } };
