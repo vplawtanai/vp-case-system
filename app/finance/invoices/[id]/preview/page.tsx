@@ -28,7 +28,7 @@ import {
 
 type Installment = { installment_no: number; title: string };
 
-const invoiceSelect = "id,billing_plan_id,primary_billing_installment_id,fee_agreement_id,source_quotation_id,client_id,case_id,advisory_matter_id,invoice_no,document_status,issue_date,due_date,currency,language_code,customer_note,payment_terms_text,payment_destination_bank_account_id,payment_destination_snapshot_json,internal_note,amount_before_vat,vat_amount,total_amount,seller_name_th,seller_name_en,seller_tax_id,seller_branch,seller_address,seller_phone,seller_email,seller_website,customer_name,customer_tax_id,customer_branch,customer_billing_address,customer_phone,customer_email,seller_snapshot_json,customer_snapshot_json,matter_snapshot_json,source_snapshot_json,issued_snapshot_json,issued_at,cancelled_at,cancel_reason,created_at,updated_at";
+const invoiceSelect = "id,billing_plan_id,primary_billing_installment_id,fee_agreement_id,source_quotation_id,client_id,case_id,advisory_matter_id,invoice_no,document_status,issue_date,due_date,currency,language_code,customer_note,payment_terms_text,payment_destination_bank_account_id,payment_destination_snapshot_json,internal_note,amount_before_vat,vat_amount,total_amount,seller_name_th,seller_name_en,seller_tax_id,seller_branch,seller_address,seller_phone,seller_email,seller_website,customer_name,customer_tax_id,customer_branch,customer_billing_address,customer_phone,customer_email,seller_snapshot_json,customer_snapshot_json,matter_snapshot_json,source_snapshot_json,issued_snapshot_json,issued_at,voided_at,void_reason,cancelled_at,cancel_reason,created_at,updated_at";
 const itemSelect = "id,description,source_quantity,source_unit_price,allocation_percent,vat_applicable,vat_rate,tax_category,price_tax_mode,amount_before_vat,vat_amount,line_total,sort_order";
 
 export default function InvoicePreviewPage() {
@@ -54,6 +54,10 @@ function InvoicePreview({ id }: { id: string }) {
       setError("ไม่สามารถโหลดตัวอย่างใบแจ้งหนี้ได้"); setLoading(false); return;
     }
     const currentInvoice = result.data as FinanceInvoice;
+    if (isFrozenInvoiceStatus(currentInvoice.document_status) && !currentInvoice.issued_snapshot_json) {
+      console.error("Frozen Invoice preview is missing its issued snapshot", { invoiceId: currentInvoice.id, status: currentInvoice.document_status });
+      setError("ไม่พบข้อมูลเอกสารฉบับที่ออกแล้ว จึงไม่สามารถแสดง Preview ได้อย่างปลอดภัย"); setLoading(false); return;
+    }
     const bankAccountPromise = currentInvoice.document_status === "draft" && currentInvoice.payment_destination_bank_account_id
       ? supabase.from("finance_bank_accounts").select("id,short_name,bank_name,account_name,account_number,is_active").eq("id", currentInvoice.payment_destination_bank_account_id).maybeSingle()
       : Promise.resolve({ data: null, error: null });
@@ -71,7 +75,7 @@ function InvoicePreview({ id }: { id: string }) {
     const presentation = invoicePresentation(currentInvoice, (itemsResult.data || []) as FinanceInvoiceItem[], (bankAccountResult.data || null) as FinanceBankAccount | null);
     const sellerSnapshot = presentation.seller;
     const normalizedSeller = normalizeDocumentIdentity(sellerSnapshot);
-    const resolvedIdentity = presentation.invoice.document_status === "issued"
+    const resolvedIdentity = isFrozenInvoiceStatus(presentation.invoice.document_status)
       ? normalizedSeller
       : resolveDocumentIdentity(sellerSnapshot, currentIdentityResult.identity);
     const resolvedLogoUrl = resolvedIdentity.logoStoragePath === currentIdentityResult.identity.logoStoragePath
@@ -110,7 +114,7 @@ function InvoicePreview({ id }: { id: string }) {
 
   return <main style={shell}>
     <div className="invoice-preview-controls" style={controls}>
-      <div><strong style={controlTitle}>{invoice.document_status === "draft" ? "ตัวอย่างร่างใบแจ้งหนี้" : `ใบแจ้งหนี้ ${invoice.invoice_no || ""}`}</strong><span style={controlText}>{invoice.document_status === "draft" ? "การดูตัวอย่างและการพิมพ์ไม่ออกเลขที่เอกสารและไม่เปลี่ยนสถานะ" : "เอกสารนี้แสดงจากข้อมูลที่ถูกล็อกเมื่อออกใบแจ้งหนี้"}</span></div>
+      <div><strong style={controlTitle}>{invoice.document_status === "draft" ? "ตัวอย่างร่างใบแจ้งหนี้" : invoice.document_status === "voided" ? `ใบแจ้งหนี้ที่ยกเลิกแล้ว ${invoice.invoice_no || ""}` : `ใบแจ้งหนี้ ${invoice.invoice_no || ""}`}</strong><span style={controlText}>{invoice.document_status === "draft" ? "การดูตัวอย่างและการพิมพ์ไม่ออกเลขที่เอกสารและไม่เปลี่ยนสถานะ" : invoice.document_status === "voided" ? "เอกสารประวัตินี้แสดงจากข้อมูลที่ถูกล็อกเมื่อออกใบแจ้งหนี้ พร้อมเครื่องหมาย VOID" : "เอกสารนี้แสดงจากข้อมูลที่ถูกล็อกเมื่อออกใบแจ้งหนี้"}</span></div>
       <div style={controlActions}><Link style={backButton} href={`/finance/invoices/${invoice.id}`}>กลับไปใบแจ้งหนี้</Link><button type="button" style={printButton} onClick={() => window.print()}>พิมพ์ / บันทึก PDF</button></div>
     </div>
     {error ? <div style={errorNotice}>{error}</div> : null}
@@ -127,9 +131,10 @@ function InvoicePreview({ id }: { id: string }) {
 }
 
 function invoicePresentation(invoice: FinanceInvoice, liveItems: FinanceInvoiceItem[], liveBankAccount: FinanceBankAccount | null) {
-  if (invoice.document_status !== "issued" || !invoice.issued_snapshot_json) {
+  if (!isFrozenInvoiceStatus(invoice.document_status) || !invoice.issued_snapshot_json) {
     return { invoice, items: liveItems, seller: liveSeller(invoice), paymentDestination: bankAccountPaymentDestination(liveBankAccount) };
   }
+  const strictSnapshot = invoice.document_status === "voided";
   const snapshot = asJson(invoice.issued_snapshot_json);
   const frozenInvoice = asJson(snapshot.invoice);
   const frozenSeller = asJson(snapshot.seller);
@@ -140,7 +145,7 @@ function invoicePresentation(invoice: FinanceInvoice, liveItems: FinanceInvoiceI
     invoice: {
       ...invoice,
       invoice_no: stringOrNull(frozenInvoice.invoice_no) || invoice.invoice_no,
-      document_status: "issued",
+      document_status: invoice.document_status,
       issue_date: stringOrNull(frozenInvoice.issue_date) || invoice.issue_date,
       due_date: stringOrNull(frozenInvoice.due_date),
       currency: stringOrNull(frozenInvoice.currency) || invoice.currency,
@@ -152,19 +157,23 @@ function invoicePresentation(invoice: FinanceInvoice, liveItems: FinanceInvoiceI
       amount_before_vat: valueOrFallback(frozenInvoice.amount_before_vat, invoice.amount_before_vat),
       vat_amount: valueOrFallback(frozenInvoice.vat_amount, invoice.vat_amount),
       total_amount: valueOrFallback(frozenInvoice.total_amount, invoice.total_amount),
-      customer_name: stringOrNull(frozenCustomer.name) || invoice.customer_name,
-      customer_tax_id: stringOrNull(frozenCustomer.tax_id),
-      customer_branch: stringOrNull(frozenCustomer.branch),
-      customer_billing_address: stringOrNull(frozenCustomer.billing_address),
-      customer_phone: stringOrNull(frozenCustomer.phone),
-      customer_email: stringOrNull(frozenCustomer.email),
+      customer_name: stringOrNull(frozenCustomer.name) || (strictSnapshot ? null : invoice.customer_name),
+      customer_tax_id: stringOrNull(frozenCustomer.tax_id) || (strictSnapshot ? null : invoice.customer_tax_id),
+      customer_branch: stringOrNull(frozenCustomer.branch) || (strictSnapshot ? null : invoice.customer_branch),
+      customer_billing_address: stringOrNull(frozenCustomer.billing_address) || (strictSnapshot ? null : invoice.customer_billing_address),
+      customer_phone: stringOrNull(frozenCustomer.phone) || (strictSnapshot ? null : invoice.customer_phone),
+      customer_email: stringOrNull(frozenCustomer.email) || (strictSnapshot ? null : invoice.customer_email),
       matter_snapshot_json: asJson(snapshot.matter),
       source_snapshot_json: asJson(snapshot.source),
     },
-    items: frozenItems.length ? frozenItems : liveItems,
-    seller: sellerIdentitySource(frozenSeller, invoice),
+    items: strictSnapshot ? frozenItems : frozenItems.length ? frozenItems : liveItems,
+    seller: strictSnapshot ? frozenSellerIdentitySource(frozenSeller) : sellerIdentitySource(frozenSeller, invoice),
     paymentDestination: frozenPaymentDestination,
   };
+}
+
+function isFrozenInvoiceStatus(status: string) {
+  return status === "issued" || status === "voided";
 }
 
 function liveSeller(invoice: FinanceInvoice): Json {
@@ -182,6 +191,20 @@ function sellerIdentitySource(seller: Json, invoice: FinanceInvoice): Json {
     phone: stringOrNull(seller.phone) || invoice.seller_phone,
     email: stringOrNull(seller.email) || invoice.seller_email,
     website: stringOrNull(seller.website) || invoice.seller_website,
+  };
+}
+
+function frozenSellerIdentitySource(seller: Json): Json {
+  return {
+    ...asJson(seller.snapshot),
+    company_name_th: stringOrNull(seller.name_th),
+    company_name_en: stringOrNull(seller.name_en),
+    tax_id: stringOrNull(seller.tax_id),
+    branch_th: stringOrNull(seller.branch),
+    address_th: stringOrNull(seller.address),
+    phone: stringOrNull(seller.phone),
+    email: stringOrNull(seller.email),
+    website: stringOrNull(seller.website),
   };
 }
 

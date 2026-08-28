@@ -34,8 +34,9 @@ type BillingPlan = { id: string; title: string | null; status: string; billing_m
 type Installment = { id: string; installment_no: number; title: string; trigger_type: string; trigger_description: string | null; due_date: string | null; status: string; readiness_event_date: string | null; readiness_confirmed_at: string | null; readiness_reference: string | null; amount_before_tax: number | string; vat_amount: number | string; total_amount: number | string };
 type FeeAgreement = { id: string; agreement_no: string | null; title: string; status: string; engagement_basis: "formal_agreement" | "accepted_quotation" | null; source_reference: string | null };
 type FormErrors = Partial<Record<"issueDate" | "dueDate" | "bankAccount", string>>;
+type VoidFormErrors = Partial<Record<"reason" | "acknowledgement", string>>;
 
-const invoiceSelect = "id,billing_plan_id,primary_billing_installment_id,fee_agreement_id,source_quotation_id,client_id,case_id,advisory_matter_id,invoice_no,document_status,issue_date,due_date,currency,language_code,customer_note,payment_terms_text,payment_destination_bank_account_id,payment_destination_snapshot_json,internal_note,amount_before_vat,vat_amount,total_amount,seller_name_th,seller_name_en,seller_tax_id,seller_branch,seller_address,seller_phone,seller_email,seller_website,customer_name,customer_tax_id,customer_branch,customer_billing_address,customer_phone,customer_email,seller_snapshot_json,customer_snapshot_json,matter_snapshot_json,source_snapshot_json,issued_snapshot_json,issued_at,cancelled_at,cancel_reason,created_at,updated_at";
+const invoiceSelect = "id,billing_plan_id,primary_billing_installment_id,fee_agreement_id,source_quotation_id,client_id,case_id,advisory_matter_id,invoice_no,document_status,issue_date,due_date,currency,language_code,customer_note,payment_terms_text,payment_destination_bank_account_id,payment_destination_snapshot_json,internal_note,amount_before_vat,vat_amount,total_amount,seller_name_th,seller_name_en,seller_tax_id,seller_branch,seller_address,seller_phone,seller_email,seller_website,customer_name,customer_tax_id,customer_branch,customer_billing_address,customer_phone,customer_email,seller_snapshot_json,customer_snapshot_json,matter_snapshot_json,source_snapshot_json,issued_snapshot_json,issued_at,voided_at,void_reason,cancelled_at,cancel_reason,created_at,updated_at";
 const itemSelect = "id,description,source_quantity,source_unit_price,allocation_percent,vat_applicable,vat_rate,tax_category,price_tax_mode,amount_before_vat,vat_amount,line_total,sort_order";
 
 export default function InvoiceDetailPage() {
@@ -60,11 +61,16 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
   const [saving, setSaving] = useState(false);
   const [issuing, setIssuing] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [voiding, setVoiding] = useState(false);
   const [creatingPayment, setCreatingPayment] = useState(false);
   const [issuePanelOpen, setIssuePanelOpen] = useState(false);
   const [issueConfirmed, setIssueConfirmed] = useState(false);
   const [cancelPanelOpen, setCancelPanelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  const [voidPanelOpen, setVoidPanelOpen] = useState(false);
+  const [voidReason, setVoidReason] = useState("");
+  const [voidAcknowledged, setVoidAcknowledged] = useState(false);
+  const [voidFormErrors, setVoidFormErrors] = useState<VoidFormErrors>({});
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const actionLock = useRef(false);
@@ -72,6 +78,9 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
   const issueDateRef = useRef<HTMLInputElement | null>(null);
   const dueDateRef = useRef<HTMLInputElement | null>(null);
   const bankAccountRef = useRef<HTMLSelectElement | null>(null);
+  const voidPanelRef = useRef<HTMLDivElement | null>(null);
+  const voidReasonRef = useRef<HTMLTextAreaElement | null>(null);
+  const voidAcknowledgementRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async () => {
     const invoiceResult = await supabase.from("finance_invoices").select(invoiceSelect).eq("id", id).maybeSingle();
@@ -111,6 +120,7 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
     setForm(nextForm);
     setBaseline(invoiceDraftFingerprint(nextForm));
     setFormErrors({});
+    setVoidFormErrors({});
     setLoading(false);
   }, [id]);
 
@@ -122,6 +132,12 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
   const fingerprint = useMemo(() => invoiceDraftFingerprint(form), [form]);
   const dirty = Boolean(baseline) && fingerprint !== baseline;
   const isDraft = invoice?.document_status === "draft";
+  const isIssued = invoice?.document_status === "issued";
+  const isVoided = invoice?.document_status === "voided";
+  const activePaymentDraft = linkedPayments.find((payment) => payment.status === "draft") || null;
+  const effectiveConfirmedPayment = linkedPayments.find((payment) => payment.status === "confirmed") || null;
+  const hasEffectiveSettlement = Number(settlement?.economically_settled_amount || 0) > 0;
+  const voidBlockedByPayment = Boolean(activePaymentDraft || effectiveConfirmedPayment || hasEffectiveSettlement);
   const eligibleBankAccounts = useMemo(() => bankAccounts.filter(eligibleInvoicePaymentBankAccount), [bankAccounts]);
   const selectedBankAccount = useMemo(
     () => bankAccounts.find((account) => account.id === form.paymentDestinationBankAccountId) || null,
@@ -218,6 +234,49 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
     }
   };
 
+  const openVoidPanel = () => {
+    if (!invoice || !isIssued || voidBlockedByPayment) return;
+    setError(""); setMessage(""); setVoidReason(""); setVoidAcknowledged(false); setVoidFormErrors({}); setVoidPanelOpen(true);
+    requestAnimationFrame(() => voidPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
+  };
+
+  const closeVoidPanel = () => {
+    if (voiding) return;
+    setVoidPanelOpen(false); setVoidReason(""); setVoidAcknowledged(false); setVoidFormErrors({});
+  };
+
+  const validateVoid = () => {
+    const nextErrors: VoidFormErrors = {};
+    if (!voidReason.trim()) nextErrors.reason = "กรุณาระบุเหตุผลในการยกเลิกใบแจ้งหนี้";
+    if (voidReason.trim().length > 2000) nextErrors.reason = "เหตุผลในการยกเลิกใบแจ้งหนี้ต้องไม่เกิน 2,000 ตัวอักษร";
+    if (!voidAcknowledged) nextErrors.acknowledgement = "กรุณายืนยันว่าคุณเข้าใจผลของการยกเลิกใบแจ้งหนี้";
+    setVoidFormErrors(nextErrors);
+    const first = nextErrors.reason ? voidReasonRef.current : nextErrors.acknowledgement ? voidAcknowledgementRef.current : null;
+    if (first) requestAnimationFrame(() => { first.scrollIntoView({ behavior: "smooth", block: "center" }); first.focus(); });
+    return Object.keys(nextErrors).length === 0;
+  };
+
+  const voidInvoice = async () => {
+    if (!invoice || !isIssued || voiding || actionLock.current || voidBlockedByPayment || !validateVoid()) return;
+    actionLock.current = true; setVoiding(true); setError(""); setMessage("");
+    try {
+      const result = await supabase.rpc("void_finance_invoice", {
+        p_invoice_id: invoice.id,
+        p_reason: voidReason.trim(),
+        p_acknowledged: voidAcknowledged,
+      });
+      if (result.error) throw result.error;
+      setVoidPanelOpen(false); setVoidReason(""); setVoidAcknowledged(false); setVoidFormErrors({});
+      await load();
+      setMessage("ยกเลิกใบแจ้งหนี้แล้ว เลขที่เดิมถูกเก็บไว้เป็นประวัติและงวดต้นทางพร้อมสำหรับสร้างใบแจ้งหนี้ใหม่");
+    } catch (voidError) {
+      console.error("Failed to void Invoice", voidError);
+      setError(safeInvoiceError(voidError, "ยกเลิกใบแจ้งหนี้ไม่สำเร็จ กรุณาลองใหม่"));
+    } finally {
+      actionLock.current = false; setVoiding(false);
+    }
+  };
+
   const createPaymentDraft = async () => {
     if (!invoice || invoice.document_status !== "issued" || !canManagePayments || creatingPayment || actionLock.current || Number(settlement?.outstanding_amount || 0) <= 0) return;
     actionLock.current = true; setCreatingPayment(true); setError(""); setMessage("");
@@ -257,10 +316,11 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
     <section style={{ ...surface, ...headerSurface }}>
       <div className="invoice-identity-header" style={identityHeader}>
         <div><span style={eyebrow}>{isDraft ? "INVOICE DRAFT" : "INVOICE"}</span><h1 style={title}>{isDraft ? "ร่างใบแจ้งหนี้" : "ใบแจ้งหนี้"}</h1>{isDraft ? <p style={draftReference}>รหัสอ้างอิงร่างภายใน {invoice.id.slice(0, 8).toUpperCase()}</p> : <div style={officialNumber}><small>เลขที่ใบแจ้งหนี้</small><strong style={officialNumberValue}>{displayText(invoice.invoice_no)}</strong></div>}</div>
-        <div className="invoice-status-panel" style={{ ...statusPanel, ...(invoice.document_status === "issued" ? issuedStatusPanel : {}) }}><span style={metaLabel}>สถานะเอกสาร</span><StatusBadge status={invoice.document_status} label={invoiceStatusLabels[invoice.document_status] || invoice.document_status} />{invoice.issued_at ? <span style={updatedText}>ออกเอกสาร {formatBangkokDateTime(invoice.issued_at)}</span> : null}<span style={updatedText}>สร้าง {formatBangkokDateTime(invoice.created_at)}</span><span style={updatedText}>แก้ไขล่าสุด {formatBangkokDateTime(invoice.updated_at)}</span></div>
+        <div className={`invoice-status-panel${isVoided ? " invoice-status-voided" : ""}`} style={{ ...statusPanel, ...(isIssued ? issuedStatusPanel : {}), ...(isVoided ? voidedStatusPanel : {}) }}><span style={metaLabel}>สถานะเอกสาร</span><StatusBadge status={invoice.document_status} label={invoiceStatusLabels[invoice.document_status] || invoice.document_status} />{invoice.issued_at ? <span style={updatedText}>ออกเอกสาร {formatBangkokDateTime(invoice.issued_at)}</span> : null}{invoice.voided_at ? <span style={voidedUpdatedText}>ยกเลิกเมื่อ {formatBangkokDateTime(invoice.voided_at)}</span> : null}<span style={updatedText}>สร้าง {formatBangkokDateTime(invoice.created_at)}</span><span style={updatedText}>แก้ไขล่าสุด {formatBangkokDateTime(invoice.updated_at)}</span></div>
       </div>
       {isDraft ? <div style={numberNotice}><strong>ยังไม่มีเลขที่ใบแจ้งหนี้</strong><span>เลขที่ VP-IV จะถูกกำหนดเมื่อยืนยันออกใบแจ้งหนี้เท่านั้น</span></div> : null}
       {invoice.document_status === "issued" ? <div style={issuedNotice}><strong>เอกสารถูกออกแล้วและเป็นแบบอ่านอย่างเดียว</strong><span>ขั้นตอนถัดไปคือรอรับชำระเงิน</span><span>การออกใบแจ้งหนี้ยังไม่ถือว่าได้รับชำระเงิน</span></div> : null}
+      {isVoided ? <div style={voidedNotice}><strong>สถานะ: ยกเลิกแล้ว</strong><span>ใบแจ้งหนี้เลขที่ {displayText(invoice.invoice_no)} ถูกเก็บไว้เป็นประวัติและไม่สามารถรับชำระเพิ่มได้</span></div> : null}
       {invoice.document_status === "cancelled" ? <div style={cancelledNotice}><strong>ร่างนี้ถูกยกเลิกแล้ว</strong><span>{displayText(invoice.cancel_reason)}</span></div> : null}
     </section>
 
@@ -271,7 +331,7 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
         <SourceNode label={agreement?.engagement_basis === "accepted_quotation" ? "การว่าจ้างตามใบเสนอราคา" : "ข้อตกลงค่าบริการ"}><Link href={`/finance/fee-agreements/${invoice.fee_agreement_id}`}>{engagementReference}</Link>{agreement ? <StatusBadge status={agreement.status} label={feeAgreementStatusLabel(agreement.status)} /> : null}</SourceNode>
         <Arrow /><SourceNode label="แผนเรียกเก็บเงิน"><Link href={`/finance/billing-plans/${invoice.billing_plan_id}`}>{displayText(plan?.title, "แผนเรียกเก็บเงิน")}</Link></SourceNode>
         <Arrow /><SourceNode label={`งวดที่ ${installment?.installment_no || "-"}`}>{displayText(installment?.title, "งวดเรียกเก็บเงิน")}{installment ? <StatusBadge status={installment.status} label={installmentStatusLabels[installment.status] || installment.status} /> : null}</SourceNode>
-        <Arrow /><SourceNode label={isDraft ? "ร่างใบแจ้งหนี้" : "ใบแจ้งหนี้"} current>{invoice.invoice_no || invoice.id.slice(0, 8).toUpperCase()}</SourceNode>
+        <Arrow /><SourceNode label={isDraft ? "ร่างใบแจ้งหนี้" : isVoided ? "ใบแจ้งหนี้ที่ยกเลิกแล้ว" : "ใบแจ้งหนี้"} current>{invoice.invoice_no || invoice.id.slice(0, 8).toUpperCase()}</SourceNode>
       </div>
     </section>
 
@@ -346,10 +406,25 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
     </section>}
 
     <section style={previewBand}>
-      <div><span style={eyebrow}>PREVIEW & PRINT</span><h2 style={previewTitle}>ตรวจสอบเอกสารที่ลูกค้าจะได้รับ</h2><p style={sectionDescription}>{isDraft ? "Preview และ Print ใช้รูปแบบ A4 เดียวกัน การเปิดหรือพิมพ์ร่างไม่ออกเลขที่ VP-IV และไม่เปลี่ยนสถานะเอกสาร" : "Preview และ Print ใช้ข้อมูลที่ถูกล็อกไว้เมื่อออกใบแจ้งหนี้ และไม่เปลี่ยนสถานะเอกสาร"}</p></div>
+      <div><span style={eyebrow}>PREVIEW & PRINT</span><h2 style={previewTitle}>{isVoided ? "ดูเอกสารฉบับประวัติ" : "ตรวจสอบเอกสารที่ลูกค้าจะได้รับ"}</h2><p style={sectionDescription}>{isDraft ? "Preview และ Print ใช้รูปแบบ A4 เดียวกัน การเปิดหรือพิมพ์ร่างไม่ออกเลขที่ VP-IV และไม่เปลี่ยนสถานะเอกสาร" : isVoided ? "Preview และ Print ใช้ข้อมูลเดิมที่ถูกล็อกเมื่อออกใบแจ้งหนี้ พร้อมแสดงเครื่องหมายยกเลิก โดยไม่แสดงเหตุผลภายใน" : "Preview และ Print ใช้ข้อมูลที่ถูกล็อกไว้เมื่อออกใบแจ้งหนี้ และไม่เปลี่ยนสถานะเอกสาร"}</p></div>
       <div style={previewActions}>{isDraft && dirty ? <><span style={{ ...secondaryButton, ...disabledButton }} aria-disabled="true">ดูตัวอย่าง</span><span style={{ ...primaryDarkButton, ...disabledButton }} aria-disabled="true">พิมพ์</span></> : <><Link style={secondaryButton} href={`/finance/invoices/${invoice.id}/preview`}>ดูตัวอย่าง</Link><Link style={primaryDarkButton} href={`/finance/invoices/${invoice.id}/preview?print=1`} target="_blank">พิมพ์</Link></>}</div>
       {isDraft && dirty ? <div style={{ ...neutralWarning, flexBasis: "100%", marginTop: 0 }}>กรุณาบันทึกการเปลี่ยนแปลงก่อนเปิด Preview หรือ Print เพื่อให้เอกสารตรงกับข้อมูลล่าสุด</div> : null}
     </section>
+
+    {isVoided ? <section style={voidedHistorySection}>
+      <span style={voidedHistoryEyebrow}>ประวัติใบแจ้งหนี้</span>
+      <h2 style={voidedHistoryTitle}>ใบแจ้งหนี้นี้ถูกยกเลิกแล้ว</h2>
+      <p style={voidedHistoryDescription}>เลขที่เดิมและข้อมูลฉบับที่ออกแล้วถูกเก็บไว้เป็นหลักฐาน ระบบจะไม่ใช้เลขที่นี้ซ้ำ</p>
+      <div className="invoice-voided-summary" style={voidedSummaryGrid}>
+        <Field label="เลขที่ใบแจ้งหนี้เดิม" value={displayText(invoice.invoice_no)} />
+        <Field label="วันที่ออกเอกสารเดิม" value={formatDocumentDate(invoice.issue_date, "th")} />
+        <Field label="ยกเลิกเมื่อ" value={formatBangkokDateTime(invoice.voided_at)} />
+        <Field label="ยอดเดิม" value={money(invoice.total_amount, invoice.currency)} />
+      </div>
+      <div style={voidReasonBlock}><small style={fieldLabel}>เหตุผลภายในที่ยกเลิก</small><p>{displayText(invoice.void_reason)}</p></div>
+      {linkedPayments.length ? <div style={paymentHistory}><small style={fieldLabel}>ประวัติรายการรับชำระที่เกี่ยวข้อง</small>{linkedPayments.map((payment) => <Link key={payment.id} style={paymentHistoryLink} href={`/finance/payments/${payment.id}`}><span>{payment.status === "draft" ? "ร่างการรับชำระ" : payment.status === "confirmed" ? "ยืนยันรับชำระแล้ว" : payment.status === "cancelled" ? "ยกเลิกร่างแล้ว" : "กลับรายการแล้ว"}</span><strong>{money(payment.settlement_amount, payment.currency)}</strong></Link>)}</div> : null}
+      <div style={replacementNextStep}><strong>สร้างใบแจ้งหนี้ใหม่จากงวดเดิม</strong><span>หากต้องการเรียกเก็บใหม่ ให้กลับไปยังแผนเรียกเก็บเงินและสร้างร่างใบแจ้งหนี้ใหม่ ระบบจะกำหนดเลขที่ VP-IV ใหม่เมื่อออกเอกสาร</span><Link style={replacementButton} href={`/finance/billing-plans/${invoice.billing_plan_id}`}>กลับไปสร้างใบแจ้งหนี้ใหม่</Link></div>
+    </section> : null}
 
     {invoice.document_status === "issued" ? <section style={nextStepZone}>
       <span style={nextStepEyebrow}>การชำระเงิน</span><h2 style={nextStepTitle}>สถานะการรับชำระ</h2><p style={nextStepDescription}>ยอดรับชำระยืนยันแล้วเป็นแหล่งข้อมูลทางการของสถานะการชำระ ใบแจ้งหนี้ไม่ถือเป็นหลักฐานว่าได้รับเงิน</p>
@@ -386,6 +461,27 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
       <section style={otherActions}><h2 style={otherActionsTitle}>การดำเนินการอื่น</h2><p style={sectionDescription}>การยกเลิกร่างจะไม่ยกเลิกหลักฐานความพร้อมของงวด และไม่สร้างเลขที่ใบแจ้งหนี้</p>{!cancelPanelOpen ? <button type="button" style={dangerOutlineButton} onClick={() => setCancelPanelOpen(true)}>ยกเลิกร่างใบแจ้งหนี้</button> : <div style={cancelPanel}><FormField label="เหตุผลที่ยกเลิกร่าง" required><textarea style={textareaStyle} rows={3} value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} /></FormField><div style={confirmationActions}><button type="button" style={secondaryButton} disabled={cancelling} onClick={() => { setCancelPanelOpen(false); setCancelReason(""); }}>ไม่ยกเลิก</button><button type="button" style={{ ...dangerButton, ...(!cancelReason.trim() ? disabledButton : {}) }} disabled={!cancelReason.trim() || cancelling} onClick={() => void cancelDraft()}>{cancelling ? "กำลังยกเลิก..." : "ยืนยันยกเลิกร่าง"}</button></div></div>}</section>
     </> : null}
 
+    {isIssued ? <section style={otherActions}>
+      <h2 style={otherActionsTitle}>การดำเนินการอื่น</h2>
+      <p style={sectionDescription}>การยกเลิกใบแจ้งหนี้เป็นการเก็บเอกสารเดิมไว้เป็นประวัติ และเปิดงวดต้นทางให้สร้างใบแจ้งหนี้ใหม่โดยใช้เลขที่ใหม่</p>
+      {activePaymentDraft ? <div style={voidBlockerNotice}><strong>ยังยกเลิกใบแจ้งหนี้ไม่ได้</strong><span>ยังมีร่างการรับชำระที่ยังไม่ได้ยกเลิก กรุณายกเลิกร่างการรับชำระก่อน</span><Link style={blockerLink} href={`/finance/payments/${activePaymentDraft.id}`}>เปิดร่างการรับชำระ</Link></div> : effectiveConfirmedPayment || hasEffectiveSettlement ? <div style={voidBlockerNotice}><strong>ยังยกเลิกใบแจ้งหนี้ไม่ได้</strong><span>ใบแจ้งหนี้นี้มีการรับชำระที่ยังมีผล กรุณาดำเนินการย้อนกลับรายการรับชำระก่อน</span>{effectiveConfirmedPayment ? <Link style={blockerLink} href={`/finance/payments/${effectiveConfirmedPayment.id}`}>เปิดรายการรับชำระ</Link> : null}</div> : null}
+      {!voidPanelOpen ? <button type="button" style={{ ...dangerOutlineButton, ...(voidBlockedByPayment ? disabledButton : {}) }} disabled={voidBlockedByPayment} onClick={openVoidPanel}>ยกเลิกใบแจ้งหนี้</button> : <div ref={voidPanelRef} style={voidPanel}>
+        <h3 style={voidPanelTitle}>ยืนยันการยกเลิกใบแจ้งหนี้</h3>
+        <p style={voidPanelDescription}>ตรวจสอบผลของการยกเลิกและระบุเหตุผลภายในให้ชัดเจนก่อนดำเนินการ</p>
+        {Object.keys(voidFormErrors).length ? <div role="alert" style={voidValidationSummary}>กรุณากรอกข้อมูลที่จำเป็นให้ครบก่อนยืนยันยกเลิกใบแจ้งหนี้</div> : null}
+        <FormField label="เหตุผลในการยกเลิกใบแจ้งหนี้" required error={voidFormErrors.reason}>
+          <textarea ref={voidReasonRef} style={{ ...textareaStyle, ...(voidFormErrors.reason ? invalidInputStyle : {}) }} rows={4} maxLength={2000} value={voidReason} disabled={voiding} onChange={(event) => { setVoidReason(event.target.value); setVoidFormErrors((current) => ({ ...current, reason: undefined })); }} />
+        </FormField>
+        <div style={voidConsequences}>
+          <strong>ผลของการยกเลิกใบแจ้งหนี้</strong>
+          <ul><li>เลขใบแจ้งหนี้เดิมจะไม่ถูกนำกลับมาใช้</li><li>ใบแจ้งหนี้เดิมจะถูกเก็บไว้เป็นประวัติ</li><li>หากต้องการเรียกเก็บใหม่ ต้องสร้างใบแจ้งหนี้ใหม่</li><li>ไม่สามารถยกเลิกได้หากมีรายการรับชำระที่ยังมีผล</li></ul>
+        </div>
+        <label style={{ ...voidAcknowledgement, ...(voidFormErrors.acknowledgement ? invalidAcknowledgement : {}) }}><input ref={voidAcknowledgementRef} type="checkbox" checked={voidAcknowledged} disabled={voiding} onChange={(event) => { setVoidAcknowledged(event.target.checked); setVoidFormErrors((current) => ({ ...current, acknowledgement: undefined })); }} /><span>ยืนยันว่าได้ตรวจสอบข้อมูลข้างต้นและเข้าใจผลของการยกเลิกใบแจ้งหนี้</span></label>
+        {voidFormErrors.acknowledgement ? <small style={formError}>{voidFormErrors.acknowledgement}</small> : null}
+        <div style={confirmationActions}><button type="button" style={secondaryButton} disabled={voiding} onClick={closeVoidPanel}>กลับ</button><button type="button" style={dangerButton} disabled={voiding} onClick={() => void voidInvoice()}>{voiding ? "กำลังยกเลิกใบแจ้งหนี้..." : "ยืนยันยกเลิกใบแจ้งหนี้"}</button></div>
+      </div>}
+    </section> : null}
+
     <style jsx global>{`
       .invoice-item-table th, .invoice-item-table td { padding: 11px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
       .invoice-item-table th { background: #f8fafc; color: #475569; font-size: 12px; text-align: left; white-space: nowrap; }
@@ -395,11 +491,12 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
       .invoice-draft-settings { scroll-margin-top: 84px; }
       @media (max-width: 760px) {
         .invoice-workspace { padding: 14px !important; }
-        .invoice-navigation-toolbar, .invoice-identity-header, .invoice-total-grid, .invoice-final-summary, .invoice-settlement-summary, .invoice-bank-destination { grid-template-columns: minmax(0, 1fr) !important; }
+        .invoice-navigation-toolbar, .invoice-identity-header, .invoice-total-grid, .invoice-final-summary, .invoice-settlement-summary, .invoice-bank-destination, .invoice-voided-summary { grid-template-columns: minmax(0, 1fr) !important; }
         .invoice-navigation-toolbar a { width: 100%; box-sizing: border-box; white-space: normal !important; }
         .invoice-source-nodes { display: grid !important; grid-template-columns: minmax(0, 1fr); }
         .invoice-source-arrow { display: none; }
         .invoice-status-panel { min-width: 0 !important; justify-items: start !important; border-left: 0 !important; border-top: 2px solid #86efac; }
+        .invoice-status-panel.invoice-status-voided { border-top-color: #dc2626 !important; }
       }
     `}</style>
   </main>;
@@ -432,12 +529,15 @@ const draftReference: CSSProperties = { margin: 0, color: "#64748b", fontSize: 1
 const officialNumber: CSSProperties = { display: "grid", gap: 2, marginTop: 8, color: "#475569" };
 const officialNumberValue: CSSProperties = { color: "#14532d", fontSize: 20, lineHeight: 1.25, fontVariantNumeric: "tabular-nums", overflowWrap: "anywhere" };
 const issuedStatusPanel: CSSProperties = { borderLeftColor: "#22c55e", background: "#f0fdf4" };
+const voidedStatusPanel: CSSProperties = { borderLeftColor: "#dc2626", background: "#fef2f2" };
 const statusPanel: CSSProperties = { display: "grid", alignContent: "start", justifyItems: "end", gap: 7, minWidth: 210, padding: "8px 12px", borderLeft: "2px solid #fbbf24", background: "#fffbeb" };
 const metaLabel: CSSProperties = { color: "#64748b", fontSize: 11, fontWeight: 700 };
 const updatedText: CSSProperties = { color: "#64748b", fontSize: 12 };
+const voidedUpdatedText: CSSProperties = { color: "#b91c1c", fontSize: 12, fontWeight: 700 };
 const numberNotice: CSSProperties = { display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: "4px 12px", padding: "12px 22px", borderTop: "1px solid #fde68a", background: "#fffbeb", color: "#92400e", fontSize: 13 };
 const issuedNotice: CSSProperties = { ...numberNotice, borderColor: "#bbf7d0", background: "#f0fdf4", color: "#166534" };
 const cancelledNotice: CSSProperties = { ...numberNotice, borderColor: "#fecaca", background: "#fef2f2", color: "#b91c1c" };
+const voidedNotice: CSSProperties = { ...cancelledNotice, alignItems: "center" };
 const sourceTrail: CSSProperties = { marginBottom: 18, padding: "14px 0", borderTop: "1px solid #e2e8f0", borderBottom: "1px solid #e2e8f0" };
 const compactHeading: CSSProperties = { margin: "0 0 10px", color: "#475569", fontSize: 14 };
 const sourceNodes: CSSProperties = { display: "flex", alignItems: "stretch", gap: 7, flexWrap: "wrap" };
@@ -478,6 +578,7 @@ const formHelper: CSSProperties = { color: "#64748b", fontSize: 11, lineHeight: 
 const formError: CSSProperties = { color: "#b91c1c", fontSize: 12 };
 const inputStyle = (invalid: boolean): CSSProperties => ({ width: "100%", minHeight: 40, boxSizing: "border-box", padding: "8px 10px", border: `1px solid ${invalid ? "#dc2626" : "#cbd5e1"}`, borderRadius: 6, background: "#fff", color: "#172033", font: "inherit" });
 const textareaStyle: CSSProperties = { ...inputStyle(false), minHeight: 100, resize: "vertical" };
+const invalidInputStyle: CSSProperties = { borderColor: "#dc2626", boxShadow: "0 0 0 1px #dc2626" };
 const saveRow: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginTop: 18, paddingTop: 16, borderTop: "1px solid #e2e8f0" };
 const savedState: CSSProperties = { color: "#166534", fontSize: 13, fontWeight: 700 };
 const unsavedState: CSSProperties = { color: "#92400e", fontSize: 13, fontWeight: 700 };
@@ -497,6 +598,14 @@ const paymentHistory: CSSProperties = { display: "grid", gap: 7, marginTop: 16, 
 const paymentHistoryLink: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "9px 11px", border: "1px solid #dbeafe", borderRadius: 6, background: "#fff", color: "#1d4ed8", textDecoration: "none" };
 const paymentButton: CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 44, marginTop: 16, padding: "10px 18px", border: "1px solid #166534", borderRadius: 6, background: "#166534", color: "#fff", font: "inherit", fontWeight: 800, cursor: "pointer" };
 const settledNote: CSSProperties = { margin: "14px 0 0", color: "#166534", fontWeight: 700 };
+const voidedHistorySection: CSSProperties = { marginBottom: 18, padding: 22, border: "1px solid #fecaca", borderRadius: 8, background: "#fffafa" };
+const voidedHistoryEyebrow: CSSProperties = { color: "#b91c1c", fontSize: 11, fontWeight: 900 };
+const voidedHistoryTitle: CSSProperties = { margin: "5px 0", color: "#7f1d1d", fontSize: 22 };
+const voidedHistoryDescription: CSSProperties = { margin: "0 0 16px", color: "#475569", lineHeight: 1.6 };
+const voidedSummaryGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 1, overflow: "hidden", border: "1px solid #fecaca", borderRadius: 6, background: "#fff" };
+const voidReasonBlock: CSSProperties = { marginTop: 14, padding: 13, borderLeft: "3px solid #dc2626", background: "#fff", color: "#475569" };
+const replacementNextStep: CSSProperties = { display: "grid", gap: 7, marginTop: 16, padding: 14, border: "1px solid #bfdbfe", borderRadius: 6, background: "#f8fbff", color: "#334155", lineHeight: 1.55 };
+const replacementButton: CSSProperties = { ...secondaryButton, width: "fit-content", marginTop: 4, borderColor: "#2563eb", color: "#1d4ed8" };
 const finalActionZone: CSSProperties = { marginBottom: 18, padding: 22, border: "1px solid #86efac", borderRadius: 8, background: "#f7fff9" };
 const finalEyebrow: CSSProperties = { color: "#15803d", fontSize: 11, fontWeight: 900 };
 const finalTitle: CSSProperties = { margin: "5px 0", color: "#14532d", fontSize: 22 };
@@ -514,6 +623,15 @@ const otherActionsTitle: CSSProperties = { margin: 0, color: "#7f1d1d", fontSize
 const dangerOutlineButton: CSSProperties = { ...secondaryButton, marginTop: 12, borderColor: "#fca5a5", color: "#b91c1c" };
 const dangerButton: CSSProperties = { ...issueButton, borderColor: "#b91c1c", background: "#b91c1c" };
 const cancelPanel: CSSProperties = { marginTop: 14, padding: 14, border: "1px solid #fecaca", borderRadius: 6, background: "#fef2f2" };
+const voidBlockerNotice: CSSProperties = { display: "grid", gap: 5, marginTop: 14, padding: 13, borderLeft: "3px solid #dc2626", background: "#fef2f2", color: "#991b1b", lineHeight: 1.5 };
+const blockerLink: CSSProperties = { width: "fit-content", color: "#991b1b", fontWeight: 800 };
+const voidPanel: CSSProperties = { marginTop: 14, padding: 16, border: "1px solid #fecaca", borderRadius: 6, background: "#fef2f2", scrollMarginTop: 84 };
+const voidPanelTitle: CSSProperties = { margin: 0, color: "#7f1d1d", fontSize: 18 };
+const voidPanelDescription: CSSProperties = { margin: "5px 0 14px", color: "#7f1d1d", fontSize: 13, lineHeight: 1.55 };
+const voidValidationSummary: CSSProperties = { marginBottom: 14, padding: 11, border: "1px solid #fca5a5", borderRadius: 6, background: "#fff", color: "#b91c1c", fontSize: 13, fontWeight: 700 };
+const voidConsequences: CSSProperties = { marginTop: 14, padding: "12px 14px", border: "1px solid #fecaca", borderRadius: 6, background: "#fff", color: "#475569", fontSize: 13, lineHeight: 1.6 };
+const voidAcknowledgement: CSSProperties = { display: "flex", alignItems: "flex-start", gap: 9, marginTop: 14, padding: 12, border: "1px solid #fca5a5", borderRadius: 6, background: "#fff", color: "#7f1d1d", fontWeight: 700, lineHeight: 1.5 };
+const invalidAcknowledgement: CSSProperties = { borderColor: "#dc2626", boxShadow: "0 0 0 1px #dc2626" };
 const badge: CSSProperties = { display: "inline-block", width: "fit-content", padding: "4px 8px", borderRadius: 999, fontSize: 12, fontWeight: 700 };
 const amberBadge: CSSProperties = { background: "#fef3c7", color: "#92400e" };
 const greenBadge: CSSProperties = { background: "#dcfce7", color: "#166534" };

@@ -3,6 +3,7 @@ import { LegalDocumentLayout } from "../../components/LegalDocumentLayout";
 import type { DocumentIdentity } from "../../../lib/documentIdentity";
 import {
   displayText,
+  formatBangkokDateTime,
   formatDocumentDate,
   money,
   numberValue,
@@ -32,6 +33,7 @@ export function InvoiceDocument({
   const thai = invoice.language_code !== "en";
   const labels = thai ? thaiLabels : englishLabels;
   const isDraft = invoice.document_status === "draft";
+  const isVoided = invoice.document_status === "voided";
   const documentNo = isDraft
     ? labels.draftReference
     : displayText(invoice.invoice_no, labels.noNumber);
@@ -48,6 +50,7 @@ export function InvoiceDocument({
       />
 
       {isDraft ? <div className={styles.draftBanner}>{labels.draftWarning}</div> : null}
+      {isVoided ? <div className={styles.voidBanner}><strong>{labels.voidStatus}</strong><span>VOID</span>{invoice.voided_at ? <small>{labels.voidDate} {formatBangkokDateTime(invoice.voided_at)}</small> : null}</div> : null}
 
       <section className={styles.documentMeta}>
         <DocumentField label={labels.invoiceNo} value={documentNo} />
@@ -141,6 +144,8 @@ const thaiLabels = {
   draftReference: "ร่าง - ยังไม่มีเลขที่เอกสาร",
   noNumber: "ยังไม่มีเลขที่เอกสาร",
   draftWarning: "ร่างสำหรับตรวจสอบภายใน - ยังไม่ใช่ใบแจ้งหนี้ที่ออกอย่างเป็นทางการ",
+  voidStatus: "ยกเลิกแล้ว",
+  voidDate: "ยกเลิกเมื่อ",
   invoiceNo: "เลขที่ใบแจ้งหนี้",
   issueDate: "วันที่ออกเอกสาร",
   dueDate: "วันที่ครบกำหนด",
@@ -173,6 +178,8 @@ const englishLabels = {
   draftReference: "Draft - no official number",
   noNumber: "No document number",
   draftWarning: "INTERNAL REVIEW DRAFT - not an officially issued Invoice",
+  voidStatus: "VOIDED",
+  voidDate: "Voided on",
   invoiceNo: "Invoice No.",
   issueDate: "Issue Date",
   dueDate: "Due Date",

@@ -14,6 +14,33 @@
   print-color-adjust: exact;
 }
 
+.voidBanner {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 1mm 4mm;
+  margin: 5mm 0 4mm;
+  padding: 2.5mm 3mm;
+  border: 1.5px solid #b91c1c;
+  background: #fff5f5;
+  color: #991b1b;
+  font-size: 9pt;
+  font-weight: 900;
+  letter-spacing: 0;
+  print-color-adjust: exact;
+}
+
+.voidBanner > span {
+  font-size: 14pt;
+}
+
+.voidBanner > small {
+  grid-column: 1 / -1;
+  color: #7f1d1d;
+  font-size: 7.5pt;
+  font-weight: 700;
+}
+
 .documentMeta,
 .customerPanel {
   display: grid;
@@ -199,6 +226,7 @@
   .table th,
   .grandTotal,
   .draftBanner,
+  .voidBanner,
   .paymentDestination {
     color-adjust: exact;
     print-color-adjust: exact;

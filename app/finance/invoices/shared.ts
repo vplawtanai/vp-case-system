@@ -43,6 +43,8 @@ export type FinanceInvoice = {
   source_snapshot_json: Json | null;
   issued_snapshot_json: Json | null;
   issued_at: string | null;
+  voided_at: string | null;
+  void_reason: string | null;
   cancelled_at: string | null;
   cancel_reason: string | null;
   created_at: string;
@@ -96,7 +98,7 @@ export const invoiceStatusLabels: Record<string, string> = {
   draft: "ร่างใบแจ้งหนี้",
   issued: "ออกใบแจ้งหนี้แล้ว",
   cancelled: "ยกเลิกร่างแล้ว",
-  voided: "ยกเลิกเลขที่เอกสารแล้ว",
+  voided: "ยกเลิกแล้ว",
 };
 
 export const installmentStatusLabels: Record<string, string> = {
@@ -242,6 +244,17 @@ export function safeInvoiceError(error: unknown, fallback: string) {
   if (message.includes("payment bank account is not eligible") || message.includes("payment destination bank account is not eligible")) return "บัญชีสำหรับรับชำระที่เลือกไม่พร้อมใช้งาน กรุณาเลือกบัญชีที่มีข้อมูลครบถ้วน";
   if (message.includes("source Billing Installment to remain ready")) return "งวดต้นทางไม่ได้อยู่ในสถานะพร้อมออกใบแจ้งหนี้แล้ว กรุณารีเฟรชและตรวจสอบอีกครั้ง";
   if (message.includes("active Billing Plan")) return "แผนเรียกเก็บเงินต้นทางไม่ได้อยู่ในสถานะใช้งานแล้ว";
+  if (message.includes("Invoice Void reason is required")) return "กรุณาระบุเหตุผลในการยกเลิกใบแจ้งหนี้";
+  if (message.includes("Invoice Void reason is too long")) return "เหตุผลในการยกเลิกใบแจ้งหนี้ต้องไม่เกิน 2,000 ตัวอักษร";
+  if (message.includes("Invoice Void acknowledgement is required")) return "กรุณายืนยันว่าคุณเข้าใจผลของการยกเลิกใบแจ้งหนี้";
+  if (message.includes("active Payment Draft")) return "ยังมีร่างการรับชำระที่ยังไม่ได้ยกเลิก กรุณายกเลิกร่างการรับชำระก่อน";
+  if (message.includes("Confirmed Payment") || message.includes("settlement must be zero")) return "ใบแจ้งหนี้นี้มีการรับชำระที่ยังมีผล กรุณาดำเนินการย้อนกลับรายการรับชำระก่อน";
+  if (message.includes("downstream document dependency")) return "ไม่สามารถยกเลิกใบแจ้งหนี้นี้ได้ เนื่องจากมีเอกสารหรือรายการทางการเงินที่เกี่ยวข้อง";
+  if (message.includes("Only an Issued Invoice") || message.includes("Issued Invoice is required")) return "ยกเลิกได้เฉพาะใบแจ้งหนี้ที่ออกแล้วเท่านั้น กรุณารีเฟรชและตรวจสอบสถานะเอกสาร";
+  if (message.includes("source Billing Plan or Installment lineage") || message.includes("source Billing Plan is not eligible") || message.includes("source Billing Installment is not invoiced") || message.includes("readiness evidence is incomplete")) {
+    return "ข้อมูลงวดหรือแผนเรียกเก็บเงินต้นทางไม่พร้อมสำหรับการยกเลิกใบแจ้งหนี้ กรุณาติดต่อผู้ดูแลระบบ";
+  }
+  if (message.includes("settlement summary is unavailable")) return "ไม่สามารถตรวจสอบสถานะการรับชำระได้ กรุณาลองใหม่หรือติดต่อผู้ดูแลระบบ";
   if (message.includes("Only a Draft Invoice")) return "รายการนี้ไม่ได้อยู่ในสถานะร่างที่ดำเนินการได้";
   if (message.includes("Not allowed")) return "คุณไม่มีสิทธิ์ดำเนินการกับใบแจ้งหนี้นี้";
   if (message.includes("do not reconcile") || message.includes("exactly copy") || message.includes("exactly match") || message.includes("inconsistent")) {
