@@ -198,11 +198,15 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
   const currentWhtBase = derivePaymentWhtBase(targetSettlement, invoiceTotals);
   const savedWhtBase = derivePaymentWhtBase(payment?.settlement_amount || 0, invoiceTotals);
   const savedWhtPreset = inferPaymentWhtPreset(payment?.settlement_amount || 0, payment?.wht_amount || 0, invoiceTotals, whtRatePresets);
-  const effectiveAllocationTotal = effectiveAllocations.reduce((sum, row) => normalizedAmount(sum + normalizedAmount(row.effective_settlement_total)), 0);
-  const selectedSourceAllocation = effectiveAllocations.find((row) => row.invoice_id === reallocationSourceId) || null;
-  const selectedTargetAllocation = effectiveAllocations.find((row) => row.invoice_id === reallocationTargetId) || null;
+  const currentEffectiveAllocations = effectiveAllocations.filter((row) => normalizedAmount(row.effective_settlement_total) > 0);
+  const effectiveAllocationTotal = currentEffectiveAllocations.reduce((sum, row) => normalizedAmount(sum + normalizedAmount(row.effective_settlement_total)), 0);
+  const selectedSourceAllocation = currentEffectiveAllocations.find((row) => row.invoice_id === reallocationSourceId) || null;
+  const selectedTargetAllocation = currentEffectiveAllocations.find((row) => row.invoice_id === reallocationTargetId) || null;
   const selectedSourceInvoice = invoices.find((row) => row.id === reallocationSourceId) || null;
   const selectedTargetInvoice = invoices.find((row) => row.id === reallocationTargetId) || null;
+  const currentAllocatedInvoice = currentEffectiveAllocations.length === 1
+    ? invoices.find((row) => row.id === currentEffectiveAllocations[0].invoice_id) || null
+    : null;
   const reallocationCashAmount = reallocationMode === "full"
     ? normalizedAmount(selectedSourceAllocation?.effective_cash_allocated)
     : normalizedAmount(reallocationCash);
@@ -376,7 +380,7 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
   };
 
   const openReallocation = () => {
-    const firstSource = effectiveAllocations[0]?.invoice_id || "";
+    const firstSource = currentEffectiveAllocations[0]?.invoice_id || "";
     setReallocationSourceId(firstSource);
     setReallocationTargetId("");
     setReallocationMode("full");
@@ -444,11 +448,34 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
         p_request_id: requestId,
       });
       if (result.error) throw result.error;
+      let successfulSourceId = reallocationSourceId;
+      let successfulTargetId = reallocationTargetId;
+      let successfulCash = reallocationCashAmount;
+      let successfulWht = reallocationWhtAmount;
+      let successfulSettlement = reallocationTotal;
+      const reallocationId = typeof result.data === "string" ? result.data : "";
+      if (reallocationId) {
+        const authoritativeResult = await supabase.from("finance_payment_allocation_reallocations").select(reallocationSelect).eq("id", reallocationId).maybeSingle();
+        if (authoritativeResult.error) {
+          console.error("Failed to reload successful Payment reallocation event", authoritativeResult.error);
+        } else if (authoritativeResult.data?.payment_id === payment.id) {
+          const authoritative = authoritativeResult.data as PaymentAllocationReallocation;
+          successfulSourceId = authoritative.source_invoice_id;
+          successfulTargetId = authoritative.target_invoice_id;
+          successfulCash = normalizedAmount(authoritative.cash_moved);
+          successfulWht = normalizedAmount(authoritative.wht_moved);
+          successfulSettlement = normalizedAmount(authoritative.settlement_moved);
+        }
+      }
+      const successfulSourceInvoice = invoices.find((row) => row.id === successfulSourceId) || selectedSourceInvoice;
+      const successfulTargetInvoice = invoices.find((row) => row.id === successfulTargetId) || selectedTargetInvoice;
+      const successTitle = `ย้ายยอด ${money(successfulSettlement, payment.currency)} จาก ${displayText(successfulSourceInvoice?.invoice_no)} ไปยัง ${displayText(successfulTargetInvoice?.invoice_no)} เรียบร้อยแล้ว`;
+      const successDetail = `รายการเงินจริง เงินสด ${money(successfulCash, payment.currency)} และเครดิต WHT ${money(successfulWht, payment.currency)} ไม่เปลี่ยน`;
       setReallocationOpen(false);
       setReallocationRequestId("");
       setReallocationAttempted(false);
       await load();
-      setMessage("ย้ายการจัดสรรยอดรับชำระเรียบร้อยแล้ว");
+      setMessage(`${successTitle}\n${successDetail}`);
     } catch (reallocationError) {
       console.error("Failed to reallocate Payment allocation", reallocationError);
       setError(safePaymentReallocationError(reallocationError));
@@ -461,9 +488,9 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
   if (!payment || !allocation || !invoice) return <main style={page}>{error || "ไม่พบข้อมูลการรับชำระ"}</main>;
 
   return <main className="payment-workspace" style={page}>
-    <nav style={navigationToolbar}><Link style={navigationLink} href={`/finance/invoices/${invoice.id}`}>← กลับไปใบแจ้งหนี้ {displayText(invoice.invoice_no)}</Link></nav>
+    <nav style={navigationToolbar}>{payment.status === "confirmed" ? currentAllocatedInvoice ? <Link style={navigationLink} href={`/finance/invoices/${currentAllocatedInvoice.id}`}>เปิดใบแจ้งหนี้ที่ได้รับการจัดสรรปัจจุบัน {displayText(currentAllocatedInvoice.invoice_no)}</Link> : <a style={navigationLink} href="#current-payment-allocations">ดูใบแจ้งหนี้ที่เกี่ยวข้อง</a> : <Link style={navigationLink} href={`/finance/invoices/${invoice.id}`}>← กลับไปใบแจ้งหนี้ {displayText(invoice.invoice_no)}</Link>}</nav>
     {error ? <div role="alert" style={errorNotice}>{error}</div> : null}
-    {message ? <div role="status" style={successNotice}>{message}</div> : null}
+    {message ? <SuccessNotice message={message} /> : null}
 
     <section style={{ ...surface, ...headerSurface }}>
       <div className="payment-header" style={identityHeader}>
@@ -477,7 +504,7 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
 
     <section style={surface}>
       <SectionHeading title="บริบทการรับชำระ" description="ตรวจสอบลูกค้า สกุลเงิน และใบแจ้งหนี้ที่เกี่ยวข้องกับรายการนี้" />
-      <div style={contextGrid}><Field label="ลูกค้า" value={displayText(invoice.customer_name)} /><Field label="ใบแจ้งหนี้ที่จัดสรร" value={`${payment.status === "confirmed" ? effectiveAllocations.length : allocations.length} ฉบับ`} /><Field label="ยอดรับชำระรวม" value={money(payment.settlement_amount, payment.currency)} /><Field label="สกุลเงิน" value={payment.currency} /></div>
+      <div style={contextGrid}><Field label="ลูกค้า" value={displayText(invoice.customer_name)} /><Field label="ใบแจ้งหนี้ที่จัดสรร" value={`${payment.status === "confirmed" ? currentEffectiveAllocations.length : allocations.length} ฉบับ`} /><Field label="ยอดรับชำระรวม" value={money(payment.settlement_amount, payment.currency)} /><Field label="สกุลเงิน" value={payment.currency} /></div>
     </section>
 
     {isDraft ? <>
@@ -550,14 +577,14 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
         {payment.status === "confirmed" ? <div style={nextStepNotice}>การรับชำระถูกบันทึกแล้ว เอกสารใบเสร็จ/ใบกำกับภาษียังเป็นขั้นตอนถัดไป</div> : null}
       </section>
 
-      {payment.status === "confirmed" ? <section style={surface}>
+      {payment.status === "confirmed" ? <section id="current-payment-allocations" style={{ ...surface, scrollMarginTop: 84 }}>
         <SectionHeading title="การจัดสรรปัจจุบัน" description="แสดงใบแจ้งหนี้ที่ได้รับการตัดชำระจากรายการนี้ในสถานะปัจจุบัน" />
-        <div className="payment-effective-allocation-grid" style={effectiveAllocationGrid}>{effectiveAllocations.map((row) => {
+        <div className="payment-effective-allocation-grid" style={effectiveAllocationGrid}>{currentEffectiveAllocations.map((row) => {
           const rowInvoice = invoices.find((item) => item.id === row.invoice_id) || null;
           const rowSettlement = settlements.find((item) => item.invoice_id === row.invoice_id) || null;
           return <EffectiveAllocationCard key={row.invoice_id} allocation={row} invoice={rowInvoice} settlement={rowSettlement} currency={payment.currency} />;
         })}</div>
-        {!effectiveAllocations.length ? <div style={neutralNotice}>ไม่มีใบแจ้งหนี้ที่ได้รับการจัดสรรยอดในปัจจุบัน</div> : null}
+        {!currentEffectiveAllocations.length ? <div style={neutralNotice}>ไม่มีใบแจ้งหนี้ที่ได้รับการจัดสรรยอดในปัจจุบัน</div> : null}
       </section> : <section style={surface}><SectionHeading title="การจัดสรรตามรายการ" description="แสดงข้อมูลการจัดสรรเดิมเพื่อการตรวจสอบ รายการนี้ไม่อยู่ในสถานะยืนยันรับชำระแล้ว" /><div style={allocationList}>{allocations.map((row) => <AllocationSummaryCard key={row.id} invoice={invoices.find((item) => item.id === row.invoice_id) || null} cash={row.cash_allocated} wht={row.wht_credit_allocated} total={row.settlement_total} currency={payment.currency} />)}</div></section>}
 
       <section style={surface}>
@@ -579,7 +606,7 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
         <div style={coreWarning}><strong>รายการเงินจริงและยอดรับชำระรวมจะไม่เปลี่ยน</strong><span>ระบบจะเปลี่ยนเฉพาะใบแจ้งหนี้ที่ได้รับการตัดชำระ</span><span>เลือกใบแจ้งหนี้ที่ได้รับการตัดชำระผิด และเลือกใบแจ้งหนี้ที่ควรได้รับยอดชำระแทน</span></div>
         {Object.keys(reallocationErrors).length ? <div role="alert" style={validationSummary}>กรุณาตรวจสอบข้อมูลที่จำเป็นก่อนยืนยันการย้าย</div> : null}
         <div className="payment-reallocation-form-grid" style={reallocationFormGrid}>
-          <FormField label="1. ย้ายยอดออกจากใบแจ้งหนี้" required error={reallocationErrors.source}><select ref={reallocationFirstInvalidRef} style={inputStyle(Boolean(reallocationErrors.source))} value={reallocationSourceId} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationSourceId(event.target.value); if (event.target.value === reallocationTargetId) setReallocationTargetId(""); setReallocationErrors((current) => ({ ...current, source: undefined, target: undefined, cash: undefined, wht: undefined })); }}><option value="">เลือกใบแจ้งหนี้ที่ต้องการย้ายยอดออก</option>{effectiveAllocations.map((row) => { const rowInvoice = invoices.find((item) => item.id === row.invoice_id); return <option key={row.invoice_id} value={row.invoice_id}>{displayText(rowInvoice?.invoice_no)} · {money(row.effective_settlement_total, payment.currency)}</option>; })}</select></FormField>
+          <FormField label="1. ย้ายยอดออกจากใบแจ้งหนี้" required error={reallocationErrors.source}><select ref={reallocationFirstInvalidRef} style={inputStyle(Boolean(reallocationErrors.source))} value={reallocationSourceId} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationSourceId(event.target.value); if (event.target.value === reallocationTargetId) setReallocationTargetId(""); setReallocationErrors((current) => ({ ...current, source: undefined, target: undefined, cash: undefined, wht: undefined })); }}><option value="">เลือกใบแจ้งหนี้ที่ต้องการย้ายยอดออก</option>{currentEffectiveAllocations.map((row) => { const rowInvoice = invoices.find((item) => item.id === row.invoice_id); return <option key={row.invoice_id} value={row.invoice_id}>{displayText(rowInvoice?.invoice_no)} · {money(row.effective_settlement_total, payment.currency)}</option>; })}</select></FormField>
           <FormField label="2. ย้ายยอดไปยังใบแจ้งหนี้" required error={reallocationErrors.target}><select style={inputStyle(Boolean(reallocationErrors.target))} value={reallocationTargetId} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationTargetId(event.target.value); setReallocationErrors((current) => ({ ...current, target: undefined })); }}><option value="">เลือกใบแจ้งหนี้ที่ต้องการนำยอดไปตัดชำระ</option>{candidateInvoices.filter((row) => row.id !== reallocationSourceId && normalizedAmount(settlements.find((item) => item.invoice_id === row.id)?.outstanding_amount) > 0).map((row) => { const rowSettlement = settlements.find((item) => item.invoice_id === row.id); return <option key={row.id} value={row.id}>{displayText(row.invoice_no)} · คงค้าง {money(rowSettlement?.outstanding_amount, row.currency)}</option>; })}</select></FormField>
         </div>
         <div className="payment-reallocation-context-grid" style={reallocationContextGrid}>
@@ -633,6 +660,7 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
 }
 
 function SectionHeading({ title, description }: { title: string; description: string }) { return <div style={{ marginBottom: 16 }}><h2 style={sectionTitle}>{title}</h2><p style={sectionDescription}>{description}</p></div>; }
+function SuccessNotice({ message }: { message: string }) { const [titleLine, ...detailLines] = message.split("\n"); return <div role="status" style={successNotice}><strong>{titleLine}</strong>{detailLines.map((line) => <span key={line}>{line}</span>)}</div>; }
 function Field({ label, value }: { label: string; value: ReactNode }) { return <div style={{ minWidth: 0 }}><small style={fieldLabel}>{label}</small><div style={fieldValue}>{value}</div></div>; }
 function FormField({ label, helper, required = false, error, children }: { label: string; helper?: string; required?: boolean; error?: string; children: ReactNode }) { return <label style={formField}><span style={formLabel}>{label}{required ? <strong style={{ color: "#b91c1c" }}> *</strong> : null}</span>{children}{helper ? <small style={helperText}>{helper}</small> : null}{error ? <small style={formError}>{error}</small> : null}</label>; }
 function Metric({ label, value, prominent = false }: { label: string; value: string; prominent?: boolean }) { return <div style={{ ...metric, ...(prominent ? prominentMetric : {}) }}><small>{label}</small><strong style={metricValue}>{value}</strong></div>; }
@@ -693,8 +721,8 @@ const page: CSSProperties = { maxWidth: 1080, margin: "0 auto", padding: 24, col
 const surface: CSSProperties = { marginBottom: 18, padding: 20, border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff" };
 const headerSurface: CSSProperties = { padding: 0, overflow: "hidden" };
 const identityHeader: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 24, padding: 22 };
-const navigationToolbar: CSSProperties = { display: "flex", marginBottom: 18, padding: 8, border: "1px solid #e2e8f0", borderRadius: 8, background: "#f8fafc" };
-const navigationLink: CSSProperties = { display: "inline-flex", minHeight: 38, alignItems: "center", padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: 6, background: "#fff", color: "#475569", fontWeight: 700, textDecoration: "none" };
+const navigationToolbar: CSSProperties = { display: "flex", flexWrap: "wrap", marginBottom: 18, padding: 8, border: "1px solid #e2e8f0", borderRadius: 8, background: "#f8fafc" };
+const navigationLink: CSSProperties = { display: "inline-flex", minWidth: 0, minHeight: 38, alignItems: "center", padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: 6, background: "#fff", color: "#475569", fontWeight: 700, textDecoration: "none", overflowWrap: "anywhere" };
 const eyebrow: CSSProperties = { color: "#64748b", fontSize: 11, fontWeight: 900 };
 const title: CSSProperties = { margin: "4px 0", fontSize: 28 };
 const reference: CSSProperties = { margin: 0, color: "#64748b", fontSize: 13 };
@@ -812,7 +840,7 @@ const dangerOutlineButton: CSSProperties = { ...secondaryButton, marginTop: 12, 
 const dangerButton: CSSProperties = { ...primaryButton, borderColor: "#b91c1c", background: "#b91c1c" };
 const exceptionPanel: CSSProperties = { marginTop: 14, padding: 14, border: "1px solid #fecaca", borderRadius: 6, background: "#fef2f2" };
 const errorNotice: CSSProperties = { marginBottom: 14, padding: 13, border: "1px solid #fecaca", borderRadius: 6, background: "#fef2f2", color: "#b91c1c" };
-const successNotice: CSSProperties = { marginBottom: 14, padding: 13, border: "1px solid #bbf7d0", borderRadius: 6, background: "#f0fdf4", color: "#166534" };
+const successNotice: CSSProperties = { display: "grid", minWidth: 0, gap: 3, marginBottom: 14, padding: 13, border: "1px solid #bbf7d0", borderRadius: 6, background: "#f0fdf4", color: "#166534", lineHeight: 1.55, overflowWrap: "anywhere" };
 const badge: CSSProperties = { display: "inline-block", width: "fit-content", padding: "4px 8px", borderRadius: 999, fontSize: 12, fontWeight: 700 };
 const amberBadge: CSSProperties = { background: "#fef3c7", color: "#92400e" };
 const greenBadge: CSSProperties = { background: "#dcfce7", color: "#166534" };
