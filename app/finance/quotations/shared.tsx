@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import AuthGuard from "../../components/AuthGuard";
 import AppTopNav from "../../components/AppTopNav";
+import FinanceSubNav from "../FinanceSubNav";
 import { createAuditLog } from "../../../lib/auditLog";
 import { getQuotationClientDisplayName } from "../../../lib/quotationClientDisplay";
 import {
@@ -39,6 +40,10 @@ type Profile = {
   can_confirm_finance_payments?: boolean | null;
   can_reverse_finance_payments?: boolean | null;
   can_reallocate_finance_payments?: boolean | null;
+  can_view_finance_cash_transactions?: boolean | null;
+  can_manage_finance_cash_transactions?: boolean | null;
+  can_confirm_finance_cash_transactions?: boolean | null;
+  can_reverse_finance_cash_transactions?: boolean | null;
 };
 
 export type QuotationStatus = "draft" | "sent" | "accepted" | "cancelled";
@@ -645,6 +650,10 @@ const profileSelect = [
   "can_confirm_finance_payments",
   "can_reverse_finance_payments",
   "can_reallocate_finance_payments",
+  "can_view_finance_cash_transactions",
+  "can_manage_finance_cash_transactions",
+  "can_confirm_finance_cash_transactions",
+  "can_reverse_finance_cash_transactions",
 ].join(", ");
 
 export function QuotationGuard({ children, canAccess }: { children: (access: QuotationAccess) => ReactNode; canAccess?: (access: QuotationAccess) => boolean }) {
@@ -702,17 +711,7 @@ export function QuotationGuard({ children, canAccess }: { children: (access: Quo
   );
 }
 
-export function FinanceSubNav({ activePage, permissions }: { activePage: "quotations" | "fee-agreements" | "ledger" | "claims" | "compensation"; permissions: UserPermissions }) {
-  return (
-    <nav style={subNavStyle}>
-      {permissions.canViewFinanceQuotations ? <Link href="/finance/quotations" style={activePage === "quotations" ? subNavActiveLinkStyle : subNavLinkStyle}>Quotations</Link> : null}
-      {permissions.canViewFinanceQuotations ? <Link href="/finance/fee-agreements" style={activePage === "fee-agreements" ? subNavActiveLinkStyle : subNavLinkStyle}>Fee Agreements</Link> : null}
-      {permissions.canViewCompanyLedger ? <Link href="/finance/ledger" style={activePage === "ledger" ? subNavActiveLinkStyle : subNavLinkStyle}>Ledger</Link> : null}
-      {permissions.canSubmitExpenseClaim || permissions.canViewOwnExpenseClaims || permissions.canViewAllExpenseClaims ? <Link href="/finance/expense-claims" style={activePage === "claims" ? subNavActiveLinkStyle : subNavLinkStyle}>Expense Claims</Link> : null}
-      {permissions.canViewLawyerCompensation ? <Link href="/finance/compensation" style={activePage === "compensation" ? subNavActiveLinkStyle : subNavLinkStyle}>Lawyer Compensation</Link> : null}
-    </nav>
-  );
-}
+export { FinanceSubNav };
 
 export function QuotationList({ access }: { access: QuotationAccess }) {
   const [quotations, setQuotations] = useState<QuotationRow[]>([]);
@@ -2949,30 +2948,6 @@ const cardStyle: CSSProperties = {
   padding: 18,
   marginBottom: 16,
   boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
-};
-
-const subNavStyle: CSSProperties = {
-  display: "flex",
-  flexWrap: "wrap",
-  gap: 8,
-  marginBottom: 18,
-};
-
-const subNavLinkStyle: CSSProperties = {
-  border: "1px solid #d1d5db",
-  borderRadius: 999,
-  padding: "8px 12px",
-  color: "#374151",
-  textDecoration: "none",
-  fontSize: 13,
-  fontWeight: 600,
-};
-
-const subNavActiveLinkStyle: CSSProperties = {
-  ...subNavLinkStyle,
-  background: "#111827",
-  borderColor: "#111827",
-  color: "#ffffff",
 };
 
 const sectionHeaderStyle: CSSProperties = {

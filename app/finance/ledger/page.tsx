@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import Link from "next/link";
 import AuthGuard from "../../components/AuthGuard";
 import AppTopNav from "../../components/AppTopNav";
+import FinanceSubNav from "../FinanceSubNav";
 import { createAuditLog } from "../../../lib/auditLog";
 import { buildPermissions } from "../../../lib/permissions";
 import type { UserPermissions, UserRole } from "../../../lib/permissions";
@@ -26,6 +26,10 @@ type Profile = {
   can_view_lawyer_compensation?: boolean | null;
   can_edit_lawyer_compensation?: boolean | null;
   can_void_lawyer_compensation?: boolean | null;
+  can_view_finance_cash_transactions?: boolean | null;
+  can_manage_finance_cash_transactions?: boolean | null;
+  can_confirm_finance_cash_transactions?: boolean | null;
+  can_reverse_finance_cash_transactions?: boolean | null;
 };
 
 type LedgerRow = {
@@ -185,7 +189,7 @@ export default function FinanceLedgerPage() {
 
         const { data } = await supabase
           .from("user_profiles")
-          .select("role, financial_access, full_name, staff_name, can_submit_expense_claim, can_view_own_expense_claims, can_view_all_expense_claims, can_approve_expense_claims, can_pay_expense_claims, can_view_company_ledger, can_edit_company_ledger, can_void_company_ledger, can_view_lawyer_compensation, can_edit_lawyer_compensation, can_void_lawyer_compensation")
+          .select("role, financial_access, full_name, staff_name, can_submit_expense_claim, can_view_own_expense_claims, can_view_all_expense_claims, can_approve_expense_claims, can_pay_expense_claims, can_view_company_ledger, can_edit_company_ledger, can_void_company_ledger, can_view_lawyer_compensation, can_edit_lawyer_compensation, can_void_lawyer_compensation, can_view_finance_cash_transactions, can_manage_finance_cash_transactions, can_confirm_finance_cash_transactions, can_reverse_finance_cash_transactions")
           .eq("id", userData.user.id)
           .single();
 
@@ -205,6 +209,10 @@ export default function FinanceLedgerPage() {
           can_view_lawyer_compensation: data?.can_view_lawyer_compensation === true,
           can_edit_lawyer_compensation: data?.can_edit_lawyer_compensation === true,
           can_void_lawyer_compensation: data?.can_void_lawyer_compensation === true,
+          can_view_finance_cash_transactions: data?.can_view_finance_cash_transactions === true,
+          can_manage_finance_cash_transactions: data?.can_manage_finance_cash_transactions === true,
+          can_confirm_finance_cash_transactions: data?.can_confirm_finance_cash_transactions === true,
+          can_reverse_finance_cash_transactions: data?.can_reverse_finance_cash_transactions === true,
         });
       } finally {
         setLoadingProfile(false);
@@ -632,8 +640,8 @@ export default function FinanceLedgerPage() {
       <AuthGuard>
         <main style={pageStyle}>
           <AppTopNav
-            title="Company Ledger"
-            subtitle="Company income and expenses"
+            title="รายการรับ–จ่ายเดิม"
+            subtitle="ระบบเดิม - ใช้งานจนกว่าจะเปลี่ยนเข้าสู่ระบบใหม่"
             activePage="finance"
           />
           <div style={noAccessStyle}>No access</div>
@@ -646,8 +654,8 @@ export default function FinanceLedgerPage() {
     <AuthGuard>
       <main style={pageStyle}>
         <AppTopNav
-          title="Company Ledger"
-          subtitle="Company income and expenses recorded independently from case fees."
+          title="รายการรับ–จ่ายเดิม"
+          subtitle="ระบบเดิม - ใช้งานจนกว่าจะเปลี่ยนเข้าสู่ระบบใหม่"
           activePage="finance"
         />
 
@@ -829,37 +837,6 @@ function SummaryCard({
       <div style={{ ...summaryLabelStyle, ...toneStyle.label }}>{label}</div>
       <div style={{ ...summaryValueStyle, ...toneStyle.value }}>{value}</div>
     </div>
-  );
-}
-
-function FinanceSubNav({ activePage, permissions }: { activePage: "ledger" | "claims" | "compensation" | "quotations"; permissions: UserPermissions }) {
-  return (
-    <nav style={subNavStyle}>
-      {permissions.canViewFinanceQuotations ? <Link
-        href="/finance/quotations"
-        style={activePage === "quotations" ? subNavActiveLinkStyle : subNavLinkStyle}
-      >
-        Quotations
-      </Link> : null}
-      {permissions.canViewCompanyLedger ? <Link
-        href="/finance/ledger"
-        style={activePage === "ledger" ? subNavActiveLinkStyle : subNavLinkStyle}
-      >
-        Ledger
-      </Link> : null}
-      {permissions.canSubmitExpenseClaim || permissions.canViewOwnExpenseClaims || permissions.canViewAllExpenseClaims ? <Link
-        href="/finance/expense-claims"
-        style={activePage === "claims" ? subNavActiveLinkStyle : subNavLinkStyle}
-      >
-        Expense Claims
-      </Link> : null}
-      {permissions.canViewLawyerCompensation ? <Link
-        href="/finance/compensation"
-        style={activePage === "compensation" ? subNavActiveLinkStyle : subNavLinkStyle}
-      >
-        Lawyer Compensation
-      </Link> : null}
-    </nav>
   );
 }
 
@@ -1085,9 +1062,6 @@ const summaryToneStyles: Record<
     value: { color: "#FFFFFF" },
   },
 };
-const subNavStyle: CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 };
-const subNavLinkStyle: CSSProperties = { padding: "9px 12px", border: "1px solid #cccccc", borderRadius: 6, color: "#111111", textDecoration: "none", fontWeight: 800, background: "#ffffff" };
-const subNavActiveLinkStyle: CSSProperties = { ...subNavLinkStyle, background: "#111111", color: "#ffffff", borderColor: "#111111" };
 const filterGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 };
 const formGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(260px, 100%), 1fr))", columnGap: 16, rowGap: 14, alignItems: "start" };
 const labelStyle: CSSProperties = { display: "grid", gap: 7, fontSize: 13, fontWeight: 700, minWidth: 0 };
