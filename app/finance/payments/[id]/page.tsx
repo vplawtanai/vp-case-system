@@ -37,6 +37,7 @@ type InvoiceContext = { id: string; invoice_no: string | null; customer_name: st
 type BankAccount = { id: string; short_name: string | null; bank_name: string | null; account_name: string | null; account_number: string | null; is_active: boolean };
 type FormErrors = Partial<Record<"receivedOn" | "paymentMethod" | "bankAccount" | "settlementTarget" | "cashAmount" | "whtAmount" | "whtRate" | "allocation" | "confirmation", string>>;
 type ReallocationErrors = Partial<Record<"source" | "target" | "cash" | "wht" | "reason" | "acknowledgement", string>>;
+type ReallocationMode = "full" | "partial";
 type WhtMode = "none" | "calculated" | "manual";
 type WhtRateOption = "" | "1" | "2" | "3" | "5" | "10" | "custom";
 
@@ -80,6 +81,7 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
   const [reallocationOpen, setReallocationOpen] = useState(false);
   const [reallocationSourceId, setReallocationSourceId] = useState("");
   const [reallocationTargetId, setReallocationTargetId] = useState("");
+  const [reallocationMode, setReallocationMode] = useState<ReallocationMode>("full");
   const [reallocationCash, setReallocationCash] = useState("0.00");
   const [reallocationWht, setReallocationWht] = useState("0.00");
   const [reallocationReason, setReallocationReason] = useState("");
@@ -201,8 +203,12 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
   const selectedTargetAllocation = effectiveAllocations.find((row) => row.invoice_id === reallocationTargetId) || null;
   const selectedSourceInvoice = invoices.find((row) => row.id === reallocationSourceId) || null;
   const selectedTargetInvoice = invoices.find((row) => row.id === reallocationTargetId) || null;
-  const reallocationCashAmount = normalizedAmount(reallocationCash);
-  const reallocationWhtAmount = normalizedAmount(reallocationWht);
+  const reallocationCashAmount = reallocationMode === "full"
+    ? normalizedAmount(selectedSourceAllocation?.effective_cash_allocated)
+    : normalizedAmount(reallocationCash);
+  const reallocationWhtAmount = reallocationMode === "full"
+    ? normalizedAmount(selectedSourceAllocation?.effective_wht_credit_allocated)
+    : normalizedAmount(reallocationWht);
   const reallocationTotal = normalizedAmount(reallocationCashAmount + reallocationWhtAmount);
   const crossMatterReallocation = Boolean(selectedSourceInvoice && selectedTargetInvoice && !sameInvoiceMatter(selectedSourceInvoice, selectedTargetInvoice));
 
@@ -373,6 +379,7 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
     const firstSource = effectiveAllocations[0]?.invoice_id || "";
     setReallocationSourceId(firstSource);
     setReallocationTargetId("");
+    setReallocationMode("full");
     setReallocationCash("0.00");
     setReallocationWht("0.00");
     setReallocationReason("");
@@ -402,16 +409,16 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
 
   const validateReallocation = () => {
     const next: ReallocationErrors = {};
-    if (!selectedSourceAllocation) next.source = "กรุณาเลือกใบแจ้งหนี้ต้นทาง";
-    if (!selectedTargetInvoice) next.target = "กรุณาเลือกใบแจ้งหนี้ปลายทาง";
-    if (reallocationSourceId && reallocationSourceId === reallocationTargetId) next.target = "ใบแจ้งหนี้ต้นทางและปลายทางต้องเป็นคนละฉบับ";
-    if (!hasValidCurrencyPrecision(reallocationCash) || reallocationCashAmount < 0) next.cash = "กรุณาระบุเงินสดตั้งแต่ 0 ขึ้นไป และมีทศนิยมไม่เกิน 2 ตำแหน่ง";
-    if (!hasValidCurrencyPrecision(reallocationWht) || reallocationWhtAmount < 0) next.wht = "กรุณาระบุเครดิต WHT ตั้งแต่ 0 ขึ้นไป และมีทศนิยมไม่เกิน 2 ตำแหน่ง";
-    if (selectedSourceAllocation && reallocationCashAmount > normalizedAmount(selectedSourceAllocation.effective_cash_allocated)) next.cash = "เงินสดที่ย้ายเกินยอดปัจจุบันของใบแจ้งหนี้ต้นทาง";
-    if (selectedSourceAllocation && reallocationWhtAmount > normalizedAmount(selectedSourceAllocation.effective_wht_credit_allocated)) next.wht = "เครดิต WHT ที่ย้ายเกินยอดปัจจุบันของใบแจ้งหนี้ต้นทาง";
+    if (!selectedSourceAllocation) next.source = "กรุณาเลือกใบแจ้งหนี้ที่ต้องการย้ายยอดออก";
+    if (!selectedTargetInvoice) next.target = "กรุณาเลือกใบแจ้งหนี้ที่ต้องการย้ายยอดไปยัง";
+    if (reallocationSourceId && reallocationSourceId === reallocationTargetId) next.target = "ใบแจ้งหนี้ที่ย้ายออกและใบแจ้งหนี้ที่รับยอดต้องเป็นคนละฉบับ";
+    if (reallocationMode === "partial" && (!hasValidCurrencyPrecision(reallocationCash) || reallocationCashAmount < 0)) next.cash = "กรุณาระบุเงินสดตั้งแต่ 0 ขึ้นไป และมีทศนิยมไม่เกิน 2 ตำแหน่ง";
+    if (reallocationMode === "partial" && (!hasValidCurrencyPrecision(reallocationWht) || reallocationWhtAmount < 0)) next.wht = "กรุณาระบุเครดิต WHT ตั้งแต่ 0 ขึ้นไป และมีทศนิยมไม่เกิน 2 ตำแหน่ง";
+    if (selectedSourceAllocation && reallocationCashAmount > normalizedAmount(selectedSourceAllocation.effective_cash_allocated)) next.cash = "เงินสดที่ย้ายเกินยอดปัจจุบันของใบแจ้งหนี้ที่ย้ายออก";
+    if (selectedSourceAllocation && reallocationWhtAmount > normalizedAmount(selectedSourceAllocation.effective_wht_credit_allocated)) next.wht = "เครดิต WHT ที่ย้ายเกินยอดปัจจุบันของใบแจ้งหนี้ที่ย้ายออก";
     if (reallocationTotal <= 0) next.cash = "ยอดเงินสดและเครดิต WHT ที่ย้ายรวมกันต้องมากกว่า 0";
     const targetSettlementSummary = settlements.find((row) => row.invoice_id === reallocationTargetId);
-    if (targetSettlementSummary && reallocationTotal > normalizedAmount(targetSettlementSummary.outstanding_amount)) next.target = "ยอดที่ย้ายเกินยอดคงค้างปัจจุบันของใบแจ้งหนี้ปลายทาง";
+    if (targetSettlementSummary && reallocationTotal > normalizedAmount(targetSettlementSummary.outstanding_amount)) next.target = "ยอดที่ย้ายเกินยอดคงค้างปัจจุบันของใบแจ้งหนี้ที่รับยอด";
     if (!reallocationReason.trim()) next.reason = "กรุณาระบุเหตุผลในการย้ายการจัดสรรยอดรับชำระ";
     if (reallocationReason.trim().length > 2000) next.reason = "เหตุผลต้องไม่เกิน 2,000 ตัวอักษร";
     if (!reallocationAcknowledged) next.acknowledgement = "กรุณายืนยันว่ารายการรับเงินจริงถูกต้องและต้องการเปลี่ยนเฉพาะใบแจ้งหนี้";
@@ -441,7 +448,7 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
       setReallocationRequestId("");
       setReallocationAttempted(false);
       await load();
-      setMessage("ย้ายการจัดสรรยอดรับชำระแล้ว รายการเงินจริงและยอดรับชำระรวมไม่เปลี่ยนแปลง");
+      setMessage("ย้ายการจัดสรรยอดรับชำระเรียบร้อยแล้ว");
     } catch (reallocationError) {
       console.error("Failed to reallocate Payment allocation", reallocationError);
       setError(safePaymentReallocationError(reallocationError));
@@ -569,20 +576,30 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
       <h2 style={financialActionTitle}>การจัดสรรยอดรับชำระ</h2>
       <p style={sectionDescription}>ใช้เมื่อรับเงินจริงถูกต้อง แต่ต้องเปลี่ยนใบแจ้งหนี้ที่ได้รับการตัดชำระ เงินสด บัญชีรับเงิน และยอดรับชำระรวมจะไม่เปลี่ยน</p>
       {!reallocationOpen ? <button type="button" style={reallocationButton} onClick={openReallocation}>ย้ายการจัดสรรยอดรับชำระ</button> : <div style={reallocationPanel}>
-        <div style={coreWarning}><strong>รายการเงินจริงและยอดรับชำระรวมจะไม่เปลี่ยน</strong><span>ระบบจะเปลี่ยนเฉพาะใบแจ้งหนี้ที่ได้รับการตัดชำระ</span></div>
+        <div style={coreWarning}><strong>รายการเงินจริงและยอดรับชำระรวมจะไม่เปลี่ยน</strong><span>ระบบจะเปลี่ยนเฉพาะใบแจ้งหนี้ที่ได้รับการตัดชำระ</span><span>เลือกใบแจ้งหนี้ที่ได้รับการตัดชำระผิด และเลือกใบแจ้งหนี้ที่ควรได้รับยอดชำระแทน</span></div>
         {Object.keys(reallocationErrors).length ? <div role="alert" style={validationSummary}>กรุณาตรวจสอบข้อมูลที่จำเป็นก่อนยืนยันการย้าย</div> : null}
         <div className="payment-reallocation-form-grid" style={reallocationFormGrid}>
-          <FormField label="1. ใบแจ้งหนี้ต้นทาง" required error={reallocationErrors.source}><select ref={reallocationFirstInvalidRef} style={inputStyle(Boolean(reallocationErrors.source))} value={reallocationSourceId} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationSourceId(event.target.value); if (event.target.value === reallocationTargetId) setReallocationTargetId(""); setReallocationErrors((current) => ({ ...current, source: undefined, target: undefined })); }}><option value="">เลือกใบแจ้งหนี้ต้นทาง</option>{effectiveAllocations.map((row) => { const rowInvoice = invoices.find((item) => item.id === row.invoice_id); return <option key={row.invoice_id} value={row.invoice_id}>{displayText(rowInvoice?.invoice_no)} · {money(row.effective_settlement_total, payment.currency)}</option>; })}</select></FormField>
-          <FormField label="2. ใบแจ้งหนี้ปลายทาง" required error={reallocationErrors.target}><select style={inputStyle(Boolean(reallocationErrors.target))} value={reallocationTargetId} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationTargetId(event.target.value); setReallocationErrors((current) => ({ ...current, target: undefined })); }}><option value="">เลือกใบแจ้งหนี้ปลายทาง</option>{candidateInvoices.filter((row) => row.id !== reallocationSourceId && normalizedAmount(settlements.find((item) => item.invoice_id === row.id)?.outstanding_amount) > 0).map((row) => { const rowSettlement = settlements.find((item) => item.invoice_id === row.id); return <option key={row.id} value={row.id}>{displayText(row.invoice_no)} · คงค้าง {money(rowSettlement?.outstanding_amount, row.currency)}</option>; })}</select></FormField>
+          <FormField label="1. ย้ายยอดออกจากใบแจ้งหนี้" required error={reallocationErrors.source}><select ref={reallocationFirstInvalidRef} style={inputStyle(Boolean(reallocationErrors.source))} value={reallocationSourceId} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationSourceId(event.target.value); if (event.target.value === reallocationTargetId) setReallocationTargetId(""); setReallocationErrors((current) => ({ ...current, source: undefined, target: undefined, cash: undefined, wht: undefined })); }}><option value="">เลือกใบแจ้งหนี้ที่ต้องการย้ายยอดออก</option>{effectiveAllocations.map((row) => { const rowInvoice = invoices.find((item) => item.id === row.invoice_id); return <option key={row.invoice_id} value={row.invoice_id}>{displayText(rowInvoice?.invoice_no)} · {money(row.effective_settlement_total, payment.currency)}</option>; })}</select></FormField>
+          <FormField label="2. ย้ายยอดไปยังใบแจ้งหนี้" required error={reallocationErrors.target}><select style={inputStyle(Boolean(reallocationErrors.target))} value={reallocationTargetId} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationTargetId(event.target.value); setReallocationErrors((current) => ({ ...current, target: undefined })); }}><option value="">เลือกใบแจ้งหนี้ที่ต้องการนำยอดไปตัดชำระ</option>{candidateInvoices.filter((row) => row.id !== reallocationSourceId && normalizedAmount(settlements.find((item) => item.invoice_id === row.id)?.outstanding_amount) > 0).map((row) => { const rowSettlement = settlements.find((item) => item.invoice_id === row.id); return <option key={row.id} value={row.id}>{displayText(row.invoice_no)} · คงค้าง {money(rowSettlement?.outstanding_amount, row.currency)}</option>; })}</select></FormField>
         </div>
-        {selectedSourceAllocation ? <div style={selectedSourceSummary}><strong>{displayText(selectedSourceInvoice?.invoice_no)}</strong><span>{invoiceMatterLabel(selectedSourceInvoice)}</span><span>เงินสด {money(selectedSourceAllocation.effective_cash_allocated, payment.currency)}</span><span>WHT {money(selectedSourceAllocation.effective_wht_credit_allocated, payment.currency)}</span><strong>รวม {money(selectedSourceAllocation.effective_settlement_total, payment.currency)}</strong></div> : null}
-        {selectedTargetInvoice ? <div style={targetContext}><strong>ปลายทาง {displayText(selectedTargetInvoice.invoice_no)}</strong><span>{invoiceMatterLabel(selectedTargetInvoice)}</span><span>ยอดใบแจ้งหนี้ {money(selectedTargetInvoice.total_amount, payment.currency)} · คงค้าง {money(settlements.find((row) => row.invoice_id === selectedTargetInvoice.id)?.outstanding_amount, payment.currency)}</span></div> : null}
-        {crossMatterReallocation ? <div style={crossMatterWarning}>ใบแจ้งหนี้ปลายทางอยู่คนละคดี/งานกับใบแจ้งหนี้ต้นทาง กรุณาตรวจสอบให้แน่ใจก่อนยืนยัน</div> : null}
-        <div style={moveHeader}><h3 style={moveTitle}>3. ระบุยอดที่ย้าย</h3><button type="button" style={textActionButton} disabled={!selectedSourceAllocation || reallocating} onClick={() => { if (!selectedSourceAllocation) return; beginChangedReallocationIntent(); setReallocationCash(normalizedAmount(selectedSourceAllocation.effective_cash_allocated).toFixed(2)); setReallocationWht(normalizedAmount(selectedSourceAllocation.effective_wht_credit_allocated).toFixed(2)); setReallocationErrors((current) => ({ ...current, cash: undefined, wht: undefined })); }}>ย้ายยอดทั้งหมด</button></div>
-        <div className="payment-reallocation-form-grid" style={reallocationFormGrid}><FormField label="เงินสดที่ย้าย" required error={reallocationErrors.cash}><input style={inputStyle(Boolean(reallocationErrors.cash))} type="number" min="0" step="0.01" value={reallocationCash} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationCash(event.target.value); setReallocationErrors((current) => ({ ...current, cash: undefined })); }} /></FormField><FormField label="เครดิตภาษีหัก ณ ที่จ่ายที่ย้าย" required error={reallocationErrors.wht}><input style={inputStyle(Boolean(reallocationErrors.wht))} type="number" min="0" step="0.01" value={reallocationWht} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationWht(event.target.value); setReallocationErrors((current) => ({ ...current, wht: undefined })); }} /></FormField></div>
+        <div className="payment-reallocation-context-grid" style={reallocationContextGrid}>
+          {selectedSourceAllocation ? <InvoiceMoveContext title="ย้ายยอดออกจาก" invoice={selectedSourceInvoice} tone="neutral"><small style={contextSectionLabel}>การจัดสรรปัจจุบัน</small><div style={contextAmounts}><span>เงินสด {money(selectedSourceAllocation.effective_cash_allocated, payment.currency)}</span><span>WHT {money(selectedSourceAllocation.effective_wht_credit_allocated, payment.currency)}</span><strong>รวม {money(selectedSourceAllocation.effective_settlement_total, payment.currency)}</strong></div></InvoiceMoveContext> : null}
+          {selectedTargetInvoice ? <InvoiceMoveContext title="ย้ายยอดไปยัง" invoice={selectedTargetInvoice} tone="accent"><div style={contextAmounts}><span>ยอดใบแจ้งหนี้ {money(selectedTargetInvoice.total_amount, payment.currency)}</span><strong>ยอดคงค้าง {money(settlements.find((row) => row.invoice_id === selectedTargetInvoice.id)?.outstanding_amount, payment.currency)}</strong></div></InvoiceMoveContext> : null}
+        </div>
+        {crossMatterReallocation ? <div style={crossMatterWarning}>ใบแจ้งหนี้ทั้งสองฉบับอยู่คนละคดี/งาน กรุณาตรวจสอบให้แน่ใจก่อนยืนยัน</div> : null}
+        <div><h3 style={moveTitle}>3. ต้องการย้ายยอดแบบใด</h3><div className="payment-reallocation-mode-grid" style={reallocationModeGrid}>{([{
+          value: "full" as const,
+          title: "ย้ายยอดทั้งหมด",
+          description: "ย้ายเงินสดและเครดิต WHT ที่จัดสรรอยู่ทั้งหมดไปยังใบแจ้งหนี้ที่เลือก",
+        }, {
+          value: "partial" as const,
+          title: "ย้ายบางส่วน",
+          description: "ระบุยอดเงินสดและเครดิต WHT ที่ต้องการย้ายแยกกัน",
+        }]).map((option) => <label key={option.value} className="payment-reallocation-mode" style={{ ...reallocationModeOption, ...(reallocationMode === option.value ? selectedReallocationModeOption : {}) }}><input type="radio" name="reallocation-mode" value={option.value} checked={reallocationMode === option.value} disabled={reallocating} onChange={() => { beginChangedReallocationIntent(); setReallocationMode(option.value); if (option.value === "partial") { setReallocationCash("0.00"); setReallocationWht("0.00"); } setReallocationErrors((current) => ({ ...current, cash: undefined, wht: undefined })); }} /><span><strong>{option.title}</strong><small>{option.description}</small></span></label>)}</div></div>
+        {reallocationMode === "full" ? <div style={fullMoveSummary}><span>ยอดที่จะย้ายทั้งหมดจากใบแจ้งหนี้ที่เลือก</span><div className="payment-full-move-grid" style={fullMoveGrid}><Metric label="เงินสด" value={money(reallocationCashAmount, payment.currency)} /><Metric label="เครดิต WHT" value={money(reallocationWhtAmount, payment.currency)} /><Metric label="ยอดตัดชำระรวม" value={money(reallocationTotal, payment.currency)} prominent /></div></div> : <div className="payment-reallocation-form-grid" style={reallocationFormGrid}><FormField label="เงินสดที่ย้าย" required error={reallocationErrors.cash}><input style={inputStyle(Boolean(reallocationErrors.cash))} type="number" min="0" step="0.01" value={reallocationCash} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationCash(event.target.value); setReallocationErrors((current) => ({ ...current, cash: undefined })); }} /></FormField><FormField label="เครดิตภาษีหัก ณ ที่จ่ายที่ย้าย" required error={reallocationErrors.wht}><input style={inputStyle(Boolean(reallocationErrors.wht))} type="number" min="0" step="0.01" value={reallocationWht} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationWht(event.target.value); setReallocationErrors((current) => ({ ...current, wht: undefined })); }} /></FormField></div>}
         {selectedSourceAllocation && selectedTargetInvoice ? <ReallocationReview sourceInvoice={selectedSourceInvoice} targetInvoice={selectedTargetInvoice} source={selectedSourceAllocation} target={selectedTargetAllocation} cashMoved={reallocationCashAmount} whtMoved={reallocationWhtAmount} currency={payment.currency} /> : null}
-        <div style={unchangedTotals}><Metric label="ยอดรายการรับชำระ (ไม่เปลี่ยน)" value={money(payment.settlement_amount, payment.currency)} /><Metric label="เงินสดรวม (ไม่เปลี่ยน)" value={money(payment.cash_amount, payment.currency)} /><Metric label="เครดิต WHT รวม (ไม่เปลี่ยน)" value={money(payment.wht_amount, payment.currency)} /><Metric label="ยอดตัดชำระรวม (ไม่เปลี่ยน)" value={money(payment.settlement_amount, payment.currency)} prominent /></div>
-        <FormField label="4. เหตุผลในการย้ายการจัดสรรยอดรับชำระ" required error={reallocationErrors.reason}><textarea style={{ ...textareaStyle, ...(reallocationErrors.reason ? invalidInput : {}) }} rows={3} value={reallocationReason} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationReason(event.target.value); setReallocationErrors((current) => ({ ...current, reason: undefined })); }} /></FormField>
+        <div style={unchangedSummary}><strong>รายการเงินจริงไม่เปลี่ยน</strong><div style={unchangedTotals}><Metric label="ยอดรับชำระรวม" value={money(payment.settlement_amount, payment.currency)} prominent /><Metric label="เงินสด" value={money(payment.cash_amount, payment.currency)} /><Metric label="เครดิต WHT" value={money(payment.wht_amount, payment.currency)} /></div></div>
+        <FormField label="5. เหตุผลในการย้ายการจัดสรรยอดรับชำระ" required error={reallocationErrors.reason}><textarea style={{ ...textareaStyle, ...(reallocationErrors.reason ? invalidInput : {}) }} rows={3} value={reallocationReason} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationReason(event.target.value); setReallocationErrors((current) => ({ ...current, reason: undefined })); }} /></FormField>
         <label style={{ ...reallocationAcknowledgement, ...(reallocationErrors.acknowledgement ? invalidConfirmation : {}) }}><input type="checkbox" checked={reallocationAcknowledged} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationAcknowledged(event.target.checked); setReallocationErrors((current) => ({ ...current, acknowledgement: undefined })); }} /><span>ยืนยันว่ารายการรับเงินจริงถูกต้อง และต้องการเปลี่ยนเฉพาะใบแจ้งหนี้ที่ได้รับการตัดชำระ{reallocationErrors.acknowledgement ? <small style={formError}>{reallocationErrors.acknowledgement}</small> : null}</span></label>
         <div style={actionRow}><button type="button" style={secondaryButton} disabled={reallocating} onClick={closeReallocation}>ยกเลิก</button><button type="button" style={primaryButton} disabled={reallocating} onClick={() => void submitReallocation()}>{reallocating ? "กำลังย้ายการจัดสรร..." : "ยืนยันการย้าย"}</button></div>
       </div>}
@@ -598,12 +615,16 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
         .payment-workspace { padding: 14px !important; }
         .payment-header { grid-template-columns: minmax(0, 1fr) !important; }
         .payment-allocation-card { grid-template-columns: minmax(0, 1fr) !important; gap: 7px !important; }
-        .payment-effective-allocation-grid, .payment-reallocation-form-grid { grid-template-columns: minmax(0, 1fr) !important; }
-        .payment-comparison-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; }
+        .payment-effective-allocation-grid, .payment-reallocation-form-grid, .payment-reallocation-context-grid, .payment-reallocation-mode-grid, .payment-review-invoice-grid, .payment-full-move-grid { grid-template-columns: minmax(0, 1fr) !important; }
         .payment-settlement-entry-grid, .payment-manual-wht-grid { grid-template-columns: minmax(0, 1fr) !important; }
         .payment-wht-rate-grid { grid-template-columns: repeat(3,minmax(0,1fr)) !important; }
       }
       .payment-wht-choice, .payment-wht-rate { transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease; }
+      .payment-reallocation-mode { transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease; }
+      .payment-reallocation-mode > span { display: grid; min-width: 0; gap: 3px; }
+      .payment-reallocation-mode small { color: #64748b; line-height: 1.45; }
+      .payment-reallocation-mode:hover { border-color: #93c5fd !important; }
+      .payment-reallocation-mode:focus-within { outline: 3px solid rgba(37, 99, 235, .2); outline-offset: 2px; }
       .payment-wht-choice:hover:not(:disabled), .payment-wht-rate:hover:not(:disabled) { border-color: #64748b !important; }
       .payment-wht-choice:focus-visible, .payment-wht-rate:focus-visible { outline: 3px solid rgba(37, 99, 235, .24); outline-offset: 2px; }
       .payment-wht-choice:disabled, .payment-wht-rate:disabled { cursor: not-allowed !important; opacity: .58; }
@@ -631,16 +652,20 @@ function HistoryRow({ title, source, target, cash, wht, total, reason, createdAt
   return <div style={historyRow}><div style={historyRowHeader}><strong>{title}</strong>{createdAt ? <span>{formatBangkokDateTime(createdAt)}</span> : null}</div><div style={historyRoute}>{source ? <span>จาก <Link href={`/finance/invoices/${source.id}`}>{displayText(source.invoice_no)}</Link></span> : null}<span>{source ? "ไปยัง" : "ใบแจ้งหนี้"} {target ? <Link href={`/finance/invoices/${target.id}`}>{displayText(target.invoice_no)}</Link> : "ไม่พบข้อมูล"}</span></div><div style={historyAmounts}><span>เงินสด {money(cash, currency)}</span><span>WHT {money(wht, currency)}</span><strong>รวม {money(total, currency)}</strong></div>{reason ? <p style={historyReason}>เหตุผล: {reason}</p> : null}</div>;
 }
 
+function InvoiceMoveContext({ title, invoice, tone, children }: { title: string; invoice: InvoiceContext | null; tone: "neutral" | "accent"; children: ReactNode }) {
+  return <article style={{ ...invoiceMoveContext, ...(tone === "accent" ? accentInvoiceMoveContext : {}) }}><small style={contextLabel}>{title}</small><strong style={contextInvoiceNo}>{displayText(invoice?.invoice_no)}</strong><span style={matterText}>{invoiceMatterLabel(invoice)}</span>{children}</article>;
+}
+
 function ReallocationReview({ sourceInvoice, targetInvoice, source, target, cashMoved, whtMoved, currency }: { sourceInvoice: InvoiceContext | null; targetInvoice: InvoiceContext; source: EffectivePaymentAllocation; target: EffectivePaymentAllocation | null; cashMoved: number; whtMoved: number; currency: string }) {
   const sourceCashAfter = normalizedAmount(normalizedAmount(source.effective_cash_allocated) - cashMoved);
   const sourceWhtAfter = normalizedAmount(normalizedAmount(source.effective_wht_credit_allocated) - whtMoved);
   const targetCashAfter = normalizedAmount(normalizedAmount(target?.effective_cash_allocated) + cashMoved);
   const targetWhtAfter = normalizedAmount(normalizedAmount(target?.effective_wht_credit_allocated) + whtMoved);
-  return <div style={reviewComparison}><div><h3 style={comparisonTitle}>ก่อนย้าย</h3><AllocationComparisonRow invoice={sourceInvoice} cash={source.effective_cash_allocated} wht={source.effective_wht_credit_allocated} currency={currency} /><AllocationComparisonRow invoice={targetInvoice} cash={target?.effective_cash_allocated || 0} wht={target?.effective_wht_credit_allocated || 0} currency={currency} /></div><div style={movingSummary}><small>กำลังย้าย</small><strong>{money(cashMoved + whtMoved, currency)}</strong><span>เงินสด {money(cashMoved, currency)} · WHT {money(whtMoved, currency)}</span></div><div><h3 style={comparisonTitle}>หลังย้าย</h3><AllocationComparisonRow invoice={sourceInvoice} cash={sourceCashAfter} wht={sourceWhtAfter} currency={currency} /><AllocationComparisonRow invoice={targetInvoice} cash={targetCashAfter} wht={targetWhtAfter} currency={currency} /></div></div>;
+  return <section style={reviewComparison}><h3 style={comparisonTitle}>4. ตรวจสอบผลการย้าย</h3><div><h4 style={reviewStageTitle}>ก่อนย้าย</h4><div className="payment-review-invoice-grid" style={reviewInvoiceGrid}><AllocationReviewCard invoice={sourceInvoice} total={source.effective_settlement_total} currency={currency} /><AllocationReviewCard invoice={targetInvoice} total={normalizedAmount(target?.effective_settlement_total)} currency={currency} /></div></div><div style={movingSummary}><small>ยอดที่จะย้าย</small><strong>{money(cashMoved + whtMoved, currency)}</strong><span>เงินสด {money(cashMoved, currency)}</span><span>เครดิต WHT {money(whtMoved, currency)}</span></div><div><h4 style={reviewStageTitle}>หลังย้าย</h4><div className="payment-review-invoice-grid" style={reviewInvoiceGrid}><AllocationReviewCard invoice={sourceInvoice} total={normalizedAmount(sourceCashAfter + sourceWhtAfter)} currency={currency} /><AllocationReviewCard invoice={targetInvoice} total={normalizedAmount(targetCashAfter + targetWhtAfter)} currency={currency} /></div></div></section>;
 }
 
-function AllocationComparisonRow({ invoice, cash, wht, currency }: { invoice: InvoiceContext | null; cash: number | string; wht: number | string; currency: string }) {
-  return <div className="payment-comparison-row" style={comparisonRow}><strong>{displayText(invoice?.invoice_no)}</strong><span>Cash {money(cash, currency)}</span><span>WHT {money(wht, currency)}</span><strong>รวม {money(normalizedAmount(cash) + normalizedAmount(wht), currency)}</strong></div>;
+function AllocationReviewCard({ invoice, total, currency }: { invoice: InvoiceContext | null; total: number | string; currency: string }) {
+  return <div style={allocationReviewCard}><strong>{displayText(invoice?.invoice_no)}</strong><span style={matterText}>{invoiceMatterLabel(invoice)}</span><div style={allocationReviewTotal}><small>ยอดตัดชำระ</small><strong>{money(total, currency)}</strong></div></div>;
 }
 
 function invoiceMatterLabel(invoice: InvoiceContext | null | undefined) {
@@ -753,20 +778,33 @@ const nextStepNotice: CSSProperties = { marginTop: 16, padding: 13, border: "1px
 const financialActionSection: CSSProperties = { ...surface, borderColor: "#bfdbfe", background: "#f8fbff", scrollMarginTop: 84 };
 const financialActionTitle: CSSProperties = { margin: 0, color: "#1e3a8a", fontSize: 17 };
 const reallocationButton: CSSProperties = { ...secondaryButton, marginTop: 14, borderColor: "#93c5fd", color: "#1d4ed8" };
-const reallocationPanel: CSSProperties = { display: "grid", gap: 16, marginTop: 16, padding: 16, border: "1px solid #bfdbfe", borderRadius: 6, background: "#fff" };
+const reallocationPanel: CSSProperties = { display: "grid", minWidth: 0, gap: 16, marginTop: 16, padding: 16, border: "1px solid #bfdbfe", borderRadius: 6, background: "#fff" };
 const coreWarning: CSSProperties = { display: "grid", gap: 3, padding: 13, borderLeft: "4px solid #2563eb", background: "#eff6ff", color: "#1e40af", fontSize: 13, lineHeight: 1.5 };
 const validationSummary: CSSProperties = { padding: 11, border: "1px solid #fca5a5", borderRadius: 6, background: "#fef2f2", color: "#b91c1c", fontSize: 13, fontWeight: 700 };
 const reallocationFormGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 14 };
-const selectedSourceSummary: CSSProperties = { display: "flex", alignItems: "center", flexWrap: "wrap", gap: "5px 14px", padding: 12, border: "1px solid #cbd5e1", borderRadius: 6, background: "#f8fafc", fontSize: 13, fontVariantNumeric: "tabular-nums" };
-const targetContext: CSSProperties = { display: "grid", gap: 3, padding: 12, border: "1px solid #bfdbfe", borderRadius: 6, background: "#eff6ff", color: "#1e40af", fontSize: 13 };
+const reallocationContextGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 12 };
+const invoiceMoveContext: CSSProperties = { display: "grid", minWidth: 0, gap: 5, padding: 14, border: "1px solid #cbd5e1", borderRadius: 6, background: "#f8fafc", color: "#334155" };
+const accentInvoiceMoveContext: CSSProperties = { borderColor: "#bfdbfe", background: "#eff6ff", color: "#1e40af" };
+const contextLabel: CSSProperties = { color: "#64748b", fontSize: 11, fontWeight: 800 };
+const contextSectionLabel: CSSProperties = { marginTop: 5, color: "#64748b", fontSize: 11, fontWeight: 700 };
+const contextInvoiceNo: CSSProperties = { overflowWrap: "anywhere", fontSize: 16 };
+const contextAmounts: CSSProperties = { display: "flex", minWidth: 0, flexWrap: "wrap", gap: "5px 12px", marginTop: 5, fontSize: 12, fontVariantNumeric: "tabular-nums" };
 const crossMatterWarning: CSSProperties = { padding: 12, borderLeft: "4px solid #f59e0b", background: "#fffbeb", color: "#92400e", fontSize: 13, fontWeight: 700, lineHeight: 1.5 };
-const moveHeader: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 };
 const moveTitle: CSSProperties = { margin: 0, color: "#334155", fontSize: 15 };
-const reviewComparison: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12, padding: 14, border: "1px solid #cbd5e1", borderRadius: 6, background: "#f8fafc" };
-const comparisonTitle: CSSProperties = { margin: "0 0 8px", color: "#334155", fontSize: 14 };
-const comparisonRow: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(110px,1fr) repeat(3,max-content)", gap: 10, padding: "8px 0", borderTop: "1px solid #e2e8f0", fontSize: 12, fontVariantNumeric: "tabular-nums" };
-const movingSummary: CSSProperties = { display: "grid", placeContent: "center", justifyItems: "center", gap: 3, minHeight: 92, padding: 12, border: "1px solid #93c5fd", borderRadius: 6, background: "#eff6ff", color: "#1e40af", fontSize: 12 };
-const unchangedTotals: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 10 };
+const reallocationModeGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 10, marginTop: 10 };
+const reallocationModeOption: CSSProperties = { display: "flex", minWidth: 0, alignItems: "flex-start", gap: 9, padding: 13, border: "1px solid #cbd5e1", borderRadius: 6, background: "#fff", color: "#334155", cursor: "pointer" };
+const selectedReallocationModeOption: CSSProperties = { borderColor: "#2563eb", background: "#eff6ff", boxShadow: "inset 0 0 0 1px #2563eb" };
+const fullMoveSummary: CSSProperties = { display: "grid", minWidth: 0, gap: 10, padding: 14, border: "1px solid #bfdbfe", borderRadius: 6, background: "#f8fbff", color: "#334155", fontSize: 13 };
+const fullMoveGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10 };
+const reviewComparison: CSSProperties = { display: "grid", minWidth: 0, gap: 14, padding: 14, border: "1px solid #cbd5e1", borderRadius: 6, background: "#f8fafc" };
+const comparisonTitle: CSSProperties = { margin: 0, color: "#334155", fontSize: 15 };
+const reviewStageTitle: CSSProperties = { margin: "0 0 8px", color: "#64748b", fontSize: 12 };
+const reviewInvoiceGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 10 };
+const allocationReviewCard: CSSProperties = { display: "grid", minWidth: 0, gap: 4, padding: 11, border: "1px solid #e2e8f0", borderRadius: 6, background: "#fff", overflowWrap: "anywhere" };
+const allocationReviewTotal: CSSProperties = { display: "flex", minWidth: 0, justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8, marginTop: 5, color: "#334155", fontVariantNumeric: "tabular-nums" };
+const movingSummary: CSSProperties = { display: "grid", justifyItems: "center", gap: 4, minWidth: 0, padding: 13, border: "1px solid #93c5fd", borderRadius: 6, background: "#eff6ff", color: "#1e40af", fontSize: 12, textAlign: "center", fontVariantNumeric: "tabular-nums" };
+const unchangedSummary: CSSProperties = { display: "grid", minWidth: 0, gap: 10, padding: 14, borderLeft: "4px solid #16a34a", background: "#f0fdf4", color: "#166534" };
+const unchangedTotals: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10 };
 const reallocationAcknowledgement: CSSProperties = { display: "flex", alignItems: "flex-start", gap: 9, padding: 12, border: "1px solid #cbd5e1", borderRadius: 6, color: "#334155", fontSize: 13, fontWeight: 700, lineHeight: 1.5 };
 const otherActions: CSSProperties = { marginBottom: 18, padding: 20, border: "1px solid #fecaca", borderRadius: 8, background: "#fff" };
 const otherTitle: CSSProperties = { margin: 0, color: "#7f1d1d", fontSize: 16 };
