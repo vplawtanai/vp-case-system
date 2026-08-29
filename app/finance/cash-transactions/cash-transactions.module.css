@@ -40,6 +40,7 @@
 }
 .primaryButton { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid #17324d; background: #17324d; color: #fff; }
 .secondaryButton { border: 1px solid #b8c4d1; background: #fff; color: #17324d; }
+.headerAction { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .dangerButton { border: 1px solid #c94b4b; background: #fff; color: #a12626; }
 .tableButton { min-height: 34px; border: 1px solid #b8c4d1; background: #fff; color: #17324d; padding: 6px 10px; }
 .iconButton { width: 40px; padding: 0; border: 1px solid #d7dde5; background: #fff; color: #526274; font-size: 22px; }
@@ -130,7 +131,7 @@
 @media (max-width: 760px) {
   .page { width: min(100% - 22px, 1240px); padding-top: 16px; }
   .workspaceHeader, .sectionHeading, .editorHeader, .cutoverNotice, .saveRow { align-items: stretch; flex-direction: column; gap: 12px; }
-  .workspaceHeader .primaryButton, .cutoverNotice a, .saveRow button, .confirmZone .primaryButton { width: 100%; }
+  .workspaceHeader .primaryButton, .workspaceHeader .secondaryButton, .cutoverNotice a, .saveRow button, .confirmZone .primaryButton { width: 100%; }
   .workspaceHeader h1 { font-size: 25px; }
   .formGrid, .metrics { grid-template-columns: 1fr; }
   .filters { width: 100%; }

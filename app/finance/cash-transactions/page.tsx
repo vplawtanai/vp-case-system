@@ -244,8 +244,8 @@ export default function FinanceCashTransactionsPage() {
 
   const validateOpening = () => {
     const next: Record<string, string> = {};
-    if (!openingForm.date) next.date = "กรุณาระบุวันที่เริ่มระบบใหม่";
-    if (!openingForm.amount.trim() || !isValidMoney(openingForm.amount, true)) next.amount = "กรุณาระบุยอดเงินจริงไม่เกิน 2 ตำแหน่งทศนิยม";
+    if (!openingForm.date) next.date = "กรุณาระบุวันที่ตัดยอดเริ่มต้น";
+    if (!openingForm.amount.trim() || !isValidMoney(openingForm.amount, true)) next.amount = "กรุณาระบุยอดเงินกิจการไม่เกิน 2 ตำแหน่งทศนิยม";
     setOpeningErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -283,7 +283,7 @@ export default function FinanceCashTransactionsPage() {
       if (result.error) throw result.error;
       setOpeningDraftId(String(result.data));
       setOpeningBaseline(openingFingerprint(openingForm));
-      setMessage("บันทึกร่างยอดเริ่มต้นแล้ว ยังไม่มีผลต่อยอดคงเหลือจนกว่าจะยืนยัน");
+      setMessage("บันทึกร่างยอดเริ่มต้นแล้ว ยังไม่มีผลต่อยอดเงินกิจการในระบบจนกว่าจะยืนยัน");
       await loadWorkspace();
     } catch (caught) {
       console.error("SAVE OPENING BALANCE DRAFT FAILED", caught);
@@ -298,7 +298,7 @@ export default function FinanceCashTransactionsPage() {
     const next: Record<string, string> = {};
     if (!openingDraftId) next.confirm = "กรุณาบันทึกร่างก่อนยืนยันยอดเริ่มต้น";
     if (openingDirty) next.confirm = "มีข้อมูลที่ยังไม่ได้บันทึก กรุณาบันทึกร่างก่อนยืนยัน";
-    if (!openingAcknowledged) next.acknowledgement = "กรุณายืนยันว่าได้ตรวจสอบยอดเงินจริงแล้ว";
+    if (!openingAcknowledged) next.acknowledgement = "กรุณายืนยันว่าได้ตรวจสอบยอดเงินกิจการที่จะนำมาเป็นยอดเริ่มต้นแล้ว";
     setOpeningErrors(next);
     if (openingActionLockRef.current || Object.keys(next).length || !permissions.canConfirmFinanceCashTransactions) return;
     openingActionLockRef.current = true;
@@ -311,7 +311,7 @@ export default function FinanceCashTransactionsPage() {
       });
       if (rpcError) throw rpcError;
       closeOpeningPanel();
-      setMessage("ยืนยันยอดเริ่มต้นแล้ว บัญชีนี้เริ่มใช้งานในระบบเงินรับ–จ่ายใหม่");
+      setMessage("ยืนยันยอดเริ่มต้นแล้ว บัญชีนี้เริ่มติดตามยอดเงินกิจการในระบบใหม่");
       await loadWorkspace();
     } catch (caught) {
       console.error("CONFIRM OPENING BALANCE FAILED", caught);
@@ -429,11 +429,11 @@ export default function FinanceCashTransactionsPage() {
       if (result.error) throw result.error;
       setCashDraftId(String(result.data));
       setCashBaseline(cashFingerprint(cashForm));
-      setMessage("บันทึกร่างรายการเงินแล้ว ยังไม่มีผลต่อยอดคงเหลือจนกว่าจะยืนยัน");
+      setMessage("บันทึกร่างรายการเงินอื่นแล้ว ยังไม่มีผลต่อยอดเงินกิจการในระบบจนกว่าจะยืนยัน");
       await loadWorkspace();
     } catch (caught) {
       console.error("SAVE CASH TRANSACTION DRAFT FAILED", caught);
-      setError(financeCashError(caught, "บันทึกร่างรายการเงินไม่สำเร็จ"));
+      setError(financeCashError(caught, "บันทึกร่างรายการเงินอื่นไม่สำเร็จ"));
     } finally {
       cashActionLockRef.current = false;
       setCashSaving(false);
@@ -449,10 +449,10 @@ export default function FinanceCashTransactionsPage() {
 
   const confirmCashDraft = async () => {
     const next: Record<string, string> = {};
-    if (!cashDraftId) next.confirm = "กรุณาบันทึกร่างก่อนยืนยันรายการเงินจริง";
+    if (!cashDraftId) next.confirm = "กรุณาบันทึกร่างก่อนยืนยันรายการเงินอื่น";
     if (cashDirty) next.confirm = "มีข้อมูลที่ยังไม่ได้บันทึก กรุณาบันทึกร่างก่อนยืนยัน";
-    if (!selectedCashAccount?.is_initialized) next.confirm = "ต้องตั้งยอดเริ่มต้นของบัญชีนี้ก่อน จึงจะยืนยันรายการเงินจริงได้";
-    else if (!cashAfterCutover) next.date = "วันที่รายการต้องอยู่หลังวันที่เริ่มระบบใหม่ของบัญชี";
+    if (!selectedCashAccount?.is_initialized) next.confirm = "ต้องตั้งยอดเงินกิจการเริ่มต้นของบัญชีนี้ก่อน จึงจะยืนยันรายการเงินอื่นได้";
+    else if (!cashAfterCutover) next.date = "วันที่รายการต้องอยู่หลังวันที่ตัดยอดเริ่มต้นของบัญชี";
     setCashErrors(next);
     if (cashActionLockRef.current || Object.keys(next).length || !permissions.canConfirmFinanceCashTransactions) return;
     cashActionLockRef.current = true;
@@ -461,11 +461,11 @@ export default function FinanceCashTransactionsPage() {
       const { error: rpcError } = await supabase.rpc("confirm_finance_cash_transaction", { p_cash_transaction_id: cashDraftId });
       if (rpcError) throw rpcError;
       setCashPanelOpen(false);
-      setMessage("ยืนยันรายการเงินจริงแล้ว ยอดคงเหลือได้รับการปรับปรุง");
+      setMessage("ยืนยันรายการเงินอื่นแล้ว ยอดเงินกิจการในระบบได้รับการปรับปรุง");
       await loadWorkspace();
     } catch (caught) {
       console.error("CONFIRM CASH TRANSACTION FAILED", caught);
-      setError(financeCashError(caught, "ยืนยันรายการเงินจริงไม่สำเร็จ"));
+      setError(financeCashError(caught, "ยืนยันรายการเงินอื่นไม่สำเร็จ"));
     } finally {
       cashActionLockRef.current = false;
       setCashSaving(false);
@@ -487,11 +487,11 @@ export default function FinanceCashTransactionsPage() {
       });
       if (rpcError) throw rpcError;
       setCashPanelOpen(false);
-      setMessage("ยกเลิกร่างรายการเงินแล้ว");
+      setMessage("ยกเลิกร่างรายการเงินอื่นแล้ว");
       await loadWorkspace();
     } catch (caught) {
       console.error("CANCEL CASH TRANSACTION DRAFT FAILED", caught);
-      setError(financeCashError(caught, "ยกเลิกร่างรายการเงินไม่สำเร็จ"));
+      setError(financeCashError(caught, "ยกเลิกร่างรายการเงินอื่นไม่สำเร็จ"));
     } finally {
       cashActionLockRef.current = false;
       setCashSaving(false);
@@ -502,7 +502,7 @@ export default function FinanceCashTransactionsPage() {
 
   return (
     <AuthGuard>
-      <AppTopNav title="รายการเงินรับ–จ่าย" subtitle="ยอดเงินจริงและยอดคงเหลือของบัญชีบริษัท" activePage="finance" />
+      <AppTopNav title="รายการเงินรับ–จ่าย" subtitle="ติดตามเงินของกิจการที่อยู่ในแต่ละบัญชี โดยแยกจากเงินอื่นที่ไม่อยู่ในขอบเขตของระบบ" activePage="finance" />
       <main className={styles.page}>
         <FinanceSubNav activePage="cash-transactions" permissions={permissions} />
         {!permissions.canViewFinanceCashTransactions ? <div className={styles.error}>คุณไม่มีสิทธิ์ดูรายการเงินรับ–จ่าย</div> : null}
@@ -514,21 +514,21 @@ export default function FinanceCashTransactionsPage() {
             <div>
               <span className={styles.eyebrow}>ระบบเงินรับ–จ่ายใหม่</span>
               <h1>รายการเงินรับ–จ่าย</h1>
-              <p>ระบบใหม่สำหรับยอดเงินจริงของแต่ละบัญชี แยกจากรายการรับ–จ่ายเดิมอย่างชัดเจน</p>
+              <p>ติดตามเฉพาะเงินของกิจการที่นำเข้าระบบ โดยยอดนี้อาจแตกต่างจากยอดคงเหลือทั้งหมดในบัญชีธนาคาร</p>
             </div>
-            <button className={styles.primaryButton} type="button" disabled={!permissions.canManageFinanceCashTransactions || initializedAccounts.length === 0} onClick={openNewCashPanel}>
-              <ActionIcon name="add" />บันทึกรายการเงิน
+            <button className={`${styles.secondaryButton} ${styles.headerAction}`} type="button" disabled={!permissions.canManageFinanceCashTransactions || initializedAccounts.length === 0} onClick={openNewCashPanel}>
+              <ActionIcon name="add" />บันทึกรายการเงินอื่น
             </button>
           </header>
 
           <div className={styles.cutoverNotice}>
             <ActionIcon name="info" />
-            <div><strong>ระบบเดิมยังคงใช้งานอยู่</strong><span>บัญชีที่ยังไม่มียอดเริ่มต้นจะไม่แสดงยอดคงเหลือ และข้อมูลจากระบบเดิมจะไม่ถูกนำมารวมในหน้านี้</span></div>
+            <div><strong>ระบบเดิมยังคงใช้งานอยู่</strong><span>บัญชีที่ยังไม่มียอดเงินกิจการเริ่มต้นจะไม่แสดงยอดในระบบใหม่ และข้อมูลจากระบบเดิมจะไม่ถูกนำมารวมโดยอัตโนมัติ</span></div>
             {permissions.canViewCompanyLedger ? <Link href="/finance/ledger">เปิดรายการรับ–จ่ายเดิม</Link> : null}
           </div>
 
           <section className={styles.section}>
-            <div className={styles.sectionHeading}><div><h2>บัญชีบริษัท</h2><p>ยอดคงเหลือคำนวณจากยอดเริ่มต้นและรายการที่ยืนยันแล้วหลังวันเริ่มระบบใหม่เท่านั้น</p></div></div>
+            <div className={styles.sectionHeading}><div><h2>บัญชีที่ใช้ติดตามเงินกิจการ</h2><p>ยอดเงินกิจการในระบบคำนวณจากยอดเริ่มต้น บวกเงินเข้า และหักเงินออกที่ยืนยันแล้วหลังวันที่ตัดยอดเท่านั้น</p></div></div>
             {loading ? <div className={styles.notice}>กำลังโหลดบัญชี...</div> : null}
             <div className={styles.accountGrid}>
               {balances.map((account) => {
@@ -540,15 +540,15 @@ export default function FinanceCashTransactionsPage() {
                     <span className={account.is_active ? styles.activeBadge : styles.inactiveBadge}>{account.is_active ? "ใช้งาน" : "ไม่ใช้งาน"}</span>
                   </div>
                   {account.is_initialized ? <>
-                    <div className={styles.balanceValue}><span>ยอดคงเหลือปัจจุบัน</span><strong>{money(account.current_balance, account.currency)}</strong></div>
+                    <div className={styles.balanceValue}><span>ยอดเงินกิจการในระบบ</span><strong>{money(account.current_balance, account.currency)}</strong></div>
                     <dl className={styles.metrics}>
-                      <Metric label="ยอดเริ่มต้น" value={money(account.opening_balance_amount, account.currency)} />
+                      <Metric label="ยอดเงินกิจการเริ่มต้น" value={money(account.opening_balance_amount, account.currency)} />
                       <Metric label="ณ สิ้นวันที่" value={thaiDate(account.opening_balance_as_of)} />
-                      <Metric label="เงินเข้าหลังเริ่มระบบ" value={money(account.confirmed_inflow_after_opening, account.currency)} />
-                      <Metric label="เงินออกหลังเริ่มระบบ" value={money(account.confirmed_outflow_after_opening, account.currency)} />
+                      <Metric label="เงินกิจการเข้าหลังวันตัดยอด" value={money(account.confirmed_inflow_after_opening, account.currency)} />
+                      <Metric label="เงินกิจการออกหลังวันตัดยอด" value={money(account.confirmed_outflow_after_opening, account.currency)} />
                     </dl>
                     <p className={styles.confirmedMeta}>ยืนยัน {thaiDateTime(account.opening_balance_confirmed_at)}{actor ? ` โดย ${actor}` : ""}</p>
-                  </> : <div className={styles.uninitializedState}><strong>ยังไม่ได้ตั้งยอดเริ่มต้น</strong><span>บัญชีนี้ยังไม่เริ่มใช้งานในระบบเงินรับ–จ่ายใหม่</span></div>}
+                  </> : <div className={styles.uninitializedState}><strong>ยังไม่ได้ตั้งยอดเริ่มต้น</strong><span>บัญชีนี้ยังไม่มีฐานยอดเงินกิจการในระบบใหม่</span></div>}
                   {draft ? <div className={styles.draftNote}>มีร่างยอดเริ่มต้นที่ยังไม่ยืนยัน</div> : null}
                   {permissions.canManageFinanceCashTransactions && account.is_active ? <button className={styles.secondaryButton} type="button" onClick={() => openOpeningPanel(account)}>{account.is_initialized ? "เตรียมยอดทดแทน" : draft ? "ดำเนินการตั้งยอดเริ่มต้น" : "ตั้งยอดเริ่มต้น"}</button> : null}
                 </article>;
@@ -557,19 +557,19 @@ export default function FinanceCashTransactionsPage() {
           </section>
 
           {openingAccountId ? <section ref={openingPanelRef} className={`${styles.section} ${styles.editorSection}`}>
-            <div className={styles.editorHeader}><div><span className={styles.eyebrow}>ยอดเริ่มต้น</span><h2>{openingPriorId ? "เตรียมยอดเริ่มต้นทดแทน" : "ตั้งยอดเริ่มต้น"}</h2><p>ยอดเงินจริงของบัญชี ณ สิ้นวันที่เริ่มใช้ระบบใหม่ ระบบจะไม่คำนวณยอดนี้จากรายการรับ–จ่ายเดิม</p></div><button className={styles.iconButton} type="button" aria-label="ปิดแบบฟอร์มยอดเริ่มต้น" onClick={closeOpeningPanel}>×</button></div>
+            <div className={styles.editorHeader}><div><span className={styles.eyebrow}>ยอดเริ่มต้น</span><h2>{openingPriorId ? "เตรียมยอดเริ่มต้นทดแทน" : "ตั้งยอดเริ่มต้น"}</h2><p>ระบุเฉพาะยอดเงินของกิจการที่ต้องการนำมาเป็นฐานในระบบใหม่ ยอดนี้ไม่จำเป็นต้องเท่ากับยอดคงเหลือทั้งหมดในบัญชีธนาคาร และระบบจะไม่นำยอดจากรายการรับ–จ่ายเดิมมาคำนวณให้อัตโนมัติ</p></div><button className={styles.iconButton} type="button" aria-label="ปิดแบบฟอร์มยอดเริ่มต้น" onClick={closeOpeningPanel}>×</button></div>
             <div className={styles.accountContext}><strong>{bankLabel(openingAccountId, balances)}</strong><span>สกุลเงิน THB</span></div>
             <div className={styles.formGrid}>
-              <FormField label="วันที่เริ่มระบบใหม่" helper="ยอด ณ สิ้นวันตามเวลาไทย" error={openingErrors.date}><input type="date" value={openingForm.date} onChange={(event) => { setOpeningForm({ ...openingForm, date: event.target.value }); clearField(setOpeningErrors, "date"); }} /></FormField>
-              <FormField label="ยอดเงินจริง ณ สิ้นวัน" error={openingErrors.amount}><input inputMode="decimal" value={openingForm.amount} onChange={(event) => { setOpeningForm({ ...openingForm, amount: event.target.value }); clearField(setOpeningErrors, "amount"); }} placeholder="0.00" /></FormField>
-              <FormField label="หลักฐาน/เลขอ้างอิง" helper="ไม่บังคับ"><input value={openingForm.evidenceReference} onChange={(event) => setOpeningForm({ ...openingForm, evidenceReference: event.target.value })} /></FormField>
+              <FormField label="วันที่ตัดยอดเริ่มต้น" helper="ใช้ยอดเงินกิจการ ณ สิ้นวันนี้เป็นฐาน รายการของกิจการหลังจากวันนี้จึงจะนำมาคำนวณในระบบใหม่" error={openingErrors.date}><input type="date" value={openingForm.date} onChange={(event) => { setOpeningForm({ ...openingForm, date: event.target.value }); clearField(setOpeningErrors, "date"); }} /></FormField>
+              <FormField label="ยอดเงินกิจการ ณ สิ้นวัน" helper="กรอกเฉพาะยอดที่ต้องการติดตามในระบบนี้ โดยกรอก 0.00 ได้เมื่อยอดเงินกิจการ ณ วันตัดยอดเป็นศูนย์จริง" error={openingErrors.amount}><input inputMode="decimal" value={openingForm.amount} onChange={(event) => { setOpeningForm({ ...openingForm, amount: event.target.value }); clearField(setOpeningErrors, "amount"); }} placeholder="0.00" /></FormField>
+              <FormField label="หลักฐาน/เลขอ้างอิง" helper="ไม่บังคับ อาจเป็นข้อมูลธนาคาร บันทึกกระทบยอดภายใน หรือเอกสารประกอบอื่น"><input value={openingForm.evidenceReference} onChange={(event) => setOpeningForm({ ...openingForm, evidenceReference: event.target.value })} /></FormField>
               <FormField label="หมายเหตุ" helper="ไม่บังคับ"><textarea rows={3} value={openingForm.note} onChange={(event) => setOpeningForm({ ...openingForm, note: event.target.value })} /></FormField>
             </div>
             <div className={styles.saveRow}><span className={openingDirty ? styles.unsavedState : styles.savedState}>{openingDirty ? "มีข้อมูลที่ยังไม่ได้บันทึก" : openingDraftId ? "บันทึกร่างแล้ว" : "ยังไม่สร้างข้อมูลในระบบ"}</span><button className={styles.secondaryButton} type="button" disabled={openingSaving || !openingDirty} onClick={() => void saveOpeningDraft()}>{openingSaving ? "กำลังบันทึก..." : "บันทึกร่าง"}</button></div>
             <div className={styles.confirmZone}>
-              <div><h3>ตรวจสอบก่อนยืนยันยอดเริ่มต้น</h3><p>เมื่อยืนยันแล้ว ยอดนี้จะเป็นฐานของระบบเงินรับ–จ่ายใหม่ และแก้ไขได้ผ่านการทำยอดทดแทนเท่านั้น</p></div>
+              <div><h3>ตรวจสอบก่อนยืนยันยอดเริ่มต้น</h3><p>เมื่อยืนยันแล้ว ยอดนี้จะเป็นฐานยอดเงินกิจการในระบบใหม่ และแก้ไขได้ผ่านการทำยอดทดแทนเท่านั้น ยอดอาจแตกต่างจากยอดคงเหลือทั้งหมดในบัญชีธนาคาร หากมีเงินอื่นที่อยู่นอกขอบเขตของกิจการ</p></div>
               {openingErrors.confirm ? <p className={styles.fieldError}>{openingErrors.confirm}</p> : null}
-              <label className={openingErrors.acknowledgement ? styles.invalidCheck : styles.checkLabel}><input type="checkbox" checked={openingAcknowledged} onChange={(event) => { setOpeningAcknowledged(event.target.checked); clearField(setOpeningErrors, "acknowledgement"); }} /><span>ยืนยันว่าได้ตรวจสอบยอดเงินจริงของบัญชี ณ สิ้นวันที่ระบุแล้ว</span></label>
+              <label className={openingErrors.acknowledgement ? styles.invalidCheck : styles.checkLabel}><input type="checkbox" checked={openingAcknowledged} onChange={(event) => { setOpeningAcknowledged(event.target.checked); clearField(setOpeningErrors, "acknowledgement"); }} /><span>ยืนยันว่าได้ตรวจสอบยอดเงินของกิจการที่จะนำมาเป็นยอดเริ่มต้น ณ สิ้นวันที่ระบุแล้ว</span></label>
               {openingErrors.acknowledgement ? <p className={styles.fieldError}>{openingErrors.acknowledgement}</p> : null}
               <button className={styles.primaryButton} type="button" disabled={openingSaving || !permissions.canConfirmFinanceCashTransactions || !openingDraftId || openingDirty} onClick={() => void confirmOpening()}>ยืนยันยอดเริ่มต้น</button>
               {!permissions.canConfirmFinanceCashTransactions ? <p className={styles.permissionNote}>คุณจัดทำร่างได้ แต่ไม่มีสิทธิ์ยืนยันยอดเริ่มต้น</p> : null}
@@ -578,26 +578,26 @@ export default function FinanceCashTransactionsPage() {
           </section> : null}
 
           {cashPanelOpen ? <section ref={cashPanelRef} className={`${styles.section} ${styles.editorSection}`}>
-            <div className={styles.editorHeader}><div><span className={styles.eyebrow}>รายการเงินจริง</span><h2>{cashDraftId ? "แก้ไขร่างรายการเงิน" : "บันทึกรายการเงิน"}</h2><p>ใช้สำหรับรายการเงินจริงที่บันทึกด้วยตนเอง รายการจากการรับชำระลูกค้าจะเข้าระบบผ่านขั้นตอน Payment โดยอัตโนมัติหลังเริ่มระบบ</p></div><button className={styles.iconButton} type="button" aria-label="ปิดแบบฟอร์มรายการเงิน" onClick={() => setCashPanelOpen(false)}>×</button></div>
+            <div className={styles.editorHeader}><div><span className={styles.eyebrow}>รายการเงินอื่น</span><h2>{cashDraftId ? "แก้ไขร่างรายการเงินอื่น" : "บันทึกรายการเงินอื่น"}</h2><p>ใช้เฉพาะเงินของกิจการที่ไม่มีรายการต้นทางจากระบบอื่น เช่น ค่าธรรมเนียมธนาคาร ดอกเบี้ยรับ หรือเงินทุนที่กิจการกำหนดให้อยู่ในขอบเขต หากมีรายการต้นทางใน VP system ต้องใช้ขั้นตอนของระบบนั้นเพื่อไม่ให้บันทึกซ้ำ และห้ามนำเงินนอกขอบเขตของกิจการมาบันทึกที่นี่</p></div><button className={styles.iconButton} type="button" aria-label="ปิดแบบฟอร์มรายการเงินอื่น" onClick={() => setCashPanelOpen(false)}>×</button></div>
             <div className={styles.segmented} aria-label="ทิศทางรายการ"><button type="button" className={cashForm.direction === "inflow" ? styles.segmentActive : ""} onClick={() => updateCashDirection("inflow")}>เงินเข้า</button><button type="button" className={cashForm.direction === "outflow" ? styles.segmentActive : ""} onClick={() => updateCashDirection("outflow")}>เงินออก</button></div>
             <div className={styles.formGrid}>
               <FormField label="วันที่" error={cashErrors.date}><input type="date" value={cashForm.date} onChange={(event) => { setCashForm({ ...cashForm, date: event.target.value }); clearField(setCashErrors, "date"); }} /></FormField>
               <FormField label="บัญชี" error={cashErrors.bankAccount}><select value={cashForm.bankAccountId} onChange={(event) => { setCashForm({ ...cashForm, bankAccountId: event.target.value }); clearField(setCashErrors, "bankAccount"); }}>{balances.filter((item) => item.is_active).map((item) => <option key={item.bank_account_id} value={item.bank_account_id}>{bankLabel(item.bank_account_id, balances)}</option>)}</select></FormField>
               <FormField label="ประเภท" error={cashErrors.transactionType}><select value={cashForm.transactionType} onChange={(event) => setCashForm({ ...cashForm, transactionType: event.target.value })}>{cashTypeOptions(cashForm.direction).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></FormField>
-              <FormField label="จำนวนเงินจริง" error={cashErrors.amount}><input inputMode="decimal" value={cashForm.amount} onChange={(event) => { setCashForm({ ...cashForm, amount: event.target.value }); clearField(setCashErrors, "amount"); }} placeholder="0.00" /></FormField>
+              <FormField label="จำนวนเงินของกิจการ" error={cashErrors.amount}><input inputMode="decimal" value={cashForm.amount} onChange={(event) => { setCashForm({ ...cashForm, amount: event.target.value }); clearField(setCashErrors, "amount"); }} placeholder="0.00" /></FormField>
               <FormField label="เลขอ้างอิง" helper="ไม่บังคับ"><input value={cashForm.referenceNo} onChange={(event) => setCashForm({ ...cashForm, referenceNo: event.target.value })} /></FormField>
               <FormField label="รายละเอียด" helper="ไม่บังคับ"><input value={cashForm.description} onChange={(event) => setCashForm({ ...cashForm, description: event.target.value })} /></FormField>
               <FormField label="หมายเหตุ" helper="ไม่บังคับ"><textarea rows={3} value={cashForm.note} onChange={(event) => setCashForm({ ...cashForm, note: event.target.value })} /></FormField>
             </div>
-            {!selectedCashAccount?.is_initialized ? <div className={styles.blockedNotice}>ต้องตั้งยอดเริ่มต้นของบัญชีนี้ก่อน จึงจะยืนยันรายการเงินจริงได้</div> : !cashAfterCutover && cashForm.date ? <div className={styles.blockedNotice}>วันที่รายการต้องอยู่หลังวันที่เริ่มระบบใหม่ของบัญชี</div> : null}
+            {!selectedCashAccount?.is_initialized ? <div className={styles.blockedNotice}>ต้องตั้งยอดเงินกิจการเริ่มต้นของบัญชีนี้ก่อน จึงจะยืนยันรายการเงินอื่นได้</div> : !cashAfterCutover && cashForm.date ? <div className={styles.blockedNotice}>วันที่รายการต้องอยู่หลังวันที่ตัดยอดเริ่มต้นของบัญชี</div> : null}
             <div className={styles.saveRow}><span className={cashDirty ? styles.unsavedState : styles.savedState}>{cashDirty ? "มีข้อมูลที่ยังไม่ได้บันทึก" : cashDraftId ? "บันทึกร่างแล้ว" : "ยังไม่สร้างข้อมูลในระบบ"}</span><button className={styles.secondaryButton} type="button" disabled={cashSaving || !cashDirty} onClick={() => void saveCashDraft()}>{cashSaving ? "กำลังบันทึก..." : "บันทึกร่าง"}</button></div>
-            <div className={styles.confirmZone}><div><h3>ตรวจสอบรายการเงินจริง</h3><p>ยืนยันเมื่อได้ตรวจสอบวันที่ บัญชี ประเภท และจำนวนเงินครบถ้วนแล้ว รายการยืนยันแล้วจะมีผลต่อยอดคงเหลือ</p></div>{cashErrors.confirm ? <p className={styles.fieldError}>{cashErrors.confirm}</p> : null}<button className={styles.primaryButton} type="button" disabled={cashSaving || !permissions.canConfirmFinanceCashTransactions || !cashDraftId || cashDirty || !selectedCashAccount?.is_initialized || !cashAfterCutover} onClick={() => void confirmCashDraft()}>ยืนยันรายการเงินจริง</button>{!permissions.canConfirmFinanceCashTransactions ? <p className={styles.permissionNote}>คุณจัดทำร่างได้ แต่ไม่มีสิทธิ์ยืนยันรายการเงินจริง</p> : null}</div>
+            <div className={styles.confirmZone}><div><h3>ตรวจสอบรายการเงินอื่น</h3><p>ยืนยันเมื่อรายการนี้เป็นเงินของกิจการที่ไม่มีรายการต้นทางในระบบอื่น และตรวจสอบวันที่ บัญชี ประเภท และจำนวนเงินครบถ้วนแล้ว รายการยืนยันจะมีผลต่อยอดเงินกิจการในระบบ</p></div>{cashErrors.confirm ? <p className={styles.fieldError}>{cashErrors.confirm}</p> : null}<button className={styles.primaryButton} type="button" disabled={cashSaving || !permissions.canConfirmFinanceCashTransactions || !cashDraftId || cashDirty || !selectedCashAccount?.is_initialized || !cashAfterCutover} onClick={() => void confirmCashDraft()}>ยืนยันรายการเงินอื่น</button>{!permissions.canConfirmFinanceCashTransactions ? <p className={styles.permissionNote}>คุณจัดทำร่างได้ แต่ไม่มีสิทธิ์ยืนยันรายการเงินอื่น</p> : null}</div>
             {cashDraftId ? <div className={styles.otherActions}><strong>การดำเนินการอื่น</strong><div className={styles.cancelGrid}><input value={cashCancelReason} onChange={(event) => { setCashCancelReason(event.target.value); clearField(setCashErrors, "cancelReason"); }} placeholder="เหตุผลที่ยกเลิกร่าง" /><button className={styles.dangerButton} type="button" disabled={cashSaving} onClick={() => void cancelCashDraft()}>ยกเลิกร่าง</button></div>{cashErrors.cancelReason ? <p className={styles.fieldError}>{cashErrors.cancelReason}</p> : null}</div> : null}
           </section> : null}
 
           <section className={styles.section}>
-            <div className={styles.sectionHeading}><div><h2>รายการเงินจริงในระบบใหม่</h2><p>ไม่รวมรายการรับ–จ่ายเดิม รายการร่างและรายการยกเลิกไม่มีผลต่อยอดคงเหลือ</p></div><div className={styles.filters}><select aria-label="กรองบัญชี" value={accountFilter} onChange={(event) => setAccountFilter(event.target.value)}><option value="all">ทุกบัญชี</option>{balances.map((item) => <option key={item.bank_account_id} value={item.bank_account_id}>{item.short_name || item.bank_name}</option>)}</select><select aria-label="กรองสถานะ" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">ทุกสถานะ</option><option value="draft">ร่าง</option><option value="confirmed">ยืนยันแล้ว</option><option value="cancelled">ยกเลิก</option></select></div></div>
-            <div className={styles.tableWrap}><table><thead><tr><th>วันที่</th><th>รายการ</th><th>บัญชี</th><th>รายละเอียด</th><th>สถานะ</th><th className={styles.amountColumn}>จำนวนเงิน</th><th aria-label="การดำเนินการ" /></tr></thead><tbody>{filteredTransactions.map((item) => <tr key={item.id}><td>{thaiDate(item.occurred_at)}</td><td><strong className={item.direction === "inflow" ? styles.inflow : styles.outflow}>{transactionTypeLabel(item)}</strong>{item.reversal_of_transaction_id ? <small>รายการปรับแก้</small> : null}</td><td>{bankLabel(item.bank_account_id, balances)}</td><td><span>{item.description || item.reference_no || "-"}</span>{item.source_payment_id ? <Link href={`/finance/payments/${item.source_payment_id}`}>เปิดรายการรับชำระ {shortId(item.source_payment_id)}</Link> : null}</td><td><StatusBadge status={item.status} /></td><td className={styles.amountColumn}>{item.direction === "outflow" ? "-" : "+"}{money(item.cash_amount, item.currency)}</td><td>{item.status === "draft" && permissions.canManageFinanceCashTransactions && !item.source_payment_id && !item.reversal_of_transaction_id ? <button className={styles.tableButton} type="button" onClick={() => editCashDraft(item)}>เปิดร่าง</button> : null}</td></tr>)}{!filteredTransactions.length ? <tr><td colSpan={7} className={styles.emptyTable}>ยังไม่มีรายการเงินจริงในระบบใหม่</td></tr> : null}</tbody></table></div>
+            <div className={styles.sectionHeading}><div><h2>รายการเงินของกิจการในระบบใหม่</h2><p>แสดงเฉพาะรายการที่อยู่ในขอบเขตของระบบ ไม่รวมเงินอื่นในบัญชีธนาคารหรือรายการรับ–จ่ายเดิม และรายการร่าง/ยกเลิกไม่มีผลต่อยอดเงินกิจการ</p></div><div className={styles.filters}><select aria-label="กรองบัญชี" value={accountFilter} onChange={(event) => setAccountFilter(event.target.value)}><option value="all">ทุกบัญชี</option>{balances.map((item) => <option key={item.bank_account_id} value={item.bank_account_id}>{item.short_name || item.bank_name}</option>)}</select><select aria-label="กรองสถานะ" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">ทุกสถานะ</option><option value="draft">ร่าง</option><option value="confirmed">ยืนยันแล้ว</option><option value="cancelled">ยกเลิก</option></select></div></div>
+            <div className={styles.tableWrap}><table><thead><tr><th>วันที่</th><th>รายการ</th><th>บัญชี</th><th>รายละเอียด</th><th>สถานะ</th><th className={styles.amountColumn}>จำนวนเงิน</th><th aria-label="การดำเนินการ" /></tr></thead><tbody>{filteredTransactions.map((item) => <tr key={item.id}><td>{thaiDate(item.occurred_at)}</td><td><strong className={item.direction === "inflow" ? styles.inflow : styles.outflow}>{transactionTypeLabel(item)}</strong>{item.reversal_of_transaction_id ? <small>รายการปรับแก้</small> : null}</td><td>{bankLabel(item.bank_account_id, balances)}</td><td><span>{item.description || item.reference_no || "-"}</span>{item.source_payment_id ? <Link href={`/finance/payments/${item.source_payment_id}`}>เปิดรายการรับชำระ {shortId(item.source_payment_id)}</Link> : null}</td><td><StatusBadge status={item.status} /></td><td className={styles.amountColumn}>{item.direction === "outflow" ? "-" : "+"}{money(item.cash_amount, item.currency)}</td><td>{item.status === "draft" && permissions.canManageFinanceCashTransactions && !item.source_payment_id && !item.reversal_of_transaction_id ? <button className={styles.tableButton} type="button" onClick={() => editCashDraft(item)}>เปิดร่าง</button> : null}</td></tr>)}{!filteredTransactions.length ? <tr><td colSpan={7} className={styles.emptyTable}>ยังไม่มีรายการเงินของกิจการในระบบใหม่</td></tr> : null}</tbody></table></div>
           </section>
         </> : null}
       </main>
@@ -642,10 +642,10 @@ function transactionTypeLabel(item: CashTransaction) {
 function financeCashError(value: unknown, fallback: string) {
   const message = typeof value === "object" && value && "message" in value ? String((value as { message?: unknown }).message || "") : String(value || "");
   if (message.includes("FINANCE_CASH_OPENING_BALANCE_ALREADY_CONFIRMED") || message.includes("FINANCE_CASH_OPENING_BALANCE_CONFLICT")) return "บัญชีนี้มียอดเริ่มต้นที่ยืนยันแล้ว กรุณารีเฟรชและตรวจสอบสถานะล่าสุด";
-  if (message.includes("FINANCE_CASH_UNPOSTED_PAYMENT_AFTER_CUTOVER")) return "ยังยืนยันวันเริ่มระบบนี้ไม่ได้ เพราะมีรายการรับชำระหลังวันที่ดังกล่าวที่ยังไม่ได้เข้าระบบเงินรับ–จ่าย กรุณาให้ Admin ตรวจสอบ";
-  if (message.includes("FINANCE_CASH_OPENING_BALANCE_END_OF_DAY_REQUIRED")) return "วันที่เริ่มระบบไม่อยู่ในรูปแบบสิ้นวันตามเวลาไทย กรุณาเลือกวันที่ใหม่";
-  if (message.includes("FINANCE_CASH_OPENING_BALANCE_REQUIRED")) return "ต้องตั้งยอดเริ่มต้นของบัญชีนี้ก่อน จึงจะยืนยันรายการเงินจริงได้";
-  if (message.includes("FINANCE_CASH_TRANSACTION_BEFORE_CUTOVER")) return "วันที่รายการต้องอยู่หลังวันที่เริ่มระบบใหม่ของบัญชี";
+  if (message.includes("FINANCE_CASH_UNPOSTED_PAYMENT_AFTER_CUTOVER")) return "ยังยืนยันวันที่ตัดยอดเริ่มต้นนี้ไม่ได้ เพราะมีรายการรับชำระหลังวันที่ดังกล่าวที่ยังไม่ได้เข้าระบบเงินรับ–จ่าย กรุณาให้ Admin ตรวจสอบ";
+  if (message.includes("FINANCE_CASH_OPENING_BALANCE_END_OF_DAY_REQUIRED")) return "วันที่ตัดยอดเริ่มต้นไม่อยู่ในรูปแบบสิ้นวันตามเวลาไทย กรุณาเลือกวันที่ใหม่";
+  if (message.includes("FINANCE_CASH_OPENING_BALANCE_REQUIRED")) return "ต้องตั้งยอดเงินกิจการเริ่มต้นของบัญชีนี้ก่อน จึงจะยืนยันรายการเงินอื่นได้";
+  if (message.includes("FINANCE_CASH_TRANSACTION_BEFORE_CUTOVER")) return "วันที่รายการต้องอยู่หลังวันที่ตัดยอดเริ่มต้นของบัญชี";
   if (message.includes("active bank account")) return "บัญชีนี้ไม่อยู่ในสถานะใช้งาน กรุณาตรวจสอบข้อมูลบัญชี";
   if (message.includes("Not allowed")) return "คุณไม่มีสิทธิ์ดำเนินการนี้ กรุณาติดต่อ Admin";
   if (message.includes("Only a Draft")) return "รายการนี้ไม่ใช่สถานะร่างแล้ว กรุณารีเฟรชและตรวจสอบอีกครั้ง";
