@@ -31,8 +31,9 @@
 .emptyState { display: grid; gap: 5px; place-items: center; padding: 42px 20px; border: 1px dashed #cbd3dc; border-radius: 8px; background: #fbfcfd; text-align: center; }
 .emptyState strong { color: #17324d; font-size: 17px; }
 .emptyState p { margin: 0; color: #667085; }
-.chargeGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(330px, 100%), 1fr)); gap: 14px; }
+.chargeGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(330px, 100%), 1fr)); align-items: start; gap: 14px; }
 .chargeCard { display: grid; gap: 14px; min-width: 0; border: 1px solid #dce2e9; border-radius: 8px; padding: 16px; background: #fff; box-shadow: 0 1px 2px rgba(23,50,77,.04); }
+.chargeCardExpanded { border-color: #8fa6bb; background: #fbfdff; box-shadow: 0 0 0 2px rgba(85,112,140,.12); }
 .chargeCardHeader > div { min-width: 0; }
 .chargeCardHeader span:first-child { color: #758195; font-size: 11px; }
 .chargeCardHeader h2 { margin: 4px 0 0; font-size: 16px; line-height: 1.45; overflow-wrap: anywhere; }
@@ -44,6 +45,14 @@
 .cardMetrics dt { color: #758195; font-size: 11px; }
 .cardMetrics dd { margin: 4px 0 0; font-size: 13px; font-weight: 800; overflow-wrap: anywhere; }
 .openButton { justify-self: end; }
+.inlineDetails { display: grid; gap: 15px; min-width: 0; padding-top: 17px; border-top: 2px solid #c7d2de; }
+.inlineDetailHeading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.inlineDetailHeading > div { min-width: 0; }
+.inlineDetailHeading h3 { margin: 3px 0 0; font-size: 16px; line-height: 1.45; overflow-wrap: anywhere; }
+.inlineDetailHeading > strong { flex: 0 0 auto; color: #17324d; white-space: nowrap; }
+.inlineDetails .readOnlyNotice { margin-bottom: 0; }
+.inlineDetails .detailGrid { grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); }
+.inlineDetails > .secondaryButton { justify-self: end; }
 .statusBadge { flex: 0 0 auto; border-radius: 999px; padding: 4px 8px; font-size: 11px; font-weight: 800; white-space: nowrap; }
 .status_draft { color: #765b12; background: #fff3cf; }
 .status_ready_to_invoice { color: #17613a; background: #e8f6ee; }
@@ -132,6 +141,8 @@
   .segmented button + button { border-left: 0; border-top: 1px solid #cbd3dc; }
   .cardMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .openButton, .saveRow button, .reviewZone > .primaryButton { width: 100%; }
+  .inlineDetailHeading { flex-direction: column; gap: 7px; }
+  .inlineDetails > .secondaryButton { width: 100%; }
   .auditDetails li { flex-direction: column; gap: 5px; }
 }
 
