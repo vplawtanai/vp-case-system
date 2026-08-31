@@ -165,6 +165,7 @@ function BillableChargesWorkspace() {
   const [cancelReason, setCancelReason] = useState("");
 
   const panelRef = useRef<HTMLElement | null>(null);
+  const reviewRef = useRef<HTMLElement | null>(null);
   const actionLockRef = useRef(false);
   const createAttemptRef = useRef<CreateAttempt | null>(null);
   const deepLinkHandledRef = useRef(false);
@@ -222,6 +223,10 @@ function BillableChargesWorkspace() {
   }, [loadWorkspace, loadingProfile]);
 
   const scrollToPanel = () => window.requestAnimationFrame(() => panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  const scrollToReview = () => window.requestAnimationFrame(() => {
+    reviewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    reviewRef.current?.focus({ preventScroll: true });
+  });
 
   const openNew = useCallback((prefill?: Partial<ChargeForm>) => {
     const next = { ...emptyForm(), ...prefill };
@@ -311,6 +316,7 @@ function BillableChargesWorkspace() {
     const nextErrors = validateDraft(form);
     setErrors(nextErrors);
     if (actionLockRef.current || Object.keys(nextErrors).length || !permissions.canManageFinanceBillableCharges) return;
+    const isFirstSave = !chargeId;
     actionLockRef.current = true;
     setSaving(true);
     setError("");
@@ -362,6 +368,7 @@ function BillableChargesWorkspace() {
       if (saveResult.error) throw saveResult.error;
       await reloadCharge(id);
       setMessage("บันทึกร่างรายการเรียกเก็บแล้ว");
+      if (isFirstSave) scrollToReview();
     } catch (caught) {
       console.error("SAVE BILLABLE CHARGE DRAFT FAILED", caught);
       setError(billableChargeError(caught, "บันทึกร่างรายการเรียกเก็บไม่สำเร็จ"));
@@ -493,26 +500,33 @@ function BillableChargesWorkspace() {
               <FormField label="รายการ" error={errors.description} wide><textarea disabled={!permissions.canManageFinanceBillableCharges} rows={3} value={form.description} onChange={(event) => updateForm("description", event.target.value)} placeholder="เช่น ค่าเดินทางไปศาล" /></FormField>
               <FormField label="จำนวน" error={errors.quantity}><input disabled={!permissions.canManageFinanceBillableCharges} inputMode="decimal" value={form.quantity} onChange={(event) => updateForm("quantity", event.target.value)} /></FormField>
               <FormField label="หน่วย" error={errors.unit}><input disabled={!permissions.canManageFinanceBillableCharges} value={form.unit} onChange={(event) => updateForm("unit", event.target.value)} placeholder="เช่น ครั้ง หน้า วัน" /></FormField>
-              <FormField label="ราคาต่อหน่วย" error={errors.unitRate}><input disabled={!permissions.canManageFinanceBillableCharges} inputMode="decimal" value={form.unitRate} onChange={(event) => updateForm("unitRate", event.target.value)} placeholder="0.00" /></FormField>
+              <FormField label="ราคาต่อหน่วย" helper={!form.unitRate.trim() ? "ยังไม่ได้ระบุราคา" : undefined} error={errors.unitRate}><input disabled={!permissions.canManageFinanceBillableCharges} inputMode="decimal" value={form.unitRate} onChange={(event) => updateForm("unitRate", event.target.value)} placeholder="0.00" /></FormField>
               <FormField label="ประเภทของยอด" error={errors.economicClassification}><select disabled={!permissions.canManageFinanceBillableCharges} value={form.economicClassification} onChange={(event) => updateForm("economicClassification", event.target.value as ChargeForm["economicClassification"])}><option value="">เลือกประเภทของยอด</option><option value="professional_fee">ค่าวิชาชีพ</option><option value="additional_service">ค่าบริการเพิ่มเติม</option><option value="reimbursable_expense">ค่าใช้จ่ายเรียกคืน</option><option value="government_or_court_fee">ค่าธรรมเนียมศาล / หน่วยงานรัฐ</option><option value="other">อื่น ๆ</option></select><small>ใช้จำแนกความหมายของยอด ไม่ได้กำหนด VAT, WHT หรือค่าตอบแทนอัตโนมัติ</small></FormField>
               <FormField label="การคิด VAT" error={errors.priceTaxMode}><select disabled={!permissions.canManageFinanceBillableCharges} value={form.priceTaxMode} onChange={(event) => { const mode = event.target.value as FinancePriceTaxMode; setForm((current) => ({ ...current, priceTaxMode: mode, vatRate: mode === "non_vat" ? "0" : Number(current.vatRate) > 0 ? current.vatRate : "7" })); setErrors((current) => ({ ...current, priceTaxMode: "", vatRate: "" })); }}><option value="non_vat">ไม่มี VAT</option><option value="vat_exclusive">ราคายังไม่รวม VAT</option><option value="vat_inclusive">ราคารวม VAT แล้ว</option></select></FormField>
               {form.priceTaxMode !== "non_vat" ? <FormField label="อัตรา VAT (%)" error={errors.vatRate}><input disabled={!permissions.canManageFinanceBillableCharges} inputMode="decimal" value={form.vatRate} onChange={(event) => updateForm("vatRate", event.target.value)} /></FormField> : null}
-              <FormField label="เลขอ้างอิง / หลักฐานประกอบ" helper="ไม่บังคับ"><input disabled={!permissions.canManageFinanceBillableCharges} value={form.sourceReference} onChange={(event) => updateForm("sourceReference", event.target.value)} /></FormField>
-              <FormField label="หมวดภาษี / ข้อมูลประกอบภาษี" helper="ไม่บังคับ"><input disabled={!permissions.canManageFinanceBillableCharges} value={form.taxCategory} onChange={(event) => updateForm("taxCategory", event.target.value)} /></FormField>
             </div>
+
+            <section className={styles.additionalSection}>
+              <div className={styles.additionalHeading}><h3>ข้อมูลเพิ่มเติม</h3><p>ข้อมูลประกอบรายการที่ไม่บังคับ</p></div>
+              <div className={styles.formGrid}>
+                <FormField label="เลขอ้างอิง / หลักฐานประกอบ" helper="ไม่บังคับ"><input disabled={!permissions.canManageFinanceBillableCharges} value={form.sourceReference} onChange={(event) => updateForm("sourceReference", event.target.value)} /></FormField>
+                <FormField label="ข้อมูลภาษีเพิ่มเติม (ถ้ามี)" helper="ใช้สำหรับข้อมูลประกอบเพิ่มเติมเท่านั้น ไม่ได้กำหนด VAT หรือ WHT อัตโนมัติ"><input disabled={!permissions.canManageFinanceBillableCharges} value={form.taxCategory} onChange={(event) => updateForm("taxCategory", event.target.value)} /></FormField>
+              </div>
+            </section>
 
             <AmountReview form={form} amounts={amounts} />
             <div className={styles.saveRow}><span className={dirty ? styles.unsavedState : styles.savedState}>{dirty ? "มีข้อมูลที่ยังไม่ได้บันทึก" : chargeId ? "บันทึกร่างแล้ว" : "ยังไม่สร้างข้อมูลในระบบ"}</span><button className={styles.secondaryButton} type="button" disabled={saving || !dirty || !permissions.canManageFinanceBillableCharges} onClick={() => void saveDraft()}>{saving ? "กำลังบันทึก..." : "บันทึกร่าง"}</button></div>
 
-            <section className={styles.reviewZone}>
+            {selectedCharge?.status === "draft" ? <section ref={reviewRef} className={styles.reviewZone} tabIndex={-1}>
               <div><span className={styles.eyebrow}>ตรวจสอบรายการ</span><h3>ตรวจสอบก่อนพร้อมออกใบแจ้งหนี้</h3><p>ตรวจสอบลูกค้า เรื่อง วันที่ รายการ ประเภทของยอด การคิด VAT และยอดเงินทั้งหมดก่อนยืนยัน</p></div>
               <ReviewGrid form={form} amounts={amounts} clients={clients} cases={cases} advisories={advisories} />
               {errors.ready ? <p className={styles.fieldError}>{errors.ready}</p> : null}
               <label id="billable-charge-acknowledgement" className={errors.acknowledgement ? styles.invalidCheck : styles.checkLabel}><input type="checkbox" checked={readyAcknowledged} onChange={(event) => { setReadyAcknowledged(event.target.checked); setErrors((current) => ({ ...current, acknowledgement: "" })); }} /><span>ยืนยันว่ารายการและยอดเรียกเก็บนี้ถูกต้อง และพร้อมนำไปออกใบแจ้งหนี้</span></label>
               {errors.acknowledgement ? <p className={styles.fieldError}>{errors.acknowledgement}</p> : null}
               <button className={styles.primaryButton} type="button" disabled={saving || !chargeId || dirty || !permissions.canApproveFinanceBillableCharges} onClick={() => void markReady()}>ยืนยันพร้อมออกใบแจ้งหนี้</button>
+              {dirty ? <p className={styles.permissionNote}>มีข้อมูลที่ยังไม่ได้บันทึก กรุณาบันทึกร่างก่อนยืนยันพร้อมออกใบแจ้งหนี้</p> : null}
               {!permissions.canApproveFinanceBillableCharges ? <p className={styles.permissionNote}>คุณบันทึกร่างได้ แต่ไม่มีสิทธิ์ยืนยันรายการพร้อมออกใบแจ้งหนี้</p> : null}
-            </section>
+            </section> : null}
           </>}
 
           {canCancelSelected ? <section className={styles.otherActions}><div><strong>การดำเนินการอื่น</strong><p>การยกเลิกจะเก็บรายการนี้ไว้เป็นประวัติและต้องระบุเหตุผล</p></div>{cancelOpen ? <div className={styles.cancelForm}><FormField label="เหตุผลที่ยกเลิกรายการ" error={errors.cancelReason}><textarea rows={3} value={cancelReason} onChange={(event) => { setCancelReason(event.target.value); setErrors((current) => ({ ...current, cancelReason: "" })); }} /></FormField><div className={styles.actionRow}><button className={styles.secondaryButton} type="button" onClick={() => setCancelOpen(false)}>ไม่ดำเนินการ</button><button className={styles.dangerButton} type="button" disabled={saving} onClick={() => void cancelCharge()}>ยืนยันยกเลิกรายการ</button></div></div> : <button className={styles.dangerButton} type="button" onClick={() => setCancelOpen(true)}>ยกเลิกรายการเรียกเก็บ</button>}</section> : null}
@@ -533,7 +547,9 @@ function FormField({ label, helper, error, wide, children }: { label: string; he
 }
 
 function AmountReview({ form, amounts }: { form: ChargeForm; amounts: ReturnType<typeof calculateFormAmounts> }) {
-  return <section className={styles.amountReview}><div><span>จำนวน × ราคาต่อหน่วย</span><strong>{number(form.quantity)} {form.unit || "หน่วย"} × {money(form.unitRate || 0)}</strong></div><dl><div><dt>ยอดก่อน VAT</dt><dd>{money(amounts.amountBeforeVat)}</dd></div><div><dt>VAT</dt><dd>{money(amounts.vatAmount)}</dd></div><div className={styles.totalLine}><dt>ยอดเรียกเก็บ</dt><dd>{money(amounts.totalAmount)}</dd></div></dl><p>ยอดที่แสดงใช้วิธีคำนวณเดียวกับใบเสนอราคาและเป็นข้อมูลช่วยตรวจสอบ เมื่อบันทึกแล้วระบบจะโหลดจำนวนเงินที่คำนวณโดยฐานข้อมูลกลับมา</p></section>;
+  const hasUnitRate = Boolean(form.unitRate.trim());
+  const amountValue = (value: number) => hasUnitRate ? money(value) : "-";
+  return <section className={styles.amountReview}><div><span>จำนวน × ราคาต่อหน่วย</span><strong>{number(form.quantity)} {form.unit || "หน่วย"} × {hasUnitRate ? money(form.unitRate) : "ยังไม่ได้ระบุราคา"}</strong></div><dl><div><dt>ยอดก่อน VAT</dt><dd>{amountValue(amounts.amountBeforeVat)}</dd></div><div><dt>VAT</dt><dd>{amountValue(amounts.vatAmount)}</dd></div><div className={styles.totalLine}><dt>ยอดเรียกเก็บ</dt><dd>{amountValue(amounts.totalAmount)}</dd></div></dl><p>ยอดที่แสดงใช้วิธีคำนวณเดียวกับใบเสนอราคาและเป็นข้อมูลช่วยตรวจสอบ เมื่อบันทึกแล้วระบบจะโหลดจำนวนเงินที่คำนวณโดยฐานข้อมูลกลับมา</p></section>;
 }
 
 function ReviewGrid({ form, amounts, clients, cases, advisories }: { form: ChargeForm; amounts: ReturnType<typeof calculateFormAmounts>; clients: ClientOption[]; cases: CaseOption[]; advisories: AdvisoryOption[] }) {

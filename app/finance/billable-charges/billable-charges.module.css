@@ -88,11 +88,15 @@
 .amountReview dd { margin: 0; font-weight: 800; }
 .amountReview .totalLine { padding-top: 8px; border-top: 1px solid #c9d6e2; color: #17324d; font-size: 16px; }
 .amountReview p { grid-column: 1 / -1; margin: 0; color: #667085; font-size: 11px; line-height: 1.5; }
+.additionalSection { margin-top: 19px; padding-top: 17px; border-top: 1px solid #e1e6eb; }
+.additionalHeading { display: grid; gap: 3px; }
+.additionalHeading h3 { margin: 0; color: #344054; font-size: 15px; letter-spacing: 0; }
+.additionalHeading p { margin: 0; color: #778397; font-size: 12px; line-height: 1.5; }
 .saveRow { align-items: center; margin-top: 16px; padding-top: 16px; border-top: 1px solid #e1e6eb; }
 .savedState, .unsavedState { font-size: 13px; font-weight: 800; }
 .savedState { color: #17613a; }
 .unsavedState { color: #9a6700; }
-.reviewZone { display: grid; gap: 14px; margin-top: 22px; padding-top: 20px; border-top: 2px solid #c7d2de; }
+.reviewZone { display: grid; gap: 14px; scroll-margin-top: 28px; margin-top: 22px; padding-top: 20px; border-top: 2px solid #c7d2de; outline: none; }
 .reviewZone h3 { margin: 4px 0 5px; font-size: 18px; }
 .reviewGrid, .detailGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; }
 .reviewGrid div, .detailGrid div { min-width: 0; padding: 11px; border: 1px solid #e1e6eb; border-radius: 7px; background: #fff; }
