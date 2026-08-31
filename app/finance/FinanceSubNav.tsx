@@ -7,6 +7,7 @@ import type { UserPermissions } from "../../lib/permissions";
 export type FinanceSubNavPage =
   | "quotations"
   | "fee-agreements"
+  | "billable-charges"
   | "cash-transactions"
   | "ledger"
   | "claims"
@@ -25,6 +26,9 @@ export default function FinanceSubNav({
       : null,
     permissions.canViewFinanceQuotations
       ? { href: "/finance/fee-agreements", page: "fee-agreements" as const, label: "Fee Agreements" }
+      : null,
+    permissions.canViewFinanceBillableCharges
+      ? { href: "/finance/billable-charges", page: "billable-charges" as const, label: "รายการรอเรียกเก็บ" }
       : null,
     permissions.canViewFinanceCashTransactions
       ? { href: "/finance/cash-transactions", page: "cash-transactions" as const, label: "รายการเงินรับ–จ่าย" }

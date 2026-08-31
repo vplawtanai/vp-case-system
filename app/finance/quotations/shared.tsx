@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import AuthGuard from "../../components/AuthGuard";
 import AppTopNav from "../../components/AppTopNav";
 import FinanceSubNav from "../FinanceSubNav";
+import { calculateFinanceLineAmounts } from "../finance-line-amounts";
 import { createAuditLog } from "../../../lib/auditLog";
 import { getQuotationClientDisplayName } from "../../../lib/quotationClientDisplay";
 import {
@@ -2745,19 +2746,17 @@ function normalizeItem(item: QuotationItemRow, index: number): QuotationItemRow 
   const priceTaxMode: NonNullable<QuotationItemRow["price_tax_mode"]> = item.price_tax_mode || (item.vat_applicable ? "vat_exclusive" : "non_vat");
   const vatApplicable = priceTaxMode !== "non_vat";
   const vatRate = vatApplicable ? (toAmount(item.vat_rate) || 7) : 0;
-  const enteredTotal = roundMoney(quantity * unitPrice);
-  const amountBeforeTax = priceTaxMode === "vat_inclusive" ? roundMoney(enteredTotal / (1 + vatRate / 100)) : enteredTotal;
-  const vatAmount = vatApplicable ? (priceTaxMode === "vat_inclusive" ? roundMoney(enteredTotal - amountBeforeTax) : roundMoney((amountBeforeTax * vatRate) / 100)) : 0;
+  const amounts = calculateFinanceLineAmounts(quantity, unitPrice, priceTaxMode, vatRate);
   return {
     ...item,
     quantity,
     unit_price: unitPrice,
     price_tax_mode: priceTaxMode,
     vat_applicable: vatApplicable,
-    amount_before_tax: amountBeforeTax,
+    amount_before_tax: amounts.amountBeforeVat,
     vat_rate: vatRate,
-    vat_amount: vatAmount,
-    line_total: priceTaxMode === "vat_inclusive" ? enteredTotal : roundMoney(amountBeforeTax + vatAmount),
+    vat_amount: amounts.vatAmount,
+    line_total: amounts.totalAmount,
     sort_order: index,
   };
 }

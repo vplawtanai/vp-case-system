@@ -115,6 +115,7 @@ type FeeItem = {
 type UserProfile = {
   role?: UserRole | string | null;
   financial_access?: boolean | null;
+  can_manage_finance_billable_charges?: boolean | null;
 };
 
 type ClientOption = {
@@ -225,6 +226,28 @@ const statusPillStyle: React.CSSProperties = {
   whiteSpace: "nowrap",
 };
 
+const caseHeaderActionsStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "flex-end",
+  gap: 9,
+  flexWrap: "wrap",
+};
+
+const billableChargeLinkStyle: React.CSSProperties = {
+  minHeight: 38,
+  display: "inline-flex",
+  alignItems: "center",
+  border: "1px solid #17324d",
+  borderRadius: 7,
+  padding: "8px 12px",
+  background: "#ffffff",
+  color: "#17324d",
+  textDecoration: "none",
+  fontSize: 13,
+  fontWeight: 800,
+};
+
 const backToTopButtonStyle: React.CSSProperties = {
   position: "fixed",
   right: 18,
@@ -285,7 +308,7 @@ export default function CaseDetailPage() {
 
       const { data, error } = await supabase
         .from("user_profiles")
-        .select("role, financial_access")
+        .select("role, financial_access, can_manage_finance_billable_charges")
         .eq("id", userData.user.id)
         .single();
 
@@ -300,6 +323,7 @@ export default function CaseDetailPage() {
       setProfile({
         role: data.role || "",
         financial_access: data.financial_access === true,
+        can_manage_finance_billable_charges: data.can_manage_finance_billable_charges === true,
       });
     };
 
@@ -525,9 +549,10 @@ export default function CaseDetailPage() {
               <div style={caseTitleStyle}>{caseItem.title || "-"}</div>
             </div>
 
-            <span style={statusPillStyle}>
-              {caseItem.status || caseItem.caseStatus || "-"}
-            </span>
+            <div style={caseHeaderActionsStyle}>
+              <span style={statusPillStyle}>{caseItem.status || caseItem.caseStatus || "-"}</span>
+              {permissions.canManageFinanceBillableCharges && caseItem.client_id ? <Link href={`/finance/billable-charges?new=1&client=${encodeURIComponent(caseItem.client_id)}&case=${encodeURIComponent(String(caseItem.id || id))}`} style={billableChargeLinkStyle}>เพิ่มรายการเรียกเก็บ</Link> : null}
+            </div>
           </div>
 
           <div style={caseMetaGridStyle}>

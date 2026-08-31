@@ -18,6 +18,7 @@ type UserProfile = {
   role?: UserRole | string | null;
   financial_access?: boolean | null;
   staff_name?: string | null;
+  can_manage_finance_billable_charges?: boolean | null;
 };
 
 type AdvisoryMatter = {
@@ -128,7 +129,7 @@ export default function AdvisoryDetailPage() {
 
         const { data, error } = await supabase
           .from("user_profiles")
-          .select("role, financial_access, staff_name")
+          .select("role, financial_access, staff_name, can_manage_finance_billable_charges")
           .eq("id", userData.user.id)
           .single();
 
@@ -141,6 +142,7 @@ export default function AdvisoryDetailPage() {
           role: data.role || "",
           financial_access: data.financial_access === true,
           staff_name: data.staff_name || "",
+          can_manage_finance_billable_charges: data.can_manage_finance_billable_charges === true,
         });
       } finally {
         setLoadingProfile(false);
@@ -237,6 +239,7 @@ export default function AdvisoryDetailPage() {
         ) : matter ? (
           <>
             <section style={panelStyle}>
+              {permissions.canManageFinanceBillableCharges && matter.client_id ? <div style={panelActionStyle}><Link href={`/finance/billable-charges?new=1&client=${encodeURIComponent(matter.client_id)}&advisory=${encodeURIComponent(matter.id)}`} style={billableChargeLinkStyle}>เพิ่มรายการเรียกเก็บ</Link></div> : null}
               <div style={detailGridStyle}>
                 <InfoLine label="Matter No" value={matter.matter_no} />
                 <InfoLine label="Title" value={matter.title} />
@@ -352,6 +355,26 @@ const panelStyle: React.CSSProperties = {
   borderRadius: 12,
   background: "#ffffff",
   padding: 16,
+};
+
+const panelActionStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "flex-end",
+  marginBottom: 14,
+};
+
+const billableChargeLinkStyle: React.CSSProperties = {
+  minHeight: 38,
+  display: "inline-flex",
+  alignItems: "center",
+  border: "1px solid #17324d",
+  borderRadius: 7,
+  padding: "8px 12px",
+  background: "#ffffff",
+  color: "#17324d",
+  textDecoration: "none",
+  fontSize: 13,
+  fontWeight: 800,
 };
 
 const detailGridStyle: React.CSSProperties = {

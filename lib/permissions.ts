@@ -30,6 +30,9 @@ export type UserPermissionProfile = {
   can_manage_finance_cash_transactions?: boolean | null;
   can_confirm_finance_cash_transactions?: boolean | null;
   can_reverse_finance_cash_transactions?: boolean | null;
+  can_view_finance_billable_charges?: boolean | null;
+  can_manage_finance_billable_charges?: boolean | null;
+  can_approve_finance_billable_charges?: boolean | null;
   can_submit_office_work_log?: boolean | null;
   can_view_own_office_work_logs?: boolean | null;
   can_view_all_office_work_logs?: boolean | null;
@@ -162,6 +165,9 @@ export function canViewFinanceModule(profile?: UserPermissionProfile | null) {
     profile?.can_manage_finance_cash_transactions === true ||
     profile?.can_confirm_finance_cash_transactions === true ||
     profile?.can_reverse_finance_cash_transactions === true ||
+    profile?.can_view_finance_billable_charges === true ||
+    profile?.can_manage_finance_billable_charges === true ||
+    profile?.can_approve_finance_billable_charges === true ||
     isStaffUp(role)
   );
 }
@@ -341,6 +347,15 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
     isAdmin(role) || profile?.can_confirm_finance_cash_transactions === true;
   const canReverseFinanceCashTransactions =
     isAdmin(role) || profile?.can_reverse_finance_cash_transactions === true;
+  const canViewFinanceBillableCharges =
+    isPartnerUp(role) ||
+    profile?.can_view_finance_billable_charges === true ||
+    profile?.can_manage_finance_billable_charges === true ||
+    profile?.can_approve_finance_billable_charges === true;
+  const canManageFinanceBillableCharges =
+    isAdmin(role) || profile?.can_manage_finance_billable_charges === true;
+  const canApproveFinanceBillableCharges =
+    isAdmin(role) || profile?.can_approve_finance_billable_charges === true;
   const canSubmitOfficeWorkLog = profile?.can_submit_office_work_log === true;
   const canViewOwnOfficeWorkLogs = profile?.can_view_own_office_work_logs === true;
   const canViewAllOfficeWorkLogs = profile?.can_view_all_office_work_logs === true;
@@ -383,6 +398,9 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
     canManageFinanceCashTransactions,
     canConfirmFinanceCashTransactions,
     canReverseFinanceCashTransactions,
+    canViewFinanceBillableCharges,
+    canManageFinanceBillableCharges,
+    canApproveFinanceBillableCharges,
     canUseExpenseClaims: canSubmitExpenseClaim || canViewOwnExpenseClaims || canViewAllExpenseClaims,
     canSubmitOfficeWorkLog,
     canViewOwnOfficeWorkLogs,

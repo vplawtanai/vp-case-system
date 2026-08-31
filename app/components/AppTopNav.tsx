@@ -41,6 +41,9 @@ type UserProfile = {
   can_manage_finance_cash_transactions?: boolean | null;
   can_confirm_finance_cash_transactions?: boolean | null;
   can_reverse_finance_cash_transactions?: boolean | null;
+  can_view_finance_billable_charges?: boolean | null;
+  can_manage_finance_billable_charges?: boolean | null;
+  can_approve_finance_billable_charges?: boolean | null;
   can_submit_office_work_log?: boolean | null;
   can_view_own_office_work_logs?: boolean | null;
   can_view_all_office_work_logs?: boolean | null;
@@ -176,7 +179,7 @@ export default function AppTopNav({
 
       const { data, error } = await supabase
         .from("user_profiles")
-        .select("role, financial_access, can_submit_expense_claim, can_view_own_expense_claims, can_view_all_expense_claims, can_view_company_ledger, can_view_lawyer_compensation, can_view_finance_cash_transactions, can_manage_finance_cash_transactions, can_confirm_finance_cash_transactions, can_reverse_finance_cash_transactions, can_submit_office_work_log, can_view_own_office_work_logs, can_view_all_office_work_logs")
+        .select("role, financial_access, can_submit_expense_claim, can_view_own_expense_claims, can_view_all_expense_claims, can_view_company_ledger, can_view_lawyer_compensation, can_view_finance_cash_transactions, can_manage_finance_cash_transactions, can_confirm_finance_cash_transactions, can_reverse_finance_cash_transactions, can_view_finance_billable_charges, can_manage_finance_billable_charges, can_approve_finance_billable_charges, can_submit_office_work_log, can_view_own_office_work_logs, can_view_all_office_work_logs")
         .eq("id", userData.user.id)
         .single();
 
@@ -200,6 +203,9 @@ export default function AppTopNav({
         can_manage_finance_cash_transactions: data.can_manage_finance_cash_transactions === true,
         can_confirm_finance_cash_transactions: data.can_confirm_finance_cash_transactions === true,
         can_reverse_finance_cash_transactions: data.can_reverse_finance_cash_transactions === true,
+        can_view_finance_billable_charges: data.can_view_finance_billable_charges === true,
+        can_manage_finance_billable_charges: data.can_manage_finance_billable_charges === true,
+        can_approve_finance_billable_charges: data.can_approve_finance_billable_charges === true,
         can_submit_office_work_log: data.can_submit_office_work_log === true,
         can_view_own_office_work_logs: data.can_view_own_office_work_logs === true,
         can_view_all_office_work_logs: data.can_view_all_office_work_logs === true,
