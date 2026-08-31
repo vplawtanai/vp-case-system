@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AuthGuard from "../../components/AuthGuard";
 import AppTopNav from "../../components/AppTopNav";
+import DetailModal from "../../components/DetailModal";
 import { buildPermissions } from "../../../lib/permissions";
 import type { UserPermissionProfile } from "../../../lib/permissions";
 import { supabase } from "../../../lib/supabase";
@@ -151,8 +152,9 @@ function BillableChargesWorkspace() {
   const [audits, setAudits] = useState<AuditEvent[]>([]);
   const [filter, setFilter] = useState<"all" | ChargeStatus>("all");
   const [search, setSearch] = useState("");
-  const [expandedChargeId, setExpandedChargeId] = useState("");
-  const [expandedAudits, setExpandedAudits] = useState<AuditEvent[]>([]);
+  const [detailChargeId, setDetailChargeId] = useState("");
+  const [detailAudits, setDetailAudits] = useState<AuditEvent[]>([]);
+  const [detailAuditLoading, setDetailAuditLoading] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [chargeId, setChargeId] = useState("");
   const [form, setForm] = useState<ChargeForm>(() => emptyForm());
@@ -163,17 +165,18 @@ function BillableChargesWorkspace() {
   const [saving, setSaving] = useState(false);
   const [createSourceLocked, setCreateSourceLocked] = useState(false);
   const [readyAcknowledged, setReadyAcknowledged] = useState(false);
-  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelContext, setCancelContext] = useState<"editor" | "detail" | null>(null);
   const [cancelReason, setCancelReason] = useState("");
 
   const panelRef = useRef<HTMLElement | null>(null);
   const reviewRef = useRef<HTMLElement | null>(null);
   const actionLockRef = useRef(false);
-  const expandedAuditRequestRef = useRef(0);
+  const detailAuditRequestRef = useRef(0);
   const createAttemptRef = useRef<CreateAttempt | null>(null);
   const deepLinkHandledRef = useRef(false);
   const permissions = useMemo(() => buildPermissions(profile), [profile]);
   const selectedCharge = useMemo(() => charges.find((item) => item.id === chargeId) || null, [chargeId, charges]);
+  const detailCharge = useMemo(() => charges.find((item) => item.id === detailChargeId) || null, [charges, detailChargeId]);
   const dirty = panelOpen && formFingerprint(form) !== baseline;
   const amounts = useMemo(() => calculateFormAmounts(form), [form]);
   const clientCases = useMemo(() => cases.filter((item) => item.client_id === form.clientId), [cases, form.clientId]);
@@ -233,16 +236,17 @@ function BillableChargesWorkspace() {
 
   const openNew = useCallback((prefill?: Partial<ChargeForm>) => {
     const next = { ...emptyForm(), ...prefill };
-    expandedAuditRequestRef.current += 1;
-    setExpandedChargeId("");
-    setExpandedAudits([]);
+    detailAuditRequestRef.current += 1;
+    setDetailChargeId("");
+    setDetailAudits([]);
+    setDetailAuditLoading(false);
     setChargeId("");
     setForm(next);
     setBaseline(formFingerprint(next));
     setAudits([]);
     setErrors({});
     setReadyAcknowledged(false);
-    setCancelOpen(false);
+    setCancelContext(null);
     setCancelReason("");
     setMessage("");
     setError("");
@@ -280,39 +284,41 @@ function BillableChargesWorkspace() {
     setAudits(await fetchAudit(id));
   };
 
-  const toggleChargeDetails = (charge: BillableCharge) => {
-    setCancelOpen(false);
+  const closeChargeDetails = useCallback(() => {
+    detailAuditRequestRef.current += 1;
+    setDetailChargeId("");
+    setDetailAudits([]);
+    setDetailAuditLoading(false);
+    setCancelContext(null);
     setCancelReason("");
     setErrors((current) => ({ ...current, cancelReason: "" }));
+  }, []);
+
+  const openChargeDetails = (charge: BillableCharge) => {
+    closeChargeDetails();
     setMessage("");
     setError("");
-    if (expandedChargeId === charge.id) {
-      expandedAuditRequestRef.current += 1;
-      setExpandedChargeId("");
-      setExpandedAudits([]);
-      return;
-    }
-
-    const requestId = expandedAuditRequestRef.current + 1;
-    expandedAuditRequestRef.current = requestId;
-    setExpandedChargeId(charge.id);
-    setExpandedAudits([]);
+    const requestId = detailAuditRequestRef.current + 1;
+    detailAuditRequestRef.current = requestId;
+    setDetailChargeId(charge.id);
+    setDetailAuditLoading(true);
     void fetchAudit(charge.id).then((events) => {
-      if (expandedAuditRequestRef.current === requestId) setExpandedAudits(events);
+      if (detailAuditRequestRef.current === requestId) {
+        setDetailAudits(events);
+        setDetailAuditLoading(false);
+      }
     });
   };
 
   const openCharge = (charge: BillableCharge) => {
     const next = chargeToForm(charge);
-    expandedAuditRequestRef.current += 1;
-    setExpandedChargeId("");
-    setExpandedAudits([]);
+    closeChargeDetails();
     setChargeId(charge.id);
     setForm(next);
     setBaseline(formFingerprint(next));
     setErrors({});
     setReadyAcknowledged(false);
-    setCancelOpen(false);
+    setCancelContext(null);
     setCancelReason("");
     setMessage("");
     setError("");
@@ -444,7 +450,7 @@ function BillableChargesWorkspace() {
     }
   };
 
-  const cancelCharge = async (targetChargeId = chargeId, context: "editor" | "expanded" = "editor") => {
+  const cancelCharge = async (targetChargeId = chargeId, context: "editor" | "detail" = "editor") => {
     const trimmedReason = cancelReason.trim();
     if (!trimmedReason) {
       setErrors((current) => ({ ...current, cancelReason: "กรุณาระบุเหตุผลที่ยกเลิกรายการ" }));
@@ -467,9 +473,9 @@ function BillableChargesWorkspace() {
         if (chargeError) throw chargeError;
         const authoritative = data as BillableCharge;
         setCharges((current) => [authoritative, ...current.filter((item) => item.id !== authoritative.id)].sort(sortCharges));
-        setExpandedAudits(await fetchAudit(targetChargeId));
+        setDetailAudits(await fetchAudit(targetChargeId));
       }
-      setCancelOpen(false);
+      setCancelContext(null);
       setCancelReason("");
       setMessage("ยกเลิกรายการเรียกเก็บแล้ว โดยยังเก็บรายการไว้เป็นประวัติ");
     } catch (caught) {
@@ -489,19 +495,21 @@ function BillableChargesWorkspace() {
   }), [advisories, cases, charges, clients, filter, search]);
 
   useEffect(() => {
-    if (!expandedChargeId || filteredCharges.some((charge) => charge.id === expandedChargeId)) return;
-    expandedAuditRequestRef.current += 1;
-    setExpandedChargeId("");
-    setExpandedAudits([]);
-    setCancelOpen(false);
-    setCancelReason("");
-  }, [expandedChargeId, filteredCharges]);
+    if (!detailChargeId || filteredCharges.some((charge) => charge.id === detailChargeId)) return;
+    closeChargeDetails();
+  }, [closeChargeDetails, detailChargeId, filteredCharges]);
 
   const canCancelSelected = selectedCharge?.status === "draft"
     ? permissions.canManageFinanceBillableCharges
     : selectedCharge?.status === "ready_to_invoice"
       ? permissions.canApproveFinanceBillableCharges
       : false;
+  const canCancelDetail = detailCharge?.status === "draft"
+    ? permissions.canManageFinanceBillableCharges
+    : detailCharge?.status === "ready_to_invoice"
+      ? permissions.canApproveFinanceBillableCharges
+      : false;
+  const canEditDetailDraft = detailCharge?.status === "draft" && detailCharge.source_type !== "billing_installment_item" && permissions.canManageFinanceBillableCharges;
 
   return (
     <PageShell>
@@ -519,29 +527,23 @@ function BillableChargesWorkspace() {
 
         <section className={styles.listSection}>
           <div className={styles.filterBar}>
-            <div className={styles.tabs} aria-label="กรองสถานะรายการเรียกเก็บ">{statusTabs.map((tab) => <button key={tab.value} type="button" className={filter === tab.value ? styles.activeTab : ""} onClick={() => setFilter(tab.value)}>{tab.label}<span>{countStatus(charges, tab.value)}</span></button>)}</div>
-            <input aria-label="ค้นหารายการรอเรียกเก็บ" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ค้นหาลูกค้า เรื่อง หรือรายการ" />
+            <div className={styles.tabs} aria-label="กรองสถานะรายการเรียกเก็บ">{statusTabs.map((tab) => <button key={tab.value} type="button" className={filter === tab.value ? styles.activeTab : ""} onClick={() => { closeChargeDetails(); setFilter(tab.value); }}>{tab.label}<span>{countStatus(charges, tab.value)}</span></button>)}</div>
+            <input aria-label="ค้นหารายการรอเรียกเก็บ" value={search} onChange={(event) => { closeChargeDetails(); setSearch(event.target.value); }} placeholder="ค้นหาลูกค้า เรื่อง หรือรายการ" />
           </div>
-          {!filteredCharges.length ? <div className={styles.emptyState}><strong>{charges.length ? "ไม่พบรายการตามตัวกรอง" : "ยังไม่มีรายการรอเรียกเก็บ"}</strong><p>{charges.length ? "ลองเปลี่ยนสถานะหรือคำค้นหา" : "เพิ่มรายการเมื่อลูกค้ามียอดที่ต้องชำระให้ VP ระหว่างการดำเนินงาน"}</p></div> : <div className={styles.chargeGrid}>{filteredCharges.map((charge) => {
-            const expanded = expandedChargeId === charge.id;
-            const canCancelCharge = charge.status === "draft" ? permissions.canManageFinanceBillableCharges : charge.status === "ready_to_invoice" ? permissions.canApproveFinanceBillableCharges : false;
-            const canEditDraft = charge.status === "draft" && charge.source_type !== "billing_installment_item" && permissions.canManageFinanceBillableCharges;
-            return <article key={charge.id} className={`${styles.chargeCard} ${expanded ? styles.chargeCardExpanded : ""}`}>
+          {!filteredCharges.length ? <div className={styles.emptyState}><strong>{charges.length ? "ไม่พบรายการตามตัวกรอง" : "ยังไม่มีรายการรอเรียกเก็บ"}</strong><p>{charges.length ? "ลองเปลี่ยนสถานะหรือคำค้นหา" : "เพิ่มรายการเมื่อลูกค้ามียอดที่ต้องชำระให้ VP ระหว่างการดำเนินงาน"}</p></div> : <div className={styles.chargeGrid}>{filteredCharges.map((charge) => <article key={charge.id} className={styles.chargeCard}>
               <div className={styles.chargeCardHeader}><div><span>{thaiDate(charge.service_date || charge.created_at)}</span><h2>{charge.description || "ร่างรายการเรียกเก็บ"}</h2></div><StatusBadge status={charge.status} /></div>
               <div className={styles.chargeContext}><strong>{clientLabel(charge.client_id, clients)}</strong><span>{matterLabel(charge, cases, advisories)}</span></div>
               <dl className={styles.cardMetrics}><div><dt>ประเภทของยอด</dt><dd>{classificationLabel(charge.economic_classification)}</dd></div><div><dt>VAT</dt><dd>{taxModeLabel(charge.price_tax_mode, charge.vat_rate)}</dd></div><div><dt>ยอดเรียกเก็บ</dt><dd>{money(charge.total_amount, charge.currency)}</dd></div></dl>
-              <button className={styles.openButton} type="button" aria-expanded={expanded} aria-controls={`billable-charge-detail-${charge.id}`} onClick={() => toggleChargeDetails(charge)}>{expanded ? "ปิดรายละเอียด" : "ดูรายละเอียด"}</button>
-
-              {expanded ? <section id={`billable-charge-detail-${charge.id}`} className={styles.inlineDetails}>
-                <div className={styles.inlineDetailHeading}><div><span className={styles.eyebrow}>รายละเอียดรายการ</span><h3>{charge.description || "ร่างรายการเรียกเก็บ"}</h3></div><strong>{money(charge.total_amount, charge.currency)}</strong></div>
-                <ReadOnlyDetail charge={charge} clients={clients} cases={cases} advisories={advisories} />
-                {canEditDraft ? <button className={styles.secondaryButton} type="button" onClick={() => { setExpandedChargeId(""); setExpandedAudits([]); openCharge(charge); }}>แก้ไขร่างรายการ</button> : null}
-                {canCancelCharge ? <section className={styles.otherActions}><div><strong>การดำเนินการอื่น</strong><p>การยกเลิกจะเก็บรายการนี้ไว้เป็นประวัติและต้องระบุเหตุผล</p></div>{cancelOpen ? <div className={styles.cancelForm}><FormField label="เหตุผลที่ยกเลิกรายการ" error={errors.cancelReason}><textarea rows={3} value={cancelReason} onChange={(event) => { setCancelReason(event.target.value); setErrors((current) => ({ ...current, cancelReason: "" })); }} /></FormField><div className={styles.actionRow}><button className={styles.secondaryButton} type="button" onClick={() => setCancelOpen(false)}>ไม่ดำเนินการ</button><button className={styles.dangerButton} type="button" disabled={saving} onClick={() => void cancelCharge(charge.id, "expanded")}>ยืนยันยกเลิกรายการ</button></div></div> : <button className={styles.dangerButton} type="button" onClick={() => setCancelOpen(true)}>ยกเลิกรายการเรียกเก็บ</button>}</section> : null}
-                <AuditHistory audits={expandedAudits} />
-              </section> : null}
-            </article>;
-          })}</div>}
+              <button className={styles.openButton} type="button" onClick={() => openChargeDetails(charge)}>ดูรายละเอียด</button>
+            </article>)}</div>}
         </section>
+
+        {detailCharge ? <DetailModal open title={detailCharge.description || "ร่างรายการเรียกเก็บ"} subtitle={<>{clientLabel(detailCharge.client_id, clients)} · {matterLabel(detailCharge, cases, advisories)}</>} status={<StatusBadge status={detailCharge.status} />} prominentValue={money(detailCharge.total_amount, detailCharge.currency)} onClose={closeChargeDetails}>
+          <BillableChargeModalDetail charge={detailCharge} clients={clients} cases={cases} advisories={advisories} />
+          {canEditDetailDraft ? <div className={styles.detailActionRow}><button className={styles.secondaryButton} type="button" onClick={() => openCharge(detailCharge)}>แก้ไขร่างรายการ</button></div> : null}
+          <AuditHistory audits={detailAudits} loading={detailAuditLoading} />
+          {canCancelDetail ? <section className={styles.otherActions}><div><strong>การดำเนินการอื่น</strong><p>การยกเลิกจะเก็บรายการนี้ไว้เป็นประวัติและต้องระบุเหตุผล</p></div>{cancelContext === "detail" ? <div className={styles.cancelForm}><FormField label="เหตุผลที่ยกเลิกรายการ" error={errors.cancelReason}><textarea rows={3} value={cancelReason} onChange={(event) => { setCancelReason(event.target.value); setErrors((current) => ({ ...current, cancelReason: "" })); }} /></FormField><div className={styles.actionRow}><button className={styles.secondaryButton} type="button" onClick={() => setCancelContext(null)}>ไม่ดำเนินการ</button><button className={styles.dangerButton} type="button" disabled={saving} onClick={() => void cancelCharge(detailCharge.id, "detail")}>ยืนยันยกเลิกรายการ</button></div></div> : <button className={styles.dangerButton} type="button" onClick={() => setCancelContext("detail")}>ยกเลิกรายการเรียกเก็บ</button>}</section> : null}
+        </DetailModal> : null}
 
         {panelOpen ? <section ref={panelRef} className={styles.editorSection}>
           <div className={styles.editorHeader}><div><span className={styles.eyebrow}>{chargeId ? "รายละเอียดรายการ" : "สร้างรายการ"}</span><h2>{chargeId ? selectedCharge?.status === "draft" ? "แก้ไขร่างรายการเรียกเก็บ" : "รายละเอียดรายการเรียกเก็บ" : "เพิ่มรายการเรียกเก็บ"}</h2><p>{selectedCharge?.status === "draft" || !chargeId ? "บันทึกยอดที่ลูกค้าเป็นหนี้ VP โดยไม่กำหนดความหมายของรายได้ VAT หรือค่าตอบแทนอัตโนมัติ" : statusExplanation(selectedCharge?.status)}</p></div><button className={styles.iconButton} type="button" aria-label="ปิดรายละเอียดรายการเรียกเก็บ" onClick={() => setPanelOpen(false)}>×</button></div>
@@ -594,7 +596,7 @@ function BillableChargesWorkspace() {
             </section> : null}
           </>}
 
-          {canCancelSelected ? <section className={styles.otherActions}><div><strong>การดำเนินการอื่น</strong><p>การยกเลิกจะเก็บรายการนี้ไว้เป็นประวัติและต้องระบุเหตุผล</p></div>{cancelOpen ? <div className={styles.cancelForm}><FormField label="เหตุผลที่ยกเลิกรายการ" error={errors.cancelReason}><textarea rows={3} value={cancelReason} onChange={(event) => { setCancelReason(event.target.value); setErrors((current) => ({ ...current, cancelReason: "" })); }} /></FormField><div className={styles.actionRow}><button className={styles.secondaryButton} type="button" onClick={() => setCancelOpen(false)}>ไม่ดำเนินการ</button><button className={styles.dangerButton} type="button" disabled={saving} onClick={() => void cancelCharge()}>ยืนยันยกเลิกรายการ</button></div></div> : <button className={styles.dangerButton} type="button" onClick={() => setCancelOpen(true)}>ยกเลิกรายการเรียกเก็บ</button>}</section> : null}
+          {canCancelSelected ? <section className={styles.otherActions}><div><strong>การดำเนินการอื่น</strong><p>การยกเลิกจะเก็บรายการนี้ไว้เป็นประวัติและต้องระบุเหตุผล</p></div>{cancelContext === "editor" ? <div className={styles.cancelForm}><FormField label="เหตุผลที่ยกเลิกรายการ" error={errors.cancelReason}><textarea rows={3} value={cancelReason} onChange={(event) => { setCancelReason(event.target.value); setErrors((current) => ({ ...current, cancelReason: "" })); }} /></FormField><div className={styles.actionRow}><button className={styles.secondaryButton} type="button" onClick={() => setCancelContext(null)}>ไม่ดำเนินการ</button><button className={styles.dangerButton} type="button" disabled={saving} onClick={() => void cancelCharge()}>ยืนยันยกเลิกรายการ</button></div></div> : <button className={styles.dangerButton} type="button" onClick={() => setCancelContext("editor")}>ยกเลิกรายการเรียกเก็บ</button>}</section> : null}
 
           {chargeId ? <AuditHistory audits={audits} /> : null}
         </section> : null}
@@ -633,8 +635,27 @@ function ReadOnlyDetail({ charge, clients, cases, advisories }: { charge: Billab
   </>;
 }
 
-function AuditHistory({ audits }: { audits: AuditEvent[] }) {
-  return <details className={styles.auditDetails}><summary>ประวัติรายการ</summary>{audits.length ? <ol>{audits.map((event) => <li key={event.id}><div><strong>{auditLabel(event.event_type)}</strong><span>{event.actor_name || event.actor_email || "ผู้ใช้งานระบบ"}</span></div><time>{thaiDateTime(event.created_at)}</time></li>)}</ol> : <p>ยังไม่พบประวัติรายการ</p>}</details>;
+function BillableChargeModalDetail({ charge, clients, cases, advisories }: { charge: BillableCharge; clients: ClientOption[]; cases: CaseOption[]; advisories: AdvisoryOption[] }) {
+  const notice = charge.status === "ready_to_invoice" ? "รายการนี้พร้อมใช้ในการออกใบแจ้งหนี้ ข้อมูลรายการ ยอด ภาษี และประเภทของยอดเป็นแบบอ่านอย่างเดียว" : statusExplanation(charge.status);
+  return <div className={styles.modalDetailContent}>
+    {notice ? <div className={styles.readOnlyNotice}>{notice}</div> : null}
+    <section className={styles.detailSection}>
+      <div className={styles.detailSectionHeading}><span className={styles.eyebrow}>ข้อมูลหลัก</span><h3>ข้อมูลรายการ</h3></div>
+      <dl className={styles.detailGrid}><Detail label="รายการ" value={charge.description || "-"} prominent /><Detail label="ลูกค้า" value={clientLabel(charge.client_id, clients)} link="/clients" /><Detail label="คดี / งานที่ปรึกษา" value={matterLabel(charge, cases, advisories)} link={charge.case_id ? `/cases/${charge.case_id}` : charge.advisory_matter_id ? `/advisory/${charge.advisory_matter_id}` : undefined} /><Detail label="ที่มาของยอด" value={sourceTypeLabel(charge.source_type)} /><Detail label="วันที่เกิดรายการ" value={thaiDate(charge.service_date)} /></dl>
+    </section>
+    <section className={styles.detailSection}>
+      <div className={styles.detailSectionHeading}><span className={styles.eyebrow}>ยอดเรียกเก็บ</span><h3>การคำนวณยอด</h3></div>
+      <dl className={styles.detailGrid}><Detail label="จำนวน / หน่วย / ราคา" value={`${number(charge.quantity)} ${charge.unit || "-"} × ${money(charge.unit_rate, charge.currency)}`} /><Detail label="ประเภทของยอด" value={classificationLabel(charge.economic_classification)} /><Detail label="การคิด VAT" value={taxModeLabel(charge.price_tax_mode, charge.vat_rate)} /><Detail label="ยอดก่อน VAT" value={money(charge.amount_before_vat, charge.currency)} /><Detail label="VAT" value={money(charge.vat_amount, charge.currency)} /><Detail label="ยอดเรียกเก็บ" value={money(charge.total_amount, charge.currency)} prominent /></dl>
+    </section>
+    <section className={styles.detailSection}>
+      <div className={styles.detailSectionHeading}><span className={styles.eyebrow}>ข้อมูลรอง</span><h3>ข้อมูลประกอบ</h3></div>
+      <dl className={styles.detailGrid}><Detail label="เลขอ้างอิง / หลักฐาน" value={charge.source_reference || "-"} /><Detail label="สร้างเมื่อ" value={thaiDateTime(charge.created_at)} /><Detail label="ยืนยันพร้อมออกใบแจ้งหนี้" value={thaiDateTime(charge.ready_to_invoice_at)} />{charge.status === "cancelled" ? <><Detail label="ยกเลิกเมื่อ" value={thaiDateTime(charge.cancelled_at)} /><Detail label="เหตุผลที่ยกเลิก" value={charge.cancel_reason || "-"} /></> : null}</dl>
+    </section>
+  </div>;
+}
+
+function AuditHistory({ audits, loading = false }: { audits: AuditEvent[]; loading?: boolean }) {
+  return <details className={styles.auditDetails}><summary>ประวัติรายการ</summary>{loading ? <p>กำลังโหลดประวัติรายการ...</p> : audits.length ? <ol>{audits.map((event) => <li key={event.id}><div><strong>{auditLabel(event.event_type)}</strong><span>{event.actor_name || event.actor_email || "ผู้ใช้งานระบบ"}</span></div><time>{thaiDateTime(event.created_at)}</time></li>)}</ol> : <p>ยังไม่พบประวัติรายการ</p>}</details>;
 }
 
 function Detail({ label, value, link, prominent }: { label: string; value: string; link?: string; prominent?: boolean }) {

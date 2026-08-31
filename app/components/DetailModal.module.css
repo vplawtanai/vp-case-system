@@ -1,0 +1,160 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, .54);
+}
+
+.modal {
+  display: flex;
+  flex-direction: column;
+  width: min(920px, 88vw);
+  max-height: 85vh;
+  overflow: hidden;
+  border: 1px solid #cbd5df;
+  border-radius: 8px;
+  background: #fff;
+  color: #172033;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, .28);
+  outline: none;
+}
+
+.header {
+  position: relative;
+  flex: 0 0 auto;
+  padding: 20px 62px 18px 22px;
+  border-bottom: 1px solid #dce2e9;
+  background: #fff;
+}
+
+.identity {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  min-width: 0;
+}
+
+.titleGroup {
+  min-width: 0;
+}
+
+.titleGroup h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.35;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+
+.subtitle {
+  margin-top: 5px;
+  color: #667085;
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.summary {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.summary > strong {
+  color: #17324d;
+  font-size: 18px;
+  white-space: nowrap;
+}
+
+.closeButton {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid #d7dde5;
+  border-radius: 7px;
+  background: #fff;
+  color: #526274;
+  font: inherit;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.closeButton:hover {
+  border-color: #55708c;
+  background: #f7f9fb;
+}
+
+.closeButton:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, .22);
+  outline-offset: 2px;
+}
+
+.body {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 22px;
+}
+
+.footer {
+  flex: 0 0 auto;
+  padding: 14px 22px;
+  border-top: 1px solid #dce2e9;
+  background: #fbfcfd;
+}
+
+@media (max-width: 600px) {
+  .backdrop {
+    padding: 0;
+  }
+
+  .modal {
+    width: 100vw;
+    max-width: none;
+    height: 100dvh;
+    max-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .header {
+    padding: max(16px, env(safe-area-inset-top)) 56px 15px 16px;
+  }
+
+  .identity {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .titleGroup h2 {
+    font-size: 19px;
+  }
+
+  .summary {
+    justify-items: start;
+  }
+
+  .closeButton {
+    top: max(10px, env(safe-area-inset-top));
+    right: 10px;
+  }
+
+  .body {
+    padding: 17px 16px calc(22px + env(safe-area-inset-bottom));
+  }
+
+  .footer {
+    padding: 13px 16px calc(13px + env(safe-area-inset-bottom));
+  }
+}

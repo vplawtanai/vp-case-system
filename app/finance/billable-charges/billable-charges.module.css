@@ -33,7 +33,6 @@
 .emptyState p { margin: 0; color: #667085; }
 .chargeGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(330px, 100%), 1fr)); align-items: start; gap: 14px; }
 .chargeCard { display: grid; gap: 14px; min-width: 0; border: 1px solid #dce2e9; border-radius: 8px; padding: 16px; background: #fff; box-shadow: 0 1px 2px rgba(23,50,77,.04); }
-.chargeCardExpanded { border-color: #8fa6bb; background: #fbfdff; box-shadow: 0 0 0 2px rgba(85,112,140,.12); }
 .chargeCardHeader > div { min-width: 0; }
 .chargeCardHeader span:first-child { color: #758195; font-size: 11px; }
 .chargeCardHeader h2 { margin: 4px 0 0; font-size: 16px; line-height: 1.45; overflow-wrap: anywhere; }
@@ -45,14 +44,6 @@
 .cardMetrics dt { color: #758195; font-size: 11px; }
 .cardMetrics dd { margin: 4px 0 0; font-size: 13px; font-weight: 800; overflow-wrap: anywhere; }
 .openButton { justify-self: end; }
-.inlineDetails { display: grid; gap: 15px; min-width: 0; padding-top: 17px; border-top: 2px solid #c7d2de; }
-.inlineDetailHeading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
-.inlineDetailHeading > div { min-width: 0; }
-.inlineDetailHeading h3 { margin: 3px 0 0; font-size: 16px; line-height: 1.45; overflow-wrap: anywhere; }
-.inlineDetailHeading > strong { flex: 0 0 auto; color: #17324d; white-space: nowrap; }
-.inlineDetails .readOnlyNotice { margin-bottom: 0; }
-.inlineDetails .detailGrid { grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); }
-.inlineDetails > .secondaryButton { justify-self: end; }
 .statusBadge { flex: 0 0 auto; border-radius: 999px; padding: 4px 8px; font-size: 11px; font-weight: 800; white-space: nowrap; }
 .status_draft { color: #765b12; background: #fff3cf; }
 .status_ready_to_invoice { color: #17613a; background: #e8f6ee; }
@@ -113,6 +104,13 @@
 .reviewGrid dd, .detailGrid dd { margin: 4px 0 0; font-weight: 800; line-height: 1.45; overflow-wrap: anywhere; }
 .detailGrid a { color: #174f7d; }
 .detailGrid .prominentDetail { border-color: #8fa6bb; background: #edf3f8; }
+.modalDetailContent { display: grid; gap: 22px; min-width: 0; }
+.modalDetailContent .readOnlyNotice { margin-bottom: 0; }
+.detailSection { display: grid; gap: 11px; min-width: 0; }
+.detailSection + .detailSection { padding-top: 20px; border-top: 1px solid #e1e6eb; }
+.detailSectionHeading { display: grid; gap: 2px; }
+.detailSectionHeading h3 { margin: 0; font-size: 17px; letter-spacing: 0; }
+.detailActionRow { display: flex; justify-content: flex-end; margin-top: 18px; }
 .checkLabel, .invalidCheck { display: flex; align-items: flex-start; gap: 9px; border: 1px solid #d9e0e7; border-radius: 7px; padding: 11px; background: #fff; font-size: 13px; line-height: 1.5; }
 .checkLabel input, .invalidCheck input { margin-top: 3px; }
 .permissionNote { color: #765b12 !important; font-size: 12px; font-weight: 700; }
@@ -122,6 +120,7 @@
 .actionRow { justify-content: flex-end; }
 .auditDetails { margin-top: 22px; border-top: 1px solid #e1e6eb; padding-top: 16px; }
 .auditDetails summary { color: #17324d; font-size: 13px; font-weight: 800; cursor: pointer; }
+.auditDetails > p { margin: 10px 0 0; color: #667085; font-size: 12px; }
 .auditDetails ol { display: grid; gap: 0; margin: 12px 0 0; padding: 0; list-style: none; border: 1px solid #e1e6eb; border-radius: 7px; background: #fff; }
 .auditDetails li { display: flex; justify-content: space-between; gap: 14px; padding: 11px 13px; }
 .auditDetails li + li { border-top: 1px solid #edf0f3; }
@@ -141,8 +140,7 @@
   .segmented button + button { border-left: 0; border-top: 1px solid #cbd3dc; }
   .cardMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .openButton, .saveRow button, .reviewZone > .primaryButton { width: 100%; }
-  .inlineDetailHeading { flex-direction: column; gap: 7px; }
-  .inlineDetails > .secondaryButton { width: 100%; }
+  .detailActionRow .secondaryButton { width: 100%; }
   .auditDetails li { flex-direction: column; gap: 5px; }
 }
 
