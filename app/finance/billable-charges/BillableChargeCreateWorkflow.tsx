@@ -14,6 +14,7 @@ export type BillableChargeContext = {
   caseId: number | null;
   advisoryMatterId: string | null;
   matterLabel: string;
+  entryPointLabel?: string;
 };
 export type CreatedBillableCharge = {
   id: string;
@@ -202,7 +203,7 @@ export default function BillableChargeCreateWorkflow({
 
   if (charge?.status === "ready_to_invoice") {
     return <section className={styles.reviewZone} aria-live="polite">
-      <div><span className={styles.eyebrow}>พร้อมออกใบแจ้งหนี้</span><h3>รายการได้รับการยืนยันแล้ว</h3><p>รายการนี้ยังเป็นรายการระดับลูกค้าและเรื่อง/งาน ระบบจะรวมกับงวดเฉพาะเมื่อผู้ใช้เลือกในขั้นตอนจัดทำใบแจ้งหนี้</p></div>
+      <div><span className={styles.eyebrow}>พร้อมออกใบแจ้งหนี้</span><h3>รายการได้รับการยืนยันแล้ว</h3><p>รายการนี้เป็นรายการระดับลูกค้าและเรื่อง/งาน และยังไม่ถูกนำไปรวมในใบแจ้งหนี้ ผู้ใช้ต้องเลือกอีกครั้งในขั้นตอนจัดทำใบแจ้งหนี้</p></div>
       <ReviewGrid form={form} amounts={amounts} clients={clients} cases={cases} advisories={advisories} context={context} />
       {readyActionLabel && onReadyAction ? <button className={styles.primaryButton} type="button" onClick={onReadyAction}>{readyActionLabel}</button> : null}
     </section>;
@@ -211,7 +212,10 @@ export default function BillableChargeCreateWorkflow({
   return <div>
     {error ? <div className={styles.errorBanner}>{error}</div> : null}
     {message ? <div className={styles.successBanner}>{message}</div> : null}
-    {context ? <div className={styles.editorReturn}><div><strong>{context.clientName}</strong><span>{context.matterLabel}</span></div><span>รายการนี้สามารถนำไปรวมกับงวดตามแผนเมื่อจัดทำใบแจ้งหนี้</span></div> : null}
+    {context ? <div className={styles.editorReturn}>
+      <div><strong>{context.clientName}</strong><span>{context.matterLabel}</span>{context.entryPointLabel ? <span>{context.entryPointLabel}</span> : null}</div>
+      <div className={styles.workflowMeaning}><strong>รายการรอเรียกเก็บ</strong><span>รายการนี้จะถูกบันทึกไว้เป็นรายการรอเรียกเก็บ และสามารถเลือกนำไปรวมในใบแจ้งหนี้ภายหลัง</span><span>การเพิ่มรายการในขั้นตอนนี้ยังไม่เป็นการสร้างใบแจ้งหนี้</span></div>
+    </div> : null}
 
     <fieldset className={styles.sourceChoices}><legend>ยอดนี้เกิดจากอะไร</legend><label className={form.sourceType === "ad_hoc_service" ? styles.choiceActive : ""}><input type="radio" name="newChargeSourceType" disabled={!canManage || Boolean(charge)} checked={form.sourceType === "ad_hoc_service"} onChange={() => updateForm("sourceType", "ad_hoc_service")} /><span><strong>ค่าบริการ / งานเพิ่มเติม</strong><small>เช่น ค่าเดินทาง ค่าแปล ค่าล่าม หรือบริการเพิ่มเติมที่ต้องเรียกเก็บลูกค้า</small></span></label><label className={form.sourceType === "recoverable_cost" ? styles.choiceActive : ""}><input type="radio" name="newChargeSourceType" disabled={!canManage || Boolean(charge)} checked={form.sourceType === "recoverable_cost"} onChange={() => updateForm("sourceType", "recoverable_cost")} /><span><strong>ค่าใช้จ่ายที่เรียกคืนจากลูกค้า</strong><small>เช่น ค่าใช้จ่ายที่ VP สำรองจ่ายและลูกค้าต้องชำระคืน</small></span></label></fieldset>
 

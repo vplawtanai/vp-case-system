@@ -65,6 +65,7 @@
 .editorReturn > div { display: grid; gap: 3px; min-width: 0; }
 .editorReturn strong { color: #17324d; font-size: 13px; }
 .editorReturn span { color: #667085; font-size: 12px; overflow-wrap: anywhere; }
+.editorReturn .workflowMeaning { max-width: 560px; padding-left: 14px; border-left: 2px solid #c9d6e2; }
 .editorReturnReady { border-color: #add9bd; background: #effaf3; }
 .returnFooter { display: flex; justify-content: flex-end; }
 .sourceChoices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0 0 18px; padding: 0; border: 0; }
@@ -158,6 +159,7 @@
   .openButton, .saveRow button, .reviewZone > .primaryButton { width: 100%; }
   .detailActionRow .primaryButton, .detailActionRow .secondaryButton { width: 100%; }
   .billingPlanContext > .secondaryButton, .editorReturn > .primaryButton, .editorReturn > .secondaryButton, .returnFooter > .primaryButton, .returnFooter > .secondaryButton { width: 100%; }
+  .editorReturn .workflowMeaning { max-width: none; padding: 12px 0 0; border-left: 0; border-top: 1px solid #d7dde5; }
   .auditDetails li { flex-direction: column; gap: 5px; }
 }
 

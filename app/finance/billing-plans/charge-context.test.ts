@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 // @ts-expect-error Node's strip-types test runner requires the explicit TypeScript extension.
-import { filterChargesForBillingContext, partitionChargesByWorkflow } from "./charge-context.ts";
+import { canAddChargeFromInstallment, filterChargesForBillingContext, partitionChargesByWorkflow } from "./charge-context.ts";
 
 const advisoryContext = { clientId: "client-1", currency: "THB", caseId: null, advisoryMatterId: "advisory-1" };
 const caseContext = { clientId: "client-1", currency: "THB", caseId: 42, advisoryMatterId: null };
@@ -50,4 +50,17 @@ test("Charge workflow separates actionable statuses from history", () => {
 
   assert.deepEqual(result.current.map(({ id }) => id), ["draft", "ready", "reserved"]);
   assert.deepEqual(result.history.map(({ id }) => id), ["invoiced", "cancelled"]);
+});
+
+test("Additional Charge shortcut follows installment and Invoice lifecycle", () => {
+  const base = { canManageCharges: true, planStatus: "active", hasActiveInvoice: false };
+
+  assert.equal(canAddChargeFromInstallment({ ...base, installmentStatus: "pending" }), true);
+  assert.equal(canAddChargeFromInstallment({ ...base, installmentStatus: "ready_to_invoice" }), true);
+  assert.equal(canAddChargeFromInstallment({ ...base, planStatus: "draft", installmentStatus: "pending" }), true);
+  assert.equal(canAddChargeFromInstallment({ ...base, installmentStatus: "ready_to_invoice", hasActiveInvoice: true }), false);
+  assert.equal(canAddChargeFromInstallment({ ...base, installmentStatus: "invoiced" }), false);
+  assert.equal(canAddChargeFromInstallment({ ...base, installmentStatus: "cancelled" }), false);
+  assert.equal(canAddChargeFromInstallment({ ...base, planStatus: "completed", installmentStatus: "pending" }), false);
+  assert.equal(canAddChargeFromInstallment({ ...base, canManageCharges: false, installmentStatus: "pending" }), false);
 });

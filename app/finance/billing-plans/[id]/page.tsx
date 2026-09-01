@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import DetailModal from "../../../components/DetailModal";
 import BillableChargeCreateWorkflow, { type BillableChargeContext } from "../../billable-charges/BillableChargeCreateWorkflow";
-import { filterChargesForBillingContext, partitionChargesByWorkflow, type BillingChargeContext } from "../charge-context";
+import { canAddChargeFromInstallment, filterChargesForBillingContext, partitionChargesByWorkflow, type BillingChargeContext } from "../charge-context";
 import { QuotationGuard } from "../../quotations/shared";
 import { supabase } from "../../../../lib/supabase";
 import { feeAgreementStatusLabel } from "../../fee-agreements/lifecycle";
@@ -376,12 +376,13 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
     setSelectionDetailChargeId("");
   }, []);
   const openChargeCreate = useCallback((installment: Installment) => {
-    if (!canManageCharges || !agreement || !["draft", "active"].includes(plan?.status || "") || ["cancelled", "invoiced"].includes(installment.status)) return;
+    const hasActiveInvoice = invoices.some((invoice) => invoice.primary_billing_installment_id === installment.id && !["cancelled", "voided"].includes(invoice.document_status));
+    if (!agreement || !canAddChargeFromInstallment({ canManageCharges, planStatus: plan?.status || "", installmentStatus: installment.status, hasActiveInvoice })) return;
     setInvoiceSelectionInstallmentId("");
     setSelectedInvoiceChargeIds([]);
     setSelectionDetailChargeId("");
     setChargeCreateInstallmentId(installment.id);
-  }, [agreement, canManageCharges, plan?.status]);
+  }, [agreement, canManageCharges, invoices, plan?.status]);
   const closeChargeCreate = useCallback(() => {
     setChargeCreateInstallmentId("");
     void load();
@@ -419,6 +420,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
     caseId: agreement.case_id,
     advisoryMatterId: agreement.advisory_matter_id,
     matterLabel: agreement.case_id ? `คดี · ${matter}` : agreement.advisory_matter_id ? `งานที่ปรึกษา · ${matter}` : "ไม่ผูกกับงานเฉพาะ",
+    entryPointLabel: chargeCreateInstallment ? `เปิดจากงวดที่ ${chargeCreateInstallment.installment_no}` : undefined,
   } : null;
   const quotationNo = text(agreement?.source_document_snapshot_json?.quotation_no, text(agreement?.source_reference, "ใบเสนอราคาต้นทาง"));
   const acceptedQuotationBasis = agreement?.engagement_basis === "accepted_quotation";
@@ -505,7 +507,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
         const historicalInvoices = installmentInvoices
           .filter((invoice) => ["cancelled", "voided"].includes(invoice.document_status))
           .sort((left, right) => right.created_at.localeCompare(left.created_at));
-        const canAddCharge = canManageCharges && ["draft", "active"].includes(plan.status) && !["cancelled", "invoiced"].includes(installment.status);
+        const canAddCharge = canAddChargeFromInstallment({ canManageCharges, planStatus: plan.status, installmentStatus: installment.status, hasActiveInvoice: Boolean(activeInvoice) });
         return <article key={installment.id} style={installmentCard}>
           <div style={installmentHeader}><div style={installmentHeadingCopy}><span style={installmentEyebrow}>งวดเรียกเก็บเงิน</span><h3 style={installmentTitle}>งวดที่ {installment.installment_no}</h3>{customInstallmentTitle ? <p style={installmentCustomTitle}>{customInstallmentTitle}</p> : null}</div><StatusBadge status={installment.status} label={installmentStatus[installment.status] || installment.status} /></div>
           {plan.status === "draft" && canManage && draftInstallment ? <div className="billing-plan-installment-edit-grid" style={installmentEditGrid}>

@@ -16,6 +16,13 @@ export type WorkflowCharge = {
   status: string;
 };
 
+export type InstallmentChargeActionContext = {
+  canManageCharges: boolean;
+  planStatus: string;
+  installmentStatus: string;
+  hasActiveInvoice: boolean;
+};
+
 const currentChargeStatuses = new Set(["draft", "ready_to_invoice", "reserved"]);
 const historicalChargeStatuses = new Set(["invoiced", "cancelled"]);
 
@@ -37,6 +44,13 @@ export function partitionChargesByWorkflow<T extends WorkflowCharge>(charges: T[
     if (historicalChargeStatuses.has(charge.status)) result.history.push(charge);
     return result;
   }, { current: [], history: [] });
+}
+
+export function canAddChargeFromInstallment(context: InstallmentChargeActionContext): boolean {
+  return context.canManageCharges
+    && ["draft", "active"].includes(context.planStatus)
+    && ["pending", "ready_to_invoice"].includes(context.installmentStatus)
+    && !context.hasActiveInvoice;
 }
 
 function sameNullableId(left: number | string | null | undefined, right: number | string | null | undefined): boolean {
