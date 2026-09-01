@@ -1,6 +1,7 @@
 .page { width: min(1240px, calc(100% - 32px)); margin: 0 auto; padding: 24px 0 56px; color: #172033; }
 .workspaceHeader, .editorHeader, .saveRow, .chargeCardHeader, .actionRow { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
 .workspaceHeader { margin-bottom: 20px; }
+.headerActions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .workspaceHeader h1 { margin: 4px 0 6px; font-size: 30px; line-height: 1.2; letter-spacing: 0; }
 .workspaceHeader p, .editorHeader p, .reviewZone p, .otherActions p { margin: 0; color: #667085; line-height: 1.6; }
 .eyebrow { color: #55708c; font-size: 11px; font-weight: 800; }
@@ -130,6 +131,8 @@
 @media (max-width: 760px) {
   .page { width: min(100% - 24px, 1240px); padding-top: 16px; }
   .workspaceHeader, .editorHeader, .filterBar, .saveRow { align-items: stretch; flex-direction: column; }
+  .headerActions { flex-direction: column; }
+  .headerActions > * { width: 100%; }
   .workspaceHeader .primaryButton { width: 100%; }
   .filterBar > input { width: 100%; }
   .tabs { width: 100%; box-sizing: border-box; }

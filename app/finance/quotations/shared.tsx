@@ -655,6 +655,9 @@ const profileSelect = [
   "can_manage_finance_cash_transactions",
   "can_confirm_finance_cash_transactions",
   "can_reverse_finance_cash_transactions",
+  "can_view_finance_billable_charges",
+  "can_manage_finance_billable_charges",
+  "can_approve_finance_billable_charges",
 ].join(", ");
 
 export function QuotationGuard({ children, canAccess }: { children: (access: QuotationAccess) => ReactNode; canAccess?: (access: QuotationAccess) => boolean }) {

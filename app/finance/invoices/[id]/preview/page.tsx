@@ -28,8 +28,8 @@ import {
 
 type Installment = { installment_no: number; title: string };
 
-const invoiceSelect = "id,billing_plan_id,primary_billing_installment_id,fee_agreement_id,source_quotation_id,client_id,case_id,advisory_matter_id,invoice_no,document_status,issue_date,due_date,currency,language_code,customer_note,payment_terms_text,payment_destination_bank_account_id,payment_destination_snapshot_json,internal_note,amount_before_vat,vat_amount,total_amount,seller_name_th,seller_name_en,seller_tax_id,seller_branch,seller_address,seller_phone,seller_email,seller_website,customer_name,customer_tax_id,customer_branch,customer_billing_address,customer_phone,customer_email,seller_snapshot_json,customer_snapshot_json,matter_snapshot_json,source_snapshot_json,issued_snapshot_json,issued_at,voided_at,void_reason,cancelled_at,cancel_reason,created_at,updated_at";
-const itemSelect = "id,description,source_quantity,source_unit_price,allocation_percent,vat_applicable,vat_rate,tax_category,price_tax_mode,amount_before_vat,vat_amount,line_total,sort_order";
+const invoiceSelect = "id,billing_plan_id,primary_billing_installment_id,fee_agreement_id,source_quotation_id,client_id,case_id,advisory_matter_id,source_model,v2_bridge_id,v2_creation_request_id,invoice_no,document_status,issue_date,due_date,currency,language_code,customer_note,payment_terms_text,payment_destination_bank_account_id,payment_destination_snapshot_json,internal_note,amount_before_vat,vat_amount,total_amount,seller_name_th,seller_name_en,seller_tax_id,seller_branch,seller_address,seller_phone,seller_email,seller_website,customer_name,customer_tax_id,customer_branch,customer_billing_address,customer_phone,customer_email,seller_snapshot_json,customer_snapshot_json,matter_snapshot_json,source_snapshot_json,issued_snapshot_json,issued_at,voided_at,void_reason,cancelled_at,cancel_reason,created_at,updated_at";
+const itemSelect = "id,source_billable_charge_id,source_state,source_snapshot_json,description,source_quantity,source_unit_price,allocation_percent,vat_applicable,vat_rate,tax_category,price_tax_mode,amount_before_vat,vat_amount,line_total,sort_order";
 
 export default function InvoicePreviewPage() {
   const params = useParams<{ id: string }>();
@@ -61,13 +61,17 @@ function InvoicePreview({ id }: { id: string }) {
     const bankAccountPromise = currentInvoice.document_status === "draft" && currentInvoice.payment_destination_bank_account_id
       ? supabase.from("finance_bank_accounts").select("id,short_name,bank_name,account_name,account_number,is_active").eq("id", currentInvoice.payment_destination_bank_account_id).maybeSingle()
       : Promise.resolve({ data: null, error: null });
+    const bridgeResult = currentInvoice.v2_bridge_id
+      ? await supabase.from("finance_billing_installment_charge_bridges").select("billing_installment_id").eq("id", currentInvoice.v2_bridge_id).maybeSingle()
+      : { data: null, error: null };
+    const sourceInstallmentId = currentInvoice.primary_billing_installment_id || (bridgeResult.data as { billing_installment_id?: string } | null)?.billing_installment_id || null;
     const [itemsResult, installmentResult, currentIdentityResult, bankAccountResult] = await Promise.all([
       supabase.from("finance_invoice_items").select(itemSelect).eq("invoice_id", id).order("sort_order").order("id"),
-      supabase.from("finance_billing_installments").select("installment_no,title").eq("id", currentInvoice.primary_billing_installment_id).maybeSingle(),
+      sourceInstallmentId ? supabase.from("finance_billing_installments").select("installment_no,title").eq("id", sourceInstallmentId).maybeSingle() : Promise.resolve({ data: null, error: null }),
       loadCurrentDocumentIdentity(supabase),
       bankAccountPromise,
     ]);
-    if (itemsResult.error || installmentResult.error || bankAccountResult.error) {
+    if (bridgeResult.error || itemsResult.error || installmentResult.error || bankAccountResult.error) {
       console.error("Failed to load Invoice preview context", { items: itemsResult.error, installment: installmentResult.error, bankAccount: bankAccountResult.error });
       setError("โหลดรายการหรือข้อมูลงวดสำหรับตัวอย่างไม่สำเร็จ");
     }
@@ -110,7 +114,11 @@ function InvoicePreview({ id }: { id: string }) {
   if (!invoice) return <main style={shell}>{error || "ไม่พบใบแจ้งหนี้"}</main>;
 
   const matter = displayText(invoice.matter_snapshot_json?.title, displayText(invoice.matter_snapshot_json?.file_no, "ยังไม่ผูกเรื่อง"));
-  const installmentLabel = installment ? `งวดที่ ${installment.installment_no}${installment.title ? ` · ${installment.title}` : ""}` : "-";
+  const installmentLabel = invoice.source_model === "billable_charge_v2"
+    ? invoice.v2_bridge_id
+      ? `${installment ? `งวดที่ ${installment.installment_no}${installment.title ? ` · ${installment.title}` : ""}` : "งวดตามแผน"} + รายการรอเรียกเก็บ`
+      : "รายการรอเรียกเก็บ"
+    : installment ? `งวดที่ ${installment.installment_no}${installment.title ? ` · ${installment.title}` : ""}` : "-";
 
   return <main style={shell}>
     <div className="invoice-preview-controls" style={controls}>
@@ -132,14 +140,14 @@ function InvoicePreview({ id }: { id: string }) {
 
 function invoicePresentation(invoice: FinanceInvoice, liveItems: FinanceInvoiceItem[], liveBankAccount: FinanceBankAccount | null) {
   if (!isFrozenInvoiceStatus(invoice.document_status) || !invoice.issued_snapshot_json) {
-    return { invoice, items: liveItems, seller: liveSeller(invoice), paymentDestination: bankAccountPaymentDestination(liveBankAccount) };
+    return { invoice, items: liveItems.filter((item) => item.source_state === "active"), seller: liveSeller(invoice), paymentDestination: bankAccountPaymentDestination(liveBankAccount) };
   }
   const strictSnapshot = invoice.document_status === "voided";
   const snapshot = asJson(invoice.issued_snapshot_json);
   const frozenInvoice = asJson(snapshot.invoice);
   const frozenSeller = asJson(snapshot.seller);
   const frozenCustomer = asJson(snapshot.customer);
-  const frozenPaymentDestination = snapshotPaymentDestination(snapshot.payment_destination);
+  const frozenPaymentDestination = snapshotPaymentDestination(snapshot.payment_destination || frozenInvoice.payment_destination_snapshot_json);
   const frozenItems = Array.isArray(snapshot.items) ? snapshot.items.map((value, index) => frozenInvoiceItem(value, index)) : [];
   return {
     invoice: {
@@ -159,8 +167,8 @@ function invoicePresentation(invoice: FinanceInvoice, liveItems: FinanceInvoiceI
       total_amount: valueOrFallback(frozenInvoice.total_amount, invoice.total_amount),
       customer_name: stringOrNull(frozenCustomer.name) || (strictSnapshot ? null : invoice.customer_name),
       customer_tax_id: stringOrNull(frozenCustomer.tax_id) || (strictSnapshot ? null : invoice.customer_tax_id),
-      customer_branch: stringOrNull(frozenCustomer.branch) || (strictSnapshot ? null : invoice.customer_branch),
-      customer_billing_address: stringOrNull(frozenCustomer.billing_address) || (strictSnapshot ? null : invoice.customer_billing_address),
+      customer_branch: stringOrNull(frozenCustomer.branch) || stringOrNull(frozenCustomer.branch_label) || (strictSnapshot ? null : invoice.customer_branch),
+      customer_billing_address: stringOrNull(frozenCustomer.billing_address) || stringOrNull(frozenCustomer.address) || (strictSnapshot ? null : invoice.customer_billing_address),
       customer_phone: stringOrNull(frozenCustomer.phone) || (strictSnapshot ? null : invoice.customer_phone),
       customer_email: stringOrNull(frozenCustomer.email) || (strictSnapshot ? null : invoice.customer_email),
       matter_snapshot_json: asJson(snapshot.matter),
@@ -183,11 +191,11 @@ function liveSeller(invoice: FinanceInvoice): Json {
 function sellerIdentitySource(seller: Json, invoice: FinanceInvoice): Json {
   return {
     ...asJson(seller.snapshot),
-    company_name_th: stringOrNull(seller.name_th) || invoice.seller_name_th,
-    company_name_en: stringOrNull(seller.name_en) || invoice.seller_name_en,
+    company_name_th: stringOrNull(seller.company_name_th) || stringOrNull(seller.name_th) || invoice.seller_name_th,
+    company_name_en: stringOrNull(seller.company_name_en) || stringOrNull(seller.name_en) || invoice.seller_name_en,
     tax_id: stringOrNull(seller.tax_id) || invoice.seller_tax_id,
-    branch_th: stringOrNull(seller.branch) || invoice.seller_branch,
-    address_th: stringOrNull(seller.address) || invoice.seller_address,
+    branch_th: stringOrNull(seller.branch_th) || stringOrNull(seller.branch_label) || stringOrNull(seller.branch) || invoice.seller_branch,
+    address_th: stringOrNull(seller.address_th) || stringOrNull(seller.address) || invoice.seller_address,
     phone: stringOrNull(seller.phone) || invoice.seller_phone,
     email: stringOrNull(seller.email) || invoice.seller_email,
     website: stringOrNull(seller.website) || invoice.seller_website,
@@ -197,11 +205,11 @@ function sellerIdentitySource(seller: Json, invoice: FinanceInvoice): Json {
 function frozenSellerIdentitySource(seller: Json): Json {
   return {
     ...asJson(seller.snapshot),
-    company_name_th: stringOrNull(seller.name_th),
-    company_name_en: stringOrNull(seller.name_en),
+    company_name_th: stringOrNull(seller.company_name_th) || stringOrNull(seller.name_th),
+    company_name_en: stringOrNull(seller.company_name_en) || stringOrNull(seller.name_en),
     tax_id: stringOrNull(seller.tax_id),
-    branch_th: stringOrNull(seller.branch),
-    address_th: stringOrNull(seller.address),
+    branch_th: stringOrNull(seller.branch_th) || stringOrNull(seller.branch_label) || stringOrNull(seller.branch),
+    address_th: stringOrNull(seller.address_th) || stringOrNull(seller.address),
     phone: stringOrNull(seller.phone),
     email: stringOrNull(seller.email),
     website: stringOrNull(seller.website),
@@ -209,9 +217,13 @@ function frozenSellerIdentitySource(seller: Json): Json {
 }
 
 function frozenInvoiceItem(value: unknown, index: number): FinanceInvoiceItem {
-  const item = asJson(value);
+  const snapshotItem = asJson(value);
+  const item = Object.keys(asJson(snapshotItem.invoice_item)).length ? asJson(snapshotItem.invoice_item) : snapshotItem;
   return {
     id: String(item.id || `snapshot-item-${index}`),
+    source_billable_charge_id: stringOrNull(item.source_billable_charge_id),
+    source_state: stringOrNull(item.source_state) || "active",
+    source_snapshot_json: asJson(item.source_snapshot_json),
     description: displayText(item.description),
     source_quantity: scalar(item.source_quantity),
     source_unit_price: scalar(item.source_unit_price),

@@ -69,7 +69,7 @@ export function InvoiceDocument({
         </div>
         <div className={styles.matterBlock}>
           <DocumentField label={labels.reference} value={matter} />
-          <div style={{ marginTop: "3mm" }}><DocumentField label={labels.installment} value={installmentLabel} /></div>
+          <div style={{ marginTop: "3mm" }}><DocumentField label={invoice.source_model === "billable_charge_v2" ? (thai ? "ที่มาของยอดเรียกเก็บ" : "Billing source") : labels.installment} value={installmentLabel} /></div>
         </div>
       </section>
 

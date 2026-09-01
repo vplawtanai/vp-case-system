@@ -8,6 +8,7 @@ import { QuotationGuard } from "../../quotations/shared";
 import { feeAgreementStatusLabel } from "../../fee-agreements/lifecycle";
 import { supabase } from "../../../../lib/supabase";
 import { paymentStatusLabels, safePaymentError, settlementStatusLabels, type EffectivePaymentAllocation, type FinancePayment, type InvoiceSettlement, type PaymentAllocationReallocation } from "../../payments/shared";
+import InvoiceCompositionEditor from "../invoice-composition-editor";
 import {
   bangkokToday,
   bankAccountPaymentDestination,
@@ -33,18 +34,19 @@ import {
 type BillingPlan = { id: string; title: string | null; status: string; billing_method: string };
 type Installment = { id: string; installment_no: number; title: string; trigger_type: string; trigger_description: string | null; due_date: string | null; status: string; readiness_event_date: string | null; readiness_confirmed_at: string | null; readiness_reference: string | null; amount_before_tax: number | string; vat_amount: number | string; total_amount: number | string };
 type FeeAgreement = { id: string; agreement_no: string | null; title: string; status: string; engagement_basis: "formal_agreement" | "accepted_quotation" | null; source_reference: string | null };
+type V2Bridge = { billing_installment_id: string; billing_plan_id: string; fee_agreement_id: string };
 type FormErrors = Partial<Record<"issueDate" | "dueDate" | "bankAccount", string>>;
 type VoidFormErrors = Partial<Record<"reason" | "acknowledgement", string>>;
 type InvoicePaymentAllocation = { payment_id: string; cash_allocated: number | string; wht_credit_allocated: number | string; settlement_total: number | string };
 
-const invoiceSelect = "id,billing_plan_id,primary_billing_installment_id,fee_agreement_id,source_quotation_id,client_id,case_id,advisory_matter_id,invoice_no,document_status,issue_date,due_date,currency,language_code,customer_note,payment_terms_text,payment_destination_bank_account_id,payment_destination_snapshot_json,internal_note,amount_before_vat,vat_amount,total_amount,seller_name_th,seller_name_en,seller_tax_id,seller_branch,seller_address,seller_phone,seller_email,seller_website,customer_name,customer_tax_id,customer_branch,customer_billing_address,customer_phone,customer_email,seller_snapshot_json,customer_snapshot_json,matter_snapshot_json,source_snapshot_json,issued_snapshot_json,issued_at,voided_at,void_reason,cancelled_at,cancel_reason,created_at,updated_at";
-const itemSelect = "id,description,source_quantity,source_unit_price,allocation_percent,vat_applicable,vat_rate,tax_category,price_tax_mode,amount_before_vat,vat_amount,line_total,sort_order";
+const invoiceSelect = "id,billing_plan_id,primary_billing_installment_id,fee_agreement_id,source_quotation_id,client_id,case_id,advisory_matter_id,source_model,v2_bridge_id,v2_creation_request_id,invoice_no,document_status,issue_date,due_date,currency,language_code,customer_note,payment_terms_text,payment_destination_bank_account_id,payment_destination_snapshot_json,internal_note,amount_before_vat,vat_amount,total_amount,seller_name_th,seller_name_en,seller_tax_id,seller_branch,seller_address,seller_phone,seller_email,seller_website,customer_name,customer_tax_id,customer_branch,customer_billing_address,customer_phone,customer_email,seller_snapshot_json,customer_snapshot_json,matter_snapshot_json,source_snapshot_json,issued_snapshot_json,issued_at,voided_at,void_reason,cancelled_at,cancel_reason,created_at,updated_at";
+const itemSelect = "id,source_billable_charge_id,source_state,source_snapshot_json,description,source_quantity,source_unit_price,allocation_percent,vat_applicable,vat_rate,tax_category,price_tax_mode,amount_before_vat,vat_amount,line_total,sort_order";
 
 export default function InvoiceDetailPage() {
-  return <QuotationGuard>{(access) => <InvoiceWorkspace canManagePayments={access.permissions.canManageFinancePayments} />}</QuotationGuard>;
+  return <QuotationGuard>{(access) => <InvoiceWorkspace canManagePayments={access.permissions.canManageFinancePayments} canManageComposition={access.permissions.canEditFinanceQuotation && access.permissions.canManageFinanceBillableCharges} />}</QuotationGuard>;
 }
 
-function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean }) {
+function InvoiceWorkspace({ canManagePayments, canManageComposition }: { canManagePayments: boolean; canManageComposition: boolean }) {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [invoice, setInvoice] = useState<FinanceInvoice | null>(null);
@@ -52,6 +54,7 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
   const [plan, setPlan] = useState<BillingPlan | null>(null);
   const [installment, setInstallment] = useState<Installment | null>(null);
   const [agreement, setAgreement] = useState<FeeAgreement | null>(null);
+  const [v2Bridge, setV2Bridge] = useState<V2Bridge | null>(null);
   const [settlement, setSettlement] = useState<InvoiceSettlement | null>(null);
   const [linkedPayments, setLinkedPayments] = useState<FinancePayment[]>([]);
   const [rawPaymentAllocations, setRawPaymentAllocations] = useState<InvoicePaymentAllocation[]>([]);
@@ -94,18 +97,25 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
     }
     if (!invoiceResult.data) { setError("ไม่พบใบแจ้งหนี้"); setLoading(false); return; }
     const invoiceRow = invoiceResult.data as FinanceInvoice;
+    const bridgeResult = invoiceRow.v2_bridge_id
+      ? await supabase.from("finance_billing_installment_charge_bridges").select("billing_installment_id,billing_plan_id,fee_agreement_id").eq("id", invoiceRow.v2_bridge_id).maybeSingle()
+      : { data: null, error: null };
+    const bridge = (bridgeResult.data || null) as V2Bridge | null;
+    const sourcePlanId = invoiceRow.billing_plan_id || bridge?.billing_plan_id || null;
+    const sourceInstallmentId = invoiceRow.primary_billing_installment_id || bridge?.billing_installment_id || null;
+    const sourceAgreementId = invoiceRow.fee_agreement_id || bridge?.fee_agreement_id || null;
     const [itemsResult, planResult, installmentResult, agreementResult, settlementResult, paymentAllocationsResult, effectiveAllocationsResult, paymentReallocationsResult, bankAccountsResult] = await Promise.all([
       supabase.from("finance_invoice_items").select(itemSelect).eq("invoice_id", id).order("sort_order").order("id"),
-      supabase.from("finance_billing_plans").select("id,title,status,billing_method").eq("id", invoiceRow.billing_plan_id).maybeSingle(),
-      supabase.from("finance_billing_installments").select("id,installment_no,title,trigger_type,trigger_description,due_date,status,readiness_event_date,readiness_confirmed_at,readiness_reference,amount_before_tax,vat_amount,total_amount").eq("id", invoiceRow.primary_billing_installment_id).maybeSingle(),
-      supabase.from("finance_fee_agreements").select("id,agreement_no,title,status,engagement_basis,source_reference").eq("id", invoiceRow.fee_agreement_id).maybeSingle(),
+      sourcePlanId ? supabase.from("finance_billing_plans").select("id,title,status,billing_method").eq("id", sourcePlanId).maybeSingle() : Promise.resolve({ data: null, error: null }),
+      sourceInstallmentId ? supabase.from("finance_billing_installments").select("id,installment_no,title,trigger_type,trigger_description,due_date,status,readiness_event_date,readiness_confirmed_at,readiness_reference,amount_before_tax,vat_amount,total_amount").eq("id", sourceInstallmentId).maybeSingle() : Promise.resolve({ data: null, error: null }),
+      sourceAgreementId ? supabase.from("finance_fee_agreements").select("id,agreement_no,title,status,engagement_basis,source_reference").eq("id", sourceAgreementId).maybeSingle() : Promise.resolve({ data: null, error: null }),
       supabase.from("finance_invoice_settlement_summary").select("*").eq("invoice_id", id).maybeSingle(),
       supabase.from("finance_payment_invoice_allocations").select("payment_id,cash_allocated,wht_credit_allocated,settlement_total").eq("invoice_id", id),
       supabase.from("finance_payment_effective_invoice_allocations").select("payment_id,invoice_id,effective_cash_allocated,effective_wht_credit_allocated,effective_settlement_total").eq("invoice_id", id),
       supabase.from("finance_payment_allocation_reallocations").select("id,payment_id,source_invoice_id,target_invoice_id,cash_moved,wht_moved,settlement_moved,reason,created_at").or(`source_invoice_id.eq.${id},target_invoice_id.eq.${id}`).order("created_at", { ascending: false }),
       supabase.from("finance_bank_accounts").select("id,short_name,bank_name,account_name,account_number,is_active").order("short_name"),
     ]);
-    if (itemsResult.error || planResult.error || installmentResult.error || agreementResult.error || settlementResult.error || paymentAllocationsResult.error || effectiveAllocationsResult.error || paymentReallocationsResult.error || bankAccountsResult.error) {
+    if (bridgeResult.error || itemsResult.error || planResult.error || installmentResult.error || agreementResult.error || settlementResult.error || paymentAllocationsResult.error || effectiveAllocationsResult.error || paymentReallocationsResult.error || bankAccountsResult.error) {
       console.error("Failed to load Invoice source context", { items: itemsResult.error, plan: planResult.error, installment: installmentResult.error, agreement: agreementResult.error, settlement: settlementResult.error, payments: paymentAllocationsResult.error, effectivePayments: effectiveAllocationsResult.error, paymentHistory: paymentReallocationsResult.error, bankAccounts: bankAccountsResult.error });
       setError("โหลดข้อมูลต้นทางของใบแจ้งหนี้บางส่วนไม่สำเร็จ กรุณารีเฟรช");
     }
@@ -127,6 +137,7 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
     setPlan((planResult.data || null) as BillingPlan | null);
     setInstallment((installmentResult.data || null) as Installment | null);
     setAgreement((agreementResult.data || null) as FeeAgreement | null);
+    setV2Bridge(bridge);
     setSettlement((settlementResult.data || null) as InvoiceSettlement | null);
     setLinkedPayments((paymentsResult.data || []) as FinancePayment[]);
     setRawPaymentAllocations(rawAllocationRows);
@@ -148,6 +159,7 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
   const fingerprint = useMemo(() => invoiceDraftFingerprint(form), [form]);
   const dirty = Boolean(baseline) && fingerprint !== baseline;
   const isDraft = invoice?.document_status === "draft";
+  const isV2 = invoice?.source_model === "billable_charge_v2";
   const isIssued = invoice?.document_status === "issued";
   const isVoided = invoice?.document_status === "voided";
   const currentPaymentIds = useMemo(() => new Set(effectivePaymentAllocations.map((row) => row.payment_id)), [effectivePaymentAllocations]);
@@ -245,7 +257,7 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
       if (result.error) throw result.error;
       setCancelPanelOpen(false);
       await load();
-      setMessage("ยกเลิกร่างใบแจ้งหนี้แล้ว งวดต้นทางยังคงสถานะพร้อมออกใบแจ้งหนี้");
+      setMessage(invoice.source_model === "billable_charge_v2" ? "ยกเลิกร่างแล้ว รายการเรียกเก็บกลับไปอยู่ในรายการพร้อมออกใบแจ้งหนี้" : "ยกเลิกร่างใบแจ้งหนี้แล้ว งวดต้นทางยังคงสถานะพร้อมออกใบแจ้งหนี้");
     } catch (cancelError) {
       setError(safeInvoiceError(cancelError, "ยกเลิกร่างใบแจ้งหนี้ไม่สำเร็จ"));
     } finally {
@@ -287,7 +299,7 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
       if (result.error) throw result.error;
       setVoidPanelOpen(false); setVoidReason(""); setVoidAcknowledged(false); setVoidFormErrors({});
       await load();
-      setMessage("ยกเลิกใบแจ้งหนี้แล้ว เลขที่เดิมถูกเก็บไว้เป็นประวัติและงวดต้นทางพร้อมสำหรับสร้างใบแจ้งหนี้ใหม่");
+      setMessage(invoice.source_model === "billable_charge_v2" ? "ยกเลิกใบแจ้งหนี้แล้ว เลขที่เดิมถูกเก็บไว้เป็นประวัติและรายการต้นทางพร้อมสำหรับสร้างใบแจ้งหนี้ใหม่" : "ยกเลิกใบแจ้งหนี้แล้ว เลขที่เดิมถูกเก็บไว้เป็นประวัติและงวดต้นทางพร้อมสำหรับสร้างใบแจ้งหนี้ใหม่");
     } catch (voidError) {
       console.error("Failed to void Invoice", voidError);
       setError(safeInvoiceError(voidError, "ยกเลิกใบแจ้งหนี้ไม่สำเร็จ กรุณาลองใหม่"));
@@ -318,14 +330,17 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
   const matter = displayText(invoice.matter_snapshot_json?.title, displayText(invoice.matter_snapshot_json?.file_no, invoice.case_id || invoice.advisory_matter_id ? "เรื่อง/คดีที่เชื่อมไว้" : "ยังไม่ผูกเรื่อง"));
   const engagementReference = agreement ? agreement.engagement_basis === "accepted_quotation" ? displayText(agreement.source_reference, agreement.title) : displayText(agreement.agreement_no, agreement.title) : "-";
   const installmentLabel = installment ? `งวดที่ ${installment.installment_no}${installment.title ? ` · ${installment.title}` : ""}` : "-";
+  const invoiceSourceLabel = isV2 ? v2Bridge ? "งวดตามแผน + รายการรอเรียกเก็บ" : "รายการรอเรียกเก็บ" : engagementReference;
   const paymentDestination = isDraft
     ? bankAccountPaymentDestination(selectedBankAccount)
     : snapshotPaymentDestination(invoice.issued_snapshot_json?.payment_destination);
+  const activeItems = items.filter((item) => item.source_state === "active");
 
   return <main className="invoice-workspace" style={page}>
     <nav className="invoice-navigation-toolbar" style={navigationToolbar} aria-label="การนำทางเอกสารที่เกี่ยวข้อง">
-      <NavigationLink href={`/finance/billing-plans/${invoice.billing_plan_id}`} icon="back" variant="back">กลับไปแผนเรียกเก็บเงิน</NavigationLink>
-      <NavigationLink href={`/finance/fee-agreements/${invoice.fee_agreement_id}`} icon="document" variant="source">เปิดข้อมูลการว่าจ้างต้นทาง</NavigationLink>
+      <NavigationLink href={isV2 ? "/finance/invoices" : `/finance/billing-plans/${invoice.billing_plan_id}`} icon="back" variant="back">{isV2 ? "กลับไปรายการใบแจ้งหนี้" : "กลับไปแผนเรียกเก็บเงิน"}</NavigationLink>
+      {invoice.fee_agreement_id ? <NavigationLink href={`/finance/fee-agreements/${invoice.fee_agreement_id}`} icon="document" variant="source">เปิดข้อมูลการว่าจ้างต้นทาง</NavigationLink> : null}
+      {isV2 ? <NavigationLink href="/finance/billable-charges" icon="document" variant="source">เปิดรายการรอเรียกเก็บ</NavigationLink> : null}
       {invoice.source_quotation_id ? <NavigationLink href={`/finance/quotations/${invoice.source_quotation_id}`} icon="document" variant="source">เปิดใบเสนอราคาต้นทาง</NavigationLink> : null}
     </nav>
 
@@ -346,11 +361,14 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
     <section style={sourceTrail}>
       <h2 style={compactHeading}>เส้นทางเอกสารต้นทาง</h2>
       <div className="invoice-source-nodes" style={sourceNodes}>
-        {invoice.source_quotation_id ? <><SourceNode label="ใบเสนอราคา"><Link href={`/finance/quotations/${invoice.source_quotation_id}`}>{sourceQuotationNo(invoice.source_snapshot_json)}</Link></SourceNode><Arrow /></> : null}
-        <SourceNode label={agreement?.engagement_basis === "accepted_quotation" ? "การว่าจ้างตามใบเสนอราคา" : "ข้อตกลงค่าบริการ"}><Link href={`/finance/fee-agreements/${invoice.fee_agreement_id}`}>{engagementReference}</Link>{agreement ? <StatusBadge status={agreement.status} label={feeAgreementStatusLabel(agreement.status)} /> : null}</SourceNode>
-        <Arrow /><SourceNode label="แผนเรียกเก็บเงิน"><Link href={`/finance/billing-plans/${invoice.billing_plan_id}`}>{displayText(plan?.title, "แผนเรียกเก็บเงิน")}</Link></SourceNode>
-        <Arrow /><SourceNode label={`งวดที่ ${installment?.installment_no || "-"}`}>{displayText(installment?.title, "งวดเรียกเก็บเงิน")}{installment ? <StatusBadge status={installment.status} label={installmentStatusLabels[installment.status] || installment.status} /> : null}</SourceNode>
-        <Arrow /><SourceNode label={isDraft ? "ร่างใบแจ้งหนี้" : isVoided ? "ใบแจ้งหนี้ที่ยกเลิกแล้ว" : "ใบแจ้งหนี้"} current>{invoice.invoice_no || invoice.id.slice(0, 8).toUpperCase()}</SourceNode>
+        {!isV2 && invoice.source_quotation_id ? <><SourceNode label="ใบเสนอราคา"><Link href={`/finance/quotations/${invoice.source_quotation_id}`}>{sourceQuotationNo(invoice.source_snapshot_json)}</Link></SourceNode><Arrow /></> : null}
+        {!isV2 && invoice.fee_agreement_id ? <><SourceNode label={agreement?.engagement_basis === "accepted_quotation" ? "การว่าจ้างตามใบเสนอราคา" : "ข้อตกลงค่าบริการ"}><Link href={`/finance/fee-agreements/${invoice.fee_agreement_id}`}>{engagementReference}</Link>{agreement ? <StatusBadge status={agreement.status} label={feeAgreementStatusLabel(agreement.status)} /> : null}</SourceNode><Arrow /></> : null}
+        {!isV2 && invoice.billing_plan_id ? <><SourceNode label="แผนเรียกเก็บเงิน"><Link href={`/finance/billing-plans/${invoice.billing_plan_id}`}>{displayText(plan?.title, "แผนเรียกเก็บเงิน")}</Link></SourceNode><Arrow /></> : null}
+        {!isV2 ? <><SourceNode label={`งวดที่ ${installment?.installment_no || "-"}`}>{displayText(installment?.title, "งวดเรียกเก็บเงิน")}{installment ? <StatusBadge status={installment.status} label={installmentStatusLabels[installment.status] || installment.status} /> : null}</SourceNode><Arrow /></> : null}
+        {isV2 && agreement && invoice.fee_agreement_id ? <><SourceNode label="ข้อมูลการว่าจ้าง"><Link href={`/finance/fee-agreements/${invoice.fee_agreement_id}`}>{engagementReference}</Link></SourceNode><Arrow /></> : null}
+        {isV2 && plan && invoice.billing_plan_id ? <><SourceNode label="แผนเรียกเก็บเงิน"><Link href={`/finance/billing-plans/${invoice.billing_plan_id}`}>{displayText(plan.title, "แผนเรียกเก็บเงิน")}</Link></SourceNode><Arrow /></> : null}
+        {isV2 ? <><SourceNode label={v2Bridge ? "แบบรวมรายการ" : "จากรายการเรียกเก็บ"}>{invoiceSourceLabel}</SourceNode><Arrow /></> : null}
+        <SourceNode label={isDraft ? "ร่างใบแจ้งหนี้" : isVoided ? "ใบแจ้งหนี้ที่ยกเลิกแล้ว" : "ใบแจ้งหนี้"} current>{invoice.invoice_no || invoice.id.slice(0, 8).toUpperCase()}</SourceNode>
       </div>
     </section>
 
@@ -362,13 +380,13 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
         <Field label="สำนักงานใหญ่/สาขา" value={displayText(invoice.customer_branch)} />
         <Field label="เรื่อง/งาน" value={matter} />
         <Field label="สกุลเงิน" value={invoice.currency} />
-        <Field label="แหล่งข้อมูล" value={engagementReference} />
+        <Field label="แหล่งข้อมูล" value={invoiceSourceLabel} />
       </div>
       <div style={addressBlock}><span style={fieldLabel}>ที่อยู่ออกเอกสาร</span><strong>{displayText(invoice.customer_billing_address)}</strong>{invoice.customer_phone || invoice.customer_email ? <span>{[invoice.customer_phone, invoice.customer_email].filter(Boolean).join(" · ")}</span> : null}</div>
       {!invoice.customer_tax_id ? <div style={neutralWarning}>ยังไม่มีเลขประจำตัวผู้เสียภาษีของลูกค้า กรุณาตรวจสอบข้อมูลลูกค้าให้ถูกต้อง</div> : null}
     </section>
 
-    <section style={surface}>
+    {!isV2 ? <section style={surface}>
       <SectionHeading title="เหตุผลและหลักฐานการเรียกเก็บงวดนี้" description="แสดงเหตุการณ์ที่ผู้ใช้งานยืนยันแล้วว่างวดนี้พร้อมจัดทำใบแจ้งหนี้" />
       <div style={detailGrid}>
         <Field label="งวดเรียกเก็บเงิน" value={installmentLabel} />
@@ -378,13 +396,15 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
         <Field label="หลักฐาน/เลขอ้างอิง" value={displayText(installment?.readiness_reference)} />
         <Field label="ยอดของงวด" value={money(installment?.total_amount, invoice.currency)} />
       </div>
-    </section>
+    </section> : <section style={surface}><SectionHeading title="ที่มาของยอดเรียกเก็บ" description="รายการแต่ละบรรทัดเก็บความเชื่อมโยงกับข้อมูลต้นทางและยอดเงินเป็นแบบอ่านอย่างเดียว" /><div style={detailGrid}><Field label="รูปแบบการรวบรวมยอด" value={invoiceSourceLabel} /><Field label="งวดตามแผน" value={v2Bridge ? installmentLabel : "ไม่ใช้"} /><Field label="จำนวนรายการ" value={`${activeItems.length} รายการ`} /></div></section>}
 
     <section style={surface}>
-      <SectionHeading title="รายการค่าบริการ" description="รายการและยอดเงินคัดลอกจากงวดในแผนเรียกเก็บเงินและเป็นแบบอ่านอย่างเดียว" />
-      {items.length === 0 ? <div style={neutralWarning}>{isDraft ? "ไม่พบรายการค่าบริการในร่างใบแจ้งหนี้" : "ไม่พบรายการค่าบริการในใบแจ้งหนี้"}</div> : <div style={tableScroll}><table className="invoice-item-table" style={table}><colgroup><col style={{ width: "42%" }} /><col style={{ width: "13%" }} /><col style={{ width: "15%" }} /><col style={{ width: "14%" }} /><col style={{ width: "16%" }} /></colgroup><thead><tr><th>รายการ</th><th>VAT</th><th>มูลค่าก่อน VAT</th><th>VAT</th><th>ยอดรวม</th></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td><strong>{item.description}</strong>{item.allocation_percent !== null ? <small style={itemMeta}>สัดส่วนจากรายการต้นทาง {Number(item.allocation_percent).toLocaleString("en-US", { maximumFractionDigits: 4 })}%</small> : null}</td><td>{item.vat_applicable ? `${Number(item.vat_rate)}%` : "ไม่มี VAT"}</td><td>{money(item.amount_before_vat, invoice.currency)}</td><td>{money(item.vat_amount, invoice.currency)}</td><td><strong>{money(item.line_total, invoice.currency)}</strong></td></tr>)}</tbody></table></div>}
+      <SectionHeading title="รายการค่าบริการ" description={isV2 ? "รายการและยอดเงินคัดลอกจากแหล่งยอดที่เลือกและเป็นแบบอ่านอย่างเดียว" : "รายการและยอดเงินคัดลอกจากงวดในแผนเรียกเก็บเงินและเป็นแบบอ่านอย่างเดียว"} />
+      {activeItems.length === 0 ? <div style={neutralWarning}>{isDraft ? "ไม่พบรายการค่าบริการในร่างใบแจ้งหนี้" : "ไม่พบรายการค่าบริการในใบแจ้งหนี้"}</div> : <div style={tableScroll}><table className="invoice-item-table" style={table}><colgroup><col style={{ width: "42%" }} /><col style={{ width: "13%" }} /><col style={{ width: "15%" }} /><col style={{ width: "14%" }} /><col style={{ width: "16%" }} /></colgroup><thead><tr><th>รายการ</th><th>VAT</th><th>มูลค่าก่อน VAT</th><th>VAT</th><th>ยอดรวม</th></tr></thead><tbody>{activeItems.map((item) => { const quantityLabel = invoiceItemQuantityLabel(item, invoice.currency); return <tr key={item.id}><td><strong>{item.description}</strong>{item.allocation_percent !== null ? <small style={itemMeta}>สัดส่วนจากรายการต้นทาง {Number(item.allocation_percent).toLocaleString("en-US", { maximumFractionDigits: 4 })}%</small> : null}{isV2 ? <>{quantityLabel ? <small style={itemMeta}>{quantityLabel}</small> : null}<small style={itemMeta}>{invoiceItemClassificationLabel(item)}</small><small style={itemMeta}>{invoiceItemSourceLabel(item)}</small></> : null}</td><td>{item.vat_applicable ? `${Number(item.vat_rate)}%` : "ไม่มี VAT"}</td><td>{money(item.amount_before_vat, invoice.currency)}</td><td>{money(item.vat_amount, invoice.currency)}</td><td><strong>{money(item.line_total, invoice.currency)}</strong></td></tr>; })}</tbody></table></div>}
       <div className="invoice-total-grid" style={totalsGrid}><Metric label="มูลค่าก่อน VAT" value={money(invoice.amount_before_vat, invoice.currency)} /><Metric label="VAT" value={money(invoice.vat_amount, invoice.currency)} /><Metric label="ยอดรวม" value={money(invoice.total_amount, invoice.currency)} prominent /></div>
     </section>
+
+    {isV2 && isDraft ? <InvoiceCompositionEditor invoice={invoice} canManage={canManageComposition} onChanged={load} /> : null}
 
     {isDraft ? <section ref={settingsRef} id="invoice-draft-settings" style={surface} className="invoice-draft-settings">
       <SectionHeading title="ข้อมูลในใบแจ้งหนี้" description="แก้ไขเฉพาะข้อมูลการนำเสนอเอกสาร รายการและยอดเงินต้นทางจะไม่เปลี่ยน" />
@@ -442,7 +462,7 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
       </div>
       <div style={voidReasonBlock}><small style={fieldLabel}>เหตุผลภายในที่ยกเลิก</small><p>{displayText(invoice.void_reason)}</p></div>
       {linkedPayments.length ? <PaymentLinks title="ประวัติรายการรับชำระที่เกี่ยวข้อง" payments={linkedPayments} effectiveAllocations={effectivePaymentAllocations} rawAllocations={rawPaymentAllocations} reallocations={paymentReallocations} invoiceId={invoice.id} historical /> : null}
-      <div style={replacementNextStep}><strong>สร้างใบแจ้งหนี้ใหม่จากงวดเดิม</strong><span>หากต้องการเรียกเก็บใหม่ ให้กลับไปยังแผนเรียกเก็บเงินและสร้างร่างใบแจ้งหนี้ใหม่ ระบบจะกำหนดเลขที่ VP-IV ใหม่เมื่อออกเอกสาร</span><Link style={replacementButton} href={`/finance/billing-plans/${invoice.billing_plan_id}`}>กลับไปสร้างใบแจ้งหนี้ใหม่</Link></div>
+      <div style={replacementNextStep}><strong>{isV2 ? "สร้างใบแจ้งหนี้ใหม่จากรายการเดิม" : "สร้างใบแจ้งหนี้ใหม่จากงวดเดิม"}</strong><span>{isV2 ? "รายการต้นทางกลับไปพร้อมออกใบแจ้งหนี้แล้ว สามารถเลือกเพื่อสร้างร่างใหม่ได้ โดยระบบจะกำหนดเลขที่ VP-IV ใหม่เมื่อออกเอกสาร" : "หากต้องการเรียกเก็บใหม่ ให้กลับไปยังแผนเรียกเก็บเงินและสร้างร่างใบแจ้งหนี้ใหม่ ระบบจะกำหนดเลขที่ VP-IV ใหม่เมื่อออกเอกสาร"}</span><Link style={replacementButton} href={isV2 ? `/finance/invoices/compose?client=${invoice.client_id}` : `/finance/billing-plans/${invoice.billing_plan_id}`}>กลับไปสร้างใบแจ้งหนี้ใหม่</Link></div>
     </section> : null}
 
     {invoice.document_status === "issued" ? <section style={nextStepZone}>
@@ -465,25 +485,26 @@ function InvoiceWorkspace({ canManagePayments }: { canManagePayments: boolean })
     {isDraft ? <>
       <section style={finalActionZone}>
         <span style={finalEyebrow}>ขั้นตอนสุดท้าย</span><h2 style={finalTitle}>ตรวจสอบและออกใบแจ้งหนี้</h2><p style={finalDescription}>เมื่อออกใบแจ้งหนี้แล้ว ระบบจะกำหนดเลขที่ VP-IV และล็อกข้อมูลเอกสารฉบับนี้</p>
-        <div className="invoice-final-summary" style={finalSummary}><Metric label="ลูกค้า" value={displayText(invoice.customer_name)} /><Metric label="งวด" value={`งวดที่ ${installment?.installment_no || "-"}`} /><Metric label="ยอดรวม" value={money(invoice.total_amount, invoice.currency)} prominent /></div>
+        <div className="invoice-final-summary" style={finalSummary}><Metric label="ลูกค้า" value={displayText(invoice.customer_name)} /><Metric label={isV2 ? "ที่มาของยอด" : "งวด"} value={isV2 ? invoiceSourceLabel : `งวดที่ ${installment?.installment_no || "-"}`} /><Metric label="ยอดรวม" value={money(invoice.total_amount, invoice.currency)} prominent /></div>
         {dirty ? <div style={neutralWarning}>มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก กรุณาบันทึกก่อนออกใบแจ้งหนี้</div> : null}
         <button type="button" style={{ ...issueButton, ...(dirty ? disabledButton : {}) }} disabled={dirty || issuing} onClick={openIssueReview}>ออกใบแจ้งหนี้</button>
 
         {issuePanelOpen ? <div id="invoice-issue-confirmation" style={confirmationPanel}>
           <h3 style={confirmationTitle}>ยืนยันการออกใบแจ้งหนี้</h3>
-          <div style={confirmationGrid}><Field label="ลูกค้า" value={displayText(invoice.customer_name)} /><Field label="งวด" value={installmentLabel} /><Field label="มูลค่าก่อน VAT" value={money(invoice.amount_before_vat, invoice.currency)} /><Field label="VAT" value={money(invoice.vat_amount, invoice.currency)} /><Field label="ยอดรวม" value={money(invoice.total_amount, invoice.currency)} /><Field label="วันที่ออกเอกสาร" value={form.issueDate || "-"} /><Field label="วันที่ครบกำหนด" value={form.dueDate || "-"} /><Field label="บัญชีสำหรับรับชำระ" value={paymentDestination ? `${displayText(paymentDestination.shortName)} · ${displayText(paymentDestination.accountNumber)}` : "-"} /></div>
+          <div style={confirmationGrid}><Field label="ลูกค้า" value={displayText(invoice.customer_name)} /><Field label="คดี/งาน" value={matter} /><Field label={isV2 ? "ที่มาของยอด" : "งวด"} value={isV2 ? invoiceSourceLabel : installmentLabel} /><Field label="มูลค่าก่อน VAT" value={money(invoice.amount_before_vat, invoice.currency)} /><Field label="VAT" value={money(invoice.vat_amount, invoice.currency)} /><Field label="ยอดรวม" value={money(invoice.total_amount, invoice.currency)} /><Field label="วันที่ออกเอกสาร" value={form.issueDate || "-"} /><Field label="วันที่ครบกำหนด" value={form.dueDate || "-"} /><Field label="บัญชีสำหรับรับชำระ" value={paymentDestination ? `${displayText(paymentDestination.shortName)} · ${displayText(paymentDestination.accountNumber)}` : "-"} /></div>
+          <div style={issueItemsReview}><small style={fieldLabel}>รายการในใบแจ้งหนี้</small>{activeItems.map((item) => <div key={item.id} style={issueItemRow}><span>{item.description}</span><strong>{money(item.line_total, invoice.currency)}</strong></div>)}</div>
           <label style={confirmCheck}><input type="checkbox" checked={issueConfirmed} onChange={(event) => setIssueConfirmed(event.target.checked)} />ยืนยันว่าตรวจสอบข้อมูลใบแจ้งหนี้ครบถ้วนแล้ว และต้องการออกใบแจ้งหนี้ฉบับนี้</label>
           <p style={confirmationHelp}>ระบบจะสร้างเลขที่อย่างเป็นทางการและทำให้เอกสารเป็นแบบอ่านอย่างเดียว การออกใบแจ้งหนี้ไม่ถือว่าได้รับชำระเงิน</p>
           <div style={confirmationActions}><button type="button" style={secondaryButton} disabled={issuing} onClick={() => setIssuePanelOpen(false)}>กลับไปตรวจสอบ</button><button type="button" style={{ ...issueButton, ...(!issueConfirmed ? disabledButton : {}) }} disabled={!issueConfirmed || issuing} onClick={() => void issueInvoice()}>{issuing ? "กำลังออกใบแจ้งหนี้..." : "ยืนยันออกใบแจ้งหนี้"}</button></div>
         </div> : null}
       </section>
 
-      <section style={otherActions}><h2 style={otherActionsTitle}>การดำเนินการอื่น</h2><p style={sectionDescription}>การยกเลิกร่างจะไม่ยกเลิกหลักฐานความพร้อมของงวด และไม่สร้างเลขที่ใบแจ้งหนี้</p>{!cancelPanelOpen ? <button type="button" style={dangerOutlineButton} onClick={() => setCancelPanelOpen(true)}>ยกเลิกร่างใบแจ้งหนี้</button> : <div style={cancelPanel}><FormField label="เหตุผลที่ยกเลิกร่าง" required><textarea style={textareaStyle} rows={3} value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} /></FormField><div style={confirmationActions}><button type="button" style={secondaryButton} disabled={cancelling} onClick={() => { setCancelPanelOpen(false); setCancelReason(""); }}>ไม่ยกเลิก</button><button type="button" style={{ ...dangerButton, ...(!cancelReason.trim() ? disabledButton : {}) }} disabled={!cancelReason.trim() || cancelling} onClick={() => void cancelDraft()}>{cancelling ? "กำลังยกเลิก..." : "ยืนยันยกเลิกร่าง"}</button></div></div>}</section>
+      <section style={otherActions}><h2 style={otherActionsTitle}>การดำเนินการอื่น</h2><p style={sectionDescription}>{isV2 ? "การยกเลิกร่างจะคืนรายการต้นทางให้พร้อมสร้างใบแจ้งหนี้ใหม่ และไม่สร้างเลขที่ใบแจ้งหนี้" : "การยกเลิกร่างจะไม่ยกเลิกหลักฐานความพร้อมของงวด และไม่สร้างเลขที่ใบแจ้งหนี้"}</p>{!cancelPanelOpen ? <button type="button" style={dangerOutlineButton} onClick={() => setCancelPanelOpen(true)}>ยกเลิกร่างใบแจ้งหนี้</button> : <div style={cancelPanel}><FormField label="เหตุผลที่ยกเลิกร่าง" required><textarea style={textareaStyle} rows={3} value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} /></FormField><div style={confirmationActions}><button type="button" style={secondaryButton} disabled={cancelling} onClick={() => { setCancelPanelOpen(false); setCancelReason(""); }}>ไม่ยกเลิก</button><button type="button" style={{ ...dangerButton, ...(!cancelReason.trim() ? disabledButton : {}) }} disabled={!cancelReason.trim() || cancelling} onClick={() => void cancelDraft()}>{cancelling ? "กำลังยกเลิก..." : "ยืนยันยกเลิกร่าง"}</button></div></div>}</section>
     </> : null}
 
     {isIssued ? <section style={otherActions}>
       <h2 style={otherActionsTitle}>การดำเนินการอื่น</h2>
-      <p style={sectionDescription}>การยกเลิกใบแจ้งหนี้เป็นการเก็บเอกสารเดิมไว้เป็นประวัติ และเปิดงวดต้นทางให้สร้างใบแจ้งหนี้ใหม่โดยใช้เลขที่ใหม่</p>
+      <p style={sectionDescription}>การยกเลิกใบแจ้งหนี้เป็นการเก็บเอกสารเดิมไว้เป็นประวัติ และเปิด{isV2 ? "รายการต้นทาง" : "งวดต้นทาง"}ให้สร้างใบแจ้งหนี้ใหม่โดยใช้เลขที่ใหม่</p>
       {activePaymentDraft ? <div style={voidBlockerNotice}><strong>ยังยกเลิกใบแจ้งหนี้ไม่ได้</strong><span>ยังมีร่างการรับชำระที่ยังไม่ได้ยกเลิก กรุณายกเลิกร่างการรับชำระก่อน</span><Link style={blockerLink} href={`/finance/payments/${activePaymentDraft.id}`}>เปิดร่างการรับชำระ</Link></div> : effectiveConfirmedPayment || hasEffectiveSettlement ? <div style={voidBlockerNotice}><strong>ยังยกเลิกใบแจ้งหนี้ไม่ได้</strong><span>ใบแจ้งหนี้นี้มีการรับชำระที่ยังมีผล กรุณาดำเนินการย้อนกลับรายการรับชำระก่อน</span>{effectiveConfirmedPayment ? <Link style={blockerLink} href={`/finance/payments/${effectiveConfirmedPayment.id}`}>เปิดรายการรับชำระ</Link> : null}</div> : null}
       {!voidPanelOpen ? <button type="button" style={{ ...dangerOutlineButton, ...(voidBlockedByPayment ? disabledButton : {}) }} disabled={voidBlockedByPayment} onClick={openVoidPanel}>ยกเลิกใบแจ้งหนี้</button> : <div ref={voidPanelRef} style={voidPanel}>
         <h3 style={voidPanelTitle}>ยืนยันการยกเลิกใบแจ้งหนี้</h3>
@@ -540,6 +561,16 @@ function PaymentLinks({ title, payments, effectiveAllocations, rawAllocations, r
     return <Link key={payment.id} style={{ ...paymentHistoryLink, ...(historical ? historicalPaymentLink : {}) }} href={`/finance/payments/${payment.id}`}><span style={paymentHistoryIdentity}><strong>{paymentStatusLabels[payment.status] || payment.status}</strong><small>{amountLabel}</small></span><strong>{money(displayedAmount, payment.currency)}</strong></Link>;
   })}</div>;
 }
+function invoiceItemSourceLabel(item: FinanceInvoiceItem) {
+  const readySnapshot = invoiceItemReadySnapshot(item);
+  const sourceType = readySnapshot && typeof readySnapshot === "object" && !Array.isArray(readySnapshot)
+    ? (readySnapshot as Record<string, unknown>).source_type
+    : null;
+  return sourceType === "billing_installment_item" ? "ค่าวิชาชีพจากงวดตามแผน" : "รายการรอเรียกเก็บ";
+}
+function invoiceItemReadySnapshot(item: FinanceInvoiceItem) { const snapshot = item.source_snapshot_json; if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return null; const readySnapshot = snapshot.ready_snapshot; return readySnapshot && typeof readySnapshot === "object" && !Array.isArray(readySnapshot) ? readySnapshot as Record<string, unknown> : null; }
+function invoiceItemQuantityLabel(item: FinanceInvoiceItem, currency: string) { if (item.source_quantity === null) return ""; const snapshot = invoiceItemReadySnapshot(item); const unit = typeof snapshot?.unit === "string" && snapshot.unit.trim() ? snapshot.unit.trim() : "หน่วย"; const price = item.source_unit_price === null ? "" : ` × ${money(item.source_unit_price, currency)}`; return `จำนวน ${Number(item.source_quantity).toLocaleString("th-TH", { maximumFractionDigits: 4 })} ${unit}${price}`; }
+function invoiceItemClassificationLabel(item: FinanceInvoiceItem) { const snapshot = invoiceItemReadySnapshot(item); const value = typeof snapshot?.economic_classification === "string" ? snapshot.economic_classification : ""; const labels: Record<string, string> = { professional_fee: "ค่าวิชาชีพ", additional_service: "ค่าบริการเพิ่มเติม", reimbursable_expense: "ค่าใช้จ่ายเรียกคืน", government_or_court_fee: "ค่าธรรมเนียมศาล / หน่วยงานรัฐ", other: "อื่น ๆ" }; return `ประเภทของยอด: ${labels[value] || value || "ยังไม่ระบุ"}`; }
 function NavigationLink({ href, icon, variant, children }: { href: string; icon: "back" | "document"; variant: "back" | "source"; children: ReactNode }) { return <Link style={{ ...navigationLink, ...(variant === "back" ? navigationBack : navigationSource) }} href={href}><NavigationIcon name={icon} />{children}</Link>; }
 function NavigationIcon({ name }: { name: "back" | "document" }) { const common = { width: 17, height: 17, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true }; return name === "back" ? <svg {...common}><path d="M19 12H5M12 19l-7-7 7-7" /></svg> : <svg {...common}><path d="M6 3h9l3 3v15H6zM14 3v4h4M9 12h6M9 16h4" /></svg>; }
 
@@ -648,6 +679,8 @@ const issueButton: CSSProperties = { display: "inline-flex", alignItems: "center
 const confirmationPanel: CSSProperties = { marginTop: 18, padding: 18, border: "1px solid #86efac", borderRadius: 6, background: "#fff", scrollMarginTop: 84 };
 const confirmationTitle: CSSProperties = { margin: "0 0 14px", color: "#14532d", fontSize: 17 };
 const confirmationGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 13 };
+const issueItemsReview: CSSProperties = { display: "grid", gap: 7, marginTop: 14, paddingTop: 12, borderTop: "1px solid #dce7df" };
+const issueItemRow: CSSProperties = { display: "flex", justifyContent: "space-between", gap: 14, color: "#334155", lineHeight: 1.45 };
 const confirmCheck: CSSProperties = { display: "flex", alignItems: "flex-start", gap: 9, marginTop: 16, padding: 12, border: "1px solid #cbd5e1", borderRadius: 6, color: "#334155", fontWeight: 700, lineHeight: 1.5 };
 const confirmationHelp: CSSProperties = { margin: "10px 0 0", color: "#64748b", fontSize: 12, lineHeight: 1.5 };
 const confirmationActions: CSSProperties = { display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: 8, marginTop: 14 };

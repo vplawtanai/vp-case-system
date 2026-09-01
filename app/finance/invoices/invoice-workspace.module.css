@@ -1,0 +1,100 @@
+.page { color: #172033; }
+.header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 20px; }
+.header h1 { margin: 4px 0 6px; font-size: 30px; line-height: 1.2; letter-spacing: 0; }
+.header p { max-width: 720px; margin: 0; color: #667085; line-height: 1.6; }
+.eyebrow { color: #55708c; font-size: 11px; font-weight: 800; }
+.primaryButton, .secondaryButton, .backButton, .detailButton { min-height: 40px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 7px; padding: 9px 14px; font: inherit; font-size: 13px; font-weight: 800; text-decoration: none; cursor: pointer; }
+.primaryButton { border: 1px solid #17324d; background: #17324d; color: #fff; }
+.secondaryButton, .detailButton { border: 1px solid #aebdcb; background: #fff; color: #17324d; }
+.backButton { border: 1px solid #cbd5df; background: #f8fafc; color: #475569; }
+.primaryButton:hover:not(:disabled) { background: #244c70; }
+.secondaryButton:hover:not(:disabled), .detailButton:hover, .backButton:hover { border-color: #55708c; background: #f3f7fa; }
+.primaryButton:focus-visible, .secondaryButton:focus-visible, .detailButton:focus-visible, .backButton:focus-visible, .field input:focus-visible, .field select:focus-visible, .field textarea:focus-visible, .chargeChoice:focus-within, .installmentChoice:focus-within, .checkRow:focus-within { outline: 3px solid rgba(37, 99, 235, .22); outline-offset: 2px; }
+.primaryButton:disabled, .secondaryButton:disabled { opacity: .48; cursor: not-allowed; }
+.surface { margin-bottom: 18px; border: 1px solid #dce2e9; border-radius: 8px; padding: 20px; background: #fff; }
+.error, .notice, .loading, .empty { border-radius: 7px; padding: 13px 14px; margin-bottom: 16px; line-height: 1.55; }
+.error { border: 1px solid #efb4ae; background: #fff3f2; color: #9f2d26; }
+.notice { border: 1px solid #c9d6e2; background: #f4f8fb; color: #344054; }
+.loading, .empty { border: 1px dashed #cbd3dc; background: #fbfcfd; color: #667085; text-align: center; }
+.invoiceList { display: grid; gap: 10px; }
+.invoiceRow { display: grid; grid-template-columns: minmax(170px, .8fr) minmax(200px, 1.4fr) minmax(160px, .8fr) minmax(140px, .8fr) auto; align-items: center; gap: 14px; border: 1px solid #e1e6eb; border-radius: 8px; padding: 14px; }
+.invoiceIdentity { display: grid; gap: 3px; }
+.invoiceIdentity strong { color: #17324d; overflow-wrap: anywhere; }
+.invoiceIdentity small, .muted { color: #758195; font-size: 12px; }
+.invoiceCell { display: grid; gap: 3px; min-width: 0; }
+.invoiceCell span { color: #758195; font-size: 11px; }
+.invoiceCell strong { overflow-wrap: anywhere; }
+.status { justify-self: start; border-radius: 999px; padding: 4px 8px; background: #edf3f8; color: #37536e; font-size: 11px; font-weight: 800; white-space: nowrap; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.sectionHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.sectionHeader h2 { margin: 0 0 5px; font-size: 20px; letter-spacing: 0; }
+.sectionHeader p { margin: 0; color: #667085; line-height: 1.55; }
+.contextGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.field { display: grid; gap: 6px; min-width: 0; color: #344054; font-size: 13px; font-weight: 800; }
+.field input, .field select, .field textarea { width: 100%; box-sizing: border-box; border: 1px solid #cbd3dc; border-radius: 7px; padding: 10px 11px; background: #fff; color: #172033; font: inherit; font-weight: 500; }
+.field textarea { resize: vertical; }
+.field small { color: #778397; font-size: 12px; font-weight: 500; line-height: 1.5; }
+.fieldError { margin: 0; color: #b42318; font-size: 12px; font-weight: 700; }
+.wide { grid-column: 1 / -1; }
+.choiceList { display: grid; gap: 10px; }
+.installmentChoice, .chargeChoice { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: 12px; min-width: 0; border: 1px solid #dce2e9; border-radius: 8px; padding: 14px; background: #fff; cursor: pointer; }
+.installmentChoice input, .chargeChoice input { margin-top: 4px; }
+.choiceSelected { border-color: #55708c; background: #f3f7fa; box-shadow: inset 0 0 0 1px #55708c; }
+.choiceDisabled { cursor: not-allowed; opacity: .62; background: #f8fafc; }
+.choiceBody { display: grid; gap: 4px; min-width: 0; }
+.choiceBody strong { line-height: 1.45; overflow-wrap: anywhere; }
+.choiceBody span, .choiceBody small { color: #667085; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.choiceAmount { color: #17324d; font-weight: 800; white-space: nowrap; }
+.chargeMeta { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.chargeMeta span { color: #667085; font-size: 12px; }
+.chargeMeta .readyText { color: #18794e; font-weight: 800; }
+.adapterPanel { margin-top: 14px; border-left: 3px solid #8b6b16; padding: 14px; background: #fff9e8; }
+.adapterPanel h3 { margin: 0 0 5px; font-size: 16px; }
+.adapterPanel > p { margin: 0 0 12px; color: #6f5a1d; font-size: 12px; line-height: 1.55; }
+.adapterRows { display: grid; gap: 10px; }
+.adapterRow { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(170px, .8fr) minmax(110px, .5fr) minmax(130px, .6fr); gap: 10px; align-items: end; border-top: 1px solid #eadcae; padding-top: 10px; }
+.summary { display: grid; gap: 12px; }
+.summaryGroup { display: grid; gap: 8px; }
+.summaryLine { display: flex; justify-content: space-between; gap: 16px; color: #475569; }
+.summaryLine strong { color: #172033; text-align: right; }
+.summaryTotals { display: grid; gap: 8px; margin: 0; padding-top: 12px; border-top: 1px solid #dce2e9; }
+.summaryTotals div { display: flex; justify-content: space-between; gap: 16px; }
+.summaryTotals dt { color: #667085; }
+.summaryTotals dd { margin: 0; font-weight: 800; }
+.grandTotal { padding-top: 8px; border-top: 1px solid #b8c7d5; color: #17324d; font-size: 17px; }
+.reviewSection { scroll-margin-top: 24px; border-color: #9aafc2; background: #fbfdff; }
+.reviewGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+.reviewGrid div { min-width: 0; border: 1px solid #e1e6eb; border-radius: 7px; padding: 11px; background: #fff; }
+.reviewGrid dt { color: #758195; font-size: 11px; }
+.reviewGrid dd { margin: 4px 0 0; font-weight: 800; line-height: 1.45; overflow-wrap: anywhere; }
+.checkRow { display: flex; align-items: flex-start; gap: 10px; border: 1px solid #d9e0e7; border-radius: 7px; padding: 12px; background: #fff; line-height: 1.55; }
+.checkRow input { margin-top: 4px; }
+.reservationNote { margin: 12px 0; border-left: 3px solid #55708c; padding: 10px 12px; background: #edf3f8; color: #475569; font-size: 12px; line-height: 1.55; }
+.reviewActions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
+.modalContent { display: grid; gap: 18px; }
+.modalGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.modalGrid div { min-width: 0; border: 1px solid #e1e6eb; border-radius: 7px; padding: 10px; }
+.modalGrid dt { color: #758195; font-size: 11px; }
+.modalGrid dd { margin: 4px 0 0; font-weight: 800; overflow-wrap: anywhere; }
+.auditDetails { border-top: 1px solid #e1e6eb; padding-top: 12px; }
+.auditDetails summary { color: #17324d; font-weight: 800; cursor: pointer; }
+.auditDetails p { margin: 10px 0 0; color: #667085; font-size: 12px; }
+.auditDetails ol { display: grid; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; }
+.auditDetails li { display: flex; justify-content: space-between; gap: 12px; border-left: 2px solid #c9d6e2; padding-left: 10px; }
+.auditDetails li div { display: grid; gap: 2px; }
+.auditDetails li span, .auditDetails time { color: #667085; font-size: 12px; }
+@media (max-width: 860px) {
+  .invoiceRow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .invoiceRow .detailButton { width: 100%; }
+  .contextGrid, .reviewGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+  .header, .sectionHeader { flex-direction: column; align-items: stretch; }
+  .header .primaryButton { width: 100%; }
+  .invoiceRow, .contextGrid, .reviewGrid, .modalGrid, .adapterRow { grid-template-columns: 1fr; }
+  .installmentChoice, .chargeChoice { grid-template-columns: auto minmax(0, 1fr); }
+  .choiceAmount { grid-column: 2; white-space: normal; }
+  .reviewActions { flex-direction: column-reverse; }
+  .reviewActions button { width: 100%; }
+  .summaryLine { align-items: flex-start; }
+}

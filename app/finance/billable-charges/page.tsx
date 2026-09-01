@@ -67,6 +67,7 @@ type AuditEvent = {
   actor_email: string | null;
   created_at: string;
 };
+type ChargeInvoiceLink = { invoiceId: string; invoiceNo: string | null; documentStatus: string };
 
 type ChargeForm = {
   sourceType: "ad_hoc_service" | "recoverable_cost";
@@ -155,6 +156,7 @@ function BillableChargesWorkspace() {
   const [detailChargeId, setDetailChargeId] = useState("");
   const [detailAudits, setDetailAudits] = useState<AuditEvent[]>([]);
   const [detailAuditLoading, setDetailAuditLoading] = useState(false);
+  const [chargeInvoiceLinks, setChargeInvoiceLinks] = useState<Record<string, ChargeInvoiceLink>>({});
   const [panelOpen, setPanelOpen] = useState(false);
   const [chargeId, setChargeId] = useState("");
   const [form, setForm] = useState<ChargeForm>(() => emptyForm());
@@ -205,13 +207,14 @@ function BillableChargesWorkspace() {
     }
     setLoading(true);
     setError("");
-    const [chargeResult, clientResult, caseResult, advisoryResult] = await Promise.all([
+    const [chargeResult, clientResult, caseResult, advisoryResult, allocationResult] = await Promise.all([
       supabase.from("finance_billable_charges").select("*").order("created_at", { ascending: false }),
       supabase.from("clients").select("id,name,client_type").order("name"),
       supabase.from("cases").select("id,client_id,file_no,title").order("created_at", { ascending: false }),
       supabase.from("advisory_matters").select("id,client_id,matter_no,title").order("created_at", { ascending: false }),
+      supabase.from("finance_invoice_charge_allocations").select("billable_charge_id,invoice_id,status").in("status", ["reserved", "invoiced"]),
     ]);
-    const firstError = chargeResult.error || clientResult.error || caseResult.error || advisoryResult.error;
+    const firstError = chargeResult.error || clientResult.error || caseResult.error || advisoryResult.error || allocationResult.error;
     if (firstError) {
       console.error("LOAD BILLABLE CHARGE WORKSPACE FAILED", { chargeResult, clientResult, caseResult, advisoryResult });
       setError("โหลดรายการรอเรียกเก็บไม่สำเร็จ กรุณารีเฟรชและลองอีกครั้ง");
@@ -220,6 +223,17 @@ function BillableChargesWorkspace() {
       setClients((clientResult.data || []) as ClientOption[]);
       setCases((caseResult.data || []) as CaseOption[]);
       setAdvisories((advisoryResult.data || []) as AdvisoryOption[]);
+      const allocations = (allocationResult.data || []) as Array<{ billable_charge_id: string; invoice_id: string; status: string }>;
+      const invoiceIds = [...new Set(allocations.map((row) => row.invoice_id))];
+      const invoiceResult = invoiceIds.length
+        ? await supabase.from("finance_invoices").select("id,invoice_no,document_status").in("id", invoiceIds)
+        : { data: [], error: null };
+      if (invoiceResult.error) console.error("LOAD BILLABLE CHARGE INVOICE LINKS FAILED", invoiceResult.error);
+      const invoices = new Map(((invoiceResult.data || []) as Array<{ id: string; invoice_no: string | null; document_status: string }>).map((row) => [row.id, row]));
+      setChargeInvoiceLinks(Object.fromEntries(allocations.flatMap((allocation) => {
+        const invoice = invoices.get(allocation.invoice_id);
+        return invoice ? [[allocation.billable_charge_id, { invoiceId: invoice.id, invoiceNo: invoice.invoice_no, documentStatus: invoice.document_status }]] : [];
+      })));
     }
     setLoading(false);
   }, [permissions.canViewFinanceBillableCharges]);
@@ -519,7 +533,7 @@ function BillableChargesWorkspace() {
         <FinanceSubNav activePage="billable-charges" permissions={permissions} />
         <header className={styles.workspaceHeader}>
           <div><span className={styles.eyebrow}>FINANCE</span><h1>รายการรอเรียกเก็บ</h1><p>รายการที่ลูกค้าเป็นหนี้ VP และรอรวบรวมเพื่อออกใบแจ้งหนี้</p></div>
-          {permissions.canManageFinanceBillableCharges ? <button className={styles.primaryButton} type="button" onClick={() => openNew()}><PlusIcon />เพิ่มรายการเรียกเก็บ</button> : null}
+          <div className={styles.headerActions}>{permissions.canEditFinanceQuotation && permissions.canManageFinanceBillableCharges ? <Link className={styles.secondaryButton} href="/finance/invoices/compose">สร้างใบแจ้งหนี้จากรายการพร้อมเรียกเก็บ</Link> : null}{permissions.canManageFinanceBillableCharges ? <button className={styles.primaryButton} type="button" onClick={() => openNew()}><PlusIcon />เพิ่มรายการเรียกเก็บ</button> : null}</div>
         </header>
 
         {error ? <div className={styles.errorBanner}>{error}</div> : null}
@@ -540,6 +554,7 @@ function BillableChargesWorkspace() {
 
         {detailCharge ? <DetailModal open title={detailCharge.description || "ร่างรายการเรียกเก็บ"} subtitle={<>{clientLabel(detailCharge.client_id, clients)} · {matterLabel(detailCharge, cases, advisories)}</>} status={<StatusBadge status={detailCharge.status} />} prominentValue={money(detailCharge.total_amount, detailCharge.currency)} onClose={closeChargeDetails}>
           <BillableChargeModalDetail charge={detailCharge} clients={clients} cases={cases} advisories={advisories} />
+          {chargeInvoiceLinks[detailCharge.id] ? <div className={styles.detailActionRow}><Link className={styles.secondaryButton} href={`/finance/invoices/${chargeInvoiceLinks[detailCharge.id].invoiceId}`}>เปิดใบแจ้งหนี้ {chargeInvoiceLinks[detailCharge.id].invoiceNo || "ฉบับร่าง"}</Link></div> : null}
           {canEditDetailDraft ? <div className={styles.detailActionRow}><button className={styles.secondaryButton} type="button" onClick={() => openCharge(detailCharge)}>แก้ไขร่างรายการ</button></div> : null}
           <AuditHistory audits={detailAudits} loading={detailAuditLoading} />
           {canCancelDetail ? <section className={styles.otherActions}><div><strong>การดำเนินการอื่น</strong><p>การยกเลิกจะเก็บรายการนี้ไว้เป็นประวัติและต้องระบุเหตุผล</p></div>{cancelContext === "detail" ? <div className={styles.cancelForm}><FormField label="เหตุผลที่ยกเลิกรายการ" error={errors.cancelReason}><textarea rows={3} value={cancelReason} onChange={(event) => { setCancelReason(event.target.value); setErrors((current) => ({ ...current, cancelReason: "" })); }} /></FormField><div className={styles.actionRow}><button className={styles.secondaryButton} type="button" onClick={() => setCancelContext(null)}>ไม่ดำเนินการ</button><button className={styles.dangerButton} type="button" disabled={saving} onClick={() => void cancelCharge(detailCharge.id, "detail")}>ยืนยันยกเลิกรายการ</button></div></div> : <button className={styles.dangerButton} type="button" onClick={() => setCancelContext("detail")}>ยกเลิกรายการเรียกเก็บ</button>}</section> : null}

@@ -2,13 +2,16 @@ export type Json = Record<string, unknown>;
 
 export type FinanceInvoice = {
   id: string;
-  billing_plan_id: string;
-  primary_billing_installment_id: string;
-  fee_agreement_id: string;
+  billing_plan_id: string | null;
+  primary_billing_installment_id: string | null;
+  fee_agreement_id: string | null;
   source_quotation_id: string | null;
   client_id: string;
   case_id: number | null;
   advisory_matter_id: string | null;
+  source_model: "installment_v1" | "billable_charge_v2";
+  v2_bridge_id: string | null;
+  v2_creation_request_id: string | null;
   invoice_no: string | null;
   document_status: string;
   issue_date: string | null;
@@ -53,6 +56,9 @@ export type FinanceInvoice = {
 
 export type FinanceInvoiceItem = {
   id: string;
+  source_billable_charge_id: string | null;
+  source_state: string;
+  source_snapshot_json: Json | null;
   description: string;
   source_quantity: number | string | null;
   source_unit_price: number | string | null;
@@ -256,6 +262,14 @@ export function safeInvoiceError(error: unknown, fallback: string) {
   }
   if (message.includes("settlement summary is unavailable")) return "ไม่สามารถตรวจสอบสถานะการรับชำระได้ กรุณาลองใหม่หรือติดต่อผู้ดูแลระบบ";
   if (message.includes("Only a Draft Invoice")) return "รายการนี้ไม่ได้อยู่ในสถานะร่างที่ดำเนินการได้";
+  if (message.includes("same Client, currency, and exact matter context") || message.includes("incompatible with Invoice context")) return "รายการที่เลือกต้องเป็นของลูกค้า สกุลเงิน และคดี/งานเดียวกันทั้งหมด";
+  if (message.includes("must be Ready") || message.includes("not available") || message.includes("do not exist")) return "รายการรอเรียกเก็บบางรายการไม่พร้อมใช้งานแล้ว กรุณารีเฟรชและเลือกใหม่";
+  if (message.includes("requires at least one Billable Charge") || message.includes("requires at least one Charge")) return "กรุณาเลือกรายการรอเรียกเก็บอย่างน้อยหนึ่งรายการ";
+  if (message.includes("Fixed-installment") && message.includes("approval authority")) return "คุณไม่มีสิทธิ์รับรองข้อมูลค่าวิชาชีพจากงวดตามแผนเรียกเก็บ";
+  if (message.includes("Human-certified installment semantic adapter") || message.includes("Missing installment semantics")) return "ข้อมูลประกอบรายการค่าวิชาชีพยังไม่ครบ กรุณาระบุประเภทของยอดและยืนยันข้อมูลทุกบรรทัด";
+  if (message.includes("V1 Invoice history") || message.includes("FINANCE_INSTALLMENT_HAS_V1_INVOICE_HISTORY")) return "งวดนี้มีประวัติใบแจ้งหนี้เดิมแล้ว จึงไม่สามารถนำมารวมในใบแจ้งหนี้แบบรวมรายการได้";
+  if (message.includes("Invoice V2 request ID was already used")) return "ข้อมูลที่เลือกเปลี่ยนไประหว่างการส่งคำขอ กรุณาตรวจสอบและเริ่มสร้างร่างใหม่";
+  if (message.includes("Not allowed to compose") || message.includes("Not allowed to change Invoice V2 composition")) return "คุณไม่มีสิทธิ์สร้างหรือแก้ไขรายการในใบแจ้งหนี้นี้";
   if (message.includes("Not allowed")) return "คุณไม่มีสิทธิ์ดำเนินการกับใบแจ้งหนี้นี้";
   if (message.includes("do not reconcile") || message.includes("exactly copy") || message.includes("exactly match") || message.includes("inconsistent")) {
     return "รายการหรือยอดเงินไม่ตรงกับข้อมูลต้นทาง จึงยังดำเนินการไม่ได้";
