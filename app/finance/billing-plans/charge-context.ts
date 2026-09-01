@@ -12,6 +12,13 @@ export type ContextualCharge = {
   advisory_matter_id: string | null;
 };
 
+export type WorkflowCharge = {
+  status: string;
+};
+
+const currentChargeStatuses = new Set(["draft", "ready_to_invoice", "reserved"]);
+const historicalChargeStatuses = new Set(["invoiced", "cancelled"]);
+
 export function filterChargesForBillingContext<T extends ContextualCharge>(charges: T[], context: BillingChargeContext | null): T[] {
   if (!context) return [];
   return charges.filter((charge) => isChargeInBillingContext(charge, context));
@@ -22,6 +29,14 @@ export function isChargeInBillingContext(charge: ContextualCharge, context: Bill
     && charge.currency === context.currency
     && sameNullableId(charge.case_id, context.caseId)
     && sameNullableId(charge.advisory_matter_id, context.advisoryMatterId);
+}
+
+export function partitionChargesByWorkflow<T extends WorkflowCharge>(charges: T[]): { current: T[]; history: T[] } {
+  return charges.reduce<{ current: T[]; history: T[] }>((result, charge) => {
+    if (currentChargeStatuses.has(charge.status)) result.current.push(charge);
+    if (historicalChargeStatuses.has(charge.status)) result.history.push(charge);
+    return result;
+  }, { current: [], history: [] });
 }
 
 function sameNullableId(left: number | string | null | undefined, right: number | string | null | undefined): boolean {

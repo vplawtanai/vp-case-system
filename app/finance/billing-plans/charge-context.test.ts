@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 // @ts-expect-error Node's strip-types test runner requires the explicit TypeScript extension.
-import { filterChargesForBillingContext } from "./charge-context.ts";
+import { filterChargesForBillingContext, partitionChargesByWorkflow } from "./charge-context.ts";
 
 const advisoryContext = { clientId: "client-1", currency: "THB", caseId: null, advisoryMatterId: "advisory-1" };
 const caseContext = { clientId: "client-1", currency: "THB", caseId: 42, advisoryMatterId: null };
@@ -35,4 +35,19 @@ test("Unlinked plan includes unlinked Charges when Client and currency match", (
   const wrongClient = charge({ id: "wrong-client", client_id: "client-2" });
   const wrongCurrency = charge({ id: "wrong-currency", currency: "USD" });
   assert.deepEqual(filterChargesForBillingContext([matching, wrongClient, wrongCurrency], unlinkedContext), [matching]);
+});
+
+test("Charge workflow separates actionable statuses from history", () => {
+  const charges = [
+    { id: "draft", status: "draft" },
+    { id: "ready", status: "ready_to_invoice" },
+    { id: "reserved", status: "reserved" },
+    { id: "invoiced", status: "invoiced" },
+    { id: "cancelled", status: "cancelled" },
+  ];
+
+  const result = partitionChargesByWorkflow(charges);
+
+  assert.deepEqual(result.current.map(({ id }) => id), ["draft", "ready", "reserved"]);
+  assert.deepEqual(result.history.map(({ id }) => id), ["invoiced", "cancelled"]);
 });

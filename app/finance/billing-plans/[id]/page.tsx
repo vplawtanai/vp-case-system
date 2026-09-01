@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import DetailModal from "../../../components/DetailModal";
 import BillableChargeCreateWorkflow, { type BillableChargeContext } from "../../billable-charges/BillableChargeCreateWorkflow";
-import { filterChargesForBillingContext, type BillingChargeContext } from "../charge-context";
+import { filterChargesForBillingContext, partitionChargesByWorkflow, type BillingChargeContext } from "../charge-context";
 import { QuotationGuard } from "../../quotations/shared";
 import { supabase } from "../../../../lib/supabase";
 import { feeAgreementStatusLabel } from "../../fee-agreements/lifecycle";
@@ -19,6 +19,7 @@ type Allocation = { id: string; billing_installment_id: string; fee_agreement_it
 type AgreementItem = { id: string; description: string };
 type InvoiceSummary = { id: string; primary_billing_installment_id: string; document_status: string; invoice_no: string | null; issued_at: string | null; voided_at: string | null; cancelled_at: string | null; created_at: string };
 type RelatedCharge = { id: string; client_id: string; case_id: number | null; advisory_matter_id: string | null; source_type: string; description: string | null; service_date: string | null; economic_classification: string | null; price_tax_mode: string; vat_rate: number | string; amount_before_vat: number | string; vat_amount: number | string; total_amount: number | string; currency: string; status: string; source_reference: string | null; created_at: string; ready_to_invoice_at: string | null };
+type ChargeInvoiceLink = { invoiceId: string; invoiceNo: string | null; allocationStatus: string };
 type DraftInstallment = { id: string; installment_no: number; sort_order: number; title: string; trigger_description: string; trigger_type: string; due_date: string; milestone_code: string; recurring_period_start: string; recurring_period_end: string };
 type DraftForm = { title: string; description: string; installments: DraftInstallment[] };
 type ReadinessForm = { eventDate: string; confirmed: boolean; note: string; reference: string };
@@ -62,6 +63,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
   const [agreementItems, setAgreementItems] = useState<AgreementItem[]>([]);
   const [invoices, setInvoices] = useState<InvoiceSummary[]>([]);
   const [relatedChargeCandidates, setRelatedChargeCandidates] = useState<RelatedCharge[]>([]);
+  const [chargeInvoiceLinks, setChargeInvoiceLinks] = useState<Record<string, ChargeInvoiceLink>>({});
   const [relatedChargeId, setRelatedChargeId] = useState("");
   const [invoiceSelectionInstallmentId, setInvoiceSelectionInstallmentId] = useState("");
   const [selectedInvoiceChargeIds, setSelectedInvoiceChargeIds] = useState<string[]>([]);
@@ -164,12 +166,31 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
         .eq("client_id", agreementRow.client_id)
         .eq("currency", planRow.currency)
         .neq("source_type", "billing_installment_item")
-        .in("status", ["draft", "ready_to_invoice", "reserved", "invoiced"])
+        .in("status", ["draft", "ready_to_invoice", "reserved", "invoiced", "cancelled"])
         .order("service_date", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false });
     }
 
-    if (agreementResult.error || installmentsResult.error || allocationsResult.error || agreementItemsResult.error || invoicesResult.error || relatedChargesResult.error) {
+    const loadedRelatedCharges = (relatedChargesResult.data || []) as RelatedCharge[];
+    const relatedChargeIds = loadedRelatedCharges.map((charge) => charge.id);
+    const chargeAllocationsResult = relatedChargeIds.length
+      ? await supabase
+        .from("finance_invoice_charge_allocations")
+        .select("id,billable_charge_id,invoice_id,status,created_at")
+        .in("billable_charge_id", relatedChargeIds)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+      : { data: [], error: null };
+    const chargeAllocationRows = (chargeAllocationsResult.data || []) as Array<{ id: string; billable_charge_id: string; invoice_id: string; status: string; created_at: string }>;
+    const chargeInvoiceIds = [...new Set(chargeAllocationRows.map((allocation) => allocation.invoice_id))];
+    const chargeInvoicesResult = chargeInvoiceIds.length
+      ? await supabase
+        .from("finance_invoices")
+        .select("id,invoice_no")
+        .in("id", chargeInvoiceIds)
+      : { data: [], error: null };
+
+    if (agreementResult.error || installmentsResult.error || allocationsResult.error || agreementItemsResult.error || invoicesResult.error || relatedChargesResult.error || chargeAllocationsResult.error || chargeInvoicesResult.error) {
       setError("โหลดรายละเอียดแผนเรียกเก็บเงินบางส่วนไม่สำเร็จ กรุณารีเฟรช");
     }
     setAgreement(agreementRow);
@@ -177,7 +198,20 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
     setAllocations(allocationRows);
     setAgreementItems((agreementItemsResult.data || []) as AgreementItem[]);
     setInvoices((invoicesResult.data || []) as InvoiceSummary[]);
-    setRelatedChargeCandidates((relatedChargesResult.data || []) as RelatedCharge[]);
+    setRelatedChargeCandidates(loadedRelatedCharges);
+    const chargeInvoiceRows = (chargeInvoicesResult.data || []) as Array<{ id: string; invoice_no: string | null }>;
+    const chargeInvoicesById = new Map(chargeInvoiceRows.map((invoice) => [invoice.id, invoice]));
+    setChargeInvoiceLinks(chargeAllocationRows.reduce<Record<string, ChargeInvoiceLink>>((links, allocation) => {
+      if (links[allocation.billable_charge_id]) return links;
+      const invoice = chargeInvoicesById.get(allocation.invoice_id);
+      if (!invoice) return links;
+      links[allocation.billable_charge_id] = {
+        invoiceId: invoice.id,
+        invoiceNo: invoice.invoice_no,
+        allocationStatus: allocation.status,
+      };
+      return links;
+    }, {}));
     setRelatedChargeId("");
     setSelectionDetailChargeId("");
     const nextDraft = billingPlanDraft(planRow, installmentRows);
@@ -321,8 +355,9 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
     advisoryMatterId: agreement.advisory_matter_id,
   } : null, [agreement, plan?.currency]);
   const relatedCharges = useMemo(() => filterChargesForBillingContext(relatedChargeCandidates, relatedChargeContext), [relatedChargeCandidates, relatedChargeContext]);
+  const chargeWorkflow = useMemo(() => partitionChargesByWorkflow(relatedCharges), [relatedCharges]);
   const relatedCharge = useMemo(() => relatedCharges.find((charge) => charge.id === relatedChargeId) || null, [relatedChargeId, relatedCharges]);
-  const compatibleReadyCharges = useMemo(() => relatedCharges.filter((charge) => charge.status === "ready_to_invoice" && charge.source_type !== "billing_installment_item"), [relatedCharges]);
+  const compatibleReadyCharges = useMemo(() => chargeWorkflow.current.filter((charge) => charge.status === "ready_to_invoice" && charge.source_type !== "billing_installment_item"), [chargeWorkflow]);
   const invoiceSelectionInstallment = useMemo(() => installments.find((installment) => installment.id === invoiceSelectionInstallmentId) || null, [installments, invoiceSelectionInstallmentId]);
   const selectedInvoiceCharges = useMemo(() => compatibleReadyCharges.filter((charge) => selectedInvoiceChargeIds.includes(charge.id)), [compatibleReadyCharges, selectedInvoiceChargeIds]);
   const selectionDetailCharge = useMemo(() => compatibleReadyCharges.find((charge) => charge.id === selectionDetailChargeId) || null, [compatibleReadyCharges, selectionDetailChargeId]);
@@ -539,17 +574,23 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
         </article>;
       })}
     </section>
-    {relatedCharges.length > 0 ? <section style={{ ...card, ...relatedChargeSection }} aria-label="รายการเพิ่มเติมของงานนี้">
-      <details className="billing-plan-related-charge-overview">
-        <summary style={relatedChargeSummary}><span><strong>รายการเพิ่มเติมของงานนี้ ({relatedCharges.length})</strong><small>ดูสถานะและประวัติรายการของลูกค้า สกุลเงิน และเรื่อง/งานเดียวกัน</small></span><span style={relatedChargeCount}>ดูรายการ</span></summary>
-        {!canManageCharges ? <p style={relatedChargePermission}>คุณดูรายการที่เกี่ยวข้องได้ แต่ไม่มีสิทธิ์เพิ่มหรือแก้ไขรายการเรียกเก็บ</p> : null}
-        <div className="billing-plan-related-charge-grid" style={relatedChargeGrid}>{relatedCharges.map((charge) => <article key={charge.id} style={relatedChargeCard}>
-          <div style={relatedChargeCardHeader}><div style={relatedChargeCardCopy}><span style={relatedChargeDate}>{date(charge.service_date || charge.created_at)}</span><h3 style={relatedChargeCardTitle}>{text(charge.description, "ร่างรายการเรียกเก็บ")}</h3></div><StatusBadge status={charge.status} label={chargeStatusLabel(charge.status)} /></div>
-          <dl style={relatedChargeMetrics}><div><dt style={relatedChargeMetricLabel}>ประเภทของยอด</dt><dd style={relatedChargeMetricValue}>{chargeClassificationLabel(charge.economic_classification)}</dd></div><div><dt style={relatedChargeMetricLabel}>VAT</dt><dd style={relatedChargeMetricValue}>{chargeTaxLabel(charge.price_tax_mode, charge.vat_rate)}</dd></div></dl>
-          <div style={relatedChargeCardFooter}><strong style={relatedChargeAmount}>{money(charge.total_amount, charge.currency)}</strong><button className="billing-plan-related-charge-detail" type="button" style={relatedChargeDetailButton} onClick={() => setRelatedChargeId(charge.id)}>ดูรายละเอียด</button></div>
-        </article>)}</div>
-      </details>
-    </section> : null}
+    {chargeWorkflow.current.length > 0 ? <ChargeOverview
+      charges={chargeWorkflow.current}
+      invoiceLinks={chargeInvoiceLinks}
+      canManageCharges={canManageCharges}
+      title="รายการเพิ่มเติมที่กำลังดำเนินการ"
+      helper="รายการร่าง รายการพร้อมออกใบแจ้งหนี้ และรายการที่กำลังจัดทำใบแจ้งหนี้"
+      onDetail={setRelatedChargeId}
+    /> : null}
+    {chargeWorkflow.history.length > 0 ? <ChargeOverview
+      charges={chargeWorkflow.history}
+      invoiceLinks={chargeInvoiceLinks}
+      canManageCharges={canManageCharges}
+      title="ประวัติรายการเพิ่มเติม"
+      helper="รายการที่ออกใบแจ้งหนี้แล้วหรือยกเลิก เก็บไว้เพื่อการตรวจสอบย้อนหลัง"
+      historical
+      onDetail={setRelatedChargeId}
+    /> : null}
     {relatedCharge ? <DetailModal open title={text(relatedCharge.description, "ร่างรายการเรียกเก็บ")} subtitle={<>{client} · {matter}</>} status={<StatusBadge status={relatedCharge.status} label={chargeStatusLabel(relatedCharge.status)} />} prominentValue={money(relatedCharge.total_amount, relatedCharge.currency)} onClose={() => setRelatedChargeId("")}>
       <dl className="billing-plan-related-charge-detail-grid" style={relatedChargeDetailGrid}>
         <Field label="วันที่เกิดรายการ" value={date(relatedCharge.service_date || relatedCharge.created_at)} />
@@ -657,9 +698,9 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
       .billing-plan-cancel-button:hover:not(:disabled) { background: #fef2f2 !important; border-color: #fca5a5 !important; }
       .billing-plan-primary-button:focus-visible, .billing-plan-save-button:focus-visible, .billing-plan-cancel-button:focus-visible, .billing-installment-primary-action:focus-visible, .billing-installment-action-group button:focus-visible { outline: 3px solid rgba(37, 99, 235, .24); outline-offset: 2px; }
       .billing-plan-primary-button:disabled, .billing-plan-save-button:disabled, .billing-plan-cancel-button:disabled, .billing-installment-primary-action:disabled { cursor: not-allowed !important; opacity: .58; }
-      .billing-plan-invoice-history-link { transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease; }
-      .billing-plan-invoice-history-link:hover { background: #f8fafc !important; border-color: #94a3b8 !important; color: #172033 !important; }
-      .billing-plan-invoice-history-link:focus-visible { outline: 3px solid rgba(37, 99, 235, .24); outline-offset: 2px; }
+      .billing-plan-invoice-history-link, .billing-plan-related-charge-invoice { transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease; }
+      .billing-plan-invoice-history-link:hover, .billing-plan-related-charge-invoice:hover { background: #f8fafc !important; border-color: #94a3b8 !important; color: #172033 !important; }
+      .billing-plan-invoice-history-link:focus-visible, .billing-plan-related-charge-invoice:focus-visible { outline: 3px solid rgba(37, 99, 235, .24); outline-offset: 2px; }
       .billing-plan-add-charge-link:hover { background: #14532d !important; border-color: #14532d !important; }
       .billing-plan-add-charge-link:focus-visible, .billing-plan-related-charge-detail:focus-visible { outline: 3px solid rgba(37, 99, 235, .24); outline-offset: 2px; }
       .billing-plan-related-charge-detail:hover { background: #f8fafc !important; border-color: #64748b !important; }
@@ -704,6 +745,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
         .billing-plan-related-charge-header { align-items: stretch !important; }
         .billing-plan-add-charge-link { width: 100%; box-sizing: border-box; }
         .billing-plan-related-charge-grid, .billing-plan-related-charge-detail-grid { grid-template-columns: minmax(0, 1fr) !important; }
+        .billing-plan-related-charge-invoice { width: 100%; box-sizing: border-box; white-space: normal !important; }
         .billing-invoice-charge-detail, .billing-invoice-selection-totals { grid-template-columns: minmax(0, 1fr) !important; }
         .billing-invoice-source-choice, .billing-invoice-charge-label { grid-template-columns: auto minmax(0, 1fr) !important; align-items: start !important; }
         .billing-invoice-choice-amount { grid-column: 2; justify-self: start; white-space: normal !important; }
@@ -720,6 +762,36 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
   </main>;
 }
 
+function ChargeOverview({ charges, invoiceLinks, canManageCharges, title, helper, historical = false, onDetail }: {
+  charges: RelatedCharge[];
+  invoiceLinks: Record<string, ChargeInvoiceLink>;
+  canManageCharges: boolean;
+  title: string;
+  helper: string;
+  historical?: boolean;
+  onDetail: (chargeId: string) => void;
+}) {
+  return <section style={{ ...card, ...relatedChargeSection, ...(historical ? relatedChargeHistorySection : {}) }} aria-label={`${title} ${charges.length} รายการ`}>
+    <details className="billing-plan-related-charge-overview">
+      <summary style={relatedChargeSummary}>
+        <span><strong>{title} ({charges.length})</strong><small>{helper}</small></span>
+        <span style={relatedChargeCount}>ดูรายการ</span>
+      </summary>
+      {!historical && !canManageCharges ? <p style={relatedChargePermission}>คุณดูรายการที่เกี่ยวข้องได้ แต่ไม่มีสิทธิ์เพิ่มหรือแก้ไขรายการเรียกเก็บ</p> : null}
+      <div className="billing-plan-related-charge-grid" style={relatedChargeGrid}>{charges.map((charge) => {
+        const invoiceLink = invoiceLinks[charge.id];
+        const showInvoiceLink = invoiceLink && (historical || ["reserved", "invoiced"].includes(invoiceLink.allocationStatus));
+        return <article key={charge.id} style={relatedChargeCard}>
+          <div style={relatedChargeCardHeader}><div style={relatedChargeCardCopy}><span style={relatedChargeDate}>{date(charge.service_date || charge.created_at)}</span><h3 style={relatedChargeCardTitle}>{text(charge.description, "ร่างรายการเรียกเก็บ")}</h3></div><StatusBadge status={charge.status} label={chargeStatusLabel(charge.status)} /></div>
+          <dl style={relatedChargeMetrics}><div><dt style={relatedChargeMetricLabel}>ประเภทของยอด</dt><dd style={relatedChargeMetricValue}>{chargeClassificationLabel(charge.economic_classification)}</dd></div><div><dt style={relatedChargeMetricLabel}>VAT</dt><dd style={relatedChargeMetricValue}>{chargeTaxLabel(charge.price_tax_mode, charge.vat_rate)}</dd></div></dl>
+          {showInvoiceLink ? <div style={relatedChargeInvoice}><span>ใบแจ้งหนี้ที่เกี่ยวข้อง</span><Link className="billing-plan-related-charge-invoice" style={relatedChargeInvoiceLink} href={`/finance/invoices/${invoiceLink.invoiceId}`}>{invoiceLink.invoiceNo || "ร่างใบแจ้งหนี้ (ไม่มีเลขที่)"}</Link></div> : null}
+          <div style={relatedChargeCardFooter}><strong style={relatedChargeAmount}>{money(charge.total_amount, charge.currency)}</strong><button className="billing-plan-related-charge-detail" type="button" style={relatedChargeDetailButton} onClick={() => onDetail(charge.id)}>ดูรายละเอียด</button></div>
+        </article>;
+      })}</div>
+    </details>
+  </section>;
+}
+
 function Field({ label, value }: { label: string; value: ReactNode }) { return <div><small style={{ color: "#64748b" }}>{label}</small><div>{value}</div></div>; }
 function StatusBadge({ status, label, prominent = false }: { status: string; label: string; prominent?: boolean }) { return <span style={{ ...statusBadge, ...statusColor[status], ...(prominent ? prominentStatusBadge : {}) }}>{label}</span>; }
 function NavigationIcon({ name }: { name: "back" | "source" | "plus" }) { const common = { width: 17, height: 17, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true }; if (name === "back") return <svg {...common}><path d="M19 12H5M12 19l-7-7 7-7" /></svg>; if (name === "plus") return <svg {...common}><path d="M12 5v14M5 12h14" /></svg>; return <svg {...common}><path d="M6 3h9l3 3v15H6zM14 3v4h4M9 12h6M9 16h4" /></svg>; }
@@ -730,7 +802,7 @@ function billingInstallmentDisplayTitle(title: string, installmentNo: number) { 
 function invoiceHistoryTimestamp(invoice: InvoiceSummary) { if (invoice.document_status === "voided") return `ยกเลิกเมื่อ ${dateTime(invoice.voided_at)}`; if (invoice.document_status === "cancelled") return `ยกเลิกร่างเมื่อ ${dateTime(invoice.cancelled_at)}`; return `สร้างเมื่อ ${dateTime(invoice.created_at)}`; }
 function invoiceComposerHref(installmentId: string, chargeIds: string[], clientId: string) { const params = new URLSearchParams({ installment: installmentId }); if (clientId) params.set("client", clientId); chargeIds.forEach((chargeId) => params.append("charge", chargeId)); return `/finance/invoices/compose?${params.toString()}`; }
 function isUuid(value: string) { return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value); }
-function chargeStatusLabel(status: string) { return ({ draft: "ร่าง", ready_to_invoice: "พร้อมออกใบแจ้งหนี้", reserved: "กำลังจัดทำใบแจ้งหนี้", invoiced: "ออกใบแจ้งหนี้แล้ว" } as Record<string, string>)[status] || status; }
+function chargeStatusLabel(status: string) { return ({ draft: "ร่าง", ready_to_invoice: "พร้อมออกใบแจ้งหนี้", reserved: "กำลังจัดทำใบแจ้งหนี้", invoiced: "ออกใบแจ้งหนี้แล้ว", cancelled: "ยกเลิก" } as Record<string, string>)[status] || status; }
 function chargeClassificationLabel(value: string | null) { return ({ professional_fee: "ค่าวิชาชีพ", additional_service: "ค่าบริการเพิ่มเติม", reimbursable_expense: "ค่าใช้จ่ายเรียกคืน", government_or_court_fee: "ค่าธรรมเนียมศาล / หน่วยงานรัฐ", other: "อื่น ๆ" } as Record<string, string>)[value || ""] || "ยังไม่ระบุ"; }
 function chargeTaxLabel(mode: string, vatRate: number | string) { if (mode === "non_vat") return "ไม่มี VAT"; return `${mode === "vat_inclusive" ? "ราคารวม VAT แล้ว" : "ราคายังไม่รวม VAT"} · ${numberValue(vatRate).toLocaleString("en-US", { maximumFractionDigits: 4 })}%`; }
 function allocationCell(key: AllocationColumnKey, allocation: Allocation, description: string | undefined, currency: string): ReactNode { if (key === "description") return description || <span style={unavailable}>ไม่พบรายการค่าบริการต้นทาง</span>; if (key === "amount_before_tax") return money(allocation.amount_before_tax, currency); if (key === "vat_amount") return money(allocation.vat_amount, currency); if (key === "total_amount") return <strong>{money(allocation.total_amount, currency)}</strong>; return allocation.allocation_percent === null ? <span style={mutedValue}>ตามยอดจริง</span> : `${numberValue(allocation.allocation_percent).toLocaleString("en-US", { maximumFractionDigits: 4 })}%`; }
@@ -799,6 +871,7 @@ const invoiceHistoryNumber: CSSProperties = { color: "#334155", fontSize: 14, ov
 const invoiceHistoryMeta: CSSProperties = { display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, color: "#64748b", fontSize: 12 };
 const invoiceHistoryLink: CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 38, padding: "8px 11px", border: "1px solid #cbd5e1", borderRadius: 6, background: "#fff", color: "#475569", fontSize: 13, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" };
 const relatedChargeSection: CSSProperties = { borderColor: "#cbd5e1", background: "#fbfcfd" };
+const relatedChargeHistorySection: CSSProperties = { borderColor: "#e2e8f0", background: "#f8fafc" };
 const relatedChargeSummary: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap", cursor: "pointer", color: "#334155" };
 const relatedChargeCount: CSSProperties = { flex: "0 0 auto", color: "#64748b", fontSize: 12, fontWeight: 700 };
 const relatedChargeNotice: CSSProperties = { marginTop: 14, padding: "11px 12px", border: "1px solid #e2e8f0", borderRadius: 6, background: "#fff", color: "#64748b", fontSize: 13, lineHeight: 1.5 };
@@ -812,6 +885,8 @@ const relatedChargeCardTitle: CSSProperties = { margin: "4px 0 0", color: "#1720
 const relatedChargeMetrics: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10, margin: 0, padding: "10px 0", borderTop: "1px solid #edf0f3", borderBottom: "1px solid #edf0f3" };
 const relatedChargeMetricLabel: CSSProperties = { color: "#64748b", fontSize: 11 };
 const relatedChargeMetricValue: CSSProperties = { margin: "4px 0 0", color: "#334155", fontSize: 12, fontWeight: 750, overflowWrap: "anywhere" };
+const relatedChargeInvoice: CSSProperties = { display: "grid", justifyItems: "start", gap: 5, color: "#64748b", fontSize: 11 };
+const relatedChargeInvoiceLink: CSSProperties = { display: "inline-flex", alignItems: "center", minHeight: 34, maxWidth: "100%", padding: "6px 9px", border: "1px solid #cbd5e1", borderRadius: 6, background: "#fff", color: "#334155", fontSize: 12, fontWeight: 750, textDecoration: "none", overflowWrap: "anywhere" };
 const relatedChargeCardFooter: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" };
 const relatedChargeAmount: CSSProperties = { color: "#166534", fontSize: 16, fontVariantNumeric: "tabular-nums" };
 const relatedChargeDetailButton: CSSProperties = { minHeight: 36, padding: "7px 10px", border: "1px solid #cbd5e1", borderRadius: 6, background: "#fff", color: "#334155", cursor: "pointer", font: "inherit", fontSize: 12, fontWeight: 750 };
