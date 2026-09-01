@@ -78,6 +78,8 @@ function InvoiceComposer({ canApproveInstallment }: { canApproveInstallment: boo
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [fieldError, setFieldError] = useState("");
+  const [sourceNotice, setSourceNotice] = useState("");
+  const [sourceError, setSourceError] = useState("");
   const requestRef = useRef<CreateAttempt | null>(null);
   const submitLock = useRef(false);
   const reviewRef = useRef<HTMLElement | null>(null);
@@ -115,24 +117,19 @@ function InvoiceComposer({ canApproveInstallment }: { canApproveInstallment: boo
   }, []);
 
   useEffect(() => { void load(); }, [load]);
-  useEffect(() => {
-    if (loading || prefillHandled.current) return;
-    prefillHandled.current = true;
-    const prefillClient = searchParams.get("client") || "";
-    const prefillCharge = searchParams.get("charge") || "";
-    if (prefillClient && clients.some((client) => client.id === prefillClient)) setClientId(prefillClient);
-    if (prefillCharge && charges.some((charge) => charge.id === prefillCharge && (!prefillClient || charge.client_id === prefillClient))) setChargeIds([prefillCharge]);
-  }, [clients, charges, loading, searchParams]);
-
   const planMap = useMemo(() => new Map(plans.map((row) => [row.id, row])), [plans]);
   const agreementMap = useMemo(() => new Map(agreements.map((row) => [row.id, row])), [agreements]);
   const agreementItemMap = useMemo(() => new Map(agreementItems.map((row) => [row.id, row])), [agreementItems]);
   const historyIds = useMemo(() => new Set(invoiceHistory.map((row) => row.primary_billing_installment_id).filter(Boolean)), [invoiceHistory]);
   const bridgeIds = useMemo(() => new Set(bridges.map((row) => row.billing_installment_id)), [bridges]);
-  const clientInstallments = useMemo(() => installments.filter((row) => {
+  const eligibleInstallments = useMemo(() => installments.filter((row) => {
     const plan = planMap.get(row.billing_plan_id); const agreement = plan ? agreementMap.get(plan.fee_agreement_id) : null;
-    return Boolean(clientId && plan && agreement?.client_id === clientId && !historyIds.has(row.id) && completeReadiness(row));
-  }), [agreementMap, clientId, historyIds, installments, planMap]);
+    return Boolean(plan && agreement && !historyIds.has(row.id) && completeReadiness(row));
+  }), [agreementMap, historyIds, installments, planMap]);
+  const clientInstallments = useMemo(() => eligibleInstallments.filter((row) => {
+    const plan = planMap.get(row.billing_plan_id); const agreement = plan ? agreementMap.get(plan.fee_agreement_id) : null;
+    return Boolean(clientId && agreement?.client_id === clientId);
+  }), [agreementMap, clientId, eligibleInstallments, planMap]);
   const selectedInstallment = useMemo(() => clientInstallments.find((row) => row.id === installmentId) || null, [clientInstallments, installmentId]);
   const selectedPlan = selectedInstallment ? planMap.get(selectedInstallment.billing_plan_id) || null : null;
   const selectedAgreement = selectedPlan ? agreementMap.get(selectedPlan.fee_agreement_id) || null : null;
@@ -145,10 +142,71 @@ function InvoiceComposer({ canApproveInstallment }: { canApproveInstallment: boo
   const missingAdapterItems = useMemo(() => bridgeIds.has(installmentId) ? [] : selectedInstallmentItems.filter((row) => !row.economic_classification), [bridgeIds, installmentId, selectedInstallmentItems]);
   const detailCharge = visibleCharges.find((row) => row.id === detailChargeId) || null;
   const eligibleAccounts = bankAccounts.filter(eligibleInvoicePaymentBankAccount);
+  const requestedInstallmentId = searchParams.get("installment") || "";
+  const requestedChargeId = searchParams.get("charge") || "";
+  const requestedClientId = searchParams.get("client") || "";
+  const openedFromSource = Boolean(requestedInstallmentId || requestedChargeId);
+  const requestedInstallment = installments.find((row) => row.id === requestedInstallmentId) || null;
+  const requestedPlan = requestedInstallment ? planMap.get(requestedInstallment.billing_plan_id) || null : null;
+  const sourceBackHref = requestedInstallmentId ? requestedPlan ? `/finance/billing-plans/${requestedPlan.id}` : "/finance/billing-plans" : "/finance/billable-charges";
+  const sourceBackLabel = requestedInstallmentId ? "กลับไปแผนเรียกเก็บเงิน" : "กลับไปรายการรอเรียกเก็บ";
   const totals = useMemo(() => {
     const rows = selectedCharges.reduce((sum, row) => ({ before: sum.before + Number(row.amount_before_vat), vat: sum.vat + Number(row.vat_amount), total: sum.total + Number(row.total_amount) }), { before: 0, vat: 0, total: 0 });
     return selectedInstallment ? { before: rows.before + Number(selectedInstallment.amount_before_tax), vat: rows.vat + Number(selectedInstallment.vat_amount), total: rows.total + Number(selectedInstallment.total_amount) } : rows;
   }, [selectedCharges, selectedInstallment]);
+
+  useEffect(() => {
+    if (loading || prefillHandled.current) return;
+    prefillHandled.current = true;
+    setSourceError("");
+    setSourceNotice("");
+
+    if (requestedInstallmentId && requestedChargeId) {
+      setSourceError("ลิงก์ต้นทางระบุทั้งงวดและรายการรอเรียกเก็บ กรุณากลับไปเลือกต้นทางเพียงรายการเดียว");
+      return;
+    }
+
+    if (requestedInstallmentId) {
+      const installment = eligibleInstallments.find((row) => row.id === requestedInstallmentId);
+      if (!installment) {
+        setSourceError("งวดที่เลือกไม่อยู่ในสถานะพร้อมจัดทำใบแจ้งหนี้ หรือมีประวัติใบแจ้งหนี้แล้ว กรุณากลับไปตรวจสอบแผนเรียกเก็บเงิน");
+        return;
+      }
+      if (!canApproveInstallment) {
+        setSourceError("คุณไม่มีสิทธิ์รับรองงวดตามแผนเพื่อจัดทำ Invoice V2");
+        return;
+      }
+      const plan = planMap.get(installment.billing_plan_id);
+      const agreement = plan ? agreementMap.get(plan.fee_agreement_id) : null;
+      if (!plan || !agreement) {
+        setSourceError("ไม่พบบริบทแผนเรียกเก็บเงินที่ยังมีผล กรุณากลับไปตรวจสอบรายการต้นทาง");
+        return;
+      }
+      const nextItems = installmentItems.filter((row) => row.billing_installment_id === installment.id && !row.economic_classification);
+      setClientId(agreement.client_id);
+      setInstallmentId(installment.id);
+      setChargeIds([]);
+      setAdapter(Object.fromEntries(nextItems.map((row) => [row.id, { economicClassification: "", unit: row.unit || "", confirmed: false }])));
+      setSourceNotice(`เลือกงวดที่ ${installment.installment_no} จากแผนเรียกเก็บเงินให้แล้ว กรุณาตรวจสอบข้อมูลก่อนสร้างร่าง`);
+      return;
+    }
+
+    if (requestedChargeId) {
+      const charge = charges.find((row) => row.id === requestedChargeId);
+      if (!charge) {
+        setSourceError("รายการต้นทางไม่อยู่ในสถานะพร้อมออกใบแจ้งหนี้แล้ว กรุณากลับไปตรวจสอบรายการรอเรียกเก็บ");
+        return;
+      }
+      setClientId(charge.client_id);
+      setInstallmentId("");
+      setChargeIds([charge.id]);
+      setAdapter({});
+      setSourceNotice("เลือกรายการรอเรียกเก็บให้แล้ว กรุณาตรวจสอบข้อมูลก่อนสร้างร่าง");
+      return;
+    }
+
+    if (requestedClientId && clients.some((client) => client.id === requestedClientId)) setClientId(requestedClientId);
+  }, [agreementMap, canApproveInstallment, charges, clients, eligibleInstallments, installmentItems, loading, planMap, requestedChargeId, requestedClientId, requestedInstallmentId]);
 
   const resetReview = () => { setReviewing(false); setAcknowledged(false); setFieldError(""); };
   const selectClient = (value: string) => { setClientId(value); setInstallmentId(""); setChargeIds([]); setAdapter({}); requestRef.current = null; resetReview(); };
@@ -215,8 +273,11 @@ function InvoiceComposer({ canApproveInstallment }: { canApproveInstallment: boo
 
   if (loading) return <div className={styles.loading}>กำลังโหลดเครื่องมือสร้างใบแจ้งหนี้...</div>;
   return <div className={styles.page}>
-    <div className={styles.toolbar}><Link className={styles.backButton} href="/finance/invoices">กลับไปรายการใบแจ้งหนี้</Link><Link className={styles.secondaryButton} href="/finance/billable-charges">เปิดรายการรอเรียกเก็บ</Link></div>
-    <header className={styles.header}><div><span className={styles.eyebrow}>INVOICE COMPOSER</span><h1>สร้างใบแจ้งหนี้</h1><p>เลือกยอดที่ต้องการเรียกเก็บ แล้วรวมเป็นใบแจ้งหนี้ฉบับเดียว</p></div></header>
+    <div className={styles.toolbar}>{openedFromSource ? <Link className={styles.backButton} href={sourceBackHref}>{sourceBackLabel}</Link> : <Link className={styles.backButton} href="/finance/invoices">กลับไปรายการใบแจ้งหนี้</Link>}{openedFromSource ? <Link className={styles.secondaryButton} href="/finance/invoices">เปิดรายการใบแจ้งหนี้</Link> : <Link className={styles.secondaryButton} href="/finance/billable-charges">เปิดรายการรอเรียกเก็บ</Link>}</div>
+    <header className={styles.header}><div><span className={styles.eyebrow}>INVOICE COMPOSER</span><h1>จัดทำใบแจ้งหนี้</h1><p>เลือกและตรวจสอบยอดที่ต้องการเรียกเก็บ ก่อนยืนยันสร้างร่างใบแจ้งหนี้</p></div></header>
+    {openedFromSource ? <div className={styles.sourceSafety}><strong>ยังไม่มีการสร้างข้อมูล</strong><span>การเปิดหน้านี้เป็นการเตรียมรายการเท่านั้น ระบบจะสร้างร่างเมื่อคุณตรวจสอบและยืนยันในขั้นตอนสุดท้าย</span></div> : null}
+    {sourceError ? <div role="alert" className={styles.error}>{sourceError}</div> : null}
+    {sourceNotice ? <div role="status" className={styles.notice}>{sourceNotice}</div> : null}
     {error ? <div role="alert" className={styles.error}>{error}</div> : null}
 
     <section className={styles.surface}><SectionHeader title="1. ลูกค้าและบริบท" text="เลือกลูกค้าก่อน ระบบจะแสดงเฉพาะแหล่งยอดของลูกค้ารายนั้น" />

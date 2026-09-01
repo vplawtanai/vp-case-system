@@ -5,8 +5,9 @@
 .workspaceHeader h1 { margin: 4px 0 6px; font-size: 30px; line-height: 1.2; letter-spacing: 0; }
 .workspaceHeader p, .editorHeader p, .reviewZone p, .otherActions p { margin: 0; color: #667085; line-height: 1.6; }
 .eyebrow { color: #55708c; font-size: 11px; font-weight: 800; }
-.primaryButton, .secondaryButton, .dangerButton, .openButton, .iconButton { min-height: 40px; border-radius: 7px; padding: 9px 14px; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; }
-.primaryButton { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid #17324d; background: #17324d; color: #fff; }
+.primaryButton, .secondaryButton, .dangerButton, .openButton, .iconButton { min-height: 40px; box-sizing: border-box; border-radius: 7px; padding: 9px 14px; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; }
+.primaryButton, .secondaryButton { display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; }
+.primaryButton { border: 1px solid #17324d; background: #17324d; color: #fff; }
 .secondaryButton, .openButton { border: 1px solid #b8c4d1; background: #fff; color: #17324d; }
 .dangerButton { border: 1px solid #c94b4b; background: #fff; color: #a12626; }
 .iconButton { width: 40px; padding: 0; border: 1px solid #d7dde5; background: #fff; color: #526274; font-size: 22px; }
@@ -143,7 +144,7 @@
   .segmented button + button { border-left: 0; border-top: 1px solid #cbd3dc; }
   .cardMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .openButton, .saveRow button, .reviewZone > .primaryButton { width: 100%; }
-  .detailActionRow .secondaryButton { width: 100%; }
+  .detailActionRow .primaryButton, .detailActionRow .secondaryButton { width: 100%; }
   .auditDetails li { flex-direction: column; gap: 5px; }
 }
 

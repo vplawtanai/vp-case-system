@@ -177,6 +177,7 @@ function BillableChargesWorkspace() {
   const createAttemptRef = useRef<CreateAttempt | null>(null);
   const deepLinkHandledRef = useRef(false);
   const permissions = useMemo(() => buildPermissions(profile), [profile]);
+  const canComposeInvoice = permissions.canEditFinanceQuotation && permissions.canManageFinanceBillableCharges;
   const selectedCharge = useMemo(() => charges.find((item) => item.id === chargeId) || null, [chargeId, charges]);
   const detailCharge = useMemo(() => charges.find((item) => item.id === detailChargeId) || null, [charges, detailChargeId]);
   const dirty = panelOpen && formFingerprint(form) !== baseline;
@@ -533,7 +534,7 @@ function BillableChargesWorkspace() {
         <FinanceSubNav activePage="billable-charges" permissions={permissions} />
         <header className={styles.workspaceHeader}>
           <div><span className={styles.eyebrow}>FINANCE</span><h1>รายการรอเรียกเก็บ</h1><p>รายการที่ลูกค้าเป็นหนี้ VP และรอรวบรวมเพื่อออกใบแจ้งหนี้</p></div>
-          <div className={styles.headerActions}>{permissions.canEditFinanceQuotation && permissions.canManageFinanceBillableCharges ? <Link className={styles.secondaryButton} href="/finance/invoices/compose">สร้างใบแจ้งหนี้จากรายการพร้อมเรียกเก็บ</Link> : null}{permissions.canManageFinanceBillableCharges ? <button className={styles.primaryButton} type="button" onClick={() => openNew()}><PlusIcon />เพิ่มรายการเรียกเก็บ</button> : null}</div>
+          <div className={styles.headerActions}>{canComposeInvoice ? <Link className={styles.secondaryButton} href="/finance/invoices/compose">จัดทำใบแจ้งหนี้</Link> : null}{permissions.canManageFinanceBillableCharges ? <button className={styles.primaryButton} type="button" onClick={() => openNew()}><PlusIcon />เพิ่มรายการเรียกเก็บ</button> : null}</div>
         </header>
 
         {error ? <div className={styles.errorBanner}>{error}</div> : null}
@@ -555,6 +556,7 @@ function BillableChargesWorkspace() {
         {detailCharge ? <DetailModal open title={detailCharge.description || "ร่างรายการเรียกเก็บ"} subtitle={<>{clientLabel(detailCharge.client_id, clients)} · {matterLabel(detailCharge, cases, advisories)}</>} status={<StatusBadge status={detailCharge.status} />} prominentValue={money(detailCharge.total_amount, detailCharge.currency)} onClose={closeChargeDetails}>
           <BillableChargeModalDetail charge={detailCharge} clients={clients} cases={cases} advisories={advisories} />
           {chargeInvoiceLinks[detailCharge.id] ? <div className={styles.detailActionRow}><Link className={styles.secondaryButton} href={`/finance/invoices/${chargeInvoiceLinks[detailCharge.id].invoiceId}`}>เปิดใบแจ้งหนี้ {chargeInvoiceLinks[detailCharge.id].invoiceNo || "ฉบับร่าง"}</Link></div> : null}
+          {detailCharge.status === "ready_to_invoice" && !chargeInvoiceLinks[detailCharge.id] && canComposeInvoice ? <div className={styles.detailActionRow}><Link className={styles.primaryButton} href={`/finance/invoices/compose?charge=${detailCharge.id}`}>จัดทำใบแจ้งหนี้</Link></div> : null}
           {canEditDetailDraft ? <div className={styles.detailActionRow}><button className={styles.secondaryButton} type="button" onClick={() => openCharge(detailCharge)}>แก้ไขร่างรายการ</button></div> : null}
           <AuditHistory audits={detailAudits} loading={detailAuditLoading} />
           {canCancelDetail ? <section className={styles.otherActions}><div><strong>การดำเนินการอื่น</strong><p>การยกเลิกจะเก็บรายการนี้ไว้เป็นประวัติและต้องระบุเหตุผล</p></div>{cancelContext === "detail" ? <div className={styles.cancelForm}><FormField label="เหตุผลที่ยกเลิกรายการ" error={errors.cancelReason}><textarea rows={3} value={cancelReason} onChange={(event) => { setCancelReason(event.target.value); setErrors((current) => ({ ...current, cancelReason: "" })); }} /></FormField><div className={styles.actionRow}><button className={styles.secondaryButton} type="button" onClick={() => setCancelContext(null)}>ไม่ดำเนินการ</button><button className={styles.dangerButton} type="button" disabled={saving} onClick={() => void cancelCharge(detailCharge.id, "detail")}>ยืนยันยกเลิกรายการ</button></div></div> : <button className={styles.dangerButton} type="button" onClick={() => setCancelContext("detail")}>ยกเลิกรายการเรียกเก็บ</button>}</section> : null}

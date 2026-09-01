@@ -26,6 +26,8 @@
 .invoiceCell strong { overflow-wrap: anywhere; }
 .status { justify-self: start; border-radius: 999px; padding: 4px 8px; background: #edf3f8; color: #37536e; font-size: 11px; font-weight: 800; white-space: nowrap; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.sourceSafety { display: flex; align-items: baseline; gap: 9px; margin: -4px 0 16px; border-left: 3px solid #55708c; padding: 9px 12px; background: #f4f8fb; color: #475569; font-size: 12px; line-height: 1.55; }
+.sourceSafety strong { flex: 0 0 auto; color: #17324d; }
 .sectionHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
 .sectionHeader h2 { margin: 0 0 5px; font-size: 20px; letter-spacing: 0; }
 .sectionHeader p { margin: 0; color: #667085; line-height: 1.55; }
@@ -97,4 +99,5 @@
   .reviewActions { flex-direction: column-reverse; }
   .reviewActions button { width: 100%; }
   .summaryLine { align-items: flex-start; }
+  .sourceSafety { align-items: flex-start; flex-direction: column; gap: 2px; }
 }
