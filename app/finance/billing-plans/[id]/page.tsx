@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import DetailModal from "../../../components/DetailModal";
 import { QuotationGuard } from "../../quotations/shared";
 import { supabase } from "../../../../lib/supabase";
 import { feeAgreementStatusLabel } from "../../fee-agreements/lifecycle";
@@ -15,6 +16,7 @@ type Installment = { id: string; installment_no: number; sort_order: number; tit
 type Allocation = { id: string; billing_installment_id: string; fee_agreement_item_id: string; amount_before_tax: number | string; vat_amount: number | string; total_amount: number | string; allocation_percent: number | string | null; sort_order: number; allocation_snapshot_json: Json | null; created_at: string };
 type AgreementItem = { id: string; description: string };
 type InvoiceSummary = { id: string; primary_billing_installment_id: string; document_status: string; invoice_no: string | null; issued_at: string | null; voided_at: string | null; cancelled_at: string | null; created_at: string };
+type RelatedCharge = { id: string; client_id: string; case_id: number | null; advisory_matter_id: string | null; description: string | null; service_date: string | null; economic_classification: string | null; price_tax_mode: string; vat_rate: number | string; amount_before_vat: number | string; vat_amount: number | string; total_amount: number | string; currency: string; status: string; source_reference: string | null; created_at: string; ready_to_invoice_at: string | null };
 type DraftInstallment = { id: string; installment_no: number; sort_order: number; title: string; trigger_description: string; trigger_type: string; due_date: string; milestone_code: string; recurring_period_start: string; recurring_period_end: string };
 type DraftForm = { title: string; description: string; installments: DraftInstallment[] };
 type ReadinessForm = { eventDate: string; confirmed: boolean; note: string; reference: string };
@@ -43,10 +45,12 @@ export default function BillingPlanDetailPage() {
   return <QuotationGuard>{(access) => <BillingPlanDetail
     canManage={access.permissions.canEditFinanceQuotation}
     canComposeInstallment={access.permissions.canEditFinanceQuotation && access.permissions.canManageFinanceBillableCharges && access.permissions.canApproveFinanceBillableCharges}
+    canViewCharges={access.permissions.canViewFinanceBillableCharges}
+    canManageCharges={access.permissions.canManageFinanceBillableCharges}
   />}</QuotationGuard>;
 }
 
-function BillingPlanDetail({ canManage, canComposeInstallment }: { canManage: boolean; canComposeInstallment: boolean }) {
+function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, canManageCharges }: { canManage: boolean; canComposeInstallment: boolean; canViewCharges: boolean; canManageCharges: boolean }) {
   const { id } = useParams<{ id: string }>();
   const [plan, setPlan] = useState<BillingPlan | null>(null);
   const [agreement, setAgreement] = useState<FeeAgreement | null>(null);
@@ -54,6 +58,8 @@ function BillingPlanDetail({ canManage, canComposeInstallment }: { canManage: bo
   const [allocations, setAllocations] = useState<Allocation[]>([]);
   const [agreementItems, setAgreementItems] = useState<AgreementItem[]>([]);
   const [invoices, setInvoices] = useState<InvoiceSummary[]>([]);
+  const [relatedCharges, setRelatedCharges] = useState<RelatedCharge[]>([]);
+  const [relatedChargeId, setRelatedChargeId] = useState("");
   const [draft, setDraft] = useState<DraftForm>({ title: "", description: "", installments: [] });
   const [savedBaseline, setSavedBaseline] = useState("");
   const [loading, setLoading] = useState(true);
@@ -112,6 +118,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment }: { canManage: bo
         .order("id"),
     ]);
 
+    const agreementRow = (agreementResult.data || null) as FeeAgreement | null;
     const installmentRows = (installmentsResult.data || []) as Installment[];
     const installmentIds = installmentRows.map((installment) => installment.id);
     const invoicesResult = installmentIds.length
@@ -141,19 +148,35 @@ function BillingPlanDetail({ canManage, canComposeInstallment }: { canManage: bo
         .in("id", agreementItemIds)
       : { data: [], error: null };
 
-    if (agreementResult.error || installmentsResult.error || allocationsResult.error || agreementItemsResult.error || invoicesResult.error) {
+    let relatedChargesResult: { data: unknown[] | null; error: unknown } = { data: [], error: null };
+    if (canViewCharges && agreementRow && (agreementRow.case_id || agreementRow.advisory_matter_id)) {
+      let relatedChargeQuery = supabase
+        .from("finance_billable_charges")
+        .select("id,client_id,case_id,advisory_matter_id,description,service_date,economic_classification,price_tax_mode,vat_rate,amount_before_vat,vat_amount,total_amount,currency,status,source_reference,created_at,ready_to_invoice_at")
+        .eq("client_id", agreementRow.client_id)
+        .eq("currency", planRow.currency)
+        .in("status", ["draft", "ready_to_invoice", "reserved", "invoiced"]);
+      relatedChargeQuery = agreementRow.case_id
+        ? relatedChargeQuery.eq("case_id", agreementRow.case_id).is("advisory_matter_id", null)
+        : relatedChargeQuery.is("case_id", null).eq("advisory_matter_id", agreementRow.advisory_matter_id as string);
+      relatedChargesResult = await relatedChargeQuery.order("service_date", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false });
+    }
+
+    if (agreementResult.error || installmentsResult.error || allocationsResult.error || agreementItemsResult.error || invoicesResult.error || relatedChargesResult.error) {
       setError("โหลดรายละเอียดแผนเรียกเก็บเงินบางส่วนไม่สำเร็จ กรุณารีเฟรช");
     }
-    setAgreement((agreementResult.data || null) as FeeAgreement | null);
+    setAgreement(agreementRow);
     setInstallments(installmentRows);
     setAllocations(allocationRows);
     setAgreementItems((agreementItemsResult.data || []) as AgreementItem[]);
     setInvoices((invoicesResult.data || []) as InvoiceSummary[]);
+    setRelatedCharges((relatedChargesResult.data || []) as RelatedCharge[]);
+    setRelatedChargeId("");
     const nextDraft = billingPlanDraft(planRow, installmentRows);
     setDraft(nextDraft);
     setSavedBaseline(JSON.stringify(nextDraft));
     setLoading(false);
-  }, [id]);
+  }, [canViewCharges, id]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -283,6 +306,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment }: { canManage: bo
   }, [installments, plan]);
 
   const duplicateInstallmentNo = useMemo(() => new Set(installments.map((installment) => installment.installment_no)).size !== installments.length, [installments]);
+  const relatedCharge = useMemo(() => relatedCharges.find((charge) => charge.id === relatedChargeId) || null, [relatedChargeId, relatedCharges]);
   if (loading) return <main style={page}>กำลังโหลดแผนเรียกเก็บเงิน...</main>;
   if (!plan) return <main style={page}>{error || "ไม่พบแผนเรียกเก็บเงิน"}</main>;
 
@@ -295,6 +319,8 @@ function BillingPlanDetail({ canManage, canComposeInstallment }: { canManage: bo
   const allocationByInstallment = new Map<string, Allocation[]>();
   allocations.forEach((allocation) => allocationByInstallment.set(allocation.billing_installment_id, [...(allocationByInstallment.get(allocation.billing_installment_id) || []), allocation]));
   const agreementItemById = new Map(agreementItems.map((item) => [item.id, item.description]));
+  const hasExactMatterContext = Boolean(agreement?.case_id || agreement?.advisory_matter_id);
+  const addChargeHref = agreement && hasExactMatterContext ? billableChargeCreateHref(plan.id, agreement) : "";
 
   return <main className="billing-plan-page" style={page}>
     {agreement ? <nav className="billing-plan-navigation-toolbar" style={navigationToolbar} aria-label="การนำทางเอกสารที่เกี่ยวข้อง">
@@ -441,6 +467,33 @@ function BillingPlanDetail({ canManage, canComposeInstallment }: { canManage: bo
         </article>;
       })}
     </section>
+    <section style={{ ...card, ...relatedChargeSection }} aria-labelledby="billing-plan-related-charges-title">
+      <div className="billing-plan-related-charge-header" style={relatedChargeHeader}>
+        <div style={relatedChargeHeadingCopy}><span style={relatedChargeEyebrow}>รายการเพิ่มเติม</span><h2 id="billing-plan-related-charges-title" style={relatedChargeTitle}>รายการเพิ่มเติมที่ต้องเรียกเก็บ</h2><p style={relatedChargeDescription}>เพิ่มค่าเดินทาง ค่าแปล ค่าล่าม ค่าใช้จ่ายเรียกคืน หรือรายการอื่นที่เกี่ยวข้องกับลูกค้าและงานนี้ เพื่อรวมกับงวดเรียกเก็บในใบแจ้งหนี้ได้</p></div>
+        {canManageCharges && addChargeHref && ["draft", "active"].includes(plan.status) ? <Link className="billing-plan-add-charge-link" style={addChargeLink} href={addChargeHref}><NavigationIcon name="plus" /><span>เพิ่มรายการเรียกเก็บ</span></Link> : null}
+      </div>
+      {!hasExactMatterContext ? <div style={relatedChargeNotice}>แผนนี้ไม่ได้ผูกกับคดีหรืองานที่ปรึกษา จึงไม่แสดงรายการระดับลูกค้าที่ไม่ได้เชื่อมกับงานเฉพาะ</div> : !canViewCharges ? <div style={relatedChargeNotice}>สิทธิ์ของคุณไม่ครอบคลุมการดูรายการเรียกเก็บเพิ่มเติม</div> : <>
+        {!canManageCharges ? <p style={relatedChargePermission}>คุณดูรายการที่เกี่ยวข้องได้ แต่ไม่มีสิทธิ์เพิ่มหรือแก้ไขรายการเรียกเก็บ</p> : null}
+        {relatedCharges.length === 0 ? <div style={relatedChargeEmpty}><strong>ยังไม่มีรายการเพิ่มเติมสำหรับงานนี้</strong><span>เมื่อบันทึกรายการจากพื้นที่รายการรอเรียกเก็บ ระบบจะแสดงรายการที่มีบริบทตรงกับแผนนี้ที่นี่</span></div> : <div className="billing-plan-related-charge-grid" style={relatedChargeGrid}>{relatedCharges.map((charge) => <article key={charge.id} style={relatedChargeCard}>
+          <div style={relatedChargeCardHeader}><div style={relatedChargeCardCopy}><span style={relatedChargeDate}>{date(charge.service_date || charge.created_at)}</span><h3 style={relatedChargeCardTitle}>{text(charge.description, "ร่างรายการเรียกเก็บ")}</h3></div><StatusBadge status={charge.status} label={chargeStatusLabel(charge.status)} /></div>
+          <dl style={relatedChargeMetrics}><div><dt style={relatedChargeMetricLabel}>ประเภทของยอด</dt><dd style={relatedChargeMetricValue}>{chargeClassificationLabel(charge.economic_classification)}</dd></div><div><dt style={relatedChargeMetricLabel}>VAT</dt><dd style={relatedChargeMetricValue}>{chargeTaxLabel(charge.price_tax_mode, charge.vat_rate)}</dd></div></dl>
+          <div style={relatedChargeCardFooter}><strong style={relatedChargeAmount}>{money(charge.total_amount, charge.currency)}</strong><button className="billing-plan-related-charge-detail" type="button" style={relatedChargeDetailButton} onClick={() => setRelatedChargeId(charge.id)}>ดูรายละเอียด</button></div>
+        </article>)}</div>}
+      </>}
+    </section>
+    {relatedCharge ? <DetailModal open title={text(relatedCharge.description, "ร่างรายการเรียกเก็บ")} subtitle={<>{client} · {matter}</>} status={<StatusBadge status={relatedCharge.status} label={chargeStatusLabel(relatedCharge.status)} />} prominentValue={money(relatedCharge.total_amount, relatedCharge.currency)} onClose={() => setRelatedChargeId("")}>
+      <dl className="billing-plan-related-charge-detail-grid" style={relatedChargeDetailGrid}>
+        <Field label="วันที่เกิดรายการ" value={date(relatedCharge.service_date || relatedCharge.created_at)} />
+        <Field label="สถานะ" value={chargeStatusLabel(relatedCharge.status)} />
+        <Field label="ประเภทของยอด" value={chargeClassificationLabel(relatedCharge.economic_classification)} />
+        <Field label="การคิด VAT" value={chargeTaxLabel(relatedCharge.price_tax_mode, relatedCharge.vat_rate)} />
+        <Field label="มูลค่าก่อน VAT" value={money(relatedCharge.amount_before_vat, relatedCharge.currency)} />
+        <Field label="VAT" value={money(relatedCharge.vat_amount, relatedCharge.currency)} />
+        <Field label="ยอดเรียกเก็บ" value={<strong>{money(relatedCharge.total_amount, relatedCharge.currency)}</strong>} />
+        <Field label="เลขอ้างอิง / หลักฐาน" value={text(relatedCharge.source_reference)} />
+        {relatedCharge.ready_to_invoice_at ? <Field label="พร้อมออกใบแจ้งหนี้เมื่อ" value={dateTime(relatedCharge.ready_to_invoice_at)} /> : null}
+      </dl>
+    </DetailModal> : null}
     {canManage && plan.status === "draft" ? <section className="billing-plan-final-review" style={{ ...card, ...finalReviewCard }}>
       <div style={finalReviewHeader}>
         <span style={finalReviewEyebrow}>ขั้นตอนสุดท้าย</span>
@@ -476,7 +529,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment }: { canManage: bo
       .billing-plan-navigation-back:hover { background: #f8fafc !important; border-color: #94a3b8 !important; color: #172033 !important; }
       .billing-plan-navigation-source:hover { background: #e0e7ff !important; border-color: #a5b4fc !important; color: #312e81 !important; }
       .billing-plan-navigation-link:focus-visible { outline: 3px solid rgba(37, 99, 235, .24); outline-offset: 2px; }
-      .billing-plan-primary-button, .billing-plan-save-button, .billing-plan-cancel-button, .billing-installment-primary-action { transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease; }
+      .billing-plan-primary-button, .billing-plan-save-button, .billing-plan-cancel-button, .billing-installment-primary-action, .billing-plan-add-charge-link, .billing-plan-related-charge-detail { transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease; }
       .billing-plan-primary-button:hover:not(:disabled), .billing-installment-primary-action:hover:not(:disabled) { background: #14532d !important; border-color: #14532d !important; }
       .billing-plan-save-button:hover:not(:disabled) { background: #f8fafc !important; border-color: #64748b !important; }
       .billing-plan-cancel-button:hover:not(:disabled) { background: #fef2f2 !important; border-color: #fca5a5 !important; }
@@ -485,6 +538,9 @@ function BillingPlanDetail({ canManage, canComposeInstallment }: { canManage: bo
       .billing-plan-invoice-history-link { transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease; }
       .billing-plan-invoice-history-link:hover { background: #f8fafc !important; border-color: #94a3b8 !important; color: #172033 !important; }
       .billing-plan-invoice-history-link:focus-visible { outline: 3px solid rgba(37, 99, 235, .24); outline-offset: 2px; }
+      .billing-plan-add-charge-link:hover { background: #14532d !important; border-color: #14532d !important; }
+      .billing-plan-add-charge-link:focus-visible, .billing-plan-related-charge-detail:focus-visible { outline: 3px solid rgba(37, 99, 235, .24); outline-offset: 2px; }
+      .billing-plan-related-charge-detail:hover { background: #f8fafc !important; border-color: #64748b !important; }
       .billing-plan-allocation-table th, .billing-plan-allocation-table td { padding: 10px 9px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
       .billing-plan-allocation-table th { color: #475569; background: #f8fafc; font-size: 12px; font-weight: 750; text-align: left; white-space: nowrap; }
       .billing-plan-allocation-table td { color: #172033; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
@@ -502,6 +558,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment }: { canManage: bo
         .billing-plan-installment-edit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
         .billing-readiness-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
         .billing-plan-installment-title-field, .billing-plan-installment-description-field { grid-column: 1 / -1; }
+        .billing-plan-related-charge-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
       }
       @media (max-width: 640px) {
         .billing-plan-page { padding: 14px !important; }
@@ -514,6 +571,9 @@ function BillingPlanDetail({ canManage, canComposeInstallment }: { canManage: bo
         .billing-plan-primary-button, .billing-plan-save-button, .billing-plan-cancel-button, .billing-installment-primary-action { width: 100%; }
         .billing-plan-invoice-history-item { grid-template-columns: minmax(0, 1fr) !important; }
         .billing-plan-invoice-history-link { width: 100%; box-sizing: border-box; }
+        .billing-plan-related-charge-header { align-items: stretch !important; }
+        .billing-plan-add-charge-link { width: 100%; box-sizing: border-box; }
+        .billing-plan-related-charge-grid, .billing-plan-related-charge-detail-grid { grid-template-columns: minmax(0, 1fr) !important; }
         .billing-readiness-form-grid { grid-template-columns: minmax(0, 1fr) !important; }
         .billing-readiness-note { grid-column: auto !important; }
         .billing-plan-metadata-grid > div, .billing-plan-summary-metric { padding: 9px 0 !important; border-left: 0 !important; border-top: 1px solid #e2e8f0; }
@@ -527,12 +587,16 @@ function BillingPlanDetail({ canManage, canComposeInstallment }: { canManage: bo
 
 function Field({ label, value }: { label: string; value: ReactNode }) { return <div><small style={{ color: "#64748b" }}>{label}</small><div>{value}</div></div>; }
 function StatusBadge({ status, label, prominent = false }: { status: string; label: string; prominent?: boolean }) { return <span style={{ ...statusBadge, ...statusColor[status], ...(prominent ? prominentStatusBadge : {}) }}>{label}</span>; }
-function NavigationIcon({ name }: { name: "back" | "source" }) { const common = { width: 17, height: 17, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true }; if (name === "back") return <svg {...common}><path d="M19 12H5M12 19l-7-7 7-7" /></svg>; return <svg {...common}><path d="M6 3h9l3 3v15H6zM14 3v4h4M9 12h6M9 16h4" /></svg>; }
+function NavigationIcon({ name }: { name: "back" | "source" | "plus" }) { const common = { width: 17, height: 17, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true }; if (name === "back") return <svg {...common}><path d="M19 12H5M12 19l-7-7 7-7" /></svg>; if (name === "plus") return <svg {...common}><path d="M12 5v14M5 12h14" /></svg>; return <svg {...common}><path d="M6 3h9l3 3v15H6zM14 3v4h4M9 12h6M9 16h4" /></svg>; }
 function ChainNode({ title, status, statusText, current = false, children }: { title: string; status: string | null; statusText?: string; current?: boolean; children: ReactNode }) { return <div style={{ ...chainNode, ...(current ? chainCurrentNode : {}) }}><small style={{ color: "#64748b" }}>{title}</small>{status ? <StatusBadge status={status} label={statusText || planStatus[status] || status} /> : null}<div style={{ marginTop: 6, overflowWrap: "anywhere" }}>{children}</div></div>; }
 function SummaryMetric({ label, value, prominent = false, compact = false }: { label: string; value: string; prominent?: boolean; compact?: boolean }) { return <div className="billing-plan-summary-metric" style={{ ...summaryMetric, ...(compact ? compactSummaryMetric : {}), ...(prominent ? prominentSummaryMetric : {}) }}><small style={{ ...summaryMetricLabel, ...(prominent ? prominentSummaryMetricLabel : {}) }}>{label}</small><strong style={{ ...summaryMetricValue, ...(prominent ? prominentSummaryMetricValue : {}) }}>{value}</strong></div>; }
 function billingPlanDraft(plan: BillingPlan, installments: Installment[]): DraftForm { return { title: plan.title || "", description: plan.description || "", installments: installments.map((installment) => ({ id: installment.id, installment_no: installment.installment_no, sort_order: installment.sort_order, title: installment.title, trigger_description: installment.trigger_description || "", trigger_type: installment.trigger_type, due_date: installment.due_date || "", milestone_code: installment.milestone_code || "", recurring_period_start: installment.recurring_period_start || "", recurring_period_end: installment.recurring_period_end || "" })) }; }
 function billingInstallmentDisplayTitle(title: string, installmentNo: number) { const value = title.trim(); const generated = new RegExp(`^(?:งวดที่\\s*${installmentNo}|Installment\\s*${installmentNo})(?:\\s*[/\\-—]\\s*(?:งวดที่\\s*${installmentNo}|Installment\\s*${installmentNo}))?$`, "i"); return generated.test(value) ? "" : value; }
 function invoiceHistoryTimestamp(invoice: InvoiceSummary) { if (invoice.document_status === "voided") return `ยกเลิกเมื่อ ${dateTime(invoice.voided_at)}`; if (invoice.document_status === "cancelled") return `ยกเลิกร่างเมื่อ ${dateTime(invoice.cancelled_at)}`; return `สร้างเมื่อ ${dateTime(invoice.created_at)}`; }
+function billableChargeCreateHref(planId: string, agreement: FeeAgreement) { const params = new URLSearchParams({ new: "1", client: agreement.client_id, returnTo: `/finance/billing-plans/${planId}` }); if (agreement.case_id) params.set("case", String(agreement.case_id)); if (agreement.advisory_matter_id) params.set("advisory", agreement.advisory_matter_id); return `/finance/billable-charges?${params.toString()}`; }
+function chargeStatusLabel(status: string) { return ({ draft: "ร่าง", ready_to_invoice: "พร้อมออกใบแจ้งหนี้", reserved: "กำลังจัดทำใบแจ้งหนี้", invoiced: "ออกใบแจ้งหนี้แล้ว" } as Record<string, string>)[status] || status; }
+function chargeClassificationLabel(value: string | null) { return ({ professional_fee: "ค่าวิชาชีพ", additional_service: "ค่าบริการเพิ่มเติม", reimbursable_expense: "ค่าใช้จ่ายเรียกคืน", government_or_court_fee: "ค่าธรรมเนียมศาล / หน่วยงานรัฐ", other: "อื่น ๆ" } as Record<string, string>)[value || ""] || "ยังไม่ระบุ"; }
+function chargeTaxLabel(mode: string, vatRate: number | string) { if (mode === "non_vat") return "ไม่มี VAT"; return `${mode === "vat_inclusive" ? "ราคารวม VAT แล้ว" : "ราคายังไม่รวม VAT"} · ${numberValue(vatRate).toLocaleString("en-US", { maximumFractionDigits: 4 })}%`; }
 function allocationCell(key: AllocationColumnKey, allocation: Allocation, description: string | undefined, currency: string): ReactNode { if (key === "description") return description || <span style={unavailable}>ไม่พบรายการค่าบริการต้นทาง</span>; if (key === "amount_before_tax") return money(allocation.amount_before_tax, currency); if (key === "vat_amount") return money(allocation.vat_amount, currency); if (key === "total_amount") return <strong>{money(allocation.total_amount, currency)}</strong>; return allocation.allocation_percent === null ? <span style={mutedValue}>ตามยอดจริง</span> : `${numberValue(allocation.allocation_percent).toLocaleString("en-US", { maximumFractionDigits: 4 })}%`; }
 function bangkokToday() { const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()); const value = Object.fromEntries(parts.map((part) => [part.type, part.value])); return `${value.year}-${value.month}-${value.day}`; }
 function validateBillingPlanDraft(draft: DraftForm) { for (const installment of draft.installments) { if (!installment.title.trim()) return `กรุณาระบุชื่องวดที่ ${installment.installment_no}`; if (installment.trigger_type === "date" && !installment.due_date) return `กรุณาระบุวันที่ครบกำหนดของงวดที่ ${installment.installment_no}`; if (installment.trigger_type === "case_milestone" && !installment.milestone_code.trim() && !installment.trigger_description.trim()) return `กรุณาระบุเหตุการณ์สำคัญของงวดที่ ${installment.installment_no}`; if (installment.trigger_type === "recurring_period" && (!installment.recurring_period_start || !installment.recurring_period_end || installment.recurring_period_end < installment.recurring_period_start)) return `กรุณาตรวจสอบรอบระยะเวลาของงวดที่ ${installment.installment_no}`; } return ""; }
@@ -595,6 +659,29 @@ const invoiceHistoryIdentity: CSSProperties = { display: "grid", gap: 6, minWidt
 const invoiceHistoryNumber: CSSProperties = { color: "#334155", fontSize: 14, overflowWrap: "anywhere" };
 const invoiceHistoryMeta: CSSProperties = { display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, color: "#64748b", fontSize: 12 };
 const invoiceHistoryLink: CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 38, padding: "8px 11px", border: "1px solid #cbd5e1", borderRadius: 6, background: "#fff", color: "#475569", fontSize: 13, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" };
+const relatedChargeSection: CSSProperties = { borderColor: "#cbd5e1", background: "#fbfcfd" };
+const relatedChargeHeader: CSSProperties = { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 18, flexWrap: "wrap" };
+const relatedChargeHeadingCopy: CSSProperties = { minWidth: 0, maxWidth: 760 };
+const relatedChargeEyebrow: CSSProperties = { color: "#166534", fontSize: 11, fontWeight: 800 };
+const relatedChargeTitle: CSSProperties = { margin: "4px 0 5px", color: "#172033", fontSize: 19 };
+const relatedChargeDescription: CSSProperties = { margin: 0, color: "#64748b", fontSize: 13, lineHeight: 1.55 };
+const addChargeLink: CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 40, padding: "8px 13px", border: "1px solid #166534", borderRadius: 6, background: "#166534", color: "#fff", fontSize: 13, fontWeight: 750, textDecoration: "none", whiteSpace: "nowrap" };
+const relatedChargeNotice: CSSProperties = { marginTop: 14, padding: "11px 12px", border: "1px solid #e2e8f0", borderRadius: 6, background: "#fff", color: "#64748b", fontSize: 13, lineHeight: 1.5 };
+const relatedChargePermission: CSSProperties = { margin: "13px 0 0", color: "#7c5b18", fontSize: 12, fontWeight: 700 };
+const relatedChargeEmpty: CSSProperties = { display: "grid", gap: 4, marginTop: 14, padding: "18px 14px", border: "1px dashed #cbd5e1", borderRadius: 7, background: "#fff", color: "#64748b", fontSize: 12, textAlign: "center" };
+const relatedChargeGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12, marginTop: 14 };
+const relatedChargeCard: CSSProperties = { display: "grid", gap: 12, minWidth: 0, padding: 14, border: "1px solid #dbe3ee", borderRadius: 7, background: "#fff" };
+const relatedChargeCardHeader: CSSProperties = { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 };
+const relatedChargeCardCopy: CSSProperties = { minWidth: 0 };
+const relatedChargeDate: CSSProperties = { color: "#64748b", fontSize: 11 };
+const relatedChargeCardTitle: CSSProperties = { margin: "4px 0 0", color: "#172033", fontSize: 15, lineHeight: 1.45, overflowWrap: "anywhere" };
+const relatedChargeMetrics: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10, margin: 0, padding: "10px 0", borderTop: "1px solid #edf0f3", borderBottom: "1px solid #edf0f3" };
+const relatedChargeMetricLabel: CSSProperties = { color: "#64748b", fontSize: 11 };
+const relatedChargeMetricValue: CSSProperties = { margin: "4px 0 0", color: "#334155", fontSize: 12, fontWeight: 750, overflowWrap: "anywhere" };
+const relatedChargeCardFooter: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" };
+const relatedChargeAmount: CSSProperties = { color: "#166534", fontSize: 16, fontVariantNumeric: "tabular-nums" };
+const relatedChargeDetailButton: CSSProperties = { minHeight: 36, padding: "7px 10px", border: "1px solid #cbd5e1", borderRadius: 6, background: "#fff", color: "#334155", cursor: "pointer", font: "inherit", fontSize: 12, fontWeight: 750 };
+const relatedChargeDetailGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12, margin: 0 };
 const readinessPanel: CSSProperties = { scrollMarginTop: 96, marginTop: 12, padding: 16, border: "1px solid #93c5fd", borderRadius: 8, background: "#f8fbff" };
 const readinessHeader: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 };
 const readinessTitle: CSSProperties = { margin: "3px 0 0", color: "#172033", fontSize: 17 };
@@ -647,4 +734,4 @@ const scroll: CSSProperties = { overflowX: "auto" };
 const allocationTable: CSSProperties = { width: "100%", minWidth: 760, border: "1px solid #e2e8f0", borderRadius: 6, borderSpacing: 0, tableLayout: "fixed" };
 const statusBadge: CSSProperties = { display: "inline-block", padding: "3px 8px", borderRadius: 999, fontSize: 12 };
 const prominentStatusBadge: CSSProperties = { padding: "5px 10px", fontSize: 13, fontWeight: 750 };
-const statusColor: Record<string, CSSProperties> = { draft: { background: "#e5e7eb", color: "#374151" }, active: { background: "#dcfce7", color: "#166534" }, completed: { background: "#dbeafe", color: "#1d4ed8" }, cancelled: { background: "#fee2e2", color: "#b91c1c" }, voided: { background: "#fee2e2", color: "#b91c1c" }, pending: { background: "#e5e7eb", color: "#374151" }, ready_to_invoice: { background: "#fef3c7", color: "#92400e" }, invoiced: { background: "#dbeafe", color: "#1d4ed8" }, sent: { background: "#dbeafe", color: "#1d4ed8" }, accepted: { background: "#dcfce7", color: "#166534" } };
+const statusColor: Record<string, CSSProperties> = { draft: { background: "#e5e7eb", color: "#374151" }, active: { background: "#dcfce7", color: "#166534" }, completed: { background: "#dbeafe", color: "#1d4ed8" }, cancelled: { background: "#fee2e2", color: "#b91c1c" }, voided: { background: "#fee2e2", color: "#b91c1c" }, pending: { background: "#e5e7eb", color: "#374151" }, ready_to_invoice: { background: "#fef3c7", color: "#92400e" }, reserved: { background: "#e0f2fe", color: "#075985" }, invoiced: { background: "#dbeafe", color: "#1d4ed8" }, sent: { background: "#dbeafe", color: "#1d4ed8" }, accepted: { background: "#dcfce7", color: "#166534" } };

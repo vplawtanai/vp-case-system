@@ -68,6 +68,7 @@ type AuditEvent = {
   created_at: string;
 };
 type ChargeInvoiceLink = { invoiceId: string; invoiceNo: string | null; documentStatus: string };
+type BillingPlanReturnContext = { returnTo: string; clientName: string; matterLabel: string };
 
 type ChargeForm = {
   sourceType: "ad_hoc_service" | "recoverable_cost";
@@ -169,6 +170,7 @@ function BillableChargesWorkspace() {
   const [readyAcknowledged, setReadyAcknowledged] = useState(false);
   const [cancelContext, setCancelContext] = useState<"editor" | "detail" | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [billingPlanContext, setBillingPlanContext] = useState<BillingPlanReturnContext | null>(null);
 
   const panelRef = useRef<HTMLElement | null>(null);
   const reviewRef = useRef<HTMLElement | null>(null);
@@ -272,18 +274,91 @@ function BillableChargesWorkspace() {
   }, []);
 
   useEffect(() => {
-    if (loading || deepLinkHandledRef.current || searchParams.get("new") !== "1") return;
+    if (loading || deepLinkHandledRef.current || searchParams.get("new") !== "1" || !permissions.canViewFinanceBillableCharges) return;
     deepLinkHandledRef.current = true;
-    const clientId = searchParams.get("client") || "";
-    const caseId = searchParams.get("case") || "";
-    const advisoryMatterId = searchParams.get("advisory") || "";
-    openNew({
-      clientId,
-      matterMode: caseId ? "case" : advisoryMatterId ? "advisory" : "unlinked",
-      caseId,
-      advisoryMatterId,
-    });
-  }, [loading, openNew, searchParams]);
+    let active = true;
+
+    const openDeepLink = async () => {
+      const requestedClientId = searchParams.get("client") || "";
+      const requestedCaseId = searchParams.get("case") || "";
+      const requestedAdvisoryId = searchParams.get("advisory") || "";
+      const requestedReturnTo = searchParams.get("returnTo");
+      const returnTo = safeBillingPlanReturnPath(requestedReturnTo);
+
+      const failPreselection = (message: string) => {
+        if (!active) return;
+        setBillingPlanContext(null);
+        openNew();
+        setError(message);
+      };
+
+      if (requestedReturnTo && !returnTo) {
+        failPreselection("ลิงก์กลับไปแผนเรียกเก็บเงินไม่ถูกต้อง ระบบไม่ได้ใช้ข้อมูลจากลิงก์นี้ กรุณาเลือกข้อมูลใหม่");
+        return;
+      }
+
+      if (returnTo) {
+        const planId = returnTo.split("/").at(-1) || "";
+        const planResult = await supabase.from("finance_billing_plans").select("id,fee_agreement_id").eq("id", planId).maybeSingle();
+        if (planResult.error || !planResult.data) {
+          console.error("LOAD BILLABLE CHARGE BILLING PLAN CONTEXT FAILED", planResult.error);
+          failPreselection("ไม่พบแผนเรียกเก็บเงินจากลิงก์นี้ กรุณาเลือกลูกค้าและเรื่อง/งานใหม่");
+          return;
+        }
+        const agreementResult = await supabase
+          .from("finance_fee_agreements")
+          .select("client_id,case_id,advisory_matter_id")
+          .eq("id", planResult.data.fee_agreement_id)
+          .maybeSingle();
+        if (agreementResult.error || !agreementResult.data) {
+          console.error("LOAD BILLABLE CHARGE AGREEMENT CONTEXT FAILED", agreementResult.error);
+          failPreselection("ไม่พบข้อมูลลูกค้าหรือเรื่อง/งานของแผนเรียกเก็บเงิน กรุณาเลือกข้อมูลใหม่");
+          return;
+        }
+
+        const canonicalClientId = String(agreementResult.data.client_id || "");
+        const canonicalCaseId = agreementResult.data.case_id === null ? "" : String(agreementResult.data.case_id);
+        const canonicalAdvisoryId = String(agreementResult.data.advisory_matter_id || "");
+        const client = clients.find((item) => item.id === canonicalClientId);
+        const caseItem = canonicalCaseId ? cases.find((item) => String(item.id) === canonicalCaseId && item.client_id === canonicalClientId) : null;
+        const advisory = canonicalAdvisoryId ? advisories.find((item) => item.id === canonicalAdvisoryId && item.client_id === canonicalClientId) : null;
+        const queryMatchesCanonical = requestedClientId === canonicalClientId && requestedCaseId === canonicalCaseId && requestedAdvisoryId === canonicalAdvisoryId;
+        const matterIsValid = canonicalCaseId ? Boolean(caseItem) : canonicalAdvisoryId ? Boolean(advisory) : true;
+
+        if (!client || !queryMatchesCanonical || !matterIsValid || (canonicalCaseId && canonicalAdvisoryId)) {
+          failPreselection("ข้อมูลลูกค้าหรือเรื่อง/งานจากลิงก์ไม่ตรงกับข้อมูลปัจจุบัน กรุณาเลือกใหม่ก่อนบันทึก");
+          return;
+        }
+        if (!active) return;
+        const resolvedMatterLabel = caseItem ? `คดี · ${caseOptionLabel(caseItem)}` : advisory ? `งานที่ปรึกษา · ${advisoryOptionLabel(advisory)}` : "ไม่ผูกกับงานเฉพาะ";
+        setBillingPlanContext({ returnTo, clientName: client.name || "ลูกค้าไม่มีชื่อ", matterLabel: resolvedMatterLabel });
+        openNew({
+          clientId: canonicalClientId,
+          matterMode: canonicalCaseId ? "case" : canonicalAdvisoryId ? "advisory" : "unlinked",
+          caseId: canonicalCaseId,
+          advisoryMatterId: canonicalAdvisoryId,
+        });
+        return;
+      }
+
+      if (!requestedClientId && !requestedCaseId && !requestedAdvisoryId) {
+        if (active) openNew();
+        return;
+      }
+      const client = clients.find((item) => item.id === requestedClientId);
+      const caseItem = requestedCaseId ? cases.find((item) => String(item.id) === requestedCaseId && item.client_id === requestedClientId) : null;
+      const advisory = requestedAdvisoryId ? advisories.find((item) => item.id === requestedAdvisoryId && item.client_id === requestedClientId) : null;
+      if (!client || (requestedCaseId && !caseItem) || (requestedAdvisoryId && !advisory) || (requestedCaseId && requestedAdvisoryId)) {
+        failPreselection("ข้อมูลลูกค้าหรือเรื่อง/งานจากลิงก์ไม่ตรงกับข้อมูลปัจจุบัน กรุณาเลือกใหม่ก่อนบันทึก");
+        return;
+      }
+      if (!active) return;
+      openNew({ clientId: requestedClientId, matterMode: requestedCaseId ? "case" : requestedAdvisoryId ? "advisory" : "unlinked", caseId: requestedCaseId, advisoryMatterId: requestedAdvisoryId });
+    };
+
+    void openDeepLink();
+    return () => { active = false; };
+  }, [advisories, cases, clients, loading, openNew, permissions.canViewFinanceBillableCharges, searchParams]);
 
   const fetchAudit = async (id: string) => {
     const { data, error: auditError } = await supabase
@@ -537,6 +612,11 @@ function BillableChargesWorkspace() {
           <div className={styles.headerActions}>{canComposeInvoice ? <Link className={styles.secondaryButton} href="/finance/invoices/compose">จัดทำใบแจ้งหนี้</Link> : null}{permissions.canManageFinanceBillableCharges ? <button className={styles.primaryButton} type="button" onClick={() => openNew()}><PlusIcon />เพิ่มรายการเรียกเก็บ</button> : null}</div>
         </header>
 
+        {billingPlanContext ? <section className={styles.billingPlanContext} aria-label="บริบทแผนเรียกเก็บเงิน">
+          <div><span className={styles.eyebrow}>เพิ่มรายการสำหรับแผนเรียกเก็บเงินนี้</span><strong>{billingPlanContext.clientName}</strong><span>{billingPlanContext.matterLabel}</span><p>รายการที่พร้อมออกใบแจ้งหนี้สามารถนำไปรวมกับงวดตามแผนในขั้นตอนจัดทำใบแจ้งหนี้</p></div>
+          <Link className={styles.secondaryButton} href={billingPlanContext.returnTo}>กลับไปแผนเรียกเก็บเงิน</Link>
+        </section> : null}
+
         {error ? <div className={styles.errorBanner}>{error}</div> : null}
         {message ? <div className={styles.successBanner}>{message}</div> : null}
 
@@ -553,7 +633,7 @@ function BillableChargesWorkspace() {
             </article>)}</div>}
         </section>
 
-        {detailCharge ? <DetailModal open title={detailCharge.description || "ร่างรายการเรียกเก็บ"} subtitle={<>{clientLabel(detailCharge.client_id, clients)} · {matterLabel(detailCharge, cases, advisories)}</>} status={<StatusBadge status={detailCharge.status} />} prominentValue={money(detailCharge.total_amount, detailCharge.currency)} onClose={closeChargeDetails}>
+        {detailCharge ? <DetailModal open title={detailCharge.description || "ร่างรายการเรียกเก็บ"} subtitle={<>{clientLabel(detailCharge.client_id, clients)} · {matterLabel(detailCharge, cases, advisories)}</>} status={<StatusBadge status={detailCharge.status} />} prominentValue={money(detailCharge.total_amount, detailCharge.currency)} footer={billingPlanContext ? <div className={styles.returnFooter}><Link className={detailCharge.status === "ready_to_invoice" ? styles.primaryButton : styles.secondaryButton} href={billingPlanContext.returnTo}>กลับไปแผนเรียกเก็บเงิน</Link></div> : undefined} onClose={closeChargeDetails}>
           <BillableChargeModalDetail charge={detailCharge} clients={clients} cases={cases} advisories={advisories} />
           {chargeInvoiceLinks[detailCharge.id] ? <div className={styles.detailActionRow}><Link className={styles.secondaryButton} href={`/finance/invoices/${chargeInvoiceLinks[detailCharge.id].invoiceId}`}>เปิดใบแจ้งหนี้ {chargeInvoiceLinks[detailCharge.id].invoiceNo || "ฉบับร่าง"}</Link></div> : null}
           {detailCharge.status === "ready_to_invoice" && !chargeInvoiceLinks[detailCharge.id] && canComposeInvoice ? <div className={styles.detailActionRow}><Link className={styles.primaryButton} href={`/finance/invoices/compose?charge=${detailCharge.id}`}>จัดทำใบแจ้งหนี้</Link></div> : null}
@@ -564,6 +644,7 @@ function BillableChargesWorkspace() {
 
         {panelOpen ? <section ref={panelRef} className={styles.editorSection}>
           <div className={styles.editorHeader}><div><span className={styles.eyebrow}>{chargeId ? "รายละเอียดรายการ" : "สร้างรายการ"}</span><h2>{chargeId ? selectedCharge?.status === "draft" ? "แก้ไขร่างรายการเรียกเก็บ" : "รายละเอียดรายการเรียกเก็บ" : "เพิ่มรายการเรียกเก็บ"}</h2><p>{selectedCharge?.status === "draft" || !chargeId ? "บันทึกยอดที่ลูกค้าเป็นหนี้ VP โดยไม่กำหนดความหมายของรายได้ VAT หรือค่าตอบแทนอัตโนมัติ" : statusExplanation(selectedCharge?.status)}</p></div><button className={styles.iconButton} type="button" aria-label="ปิดรายละเอียดรายการเรียกเก็บ" onClick={() => setPanelOpen(false)}>×</button></div>
+          {billingPlanContext ? <div className={`${styles.editorReturn} ${selectedCharge?.status === "ready_to_invoice" ? styles.editorReturnReady : ""}`}><div><strong>{selectedCharge?.status === "ready_to_invoice" ? "รายการพร้อมกลับไปจัดทำใบแจ้งหนี้" : "รายการนี้เปิดจากแผนเรียกเก็บเงิน"}</strong><span>{billingPlanContext.clientName} · {billingPlanContext.matterLabel}</span></div><Link className={selectedCharge?.status === "ready_to_invoice" ? styles.primaryButton : styles.secondaryButton} href={billingPlanContext.returnTo}>กลับไปแผนเรียกเก็บเงิน</Link></div> : null}
 
           {selectedCharge && (selectedCharge.status !== "draft" || selectedCharge.source_type === "billing_installment_item") ? <ReadOnlyDetail charge={selectedCharge} clients={clients} cases={cases} advisories={advisories} /> : <>
             {!permissions.canManageFinanceBillableCharges ? <div className={styles.readOnlyNotice}>ข้อมูลร่างเป็นแบบอ่านอย่างเดียวสำหรับสิทธิ์ของคุณ คุณยังตรวจสอบและยืนยันพร้อมออกใบแจ้งหนี้ได้เมื่อมีสิทธิ์อนุมัติ</div> : null}
@@ -740,6 +821,7 @@ function errorFieldLabel(field: string) {
 
 function fieldId(value: string) { return value.replace(/[^a-zA-Z0-9ก-๙]+/gu, "-"); }
 function formFingerprint(form: ChargeForm) { return JSON.stringify(form); }
+function safeBillingPlanReturnPath(value: string | null) { if (!value) return null; return /^\/finance\/billing-plans\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value) ? value : null; }
 function nullable(value: string) { return value.trim() || null; }
 function safeNumber(value: number | string) { const next = Number(value || 0); return Number.isFinite(next) ? next : 0; }
 function isDecimal(value: string, decimals: number, allowZero: boolean) { const normalized = value.trim(); if (!new RegExp(`^\\d+(?:\\.\\d{1,${decimals}})?$`).test(normalized)) return false; const parsed = Number(normalized); return allowZero ? parsed >= 0 : parsed > 0; }
