@@ -122,6 +122,18 @@ export const triggerLabels: Record<string, string> = {
   recurring_period: "ตามรอบระยะเวลา",
 };
 
+export const economicClassificationLabels: Record<string, string> = {
+  professional_fee: "ค่าวิชาชีพ",
+  additional_service: "ค่าบริการเพิ่มเติม",
+  reimbursable_expense: "ค่าใช้จ่ายเรียกคืน",
+  government_or_court_fee: "ค่าธรรมเนียมศาล / หน่วยงานรัฐ",
+  other: "อื่น ๆ",
+};
+
+export function economicClassificationLabel(value: string | null | undefined) {
+  return value ? economicClassificationLabels[value] || value : "ยังไม่ระบุ";
+}
+
 export function invoiceDraftForm(invoice: FinanceInvoice): InvoiceDraftForm {
   return {
     issueDate: invoice.issue_date?.slice(0, 10) || "",
@@ -208,6 +220,16 @@ export function formatBangkokDateTime(value: string | null | undefined) {
   }).format(parsed);
 }
 
+export function formatThaiDate(value: string | null | undefined) {
+  if (!value) return "-";
+  const parsed = new Date(`${value.slice(0, 10)}T12:00:00+07:00`);
+  if (Number.isNaN(parsed.getTime())) return "-";
+  return new Intl.DateTimeFormat("th-TH", {
+    dateStyle: "medium",
+    timeZone: "Asia/Bangkok",
+  }).format(parsed);
+}
+
 export function formatDocumentDate(value: string | null | undefined, languageCode = "th") {
   if (!value) return "-";
   const parsed = new Date(`${value.slice(0, 10)}T12:00:00+07:00`);
@@ -232,6 +254,25 @@ export function sourceQuotationNo(snapshot: Json | null) {
 
 export function asJson(value: unknown): Json {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Json : {};
+}
+
+function invoiceItemReadySnapshot(item: FinanceInvoiceItem) {
+  return asJson(asJson(item.source_snapshot_json).ready_snapshot);
+}
+
+export function invoiceItemEconomicClassification(item: FinanceInvoiceItem) {
+  const value = asJson(invoiceItemReadySnapshot(item).economic).classification;
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+export function invoiceItemSourceType(item: FinanceInvoiceItem) {
+  const value = asJson(invoiceItemReadySnapshot(item).source).source_type;
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+export function invoiceItemUnit(item: FinanceInvoiceItem) {
+  const value = asJson(invoiceItemReadySnapshot(item).commercial).unit;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function textValue(value: unknown) {

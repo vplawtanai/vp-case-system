@@ -13,11 +13,15 @@ import {
   bangkokToday,
   bankAccountPaymentDestination,
   displayText,
+  economicClassificationLabel,
   eligibleInvoicePaymentBankAccount,
   formatBangkokDateTime,
   formatDocumentDate,
   invoiceDraftFingerprint,
   invoiceDraftForm,
+  invoiceItemEconomicClassification,
+  invoiceItemSourceType,
+  invoiceItemUnit,
   invoiceStatusLabels,
   installmentStatusLabels,
   money,
@@ -62,7 +66,6 @@ function InvoiceWorkspace({ canManagePayments, canManageComposition }: { canMana
   const [paymentReallocations, setPaymentReallocations] = useState<PaymentAllocationReallocation[]>([]);
   const [bankAccounts, setBankAccounts] = useState<FinanceBankAccount[]>([]);
   const [form, setForm] = useState<InvoiceDraftForm>({ issueDate: "", dueDate: "", customerNote: "", paymentTermsText: "", paymentDestinationBankAccountId: "", internalNote: "", languageCode: "th" });
-  const [baseline, setBaseline] = useState("");
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -145,7 +148,6 @@ function InvoiceWorkspace({ canManagePayments, canManageComposition }: { canMana
     setPaymentReallocations(paymentReallocationRows);
     setBankAccounts((bankAccountsResult.data || []) as FinanceBankAccount[]);
     setForm(nextForm);
-    setBaseline(invoiceDraftFingerprint(nextForm));
     setFormErrors({});
     setVoidFormErrors({});
     setLoading(false);
@@ -157,7 +159,11 @@ function InvoiceWorkspace({ canManagePayments, canManageComposition }: { canMana
   }, [load]);
 
   const fingerprint = useMemo(() => invoiceDraftFingerprint(form), [form]);
-  const dirty = Boolean(baseline) && fingerprint !== baseline;
+  const savedFingerprint = useMemo(
+    () => invoice ? invoiceDraftFingerprint(invoiceDraftForm(invoice)) : "",
+    [invoice],
+  );
+  const dirty = Boolean(invoice) && fingerprint !== savedFingerprint;
   const isDraft = invoice?.document_status === "draft";
   const isV2 = invoice?.source_model === "billable_charge_v2";
   const isIssued = invoice?.document_status === "issued";
@@ -210,8 +216,7 @@ function InvoiceWorkspace({ canManagePayments, canManageComposition }: { canMana
         p_language_code: form.languageCode,
       });
       if (result.error) throw result.error;
-      setBaseline(invoiceDraftFingerprint(form));
-      setInvoice((current) => current ? { ...current, issue_date: form.issueDate || null, due_date: form.dueDate || null, customer_note: form.customerNote.trim() || null, payment_terms_text: form.paymentTermsText.trim() || null, payment_destination_bank_account_id: form.paymentDestinationBankAccountId || null, internal_note: form.internalNote.trim() || null, language_code: form.languageCode, updated_at: new Date().toISOString() } : current);
+      await load();
       setMessage("บันทึกการเปลี่ยนแปลงแล้ว");
     } catch (saveError) {
       setError(safeInvoiceError(saveError, "บันทึกร่างใบแจ้งหนี้ไม่สำเร็จ"));
@@ -492,7 +497,7 @@ function InvoiceWorkspace({ canManagePayments, canManageComposition }: { canMana
         {issuePanelOpen ? <div id="invoice-issue-confirmation" style={confirmationPanel}>
           <h3 style={confirmationTitle}>ยืนยันการออกใบแจ้งหนี้</h3>
           <div style={confirmationGrid}><Field label="ลูกค้า" value={displayText(invoice.customer_name)} /><Field label="คดี/งาน" value={matter} /><Field label={isV2 ? "ที่มาของยอด" : "งวด"} value={isV2 ? invoiceSourceLabel : installmentLabel} /><Field label="มูลค่าก่อน VAT" value={money(invoice.amount_before_vat, invoice.currency)} /><Field label="VAT" value={money(invoice.vat_amount, invoice.currency)} /><Field label="ยอดรวม" value={money(invoice.total_amount, invoice.currency)} /><Field label="วันที่ออกเอกสาร" value={form.issueDate || "-"} /><Field label="วันที่ครบกำหนด" value={form.dueDate || "-"} /><Field label="บัญชีสำหรับรับชำระ" value={paymentDestination ? `${displayText(paymentDestination.shortName)} · ${displayText(paymentDestination.accountNumber)}` : "-"} /></div>
-          <div style={issueItemsReview}><small style={fieldLabel}>รายการในใบแจ้งหนี้</small>{activeItems.map((item) => <div key={item.id} style={issueItemRow}><span>{item.description}</span><strong>{money(item.line_total, invoice.currency)}</strong></div>)}</div>
+          <div style={issueItemsReview}><small style={fieldLabel}>รายการในใบแจ้งหนี้</small>{activeItems.map((item) => <div key={item.id} style={issueItemRow}><span>{item.description}{isV2 ? <small style={itemMeta}>{invoiceItemClassificationLabel(item)}</small> : null}</span><strong>{money(item.line_total, invoice.currency)}</strong></div>)}</div>
           <label style={confirmCheck}><input type="checkbox" checked={issueConfirmed} onChange={(event) => setIssueConfirmed(event.target.checked)} />ยืนยันว่าตรวจสอบข้อมูลใบแจ้งหนี้ครบถ้วนแล้ว และต้องการออกใบแจ้งหนี้ฉบับนี้</label>
           <p style={confirmationHelp}>ระบบจะสร้างเลขที่อย่างเป็นทางการและทำให้เอกสารเป็นแบบอ่านอย่างเดียว การออกใบแจ้งหนี้ไม่ถือว่าได้รับชำระเงิน</p>
           <div style={confirmationActions}><button type="button" style={secondaryButton} disabled={issuing} onClick={() => setIssuePanelOpen(false)}>กลับไปตรวจสอบ</button><button type="button" style={{ ...issueButton, ...(!issueConfirmed ? disabledButton : {}) }} disabled={!issueConfirmed || issuing} onClick={() => void issueInvoice()}>{issuing ? "กำลังออกใบแจ้งหนี้..." : "ยืนยันออกใบแจ้งหนี้"}</button></div>
@@ -562,15 +567,11 @@ function PaymentLinks({ title, payments, effectiveAllocations, rawAllocations, r
   })}</div>;
 }
 function invoiceItemSourceLabel(item: FinanceInvoiceItem) {
-  const readySnapshot = invoiceItemReadySnapshot(item);
-  const sourceType = readySnapshot && typeof readySnapshot === "object" && !Array.isArray(readySnapshot)
-    ? (readySnapshot as Record<string, unknown>).source_type
-    : null;
+  const sourceType = invoiceItemSourceType(item);
   return sourceType === "billing_installment_item" ? "ค่าวิชาชีพจากงวดตามแผน" : "รายการรอเรียกเก็บ";
 }
-function invoiceItemReadySnapshot(item: FinanceInvoiceItem) { const snapshot = item.source_snapshot_json; if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return null; const readySnapshot = snapshot.ready_snapshot; return readySnapshot && typeof readySnapshot === "object" && !Array.isArray(readySnapshot) ? readySnapshot as Record<string, unknown> : null; }
-function invoiceItemQuantityLabel(item: FinanceInvoiceItem, currency: string) { if (item.source_quantity === null) return ""; const snapshot = invoiceItemReadySnapshot(item); const unit = typeof snapshot?.unit === "string" && snapshot.unit.trim() ? snapshot.unit.trim() : "หน่วย"; const price = item.source_unit_price === null ? "" : ` × ${money(item.source_unit_price, currency)}`; return `จำนวน ${Number(item.source_quantity).toLocaleString("th-TH", { maximumFractionDigits: 4 })} ${unit}${price}`; }
-function invoiceItemClassificationLabel(item: FinanceInvoiceItem) { const snapshot = invoiceItemReadySnapshot(item); const value = typeof snapshot?.economic_classification === "string" ? snapshot.economic_classification : ""; const labels: Record<string, string> = { professional_fee: "ค่าวิชาชีพ", additional_service: "ค่าบริการเพิ่มเติม", reimbursable_expense: "ค่าใช้จ่ายเรียกคืน", government_or_court_fee: "ค่าธรรมเนียมศาล / หน่วยงานรัฐ", other: "อื่น ๆ" }; return `ประเภทของยอด: ${labels[value] || value || "ยังไม่ระบุ"}`; }
+function invoiceItemQuantityLabel(item: FinanceInvoiceItem, currency: string) { if (item.source_quantity === null) return ""; const unit = invoiceItemUnit(item) || "หน่วย"; const price = item.source_unit_price === null ? "" : ` × ${money(item.source_unit_price, currency)}`; return `จำนวน ${Number(item.source_quantity).toLocaleString("th-TH", { maximumFractionDigits: 4 })} ${unit}${price}`; }
+function invoiceItemClassificationLabel(item: FinanceInvoiceItem) { return `ประเภทของยอด: ${economicClassificationLabel(invoiceItemEconomicClassification(item))}`; }
 function NavigationLink({ href, icon, variant, children }: { href: string; icon: "back" | "document"; variant: "back" | "source"; children: ReactNode }) { return <Link style={{ ...navigationLink, ...(variant === "back" ? navigationBack : navigationSource) }} href={href}><NavigationIcon name={icon} />{children}</Link>; }
 function NavigationIcon({ name }: { name: "back" | "document" }) { const common = { width: 17, height: 17, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true }; return name === "back" ? <svg {...common}><path d="M19 12H5M12 19l-7-7 7-7" /></svg> : <svg {...common}><path d="M6 3h9l3 3v15H6zM14 3v4h4M9 12h6M9 16h4" /></svg>; }
 
