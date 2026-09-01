@@ -8,6 +8,7 @@ import AuthGuard from "../../components/AuthGuard";
 import AppTopNav from "../../components/AppTopNav";
 import FinanceSubNav from "../FinanceSubNav";
 import { calculateFinanceLineAmounts } from "../finance-line-amounts";
+import { calculateGrossFirstPercentageAllocation } from "./payment-allocation";
 import { createAuditLog } from "../../../lib/auditLog";
 import { getQuotationClientDisplayName } from "../../../lib/quotationClientDisplay";
 import {
@@ -523,48 +524,43 @@ function calculatePaymentItemInstallmentTotals(allocationMode: PaymentAllocation
     return totals;
   }
 
-  const entries = installments.map((installment, installmentIndex) => ({
-    installmentIndex,
-    percentage: allocationMode === "per_item"
-      ? toAmount(installment.items.find((allocation) => paymentAllocationReference(allocation) === reference)?.allocation_percentage || 0)
-      : toAmount(installment.percentage),
-  })).filter((entry) => entry.percentage > 0);
-  const percentageTotal = normalizePercentage(entries.reduce((sum, entry) => sum + entry.percentage, 0));
-  let allocatedBeforeTax = 0;
-  let allocatedVat = 0;
-
-  entries.forEach((entry, entryIndex) => {
-    const isFinalCompleteEntry = entryIndex === entries.length - 1 && percentageTotal === 100;
-    const beforeTax = isFinalCompleteEntry
-      ? roundMoney(toAmount(source.amount_before_tax) - allocatedBeforeTax)
-      : roundMoney(toAmount(source.amount_before_tax) * entry.percentage / 100);
-    const vat = isFinalCompleteEntry
-      ? roundMoney(toAmount(source.vat_amount) - allocatedVat)
-      : roundMoney(toAmount(source.vat_amount) * entry.percentage / 100);
-    allocatedBeforeTax = roundMoney(allocatedBeforeTax + beforeTax);
-    allocatedVat = roundMoney(allocatedVat + vat);
-    totals[entry.installmentIndex] = {
-      beforeTax,
-      vat,
-      total: roundMoney(beforeTax + vat),
-    };
+  const result = calculateGrossFirstPercentageAllocation({
+    allocationMode,
+    items: [{ amountBeforeTax: source.amount_before_tax, vatAmount: source.vat_amount, totalAmount: source.line_total }],
+    installments: installments.map((installment) => ({
+      percentage: installment.percentage,
+      itemPercentages: [toAmount(installment.items.find((allocation) => paymentAllocationReference(allocation) === reference)?.allocation_percentage || 0)],
+    })),
   });
-
-  return totals;
+  return result.cells[0] || totals;
 }
 
 function calculatePaymentInstallmentTotals(allocationMode: PaymentAllocationMode, installments: PaymentInstallment[], quotationItems: QuotationItemRow[]) {
-  const totals: PaymentInstallmentTotal[] = installments.map(() => ({ beforeTax: 0, vat: 0, total: 0 }));
-  quotationItems.forEach((item) => {
-    calculatePaymentItemInstallmentTotals(allocationMode, installments, item).forEach((itemTotal, installmentIndex) => {
-      totals[installmentIndex] = {
-        beforeTax: roundMoney(totals[installmentIndex].beforeTax + itemTotal.beforeTax),
-        vat: roundMoney(totals[installmentIndex].vat + itemTotal.vat),
-        total: roundMoney(totals[installmentIndex].total + itemTotal.total),
-      };
+  if (allocationMode === "proportional_all_items" && installments.some((installment) => installment.calculation_type === "fixed_amount")) {
+    const totals: PaymentInstallmentTotal[] = installments.map(() => ({ beforeTax: 0, vat: 0, total: 0 }));
+    quotationItems.forEach((item) => {
+      calculatePaymentItemInstallmentTotals(allocationMode, installments, item).forEach((itemTotal, installmentIndex) => {
+        totals[installmentIndex] = {
+          beforeTax: roundMoney(totals[installmentIndex].beforeTax + itemTotal.beforeTax),
+          vat: roundMoney(totals[installmentIndex].vat + itemTotal.vat),
+          total: roundMoney(totals[installmentIndex].total + itemTotal.total),
+        };
+      });
     });
-  });
-  return totals;
+    return totals;
+  }
+
+  return calculateGrossFirstPercentageAllocation({
+    allocationMode,
+    items: quotationItems.map((item) => ({ amountBeforeTax: item.amount_before_tax, vatAmount: item.vat_amount, totalAmount: item.line_total })),
+    installments: installments.map((installment) => ({
+      percentage: installment.percentage,
+      itemPercentages: quotationItems.map((item) => {
+        const reference = paymentReferenceForItem(item);
+        return toAmount(installment.items.find((allocation) => paymentAllocationReference(allocation) === reference)?.allocation_percentage || 0);
+      }),
+    })),
+  }).installmentTotals;
 }
 
 function paymentTriggerSummary(method: PaymentMethodType, installment: PaymentInstallment) {
