@@ -5,6 +5,7 @@ import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import DetailModal from "../../../components/DetailModal";
+import BillableChargeCreateWorkflow, { type BillableChargeContext } from "../../billable-charges/BillableChargeCreateWorkflow";
 import { QuotationGuard } from "../../quotations/shared";
 import { supabase } from "../../../../lib/supabase";
 import { feeAgreementStatusLabel } from "../../fee-agreements/lifecycle";
@@ -64,6 +65,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
   const [invoiceSelectionInstallmentId, setInvoiceSelectionInstallmentId] = useState("");
   const [selectedInvoiceChargeIds, setSelectedInvoiceChargeIds] = useState<string[]>([]);
   const [selectionDetailChargeId, setSelectionDetailChargeId] = useState("");
+  const [chargeCreateInstallmentId, setChargeCreateInstallmentId] = useState("");
   const [draft, setDraft] = useState<DraftForm>({ title: "", description: "", installments: [] });
   const [savedBaseline, setSavedBaseline] = useState("");
   const [loading, setLoading] = useState(true);
@@ -178,7 +180,8 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
     setAllocations(allocationRows);
     setAgreementItems((agreementItemsResult.data || []) as AgreementItem[]);
     setInvoices((invoicesResult.data || []) as InvoiceSummary[]);
-    setRelatedCharges((relatedChargesResult.data || []) as RelatedCharge[]);
+    const loadedRelatedCharges = (relatedChargesResult.data || []) as RelatedCharge[];
+    setRelatedCharges(agreementRow ? loadedRelatedCharges.filter((charge) => isExactChargeContext(charge, agreementRow, planRow.currency)) : []);
     setRelatedChargeId("");
     setSelectionDetailChargeId("");
     const nextDraft = billingPlanDraft(planRow, installmentRows);
@@ -334,6 +337,17 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
     setSelectedInvoiceChargeIds([]);
     setSelectionDetailChargeId("");
   }, []);
+  const openChargeCreate = useCallback((installment: Installment) => {
+    if (!canManageCharges || !agreement || !["draft", "active"].includes(plan?.status || "") || ["cancelled", "invoiced"].includes(installment.status)) return;
+    setInvoiceSelectionInstallmentId("");
+    setSelectedInvoiceChargeIds([]);
+    setSelectionDetailChargeId("");
+    setChargeCreateInstallmentId(installment.id);
+  }, [agreement, canManageCharges, plan?.status]);
+  const closeChargeCreate = useCallback(() => {
+    setChargeCreateInstallmentId("");
+    void load();
+  }, [load]);
 
   useEffect(() => {
     if (loading || resumeHandledRef.current) return;
@@ -360,6 +374,14 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
 
   const client = text(agreement?.client_snapshot_json?.name, text(agreement?.client_snapshot_json?.display_name, "-"));
   const matter = text(agreement?.matter_snapshot_json?.title, text(agreement?.matter_snapshot_json?.file_no, agreement?.case_id || agreement?.advisory_matter_id ? "-" : "ข้อตกลงระดับลูกค้า"));
+  const chargeCreateInstallment = installments.find((installment) => installment.id === chargeCreateInstallmentId) || null;
+  const billableChargeContext: BillableChargeContext | null = agreement ? {
+    clientId: agreement.client_id,
+    clientName: client,
+    caseId: agreement.case_id,
+    advisoryMatterId: agreement.advisory_matter_id,
+    matterLabel: agreement.case_id ? `คดี · ${matter}` : agreement.advisory_matter_id ? `งานที่ปรึกษา · ${matter}` : "ไม่ผูกกับงานเฉพาะ",
+  } : null;
   const quotationNo = text(agreement?.source_document_snapshot_json?.quotation_no, text(agreement?.source_reference, "ใบเสนอราคาต้นทาง"));
   const acceptedQuotationBasis = agreement?.engagement_basis === "accepted_quotation";
   const engagementKindLabel = acceptedQuotationBasis ? "การว่าจ้างตามใบเสนอราคา" : "ข้อตกลงค่าบริการ";
@@ -445,6 +467,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
         const historicalInvoices = installmentInvoices
           .filter((invoice) => ["cancelled", "voided"].includes(invoice.document_status))
           .sort((left, right) => right.created_at.localeCompare(left.created_at));
+        const canAddCharge = canManageCharges && ["draft", "active"].includes(plan.status) && !["cancelled", "invoiced"].includes(installment.status);
         return <article key={installment.id} style={installmentCard}>
           <div style={installmentHeader}><div style={installmentHeadingCopy}><span style={installmentEyebrow}>งวดเรียกเก็บเงิน</span><h3 style={installmentTitle}>งวดที่ {installment.installment_no}</h3>{customInstallmentTitle ? <p style={installmentCustomTitle}>{customInstallmentTitle}</p> : null}</div><StatusBadge status={installment.status} label={installmentStatus[installment.status] || installment.status} /></div>
           {plan.status === "draft" && canManage && draftInstallment ? <div className="billing-plan-installment-edit-grid" style={installmentEditGrid}>
@@ -477,7 +500,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
           {installmentAllocations.length === 0 ? <div style={warning}>งวดนี้ไม่มีรายการค่าบริการที่จัดสรรไว้</div> : <div style={scroll}><table className="billing-plan-allocation-table" style={allocationTable}><colgroup>{allocationColumns.map((column) => <col key={column.key} style={{ width: column.width }} />)}</colgroup><thead><tr>{allocationColumns.map((column) => <th key={column.key} className={column.numeric ? "billing-plan-numeric-column" : undefined}>{column.key === "description" && acceptedQuotationBasis ? "รายการตามใบเสนอราคา" : column.label}</th>)}</tr></thead><tbody>{installmentAllocations.map((allocation) => <tr key={allocation.id}>{allocationColumns.map((column) => <td key={column.key} className={column.numeric ? "billing-plan-numeric-column" : undefined}>{allocationCell(column.key, allocation, agreementItemById.get(allocation.fee_agreement_item_id), plan.currency)}</td>)}</tr>)}</tbody></table></div>}
           {canManage && plan.status === "active" && installment.status === "pending" ? <div style={installmentNextStep}>
             <div><span style={nextStepEyebrow}>ขั้นตอนถัดไป</span><strong style={nextStepTitle}>ยืนยันว่าพร้อมออกใบแจ้งหนี้</strong><p style={nextStepHelp}>ดำเนินการเมื่อเงื่อนไขการเรียกเก็บเงินของงวดนี้เกิดขึ้นจริงแล้วเท่านั้น</p></div>
-            <button className="billing-installment-primary-action" type="button" style={primaryButton} disabled={Boolean(installmentActionId)} onClick={() => openReadinessPanel(installment)}>ยืนยันว่าพร้อมออกใบแจ้งหนี้</button>
+            <div className="billing-installment-action-group" style={installmentActionGroup}>{canAddCharge ? <button type="button" style={installmentAddButton} onClick={() => openChargeCreate(installment)}><NavigationIcon name="plus" />เพิ่มรายการ</button> : null}<button className="billing-installment-primary-action" type="button" style={primaryButton} disabled={Boolean(installmentActionId)} onClick={() => openReadinessPanel(installment)}>ยืนยันว่าพร้อมออกใบแจ้งหนี้</button></div>
           </div> : null}
           {readinessInstallmentId === installment.id ? <div ref={readinessPanelRef} style={readinessPanel}>
             <div style={readinessHeader}><div><span style={nextStepEyebrow}>การยืนยันโดยเจ้าหน้าที่</span><h4 style={readinessTitle}>ยืนยันความพร้อมออกใบแจ้งหนี้สำหรับงวดที่ {installment.installment_no}</h4></div><button type="button" style={closeButton} disabled={installmentActionId === installment.id} aria-label="ปิดแบบยืนยัน" onClick={closeReadinessPanel}>×</button></div>
@@ -499,8 +522,9 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
           </div> : null}
           {plan.status === "active" && installment.status === "ready_to_invoice" ? <div style={installmentNextStep}>
             <div><span style={nextStepEyebrow}>ขั้นตอนถัดไป</span><strong style={nextStepTitle}>{activeInvoice ? "เปิดร่างใบแจ้งหนี้" : installmentInvoices.length ? "ตรวจสอบประวัติใบแจ้งหนี้" : "จัดทำใบแจ้งหนี้"}</strong><p style={nextStepHelp}>{activeInvoice ? `${invoiceStatus[activeInvoice.document_status] || activeInvoice.document_status} พร้อมให้ตรวจสอบ โดยยังไม่มีการออกเลขที่ใหม่` : installmentInvoices.length ? "งวดนี้มีประวัติ Invoice V1 แล้ว จึงไม่สามารถนำเข้าสู่ Invoice V2 ผ่าน Composer" : "เปิดเครื่องมือจัดทำใบแจ้งหนี้พร้อมเลือกงวดนี้ให้แล้ว โดยยังไม่สร้างหรือเปลี่ยนแปลงข้อมูล"}</p></div>
-            {activeInvoice ? <Link className="billing-installment-primary-action" style={{ ...primaryButton, textDecoration: "none", display: "inline-flex", alignItems: "center" }} href={`/finance/invoices/${activeInvoice.id}`}>เปิดร่างใบแจ้งหนี้</Link> : installmentInvoices.length ? <span style={permissionNote}>ดูเอกสารเดิมได้จากประวัติด้านล่าง</span> : canComposeInstallment ? <button className="billing-installment-primary-action" type="button" style={primaryButton} onClick={() => openInvoiceSelection(installment)}>จัดทำใบแจ้งหนี้</button> : <span style={permissionNote}>สิทธิ์ของคุณไม่ครอบคลุมการรับรองงวดเพื่อจัดทำ Invoice V2</span>}
+            <div className="billing-installment-action-group" style={installmentActionGroup}>{canAddCharge ? <button type="button" style={installmentAddButton} onClick={() => openChargeCreate(installment)}><NavigationIcon name="plus" />เพิ่มรายการ</button> : null}{activeInvoice ? <Link className="billing-installment-primary-action" style={{ ...primaryButton, textDecoration: "none", display: "inline-flex", alignItems: "center" }} href={`/finance/invoices/${activeInvoice.id}`}>เปิดร่างใบแจ้งหนี้</Link> : installmentInvoices.length ? <span style={permissionNote}>ดูเอกสารเดิมได้จากประวัติด้านล่าง</span> : canComposeInstallment ? <button className="billing-installment-primary-action" type="button" style={primaryButton} onClick={() => openInvoiceSelection(installment)}>จัดทำใบแจ้งหนี้</button> : <span style={permissionNote}>สิทธิ์ของคุณไม่ครอบคลุมการรับรองงวดเพื่อจัดทำ Invoice V2</span>}</div>
           </div> : null}
+          {plan.status === "draft" && canAddCharge ? <div style={installmentDraftAction}><button type="button" style={installmentAddButton} onClick={() => openChargeCreate(installment)}><NavigationIcon name="plus" />เพิ่มรายการ</button></div> : null}
           {activeInvoice && installment.status === "invoiced" ? <div style={installmentNextStep}><div><span style={nextStepEyebrow}>ใบแจ้งหนี้</span><strong style={nextStepTitle}>{activeInvoice.invoice_no || "เอกสารใบแจ้งหนี้"}</strong></div><Link style={{ ...primaryButton, textDecoration: "none", display: "inline-flex", alignItems: "center" }} href={`/finance/invoices/${activeInvoice.id}`}>เปิดใบแจ้งหนี้</Link></div> : null}
           {historicalInvoices.length ? <section style={invoiceHistorySection} aria-label={`ประวัติใบแจ้งหนี้ของงวดที่ ${installment.installment_no}`}>
             <div style={invoiceHistoryHeader}><div><span style={invoiceHistoryEyebrow}>ประวัติเอกสาร</span><h4 style={invoiceHistoryTitle}>ประวัติใบแจ้งหนี้</h4></div><span style={invoiceHistoryCount}>{historicalInvoices.length} รายการ</span></div>
@@ -554,7 +578,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
         </section>
         <section style={invoiceSelectionSection} aria-labelledby="billing-invoice-extra-charges">
           <div style={invoiceSelectionHeading}><div><span style={nextStepEyebrow}>เลือกเพิ่มเติมได้</span><h3 id="billing-invoice-extra-charges" style={invoiceSelectionTitle}>รายการเพิ่มเติมที่สามารถรวมในใบแจ้งหนี้</h3><p style={invoiceSelectionHelp}>เลือกค่าใช้จ่ายหรือบริการเพิ่มเติมที่ต้องการรวมในใบแจ้งหนี้ฉบับเดียวกัน</p></div></div>
-          {!canViewCharges ? <div style={relatedChargeNotice}>สิทธิ์ของคุณไม่ครอบคลุมการดูรายการเรียกเก็บเพิ่มเติม</div> : compatibleReadyCharges.length === 0 ? <div style={invoiceSelectionEmpty}><strong>ยังไม่มีรายการเพิ่มเติมที่พร้อมนำไปรวมในใบแจ้งหนี้</strong><span>คุณสามารถดำเนินการต่อด้วยยอดตามแผนเพียงอย่างเดียว หรือเพิ่มรายการใหม่ก่อน</span>{canManageCharges && agreement ? <Link className="billing-invoice-add-charge" style={invoiceAddChargeLink} href={billableChargeCreateHref(plan.id, agreement, invoiceSelectionInstallment.id)}><NavigationIcon name="plus" />เพิ่มรายการเรียกเก็บ</Link> : null}</div> : <div style={invoiceChoiceList}>{compatibleReadyCharges.map((charge) => {
+          {!canViewCharges ? <div style={relatedChargeNotice}>สิทธิ์ของคุณไม่ครอบคลุมการดูรายการเรียกเก็บเพิ่มเติม</div> : compatibleReadyCharges.length === 0 ? <div style={invoiceSelectionEmpty}><strong>ยังไม่มีรายการเพิ่มเติมที่พร้อมนำไปรวมในใบแจ้งหนี้</strong><span>คุณสามารถดำเนินการต่อด้วยยอดตามแผนเพียงอย่างเดียว หรือเพิ่มรายการใหม่ก่อน</span>{canManageCharges && agreement ? <button className="billing-invoice-add-charge" type="button" style={invoiceAddChargeLink} onClick={() => openChargeCreate(invoiceSelectionInstallment)}><NavigationIcon name="plus" />เพิ่มรายการเรียกเก็บ</button> : null}</div> : <div style={invoiceChoiceList}>{compatibleReadyCharges.map((charge) => {
             const selected = selectedInvoiceChargeIds.includes(charge.id);
             const detailOpen = selectionDetailCharge?.id === charge.id;
             return <article key={charge.id} style={{ ...invoiceChargeChoice, ...(selected ? invoiceChargeChoiceSelected : {}) }}>
@@ -563,11 +587,34 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
               {detailOpen ? <dl className="billing-invoice-charge-detail" style={invoiceInlineDetail}><Field label="วันที่เกิดรายการ" value={date(charge.service_date || charge.created_at)} /><Field label="ประเภทของยอด" value={chargeClassificationLabel(charge.economic_classification)} /><Field label="การคิด VAT" value={chargeTaxLabel(charge.price_tax_mode, charge.vat_rate)} /><Field label="มูลค่าก่อน VAT" value={money(charge.amount_before_vat, charge.currency)} /><Field label="VAT" value={money(charge.vat_amount, charge.currency)} /><Field label="ยอดรวม" value={money(charge.total_amount, charge.currency)} /><Field label="อ้างอิง / หลักฐาน" value={text(charge.source_reference)} /></dl> : null}
             </article>;
           })}</div>}
-          {compatibleReadyCharges.length > 0 && canManageCharges && agreement ? <Link className="billing-invoice-add-charge" style={invoiceSecondaryAddLink} href={billableChargeCreateHref(plan.id, agreement, invoiceSelectionInstallment.id)}><NavigationIcon name="plus" />เพิ่มรายการเรียกเก็บ</Link> : null}
+          {compatibleReadyCharges.length > 0 && canManageCharges && agreement ? <button className="billing-invoice-add-charge" type="button" style={invoiceSecondaryAddLink} onClick={() => openChargeCreate(invoiceSelectionInstallment)}><NavigationIcon name="plus" />เพิ่มรายการเรียกเก็บ</button> : null}
         </section>
         <section style={invoiceSelectionSummary} aria-live="polite"><div style={invoiceSelectionHeading}><div><span style={nextStepEyebrow}>สรุปรายการที่เลือก</span><h3 style={invoiceSelectionTitle}>ยอดรวมก่อนเปิด Invoice Composer</h3></div><strong style={invoiceSelectionGrandTotal}>{money(selectionTotals.total, plan.currency)}</strong></div><dl className="billing-invoice-selection-totals" style={invoiceSelectionTotals}><Field label="ยอดตามแผน" value={money(invoiceSelectionInstallment.total_amount, plan.currency)} /><Field label={`รายการเพิ่มเติม (${selectedInvoiceCharges.length})`} value={money(selectedInvoiceCharges.reduce((sum, charge) => sum + numberValue(charge.total_amount), 0), plan.currency)} /><Field label="มูลค่าก่อน VAT" value={money(selectionTotals.before, plan.currency)} /><Field label="VAT" value={money(selectionTotals.vat, plan.currency)} /></dl><p style={invoiceSelectionDisclaimer}>ขั้นตอนนี้ยังไม่สร้างร่างหรือกันรายการ ระบบจะตรวจสอบข้อมูลต้นทางและสิทธิ์อีกครั้งใน Invoice Composer</p></section>
       </div>
     </DetailModal> : null}
+    {chargeCreateInstallment && billableChargeContext ? <DetailModal
+      open
+      title="เพิ่มรายการเรียกเก็บ"
+      subtitle={<>{billableChargeContext.clientName} · {billableChargeContext.matterLabel}</>}
+      closeLabel="ปิดแบบฟอร์มเพิ่มรายการเรียกเก็บ"
+      closeOnBackdrop={false}
+      onClose={closeChargeCreate}
+    ><BillableChargeCreateWorkflow
+      key={chargeCreateInstallment.id}
+      context={billableChargeContext}
+      canManage={canManageCharges}
+      canApprove={canComposeInstallment}
+      readyActionLabel="กลับไปจัดทำใบแจ้งหนี้"
+      onReadyAction={() => {
+        const installmentId = chargeCreateInstallment.id;
+        setChargeCreateInstallmentId("");
+        void load().then(() => {
+          setInvoiceSelectionInstallmentId(installmentId);
+          setSelectedInvoiceChargeIds([]);
+          setSelectionDetailChargeId("");
+        });
+      }}
+    /></DetailModal> : null}
     {canManage && plan.status === "draft" ? <section className="billing-plan-final-review" style={{ ...card, ...finalReviewCard }}>
       <div style={finalReviewHeader}>
         <span style={finalReviewEyebrow}>ขั้นตอนสุดท้าย</span>
@@ -603,11 +650,11 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
       .billing-plan-navigation-back:hover { background: #f8fafc !important; border-color: #94a3b8 !important; color: #172033 !important; }
       .billing-plan-navigation-source:hover { background: #e0e7ff !important; border-color: #a5b4fc !important; color: #312e81 !important; }
       .billing-plan-navigation-link:focus-visible { outline: 3px solid rgba(37, 99, 235, .24); outline-offset: 2px; }
-      .billing-plan-primary-button, .billing-plan-save-button, .billing-plan-cancel-button, .billing-installment-primary-action, .billing-plan-add-charge-link, .billing-plan-related-charge-detail { transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease; }
+      .billing-plan-primary-button, .billing-plan-save-button, .billing-plan-cancel-button, .billing-installment-primary-action, .billing-installment-action-group button, .billing-plan-related-charge-detail { transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease; }
       .billing-plan-primary-button:hover:not(:disabled), .billing-installment-primary-action:hover:not(:disabled) { background: #14532d !important; border-color: #14532d !important; }
       .billing-plan-save-button:hover:not(:disabled) { background: #f8fafc !important; border-color: #64748b !important; }
       .billing-plan-cancel-button:hover:not(:disabled) { background: #fef2f2 !important; border-color: #fca5a5 !important; }
-      .billing-plan-primary-button:focus-visible, .billing-plan-save-button:focus-visible, .billing-plan-cancel-button:focus-visible, .billing-installment-primary-action:focus-visible { outline: 3px solid rgba(37, 99, 235, .24); outline-offset: 2px; }
+      .billing-plan-primary-button:focus-visible, .billing-plan-save-button:focus-visible, .billing-plan-cancel-button:focus-visible, .billing-installment-primary-action:focus-visible, .billing-installment-action-group button:focus-visible { outline: 3px solid rgba(37, 99, 235, .24); outline-offset: 2px; }
       .billing-plan-primary-button:disabled, .billing-plan-save-button:disabled, .billing-plan-cancel-button:disabled, .billing-installment-primary-action:disabled { cursor: not-allowed !important; opacity: .58; }
       .billing-plan-invoice-history-link { transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease; }
       .billing-plan-invoice-history-link:hover { background: #f8fafc !important; border-color: #94a3b8 !important; color: #172033 !important; }
@@ -649,6 +696,8 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
         .billing-plan-normal-actions { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; width: 100%; }
         .billing-plan-danger-actions { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; width: 100%; align-items: stretch !important; }
         .billing-plan-primary-button, .billing-plan-save-button, .billing-plan-cancel-button, .billing-installment-primary-action { width: 100%; }
+        .billing-installment-action-group { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; width: 100%; }
+        .billing-installment-action-group > * { width: 100%; box-sizing: border-box; }
         .billing-plan-invoice-history-item { grid-template-columns: minmax(0, 1fr) !important; }
         .billing-plan-invoice-history-link { width: 100%; box-sizing: border-box; }
         .billing-plan-related-charge-header { align-items: stretch !important; }
@@ -678,12 +727,12 @@ function SummaryMetric({ label, value, prominent = false, compact = false }: { l
 function billingPlanDraft(plan: BillingPlan, installments: Installment[]): DraftForm { return { title: plan.title || "", description: plan.description || "", installments: installments.map((installment) => ({ id: installment.id, installment_no: installment.installment_no, sort_order: installment.sort_order, title: installment.title, trigger_description: installment.trigger_description || "", trigger_type: installment.trigger_type, due_date: installment.due_date || "", milestone_code: installment.milestone_code || "", recurring_period_start: installment.recurring_period_start || "", recurring_period_end: installment.recurring_period_end || "" })) }; }
 function billingInstallmentDisplayTitle(title: string, installmentNo: number) { const value = title.trim(); const generated = new RegExp(`^(?:งวดที่\\s*${installmentNo}|Installment\\s*${installmentNo})(?:\\s*[/\\-—]\\s*(?:งวดที่\\s*${installmentNo}|Installment\\s*${installmentNo}))?$`, "i"); return generated.test(value) ? "" : value; }
 function invoiceHistoryTimestamp(invoice: InvoiceSummary) { if (invoice.document_status === "voided") return `ยกเลิกเมื่อ ${dateTime(invoice.voided_at)}`; if (invoice.document_status === "cancelled") return `ยกเลิกร่างเมื่อ ${dateTime(invoice.cancelled_at)}`; return `สร้างเมื่อ ${dateTime(invoice.created_at)}`; }
-function billableChargeCreateHref(planId: string, agreement: FeeAgreement, resumeInstallmentId?: string) { const params = new URLSearchParams({ new: "1", client: agreement.client_id, returnTo: `/finance/billing-plans/${planId}` }); if (agreement.case_id) params.set("case", String(agreement.case_id)); if (agreement.advisory_matter_id) params.set("advisory", agreement.advisory_matter_id); if (resumeInstallmentId) params.set("resumeInvoiceForInstallment", resumeInstallmentId); return `/finance/billable-charges?${params.toString()}`; }
 function invoiceComposerHref(installmentId: string, chargeIds: string[], clientId: string) { const params = new URLSearchParams({ installment: installmentId }); if (clientId) params.set("client", clientId); chargeIds.forEach((chargeId) => params.append("charge", chargeId)); return `/finance/invoices/compose?${params.toString()}`; }
 function isUuid(value: string) { return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value); }
 function chargeStatusLabel(status: string) { return ({ draft: "ร่าง", ready_to_invoice: "พร้อมออกใบแจ้งหนี้", reserved: "กำลังจัดทำใบแจ้งหนี้", invoiced: "ออกใบแจ้งหนี้แล้ว" } as Record<string, string>)[status] || status; }
 function chargeClassificationLabel(value: string | null) { return ({ professional_fee: "ค่าวิชาชีพ", additional_service: "ค่าบริการเพิ่มเติม", reimbursable_expense: "ค่าใช้จ่ายเรียกคืน", government_or_court_fee: "ค่าธรรมเนียมศาล / หน่วยงานรัฐ", other: "อื่น ๆ" } as Record<string, string>)[value || ""] || "ยังไม่ระบุ"; }
 function chargeTaxLabel(mode: string, vatRate: number | string) { if (mode === "non_vat") return "ไม่มี VAT"; return `${mode === "vat_inclusive" ? "ราคารวม VAT แล้ว" : "ราคายังไม่รวม VAT"} · ${numberValue(vatRate).toLocaleString("en-US", { maximumFractionDigits: 4 })}%`; }
+function isExactChargeContext(charge: RelatedCharge, agreement: FeeAgreement, currency: string) { return charge.client_id === agreement.client_id && charge.currency === currency && charge.case_id === agreement.case_id && charge.advisory_matter_id === agreement.advisory_matter_id; }
 function allocationCell(key: AllocationColumnKey, allocation: Allocation, description: string | undefined, currency: string): ReactNode { if (key === "description") return description || <span style={unavailable}>ไม่พบรายการค่าบริการต้นทาง</span>; if (key === "amount_before_tax") return money(allocation.amount_before_tax, currency); if (key === "vat_amount") return money(allocation.vat_amount, currency); if (key === "total_amount") return <strong>{money(allocation.total_amount, currency)}</strong>; return allocation.allocation_percent === null ? <span style={mutedValue}>ตามยอดจริง</span> : `${numberValue(allocation.allocation_percent).toLocaleString("en-US", { maximumFractionDigits: 4 })}%`; }
 function bangkokToday() { const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()); const value = Object.fromEntries(parts.map((part) => [part.type, part.value])); return `${value.year}-${value.month}-${value.day}`; }
 function validateBillingPlanDraft(draft: DraftForm) { for (const installment of draft.installments) { if (!installment.title.trim()) return `กรุณาระบุชื่องวดที่ ${installment.installment_no}`; if (installment.trigger_type === "date" && !installment.due_date) return `กรุณาระบุวันที่ครบกำหนดของงวดที่ ${installment.installment_no}`; if (installment.trigger_type === "case_milestone" && !installment.milestone_code.trim() && !installment.trigger_description.trim()) return `กรุณาระบุเหตุการณ์สำคัญของงวดที่ ${installment.installment_no}`; if (installment.trigger_type === "recurring_period" && (!installment.recurring_period_start || !installment.recurring_period_end || installment.recurring_period_end < installment.recurring_period_start)) return `กรุณาตรวจสอบรอบระยะเวลาของงวดที่ ${installment.installment_no}`; } return ""; }
@@ -731,6 +780,9 @@ const installmentEditGrid: CSSProperties = { display: "grid", gridTemplateColumn
 const installmentFinancials: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 0, marginTop: 14, padding: "12px 0", borderTop: "1px solid #e2e8f0", borderBottom: "1px solid #e2e8f0" };
 const installmentMetaGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: "10px 16px", padding: "13px 0 2px", color: "#334155", fontSize: 13 };
 const installmentNextStep: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 18, flexWrap: "wrap", marginTop: 18, padding: 14, border: "1px solid #bbf7d0", borderRadius: 6, background: "#f7fff9" };
+const installmentActionGroup: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" };
+const installmentAddButton: CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 40, padding: "8px 12px", border: "1px solid #94a3b8", borderRadius: 6, background: "#fff", color: "#334155", cursor: "pointer", font: "inherit", fontWeight: 750 };
+const installmentDraftAction: CSSProperties = { display: "flex", justifyContent: "flex-end", marginTop: 14, paddingTop: 12, borderTop: "1px solid #e2e8f0" };
 const nextStepEyebrow: CSSProperties = { display: "block", color: "#166534", fontSize: 11, fontWeight: 800 };
 const nextStepTitle: CSSProperties = { display: "block", marginTop: 3, color: "#172033", fontSize: 15 };
 const nextStepHelp: CSSProperties = { margin: "4px 0 0", color: "#475569", fontSize: 13, lineHeight: 1.45 };

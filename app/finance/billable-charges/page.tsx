@@ -11,6 +11,7 @@ import type { UserPermissionProfile } from "../../../lib/permissions";
 import { supabase } from "../../../lib/supabase";
 import { calculateFinanceLineAmounts, type FinancePriceTaxMode } from "../finance-line-amounts";
 import FinanceSubNav from "../FinanceSubNav";
+import BillableChargeCreateWorkflow from "./BillableChargeCreateWorkflow";
 import styles from "./billable-charges.module.css";
 
 type Profile = UserPermissionProfile & {
@@ -68,7 +69,7 @@ type AuditEvent = {
   created_at: string;
 };
 type ChargeInvoiceLink = { invoiceId: string; invoiceNo: string | null; documentStatus: string };
-type BillingPlanReturnContext = { returnTo: string; returnLabel: string; clientName: string; matterLabel: string };
+type BillingPlanReturnContext = { returnTo: string; returnLabel: string; clientId: string; caseId: number | null; advisoryMatterId: string | null; clientName: string; matterLabel: string };
 
 type ChargeForm = {
   sourceType: "ad_hoc_service" | "recoverable_cost";
@@ -353,7 +354,7 @@ function BillableChargesWorkspace() {
         }
         if (!active) return;
         const resolvedMatterLabel = caseItem ? `คดี · ${caseOptionLabel(caseItem)}` : advisory ? `งานที่ปรึกษา · ${advisoryOptionLabel(advisory)}` : "ไม่ผูกกับงานเฉพาะ";
-        setBillingPlanContext({ returnTo: finalReturnTo, returnLabel, clientName: client.name || "ลูกค้าไม่มีชื่อ", matterLabel: resolvedMatterLabel });
+        setBillingPlanContext({ returnTo: finalReturnTo, returnLabel, clientId: canonicalClientId, caseId: canonicalCaseId ? Number(canonicalCaseId) : null, advisoryMatterId: canonicalAdvisoryId || null, clientName: client.name || "ลูกค้าไม่มีชื่อ", matterLabel: resolvedMatterLabel });
         openNew({
           clientId: canonicalClientId,
           matterMode: canonicalCaseId ? "case" : canonicalAdvisoryId ? "advisory" : "unlinked",
@@ -665,10 +666,19 @@ function BillableChargesWorkspace() {
         </DetailModal> : null}
 
         {panelOpen ? <section ref={panelRef} className={styles.editorSection}>
-          <div className={styles.editorHeader}><div><span className={styles.eyebrow}>{chargeId ? "รายละเอียดรายการ" : "สร้างรายการ"}</span><h2>{chargeId ? selectedCharge?.status === "draft" ? "แก้ไขร่างรายการเรียกเก็บ" : "รายละเอียดรายการเรียกเก็บ" : "เพิ่มรายการเรียกเก็บ"}</h2><p>{selectedCharge?.status === "draft" || !chargeId ? "บันทึกยอดที่ลูกค้าเป็นหนี้ VP โดยไม่กำหนดความหมายของรายได้ VAT หรือค่าตอบแทนอัตโนมัติ" : statusExplanation(selectedCharge?.status)}</p></div><button className={styles.iconButton} type="button" aria-label="ปิดรายละเอียดรายการเรียกเก็บ" onClick={() => setPanelOpen(false)}>×</button></div>
+          <div className={styles.editorHeader}><div><span className={styles.eyebrow}>{chargeId ? "รายละเอียดรายการ" : "สร้างรายการ"}</span><h2>{chargeId ? selectedCharge?.status === "draft" ? "แก้ไขร่างรายการเรียกเก็บ" : "รายละเอียดรายการเรียกเก็บ" : "เพิ่มรายการเรียกเก็บ"}</h2><p>{selectedCharge?.status === "draft" || !chargeId ? "บันทึกยอดที่ลูกค้าเป็นหนี้ VP โดยไม่กำหนดความหมายของรายได้ VAT หรือค่าตอบแทนอัตโนมัติ" : statusExplanation(selectedCharge?.status)}</p></div><button className={styles.iconButton} type="button" aria-label="ปิดรายละเอียดรายการเรียกเก็บ" onClick={() => { setPanelOpen(false); if (!chargeId) void loadWorkspace(); }}>×</button></div>
           {billingPlanContext ? <div className={`${styles.editorReturn} ${selectedCharge?.status === "ready_to_invoice" ? styles.editorReturnReady : ""}`}><div><strong>{selectedCharge?.status === "ready_to_invoice" ? "รายการพร้อมกลับไปจัดทำใบแจ้งหนี้" : "รายการนี้เปิดจากแผนเรียกเก็บเงิน"}</strong><span>{billingPlanContext.clientName} · {billingPlanContext.matterLabel}</span></div><Link className={selectedCharge?.status === "ready_to_invoice" ? styles.primaryButton : styles.secondaryButton} href={billingPlanContext.returnTo}>{billingPlanContext.returnLabel}</Link></div> : null}
 
-          {selectedCharge && (selectedCharge.status !== "draft" || selectedCharge.source_type === "billing_installment_item") ? <ReadOnlyDetail charge={selectedCharge} clients={clients} cases={cases} advisories={advisories} /> : <>
+          {!chargeId ? <BillableChargeCreateWorkflow
+            clients={clients}
+            cases={cases}
+            advisories={advisories}
+            context={billingPlanContext ? { clientId: billingPlanContext.clientId, clientName: billingPlanContext.clientName, caseId: billingPlanContext.caseId, advisoryMatterId: billingPlanContext.advisoryMatterId, matterLabel: billingPlanContext.matterLabel } : undefined}
+            canManage={permissions.canManageFinanceBillableCharges}
+            canApprove={permissions.canApproveFinanceBillableCharges}
+            readyActionLabel={billingPlanContext?.returnLabel}
+            onReadyAction={billingPlanContext ? () => { window.location.href = billingPlanContext.returnTo; } : undefined}
+          /> : selectedCharge && (selectedCharge.status !== "draft" || selectedCharge.source_type === "billing_installment_item") ? <ReadOnlyDetail charge={selectedCharge} clients={clients} cases={cases} advisories={advisories} /> : <>
             {!permissions.canManageFinanceBillableCharges ? <div className={styles.readOnlyNotice}>ข้อมูลร่างเป็นแบบอ่านอย่างเดียวสำหรับสิทธิ์ของคุณ คุณยังตรวจสอบและยืนยันพร้อมออกใบแจ้งหนี้ได้เมื่อมีสิทธิ์อนุมัติ</div> : null}
             {!chargeId ? <fieldset className={styles.sourceChoices}><legend>ยอดนี้เกิดจากอะไร</legend><label className={form.sourceType === "ad_hoc_service" ? styles.choiceActive : ""}><input type="radio" name="sourceType" value="ad_hoc_service" disabled={createSourceLocked || !permissions.canManageFinanceBillableCharges} checked={form.sourceType === "ad_hoc_service"} onChange={() => updateForm("sourceType", "ad_hoc_service")} /><span><strong>ค่าบริการ / งานเพิ่มเติม</strong><small>เช่น ค่าเดินทาง ค่าแปล ค่าล่าม หรือบริการเพิ่มเติมที่ต้องเรียกเก็บลูกค้า</small></span></label><label className={form.sourceType === "recoverable_cost" ? styles.choiceActive : ""}><input type="radio" name="sourceType" value="recoverable_cost" disabled={createSourceLocked || !permissions.canManageFinanceBillableCharges} checked={form.sourceType === "recoverable_cost"} onChange={() => updateForm("sourceType", "recoverable_cost")} /><span><strong>ค่าใช้จ่ายที่เรียกคืนจากลูกค้า</strong><small>เช่น ค่าใช้จ่ายที่ VP สำรองจ่ายและลูกค้าต้องชำระคืน</small></span></label></fieldset> : <div className={styles.sourceSummary}><span>ที่มาของยอด</span><strong>{sourceTypeLabel(form.sourceType)}</strong></div>}
 
