@@ -143,9 +143,10 @@ function InvoiceComposer({ canApproveInstallment }: { canApproveInstallment: boo
   const detailCharge = visibleCharges.find((row) => row.id === detailChargeId) || null;
   const eligibleAccounts = bankAccounts.filter(eligibleInvoicePaymentBankAccount);
   const requestedInstallmentId = searchParams.get("installment") || "";
-  const requestedChargeId = searchParams.get("charge") || "";
+  const requestedChargeIdsKey = [...new Set(searchParams.getAll("charge"))].join(",");
+  const requestedChargeIds = useMemo(() => requestedChargeIdsKey ? requestedChargeIdsKey.split(",") : [], [requestedChargeIdsKey]);
   const requestedClientId = searchParams.get("client") || "";
-  const openedFromSource = Boolean(requestedInstallmentId || requestedChargeId);
+  const openedFromSource = Boolean(requestedInstallmentId || requestedChargeIds.length);
   const requestedInstallment = installments.find((row) => row.id === requestedInstallmentId) || null;
   const requestedPlan = requestedInstallment ? planMap.get(requestedInstallment.billing_plan_id) || null : null;
   const sourceBackHref = requestedInstallmentId ? requestedPlan ? `/finance/billing-plans/${requestedPlan.id}` : "/finance/billing-plans" : "/finance/billable-charges";
@@ -161,8 +162,8 @@ function InvoiceComposer({ canApproveInstallment }: { canApproveInstallment: boo
     setSourceError("");
     setSourceNotice("");
 
-    if (requestedInstallmentId && requestedChargeId) {
-      setSourceError("ลิงก์ต้นทางระบุทั้งงวดและรายการรอเรียกเก็บ กรุณากลับไปเลือกต้นทางเพียงรายการเดียว");
+    if ((requestedInstallmentId && !isUuid(requestedInstallmentId)) || requestedChargeIds.some((id) => !isUuid(id))) {
+      setSourceError("ลิงก์ต้นทางมีรหัสรายการไม่ถูกต้อง กรุณากลับไปเลือกข้อมูลจากหน้าต้นทางอีกครั้ง");
       return;
     }
 
@@ -182,31 +183,46 @@ function InvoiceComposer({ canApproveInstallment }: { canApproveInstallment: boo
         setSourceError("ไม่พบบริบทแผนเรียกเก็บเงินที่ยังมีผล กรุณากลับไปตรวจสอบรายการต้นทาง");
         return;
       }
+      if (requestedClientId && requestedClientId !== agreement.client_id) {
+        setSourceError("ลูกค้าในลิงก์ต้นทางไม่ตรงกับแผนเรียกเก็บเงิน กรุณากลับไปตรวจสอบรายการต้นทาง");
+        return;
+      }
+      const requestedCharges = requestedChargeIds.map((id) => charges.find((row) => row.id === id)).filter((row): row is Charge => Boolean(row));
+      const installmentContext = { clientId: agreement.client_id, currency: plan.currency, caseId: agreement.case_id, advisoryId: agreement.advisory_matter_id };
+      if (requestedCharges.length !== requestedChargeIds.length || requestedCharges.some((charge) => incompatibilityReason(charge, installmentContext))) {
+        setSourceError("รายการรอเรียกเก็บบางรายการไม่พร้อมใช้งานหรือมีบริบทไม่ตรงกับงวด กรุณากลับไปเลือกใหม่จากแผนเรียกเก็บเงิน");
+        return;
+      }
       const nextItems = installmentItems.filter((row) => row.billing_installment_id === installment.id && !row.economic_classification);
       setClientId(agreement.client_id);
       setInstallmentId(installment.id);
-      setChargeIds([]);
+      setChargeIds(requestedCharges.map((charge) => charge.id));
       setAdapter(Object.fromEntries(nextItems.map((row) => [row.id, { economicClassification: "", unit: row.unit || "", confirmed: false }])));
-      setSourceNotice(`เลือกงวดที่ ${installment.installment_no} จากแผนเรียกเก็บเงินให้แล้ว กรุณาตรวจสอบข้อมูลก่อนสร้างร่าง`);
+      setSourceNotice(`เลือกงวดที่ ${installment.installment_no}${requestedCharges.length ? ` พร้อมรายการเพิ่มเติม ${requestedCharges.length} รายการ` : ""} จากแผนเรียกเก็บเงินให้แล้ว กรุณาตรวจสอบข้อมูลก่อนสร้างร่าง`);
       return;
     }
 
-    if (requestedChargeId) {
-      const charge = charges.find((row) => row.id === requestedChargeId);
-      if (!charge) {
-        setSourceError("รายการต้นทางไม่อยู่ในสถานะพร้อมออกใบแจ้งหนี้แล้ว กรุณากลับไปตรวจสอบรายการรอเรียกเก็บ");
+    if (requestedChargeIds.length) {
+      const requestedCharges = requestedChargeIds.map((id) => charges.find((row) => row.id === id)).filter((row): row is Charge => Boolean(row));
+      const firstCharge = requestedCharges[0];
+      if (requestedCharges.length !== requestedChargeIds.length || !firstCharge || requestedCharges.some((charge) => incompatibilityReason(charge, chargeContext(firstCharge)))) {
+        setSourceError("รายการต้นทางบางรายการไม่อยู่ในสถานะพร้อมหรือมีบริบทไม่ตรงกัน กรุณากลับไปตรวจสอบรายการรอเรียกเก็บ");
         return;
       }
-      setClientId(charge.client_id);
+      if (requestedClientId && requestedClientId !== firstCharge.client_id) {
+        setSourceError("ลูกค้าในลิงก์ต้นทางไม่ตรงกับรายการรอเรียกเก็บ กรุณากลับไปตรวจสอบรายการต้นทาง");
+        return;
+      }
+      setClientId(firstCharge.client_id);
       setInstallmentId("");
-      setChargeIds([charge.id]);
+      setChargeIds(requestedCharges.map((charge) => charge.id));
       setAdapter({});
-      setSourceNotice("เลือกรายการรอเรียกเก็บให้แล้ว กรุณาตรวจสอบข้อมูลก่อนสร้างร่าง");
+      setSourceNotice(`เลือกรายการรอเรียกเก็บ ${requestedCharges.length} รายการให้แล้ว กรุณาตรวจสอบข้อมูลก่อนสร้างร่าง`);
       return;
     }
 
     if (requestedClientId && clients.some((client) => client.id === requestedClientId)) setClientId(requestedClientId);
-  }, [agreementMap, canApproveInstallment, charges, clients, eligibleInstallments, installmentItems, loading, planMap, requestedChargeId, requestedClientId, requestedInstallmentId]);
+  }, [agreementMap, canApproveInstallment, charges, clients, eligibleInstallments, installmentItems, loading, planMap, requestedChargeIds, requestedClientId, requestedInstallmentId]);
 
   const resetReview = () => { setReviewing(false); setAcknowledged(false); setFieldError(""); };
   const selectClient = (value: string) => { setClientId(value); setInstallmentId(""); setChargeIds([]); setAdapter({}); requestRef.current = null; resetReview(); };
@@ -328,10 +344,12 @@ function completeReadiness(row: Installment) { return Boolean(row.readiness_even
 function chargeContext(charge: Charge) { return { clientId: charge.client_id, currency: charge.currency, caseId: charge.case_id, advisoryId: charge.advisory_matter_id }; }
 function incompatibilityReason(charge: Charge, anchor: ReturnType<typeof chargeContext> | null) {
   if (!anchor) return "";
+  if (charge.client_id !== anchor.clientId) return "รายการนี้เป็นของลูกค้าคนละราย";
   if (charge.currency !== anchor.currency) return "รายการนี้ใช้สกุลเงินต่างกัน";
   if (charge.case_id !== anchor.caseId || charge.advisory_matter_id !== anchor.advisoryId) return charge.case_id || charge.advisory_matter_id ? "รายการนี้เป็นของคนละคดี/งาน" : "รายการนี้ไม่ได้ผูกกับคดี/งานเดียวกัน";
   return "";
 }
+function isUuid(value: string) { return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value); }
 function matterLabel(caseId: number | null, advisoryId: string | null, cases: CaseRow[], advisories: Advisory[]) { if (caseId) { const row = cases.find((item) => item.id === caseId); return row ? [row.file_no, row.title].filter(Boolean).join(" · ") : "คดีที่เชื่อมไว้"; } if (advisoryId) { const row = advisories.find((item) => item.id === advisoryId); return row ? [row.matter_no, row.title].filter(Boolean).join(" · ") : "งานที่ปรึกษาที่เชื่อมไว้"; } return "ไม่ผูกกับงานเฉพาะ"; }
 function classificationLabel(value: string | null) { return classifications.find(([id]) => id === value)?.[1] || "ยังไม่ระบุ"; }
 function taxLabel(charge: Charge) { return charge.price_tax_mode === "non_vat" ? "ไม่มี VAT" : charge.price_tax_mode === "vat_inclusive" ? `รวม VAT ${Number(charge.vat_rate)}% แล้ว` : `VAT ${Number(charge.vat_rate)}%`; }

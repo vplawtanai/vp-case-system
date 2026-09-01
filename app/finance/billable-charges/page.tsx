@@ -68,7 +68,7 @@ type AuditEvent = {
   created_at: string;
 };
 type ChargeInvoiceLink = { invoiceId: string; invoiceNo: string | null; documentStatus: string };
-type BillingPlanReturnContext = { returnTo: string; clientName: string; matterLabel: string };
+type BillingPlanReturnContext = { returnTo: string; returnLabel: string; clientName: string; matterLabel: string };
 
 type ChargeForm = {
   sourceType: "ad_hoc_service" | "recoverable_cost";
@@ -283,6 +283,7 @@ function BillableChargesWorkspace() {
       const requestedCaseId = searchParams.get("case") || "";
       const requestedAdvisoryId = searchParams.get("advisory") || "";
       const requestedReturnTo = searchParams.get("returnTo");
+      const requestedResumeInstallmentId = searchParams.get("resumeInvoiceForInstallment") || "";
       const returnTo = safeBillingPlanReturnPath(requestedReturnTo);
 
       const failPreselection = (message: string) => {
@@ -329,9 +330,30 @@ function BillableChargesWorkspace() {
           failPreselection("ข้อมูลลูกค้าหรือเรื่อง/งานจากลิงก์ไม่ตรงกับข้อมูลปัจจุบัน กรุณาเลือกใหม่ก่อนบันทึก");
           return;
         }
+        let finalReturnTo = returnTo;
+        let returnLabel = "กลับไปแผนเรียกเก็บเงิน";
+        if (requestedResumeInstallmentId) {
+          if (!isUuid(requestedResumeInstallmentId)) {
+            failPreselection("ลิงก์กลับมาจัดทำใบแจ้งหนี้ไม่ถูกต้อง กรุณากลับไปเลือกงวดจากแผนอีกครั้ง");
+            return;
+          }
+          const installmentResult = await supabase
+            .from("finance_billing_installments")
+            .select("id")
+            .eq("id", requestedResumeInstallmentId)
+            .eq("billing_plan_id", planId)
+            .maybeSingle();
+          if (installmentResult.error || !installmentResult.data) {
+            console.error("LOAD BILLABLE CHARGE RESUME INSTALLMENT FAILED", installmentResult.error);
+            failPreselection("ไม่พบงวดเรียกเก็บเงินจากลิงก์นี้ กรุณากลับไปเลือกงวดจากแผนอีกครั้ง");
+            return;
+          }
+          finalReturnTo = `${returnTo}?resumeInvoiceForInstallment=${encodeURIComponent(requestedResumeInstallmentId)}`;
+          returnLabel = "กลับไปจัดทำใบแจ้งหนี้";
+        }
         if (!active) return;
         const resolvedMatterLabel = caseItem ? `คดี · ${caseOptionLabel(caseItem)}` : advisory ? `งานที่ปรึกษา · ${advisoryOptionLabel(advisory)}` : "ไม่ผูกกับงานเฉพาะ";
-        setBillingPlanContext({ returnTo, clientName: client.name || "ลูกค้าไม่มีชื่อ", matterLabel: resolvedMatterLabel });
+        setBillingPlanContext({ returnTo: finalReturnTo, returnLabel, clientName: client.name || "ลูกค้าไม่มีชื่อ", matterLabel: resolvedMatterLabel });
         openNew({
           clientId: canonicalClientId,
           matterMode: canonicalCaseId ? "case" : canonicalAdvisoryId ? "advisory" : "unlinked",
@@ -614,7 +636,7 @@ function BillableChargesWorkspace() {
 
         {billingPlanContext ? <section className={styles.billingPlanContext} aria-label="บริบทแผนเรียกเก็บเงิน">
           <div><span className={styles.eyebrow}>เพิ่มรายการสำหรับแผนเรียกเก็บเงินนี้</span><strong>{billingPlanContext.clientName}</strong><span>{billingPlanContext.matterLabel}</span><p>รายการที่พร้อมออกใบแจ้งหนี้สามารถนำไปรวมกับงวดตามแผนในขั้นตอนจัดทำใบแจ้งหนี้</p></div>
-          <Link className={styles.secondaryButton} href={billingPlanContext.returnTo}>กลับไปแผนเรียกเก็บเงิน</Link>
+          <Link className={styles.secondaryButton} href={billingPlanContext.returnTo}>{billingPlanContext.returnLabel}</Link>
         </section> : null}
 
         {error ? <div className={styles.errorBanner}>{error}</div> : null}
@@ -633,7 +655,7 @@ function BillableChargesWorkspace() {
             </article>)}</div>}
         </section>
 
-        {detailCharge ? <DetailModal open title={detailCharge.description || "ร่างรายการเรียกเก็บ"} subtitle={<>{clientLabel(detailCharge.client_id, clients)} · {matterLabel(detailCharge, cases, advisories)}</>} status={<StatusBadge status={detailCharge.status} />} prominentValue={money(detailCharge.total_amount, detailCharge.currency)} footer={billingPlanContext ? <div className={styles.returnFooter}><Link className={detailCharge.status === "ready_to_invoice" ? styles.primaryButton : styles.secondaryButton} href={billingPlanContext.returnTo}>กลับไปแผนเรียกเก็บเงิน</Link></div> : undefined} onClose={closeChargeDetails}>
+        {detailCharge ? <DetailModal open title={detailCharge.description || "ร่างรายการเรียกเก็บ"} subtitle={<>{clientLabel(detailCharge.client_id, clients)} · {matterLabel(detailCharge, cases, advisories)}</>} status={<StatusBadge status={detailCharge.status} />} prominentValue={money(detailCharge.total_amount, detailCharge.currency)} footer={billingPlanContext ? <div className={styles.returnFooter}><Link className={detailCharge.status === "ready_to_invoice" ? styles.primaryButton : styles.secondaryButton} href={billingPlanContext.returnTo}>{billingPlanContext.returnLabel}</Link></div> : undefined} onClose={closeChargeDetails}>
           <BillableChargeModalDetail charge={detailCharge} clients={clients} cases={cases} advisories={advisories} />
           {chargeInvoiceLinks[detailCharge.id] ? <div className={styles.detailActionRow}><Link className={styles.secondaryButton} href={`/finance/invoices/${chargeInvoiceLinks[detailCharge.id].invoiceId}`}>เปิดใบแจ้งหนี้ {chargeInvoiceLinks[detailCharge.id].invoiceNo || "ฉบับร่าง"}</Link></div> : null}
           {detailCharge.status === "ready_to_invoice" && !chargeInvoiceLinks[detailCharge.id] && canComposeInvoice ? <div className={styles.detailActionRow}><Link className={styles.primaryButton} href={`/finance/invoices/compose?charge=${detailCharge.id}`}>จัดทำใบแจ้งหนี้</Link></div> : null}
@@ -644,7 +666,7 @@ function BillableChargesWorkspace() {
 
         {panelOpen ? <section ref={panelRef} className={styles.editorSection}>
           <div className={styles.editorHeader}><div><span className={styles.eyebrow}>{chargeId ? "รายละเอียดรายการ" : "สร้างรายการ"}</span><h2>{chargeId ? selectedCharge?.status === "draft" ? "แก้ไขร่างรายการเรียกเก็บ" : "รายละเอียดรายการเรียกเก็บ" : "เพิ่มรายการเรียกเก็บ"}</h2><p>{selectedCharge?.status === "draft" || !chargeId ? "บันทึกยอดที่ลูกค้าเป็นหนี้ VP โดยไม่กำหนดความหมายของรายได้ VAT หรือค่าตอบแทนอัตโนมัติ" : statusExplanation(selectedCharge?.status)}</p></div><button className={styles.iconButton} type="button" aria-label="ปิดรายละเอียดรายการเรียกเก็บ" onClick={() => setPanelOpen(false)}>×</button></div>
-          {billingPlanContext ? <div className={`${styles.editorReturn} ${selectedCharge?.status === "ready_to_invoice" ? styles.editorReturnReady : ""}`}><div><strong>{selectedCharge?.status === "ready_to_invoice" ? "รายการพร้อมกลับไปจัดทำใบแจ้งหนี้" : "รายการนี้เปิดจากแผนเรียกเก็บเงิน"}</strong><span>{billingPlanContext.clientName} · {billingPlanContext.matterLabel}</span></div><Link className={selectedCharge?.status === "ready_to_invoice" ? styles.primaryButton : styles.secondaryButton} href={billingPlanContext.returnTo}>กลับไปแผนเรียกเก็บเงิน</Link></div> : null}
+          {billingPlanContext ? <div className={`${styles.editorReturn} ${selectedCharge?.status === "ready_to_invoice" ? styles.editorReturnReady : ""}`}><div><strong>{selectedCharge?.status === "ready_to_invoice" ? "รายการพร้อมกลับไปจัดทำใบแจ้งหนี้" : "รายการนี้เปิดจากแผนเรียกเก็บเงิน"}</strong><span>{billingPlanContext.clientName} · {billingPlanContext.matterLabel}</span></div><Link className={selectedCharge?.status === "ready_to_invoice" ? styles.primaryButton : styles.secondaryButton} href={billingPlanContext.returnTo}>{billingPlanContext.returnLabel}</Link></div> : null}
 
           {selectedCharge && (selectedCharge.status !== "draft" || selectedCharge.source_type === "billing_installment_item") ? <ReadOnlyDetail charge={selectedCharge} clients={clients} cases={cases} advisories={advisories} /> : <>
             {!permissions.canManageFinanceBillableCharges ? <div className={styles.readOnlyNotice}>ข้อมูลร่างเป็นแบบอ่านอย่างเดียวสำหรับสิทธิ์ของคุณ คุณยังตรวจสอบและยืนยันพร้อมออกใบแจ้งหนี้ได้เมื่อมีสิทธิ์อนุมัติ</div> : null}
@@ -822,6 +844,7 @@ function errorFieldLabel(field: string) {
 function fieldId(value: string) { return value.replace(/[^a-zA-Z0-9ก-๙]+/gu, "-"); }
 function formFingerprint(form: ChargeForm) { return JSON.stringify(form); }
 function safeBillingPlanReturnPath(value: string | null) { if (!value) return null; return /^\/finance\/billing-plans\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value) ? value : null; }
+function isUuid(value: string) { return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value); }
 function nullable(value: string) { return value.trim() || null; }
 function safeNumber(value: number | string) { const next = Number(value || 0); return Number.isFinite(next) ? next : 0; }
 function isDecimal(value: string, decimals: number, allowZero: boolean) { const normalized = value.trim(); if (!new RegExp(`^\\d+(?:\\.\\d{1,${decimals}})?$`).test(normalized)) return false; const parsed = Number(normalized); return allowZero ? parsed >= 0 : parsed > 0; }
