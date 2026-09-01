@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import DetailModal from "../../../components/DetailModal";
 import BillableChargeCreateWorkflow, { type BillableChargeContext } from "../../billable-charges/BillableChargeCreateWorkflow";
+import { filterChargesForBillingContext, type BillingChargeContext } from "../charge-context";
 import { QuotationGuard } from "../../quotations/shared";
 import { supabase } from "../../../../lib/supabase";
 import { feeAgreementStatusLabel } from "../../fee-agreements/lifecycle";
@@ -60,7 +61,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
   const [allocations, setAllocations] = useState<Allocation[]>([]);
   const [agreementItems, setAgreementItems] = useState<AgreementItem[]>([]);
   const [invoices, setInvoices] = useState<InvoiceSummary[]>([]);
-  const [relatedCharges, setRelatedCharges] = useState<RelatedCharge[]>([]);
+  const [relatedChargeCandidates, setRelatedChargeCandidates] = useState<RelatedCharge[]>([]);
   const [relatedChargeId, setRelatedChargeId] = useState("");
   const [invoiceSelectionInstallmentId, setInvoiceSelectionInstallmentId] = useState("");
   const [selectedInvoiceChargeIds, setSelectedInvoiceChargeIds] = useState<string[]>([]);
@@ -157,19 +158,15 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
 
     let relatedChargesResult: { data: unknown[] | null; error: unknown } = { data: [], error: null };
     if (canViewCharges && agreementRow) {
-      let relatedChargeQuery = supabase
+      relatedChargesResult = await supabase
         .from("finance_billable_charges")
         .select("id,client_id,case_id,advisory_matter_id,source_type,description,service_date,economic_classification,price_tax_mode,vat_rate,amount_before_vat,vat_amount,total_amount,currency,status,source_reference,created_at,ready_to_invoice_at")
         .eq("client_id", agreementRow.client_id)
         .eq("currency", planRow.currency)
         .neq("source_type", "billing_installment_item")
-        .in("status", ["draft", "ready_to_invoice", "reserved", "invoiced"]);
-      relatedChargeQuery = agreementRow.case_id
-        ? relatedChargeQuery.eq("case_id", agreementRow.case_id).is("advisory_matter_id", null)
-        : agreementRow.advisory_matter_id
-          ? relatedChargeQuery.is("case_id", null).eq("advisory_matter_id", agreementRow.advisory_matter_id)
-          : relatedChargeQuery.is("case_id", null).is("advisory_matter_id", null);
-      relatedChargesResult = await relatedChargeQuery.order("service_date", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false });
+        .in("status", ["draft", "ready_to_invoice", "reserved", "invoiced"])
+        .order("service_date", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false });
     }
 
     if (agreementResult.error || installmentsResult.error || allocationsResult.error || agreementItemsResult.error || invoicesResult.error || relatedChargesResult.error) {
@@ -180,8 +177,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
     setAllocations(allocationRows);
     setAgreementItems((agreementItemsResult.data || []) as AgreementItem[]);
     setInvoices((invoicesResult.data || []) as InvoiceSummary[]);
-    const loadedRelatedCharges = (relatedChargesResult.data || []) as RelatedCharge[];
-    setRelatedCharges(agreementRow ? loadedRelatedCharges.filter((charge) => isExactChargeContext(charge, agreementRow, planRow.currency)) : []);
+    setRelatedChargeCandidates((relatedChargesResult.data || []) as RelatedCharge[]);
     setRelatedChargeId("");
     setSelectionDetailChargeId("");
     const nextDraft = billingPlanDraft(planRow, installmentRows);
@@ -318,6 +314,13 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
   }, [installments, plan]);
 
   const duplicateInstallmentNo = useMemo(() => new Set(installments.map((installment) => installment.installment_no)).size !== installments.length, [installments]);
+  const relatedChargeContext = useMemo<BillingChargeContext | null>(() => agreement ? {
+    clientId: agreement.client_id,
+    currency: plan?.currency || "",
+    caseId: agreement.case_id,
+    advisoryMatterId: agreement.advisory_matter_id,
+  } : null, [agreement, plan?.currency]);
+  const relatedCharges = useMemo(() => filterChargesForBillingContext(relatedChargeCandidates, relatedChargeContext), [relatedChargeCandidates, relatedChargeContext]);
   const relatedCharge = useMemo(() => relatedCharges.find((charge) => charge.id === relatedChargeId) || null, [relatedChargeId, relatedCharges]);
   const compatibleReadyCharges = useMemo(() => relatedCharges.filter((charge) => charge.status === "ready_to_invoice" && charge.source_type !== "billing_installment_item"), [relatedCharges]);
   const invoiceSelectionInstallment = useMemo(() => installments.find((installment) => installment.id === invoiceSelectionInstallmentId) || null, [installments, invoiceSelectionInstallmentId]);
@@ -536,19 +539,17 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
         </article>;
       })}
     </section>
-    <section style={{ ...card, ...relatedChargeSection }} aria-label="รายการเรียกเก็บเพิ่มเติมที่เกี่ยวข้อง">
+    {relatedCharges.length > 0 ? <section style={{ ...card, ...relatedChargeSection }} aria-label="รายการเพิ่มเติมของงานนี้">
       <details className="billing-plan-related-charge-overview">
-        <summary style={relatedChargeSummary}><span><strong>รายการเพิ่มเติมที่เกี่ยวข้อง</strong><small>ดูรายการร่าง พร้อมออกใบแจ้งหนี้ และประวัติของบริบทนี้</small></span><span style={relatedChargeCount}>{relatedCharges.length} รายการ</span></summary>
-        {!canViewCharges ? <div style={relatedChargeNotice}>สิทธิ์ของคุณไม่ครอบคลุมการดูรายการเรียกเก็บเพิ่มเติม</div> : <>
+        <summary style={relatedChargeSummary}><span><strong>รายการเพิ่มเติมของงานนี้ ({relatedCharges.length})</strong><small>ดูสถานะและประวัติรายการของลูกค้า สกุลเงิน และเรื่อง/งานเดียวกัน</small></span><span style={relatedChargeCount}>ดูรายการ</span></summary>
         {!canManageCharges ? <p style={relatedChargePermission}>คุณดูรายการที่เกี่ยวข้องได้ แต่ไม่มีสิทธิ์เพิ่มหรือแก้ไขรายการเรียกเก็บ</p> : null}
-        {relatedCharges.length === 0 ? <div style={relatedChargeEmpty}><strong>ยังไม่มีรายการเพิ่มเติมสำหรับงานนี้</strong><span>รายการที่มีลูกค้า สกุลเงิน และเรื่อง/งานตรงกับแผนจะแสดงที่นี่</span></div> : <div className="billing-plan-related-charge-grid" style={relatedChargeGrid}>{relatedCharges.map((charge) => <article key={charge.id} style={relatedChargeCard}>
+        <div className="billing-plan-related-charge-grid" style={relatedChargeGrid}>{relatedCharges.map((charge) => <article key={charge.id} style={relatedChargeCard}>
           <div style={relatedChargeCardHeader}><div style={relatedChargeCardCopy}><span style={relatedChargeDate}>{date(charge.service_date || charge.created_at)}</span><h3 style={relatedChargeCardTitle}>{text(charge.description, "ร่างรายการเรียกเก็บ")}</h3></div><StatusBadge status={charge.status} label={chargeStatusLabel(charge.status)} /></div>
           <dl style={relatedChargeMetrics}><div><dt style={relatedChargeMetricLabel}>ประเภทของยอด</dt><dd style={relatedChargeMetricValue}>{chargeClassificationLabel(charge.economic_classification)}</dd></div><div><dt style={relatedChargeMetricLabel}>VAT</dt><dd style={relatedChargeMetricValue}>{chargeTaxLabel(charge.price_tax_mode, charge.vat_rate)}</dd></div></dl>
           <div style={relatedChargeCardFooter}><strong style={relatedChargeAmount}>{money(charge.total_amount, charge.currency)}</strong><button className="billing-plan-related-charge-detail" type="button" style={relatedChargeDetailButton} onClick={() => setRelatedChargeId(charge.id)}>ดูรายละเอียด</button></div>
-        </article>)}</div>}
-        </>}
+        </article>)}</div>
       </details>
-    </section>
+    </section> : null}
     {relatedCharge ? <DetailModal open title={text(relatedCharge.description, "ร่างรายการเรียกเก็บ")} subtitle={<>{client} · {matter}</>} status={<StatusBadge status={relatedCharge.status} label={chargeStatusLabel(relatedCharge.status)} />} prominentValue={money(relatedCharge.total_amount, relatedCharge.currency)} onClose={() => setRelatedChargeId("")}>
       <dl className="billing-plan-related-charge-detail-grid" style={relatedChargeDetailGrid}>
         <Field label="วันที่เกิดรายการ" value={date(relatedCharge.service_date || relatedCharge.created_at)} />
@@ -732,7 +733,6 @@ function isUuid(value: string) { return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{
 function chargeStatusLabel(status: string) { return ({ draft: "ร่าง", ready_to_invoice: "พร้อมออกใบแจ้งหนี้", reserved: "กำลังจัดทำใบแจ้งหนี้", invoiced: "ออกใบแจ้งหนี้แล้ว" } as Record<string, string>)[status] || status; }
 function chargeClassificationLabel(value: string | null) { return ({ professional_fee: "ค่าวิชาชีพ", additional_service: "ค่าบริการเพิ่มเติม", reimbursable_expense: "ค่าใช้จ่ายเรียกคืน", government_or_court_fee: "ค่าธรรมเนียมศาล / หน่วยงานรัฐ", other: "อื่น ๆ" } as Record<string, string>)[value || ""] || "ยังไม่ระบุ"; }
 function chargeTaxLabel(mode: string, vatRate: number | string) { if (mode === "non_vat") return "ไม่มี VAT"; return `${mode === "vat_inclusive" ? "ราคารวม VAT แล้ว" : "ราคายังไม่รวม VAT"} · ${numberValue(vatRate).toLocaleString("en-US", { maximumFractionDigits: 4 })}%`; }
-function isExactChargeContext(charge: RelatedCharge, agreement: FeeAgreement, currency: string) { return charge.client_id === agreement.client_id && charge.currency === currency && charge.case_id === agreement.case_id && charge.advisory_matter_id === agreement.advisory_matter_id; }
 function allocationCell(key: AllocationColumnKey, allocation: Allocation, description: string | undefined, currency: string): ReactNode { if (key === "description") return description || <span style={unavailable}>ไม่พบรายการค่าบริการต้นทาง</span>; if (key === "amount_before_tax") return money(allocation.amount_before_tax, currency); if (key === "vat_amount") return money(allocation.vat_amount, currency); if (key === "total_amount") return <strong>{money(allocation.total_amount, currency)}</strong>; return allocation.allocation_percent === null ? <span style={mutedValue}>ตามยอดจริง</span> : `${numberValue(allocation.allocation_percent).toLocaleString("en-US", { maximumFractionDigits: 4 })}%`; }
 function bangkokToday() { const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()); const value = Object.fromEntries(parts.map((part) => [part.type, part.value])); return `${value.year}-${value.month}-${value.day}`; }
 function validateBillingPlanDraft(draft: DraftForm) { for (const installment of draft.installments) { if (!installment.title.trim()) return `กรุณาระบุชื่องวดที่ ${installment.installment_no}`; if (installment.trigger_type === "date" && !installment.due_date) return `กรุณาระบุวันที่ครบกำหนดของงวดที่ ${installment.installment_no}`; if (installment.trigger_type === "case_milestone" && !installment.milestone_code.trim() && !installment.trigger_description.trim()) return `กรุณาระบุเหตุการณ์สำคัญของงวดที่ ${installment.installment_no}`; if (installment.trigger_type === "recurring_period" && (!installment.recurring_period_start || !installment.recurring_period_end || installment.recurring_period_end < installment.recurring_period_start)) return `กรุณาตรวจสอบรอบระยะเวลาของงวดที่ ${installment.installment_no}`; } return ""; }
@@ -799,11 +799,10 @@ const invoiceHistoryNumber: CSSProperties = { color: "#334155", fontSize: 14, ov
 const invoiceHistoryMeta: CSSProperties = { display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, color: "#64748b", fontSize: 12 };
 const invoiceHistoryLink: CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 38, padding: "8px 11px", border: "1px solid #cbd5e1", borderRadius: 6, background: "#fff", color: "#475569", fontSize: 13, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" };
 const relatedChargeSection: CSSProperties = { borderColor: "#cbd5e1", background: "#fbfcfd" };
-const relatedChargeSummary: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, cursor: "pointer", color: "#334155" };
+const relatedChargeSummary: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap", cursor: "pointer", color: "#334155" };
 const relatedChargeCount: CSSProperties = { flex: "0 0 auto", color: "#64748b", fontSize: 12, fontWeight: 700 };
 const relatedChargeNotice: CSSProperties = { marginTop: 14, padding: "11px 12px", border: "1px solid #e2e8f0", borderRadius: 6, background: "#fff", color: "#64748b", fontSize: 13, lineHeight: 1.5 };
 const relatedChargePermission: CSSProperties = { margin: "13px 0 0", color: "#7c5b18", fontSize: 12, fontWeight: 700 };
-const relatedChargeEmpty: CSSProperties = { display: "grid", gap: 4, marginTop: 14, padding: "18px 14px", border: "1px dashed #cbd5e1", borderRadius: 7, background: "#fff", color: "#64748b", fontSize: 12, textAlign: "center" };
 const relatedChargeGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12, marginTop: 14 };
 const relatedChargeCard: CSSProperties = { display: "grid", gap: 12, minWidth: 0, padding: 14, border: "1px solid #dbe3ee", borderRadius: 7, background: "#fff" };
 const relatedChargeCardHeader: CSSProperties = { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 };
