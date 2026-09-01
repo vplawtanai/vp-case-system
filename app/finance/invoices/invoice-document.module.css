@@ -59,6 +59,10 @@
   grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
 }
 
+.customerPanelSingle {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .customerBlock,
 .matterBlock {
   min-width: 0;
@@ -97,6 +101,10 @@
   color: #64748b;
   font-size: 8pt;
   line-height: 1.5;
+}
+
+.secondaryReference {
+  margin-top: 3mm;
 }
 
 .tableWrap {

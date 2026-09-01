@@ -26,14 +26,16 @@ export function InvoiceDocument({
   items: FinanceInvoiceItem[];
   identity: DocumentIdentity;
   logoUrl: string;
-  matter: string;
-  installmentLabel: string;
+  matter: string | null;
+  installmentLabel: string | null;
   paymentDestination: InvoicePaymentDestination | null;
 }) {
   const thai = invoice.language_code !== "en";
   const labels = thai ? thaiLabels : englishLabels;
   const isDraft = invoice.document_status === "draft";
   const isVoided = invoice.document_status === "voided";
+  const showInstallment = invoice.source_model !== "billable_charge_v2" && Boolean(installmentLabel);
+  const showReferencePanel = Boolean(matter || showInstallment);
   const documentNo = isDraft
     ? labels.draftReference
     : displayText(invoice.invoice_no, labels.noNumber);
@@ -58,7 +60,7 @@ export function InvoiceDocument({
         <DocumentField label={labels.dueDate} value={formatDocumentDate(invoice.due_date, invoice.language_code)} />
       </section>
 
-      <section className={styles.customerPanel}>
+      <section className={`${styles.customerPanel} ${showReferencePanel ? "" : styles.customerPanelSingle}`}>
         <div className={styles.customerBlock}>
           <DocumentField label={labels.customer} value={displayText(invoice.customer_name)} />
           <div className={styles.contact}>
@@ -67,10 +69,10 @@ export function InvoiceDocument({
             {[invoice.customer_phone, invoice.customer_email].filter(Boolean).length ? <div>{[invoice.customer_phone, invoice.customer_email].filter(Boolean).join(" · ")}</div> : null}
           </div>
         </div>
-        <div className={styles.matterBlock}>
-          <DocumentField label={labels.reference} value={matter} />
-          <div style={{ marginTop: "3mm" }}><DocumentField label={invoice.source_model === "billable_charge_v2" ? (thai ? "ที่มาของยอดเรียกเก็บ" : "Billing source") : labels.installment} value={installmentLabel} /></div>
-        </div>
+        {showReferencePanel ? <div className={styles.matterBlock}>
+          {matter ? <DocumentField label={labels.reference} value={matter} /> : null}
+          {showInstallment && installmentLabel ? <div className={matter ? styles.secondaryReference : undefined}><DocumentField label={labels.installment} value={installmentLabel} /></div> : null}
+        </div> : null}
       </section>
 
       <section className={styles.section}>
@@ -84,7 +86,7 @@ export function InvoiceDocument({
               <col style={{ width: "13%" }} />
               <col style={{ width: "16%" }} />
             </colgroup>
-            <thead><tr><th>{labels.description}</th><th>{labels.vat}</th><th>{labels.beforeVat}</th><th>{labels.vatAmount}</th><th>{labels.total}</th></tr></thead>
+            <thead><tr><th>{labels.description}</th><th>{labels.vatTreatment}</th><th>{labels.beforeVat}</th><th>{labels.vatAmount}</th><th>{labels.total}</th></tr></thead>
             <tbody>
               {items.map((item) => (
                 <tr key={item.id}>
@@ -153,9 +155,9 @@ const thaiLabels = {
   taxId: "เลขประจำตัวผู้เสียภาษี",
   reference: "เรื่อง/งานอ้างอิง",
   installment: "งวดเรียกเก็บเงิน",
-  items: "รายการค่าบริการ",
+  items: "รายการเรียกเก็บ",
   description: "รายการ",
-  vat: "VAT",
+  vatTreatment: "การคิด VAT",
   beforeVat: "มูลค่าก่อน VAT",
   vatAmount: "VAT",
   total: "ยอดรวม",
@@ -187,9 +189,9 @@ const englishLabels = {
   taxId: "Tax ID",
   reference: "Matter / Reference",
   installment: "Billing Installment",
-  items: "Service Items",
+  items: "Billing Items",
   description: "Description",
-  vat: "VAT",
+  vatTreatment: "VAT Treatment",
   beforeVat: "Before VAT",
   vatAmount: "VAT",
   total: "Total",

@@ -113,12 +113,11 @@ function InvoicePreview({ id }: { id: string }) {
   if (loading) return <main style={shell}>กำลังโหลดตัวอย่างใบแจ้งหนี้...</main>;
   if (!invoice) return <main style={shell}>{error || "ไม่พบใบแจ้งหนี้"}</main>;
 
-  const matter = displayText(invoice.matter_snapshot_json?.title, displayText(invoice.matter_snapshot_json?.file_no, "ยังไม่ผูกเรื่อง"));
+  const matterText = displayText(invoice.matter_snapshot_json?.title, displayText(invoice.matter_snapshot_json?.file_no, ""));
+  const matter = matterText || null;
   const installmentLabel = invoice.source_model === "billable_charge_v2"
-    ? invoice.v2_bridge_id
-      ? `${installment ? `งวดที่ ${installment.installment_no}${installment.title ? ` · ${installment.title}` : ""}` : "งวดตามแผน"} + รายการรอเรียกเก็บ`
-      : "รายการรอเรียกเก็บ"
-    : installment ? `งวดที่ ${installment.installment_no}${installment.title ? ` · ${installment.title}` : ""}` : "-";
+    ? null
+    : installment ? `งวดที่ ${installment.installment_no}${installment.title ? ` · ${installment.title}` : ""}` : null;
 
   return <main style={shell}>
     <div className="invoice-preview-controls" style={controls}>
