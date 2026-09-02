@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 // @ts-expect-error Node's strip-types test runner requires the explicit TypeScript extension.
-import { canAddChargeFromInstallment, filterChargesForBillingContext, partitionChargesByWorkflow } from "./charge-context.ts";
+import { billingPlanReadyChargeCompletionState, canAddChargeFromInstallment, filterChargesForBillingContext, partitionChargesByWorkflow } from "./charge-context.ts";
 
 const advisoryContext = { clientId: "client-1", currency: "THB", caseId: null, advisoryMatterId: "advisory-1" };
 const caseContext = { clientId: "client-1", currency: "THB", caseId: 42, advisoryMatterId: null };
@@ -63,4 +63,14 @@ test("Additional Charge shortcut follows installment and Invoice lifecycle", () 
   assert.equal(canAddChargeFromInstallment({ ...base, installmentStatus: "cancelled" }), false);
   assert.equal(canAddChargeFromInstallment({ ...base, planStatus: "completed", installmentStatus: "pending" }), false);
   assert.equal(canAddChargeFromInstallment({ ...base, canManageCharges: false, installmentStatus: "pending" }), false);
+});
+
+test("Ready Charge closes Billing Plan quick-add without opening Invoice selection", () => {
+  assert.deepEqual(billingPlanReadyChargeCompletionState(), {
+    chargeCreateInstallmentId: "",
+    invoiceSelectionInstallmentId: "",
+    selectedInvoiceChargeIds: [],
+    selectionDetailChargeId: "",
+    expandCurrentCharges: true,
+  });
 });

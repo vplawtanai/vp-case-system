@@ -7,7 +7,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import DetailModal from "../../../components/DetailModal";
 import BillableChargeCreateWorkflow, { type BillableChargeContext } from "../../billable-charges/BillableChargeCreateWorkflow";
 import { billableChargeNatureLabel, clientCostFundingModeLabel, type ClientCostFundingMode } from "../../billable-charges/funding-semantics";
-import { canAddChargeFromInstallment, filterChargesForBillingContext, partitionChargesByWorkflow, type BillingChargeContext } from "../charge-context";
+import { billingPlanReadyChargeCompletionState, canAddChargeFromInstallment, filterChargesForBillingContext, partitionChargesByWorkflow, type BillingChargeContext } from "../charge-context";
 import { QuotationGuard } from "../../quotations/shared";
 import { supabase } from "../../../../lib/supabase";
 import { feeAgreementStatusLabel } from "../../fee-agreements/lifecycle";
@@ -70,6 +70,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
   const [selectedInvoiceChargeIds, setSelectedInvoiceChargeIds] = useState<string[]>([]);
   const [selectionDetailChargeId, setSelectionDetailChargeId] = useState("");
   const [chargeCreateInstallmentId, setChargeCreateInstallmentId] = useState("");
+  const [expandCurrentCharges, setExpandCurrentCharges] = useState(false);
   const [draft, setDraft] = useState<DraftForm>({ title: "", description: "", installments: [] });
   const [savedBaseline, setSavedBaseline] = useState("");
   const [loading, setLoading] = useState(true);
@@ -578,6 +579,9 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
       })}
     </section>
     {chargeWorkflow.current.length > 0 ? <ChargeOverview
+      sectionId="billing-plan-current-charges"
+      open={expandCurrentCharges}
+      onOpenChange={setExpandCurrentCharges}
       charges={chargeWorkflow.current}
       invoiceLinks={chargeInvoiceLinks}
       canManageCharges={canManageCharges}
@@ -651,14 +655,19 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
       context={billableChargeContext}
       canManage={canManageCharges}
       canApprove={canComposeInstallment}
-      readyActionLabel="กลับไปจัดทำใบแจ้งหนี้"
-      onReadyAction={() => {
-        const installmentId = chargeCreateInstallment.id;
-        setChargeCreateInstallmentId("");
-        void load().then(() => {
-          setInvoiceSelectionInstallmentId(installmentId);
-          setSelectedInvoiceChargeIds([]);
-          setSelectionDetailChargeId("");
+      onReady={async () => {
+        const completion = billingPlanReadyChargeCompletionState();
+        setChargeCreateInstallmentId(completion.chargeCreateInstallmentId);
+        setInvoiceSelectionInstallmentId(completion.invoiceSelectionInstallmentId);
+        setSelectedInvoiceChargeIds(completion.selectedInvoiceChargeIds);
+        setSelectionDetailChargeId(completion.selectionDetailChargeId);
+        setExpandCurrentCharges(completion.expandCurrentCharges);
+        await load();
+        setMessage("เพิ่มรายการและยืนยันพร้อมออกใบแจ้งหนี้แล้ว");
+        window.requestAnimationFrame(() => {
+          const target = document.getElementById("billing-plan-current-charges");
+          target?.focus({ preventScroll: true });
+          target?.scrollIntoView({ behavior: "smooth", block: "center" });
         });
       }}
     /></DetailModal> : null}
@@ -767,7 +776,10 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
   </main>;
 }
 
-function ChargeOverview({ charges, invoiceLinks, canManageCharges, title, helper, historical = false, onDetail }: {
+function ChargeOverview({ sectionId, open, onOpenChange, charges, invoiceLinks, canManageCharges, title, helper, historical = false, onDetail }: {
+  sectionId?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   charges: RelatedCharge[];
   invoiceLinks: Record<string, ChargeInvoiceLink>;
   canManageCharges: boolean;
@@ -776,8 +788,8 @@ function ChargeOverview({ charges, invoiceLinks, canManageCharges, title, helper
   historical?: boolean;
   onDetail: (chargeId: string) => void;
 }) {
-  return <section style={{ ...card, ...relatedChargeSection, ...(historical ? relatedChargeHistorySection : {}) }} aria-label={`${title} ${charges.length} รายการ`}>
-    <details className="billing-plan-related-charge-overview">
+  return <section id={sectionId} tabIndex={sectionId ? -1 : undefined} style={{ ...card, ...relatedChargeSection, ...(historical ? relatedChargeHistorySection : {}) }} aria-label={`${title} ${charges.length} รายการ`}>
+    <details className="billing-plan-related-charge-overview" open={open} onToggle={onOpenChange ? (event) => onOpenChange(event.currentTarget.open) : undefined}>
       <summary style={relatedChargeSummary}>
         <span><strong>{title} ({charges.length})</strong><small>{helper}</small></span>
         <span style={relatedChargeCount}>ดูรายการ</span>

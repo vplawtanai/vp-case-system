@@ -23,6 +23,14 @@ export type InstallmentChargeActionContext = {
   hasActiveInvoice: boolean;
 };
 
+export type BillingPlanReadyChargeCompletionState = {
+  chargeCreateInstallmentId: "";
+  invoiceSelectionInstallmentId: "";
+  selectedInvoiceChargeIds: string[];
+  selectionDetailChargeId: "";
+  expandCurrentCharges: true;
+};
+
 const currentChargeStatuses = new Set(["draft", "ready_to_invoice", "reserved"]);
 const historicalChargeStatuses = new Set(["invoiced", "cancelled"]);
 
@@ -51,6 +59,16 @@ export function canAddChargeFromInstallment(context: InstallmentChargeActionCont
     && ["draft", "active"].includes(context.planStatus)
     && ["pending", "ready_to_invoice"].includes(context.installmentStatus)
     && !context.hasActiveInvoice;
+}
+
+export function billingPlanReadyChargeCompletionState(): BillingPlanReadyChargeCompletionState {
+  return {
+    chargeCreateInstallmentId: "",
+    invoiceSelectionInstallmentId: "",
+    selectedInvoiceChargeIds: [],
+    selectionDetailChargeId: "",
+    expandCurrentCharges: true,
+  };
 }
 
 function sameNullableId(left: number | string | null | undefined, right: number | string | null | undefined): boolean {
