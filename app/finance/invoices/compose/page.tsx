@@ -6,7 +6,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import DetailModal from "../../../components/DetailModal";
 import { QuotationGuard } from "../../quotations/shared";
 import { supabase } from "../../../../lib/supabase";
+import type { UserPermissions } from "../../../../lib/permissions";
+import FinanceSubNav from "../../FinanceSubNav";
 import { displayText, eligibleInvoicePaymentBankAccount, money, safeInvoiceError, type FinanceBankAccount, type Json } from "../shared";
+import InvoiceWorkspaceNav from "../InvoiceWorkspaceNav";
 import styles from "../invoice-workspace.module.css";
 
 type Client = { id: string; name: string | null };
@@ -41,10 +44,11 @@ const classifications = [
 ] as const;
 
 export default function InvoiceComposerPage() {
-  return <Suspense fallback={<div className={styles.loading}>กำลังโหลดเครื่องมือสร้างใบแจ้งหนี้...</div>}><QuotationGuard canAccess={(access) => access.permissions.canEditFinanceQuotation && access.permissions.canManageFinanceBillableCharges}>{(access) => <InvoiceComposer canApproveInstallment={access.permissions.canApproveFinanceBillableCharges} />}</QuotationGuard></Suspense>;
+  return <Suspense fallback={<div className={styles.loading}>กำลังโหลดเครื่องมือสร้างใบแจ้งหนี้...</div>}><QuotationGuard canAccess={(access) => access.permissions.canEditFinanceQuotation && access.permissions.canManageFinanceBillableCharges}>{(access) => <InvoiceComposer permissions={access.permissions} />}</QuotationGuard></Suspense>;
 }
 
-function InvoiceComposer({ canApproveInstallment }: { canApproveInstallment: boolean }) {
+function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
+  const canApproveInstallment = permissions.canApproveFinanceBillableCharges;
   const router = useRouter();
   const searchParams = useSearchParams();
   const [clients, setClients] = useState<Client[]>([]);
@@ -150,7 +154,7 @@ function InvoiceComposer({ canApproveInstallment }: { canApproveInstallment: boo
   const requestedInstallment = installments.find((row) => row.id === requestedInstallmentId) || null;
   const requestedPlan = requestedInstallment ? planMap.get(requestedInstallment.billing_plan_id) || null : null;
   const sourceBackHref = requestedInstallmentId ? requestedPlan ? `/finance/billing-plans/${requestedPlan.id}` : "/finance/billing-plans" : "/finance/billable-charges";
-  const sourceBackLabel = requestedInstallmentId ? "กลับไปแผนเรียกเก็บเงิน" : "กลับไปรายการรอเรียกเก็บ";
+  const sourceBackLabel = requestedInstallmentId ? "กลับไปแผนเรียกเก็บเงิน" : "กลับไปรายการเรียกเก็บเพิ่มเติม";
   const totals = useMemo(() => {
     const rows = selectedCharges.reduce((sum, row) => ({ before: sum.before + Number(row.amount_before_vat), vat: sum.vat + Number(row.vat_amount), total: sum.total + Number(row.total_amount) }), { before: 0, vat: 0, total: 0 });
     return selectedInstallment ? { before: rows.before + Number(selectedInstallment.amount_before_tax), vat: rows.vat + Number(selectedInstallment.vat_amount), total: rows.total + Number(selectedInstallment.total_amount) } : rows;
@@ -190,7 +194,7 @@ function InvoiceComposer({ canApproveInstallment }: { canApproveInstallment: boo
       const requestedCharges = requestedChargeIds.map((id) => charges.find((row) => row.id === id)).filter((row): row is Charge => Boolean(row));
       const installmentContext = { clientId: agreement.client_id, currency: plan.currency, caseId: agreement.case_id, advisoryId: agreement.advisory_matter_id };
       if (requestedCharges.length !== requestedChargeIds.length || requestedCharges.some((charge) => incompatibilityReason(charge, installmentContext))) {
-        setSourceError("รายการรอเรียกเก็บบางรายการไม่พร้อมใช้งานหรือมีบริบทไม่ตรงกับงวด กรุณากลับไปเลือกใหม่จากแผนเรียกเก็บเงิน");
+        setSourceError("รายการเรียกเก็บเพิ่มเติมบางรายการไม่พร้อมใช้งานหรือมีบริบทไม่ตรงกับงวด กรุณากลับไปเลือกใหม่จากแผนเรียกเก็บเงิน");
         return;
       }
       const nextItems = installmentItems.filter((row) => row.billing_installment_id === installment.id && !row.economic_classification);
@@ -206,18 +210,18 @@ function InvoiceComposer({ canApproveInstallment }: { canApproveInstallment: boo
       const requestedCharges = requestedChargeIds.map((id) => charges.find((row) => row.id === id)).filter((row): row is Charge => Boolean(row));
       const firstCharge = requestedCharges[0];
       if (requestedCharges.length !== requestedChargeIds.length || !firstCharge || requestedCharges.some((charge) => incompatibilityReason(charge, chargeContext(firstCharge)))) {
-        setSourceError("รายการต้นทางบางรายการไม่อยู่ในสถานะพร้อมหรือมีบริบทไม่ตรงกัน กรุณากลับไปตรวจสอบรายการรอเรียกเก็บ");
+        setSourceError("รายการต้นทางบางรายการไม่อยู่ในสถานะพร้อมหรือมีบริบทไม่ตรงกัน กรุณากลับไปตรวจสอบรายการเรียกเก็บเพิ่มเติม");
         return;
       }
       if (requestedClientId && requestedClientId !== firstCharge.client_id) {
-        setSourceError("ลูกค้าในลิงก์ต้นทางไม่ตรงกับรายการรอเรียกเก็บ กรุณากลับไปตรวจสอบรายการต้นทาง");
+        setSourceError("ลูกค้าในลิงก์ต้นทางไม่ตรงกับรายการเรียกเก็บเพิ่มเติม กรุณากลับไปตรวจสอบรายการต้นทาง");
         return;
       }
       setClientId(firstCharge.client_id);
       setInstallmentId("");
       setChargeIds(requestedCharges.map((charge) => charge.id));
       setAdapter({});
-      setSourceNotice(`เลือกรายการรอเรียกเก็บ ${requestedCharges.length} รายการให้แล้ว กรุณาตรวจสอบข้อมูลก่อนสร้างร่าง`);
+      setSourceNotice(`เลือกรายการเรียกเก็บเพิ่มเติม ${requestedCharges.length} รายการให้แล้ว กรุณาตรวจสอบข้อมูลก่อนสร้างร่าง`);
       return;
     }
 
@@ -247,7 +251,7 @@ function InvoiceComposer({ canApproveInstallment }: { canApproveInstallment: boo
 
   const openReview = () => {
     if (!clientId) return setFieldError("กรุณาเลือกลูกค้า");
-    if (!installmentId && chargeIds.length === 0) return setFieldError("กรุณาเลือกงวดหรือรายการรอเรียกเก็บอย่างน้อยหนึ่งรายการ");
+    if (!installmentId && chargeIds.length === 0) return setFieldError("กรุณาเลือกงวดหรือรายการเรียกเก็บเพิ่มเติมอย่างน้อยหนึ่งรายการ");
     if (missingAdapterItems.some((item) => !adapter[item.id]?.economicClassification || !adapter[item.id]?.confirmed)) return setFieldError("กรุณากรอกและยืนยันข้อมูลประกอบรายการค่าวิชาชีพให้ครบ");
     setFieldError(""); setReviewing(true);
     requestAnimationFrame(() => reviewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
@@ -289,7 +293,9 @@ function InvoiceComposer({ canApproveInstallment }: { canApproveInstallment: boo
 
   if (loading) return <div className={styles.loading}>กำลังโหลดเครื่องมือสร้างใบแจ้งหนี้...</div>;
   return <div className={styles.page}>
-    <div className={styles.toolbar}>{openedFromSource ? <Link className={styles.backButton} href={sourceBackHref}>{sourceBackLabel}</Link> : <Link className={styles.backButton} href="/finance/invoices">กลับไปรายการใบแจ้งหนี้</Link>}{openedFromSource ? <Link className={styles.secondaryButton} href="/finance/invoices">เปิดรายการใบแจ้งหนี้</Link> : <Link className={styles.secondaryButton} href="/finance/billable-charges">เปิดรายการรอเรียกเก็บ</Link>}</div>
+    <FinanceSubNav activePage="invoices" permissions={permissions} />
+    <InvoiceWorkspaceNav activePage="invoices" showAdditionalCharges={permissions.canViewFinanceBillableCharges} />
+    <div className={styles.toolbar}>{openedFromSource ? <Link className={styles.backButton} href={sourceBackHref}>{sourceBackLabel}</Link> : <Link className={styles.backButton} href="/finance/invoices">กลับไปรายการใบแจ้งหนี้</Link>}{openedFromSource ? <Link className={styles.secondaryButton} href="/finance/invoices">เปิดรายการใบแจ้งหนี้</Link> : <Link className={styles.secondaryButton} href="/finance/billable-charges">เปิดรายการเรียกเก็บเพิ่มเติม</Link>}</div>
     <header className={styles.header}><div><span className={styles.eyebrow}>INVOICE COMPOSER</span><h1>จัดทำใบแจ้งหนี้</h1><p>เลือกและตรวจสอบยอดที่ต้องการเรียกเก็บ ก่อนยืนยันสร้างร่างใบแจ้งหนี้</p></div></header>
     {openedFromSource ? <div className={styles.sourceSafety}><strong>ยังไม่มีการสร้างข้อมูล</strong><span>การเปิดหน้านี้เป็นการเตรียมรายการเท่านั้น ระบบจะสร้างร่างเมื่อคุณตรวจสอบและยืนยันในขั้นตอนสุดท้าย</span></div> : null}
     {sourceError ? <div role="alert" className={styles.error}>{sourceError}</div> : null}
@@ -300,18 +306,18 @@ function InvoiceComposer({ canApproveInstallment }: { canApproveInstallment: boo
       <div className={styles.contextGrid}><Field label="ลูกค้า"><select value={clientId} onChange={(event) => selectClient(event.target.value)}><option value="">เลือกลูกค้า</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name || "ลูกค้าไม่มีชื่อ"}</option>)}</select></Field></div>
     </section>
 
-    <section className={styles.surface}><SectionHeader title="2. ค่าวิชาชีพ / งวดตามแผนเรียกเก็บ" text="เลือกได้ไม่เกินหนึ่งงวด หรือไม่เลือกหากต้องการออกใบแจ้งหนี้จากรายการรอเรียกเก็บเท่านั้น" />
+    <section className={styles.surface}><SectionHeader title="2. ยอดตามแผนเรียกเก็บเงิน" text="เลือกได้ไม่เกินหนึ่งงวด หรือไม่เลือกหากต้องการออกใบแจ้งหนี้จากรายการเรียกเก็บเพิ่มเติมเท่านั้น" />
       {!clientId ? <div className={styles.notice}>เลือกลูกค้าก่อนเพื่อดูงวดที่พร้อม</div> : <div className={styles.choiceList}>
-        <label className={`${styles.installmentChoice} ${!installmentId ? styles.choiceSelected : ""}`}><input type="radio" name="installment" value="" checked={!installmentId} onChange={() => selectInstallment("")} /><span className={styles.choiceBody}><strong>ไม่เลือกงวดตามแผน</strong><small>สร้างจากรายการรอเรียกเก็บเท่านั้น</small></span></label>
+        <label className={`${styles.installmentChoice} ${!installmentId ? styles.choiceSelected : ""}`}><input type="radio" name="installment" value="" checked={!installmentId} onChange={() => selectInstallment("")} /><span className={styles.choiceBody}><strong>ไม่เลือกงวดตามแผน</strong><small>สร้างจากรายการเรียกเก็บเพิ่มเติมเท่านั้น</small></span></label>
         {clientInstallments.map((row) => { const plan = planMap.get(row.billing_plan_id); const agreement = plan ? agreementMap.get(plan.fee_agreement_id) : null; return <label key={row.id} className={`${styles.installmentChoice} ${installmentId === row.id ? styles.choiceSelected : ""} ${!canApproveInstallment ? styles.choiceDisabled : ""}`}><input type="radio" name="installment" disabled={!canApproveInstallment} value={row.id} checked={installmentId === row.id} onChange={() => selectInstallment(row.id)} /><span className={styles.choiceBody}><strong>งวดที่ {row.installment_no} · {row.title || "งวดเรียกเก็บเงิน"}</strong><span>{agreement?.agreement_no || agreement?.title || "ข้อมูลการว่าจ้าง"} · {matterLabel(agreement?.case_id || null, agreement?.advisory_matter_id || null, cases, advisories)}</span><small>{bridgeIds.has(row.id) ? "งวดนี้มีโครงสร้างรายการที่ผ่านการรับรองแล้ว" : "ระบบจะคัดลอกยอดต้นทางตามงวดโดยไม่ให้แก้จำนวนเงิน"}</small></span><strong className={styles.choiceAmount}>{money(row.total_amount, plan?.currency || "THB")}</strong></label>; })}
         {!clientInstallments.length ? <div className={styles.notice}>ไม่พบงวดที่ผ่านเงื่อนไขเบื้องต้นสำหรับลูกค้ารายนี้</div> : null}
-        {!canApproveInstallment && clientInstallments.length ? <p className={styles.fieldError}>สิทธิ์ของคุณสร้างใบแจ้งหนี้จากรายการรอเรียกเก็บได้ แต่ไม่สามารถรับรองงวดตามแผนเรียกเก็บ</p> : null}
+        {!canApproveInstallment && clientInstallments.length ? <p className={styles.fieldError}>สิทธิ์ของคุณสร้างใบแจ้งหนี้จากรายการเรียกเก็บเพิ่มเติมได้ แต่ไม่สามารถรับรองงวดตามแผนเรียกเก็บ</p> : null}
       </div>}
       {missingAdapterItems.length ? <div className={styles.adapterPanel}><h3>ข้อมูลประกอบรายการค่าวิชาชีพ</h3><p>รายการต่อไปนี้ไม่มีประเภทของยอดในข้อมูลต้นทาง กรุณาระบุความหมายและยืนยันเท่านั้น โดยไม่แก้ยอดเงิน</p><div className={styles.adapterRows}>{missingAdapterItems.map((item) => { const agreementItem = agreementItemMap.get(item.fee_agreement_item_id); const value = adapter[item.id] || { economicClassification: "", unit: item.unit || "", confirmed: false }; return <div key={item.id} className={styles.adapterRow}><div><strong>{agreementItem?.description || "รายการตามงวด"}</strong><div className={styles.muted}>{money(item.total_amount, selectedPlan?.currency || "THB")}</div></div><Field label="ประเภทของยอด"><select value={value.economicClassification} onChange={(event) => { setAdapter((current) => ({ ...current, [item.id]: { ...value, economicClassification: event.target.value } })); resetReview(); }}><option value="">เลือกประเภท</option>{classifications.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></Field><Field label="หน่วย"><input value={value.unit} placeholder="เช่น งวด" onChange={(event) => { setAdapter((current) => ({ ...current, [item.id]: { ...value, unit: event.target.value } })); resetReview(); }} /></Field><label className={styles.checkRow}><input type="checkbox" checked={value.confirmed} onChange={(event) => { setAdapter((current) => ({ ...current, [item.id]: { ...value, confirmed: event.target.checked } })); resetReview(); }} /><span>ยืนยันข้อมูลรายการ</span></label></div>; })}</div></div> : null}
     </section>
 
-    <section className={styles.surface}><SectionHeader title="3. รายการรอเรียกเก็บ" text="เลือกได้ทั้งรายการเดียวหรือหลายรายการ รายการที่บริบทไม่ตรงกันจะไม่สามารถเลือกได้" />
-      {!clientId ? <div className={styles.notice}>เลือกลูกค้าก่อนเพื่อดูรายการพร้อมเรียกเก็บ</div> : !visibleCharges.length ? <div className={styles.empty}>ลูกค้ารายนี้ยังไม่มีรายการพร้อมออกใบแจ้งหนี้</div> : <div className={styles.choiceList}>{visibleCharges.map((charge) => { const reason = incompatibilityReason(charge, anchor); const selected = chargeIds.includes(charge.id); return <div key={charge.id} className={`${styles.chargeChoice} ${selected ? styles.choiceSelected : ""} ${reason && !selected ? styles.choiceDisabled : ""}`}><input aria-label={`เลือก ${charge.description || "รายการ"}`} type="checkbox" disabled={Boolean(reason && !selected)} checked={selected} onChange={() => toggleCharge(charge)} /><div className={styles.choiceBody}><strong>{charge.description || "รายการรอเรียกเก็บ"}</strong><div className={styles.chargeMeta}><span>{thaiDate(charge.service_date)}</span><span>{classificationLabel(charge.economic_classification)}</span><span>{taxLabel(charge)}</span><span>{matterLabel(charge.case_id, charge.advisory_matter_id, cases, advisories)}</span></div><div className={styles.chargeMeta}><span>ก่อน VAT {money(charge.amount_before_vat, charge.currency)}</span><span>VAT {money(charge.vat_amount, charge.currency)}</span><span className={styles.readyText}>พร้อมออกใบแจ้งหนี้</span></div>{reason && !selected ? <small className={styles.fieldError}>{reason}</small> : null}<button className={styles.detailButton} type="button" onClick={() => void openChargeDetail(charge.id)}>ดูรายละเอียด</button></div><strong className={styles.choiceAmount}>{money(charge.total_amount, charge.currency)}</strong></div>; })}</div>}
+    <section className={styles.surface}><SectionHeader title="3. รายการเรียกเก็บเพิ่มเติม" text="เลือกได้ทั้งรายการเดียวหรือหลายรายการ รายการที่บริบทไม่ตรงกันจะไม่สามารถเลือกได้" />
+      {!clientId ? <div className={styles.notice}>เลือกลูกค้าก่อนเพื่อดูรายการพร้อมเรียกเก็บ</div> : !visibleCharges.length ? <div className={styles.empty}>ลูกค้ารายนี้ยังไม่มีรายการพร้อมออกใบแจ้งหนี้</div> : <div className={styles.choiceList}>{visibleCharges.map((charge) => { const reason = incompatibilityReason(charge, anchor); const selected = chargeIds.includes(charge.id); return <div key={charge.id} className={`${styles.chargeChoice} ${selected ? styles.choiceSelected : ""} ${reason && !selected ? styles.choiceDisabled : ""}`}><input aria-label={`เลือก ${charge.description || "รายการ"}`} type="checkbox" disabled={Boolean(reason && !selected)} checked={selected} onChange={() => toggleCharge(charge)} /><div className={styles.choiceBody}><strong>{charge.description || "รายการเรียกเก็บเพิ่มเติม"}</strong><div className={styles.chargeMeta}><span>{thaiDate(charge.service_date)}</span><span>{classificationLabel(charge.economic_classification)}</span><span>{taxLabel(charge)}</span><span>{matterLabel(charge.case_id, charge.advisory_matter_id, cases, advisories)}</span></div><div className={styles.chargeMeta}><span>ก่อน VAT {money(charge.amount_before_vat, charge.currency)}</span><span>VAT {money(charge.vat_amount, charge.currency)}</span><span className={styles.readyText}>พร้อมออกใบแจ้งหนี้</span></div>{reason && !selected ? <small className={styles.fieldError}>{reason}</small> : null}<button className={styles.detailButton} type="button" onClick={() => void openChargeDetail(charge.id)}>ดูรายละเอียด</button></div><strong className={styles.choiceAmount}>{money(charge.total_amount, charge.currency)}</strong></div>; })}</div>}
     </section>
 
     <section className={styles.surface}><SectionHeader title="4. ข้อมูลในใบแจ้งหนี้" text="ใช้ข้อมูลบัญชีรับชำระชุดเดียวกับใบแจ้งหนี้เดิม และแก้ไขต่อได้ในร่าง" />
@@ -319,20 +325,20 @@ function InvoiceComposer({ canApproveInstallment }: { canApproveInstallment: boo
     </section>
 
     <section className={`${styles.surface} ${styles.summary}`}><SectionHeader title="สรุปยอดที่เลือก" text="ยอดนี้ใช้เพื่อช่วยตรวจสอบจากข้อมูลต้นทาง ระบบฐานข้อมูลจะตรวจสอบและบันทึกยอดจริงอีกครั้ง" />
-      {selectedInstallment ? <div className={styles.summaryLine}><span>ค่าวิชาชีพ / งวดที่ {selectedInstallment.installment_no}</span><strong>{money(selectedInstallment.total_amount, selectedPlan?.currency || "THB")}</strong></div> : null}
-      {selectedCharges.map((charge) => <div key={charge.id} className={styles.summaryLine}><span>{charge.description || "รายการรอเรียกเก็บ"}</span><strong>{money(charge.total_amount, charge.currency)}</strong></div>)}
+      {selectedInstallment ? <div className={styles.summaryLine}><span>ยอดตามแผนเรียกเก็บเงิน · งวดที่ {selectedInstallment.installment_no}</span><strong>{money(selectedInstallment.total_amount, selectedPlan?.currency || "THB")}</strong></div> : null}
+      {selectedCharges.map((charge) => <div key={charge.id} className={styles.summaryLine}><span>{charge.description || "รายการเรียกเก็บเพิ่มเติม"}</span><strong>{money(charge.total_amount, charge.currency)}</strong></div>)}
       {!selectedInstallment && !selectedCharges.length ? <div className={styles.notice}>ยังไม่ได้เลือกยอดเรียกเก็บ</div> : <dl className={styles.summaryTotals}><div><dt>ยอดก่อน VAT</dt><dd>{money(totals.before, selectedPlan?.currency || selectedCharges[0]?.currency || "THB")}</dd></div><div><dt>VAT</dt><dd>{money(totals.vat, selectedPlan?.currency || selectedCharges[0]?.currency || "THB")}</dd></div><div className={styles.grandTotal}><dt>ยอดรวมใบแจ้งหนี้</dt><dd>{money(totals.total, selectedPlan?.currency || selectedCharges[0]?.currency || "THB")}</dd></div></dl>}
       {fieldError ? <p role="alert" className={styles.fieldError}>{fieldError}</p> : null}<div className={styles.reviewActions}><button className={styles.primaryButton} type="button" onClick={openReview}>ตรวจสอบก่อนสร้างร่าง</button></div>
     </section>
 
     {reviewing ? <section ref={reviewRef} className={`${styles.surface} ${styles.reviewSection}`}><SectionHeader title="ตรวจสอบก่อนสร้างร่างใบแจ้งหนี้" text="ตรวจสอบข้อมูลทั้งหมดก่อนกันรายการไว้สำหรับร่างใบแจ้งหนี้นี้" />
-      <dl className={styles.reviewGrid}><Review label="ลูกค้า" value={clients.find((row) => row.id === clientId)?.name || "-"} /><Review label="คดี/งาน" value={anchor ? matterLabel(anchor.caseId, anchor.advisoryId, cases, advisories) : "ไม่ผูกกับงานเฉพาะ"} /><Review label="งวดตามแผน" value={selectedInstallment ? `งวดที่ ${selectedInstallment.installment_no} · ${selectedInstallment.title}` : "ไม่เลือก"} /><Review label="รายการรอเรียกเก็บ" value={`${selectedCharges.length} รายการ`} /><Review label="VAT" value={money(totals.vat, selectedPlan?.currency || selectedCharges[0]?.currency || "THB")} /><Review label="ยอดรวม" value={money(totals.total, selectedPlan?.currency || selectedCharges[0]?.currency || "THB")} /><Review label="บัญชีรับชำระ" value={bankAccounts.find((row) => row.id === bankAccountId)?.short_name || "ยังไม่เลือก"} /><Review label="วันที่ครบกำหนด" value={dueDate || "ไม่ระบุ"} /></dl>
+      <dl className={styles.reviewGrid}><Review label="ลูกค้า" value={clients.find((row) => row.id === clientId)?.name || "-"} /><Review label="คดี/งาน" value={anchor ? matterLabel(anchor.caseId, anchor.advisoryId, cases, advisories) : "ไม่ผูกกับงานเฉพาะ"} /><Review label="ยอดตามแผนเรียกเก็บเงิน" value={selectedInstallment ? `งวดที่ ${selectedInstallment.installment_no} · ${selectedInstallment.title}` : "ไม่เลือก"} /><Review label="รายการเรียกเก็บเพิ่มเติม" value={`${selectedCharges.length} รายการ`} /><Review label="VAT" value={money(totals.vat, selectedPlan?.currency || selectedCharges[0]?.currency || "THB")} /><Review label="ยอดรวม" value={money(totals.total, selectedPlan?.currency || selectedCharges[0]?.currency || "THB")} /><Review label="บัญชีรับชำระ" value={bankAccounts.find((row) => row.id === bankAccountId)?.short_name || "ยังไม่เลือก"} /><Review label="วันที่ครบกำหนด" value={dueDate || "ไม่ระบุ"} /></dl>
       <div className={styles.reservationNote}>เมื่อสร้างร่างแล้ว รายการเหล่านี้จะถูกกันไว้สำหรับใบแจ้งหนี้ฉบับนี้ จนกว่าจะออกใบแจ้งหนี้หรือยกเลิกร่าง</div>
       <label className={styles.checkRow}><input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} /><span>ยืนยันว่ารายการที่เลือกและยอดเรียกเก็บถูกต้อง และต้องการสร้างร่างใบแจ้งหนี้</span></label>
       <div className={styles.reviewActions}><button className={styles.secondaryButton} type="button" disabled={submitting} onClick={() => setReviewing(false)}>กลับไปแก้ไข</button><button className={styles.primaryButton} type="button" disabled={!acknowledged || submitting} onClick={() => void createDraft()}>{submitting ? "กำลังสร้างร่าง..." : "สร้างร่างใบแจ้งหนี้"}</button></div>
     </section> : null}
 
-    {detailCharge ? <DetailModal open title={detailCharge.description || "รายการรอเรียกเก็บ"} subtitle={matterLabel(detailCharge.case_id, detailCharge.advisory_matter_id, cases, advisories)} prominentValue={money(detailCharge.total_amount, detailCharge.currency)} onClose={closeChargeDetail}><div className={styles.modalContent}><dl className={styles.modalGrid}><Review label="วันที่" value={thaiDate(detailCharge.service_date)} /><Review label="สถานะ" value="พร้อมออกใบแจ้งหนี้" /><Review label="ประเภทของยอด" value={classificationLabel(detailCharge.economic_classification)} /><Review label="VAT" value={taxLabel(detailCharge)} /><Review label="ยอดก่อน VAT" value={money(detailCharge.amount_before_vat, detailCharge.currency)} /><Review label="VAT" value={money(detailCharge.vat_amount, detailCharge.currency)} /><Review label="ยอดรวม" value={money(detailCharge.total_amount, detailCharge.currency)} /><Review label="จำนวน/หน่วย" value={`${detailCharge.quantity} ${detailCharge.unit || "หน่วย"}`} /><Review label="อ้างอิง" value={detailCharge.source_reference || "-"} /></dl><ChargeAuditHistory audits={detailAudits} loading={detailAuditLoading} /></div></DetailModal> : null}
+    {detailCharge ? <DetailModal open title={detailCharge.description || "รายการเรียกเก็บเพิ่มเติม"} subtitle={matterLabel(detailCharge.case_id, detailCharge.advisory_matter_id, cases, advisories)} prominentValue={money(detailCharge.total_amount, detailCharge.currency)} onClose={closeChargeDetail}><div className={styles.modalContent}><dl className={styles.modalGrid}><Review label="วันที่" value={thaiDate(detailCharge.service_date)} /><Review label="สถานะ" value="พร้อมออกใบแจ้งหนี้" /><Review label="ประเภทของยอด" value={classificationLabel(detailCharge.economic_classification)} /><Review label="VAT" value={taxLabel(detailCharge)} /><Review label="ยอดก่อน VAT" value={money(detailCharge.amount_before_vat, detailCharge.currency)} /><Review label="VAT" value={money(detailCharge.vat_amount, detailCharge.currency)} /><Review label="ยอดรวม" value={money(detailCharge.total_amount, detailCharge.currency)} /><Review label="จำนวน/หน่วย" value={`${detailCharge.quantity} ${detailCharge.unit || "หน่วย"}`} /><Review label="อ้างอิง" value={detailCharge.source_reference || "-"} /></dl><ChargeAuditHistory audits={detailAudits} loading={detailAuditLoading} /></div></DetailModal> : null}
   </div>;
 }
 

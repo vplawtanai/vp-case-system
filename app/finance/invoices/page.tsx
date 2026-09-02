@@ -6,6 +6,7 @@ import { QuotationGuard } from "../quotations/shared";
 import { supabase } from "../../../lib/supabase";
 import type { UserPermissions } from "../../../lib/permissions";
 import FinanceSubNav from "../FinanceSubNav";
+import InvoiceWorkspaceNav from "./InvoiceWorkspaceNav";
 import { formatBangkokDateTime, invoiceStatusLabels, money } from "./shared";
 import styles from "./invoice-workspace.module.css";
 
@@ -50,6 +51,7 @@ function InvoiceListWorkspace({ permissions }: { permissions: UserPermissions })
 
   return <div className={styles.page}>
     <FinanceSubNav activePage="invoices" permissions={permissions} />
+    <InvoiceWorkspaceNav activePage="invoices" showAdditionalCharges={permissions.canViewFinanceBillableCharges} />
     <header className={styles.header}>
       <div><span className={styles.eyebrow}>FINANCE</span><h1>ใบแจ้งหนี้</h1><p>ตรวจสอบร่าง เอกสารที่ออกแล้ว สถานะการรับชำระ และใบแจ้งหนี้ที่เก็บไว้เป็นประวัติ</p></div>
       {canCompose ? <Link className={styles.primaryButton} href="/finance/invoices/compose">สร้างใบแจ้งหนี้</Link> : null}
@@ -70,6 +72,6 @@ function InvoiceListWorkspace({ permissions }: { permissions: UserPermissions })
 }
 
 function sourceLabel(invoice: InvoiceListRow) {
-  if (invoice.source_model !== "billable_charge_v2") return "ตามแผนเรียกเก็บ";
-  return invoice.v2_bridge_id ? "แบบรวมรายการ" : "จากรายการเรียกเก็บ";
+  if (invoice.source_model !== "billable_charge_v2") return "ยอดตามแผนเรียกเก็บเงิน";
+  return invoice.v2_bridge_id ? "ยอดตามแผน + รายการเพิ่มเติม" : "รายการเรียกเก็บเพิ่มเติม";
 }

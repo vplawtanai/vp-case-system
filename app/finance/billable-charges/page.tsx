@@ -11,6 +11,7 @@ import type { UserPermissionProfile } from "../../../lib/permissions";
 import { supabase } from "../../../lib/supabase";
 import { calculateFinanceLineAmounts, type FinancePriceTaxMode } from "../finance-line-amounts";
 import FinanceSubNav from "../FinanceSubNav";
+import InvoiceWorkspaceNav from "../invoices/InvoiceWorkspaceNav";
 import BillableChargeCreateWorkflow from "./BillableChargeCreateWorkflow";
 import styles from "./billable-charges.module.css";
 
@@ -137,7 +138,7 @@ const statusTabs: Array<{ value: "all" | ChargeStatus; label: string }> = [
 
 export default function BillableChargesPage() {
   return (
-    <Suspense fallback={<PageShell><div className={styles.loading}>กำลังโหลดรายการรอเรียกเก็บ...</div></PageShell>}>
+    <Suspense fallback={<PageShell><div className={styles.loading}>กำลังโหลดรายการเรียกเก็บเพิ่มเติม...</div></PageShell>}>
       <BillableChargesWorkspace />
     </Suspense>
   );
@@ -212,7 +213,7 @@ function BillableChargesWorkspace() {
     setLoading(true);
     setError("");
     const [chargeResult, clientResult, caseResult, advisoryResult, allocationResult] = await Promise.all([
-      supabase.from("finance_billable_charges").select("*").order("created_at", { ascending: false }),
+      supabase.from("finance_billable_charges").select("*").neq("source_type", "billing_installment_item").order("created_at", { ascending: false }),
       supabase.from("clients").select("id,name,client_type").order("name"),
       supabase.from("cases").select("id,client_id,file_no,title").order("created_at", { ascending: false }),
       supabase.from("advisory_matters").select("id,client_id,matter_no,title").order("created_at", { ascending: false }),
@@ -221,7 +222,7 @@ function BillableChargesWorkspace() {
     const firstError = chargeResult.error || clientResult.error || caseResult.error || advisoryResult.error || allocationResult.error;
     if (firstError) {
       console.error("LOAD BILLABLE CHARGE WORKSPACE FAILED", { chargeResult, clientResult, caseResult, advisoryResult });
-      setError("โหลดรายการรอเรียกเก็บไม่สำเร็จ กรุณารีเฟรชและลองอีกครั้ง");
+      setError("โหลดรายการเรียกเก็บเพิ่มเติมไม่สำเร็จ กรุณารีเฟรชและลองอีกครั้ง");
     } else {
       setCharges((chargeResult.data || []) as BillableCharge[]);
       setClients((clientResult.data || []) as ClientOption[]);
@@ -626,13 +627,14 @@ function BillableChargesWorkspace() {
 
   return (
     <PageShell>
-      {loadingProfile || loading ? <div className={styles.loading}>กำลังโหลดรายการรอเรียกเก็บ...</div> : null}
-      {!loadingProfile && !permissions.canViewFinanceBillableCharges ? <div className={styles.noAccess}><h1>ไม่มีสิทธิ์เข้าถึง</h1><p>บัญชีผู้ใช้นี้ไม่มีสิทธิ์ดูรายการรอเรียกเก็บ</p></div> : null}
+      {loadingProfile || loading ? <div className={styles.loading}>กำลังโหลดรายการเรียกเก็บเพิ่มเติม...</div> : null}
+      {!loadingProfile && !permissions.canViewFinanceBillableCharges ? <div className={styles.noAccess}><h1>ไม่มีสิทธิ์เข้าถึง</h1><p>บัญชีผู้ใช้นี้ไม่มีสิทธิ์ดูรายการเรียกเก็บเพิ่มเติม</p></div> : null}
       {!loadingProfile && permissions.canViewFinanceBillableCharges ? <>
-        <FinanceSubNav activePage="billable-charges" permissions={permissions} />
+        <FinanceSubNav activePage="invoices" permissions={permissions} />
+        <InvoiceWorkspaceNav activePage="billable-charges" />
         <header className={styles.workspaceHeader}>
-          <div><span className={styles.eyebrow}>FINANCE</span><h1>รายการรอเรียกเก็บ</h1><p>รายการที่ลูกค้าเป็นหนี้ VP และรอรวบรวมเพื่อออกใบแจ้งหนี้</p></div>
-          <div className={styles.headerActions}>{canComposeInvoice ? <Link className={styles.secondaryButton} href="/finance/invoices/compose">จัดทำใบแจ้งหนี้</Link> : null}{permissions.canManageFinanceBillableCharges ? <button className={styles.primaryButton} type="button" onClick={() => openNew()}><PlusIcon />เพิ่มรายการเรียกเก็บ</button> : null}</div>
+          <div><span className={styles.eyebrow}>INVOICE WORKSPACE</span><h1>รายการเรียกเก็บเพิ่มเติม</h1><p>ยอดที่อยู่นอกงวดคงที่ของแผนเรียกเก็บเงิน เช่น ค่าเดินทาง ค่าแปล ค่าธรรมเนียม และงานเพิ่มเติม</p></div>
+          <div className={styles.headerActions}>{canComposeInvoice ? <Link className={styles.secondaryButton} href="/finance/invoices/compose">จัดทำใบแจ้งหนี้</Link> : null}{permissions.canManageFinanceBillableCharges ? <button className={styles.primaryButton} type="button" onClick={() => openNew()}><PlusIcon />เพิ่มรายการ</button> : null}</div>
         </header>
 
         {billingPlanContext ? <section className={styles.billingPlanContext} aria-label="บริบทแผนเรียกเก็บเงิน">
@@ -645,10 +647,10 @@ function BillableChargesWorkspace() {
 
         <section className={styles.listSection}>
           <div className={styles.filterBar}>
-            <div className={styles.tabs} aria-label="กรองสถานะรายการเรียกเก็บ">{statusTabs.map((tab) => <button key={tab.value} type="button" className={filter === tab.value ? styles.activeTab : ""} onClick={() => { closeChargeDetails(); setFilter(tab.value); }}>{tab.label}<span>{countStatus(charges, tab.value)}</span></button>)}</div>
-            <input aria-label="ค้นหารายการรอเรียกเก็บ" value={search} onChange={(event) => { closeChargeDetails(); setSearch(event.target.value); }} placeholder="ค้นหาลูกค้า เรื่อง หรือรายการ" />
+            <div className={styles.tabs} aria-label="กรองสถานะรายการเรียกเก็บเพิ่มเติม">{statusTabs.map((tab) => <button key={tab.value} type="button" className={filter === tab.value ? styles.activeTab : ""} onClick={() => { closeChargeDetails(); setFilter(tab.value); }}>{tab.label}<span>{countStatus(charges, tab.value)}</span></button>)}</div>
+            <input aria-label="ค้นหารายการเรียกเก็บเพิ่มเติม" value={search} onChange={(event) => { closeChargeDetails(); setSearch(event.target.value); }} placeholder="ค้นหาลูกค้า เรื่อง หรือรายการ" />
           </div>
-          {!filteredCharges.length ? <div className={styles.emptyState}><strong>{charges.length ? "ไม่พบรายการตามตัวกรอง" : "ยังไม่มีรายการรอเรียกเก็บ"}</strong><p>{charges.length ? "ลองเปลี่ยนสถานะหรือคำค้นหา" : "เพิ่มรายการเมื่อลูกค้ามียอดที่ต้องชำระให้ VP ระหว่างการดำเนินงาน"}</p></div> : <div className={styles.chargeGrid}>{filteredCharges.map((charge) => <article key={charge.id} className={styles.chargeCard}>
+          {!filteredCharges.length ? <div className={styles.emptyState}><strong>{charges.length ? "ไม่พบรายการตามตัวกรอง" : "ยังไม่มีรายการเรียกเก็บเพิ่มเติม"}</strong><p>{charges.length ? "ลองเปลี่ยนสถานะหรือคำค้นหา" : "เพิ่มรายการเมื่อลูกค้ามียอดนอกงวดตามแผนที่ต้องนำไปออกใบแจ้งหนี้"}</p></div> : <div className={styles.chargeGrid}>{filteredCharges.map((charge) => <article key={charge.id} className={styles.chargeCard}>
               <div className={styles.chargeCardHeader}><div><span>{thaiDate(charge.service_date || charge.created_at)}</span><h2>{charge.description || "ร่างรายการเรียกเก็บ"}</h2></div><StatusBadge status={charge.status} /></div>
               <div className={styles.chargeContext}><strong>{clientLabel(charge.client_id, clients)}</strong><span>{matterLabel(charge, cases, advisories)}</span></div>
               <dl className={styles.cardMetrics}><div><dt>ประเภทของยอด</dt><dd>{classificationLabel(charge.economic_classification)}</dd></div><div><dt>VAT</dt><dd>{taxModeLabel(charge.price_tax_mode, charge.vat_rate)}</dd></div><div><dt>ยอดเรียกเก็บ</dt><dd>{money(charge.total_amount, charge.currency)}</dd></div></dl>
@@ -736,7 +738,7 @@ function BillableChargesWorkspace() {
 }
 
 function PageShell({ children }: { children: React.ReactNode }) {
-  return <AuthGuard><AppTopNav title="Finance" subtitle="รายการรอเรียกเก็บ" activePage="finance" /><main className={styles.page}>{children}</main></AuthGuard>;
+  return <AuthGuard><AppTopNav title="Finance" subtitle="รายการเรียกเก็บเพิ่มเติม" activePage="finance" /><main className={styles.page}>{children}</main></AuthGuard>;
 }
 
 function FormField({ label, helper, error, wide, children }: { label: string; helper?: string; error?: string; wide?: boolean; children: React.ReactNode }) {

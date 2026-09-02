@@ -304,8 +304,8 @@ export function safeInvoiceError(error: unknown, fallback: string) {
   if (message.includes("settlement summary is unavailable")) return "ไม่สามารถตรวจสอบสถานะการรับชำระได้ กรุณาลองใหม่หรือติดต่อผู้ดูแลระบบ";
   if (message.includes("Only a Draft Invoice")) return "รายการนี้ไม่ได้อยู่ในสถานะร่างที่ดำเนินการได้";
   if (message.includes("same Client, currency, and exact matter context") || message.includes("incompatible with Invoice context")) return "รายการที่เลือกต้องเป็นของลูกค้า สกุลเงิน และคดี/งานเดียวกันทั้งหมด";
-  if (message.includes("must be Ready") || message.includes("not available") || message.includes("do not exist")) return "รายการรอเรียกเก็บบางรายการไม่พร้อมใช้งานแล้ว กรุณารีเฟรชและเลือกใหม่";
-  if (message.includes("requires at least one Billable Charge") || message.includes("requires at least one Charge")) return "กรุณาเลือกรายการรอเรียกเก็บอย่างน้อยหนึ่งรายการ";
+  if (message.includes("must be Ready") || message.includes("not available") || message.includes("do not exist")) return "รายการเรียกเก็บเพิ่มเติมบางรายการไม่พร้อมใช้งานแล้ว กรุณารีเฟรชและเลือกใหม่";
+  if (message.includes("requires at least one Billable Charge") || message.includes("requires at least one Charge")) return "กรุณาเลือกรายการเรียกเก็บเพิ่มเติมอย่างน้อยหนึ่งรายการ";
   if (message.includes("Fixed-installment") && message.includes("approval authority")) return "คุณไม่มีสิทธิ์รับรองข้อมูลค่าวิชาชีพจากงวดตามแผนเรียกเก็บ";
   if (message.includes("Human-certified installment semantic adapter") || message.includes("Missing installment semantics")) return "ข้อมูลประกอบรายการค่าวิชาชีพยังไม่ครบ กรุณาระบุประเภทของยอดและยืนยันข้อมูลทุกบรรทัด";
   if (message.includes("V1 Invoice history") || message.includes("FINANCE_INSTALLMENT_HAS_V1_INVOICE_HISTORY")) return "งวดนี้มีประวัติใบแจ้งหนี้เดิมแล้ว จึงไม่สามารถนำมารวมในใบแจ้งหนี้แบบรวมรายการได้";

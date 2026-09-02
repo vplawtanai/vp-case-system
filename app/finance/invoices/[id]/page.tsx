@@ -335,7 +335,7 @@ function InvoiceWorkspace({ canManagePayments, canManageComposition }: { canMana
   const matter = displayText(invoice.matter_snapshot_json?.title, displayText(invoice.matter_snapshot_json?.file_no, invoice.case_id || invoice.advisory_matter_id ? "เรื่อง/คดีที่เชื่อมไว้" : "ยังไม่ผูกเรื่อง"));
   const engagementReference = agreement ? agreement.engagement_basis === "accepted_quotation" ? displayText(agreement.source_reference, agreement.title) : displayText(agreement.agreement_no, agreement.title) : "-";
   const installmentLabel = installment ? `งวดที่ ${installment.installment_no}${installment.title ? ` · ${installment.title}` : ""}` : "-";
-  const invoiceSourceLabel = isV2 ? v2Bridge ? "งวดตามแผน + รายการรอเรียกเก็บ" : "รายการรอเรียกเก็บ" : engagementReference;
+  const invoiceSourceLabel = isV2 ? v2Bridge ? "ยอดตามแผน + รายการเรียกเก็บเพิ่มเติม" : "รายการเรียกเก็บเพิ่มเติม" : engagementReference;
   const paymentDestination = isDraft
     ? bankAccountPaymentDestination(selectedBankAccount)
     : snapshotPaymentDestination(invoice.issued_snapshot_json?.payment_destination);
@@ -345,7 +345,7 @@ function InvoiceWorkspace({ canManagePayments, canManageComposition }: { canMana
     <nav className="invoice-navigation-toolbar" style={navigationToolbar} aria-label="การนำทางเอกสารที่เกี่ยวข้อง">
       <NavigationLink href={isV2 ? "/finance/invoices" : `/finance/billing-plans/${invoice.billing_plan_id}`} icon="back" variant="back">{isV2 ? "กลับไปรายการใบแจ้งหนี้" : "กลับไปแผนเรียกเก็บเงิน"}</NavigationLink>
       {invoice.fee_agreement_id ? <NavigationLink href={`/finance/fee-agreements/${invoice.fee_agreement_id}`} icon="document" variant="source">เปิดข้อมูลการว่าจ้างต้นทาง</NavigationLink> : null}
-      {isV2 ? <NavigationLink href="/finance/billable-charges" icon="document" variant="source">เปิดรายการรอเรียกเก็บ</NavigationLink> : null}
+      {isV2 ? <NavigationLink href="/finance/billable-charges" icon="document" variant="source">เปิดรายการเรียกเก็บเพิ่มเติม</NavigationLink> : null}
       {invoice.source_quotation_id ? <NavigationLink href={`/finance/quotations/${invoice.source_quotation_id}`} icon="document" variant="source">เปิดใบเสนอราคาต้นทาง</NavigationLink> : null}
     </nav>
 
@@ -568,7 +568,7 @@ function PaymentLinks({ title, payments, effectiveAllocations, rawAllocations, r
 }
 function invoiceItemSourceLabel(item: FinanceInvoiceItem) {
   const sourceType = invoiceItemSourceType(item);
-  return sourceType === "billing_installment_item" ? "ค่าวิชาชีพจากงวดตามแผน" : "รายการรอเรียกเก็บ";
+  return sourceType === "billing_installment_item" ? "ยอดตามแผนเรียกเก็บเงิน" : "รายการเรียกเก็บเพิ่มเติม";
 }
 function invoiceItemQuantityLabel(item: FinanceInvoiceItem, currency: string) { if (item.source_quantity === null) return ""; const unit = invoiceItemUnit(item) || "หน่วย"; const price = item.source_unit_price === null ? "" : ` × ${money(item.source_unit_price, currency)}`; return `จำนวน ${Number(item.source_quantity).toLocaleString("th-TH", { maximumFractionDigits: 4 })} ${unit}${price}`; }
 function invoiceItemClassificationLabel(item: FinanceInvoiceItem) { return `ประเภทของยอด: ${economicClassificationLabel(invoiceItemEconomicClassification(item))}`; }

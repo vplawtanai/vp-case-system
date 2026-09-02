@@ -8,7 +8,6 @@ export type FinanceSubNavPage =
   | "quotations"
   | "fee-agreements"
   | "invoices"
-  | "billable-charges"
   | "cash-transactions"
   | "ledger"
   | "claims"
@@ -30,9 +29,6 @@ export default function FinanceSubNav({
       : null,
     permissions.canViewFinanceQuotations
       ? { href: "/finance/invoices", page: "invoices" as const, label: "Invoices" }
-      : null,
-    permissions.canViewFinanceBillableCharges
-      ? { href: "/finance/billable-charges", page: "billable-charges" as const, label: "รายการรอเรียกเก็บ" }
       : null,
     permissions.canViewFinanceCashTransactions
       ? { href: "/finance/cash-transactions", page: "cash-transactions" as const, label: "รายการเงินรับ–จ่าย" }
