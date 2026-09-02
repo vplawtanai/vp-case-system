@@ -2,6 +2,8 @@ export type BillingAgreementItem = {
   id: string;
   source_quotation_item_id: string | null;
   description: string;
+  unit: string | null;
+  economic_classification: string | null;
   amount_before_tax: number | string;
   vat_amount: number | string;
   line_total: number | string;
@@ -16,6 +18,7 @@ export type BillingPlanDraftItem = {
   allocation_percent: number | null;
   sort_order: number;
   allocation_snapshot_json: Record<string, unknown>;
+  semantic_snapshot_json: Record<string, unknown> | null;
 };
 
 export type BillingPlanDraftInstallment = {
@@ -156,6 +159,14 @@ export function buildBillingPlanDraftFromFeeAgreement(input: {
           source_installment_no: installmentNo,
           source_payment_terms_version: paymentTerms.version ?? null,
         },
+        semantic_snapshot_json: agreementItem.economic_classification ? {
+          schema_version: "1",
+          source_type: "fee_agreement_item",
+          source_fee_agreement_item_id: agreementItem.id,
+          source_quotation_item_id: sourceItemId,
+          unit: agreementItem.unit,
+          economic_classification: agreementItem.economic_classification,
+        } : null,
       });
     }
 

@@ -11,6 +11,7 @@ import FinanceSubNav from "../../FinanceSubNav";
 import { displayText, eligibleInvoicePaymentBankAccount, money, safeInvoiceError, type FinanceBankAccount, type Json } from "../shared";
 import InvoiceWorkspaceNav from "../InvoiceWorkspaceNav";
 import { billableChargeNatureLabel, clientCostFundingModeLabel, type ClientCostFundingMode } from "../../billable-charges/funding-semantics";
+import { billingPlanInvoiceSelectionResumeHref, invoiceCompositionMode } from "../../billing-plans/charge-context";
 import styles from "../invoice-workspace.module.css";
 
 type Client = { id: string; name: string | null };
@@ -24,11 +25,12 @@ type Charge = {
   vat_amount: number | string; total_amount: number | string; status: string; source_reference: string | null;
 };
 type Plan = { id: string; fee_agreement_id: string; title: string | null; status: string; currency: string };
-type Agreement = { id: string; client_id: string; case_id: number | null; advisory_matter_id: string | null; title: string; agreement_no: string | null; status: string; engagement_basis: string | null };
+type Agreement = { id: string; client_id: string; case_id: number | null; advisory_matter_id: string | null; title: string; agreement_no: string | null; status: string; engagement_basis: string | null; source_reference: string | null; language_code: string | null };
 type Installment = {
   id: string; billing_plan_id: string; installment_no: number; title: string; status: string;
   readiness_event_date: string | null; ready_to_invoice_at: string | null; readiness_confirmed_at: string | null;
   readiness_confirmed_by_user_id: string | null; readiness_evidence_json: Json | null;
+  trigger_description: string | null; due_date: string | null;
   amount_before_tax: number | string; vat_amount: number | string; total_amount: number | string;
 };
 type InstallmentItem = { id: string; billing_installment_id: string; fee_agreement_item_id: string; economic_classification: string | null; unit: string | null; amount_before_tax: number | string; vat_amount: number | string; total_amount: number | string };
@@ -68,6 +70,7 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
   const [installmentId, setInstallmentId] = useState("");
   const [chargeIds, setChargeIds] = useState<string[]>([]);
   const [adapter, setAdapter] = useState<Record<string, AdapterValue>>({});
+  const [showAdapter, setShowAdapter] = useState(false);
   const [languageCode, setLanguageCode] = useState<"th" | "en">("th");
   const [dueDate, setDueDate] = useState("");
   const [paymentTermsText, setPaymentTermsText] = useState("");
@@ -98,8 +101,8 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
       supabase.from("advisory_matters").select("id,matter_no,title"),
       supabase.from("finance_billable_charges").select("id,client_id,case_id,advisory_matter_id,source_type,client_cost_funding_mode,description,quantity,unit,currency,service_date,economic_classification,price_tax_mode,vat_rate,amount_before_vat,vat_amount,total_amount,status,source_reference").eq("status", "ready_to_invoice").neq("source_type", "billing_installment_item").order("service_date"),
       supabase.from("finance_billing_plans").select("id,fee_agreement_id,title,status,currency").eq("status", "active"),
-      supabase.from("finance_fee_agreements").select("id,client_id,case_id,advisory_matter_id,title,agreement_no,status,engagement_basis"),
-      supabase.from("finance_billing_installments").select("id,billing_plan_id,installment_no,title,status,readiness_event_date,ready_to_invoice_at,readiness_confirmed_at,readiness_confirmed_by_user_id,readiness_evidence_json,amount_before_tax,vat_amount,total_amount").eq("status", "ready_to_invoice"),
+      supabase.from("finance_fee_agreements").select("id,client_id,case_id,advisory_matter_id,title,agreement_no,status,engagement_basis,source_reference,language_code"),
+      supabase.from("finance_billing_installments").select("id,billing_plan_id,installment_no,title,status,trigger_description,due_date,readiness_event_date,ready_to_invoice_at,readiness_confirmed_at,readiness_confirmed_by_user_id,readiness_evidence_json,amount_before_tax,vat_amount,total_amount").eq("status", "ready_to_invoice"),
       supabase.from("finance_billing_installment_items").select("id,billing_installment_id,fee_agreement_item_id,economic_classification,unit,amount_before_tax,vat_amount,total_amount"),
       supabase.from("finance_fee_agreement_items").select("id,description,item_snapshot_json"),
       supabase.from("finance_billing_installment_charge_bridges").select("billing_installment_id"),
@@ -151,11 +154,15 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
   const requestedChargeIdsKey = [...new Set(searchParams.getAll("charge"))].join(",");
   const requestedChargeIds = useMemo(() => requestedChargeIdsKey ? requestedChargeIdsKey.split(",") : [], [requestedChargeIdsKey]);
   const requestedClientId = searchParams.get("client") || "";
+  const guidedMode = invoiceCompositionMode(requestedInstallmentId) === "billing_plan_guided";
   const openedFromSource = Boolean(requestedInstallmentId || requestedChargeIds.length);
   const requestedInstallment = installments.find((row) => row.id === requestedInstallmentId) || null;
   const requestedPlan = requestedInstallment ? planMap.get(requestedInstallment.billing_plan_id) || null : null;
   const sourceBackHref = requestedInstallmentId ? requestedPlan ? `/finance/billing-plans/${requestedPlan.id}` : "/finance/billing-plans" : "/finance/billable-charges";
   const sourceBackLabel = requestedInstallmentId ? "กลับไปแผนเรียกเก็บเงิน" : "กลับไปรายการเรียกเก็บเพิ่มเติม";
+  const editCompositionHref = requestedPlan && requestedInstallmentId
+    ? billingPlanInvoiceSelectionResumeHref(requestedPlan.id, requestedInstallmentId, requestedChargeIds)
+    : sourceBackHref;
   const totals = useMemo(() => {
     const rows = selectedCharges.reduce((sum, row) => ({ before: sum.before + Number(row.amount_before_vat), vat: sum.vat + Number(row.vat_amount), total: sum.total + Number(row.total_amount) }), { before: 0, vat: 0, total: 0 });
     return selectedInstallment ? { before: rows.before + Number(selectedInstallment.amount_before_tax), vat: rows.vat + Number(selectedInstallment.vat_amount), total: rows.total + Number(selectedInstallment.total_amount) } : rows;
@@ -179,7 +186,7 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
         return;
       }
       if (!canApproveInstallment) {
-        setSourceError("คุณไม่มีสิทธิ์รับรองงวดตามแผนเพื่อจัดทำ Invoice V2");
+        setSourceError("คุณไม่มีสิทธิ์จัดทำใบแจ้งหนี้จากงวดตามแผนนี้");
         return;
       }
       const plan = planMap.get(installment.billing_plan_id);
@@ -203,6 +210,9 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
       setInstallmentId(installment.id);
       setChargeIds(requestedCharges.map((charge) => charge.id));
       setAdapter(Object.fromEntries(nextItems.map((row) => [row.id, { economicClassification: "", unit: row.unit || "", confirmed: false }])));
+      setLanguageCode(agreement.language_code === "en" ? "en" : "th");
+      setDueDate(installment.due_date || "");
+      setPaymentTermsText(installment.trigger_description || "");
       setSourceNotice(`เลือกงวดที่ ${installment.installment_no}${requestedCharges.length ? ` พร้อมรายการเพิ่มเติม ${requestedCharges.length} รายการ` : ""} จากแผนเรียกเก็บเงินให้แล้ว กรุณาตรวจสอบข้อมูลก่อนสร้างร่าง`);
       return;
     }
@@ -229,7 +239,7 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
     if (requestedClientId && clients.some((client) => client.id === requestedClientId)) setClientId(requestedClientId);
   }, [agreementMap, canApproveInstallment, charges, clients, eligibleInstallments, installmentItems, loading, planMap, requestedChargeIds, requestedClientId, requestedInstallmentId]);
 
-  const resetReview = () => { setReviewing(false); setAcknowledged(false); setFieldError(""); };
+  const resetReview = () => { if (!guidedMode) setReviewing(false); setAcknowledged(false); setFieldError(""); };
   const selectClient = (value: string) => { setClientId(value); setInstallmentId(""); setChargeIds([]); setAdapter({}); requestRef.current = null; resetReview(); };
   const selectInstallment = (value: string) => {
     setInstallmentId(value); setChargeIds([]); resetReview(); requestRef.current = null;
@@ -253,13 +263,16 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
   const openReview = () => {
     if (!clientId) return setFieldError("กรุณาเลือกลูกค้า");
     if (!installmentId && chargeIds.length === 0) return setFieldError("กรุณาเลือกงวดหรือรายการเรียกเก็บเพิ่มเติมอย่างน้อยหนึ่งรายการ");
-    if (missingAdapterItems.some((item) => !adapter[item.id]?.economicClassification || !adapter[item.id]?.confirmed)) return setFieldError("กรุณากรอกและยืนยันข้อมูลประกอบรายการค่าวิชาชีพให้ครบ");
+    if (missingAdapterItems.some((item) => !adapter[item.id]?.economicClassification || !adapter[item.id]?.confirmed)) {
+      setShowAdapter(true);
+      return setFieldError("กรุณาระบุและยืนยันข้อมูลรายการต้นทางที่ยังไม่ครบ");
+    }
     setFieldError(""); setReviewing(true);
     requestAnimationFrame(() => reviewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
 
   const createDraft = async () => {
-    if (!reviewing || !acknowledged || submitLock.current || submitting) return;
+    if ((!guidedMode && !reviewing) || !acknowledged || submitLock.current || submitting) return;
     const adapterPayload = missingAdapterItems.length ? {
       schema_version: "1", human_confirmed: true,
       items: Object.fromEntries(missingAdapterItems.map((item) => [item.id, { economic_classification: adapter[item.id]?.economicClassification, unit: adapter[item.id]?.unit || null, human_confirmed: true }])),
@@ -296,13 +309,23 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
   return <div className={styles.page}>
     <FinanceSubNav activePage="invoices" permissions={permissions} />
     <InvoiceWorkspaceNav activePage="invoices" showAdditionalCharges={permissions.canViewFinanceBillableCharges} />
-    <div className={styles.toolbar}>{openedFromSource ? <Link className={styles.backButton} href={sourceBackHref}>{sourceBackLabel}</Link> : <Link className={styles.backButton} href="/finance/invoices">กลับไปรายการใบแจ้งหนี้</Link>}{openedFromSource ? <Link className={styles.secondaryButton} href="/finance/invoices">เปิดรายการใบแจ้งหนี้</Link> : <Link className={styles.secondaryButton} href="/finance/billable-charges">เปิดรายการเรียกเก็บเพิ่มเติม</Link>}</div>
-    <header className={styles.header}><div><span className={styles.eyebrow}>INVOICE COMPOSER</span><h1>จัดทำใบแจ้งหนี้</h1><p>เลือกและตรวจสอบยอดที่ต้องการเรียกเก็บ ก่อนยืนยันสร้างร่างใบแจ้งหนี้</p></div></header>
+    <div className={styles.toolbar}>{guidedMode ? <Link className={styles.backButton} href={editCompositionHref}>แก้ไขรายการ</Link> : openedFromSource ? <Link className={styles.backButton} href={sourceBackHref}>{sourceBackLabel}</Link> : <Link className={styles.backButton} href="/finance/invoices">กลับไปรายการใบแจ้งหนี้</Link>}{openedFromSource ? <Link className={styles.secondaryButton} href="/finance/invoices">เปิดรายการใบแจ้งหนี้</Link> : <Link className={styles.secondaryButton} href="/finance/billable-charges">เปิดรายการเรียกเก็บเพิ่มเติม</Link>}</div>
+    <header className={styles.header}><div><span className={styles.eyebrow}>{guidedMode ? "การเรียกเก็บเงิน" : "INVOICE COMPOSER"}</span><h1>{guidedMode ? "ตรวจสอบใบแจ้งหนี้" : "จัดทำใบแจ้งหนี้"}</h1><p>{guidedMode ? "ตรวจสอบข้อมูลที่รับมาจากแผนเรียกเก็บเงินก่อนสร้างร่างใบแจ้งหนี้" : "เลือกและตรวจสอบยอดที่ต้องการเรียกเก็บ ก่อนยืนยันสร้างร่างใบแจ้งหนี้"}</p></div></header>
     {openedFromSource ? <div className={styles.sourceSafety}><strong>ยังไม่มีการสร้างข้อมูล</strong><span>การเปิดหน้านี้เป็นการเตรียมรายการเท่านั้น ระบบจะสร้างร่างเมื่อคุณตรวจสอบและยืนยันในขั้นตอนสุดท้าย</span></div> : null}
     {sourceError ? <div role="alert" className={styles.error}>{sourceError}</div> : null}
-    {sourceNotice ? <div role="status" className={styles.notice}>{sourceNotice}</div> : null}
+    {sourceNotice && !guidedMode ? <div role="status" className={styles.notice}>{sourceNotice}</div> : null}
     {error ? <div role="alert" className={styles.error}>{error}</div> : null}
 
+    {guidedMode ? <>
+      <section className={styles.surface}><SectionHeader title="ต้นทาง" text="ข้อมูลนี้รับจากเอกสารต้นทางและถูกล็อกสำหรับการจัดทำใบแจ้งหนี้ครั้งนี้" />
+        <dl className={styles.reviewGrid}><Review label="ลูกค้า" value={clients.find((row) => row.id === clientId)?.name || "-"} /><Review label="งาน/เรื่อง" value={selectedAgreement ? matterLabel(selectedAgreement.case_id, selectedAgreement.advisory_matter_id, cases, advisories) : "ไม่ผูกกับงานเฉพาะ"} /><Review label="ใบเสนอราคา" value={selectedAgreement?.source_reference || "ไม่พบเลขอ้างอิง"} /><Review label="ข้อตกลงค่าบริการ" value={selectedAgreement?.agreement_no || selectedAgreement?.title || "-"} /><Review label="แผนเรียกเก็บเงิน" value={selectedPlan?.title || "-"} /><Review label="งวดเรียกเก็บ" value={selectedInstallment ? `งวดที่ ${selectedInstallment.installment_no} · ${selectedInstallment.title}` : "-"} /><Review label="สกุลเงิน" value={selectedPlan?.currency || "THB"} /><Review label="ภาษาเอกสาร" value={languageCode === "en" ? "English" : "ไทย"} /></dl>
+      </section>
+      <section className={styles.surface}><SectionHeader title="รายการเรียกเก็บ" text="องค์ประกอบนี้เลือกจากแผนเรียกเก็บเงินแล้ว หากต้องเปลี่ยนให้ใช้ปุ่มแก้ไขรายการด้านบน" />
+        <div className={styles.lockedList}>{selectedInstallment ? <div className={styles.lockedRow}><div><strong>ยอดตามแผนเรียกเก็บเงิน · งวดที่ {selectedInstallment.installment_no}</strong><small>{selectedInstallment.title}</small></div><strong>{money(selectedInstallment.total_amount, selectedPlan?.currency || "THB")}</strong></div> : null}{selectedCharges.map((charge) => <div className={styles.lockedRow} key={charge.id}><div><strong>{charge.description || "รายการเรียกเก็บเพิ่มเติม"}</strong><small>{classificationLabel(charge.economic_classification)} · {taxLabel(charge)}</small></div><strong>{money(charge.total_amount, charge.currency)}</strong></div>)}</div>
+        {missingAdapterItems.length ? <div className={styles.compactAdapter}><div><strong>ข้อมูลต้นทางยังไม่ครบ</strong><p>รายการตามงวดเดิมยังไม่มีประเภทของยอด กรุณาระบุข้อมูลเฉพาะที่จำเป็นโดยไม่เปลี่ยนยอดเงิน</p></div><button className={styles.secondaryButton} type="button" onClick={() => setShowAdapter((current) => !current)}>{showAdapter ? "ซ่อนข้อมูลรายการ" : "ระบุข้อมูลรายการ"}</button></div> : null}
+        {showAdapter && missingAdapterItems.length ? <AdapterFields items={missingAdapterItems} adapter={adapter} agreementItemMap={agreementItemMap} currency={selectedPlan?.currency || "THB"} onChange={(itemId, value) => { setAdapter((current) => ({ ...current, [itemId]: value })); resetReview(); }} /> : null}
+      </section>
+    </> : <>
     <section className={styles.surface}><SectionHeader title="1. ลูกค้าและบริบท" text="เลือกลูกค้าก่อน ระบบจะแสดงเฉพาะแหล่งยอดของลูกค้ารายนั้น" />
       <div className={styles.contextGrid}><Field label="ลูกค้า"><select value={clientId} onChange={(event) => selectClient(event.target.value)}><option value="">เลือกลูกค้า</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name || "ลูกค้าไม่มีชื่อ"}</option>)}</select></Field></div>
     </section>
@@ -314,29 +337,30 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
         {!clientInstallments.length ? <div className={styles.notice}>ไม่พบงวดที่ผ่านเงื่อนไขเบื้องต้นสำหรับลูกค้ารายนี้</div> : null}
         {!canApproveInstallment && clientInstallments.length ? <p className={styles.fieldError}>สิทธิ์ของคุณสร้างใบแจ้งหนี้จากรายการเรียกเก็บเพิ่มเติมได้ แต่ไม่สามารถรับรองงวดตามแผนเรียกเก็บ</p> : null}
       </div>}
-      {missingAdapterItems.length ? <div className={styles.adapterPanel}><h3>ข้อมูลประกอบรายการค่าวิชาชีพ</h3><p>รายการต่อไปนี้ไม่มีประเภทของยอดในข้อมูลต้นทาง กรุณาระบุความหมายและยืนยันเท่านั้น โดยไม่แก้ยอดเงิน</p><div className={styles.adapterRows}>{missingAdapterItems.map((item) => { const agreementItem = agreementItemMap.get(item.fee_agreement_item_id); const value = adapter[item.id] || { economicClassification: "", unit: item.unit || "", confirmed: false }; return <div key={item.id} className={styles.adapterRow}><div><strong>{agreementItem?.description || "รายการตามงวด"}</strong><div className={styles.muted}>{money(item.total_amount, selectedPlan?.currency || "THB")}</div></div><Field label="ประเภทของยอด"><select value={value.economicClassification} onChange={(event) => { setAdapter((current) => ({ ...current, [item.id]: { ...value, economicClassification: event.target.value } })); resetReview(); }}><option value="">เลือกประเภท</option>{classifications.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></Field><Field label="หน่วย"><input value={value.unit} placeholder="เช่น งวด" onChange={(event) => { setAdapter((current) => ({ ...current, [item.id]: { ...value, unit: event.target.value } })); resetReview(); }} /></Field><label className={styles.checkRow}><input type="checkbox" checked={value.confirmed} onChange={(event) => { setAdapter((current) => ({ ...current, [item.id]: { ...value, confirmed: event.target.checked } })); resetReview(); }} /><span>ยืนยันข้อมูลรายการ</span></label></div>; })}</div></div> : null}
+      {missingAdapterItems.length ? <AdapterFields items={missingAdapterItems} adapter={adapter} agreementItemMap={agreementItemMap} currency={selectedPlan?.currency || "THB"} onChange={(itemId, value) => { setAdapter((current) => ({ ...current, [itemId]: value })); resetReview(); }} /> : null}
     </section>
 
     <section className={styles.surface}><SectionHeader title="3. รายการเรียกเก็บเพิ่มเติม" text="เลือกได้ทั้งรายการเดียวหรือหลายรายการ รายการที่บริบทไม่ตรงกันจะไม่สามารถเลือกได้" />
       {!clientId ? <div className={styles.notice}>เลือกลูกค้าก่อนเพื่อดูรายการพร้อมเรียกเก็บ</div> : !visibleCharges.length ? <div className={styles.empty}>ลูกค้ารายนี้ยังไม่มีรายการพร้อมออกใบแจ้งหนี้</div> : <div className={styles.choiceList}>{visibleCharges.map((charge) => { const reason = incompatibilityReason(charge, anchor); const selected = chargeIds.includes(charge.id); return <div key={charge.id} className={`${styles.chargeChoice} ${selected ? styles.choiceSelected : ""} ${reason && !selected ? styles.choiceDisabled : ""}`}><input aria-label={`เลือก ${charge.description || "รายการ"}`} type="checkbox" disabled={Boolean(reason && !selected)} checked={selected} onChange={() => toggleCharge(charge)} /><div className={styles.choiceBody}><strong>{charge.description || "รายการเรียกเก็บเพิ่มเติม"}</strong><div className={styles.chargeMeta}><span>{thaiDate(charge.service_date)}</span><span>{classificationLabel(charge.economic_classification)}</span><span>{taxLabel(charge)}</span><span>{matterLabel(charge.case_id, charge.advisory_matter_id, cases, advisories)}</span></div><div className={styles.chargeMeta}><span>ก่อน VAT {money(charge.amount_before_vat, charge.currency)}</span><span>VAT {money(charge.vat_amount, charge.currency)}</span><span className={styles.readyText}>พร้อมออกใบแจ้งหนี้</span></div>{reason && !selected ? <small className={styles.fieldError}>{reason}</small> : null}<button className={styles.detailButton} type="button" onClick={() => void openChargeDetail(charge.id)}>ดูรายละเอียด</button></div><strong className={styles.choiceAmount}>{money(charge.total_amount, charge.currency)}</strong></div>; })}</div>}
     </section>
+    </>}
 
-    <section className={styles.surface}><SectionHeader title="4. ข้อมูลในใบแจ้งหนี้" text="ใช้ข้อมูลบัญชีรับชำระชุดเดียวกับใบแจ้งหนี้เดิม และแก้ไขต่อได้ในร่าง" />
-      <div className={styles.contextGrid}><Field label="วันที่ครบกำหนด" helper="ไม่บังคับ"><input type="date" value={dueDate} onChange={(event) => { setDueDate(event.target.value); requestRef.current = null; resetReview(); }} /></Field><Field label="ภาษาเอกสาร"><select value={languageCode} onChange={(event) => { setLanguageCode(event.target.value === "en" ? "en" : "th"); requestRef.current = null; resetReview(); }}><option value="th">ไทย</option><option value="en">English</option></select></Field><Field label="บัญชีสำหรับรับชำระ" helper="เลือกภายหลังในร่างได้ แต่ต้องเลือกก่อนออกใบแจ้งหนี้"><select value={bankAccountId} onChange={(event) => { setBankAccountId(event.target.value); requestRef.current = null; resetReview(); }}><option value="">ยังไม่เลือก</option>{eligibleAccounts.map((account) => <option key={account.id} value={account.id}>{displayText(account.short_name)} — {displayText(account.bank_name)} · {displayText(account.account_number)}</option>)}</select></Field><Field label="ข้อมูลการชำระเงิน" wide><textarea rows={3} value={paymentTermsText} onChange={(event) => { setPaymentTermsText(event.target.value); requestRef.current = null; resetReview(); }} /></Field><Field label="หมายเหตุถึงลูกค้า"><textarea rows={3} value={customerNote} onChange={(event) => { setCustomerNote(event.target.value); requestRef.current = null; resetReview(); }} /></Field><Field label="หมายเหตุภายใน"><textarea rows={3} value={internalNote} onChange={(event) => { setInternalNote(event.target.value); requestRef.current = null; resetReview(); }} /></Field></div>
+    <section className={styles.surface}><SectionHeader title={guidedMode ? "ข้อมูลใบแจ้งหนี้" : "4. ข้อมูลในใบแจ้งหนี้"} text={guidedMode ? "วันที่และเงื่อนไขรับจากงวดต้นทาง แก้ไขได้ก่อนสร้างร่างเมื่อมีเหตุผลทางธุรกิจ" : "ใช้ข้อมูลบัญชีรับชำระชุดเดียวกับใบแจ้งหนี้เดิม และแก้ไขต่อได้ในร่าง"} />
+      <div className={styles.contextGrid}><Field label="วันที่ครบกำหนด" helper={guidedMode ? "รับจากแผนเรียกเก็บเงิน" : "ไม่บังคับ"}><input type="date" value={dueDate} onChange={(event) => { setDueDate(event.target.value); requestRef.current = null; resetReview(); }} /></Field>{!guidedMode ? <Field label="ภาษาเอกสาร"><select value={languageCode} onChange={(event) => { setLanguageCode(event.target.value === "en" ? "en" : "th"); requestRef.current = null; resetReview(); }}><option value="th">ไทย</option><option value="en">English</option></select></Field> : null}<Field label="บัญชีสำหรับรับชำระ" helper="เลือกภายหลังในร่างได้ แต่ต้องเลือกก่อนออกใบแจ้งหนี้"><select value={bankAccountId} onChange={(event) => { setBankAccountId(event.target.value); requestRef.current = null; resetReview(); }}><option value="">ยังไม่เลือก</option>{eligibleAccounts.map((account) => <option key={account.id} value={account.id}>{displayText(account.short_name)} — {displayText(account.bank_name)} · {displayText(account.account_number)}</option>)}</select></Field><Field label="ข้อมูลการชำระเงิน" helper={guidedMode ? "รับจากเงื่อนไขของงวดต้นทาง" : undefined} wide><textarea rows={3} value={paymentTermsText} onChange={(event) => { setPaymentTermsText(event.target.value); requestRef.current = null; resetReview(); }} /></Field><Field label="หมายเหตุถึงลูกค้า"><textarea rows={3} value={customerNote} onChange={(event) => { setCustomerNote(event.target.value); requestRef.current = null; resetReview(); }} /></Field><Field label="หมายเหตุภายใน"><textarea rows={3} value={internalNote} onChange={(event) => { setInternalNote(event.target.value); requestRef.current = null; resetReview(); }} /></Field></div>
     </section>
 
     <section className={`${styles.surface} ${styles.summary}`}><SectionHeader title="สรุปยอดที่เลือก" text="ยอดนี้ใช้เพื่อช่วยตรวจสอบจากข้อมูลต้นทาง ระบบฐานข้อมูลจะตรวจสอบและบันทึกยอดจริงอีกครั้ง" />
       {selectedInstallment ? <div className={styles.summaryLine}><span>ยอดตามแผนเรียกเก็บเงิน · งวดที่ {selectedInstallment.installment_no}</span><strong>{money(selectedInstallment.total_amount, selectedPlan?.currency || "THB")}</strong></div> : null}
       {selectedCharges.map((charge) => <div key={charge.id} className={styles.summaryLine}><span>{charge.description || "รายการเรียกเก็บเพิ่มเติม"}</span><strong>{money(charge.total_amount, charge.currency)}</strong></div>)}
       {!selectedInstallment && !selectedCharges.length ? <div className={styles.notice}>ยังไม่ได้เลือกยอดเรียกเก็บ</div> : <dl className={styles.summaryTotals}><div><dt>ยอดก่อน VAT</dt><dd>{money(totals.before, selectedPlan?.currency || selectedCharges[0]?.currency || "THB")}</dd></div><div><dt>VAT</dt><dd>{money(totals.vat, selectedPlan?.currency || selectedCharges[0]?.currency || "THB")}</dd></div><div className={styles.grandTotal}><dt>ยอดรวมใบแจ้งหนี้</dt><dd>{money(totals.total, selectedPlan?.currency || selectedCharges[0]?.currency || "THB")}</dd></div></dl>}
-      {fieldError ? <p role="alert" className={styles.fieldError}>{fieldError}</p> : null}<div className={styles.reviewActions}><button className={styles.primaryButton} type="button" onClick={openReview}>ตรวจสอบก่อนสร้างร่าง</button></div>
+      {fieldError ? <p role="alert" className={styles.fieldError}>{fieldError}</p> : null}{!guidedMode ? <div className={styles.reviewActions}><button className={styles.primaryButton} type="button" onClick={openReview}>ตรวจสอบก่อนสร้างร่าง</button></div> : null}
     </section>
 
-    {reviewing ? <section ref={reviewRef} className={`${styles.surface} ${styles.reviewSection}`}><SectionHeader title="ตรวจสอบก่อนสร้างร่างใบแจ้งหนี้" text="ตรวจสอบข้อมูลทั้งหมดก่อนกันรายการไว้สำหรับร่างใบแจ้งหนี้นี้" />
+    {guidedMode || reviewing ? <section ref={reviewRef} className={`${styles.surface} ${styles.reviewSection}`}><SectionHeader title="ยืนยันสร้างร่างใบแจ้งหนี้" text="ตรวจสอบข้อมูลทั้งหมดก่อนกันรายการไว้สำหรับร่างใบแจ้งหนี้นี้" />
       <dl className={styles.reviewGrid}><Review label="ลูกค้า" value={clients.find((row) => row.id === clientId)?.name || "-"} /><Review label="คดี/งาน" value={anchor ? matterLabel(anchor.caseId, anchor.advisoryId, cases, advisories) : "ไม่ผูกกับงานเฉพาะ"} /><Review label="ยอดตามแผนเรียกเก็บเงิน" value={selectedInstallment ? `งวดที่ ${selectedInstallment.installment_no} · ${selectedInstallment.title}` : "ไม่เลือก"} /><Review label="รายการเรียกเก็บเพิ่มเติม" value={`${selectedCharges.length} รายการ`} /><Review label="VAT" value={money(totals.vat, selectedPlan?.currency || selectedCharges[0]?.currency || "THB")} /><Review label="ยอดรวม" value={money(totals.total, selectedPlan?.currency || selectedCharges[0]?.currency || "THB")} /><Review label="บัญชีรับชำระ" value={bankAccounts.find((row) => row.id === bankAccountId)?.short_name || "ยังไม่เลือก"} /><Review label="วันที่ครบกำหนด" value={dueDate || "ไม่ระบุ"} /></dl>
       <div className={styles.reservationNote}>เมื่อสร้างร่างแล้ว รายการเหล่านี้จะถูกกันไว้สำหรับใบแจ้งหนี้ฉบับนี้ จนกว่าจะออกใบแจ้งหนี้หรือยกเลิกร่าง</div>
       <label className={styles.checkRow}><input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} /><span>ยืนยันว่ารายการที่เลือกและยอดเรียกเก็บถูกต้อง และต้องการสร้างร่างใบแจ้งหนี้</span></label>
-      <div className={styles.reviewActions}><button className={styles.secondaryButton} type="button" disabled={submitting} onClick={() => setReviewing(false)}>กลับไปแก้ไข</button><button className={styles.primaryButton} type="button" disabled={!acknowledged || submitting} onClick={() => void createDraft()}>{submitting ? "กำลังสร้างร่าง..." : "สร้างร่างใบแจ้งหนี้"}</button></div>
+      <div className={styles.reviewActions}>{!guidedMode ? <button className={styles.secondaryButton} type="button" disabled={submitting} onClick={() => setReviewing(false)}>กลับไปแก้ไข</button> : null}<button className={styles.primaryButton} type="button" disabled={!acknowledged || submitting} onClick={() => { if (missingAdapterItems.some((item) => !adapter[item.id]?.economicClassification || !adapter[item.id]?.confirmed)) { openReview(); return; } void createDraft(); }}>{submitting ? "กำลังสร้างร่าง..." : "สร้างร่างใบแจ้งหนี้"}</button></div>
     </section> : null}
 
     {detailCharge ? <DetailModal open title={detailCharge.description || "รายการเรียกเก็บเพิ่มเติม"} subtitle={matterLabel(detailCharge.case_id, detailCharge.advisory_matter_id, cases, advisories)} prominentValue={money(detailCharge.total_amount, detailCharge.currency)} onClose={closeChargeDetail}><div className={styles.modalContent}><dl className={styles.modalGrid}><Review label="วันที่" value={thaiDate(detailCharge.service_date)} /><Review label="สถานะ" value="พร้อมออกใบแจ้งหนี้" /><Review label="ลักษณะรายการ" value={billableChargeNatureLabel(detailCharge.source_type)} />{detailCharge.source_type === "recoverable_cost" ? <Review label="การจ่าย" value={clientCostFundingModeLabel(detailCharge.client_cost_funding_mode)} /> : null}<Review label="ประเภทของยอด" value={classificationLabel(detailCharge.economic_classification)} /><Review label="VAT" value={taxLabel(detailCharge)} /><Review label="ยอดก่อน VAT" value={money(detailCharge.amount_before_vat, detailCharge.currency)} /><Review label="VAT" value={money(detailCharge.vat_amount, detailCharge.currency)} /><Review label="ยอดรวม" value={money(detailCharge.total_amount, detailCharge.currency)} /><Review label="จำนวน/หน่วย" value={`${detailCharge.quantity} ${detailCharge.unit || "หน่วย"}`} /><Review label="อ้างอิง" value={detailCharge.source_reference || "-"} /></dl><ChargeAuditHistory audits={detailAudits} loading={detailAuditLoading} /></div></DetailModal> : null}
@@ -346,6 +370,9 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
 function SectionHeader({ title, text }: { title: string; text: string }) { return <div className={styles.sectionHeader}><div><h2>{title}</h2><p>{text}</p></div></div>; }
 function Field({ label, helper, wide, children }: { label: string; helper?: string; wide?: boolean; children: ReactNode }) { return <label className={`${styles.field} ${wide ? styles.wide : ""}`}><span>{label}</span>{children}{helper ? <small>{helper}</small> : null}</label>; }
 function Review({ label, value }: { label: string; value: string }) { return <div><dt>{label}</dt><dd>{value}</dd></div>; }
+function AdapterFields({ items, adapter, agreementItemMap, currency, onChange }: { items: InstallmentItem[]; adapter: Record<string, AdapterValue>; agreementItemMap: Map<string, AgreementItem>; currency: string; onChange: (id: string, value: AdapterValue) => void }) {
+  return <div className={styles.adapterPanel}><h3>ระบุข้อมูลรายการ</h3><p>ระบุประเภทของยอดสำหรับข้อมูลต้นทางเดิมเท่านั้น ยอดตามงวดเป็นยอดจัดสรรคงที่ จึงไม่ต้องสร้างหน่วยหรือราคาใหม่</p><div className={styles.adapterRows}>{items.map((item) => { const agreementItem = agreementItemMap.get(item.fee_agreement_item_id); const value = adapter[item.id] || { economicClassification: "", unit: item.unit || "", confirmed: false }; return <div key={item.id} className={styles.adapterRow}><div><strong>{agreementItem?.description || "รายการตามงวด"}</strong><div className={styles.muted}>{money(item.total_amount, currency)}</div></div><Field label="ประเภทของยอด"><select value={value.economicClassification} onChange={(event) => onChange(item.id, { ...value, economicClassification: event.target.value })}><option value="">เลือกประเภท</option>{classifications.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></Field><label className={styles.checkRow}><input type="checkbox" checked={value.confirmed} onChange={(event) => onChange(item.id, { ...value, confirmed: event.target.checked })} /><span>ยืนยันข้อมูลรายการ</span></label></div>; })}</div></div>;
+}
 function ChargeAuditHistory({ audits, loading }: { audits: AuditEvent[]; loading: boolean }) { return <details className={styles.auditDetails}><summary>ประวัติรายการ</summary>{loading ? <p>กำลังโหลดประวัติรายการ...</p> : audits.length ? <ol>{audits.map((event) => <li key={event.id}><div><strong>{auditLabel(event.event_type)}</strong><span>{event.actor_name || event.actor_email || "ผู้ใช้งานระบบ"}</span></div><time>{thaiDateTime(event.created_at)}</time></li>)}</ol> : <p>ยังไม่พบประวัติรายการ</p>}</details>; }
 function completeReadiness(row: Installment) { return Boolean(row.readiness_event_date && row.ready_to_invoice_at && row.readiness_confirmed_at && row.readiness_confirmed_by_user_id && row.readiness_evidence_json && Object.keys(row.readiness_evidence_json).length); }
 function chargeContext(charge: Charge) { return { clientId: charge.client_id, currency: charge.currency, caseId: charge.case_id, advisoryId: charge.advisory_matter_id }; }

@@ -393,6 +393,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
   useEffect(() => {
     if (loading || resumeHandledRef.current) return;
     const requestedInstallmentId = searchParams.get("resumeInvoiceForInstallment") || "";
+    const requestedChargeIds = [...new Set(searchParams.getAll("resumeCharge"))];
     if (!requestedInstallmentId) return;
     resumeHandledRef.current = true;
     if (!isUuid(requestedInstallmentId)) {
@@ -409,7 +410,8 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
       return;
     }
     openInvoiceSelection(installment);
-  }, [canComposeInstallment, installments, invoices, loading, openInvoiceSelection, plan?.status, searchParams]);
+    setSelectedInvoiceChargeIds(requestedChargeIds.filter((chargeId) => compatibleReadyCharges.some((charge) => charge.id === chargeId)));
+  }, [canComposeInstallment, compatibleReadyCharges, installments, invoices, loading, openInvoiceSelection, plan?.status, searchParams]);
   if (loading) return <main style={page}>กำลังโหลดแผนเรียกเก็บเงิน...</main>;
   if (!plan) return <main style={page}>{error || "ไม่พบแผนเรียกเก็บเงิน"}</main>;
 

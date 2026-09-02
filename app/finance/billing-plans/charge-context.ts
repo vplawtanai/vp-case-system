@@ -71,6 +71,16 @@ export function billingPlanReadyChargeCompletionState(): BillingPlanReadyChargeC
   };
 }
 
+export function billingPlanInvoiceSelectionResumeHref(planId: string, installmentId: string, chargeIds: string[]): string {
+  const params = new URLSearchParams({ resumeInvoiceForInstallment: installmentId });
+  [...new Set(chargeIds)].forEach((chargeId) => params.append("resumeCharge", chargeId));
+  return `/finance/billing-plans/${planId}?${params.toString()}`;
+}
+
+export function invoiceCompositionMode(requestedInstallmentId: string): "billing_plan_guided" | "standalone" {
+  return requestedInstallmentId ? "billing_plan_guided" : "standalone";
+}
+
 function sameNullableId(left: number | string | null | undefined, right: number | string | null | undefined): boolean {
   if (left == null || right == null) return left == null && right == null;
   return String(left) === String(right);

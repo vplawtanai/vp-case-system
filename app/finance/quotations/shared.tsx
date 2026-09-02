@@ -109,6 +109,8 @@ type QuotationItemRow = {
   client_item_key?: string;
   quotation_id?: string;
   description: string;
+  unit: string;
+  economic_classification: string;
   quantity: number | string;
   unit_price: number | string;
   amount_before_tax: number | string;
@@ -251,6 +253,8 @@ const emptyForm: FormState = {
 
 const emptyItem: QuotationItemRow = {
   description: "",
+  unit: "",
+  economic_classification: "",
   quantity: "1",
   unit_price: "",
   amount_before_tax: 0,
@@ -261,6 +265,15 @@ const emptyItem: QuotationItemRow = {
   line_total: 0,
   sort_order: 0,
 };
+
+const quotationEconomicClassifications = [
+  ["professional_fee", "ค่าวิชาชีพ"],
+  ["additional_service", "ค่าบริการเพิ่มเติม"],
+  ["reimbursable_expense", "ค่าใช้จ่ายเรียกคืน"],
+  ["government_or_court_fee", "ค่าธรรมเนียมศาล / หน่วยงานรัฐ"],
+  ["other", "อื่น ๆ"],
+] as const;
+const quotationEconomicClassificationIds = new Set<string>(quotationEconomicClassifications.map(([value]) => value));
 
 function createNewQuotationItem(index = 0): QuotationItemRow {
   return { ...emptyItem, client_item_key: `item-${crypto.randomUUID()}`, sort_order: index };
@@ -294,6 +307,8 @@ function normalizedQuotationDraftSnapshot(form: FormState, items: QuotationItemR
       const normalized = normalizeItem(item, index);
       return {
         description: normalized.description.trim(),
+        unit: normalized.unit.trim(),
+        economic_classification: normalized.economic_classification,
         quantity: toAmount(normalized.quantity),
         unit_price: toAmount(normalized.unit_price),
         vat_applicable: normalized.vat_applicable,
@@ -879,6 +894,8 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
     };
     const nextItems = ((itemRes.data || []) as QuotationItemRow[]).map((item, index) => ({
       ...item,
+      unit: item.unit || "",
+      economic_classification: item.economic_classification || "",
       quantity: String(item.quantity || 1),
       unit_price: String(item.unit_price || 0),
       vat_rate: String(item.vat_rate || 0),
@@ -1152,6 +1169,8 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
     const atomicItems = normalizedItems.map((item, index) => ({
       client_item_key: item.client_item_key,
       description: item.description,
+      unit: item.unit.trim(),
+      economic_classification: item.economic_classification,
       quantity: toAmount(item.quantity),
       unit_price: toAmount(item.unit_price),
       vat_applicable: item.vat_applicable,
@@ -1425,6 +1444,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
             <thead>
               <tr>
                 <th style={thStyle}>Description</th>
+                <th style={thStyle}>ประเภท / หน่วย</th>
                 <th style={rightThStyle}>Qty</th>
                 <th style={rightThStyle}>Unit Price</th>
                 <th style={thStyle}>VAT</th>
@@ -1438,6 +1458,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
                 return (
                   <tr key={index}>
                     <td style={tdStyle}><input value={item.description} onChange={(event) => updateItem(index, { description: event.target.value })} style={inputStyle} placeholder="Service description" /></td>
+                    <td style={tdStyle}><select aria-label="ประเภทของยอด" value={item.economic_classification} onChange={(event) => updateItem(index, { economic_classification: event.target.value })} style={inputStyle}><option value="">เลือกประเภท</option>{quotationEconomicClassifications.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><input aria-label="หน่วยรายการ" value={item.unit} onChange={(event) => updateItem(index, { unit: event.target.value })} style={vatInputStyle} placeholder="หน่วย เช่น งาน" /></td>
                     <td style={rightTdStyle}><input type="number" min="0.01" step="0.01" value={item.quantity} onChange={(event) => updateItem(index, { quantity: event.target.value })} style={compactInputStyle} /></td>
                     <td style={rightTdStyle}><input type="number" min="0" step="0.01" value={item.unit_price} onChange={(event) => updateItem(index, { unit_price: event.target.value })} style={compactInputStyle} /></td>
                     <td style={tdStyle}>
@@ -2325,6 +2346,8 @@ function validateForm(form: FormState, items: QuotationItemRow[]) {
   if (items.length === 0) return "Please add at least one line item.";
   for (const item of items) {
     if (!item.description.trim()) return "Every line item needs a description.";
+    if (!item.economic_classification) return "กรุณาระบุประเภทของยอดสำหรับทุกรายการ";
+    if (!item.unit.trim()) return "กรุณาระบุหน่วยสำหรับทุกรายการ";
     if (toAmount(item.quantity) <= 0) return "Quantity must be greater than zero.";
     if (toAmount(item.unit_price) < 0) return "Unit price cannot be negative.";
   }
@@ -2348,6 +2371,8 @@ function validateDraftSavePayload(payload: Record<string, unknown>, totals: Retu
     if (!item || typeof item !== "object") return true;
     const row = item as Record<string, unknown>;
     return typeof row.description !== "string" || !row.description.trim()
+      || typeof row.unit !== "string" || !row.unit.trim()
+      || typeof row.economic_classification !== "string" || !quotationEconomicClassificationIds.has(row.economic_classification)
       || !Number.isFinite(Number(row.quantity)) || Number(row.quantity) <= 0
       || !Number.isFinite(Number(row.unit_price)) || Number(row.unit_price) < 0
       || !Number.isFinite(Number(row.amount_before_tax)) || !Number.isFinite(Number(row.vat_amount)) || !Number.isFinite(Number(row.line_total));
@@ -2495,6 +2520,8 @@ function buildQuotationSnapshots(
       totals,
       items: normalizedItems.map((item) => ({
         description: item.description.trim(),
+        unit: item.unit.trim(),
+        economic_classification: item.economic_classification,
         quantity: toAmount(item.quantity),
         unit_price: toAmount(item.unit_price),
         amount_before_tax: toAmount(item.amount_before_tax),
@@ -2516,6 +2543,8 @@ function buildItemPayload(quotationId: string, items: QuotationItemRow[]) {
     const payload = {
       quotation_id: quotationId,
       description: normalized.description.trim(),
+      unit: normalized.unit.trim(),
+      economic_classification: normalized.economic_classification,
       quantity: toAmount(normalized.quantity),
       unit_price: toAmount(normalized.unit_price),
       amount_before_tax: toAmount(normalized.amount_before_tax),

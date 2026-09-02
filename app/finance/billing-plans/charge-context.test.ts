@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 // @ts-expect-error Node's strip-types test runner requires the explicit TypeScript extension.
-import { billingPlanReadyChargeCompletionState, canAddChargeFromInstallment, filterChargesForBillingContext, partitionChargesByWorkflow } from "./charge-context.ts";
+import { billingPlanInvoiceSelectionResumeHref, billingPlanReadyChargeCompletionState, canAddChargeFromInstallment, filterChargesForBillingContext, invoiceCompositionMode, partitionChargesByWorkflow } from "./charge-context.ts";
 
 const advisoryContext = { clientId: "client-1", currency: "THB", caseId: null, advisoryMatterId: "advisory-1" };
 const caseContext = { clientId: "client-1", currency: "THB", caseId: 42, advisoryMatterId: null };
@@ -73,4 +73,16 @@ test("Ready Charge closes Billing Plan quick-add without opening Invoice selecti
     selectionDetailChargeId: "",
     expandCurrentCharges: true,
   });
+});
+
+test("Guided Invoice review returns to the same Billing Plan composition", () => {
+  assert.equal(
+    billingPlanInvoiceSelectionResumeHref("plan-1", "installment-1", ["charge-1", "charge-1", "charge-2"]),
+    "/finance/billing-plans/plan-1?resumeInvoiceForInstallment=installment-1&resumeCharge=charge-1&resumeCharge=charge-2",
+  );
+});
+
+test("Invoice composition mode preserves standalone Charge-only creation", () => {
+  assert.equal(invoiceCompositionMode("installment-1"), "billing_plan_guided");
+  assert.equal(invoiceCompositionMode(""), "standalone");
 });
