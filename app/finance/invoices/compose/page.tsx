@@ -10,6 +10,7 @@ import type { UserPermissions } from "../../../../lib/permissions";
 import FinanceSubNav from "../../FinanceSubNav";
 import { displayText, eligibleInvoicePaymentBankAccount, money, safeInvoiceError, type FinanceBankAccount, type Json } from "../shared";
 import InvoiceWorkspaceNav from "../InvoiceWorkspaceNav";
+import { billableChargeNatureLabel, clientCostFundingModeLabel, type ClientCostFundingMode } from "../../billable-charges/funding-semantics";
 import styles from "../invoice-workspace.module.css";
 
 type Client = { id: string; name: string | null };
@@ -17,7 +18,7 @@ type CaseRow = { id: number; file_no: string | null; title: string | null };
 type Advisory = { id: string; matter_no: string | null; title: string | null };
 type Charge = {
   id: string; client_id: string; case_id: number | null; advisory_matter_id: string | null;
-  source_type: string; description: string | null; quantity: number | string; unit: string | null;
+  source_type: string; client_cost_funding_mode: ClientCostFundingMode | null; description: string | null; quantity: number | string; unit: string | null;
   currency: string; service_date: string | null; economic_classification: string | null;
   price_tax_mode: string; vat_rate: number | string; amount_before_vat: number | string;
   vat_amount: number | string; total_amount: number | string; status: string; source_reference: string | null;
@@ -95,7 +96,7 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
       supabase.from("clients").select("id,name").order("name"),
       supabase.from("cases").select("id,file_no,title"),
       supabase.from("advisory_matters").select("id,matter_no,title"),
-      supabase.from("finance_billable_charges").select("id,client_id,case_id,advisory_matter_id,source_type,description,quantity,unit,currency,service_date,economic_classification,price_tax_mode,vat_rate,amount_before_vat,vat_amount,total_amount,status,source_reference").eq("status", "ready_to_invoice").neq("source_type", "billing_installment_item").order("service_date"),
+      supabase.from("finance_billable_charges").select("id,client_id,case_id,advisory_matter_id,source_type,client_cost_funding_mode,description,quantity,unit,currency,service_date,economic_classification,price_tax_mode,vat_rate,amount_before_vat,vat_amount,total_amount,status,source_reference").eq("status", "ready_to_invoice").neq("source_type", "billing_installment_item").order("service_date"),
       supabase.from("finance_billing_plans").select("id,fee_agreement_id,title,status,currency").eq("status", "active"),
       supabase.from("finance_fee_agreements").select("id,client_id,case_id,advisory_matter_id,title,agreement_no,status,engagement_basis"),
       supabase.from("finance_billing_installments").select("id,billing_plan_id,installment_no,title,status,readiness_event_date,ready_to_invoice_at,readiness_confirmed_at,readiness_confirmed_by_user_id,readiness_evidence_json,amount_before_tax,vat_amount,total_amount").eq("status", "ready_to_invoice"),
@@ -338,7 +339,7 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
       <div className={styles.reviewActions}><button className={styles.secondaryButton} type="button" disabled={submitting} onClick={() => setReviewing(false)}>กลับไปแก้ไข</button><button className={styles.primaryButton} type="button" disabled={!acknowledged || submitting} onClick={() => void createDraft()}>{submitting ? "กำลังสร้างร่าง..." : "สร้างร่างใบแจ้งหนี้"}</button></div>
     </section> : null}
 
-    {detailCharge ? <DetailModal open title={detailCharge.description || "รายการเรียกเก็บเพิ่มเติม"} subtitle={matterLabel(detailCharge.case_id, detailCharge.advisory_matter_id, cases, advisories)} prominentValue={money(detailCharge.total_amount, detailCharge.currency)} onClose={closeChargeDetail}><div className={styles.modalContent}><dl className={styles.modalGrid}><Review label="วันที่" value={thaiDate(detailCharge.service_date)} /><Review label="สถานะ" value="พร้อมออกใบแจ้งหนี้" /><Review label="ประเภทของยอด" value={classificationLabel(detailCharge.economic_classification)} /><Review label="VAT" value={taxLabel(detailCharge)} /><Review label="ยอดก่อน VAT" value={money(detailCharge.amount_before_vat, detailCharge.currency)} /><Review label="VAT" value={money(detailCharge.vat_amount, detailCharge.currency)} /><Review label="ยอดรวม" value={money(detailCharge.total_amount, detailCharge.currency)} /><Review label="จำนวน/หน่วย" value={`${detailCharge.quantity} ${detailCharge.unit || "หน่วย"}`} /><Review label="อ้างอิง" value={detailCharge.source_reference || "-"} /></dl><ChargeAuditHistory audits={detailAudits} loading={detailAuditLoading} /></div></DetailModal> : null}
+    {detailCharge ? <DetailModal open title={detailCharge.description || "รายการเรียกเก็บเพิ่มเติม"} subtitle={matterLabel(detailCharge.case_id, detailCharge.advisory_matter_id, cases, advisories)} prominentValue={money(detailCharge.total_amount, detailCharge.currency)} onClose={closeChargeDetail}><div className={styles.modalContent}><dl className={styles.modalGrid}><Review label="วันที่" value={thaiDate(detailCharge.service_date)} /><Review label="สถานะ" value="พร้อมออกใบแจ้งหนี้" /><Review label="ลักษณะรายการ" value={billableChargeNatureLabel(detailCharge.source_type)} />{detailCharge.source_type === "recoverable_cost" ? <Review label="การจ่าย" value={clientCostFundingModeLabel(detailCharge.client_cost_funding_mode)} /> : null}<Review label="ประเภทของยอด" value={classificationLabel(detailCharge.economic_classification)} /><Review label="VAT" value={taxLabel(detailCharge)} /><Review label="ยอดก่อน VAT" value={money(detailCharge.amount_before_vat, detailCharge.currency)} /><Review label="VAT" value={money(detailCharge.vat_amount, detailCharge.currency)} /><Review label="ยอดรวม" value={money(detailCharge.total_amount, detailCharge.currency)} /><Review label="จำนวน/หน่วย" value={`${detailCharge.quantity} ${detailCharge.unit || "หน่วย"}`} /><Review label="อ้างอิง" value={detailCharge.source_reference || "-"} /></dl><ChargeAuditHistory audits={detailAudits} loading={detailAuditLoading} /></div></DetailModal> : null}
   </div>;
 }
 

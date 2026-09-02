@@ -76,6 +76,7 @@
 .sourceChoices input:disabled { cursor: not-allowed; }
 .sourceChoices span { display: grid; gap: 4px; min-width: 0; }
 .sourceChoices small { color: #667085; line-height: 1.5; }
+.invalidChoices label { border-color: #d92d20; background: #fff7f6; }
 .sourceSummary { display: flex; gap: 10px; align-items: center; margin-bottom: 18px; padding: 10px 12px; border-left: 3px solid #17324d; background: #edf3f8; }
 .sourceSummary span { color: #667085; font-size: 12px; }
 .formGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; margin-top: 15px; }

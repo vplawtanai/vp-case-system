@@ -4,11 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DetailModal from "../../components/DetailModal";
 import { supabase } from "../../../lib/supabase";
 import { economicClassificationLabel, formatThaiDate, money, safeInvoiceError, type FinanceInvoice } from "./shared";
+import { billableChargeNatureLabel, clientCostFundingModeLabel, type ClientCostFundingMode } from "../billable-charges/funding-semantics";
 import styles from "./invoice-workspace.module.css";
 
 type Charge = {
   id: string; client_id: string; case_id: number | null; advisory_matter_id: string | null;
-  source_type: string; description: string | null; quantity: number | string; unit: string | null;
+  source_type: string; client_cost_funding_mode: ClientCostFundingMode | null; description: string | null; quantity: number | string; unit: string | null;
   currency: string; service_date: string | null; economic_classification: string | null;
   price_tax_mode: string; vat_rate: number | string; amount_before_vat: number | string;
   vat_amount: number | string; total_amount: number | string; status: string; source_reference: string | null;
@@ -36,7 +37,7 @@ export default function InvoiceCompositionEditor({ invoice, canManage, onChanged
   const load = useCallback(async () => {
     setLoading(true);
     const [chargeResult, allocationResult] = await Promise.all([
-      supabase.from("finance_billable_charges").select("id,client_id,case_id,advisory_matter_id,source_type,description,quantity,unit,currency,service_date,economic_classification,price_tax_mode,vat_rate,amount_before_vat,vat_amount,total_amount,status,source_reference").eq("client_id", invoice.client_id).order("service_date"),
+      supabase.from("finance_billable_charges").select("id,client_id,case_id,advisory_matter_id,source_type,client_cost_funding_mode,description,quantity,unit,currency,service_date,economic_classification,price_tax_mode,vat_rate,amount_before_vat,vat_amount,total_amount,status,source_reference").eq("client_id", invoice.client_id).order("service_date"),
       supabase.from("finance_invoice_charge_allocations").select("billable_charge_id,status").eq("invoice_id", invoice.id),
     ]);
     if (chargeResult.error || allocationResult.error) {
@@ -103,7 +104,7 @@ export default function InvoiceCompositionEditor({ invoice, canManage, onChanged
       {dirty ? <><label className={styles.checkRow}><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} /><span>ยืนยันว่าต้องการเปลี่ยนรายการในร่างใบแจ้งหนี้ตามที่เลือก</span></label><div className={styles.reviewActions}><button className={styles.primaryButton} type="button" disabled={!confirmed || saving || !canManage} onClick={() => void save()}>{saving ? "กำลังบันทึก..." : "บันทึกรายการในใบแจ้งหนี้"}</button></div></> : <div className={styles.notice}>รายการในร่างตรงกับข้อมูลที่บันทึกแล้ว</div>}
       {!canManage ? <p className={styles.fieldError}>คุณไม่มีสิทธิ์แก้ไของค์ประกอบของใบแจ้งหนี้นี้</p> : null}
     </>}
-    {detail ? <DetailModal open title={detail.description || "รายการเรียกเก็บเพิ่มเติม"} subtitle={detail.source_reference || undefined} prominentValue={money(detail.total_amount, detail.currency)} onClose={closeDetail}><div className={styles.modalContent}><dl className={styles.modalGrid}><Detail label="สถานะ" value={selectedIds.includes(detail.id) ? "อยู่ในร่างนี้" : "พร้อมออกใบแจ้งหนี้"} /><Detail label="วันที่" value={detail.service_date ? formatThaiDate(detail.service_date) : "ไม่ระบุวันที่"} /><Detail label="ยอดก่อน VAT" value={money(detail.amount_before_vat, detail.currency)} /><Detail label="VAT" value={money(detail.vat_amount, detail.currency)} /><Detail label="ยอดรวม" value={money(detail.total_amount, detail.currency)} /><Detail label="จำนวน/หน่วย" value={`${detail.quantity} ${detail.unit || "หน่วย"}`} /><Detail label="ประเภทของยอด" value={economicClassificationLabel(detail.economic_classification)} /></dl><ChargeAuditHistory audits={detailAudits} loading={detailAuditLoading} /></div></DetailModal> : null}
+    {detail ? <DetailModal open title={detail.description || "รายการเรียกเก็บเพิ่มเติม"} subtitle={detail.source_reference || undefined} prominentValue={money(detail.total_amount, detail.currency)} onClose={closeDetail}><div className={styles.modalContent}><dl className={styles.modalGrid}><Detail label="สถานะ" value={selectedIds.includes(detail.id) ? "อยู่ในร่างนี้" : "พร้อมออกใบแจ้งหนี้"} /><Detail label="วันที่" value={detail.service_date ? formatThaiDate(detail.service_date) : "ไม่ระบุวันที่"} /><Detail label="ลักษณะรายการ" value={billableChargeNatureLabel(detail.source_type)} />{detail.source_type === "recoverable_cost" ? <Detail label="การจ่าย" value={clientCostFundingModeLabel(detail.client_cost_funding_mode)} /> : null}<Detail label="ยอดก่อน VAT" value={money(detail.amount_before_vat, detail.currency)} /><Detail label="VAT" value={money(detail.vat_amount, detail.currency)} /><Detail label="ยอดรวม" value={money(detail.total_amount, detail.currency)} /><Detail label="จำนวน/หน่วย" value={`${detail.quantity} ${detail.unit || "หน่วย"}`} /><Detail label="ประเภทของยอด" value={economicClassificationLabel(detail.economic_classification)} /></dl><ChargeAuditHistory audits={detailAudits} loading={detailAuditLoading} /></div></DetailModal> : null}
   </section>;
 }
 

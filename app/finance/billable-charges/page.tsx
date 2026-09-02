@@ -13,6 +13,7 @@ import { calculateFinanceLineAmounts, type FinancePriceTaxMode } from "../financ
 import FinanceSubNav from "../FinanceSubNav";
 import InvoiceWorkspaceNav from "../invoices/InvoiceWorkspaceNav";
 import BillableChargeCreateWorkflow from "./BillableChargeCreateWorkflow";
+import { billableChargeNatureLabel, clientCostFundingModeLabel, clientCostFundingModeRequired, fundingModeForSource, type ClientCostFundingMode } from "./funding-semantics";
 import styles from "./billable-charges.module.css";
 
 type Profile = UserPermissionProfile & {
@@ -33,6 +34,7 @@ type BillableCharge = {
   case_id: number | null;
   advisory_matter_id: string | null;
   source_type: SourceType;
+  client_cost_funding_mode: ClientCostFundingMode | null;
   source_reference: string | null;
   description: string | null;
   quantity: number | string;
@@ -74,6 +76,7 @@ type BillingPlanReturnContext = { returnTo: string; returnLabel: string; clientI
 
 type ChargeForm = {
   sourceType: "ad_hoc_service" | "recoverable_cost";
+  clientCostFundingMode: "" | ClientCostFundingMode;
   clientId: string;
   matterMode: MatterMode;
   caseId: string;
@@ -97,6 +100,7 @@ type CreateAttempt = {
     p_case_id: number | null;
     p_advisory_matter_id: string | null;
     p_source_type: string;
+    p_client_cost_funding_mode: ClientCostFundingMode | null;
     p_source_reference: string | null;
     p_source_event_key: null;
     p_source_snapshot_json: Record<string, never>;
@@ -488,6 +492,7 @@ function BillableChargesWorkspace() {
               p_case_id: form.matterMode === "case" ? Number(form.caseId) : null,
               p_advisory_matter_id: form.matterMode === "advisory" ? form.advisoryMatterId : null,
               p_source_type: form.sourceType,
+              p_client_cost_funding_mode: fundingModeForSource(form.sourceType, form.clientCostFundingMode),
               p_source_reference: nullable(form.sourceReference),
               p_source_event_key: null,
               p_source_snapshot_json: {},
@@ -507,6 +512,7 @@ function BillableChargesWorkspace() {
         p_client_id: form.clientId,
         p_case_id: form.matterMode === "case" ? Number(form.caseId) : null,
         p_advisory_matter_id: form.matterMode === "advisory" ? form.advisoryMatterId : null,
+        p_client_cost_funding_mode: fundingModeForSource(form.sourceType, form.clientCostFundingMode),
         p_source_reference: nullable(form.sourceReference),
         p_source_snapshot_json: {},
         p_description: nullable(form.description),
@@ -682,7 +688,9 @@ function BillableChargesWorkspace() {
             onReadyAction={billingPlanContext ? () => { window.location.href = billingPlanContext.returnTo; } : undefined}
           /> : selectedCharge && (selectedCharge.status !== "draft" || selectedCharge.source_type === "billing_installment_item") ? <ReadOnlyDetail charge={selectedCharge} clients={clients} cases={cases} advisories={advisories} /> : <>
             {!permissions.canManageFinanceBillableCharges ? <div className={styles.readOnlyNotice}>ข้อมูลร่างเป็นแบบอ่านอย่างเดียวสำหรับสิทธิ์ของคุณ คุณยังตรวจสอบและยืนยันพร้อมออกใบแจ้งหนี้ได้เมื่อมีสิทธิ์อนุมัติ</div> : null}
-            {!chargeId ? <fieldset className={styles.sourceChoices}><legend>ยอดนี้เกิดจากอะไร</legend><label className={form.sourceType === "ad_hoc_service" ? styles.choiceActive : ""}><input type="radio" name="sourceType" value="ad_hoc_service" disabled={createSourceLocked || !permissions.canManageFinanceBillableCharges} checked={form.sourceType === "ad_hoc_service"} onChange={() => updateForm("sourceType", "ad_hoc_service")} /><span><strong>ค่าบริการ / งานเพิ่มเติม</strong><small>เช่น ค่าเดินทาง ค่าแปล ค่าล่าม หรือบริการเพิ่มเติมที่ต้องเรียกเก็บลูกค้า</small></span></label><label className={form.sourceType === "recoverable_cost" ? styles.choiceActive : ""}><input type="radio" name="sourceType" value="recoverable_cost" disabled={createSourceLocked || !permissions.canManageFinanceBillableCharges} checked={form.sourceType === "recoverable_cost"} onChange={() => updateForm("sourceType", "recoverable_cost")} /><span><strong>ค่าใช้จ่ายที่เรียกคืนจากลูกค้า</strong><small>เช่น ค่าใช้จ่ายที่ VP สำรองจ่ายและลูกค้าต้องชำระคืน</small></span></label></fieldset> : <div className={styles.sourceSummary}><span>ที่มาของยอด</span><strong>{sourceTypeLabel(form.sourceType)}</strong></div>}
+            {!chargeId ? <fieldset className={styles.sourceChoices}><legend>ลักษณะของรายการ</legend><label className={form.sourceType === "ad_hoc_service" ? styles.choiceActive : ""}><input type="radio" name="sourceType" value="ad_hoc_service" disabled={createSourceLocked || !permissions.canManageFinanceBillableCharges} checked={form.sourceType === "ad_hoc_service"} onChange={() => { updateForm("sourceType", "ad_hoc_service"); updateForm("clientCostFundingMode", ""); }} /><span><strong>ค่าบริการ / งานเพิ่มเติม</strong><small>ค่าบริการหรือผลงานเพิ่มเติมที่ VP เรียกเก็บจากลูกค้า</small></span></label><label className={form.sourceType === "recoverable_cost" ? styles.choiceActive : ""}><input type="radio" name="sourceType" value="recoverable_cost" disabled={createSourceLocked || !permissions.canManageFinanceBillableCharges} checked={form.sourceType === "recoverable_cost"} onChange={() => updateForm("sourceType", "recoverable_cost")} /><span><strong>ค่าธรรมเนียม / ค่าใช้จ่ายแทนลูกค้า</strong><small>เงินที่ต้องนำไปชำระบุคคลหรือหน่วยงานอื่นแทนลูกค้า หรือเงินที่ VP สำรองจ่ายไปก่อน</small></span></label></fieldset> : <div className={styles.sourceSummary}><span>ลักษณะของรายการ</span><strong>{sourceTypeLabel(form.sourceType)}</strong></div>}
+
+            {form.sourceType === "recoverable_cost" ? <><fieldset id="billable-charge-funding-mode" className={`${styles.sourceChoices} ${errors.clientCostFundingMode ? styles.invalidChoices : ""}`}><legend>การจ่ายรายการนี้เป็นแบบใด</legend><label className={form.clientCostFundingMode === "collect_before_disbursement" ? styles.choiceActive : ""}><input type="radio" name="clientCostFundingMode" disabled={!permissions.canManageFinanceBillableCharges} checked={form.clientCostFundingMode === "collect_before_disbursement"} onChange={() => updateForm("clientCostFundingMode", "collect_before_disbursement")} /><span><strong>เรียกเก็บจากลูกค้าก่อน แล้วจึงนำไปชำระ</strong><small>VP ยังไม่ได้สำรองจ่ายรายการนี้</small></span></label><label className={form.clientCostFundingMode === "reimburse_after_advance" ? styles.choiceActive : ""}><input type="radio" name="clientCostFundingMode" disabled={!permissions.canManageFinanceBillableCharges} checked={form.clientCostFundingMode === "reimburse_after_advance"} onChange={() => updateForm("clientCostFundingMode", "reimburse_after_advance")} /><span><strong>VP สำรองจ่ายแล้ว และเรียกคืนจากลูกค้า</strong><small>VP ได้ชำระค่าใช้จ่ายนี้ไปแล้ว และกำลังเรียกคืนจากลูกค้า</small></span></label></fieldset>{errors.clientCostFundingMode ? <p className={styles.fieldError}>{errors.clientCostFundingMode}</p> : null}</> : null}
 
             <div className={styles.formGrid}>
               <FormField label="ลูกค้า" error={errors.clientId}><select disabled={!permissions.canManageFinanceBillableCharges} value={form.clientId} onChange={(event) => { setForm((current) => ({ ...current, clientId: event.target.value, matterMode: "unlinked", caseId: "", advisoryMatterId: "" })); setErrors((current) => ({ ...current, clientId: "", matter: "" })); }}><option value="">เลือกลูกค้า</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name || "ลูกค้าไม่มีชื่อ"}</option>)}</select></FormField>
@@ -752,7 +760,7 @@ function AmountReview({ form, amounts }: { form: ChargeForm; amounts: ReturnType
 }
 
 function ReviewGrid({ form, amounts, clients, cases, advisories }: { form: ChargeForm; amounts: ReturnType<typeof calculateFormAmounts>; clients: ClientOption[]; cases: CaseOption[]; advisories: AdvisoryOption[] }) {
-  return <dl className={styles.reviewGrid}><ReviewItem label="ลูกค้า" value={clientLabel(form.clientId, clients)} /><ReviewItem label="คดี / งานที่ปรึกษา" value={formMatterLabel(form, cases, advisories)} /><ReviewItem label="วันที่เกิดรายการ" value={thaiDate(form.serviceDate)} /><ReviewItem label="รายการ" value={form.description || "-"} /><ReviewItem label="จำนวน / หน่วย / ราคา" value={`${number(form.quantity)} ${form.unit || "-"} × ${money(form.unitRate || 0)}`} /><ReviewItem label="ประเภทของยอด" value={classificationLabel(form.economicClassification || null)} /><ReviewItem label="การคิด VAT" value={taxModeLabel(form.priceTaxMode, form.vatRate)} /><ReviewItem label="ยอดก่อน VAT" value={money(amounts.amountBeforeVat)} /><ReviewItem label="VAT" value={money(amounts.vatAmount)} /><ReviewItem label="ยอดเรียกเก็บ" value={money(amounts.totalAmount)} /><ReviewItem label="อ้างอิง / หลักฐาน" value={form.sourceReference || "-"} /></dl>;
+  return <dl className={styles.reviewGrid}><ReviewItem label="ลูกค้า" value={clientLabel(form.clientId, clients)} /><ReviewItem label="คดี / งานที่ปรึกษา" value={formMatterLabel(form, cases, advisories)} /><ReviewItem label="ลักษณะรายการ" value={sourceTypeLabel(form.sourceType)} />{form.sourceType === "recoverable_cost" ? <ReviewItem label="การจ่าย" value={clientCostFundingModeLabel(form.clientCostFundingMode || null)} /> : null}<ReviewItem label="วันที่เกิดรายการ" value={thaiDate(form.serviceDate)} /><ReviewItem label="รายการ" value={form.description || "-"} /><ReviewItem label="จำนวน / หน่วย / ราคา" value={`${number(form.quantity)} ${form.unit || "-"} × ${money(form.unitRate || 0)}`} /><ReviewItem label="ประเภทของยอด" value={classificationLabel(form.economicClassification || null)} /><ReviewItem label="การคิด VAT" value={taxModeLabel(form.priceTaxMode, form.vatRate)} /><ReviewItem label="ยอดก่อน VAT" value={money(amounts.amountBeforeVat)} /><ReviewItem label="VAT" value={money(amounts.vatAmount)} /><ReviewItem label="ยอดเรียกเก็บ" value={money(amounts.totalAmount)} /><ReviewItem label="อ้างอิง / หลักฐาน" value={form.sourceReference || "-"} /></dl>;
 }
 
 function ReviewItem({ label, value }: { label: string; value: string }) {
@@ -763,7 +771,7 @@ function ReadOnlyDetail({ charge, clients, cases, advisories }: { charge: Billab
   const notice = charge.status === "ready_to_invoice" ? "รายการนี้พร้อมใช้ในการออกใบแจ้งหนี้ ข้อมูลรายการ ยอด ภาษี และประเภทของยอดเป็นแบบอ่านอย่างเดียว หากข้อมูลผิด ให้ยกเลิกรายการนี้และสร้างรายการใหม่" : statusExplanation(charge.status);
   return <>
     {notice ? <div className={styles.readOnlyNotice}>{notice}</div> : null}
-    <dl className={styles.detailGrid}><Detail label="ลูกค้า" value={clientLabel(charge.client_id, clients)} link="/clients" /><Detail label="คดี / งานที่ปรึกษา" value={matterLabel(charge, cases, advisories)} link={charge.case_id ? `/cases/${charge.case_id}` : charge.advisory_matter_id ? `/advisory/${charge.advisory_matter_id}` : undefined} /><Detail label="ที่มาของยอด" value={sourceTypeLabel(charge.source_type)} /><Detail label="วันที่เกิดรายการ" value={thaiDate(charge.service_date)} /><Detail label="รายการ" value={charge.description || "-"} /><Detail label="จำนวน / หน่วย / ราคา" value={`${number(charge.quantity)} ${charge.unit || "-"} × ${money(charge.unit_rate, charge.currency)}`} /><Detail label="ประเภทของยอด" value={classificationLabel(charge.economic_classification)} /><Detail label="การคิด VAT" value={taxModeLabel(charge.price_tax_mode, charge.vat_rate)} /><Detail label="ยอดก่อน VAT" value={money(charge.amount_before_vat, charge.currency)} /><Detail label="VAT" value={money(charge.vat_amount, charge.currency)} /><Detail label="ยอดเรียกเก็บ" value={money(charge.total_amount, charge.currency)} prominent /><Detail label="เลขอ้างอิง / หลักฐาน" value={charge.source_reference || "-"} /><Detail label="สร้างเมื่อ" value={thaiDateTime(charge.created_at)} /><Detail label="ยืนยันพร้อมออกใบแจ้งหนี้" value={thaiDateTime(charge.ready_to_invoice_at)} />{charge.status === "cancelled" ? <><Detail label="ยกเลิกเมื่อ" value={thaiDateTime(charge.cancelled_at)} /><Detail label="เหตุผลที่ยกเลิก" value={charge.cancel_reason || "-"} /></> : null}</dl>
+    <dl className={styles.detailGrid}><Detail label="ลูกค้า" value={clientLabel(charge.client_id, clients)} link="/clients" /><Detail label="คดี / งานที่ปรึกษา" value={matterLabel(charge, cases, advisories)} link={charge.case_id ? `/cases/${charge.case_id}` : charge.advisory_matter_id ? `/advisory/${charge.advisory_matter_id}` : undefined} /><Detail label="ลักษณะรายการ" value={sourceTypeLabel(charge.source_type)} />{charge.source_type === "recoverable_cost" ? <Detail label="การจ่าย" value={clientCostFundingModeLabel(charge.client_cost_funding_mode)} /> : null}<Detail label="วันที่เกิดรายการ" value={thaiDate(charge.service_date)} /><Detail label="รายการ" value={charge.description || "-"} /><Detail label="จำนวน / หน่วย / ราคา" value={`${number(charge.quantity)} ${charge.unit || "-"} × ${money(charge.unit_rate, charge.currency)}`} /><Detail label="ประเภทของยอด" value={classificationLabel(charge.economic_classification)} /><Detail label="การคิด VAT" value={taxModeLabel(charge.price_tax_mode, charge.vat_rate)} /><Detail label="ยอดก่อน VAT" value={money(charge.amount_before_vat, charge.currency)} /><Detail label="VAT" value={money(charge.vat_amount, charge.currency)} /><Detail label="ยอดเรียกเก็บ" value={money(charge.total_amount, charge.currency)} prominent /><Detail label="เลขอ้างอิง / หลักฐาน" value={charge.source_reference || "-"} /><Detail label="สร้างเมื่อ" value={thaiDateTime(charge.created_at)} /><Detail label="ยืนยันพร้อมออกใบแจ้งหนี้" value={thaiDateTime(charge.ready_to_invoice_at)} />{charge.status === "cancelled" ? <><Detail label="ยกเลิกเมื่อ" value={thaiDateTime(charge.cancelled_at)} /><Detail label="เหตุผลที่ยกเลิก" value={charge.cancel_reason || "-"} /></> : null}</dl>
   </>;
 }
 
@@ -773,7 +781,7 @@ function BillableChargeModalDetail({ charge, clients, cases, advisories }: { cha
     {notice ? <div className={styles.readOnlyNotice}>{notice}</div> : null}
     <section className={styles.detailSection}>
       <div className={styles.detailSectionHeading}><span className={styles.eyebrow}>ข้อมูลหลัก</span><h3>ข้อมูลรายการ</h3></div>
-      <dl className={styles.detailGrid}><Detail label="รายการ" value={charge.description || "-"} prominent /><Detail label="ลูกค้า" value={clientLabel(charge.client_id, clients)} link="/clients" /><Detail label="คดี / งานที่ปรึกษา" value={matterLabel(charge, cases, advisories)} link={charge.case_id ? `/cases/${charge.case_id}` : charge.advisory_matter_id ? `/advisory/${charge.advisory_matter_id}` : undefined} /><Detail label="ที่มาของยอด" value={sourceTypeLabel(charge.source_type)} /><Detail label="วันที่เกิดรายการ" value={thaiDate(charge.service_date)} /></dl>
+      <dl className={styles.detailGrid}><Detail label="รายการ" value={charge.description || "-"} prominent /><Detail label="ลูกค้า" value={clientLabel(charge.client_id, clients)} link="/clients" /><Detail label="คดี / งานที่ปรึกษา" value={matterLabel(charge, cases, advisories)} link={charge.case_id ? `/cases/${charge.case_id}` : charge.advisory_matter_id ? `/advisory/${charge.advisory_matter_id}` : undefined} /><Detail label="ลักษณะรายการ" value={sourceTypeLabel(charge.source_type)} />{charge.source_type === "recoverable_cost" ? <Detail label="การจ่าย" value={clientCostFundingModeLabel(charge.client_cost_funding_mode)} /> : null}<Detail label="วันที่เกิดรายการ" value={thaiDate(charge.service_date)} /></dl>
     </section>
     <section className={styles.detailSection}>
       <div className={styles.detailSectionHeading}><span className={styles.eyebrow}>ยอดเรียกเก็บ</span><h3>การคำนวณยอด</h3></div>
@@ -803,11 +811,11 @@ function PlusIcon() {
 }
 
 function emptyForm(): ChargeForm {
-  return { sourceType: "ad_hoc_service", clientId: "", matterMode: "unlinked", caseId: "", advisoryMatterId: "", serviceDate: bangkokToday(), description: "", quantity: "1", unit: "", unitRate: "", economicClassification: "", priceTaxMode: "non_vat", vatRate: "0", sourceReference: "", taxCategory: "" };
+  return { sourceType: "ad_hoc_service", clientCostFundingMode: "", clientId: "", matterMode: "unlinked", caseId: "", advisoryMatterId: "", serviceDate: bangkokToday(), description: "", quantity: "1", unit: "", unitRate: "", economicClassification: "", priceTaxMode: "non_vat", vatRate: "0", sourceReference: "", taxCategory: "" };
 }
 
 function chargeToForm(charge: BillableCharge): ChargeForm {
-  return { sourceType: charge.source_type === "recoverable_cost" ? "recoverable_cost" : "ad_hoc_service", clientId: charge.client_id, matterMode: charge.case_id ? "case" : charge.advisory_matter_id ? "advisory" : "unlinked", caseId: charge.case_id ? String(charge.case_id) : "", advisoryMatterId: charge.advisory_matter_id || "", serviceDate: charge.service_date || "", description: charge.description || "", quantity: String(charge.quantity), unit: charge.unit || "", unitRate: String(charge.unit_rate), economicClassification: charge.economic_classification || "", priceTaxMode: charge.price_tax_mode, vatRate: String(charge.vat_rate), sourceReference: charge.source_reference || "", taxCategory: charge.tax_category || "" };
+  return { sourceType: charge.source_type === "recoverable_cost" ? "recoverable_cost" : "ad_hoc_service", clientCostFundingMode: charge.client_cost_funding_mode || "", clientId: charge.client_id, matterMode: charge.case_id ? "case" : charge.advisory_matter_id ? "advisory" : "unlinked", caseId: charge.case_id ? String(charge.case_id) : "", advisoryMatterId: charge.advisory_matter_id || "", serviceDate: charge.service_date || "", description: charge.description || "", quantity: String(charge.quantity), unit: charge.unit || "", unitRate: String(charge.unit_rate), economicClassification: charge.economic_classification || "", priceTaxMode: charge.price_tax_mode, vatRate: String(charge.vat_rate), sourceReference: charge.source_reference || "", taxCategory: charge.tax_category || "" };
 }
 
 function validateDraft(form: ChargeForm) {
@@ -823,6 +831,7 @@ function validateDraft(form: ChargeForm) {
 
 function validateReady(form: ChargeForm) {
   const errors = validateDraft(form);
+  if (clientCostFundingModeRequired(form.sourceType, form.clientCostFundingMode)) errors.clientCostFundingMode = "กรุณาระบุรูปแบบการจ่ายของรายการนี้";
   if (!form.serviceDate) errors.serviceDate = "กรุณาระบุวันที่เกิดรายการ";
   if (!form.description.trim()) errors.description = "กรุณาระบุรายการที่จะเรียกเก็บ";
   if (!form.unit.trim()) errors.unit = "กรุณาระบุหน่วย";
@@ -842,14 +851,14 @@ function focusFirstError(errors: Record<string, string>) {
   const first = Object.keys(errors)[0];
   if (!first) return;
   window.requestAnimationFrame(() => {
-    const target = first === "acknowledgement" ? document.getElementById("billable-charge-acknowledgement") : first === "matter" ? document.getElementById("billable-charge-matter") : document.getElementById(`billable-charge-field-${fieldId(errorFieldLabel(first))}`);
+    const target = first === "acknowledgement" ? document.getElementById("billable-charge-acknowledgement") : first === "matter" ? document.getElementById("billable-charge-matter") : first === "clientCostFundingMode" ? document.getElementById("billable-charge-funding-mode") : document.getElementById(`billable-charge-field-${fieldId(errorFieldLabel(first))}`);
     target?.scrollIntoView({ behavior: "smooth", block: "center" });
     target?.querySelector<HTMLElement>("input,select,textarea")?.focus({ preventScroll: true });
   });
 }
 
 function errorFieldLabel(field: string) {
-  const labels: Record<string, string> = { clientId: "ลูกค้า", serviceDate: "วันที่เกิดรายการ / วันที่ให้บริการ", description: "รายการ", quantity: "จำนวน", unit: "หน่วย", unitRate: "ราคาต่อหน่วย", economicClassification: "ประเภทของยอด", vatRate: "อัตรา VAT (%)", matter: "เลือกคดี" };
+  const labels: Record<string, string> = { clientId: "ลูกค้า", clientCostFundingMode: "การจ่ายรายการนี้เป็นแบบใด", serviceDate: "วันที่เกิดรายการ / วันที่ให้บริการ", description: "รายการ", quantity: "จำนวน", unit: "หน่วย", unitRate: "ราคาต่อหน่วย", economicClassification: "ประเภทของยอด", vatRate: "อัตรา VAT (%)", matter: "เลือกคดี" };
   return labels[field] || field;
 }
 
@@ -872,7 +881,7 @@ function caseOptionLabel(item: CaseOption) { return [item.file_no, item.title].f
 function advisoryOptionLabel(item: AdvisoryOption) { return [item.matter_no, item.title].filter(Boolean).join(" · ") || "งานที่ปรึกษา"; }
 function matterLabel(charge: Pick<BillableCharge, "case_id" | "advisory_matter_id">, cases: CaseOption[], advisories: AdvisoryOption[]) { if (charge.case_id) return `คดี · ${caseOptionLabel(cases.find((item) => item.id === charge.case_id) || { id: charge.case_id, client_id: null, file_no: null, title: null })}`; if (charge.advisory_matter_id) return `งานที่ปรึกษา · ${advisoryOptionLabel(advisories.find((item) => item.id === charge.advisory_matter_id) || { id: charge.advisory_matter_id, client_id: null, matter_no: null, title: null })}`; return "ไม่ผูกกับงานเฉพาะ"; }
 function formMatterLabel(form: ChargeForm, cases: CaseOption[], advisories: AdvisoryOption[]) { if (form.matterMode === "case") return caseOptionLabel(cases.find((item) => String(item.id) === form.caseId) || { id: Number(form.caseId || 0), client_id: null, file_no: null, title: null }); if (form.matterMode === "advisory") return advisoryOptionLabel(advisories.find((item) => item.id === form.advisoryMatterId) || { id: form.advisoryMatterId, client_id: null, matter_no: null, title: null }); return "ไม่ผูกกับงานเฉพาะ"; }
-function sourceTypeLabel(value: SourceType | ChargeForm["sourceType"]) { if (value === "recoverable_cost") return "ค่าใช้จ่ายที่เรียกคืนจากลูกค้า"; if (value === "billing_installment_item") return "รายการจากแผนเรียกเก็บเงิน"; return "ค่าบริการ / งานเพิ่มเติม"; }
+function sourceTypeLabel(value: SourceType | ChargeForm["sourceType"]) { return billableChargeNatureLabel(value); }
 function classificationLabel(value: EconomicClassification | null) { if (value === "professional_fee") return "ค่าวิชาชีพ"; if (value === "additional_service") return "ค่าบริการเพิ่มเติม"; if (value === "reimbursable_expense") return "ค่าใช้จ่ายเรียกคืน"; if (value === "government_or_court_fee") return "ค่าธรรมเนียมศาล / หน่วยงานรัฐ"; if (value === "other") return "อื่น ๆ"; return "ยังไม่ระบุ"; }
 function taxModeLabel(mode: FinancePriceTaxMode, vatRate: number | string) { if (mode === "non_vat") return "ไม่มี VAT"; return `${mode === "vat_inclusive" ? "ราคารวม VAT แล้ว" : "ราคายังไม่รวม VAT"} · ${number(vatRate)}%`; }
 function statusLabel(status: ChargeStatus) { if (status === "ready_to_invoice") return "พร้อมออกใบแจ้งหนี้"; if (status === "reserved") return "กำลังจัดทำใบแจ้งหนี้"; if (status === "invoiced") return "ออกใบแจ้งหนี้แล้ว"; if (status === "cancelled") return "ยกเลิก"; return "ร่าง"; }
@@ -887,6 +896,8 @@ function billableChargeError(value: unknown, fallback: string) {
   if (message.includes("description is required")) return "กรุณาระบุรายการที่จะเรียกเก็บก่อนยืนยัน";
   if (message.includes("unit is required")) return "กรุณาระบุหน่วยก่อนยืนยัน";
   if (message.includes("economic classification is required")) return "กรุณาเลือกประเภทของยอดก่อนยืนยัน";
+  if (message.includes("funding mode is required")) return "กรุณาระบุรูปแบบการจ่ายของรายการค่าธรรมเนียมหรือค่าใช้จ่ายแทนลูกค้าก่อนยืนยัน";
+  if (message.includes("funding mode is invalid") || message.includes("funding mode is inconsistent")) return "ลักษณะรายการและรูปแบบการจ่ายไม่สอดคล้องกัน กรุณาตรวจสอบอีกครั้ง";
   if (message.includes("total must be positive")) return "ยอดเรียกเก็บต้องมากกว่า 0 ก่อนยืนยัน";
   if (message.includes("request id was already used")) return "ข้อมูลการสร้างรายการเปลี่ยนไประหว่างการบันทึก กรุณาปิดแบบฟอร์มและเริ่มรายการใหม่";
   if (message.includes("Not allowed")) return "คุณไม่มีสิทธิ์ดำเนินการนี้ กรุณาติดต่อ Admin";

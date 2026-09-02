@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import DetailModal from "../../../components/DetailModal";
 import BillableChargeCreateWorkflow, { type BillableChargeContext } from "../../billable-charges/BillableChargeCreateWorkflow";
+import { billableChargeNatureLabel, clientCostFundingModeLabel, type ClientCostFundingMode } from "../../billable-charges/funding-semantics";
 import { canAddChargeFromInstallment, filterChargesForBillingContext, partitionChargesByWorkflow, type BillingChargeContext } from "../charge-context";
 import { QuotationGuard } from "../../quotations/shared";
 import { supabase } from "../../../../lib/supabase";
@@ -18,7 +19,7 @@ type Installment = { id: string; installment_no: number; sort_order: number; tit
 type Allocation = { id: string; billing_installment_id: string; fee_agreement_item_id: string; amount_before_tax: number | string; vat_amount: number | string; total_amount: number | string; allocation_percent: number | string | null; sort_order: number; allocation_snapshot_json: Json | null; created_at: string };
 type AgreementItem = { id: string; description: string };
 type InvoiceSummary = { id: string; primary_billing_installment_id: string; document_status: string; invoice_no: string | null; issued_at: string | null; voided_at: string | null; cancelled_at: string | null; created_at: string };
-type RelatedCharge = { id: string; client_id: string; case_id: number | null; advisory_matter_id: string | null; source_type: string; description: string | null; service_date: string | null; economic_classification: string | null; price_tax_mode: string; vat_rate: number | string; amount_before_vat: number | string; vat_amount: number | string; total_amount: number | string; currency: string; status: string; source_reference: string | null; created_at: string; ready_to_invoice_at: string | null };
+type RelatedCharge = { id: string; client_id: string; case_id: number | null; advisory_matter_id: string | null; source_type: string; client_cost_funding_mode: ClientCostFundingMode | null; description: string | null; service_date: string | null; economic_classification: string | null; price_tax_mode: string; vat_rate: number | string; amount_before_vat: number | string; vat_amount: number | string; total_amount: number | string; currency: string; status: string; source_reference: string | null; created_at: string; ready_to_invoice_at: string | null };
 type ChargeInvoiceLink = { invoiceId: string; invoiceNo: string | null; allocationStatus: string };
 type DraftInstallment = { id: string; installment_no: number; sort_order: number; title: string; trigger_description: string; trigger_type: string; due_date: string; milestone_code: string; recurring_period_start: string; recurring_period_end: string };
 type DraftForm = { title: string; description: string; installments: DraftInstallment[] };
@@ -162,7 +163,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
     if (canViewCharges && agreementRow) {
       relatedChargesResult = await supabase
         .from("finance_billable_charges")
-        .select("id,client_id,case_id,advisory_matter_id,source_type,description,service_date,economic_classification,price_tax_mode,vat_rate,amount_before_vat,vat_amount,total_amount,currency,status,source_reference,created_at,ready_to_invoice_at")
+        .select("id,client_id,case_id,advisory_matter_id,source_type,client_cost_funding_mode,description,service_date,economic_classification,price_tax_mode,vat_rate,amount_before_vat,vat_amount,total_amount,currency,status,source_reference,created_at,ready_to_invoice_at")
         .eq("client_id", agreementRow.client_id)
         .eq("currency", planRow.currency)
         .neq("source_type", "billing_installment_item")
@@ -597,6 +598,8 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
       <dl className="billing-plan-related-charge-detail-grid" style={relatedChargeDetailGrid}>
         <Field label="วันที่เกิดรายการ" value={date(relatedCharge.service_date || relatedCharge.created_at)} />
         <Field label="สถานะ" value={chargeStatusLabel(relatedCharge.status)} />
+        <Field label="ลักษณะรายการ" value={billableChargeNatureLabel(relatedCharge.source_type)} />
+        {relatedCharge.source_type === "recoverable_cost" ? <Field label="การจ่าย" value={clientCostFundingModeLabel(relatedCharge.client_cost_funding_mode)} /> : null}
         <Field label="ประเภทของยอด" value={chargeClassificationLabel(relatedCharge.economic_classification)} />
         <Field label="การคิด VAT" value={chargeTaxLabel(relatedCharge.price_tax_mode, relatedCharge.vat_rate)} />
         <Field label="มูลค่าก่อน VAT" value={money(relatedCharge.amount_before_vat, relatedCharge.currency)} />
@@ -628,7 +631,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
             return <article key={charge.id} style={{ ...invoiceChargeChoice, ...(selected ? invoiceChargeChoiceSelected : {}) }}>
               <label className="billing-invoice-charge-label" style={invoiceChargeLabel}><input type="checkbox" checked={selected} onChange={() => { setSelectedInvoiceChargeIds((current) => current.includes(charge.id) ? current.filter((id) => id !== charge.id) : [...current, charge.id]); setSelectionDetailChargeId(""); }} /><span style={invoiceChoiceCopy}><strong>{text(charge.description, "รายการรอเรียกเก็บ")}</strong><small>{date(charge.service_date || charge.created_at)} · {chargeClassificationLabel(charge.economic_classification)} · {chargeTaxLabel(charge.price_tax_mode, charge.vat_rate)}</small></span><strong className="billing-invoice-choice-amount" style={invoiceChoiceAmount}>{money(charge.total_amount, charge.currency)}</strong></label>
               <button className="billing-invoice-detail-toggle" type="button" style={invoiceDetailToggle} aria-expanded={detailOpen} onClick={() => setSelectionDetailChargeId(detailOpen ? "" : charge.id)}>{detailOpen ? "ซ่อนรายละเอียด" : "ดูรายละเอียด"}</button>
-              {detailOpen ? <dl className="billing-invoice-charge-detail" style={invoiceInlineDetail}><Field label="วันที่เกิดรายการ" value={date(charge.service_date || charge.created_at)} /><Field label="ประเภทของยอด" value={chargeClassificationLabel(charge.economic_classification)} /><Field label="การคิด VAT" value={chargeTaxLabel(charge.price_tax_mode, charge.vat_rate)} /><Field label="มูลค่าก่อน VAT" value={money(charge.amount_before_vat, charge.currency)} /><Field label="VAT" value={money(charge.vat_amount, charge.currency)} /><Field label="ยอดรวม" value={money(charge.total_amount, charge.currency)} /><Field label="อ้างอิง / หลักฐาน" value={text(charge.source_reference)} /></dl> : null}
+              {detailOpen ? <dl className="billing-invoice-charge-detail" style={invoiceInlineDetail}><Field label="วันที่เกิดรายการ" value={date(charge.service_date || charge.created_at)} /><Field label="ลักษณะรายการ" value={billableChargeNatureLabel(charge.source_type)} />{charge.source_type === "recoverable_cost" ? <Field label="การจ่าย" value={clientCostFundingModeLabel(charge.client_cost_funding_mode)} /> : null}<Field label="ประเภทของยอด" value={chargeClassificationLabel(charge.economic_classification)} /><Field label="การคิด VAT" value={chargeTaxLabel(charge.price_tax_mode, charge.vat_rate)} /><Field label="มูลค่าก่อน VAT" value={money(charge.amount_before_vat, charge.currency)} /><Field label="VAT" value={money(charge.vat_amount, charge.currency)} /><Field label="ยอดรวม" value={money(charge.total_amount, charge.currency)} /><Field label="อ้างอิง / หลักฐาน" value={text(charge.source_reference)} /></dl> : null}
             </article>;
           })}</div>}
           {compatibleReadyCharges.length > 0 && canManageCharges && agreement ? <button className="billing-invoice-add-charge" type="button" style={invoiceSecondaryAddLink} onClick={() => openChargeCreate(invoiceSelectionInstallment)}><NavigationIcon name="plus" />เพิ่มรายการเรียกเก็บ</button> : null}
