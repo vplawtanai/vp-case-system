@@ -7,7 +7,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import DetailModal from "../../../components/DetailModal";
 import BillableChargeCreateWorkflow, { type BillableChargeContext } from "../../billable-charges/BillableChargeCreateWorkflow";
 import { billableChargeNatureLabel, clientCostFundingModeLabel, type ClientCostFundingMode } from "../../billable-charges/funding-semantics";
-import { billingPlanReadyChargeCompletionState, canAddChargeFromInstallment, filterChargesForBillingContext, partitionChargesByWorkflow, type BillingChargeContext } from "../charge-context";
+import { billingPlanReadyChargeCompletionState, canAddChargeFromInstallment, currentChargeOverviewRows, filterChargesForBillingContext, filterSelectableReadyCharges, partitionChargesByWorkflow, summarizeReadyCharges, type BillingChargeContext } from "../charge-context";
 import { QuotationGuard } from "../../quotations/shared";
 import { supabase } from "../../../../lib/supabase";
 import { feeAgreementStatusLabel } from "../../fee-agreements/lifecycle";
@@ -66,6 +66,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
   const [relatedChargeCandidates, setRelatedChargeCandidates] = useState<RelatedCharge[]>([]);
   const [chargeInvoiceLinks, setChargeInvoiceLinks] = useState<Record<string, ChargeInvoiceLink>>({});
   const [relatedChargeId, setRelatedChargeId] = useState("");
+  const [readyChargeListInstallmentId, setReadyChargeListInstallmentId] = useState("");
   const [invoiceSelectionInstallmentId, setInvoiceSelectionInstallmentId] = useState("");
   const [selectedInvoiceChargeIds, setSelectedInvoiceChargeIds] = useState<string[]>([]);
   const [selectionDetailChargeId, setSelectionDetailChargeId] = useState("");
@@ -215,6 +216,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
       return links;
     }, {}));
     setRelatedChargeId("");
+    setReadyChargeListInstallmentId("");
     setSelectionDetailChargeId("");
     const nextDraft = billingPlanDraft(planRow, installmentRows);
     setDraft(nextDraft);
@@ -359,8 +361,11 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
   const relatedCharges = useMemo(() => filterChargesForBillingContext(relatedChargeCandidates, relatedChargeContext), [relatedChargeCandidates, relatedChargeContext]);
   const chargeWorkflow = useMemo(() => partitionChargesByWorkflow(relatedCharges), [relatedCharges]);
   const relatedCharge = useMemo(() => relatedCharges.find((charge) => charge.id === relatedChargeId) || null, [relatedChargeId, relatedCharges]);
-  const compatibleReadyCharges = useMemo(() => chargeWorkflow.current.filter((charge) => charge.status === "ready_to_invoice" && charge.source_type !== "billing_installment_item"), [chargeWorkflow]);
+  const compatibleReadyCharges = useMemo(() => filterSelectableReadyCharges(chargeWorkflow.current), [chargeWorkflow]);
+  const hasReadyChargePreview = useMemo(() => compatibleReadyCharges.length > 0 && plan?.status === "active" && installments.some((installment) => installment.status === "ready_to_invoice" && !invoices.some((invoice) => invoice.primary_billing_installment_id === installment.id)), [compatibleReadyCharges.length, installments, invoices, plan?.status]);
+  const currentChargesForOverview = useMemo(() => currentChargeOverviewRows(chargeWorkflow.current, hasReadyChargePreview), [chargeWorkflow, hasReadyChargePreview]);
   const invoiceSelectionInstallment = useMemo(() => installments.find((installment) => installment.id === invoiceSelectionInstallmentId) || null, [installments, invoiceSelectionInstallmentId]);
+  const readyChargeListInstallment = useMemo(() => installments.find((installment) => installment.id === readyChargeListInstallmentId) || null, [installments, readyChargeListInstallmentId]);
   const selectedInvoiceCharges = useMemo(() => compatibleReadyCharges.filter((charge) => selectedInvoiceChargeIds.includes(charge.id)), [compatibleReadyCharges, selectedInvoiceChargeIds]);
   const selectionDetailCharge = useMemo(() => compatibleReadyCharges.find((charge) => charge.id === selectionDetailChargeId) || null, [compatibleReadyCharges, selectionDetailChargeId]);
   const selectionTotals = useMemo(() => selectedInvoiceCharges.reduce((sum, charge) => ({ before: sum.before + numberValue(charge.amount_before_vat), vat: sum.vat + numberValue(charge.vat_amount), total: sum.total + numberValue(charge.total_amount) }), { before: numberValue(invoiceSelectionInstallment?.amount_before_tax), vat: numberValue(invoiceSelectionInstallment?.vat_amount), total: numberValue(invoiceSelectionInstallment?.total_amount) }), [invoiceSelectionInstallment, selectedInvoiceCharges]);
@@ -369,6 +374,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
     const installmentInvoices = invoices.filter((invoice) => invoice.primary_billing_installment_id === installment.id);
     if (installmentInvoices.length) return;
     setInvoiceSelectionInstallmentId(installment.id);
+    setReadyChargeListInstallmentId("");
     setSelectedInvoiceChargeIds([]);
     setSelectionDetailChargeId("");
   }, [canComposeInstallment, invoices, plan?.status]);
@@ -512,6 +518,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
           .filter((invoice) => ["cancelled", "voided"].includes(invoice.document_status))
           .sort((left, right) => right.created_at.localeCompare(left.created_at));
         const canAddCharge = canAddChargeFromInstallment({ canManageCharges, planStatus: plan.status, installmentStatus: installment.status, hasActiveInvoice: Boolean(activeInvoice) });
+        const showReadyChargePreview = canViewCharges && plan.status === "active" && installment.status === "ready_to_invoice" && installmentInvoices.length === 0 && compatibleReadyCharges.length > 0;
         return <article key={installment.id} style={installmentCard}>
           <div style={installmentHeader}><div style={installmentHeadingCopy}><span style={installmentEyebrow}>งวดเรียกเก็บเงิน</span><h3 style={installmentTitle}>งวดที่ {installment.installment_no}</h3>{customInstallmentTitle ? <p style={installmentCustomTitle}>{customInstallmentTitle}</p> : null}</div><StatusBadge status={installment.status} label={installmentStatus[installment.status] || installment.status} /></div>
           {plan.status === "draft" && canManage && draftInstallment ? <div className="billing-plan-installment-edit-grid" style={installmentEditGrid}>
@@ -564,6 +571,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
             {readinessErrors.confirmed ? <span style={fieldError}>{readinessErrors.confirmed}</span> : null}
             <div style={readinessActions}><button type="button" style={secondaryButton} disabled={installmentActionId === installment.id} onClick={closeReadinessPanel}>ยกเลิก</button><button className="billing-installment-primary-action" type="button" style={primaryButton} disabled={Boolean(installmentActionId)} onClick={() => void confirmInstallmentReadiness(installment)}>{installmentActionId === installment.id ? "กำลังยืนยัน..." : "ยืนยันความพร้อม"}</button></div>
           </div> : null}
+          {showReadyChargePreview ? <ReadyChargePreview charges={compatibleReadyCharges} installmentTotal={installment.total_amount} currency={plan.currency} onViewAll={() => setReadyChargeListInstallmentId(installment.id)} /> : null}
           {plan.status === "active" && installment.status === "ready_to_invoice" ? <div style={installmentNextStep}>
             <div><span style={nextStepEyebrow}>ขั้นตอนถัดไป</span><strong style={nextStepTitle}>{activeInvoice ? "เปิดร่างใบแจ้งหนี้" : installmentInvoices.length ? "ตรวจสอบประวัติใบแจ้งหนี้" : "จัดทำใบแจ้งหนี้"}</strong><p style={nextStepHelp}>{activeInvoice ? `${invoiceStatus[activeInvoice.document_status] || activeInvoice.document_status} พร้อมให้ตรวจสอบ โดยยังไม่มีการออกเลขที่ใหม่` : installmentInvoices.length ? "งวดนี้มีประวัติ Invoice V1 แล้ว จึงไม่สามารถนำเข้าสู่ Invoice V2 ผ่าน Composer" : "เปิดเครื่องมือจัดทำใบแจ้งหนี้พร้อมเลือกงวดนี้ให้แล้ว โดยยังไม่สร้างหรือเปลี่ยนแปลงข้อมูล"}</p></div>
             <div className="billing-installment-action-group" style={installmentActionGroup}>{canAddCharge ? <button type="button" style={installmentAddButton} onClick={() => openChargeCreate(installment)}><NavigationIcon name="plus" />เพิ่มรายการ</button> : null}{activeInvoice ? <Link className="billing-installment-primary-action" style={{ ...primaryButton, textDecoration: "none", display: "inline-flex", alignItems: "center" }} href={`/finance/invoices/${activeInvoice.id}`}>เปิดร่างใบแจ้งหนี้</Link> : installmentInvoices.length ? <span style={permissionNote}>ดูเอกสารเดิมได้จากประวัติด้านล่าง</span> : canComposeInstallment ? <button className="billing-installment-primary-action" type="button" style={primaryButton} onClick={() => openInvoiceSelection(installment)}>จัดทำใบแจ้งหนี้</button> : <span style={permissionNote}>สิทธิ์ของคุณไม่ครอบคลุมการรับรองงวดเพื่อจัดทำ Invoice V2</span>}</div>
@@ -580,15 +588,15 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
         </article>;
       })}
     </section>
-    {chargeWorkflow.current.length > 0 ? <ChargeOverview
+    {currentChargesForOverview.length > 0 ? <ChargeOverview
       sectionId="billing-plan-current-charges"
       open={expandCurrentCharges}
       onOpenChange={setExpandCurrentCharges}
-      charges={chargeWorkflow.current}
+      charges={currentChargesForOverview}
       invoiceLinks={chargeInvoiceLinks}
       canManageCharges={canManageCharges}
       title="รายการเพิ่มเติมที่กำลังดำเนินการ"
-      helper="รายการร่าง รายการพร้อมออกใบแจ้งหนี้ และรายการที่กำลังจัดทำใบแจ้งหนี้"
+      helper={hasReadyChargePreview ? "รายการร่างและรายการที่กำลังจัดทำใบแจ้งหนี้" : "รายการร่าง รายการพร้อมออกใบแจ้งหนี้ และรายการที่กำลังจัดทำใบแจ้งหนี้"}
       onDetail={setRelatedChargeId}
     /> : null}
     {chargeWorkflow.history.length > 0 ? <ChargeOverview
@@ -614,6 +622,10 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
         <Field label="เลขอ้างอิง / หลักฐาน" value={text(relatedCharge.source_reference)} />
         {relatedCharge.ready_to_invoice_at ? <Field label="พร้อมออกใบแจ้งหนี้เมื่อ" value={dateTime(relatedCharge.ready_to_invoice_at)} /> : null}
       </dl>
+    </DetailModal> : null}
+    {readyChargeListInstallment ? <DetailModal open title="รายการเพิ่มเติมพร้อมเรียกเก็บ" subtitle={<>ใช้ได้กับงวดที่ {readyChargeListInstallment.installment_no} · ยังไม่ได้เลือกสำหรับใบแจ้งหนี้</>} prominentValue={money(summarizeReadyCharges(compatibleReadyCharges, readyChargeListInstallment.total_amount).total, plan.currency)} onClose={() => setReadyChargeListInstallmentId("")}>
+      <ReadyChargeRows charges={compatibleReadyCharges} />
+      <p style={readyChargeDisclaimer}>รายการเหล่านี้ยังไม่ได้รวมในใบแจ้งหนี้ คุณจะเลือกว่าจะรวมรายการใดในขั้นตอนจัดทำใบแจ้งหนี้</p>
     </DetailModal> : null}
     {invoiceSelectionInstallment ? <DetailModal
       open
@@ -708,7 +720,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
       .billing-plan-navigation-back:hover { background: #f8fafc !important; border-color: #94a3b8 !important; color: #172033 !important; }
       .billing-plan-navigation-source:hover { background: #e0e7ff !important; border-color: #a5b4fc !important; color: #312e81 !important; }
       .billing-plan-navigation-link:focus-visible { outline: 3px solid rgba(37, 99, 235, .24); outline-offset: 2px; }
-      .billing-plan-primary-button, .billing-plan-save-button, .billing-plan-cancel-button, .billing-installment-primary-action, .billing-installment-action-group button, .billing-plan-related-charge-detail { transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease; }
+      .billing-plan-primary-button, .billing-plan-save-button, .billing-plan-cancel-button, .billing-installment-primary-action, .billing-installment-action-group button, .billing-plan-related-charge-detail, .billing-plan-ready-charge-view-all { transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease; }
       .billing-plan-primary-button:hover:not(:disabled), .billing-installment-primary-action:hover:not(:disabled) { background: #14532d !important; border-color: #14532d !important; }
       .billing-plan-save-button:hover:not(:disabled) { background: #f8fafc !important; border-color: #64748b !important; }
       .billing-plan-cancel-button:hover:not(:disabled) { background: #fef2f2 !important; border-color: #fca5a5 !important; }
@@ -720,6 +732,8 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
       .billing-plan-add-charge-link:hover { background: #14532d !important; border-color: #14532d !important; }
       .billing-plan-add-charge-link:focus-visible, .billing-plan-related-charge-detail:focus-visible { outline: 3px solid rgba(37, 99, 235, .24); outline-offset: 2px; }
       .billing-plan-related-charge-detail:hover { background: #f8fafc !important; border-color: #64748b !important; }
+      .billing-plan-ready-charge-view-all:hover { background: #ecfdf3 !important; border-color: #6fb889 !important; color: #234535 !important; }
+      .billing-plan-ready-charge-view-all:focus-visible { outline: 3px solid rgba(22, 101, 52, .2); outline-offset: 2px; }
       .billing-plan-related-charge-overview > summary { list-style-position: outside; }
       .billing-plan-related-charge-overview > summary span:first-child { display: grid; gap: 3px; }
       .billing-plan-related-charge-overview > summary small { color: #64748b; font-size: 12px; font-weight: 500; }
@@ -750,6 +764,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
         .billing-plan-navigation-toolbar { grid-template-columns: minmax(0, 1fr) !important; }
         .billing-plan-navigation-link { width: 100%; justify-content: flex-start !important; white-space: normal !important; }
         .billing-plan-metadata-grid, .billing-plan-totals-grid, .billing-plan-final-summary, .billing-plan-installment-edit-grid, .billing-plan-installment-financials, .billing-plan-installment-meta { grid-template-columns: minmax(0, 1fr) !important; }
+        .billing-plan-ready-charge-totals { grid-template-columns: minmax(0, 1fr) !important; }
         .billing-plan-workflow-controls { width: 100%; align-items: stretch !important; }
         .billing-plan-normal-actions { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; width: 100%; }
         .billing-plan-danger-actions { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; width: 100%; align-items: stretch !important; }
@@ -776,6 +791,31 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
       }
     `}</style>
   </main>;
+}
+
+function ReadyChargePreview({ charges, installmentTotal, currency, onViewAll }: { charges: RelatedCharge[]; installmentTotal: number | string; currency: string; onViewAll: () => void }) {
+  const summary = summarizeReadyCharges(charges, installmentTotal);
+
+  return <section className="billing-plan-ready-charge-preview" style={readyChargePreview} aria-label={`รายการเพิ่มเติมพร้อมเรียกเก็บ ${summary.count} รายการ`}>
+    <div style={readyChargeHeader}>
+      <div><span style={readyChargeEyebrow}>ข้อมูลก่อนจัดทำใบแจ้งหนี้</span><h4 style={readyChargeTitle}>รายการเพิ่มเติมพร้อมเรียกเก็บ</h4></div>
+      <strong style={readyChargeSummary}>{summary.count} รายการ · รวม {money(summary.total, currency)}</strong>
+    </div>
+    <ReadyChargeRows charges={summary.visibleCharges} />
+    {summary.hiddenCount > 0 ? <button className="billing-plan-ready-charge-view-all" type="button" style={readyChargeViewAllButton} onClick={onViewAll}>ดูทั้งหมด ({summary.count})</button> : null}
+    <div className="billing-plan-ready-charge-totals" style={readyChargeTotals}>
+      <span>ยอดตามงวด <strong>{money(installmentTotal, currency)}</strong></span>
+      <span>หากเลือกรวมทั้งหมด: <strong>{money(summary.allInTotal, currency)}</strong></span>
+    </div>
+    <p style={readyChargeDisclaimer}>รายการเหล่านี้ยังไม่ได้รวมในใบแจ้งหนี้ คุณจะเลือกว่าจะรวมรายการใดในขั้นตอนจัดทำใบแจ้งหนี้</p>
+  </section>;
+}
+
+function ReadyChargeRows({ charges }: { charges: RelatedCharge[] }) {
+  return <div style={readyChargeList}>{charges.map((charge) => <div className="billing-plan-ready-charge-row" key={charge.id} style={readyChargeRow}>
+    <span style={readyChargeDescription}>{text(charge.description, "รายการเพิ่มเติม")}</span>
+    <strong style={readyChargeAmount}>{money(charge.total_amount, charge.currency)}</strong>
+  </div>)}</div>;
 }
 
 function ChargeOverview({ sectionId, open, onOpenChange, charges, invoiceLinks, canManageCharges, title, helper, historical = false, onDetail }: {
@@ -870,6 +910,18 @@ const installmentCustomTitle: CSSProperties = { margin: "3px 0 0", color: "#4755
 const installmentEditGrid: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(220px,1.25fr) minmax(180px,.75fr) minmax(220px,1fr) minmax(170px,.7fr)", gap: 12, margin: "14px 0", padding: 14, border: "1px solid #dbeafe", borderRadius: 6, background: "#f8fbff" };
 const installmentFinancials: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 0, marginTop: 14, padding: "12px 0", borderTop: "1px solid #e2e8f0", borderBottom: "1px solid #e2e8f0" };
 const installmentMetaGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: "10px 16px", padding: "13px 0 2px", color: "#334155", fontSize: 13 };
+const readyChargePreview: CSSProperties = { display: "grid", gap: 10, marginTop: 16, padding: 14, border: "1px solid #bbf7d0", borderRadius: 7, background: "#f7fff9" };
+const readyChargeHeader: CSSProperties = { display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, flexWrap: "wrap" };
+const readyChargeEyebrow: CSSProperties = { display: "block", color: "#4b755d", fontSize: 10, fontWeight: 750 };
+const readyChargeTitle: CSSProperties = { margin: "3px 0 0", color: "#234535", fontSize: 15 };
+const readyChargeSummary: CSSProperties = { color: "#356348", fontSize: 12, fontVariantNumeric: "tabular-nums" };
+const readyChargeList: CSSProperties = { display: "grid", borderTop: "1px solid #dcfce7" };
+const readyChargeRow: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", alignItems: "baseline", gap: 12, padding: "8px 0", borderBottom: "1px solid #dcfce7" };
+const readyChargeDescription: CSSProperties = { minWidth: 0, color: "#334155", fontSize: 13, lineHeight: 1.4, overflowWrap: "anywhere" };
+const readyChargeAmount: CSSProperties = { color: "#234535", fontSize: 13, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" };
+const readyChargeViewAllButton: CSSProperties = { justifySelf: "start", minHeight: 32, padding: "5px 9px", border: "1px solid #a7d7b7", borderRadius: 6, background: "#fff", color: "#356348", cursor: "pointer", font: "inherit", fontSize: 12, fontWeight: 750 };
+const readyChargeTotals: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 8, color: "#475569", fontSize: 12, fontVariantNumeric: "tabular-nums" };
+const readyChargeDisclaimer: CSSProperties = { margin: 0, color: "#64748b", fontSize: 12, lineHeight: 1.5 };
 const installmentNextStep: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 18, flexWrap: "wrap", marginTop: 18, padding: 14, border: "1px solid #bbf7d0", borderRadius: 6, background: "#f7fff9" };
 const installmentActionGroup: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" };
 const installmentAddButton: CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 40, padding: "8px 12px", border: "1px solid #94a3b8", borderRadius: 6, background: "#fff", color: "#334155", cursor: "pointer", font: "inherit", fontWeight: 750 };

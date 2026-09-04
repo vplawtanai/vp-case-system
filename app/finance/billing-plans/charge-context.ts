@@ -16,6 +16,20 @@ export type WorkflowCharge = {
   status: string;
 };
 
+export type SelectableAdditionalCharge = WorkflowCharge & {
+  source_type: string;
+  total_amount: number | string;
+};
+
+export type ReadyChargeSummary<T> = {
+  charges: T[];
+  visibleCharges: T[];
+  count: number;
+  hiddenCount: number;
+  total: number;
+  allInTotal: number;
+};
+
 export type InstallmentClassificationSource = {
   economic_classification: string | null;
 };
@@ -56,6 +70,28 @@ export function partitionChargesByWorkflow<T extends WorkflowCharge>(charges: T[
     if (historicalChargeStatuses.has(charge.status)) result.history.push(charge);
     return result;
   }, { current: [], history: [] });
+}
+
+export function filterSelectableReadyCharges<T extends SelectableAdditionalCharge>(charges: T[]): T[] {
+  return charges.filter((charge) => charge.status === "ready_to_invoice" && charge.source_type !== "billing_installment_item");
+}
+
+export function currentChargeOverviewRows<T extends WorkflowCharge>(charges: T[], readyPreviewShown: boolean): T[] {
+  return readyPreviewShown ? charges.filter((charge) => charge.status !== "ready_to_invoice") : charges;
+}
+
+export function summarizeReadyCharges<T extends SelectableAdditionalCharge>(charges: T[], installmentTotal: number | string, visibleLimit = 3): ReadyChargeSummary<T> {
+  const total = charges.reduce((sum, charge) => sum + Number(charge.total_amount || 0), 0);
+  const visibleCharges = charges.slice(0, Math.max(0, visibleLimit));
+
+  return {
+    charges,
+    visibleCharges,
+    count: charges.length,
+    hiddenCount: charges.length - visibleCharges.length,
+    total,
+    allInTotal: Number(installmentTotal || 0) + total,
+  };
 }
 
 export function canAddChargeFromInstallment(context: InstallmentChargeActionContext): boolean {

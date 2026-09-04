@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 // @ts-expect-error Node's strip-types test runner requires the explicit TypeScript extension.
-import { billingPlanInvoiceSelectionResumeHref, billingPlanReadyChargeCompletionState, canAddChargeFromInstallment, filterChargesForBillingContext, historicalInstallmentClassificationItems, historicalInstallmentClassificationPrompt, invoiceCompositionMode, partitionChargesByWorkflow } from "./charge-context.ts";
+import { billingPlanInvoiceSelectionResumeHref, billingPlanReadyChargeCompletionState, canAddChargeFromInstallment, currentChargeOverviewRows, filterChargesForBillingContext, filterSelectableReadyCharges, historicalInstallmentClassificationItems, historicalInstallmentClassificationPrompt, invoiceCompositionMode, partitionChargesByWorkflow, summarizeReadyCharges } from "./charge-context.ts";
 
 const advisoryContext = { clientId: "client-1", currency: "THB", caseId: null, advisoryMatterId: "advisory-1" };
 const caseContext = { clientId: "client-1", currency: "THB", caseId: 42, advisoryMatterId: null };
@@ -50,6 +50,56 @@ test("Charge workflow separates actionable statuses from history", () => {
 
   assert.deepEqual(result.current.map(({ id }) => id), ["draft", "ready", "reserved"]);
   assert.deepEqual(result.history.map(({ id }) => id), ["invoiced", "cancelled"]);
+});
+
+test("Ready Charge preview excludes non-ready statuses and installment-generated rows", () => {
+  const charges = [
+    { id: "ready", status: "ready_to_invoice", source_type: "manual", total_amount: 2_000 },
+    { id: "draft", status: "draft", source_type: "manual", total_amount: 3_000 },
+    { id: "reserved", status: "reserved", source_type: "manual", total_amount: 4_000 },
+    { id: "invoiced", status: "invoiced", source_type: "manual", total_amount: 5_000 },
+    { id: "cancelled", status: "cancelled", source_type: "manual", total_amount: 6_000 },
+    { id: "installment", status: "ready_to_invoice", source_type: "billing_installment_item", total_amount: 10_000 },
+  ];
+
+  assert.deepEqual(filterSelectableReadyCharges(charges).map(({ id }) => id), ["ready"]);
+});
+
+test("Ready Charge preview supports zero and multiple Charges without implying selection", () => {
+  assert.deepEqual(summarizeReadyCharges([], 10_000), {
+    charges: [],
+    visibleCharges: [],
+    count: 0,
+    hiddenCount: 0,
+    total: 0,
+    allInTotal: 10_000,
+  });
+
+  const charges = [
+    { id: "travel", status: "ready_to_invoice", source_type: "manual", total_amount: 2_000 },
+    { id: "translation", status: "ready_to_invoice", source_type: "manual", total_amount: "3000" },
+    { id: "court", status: "ready_to_invoice", source_type: "recoverable_cost", total_amount: 5_000 },
+    { id: "filing", status: "ready_to_invoice", source_type: "manual", total_amount: 750 },
+  ];
+  const summary = summarizeReadyCharges(charges, 10_000);
+
+  assert.equal(summary.count, 4);
+  assert.equal(summary.visibleCharges.length, 3);
+  assert.equal(summary.hiddenCount, 1);
+  assert.equal(summary.total, 10_750);
+  assert.equal(summary.allInTotal, 20_750);
+  assert.deepEqual(summary.charges, charges);
+});
+
+test("Ready Charges are not duplicated in the current-items overview while the installment preview is shown", () => {
+  const charges = [
+    { id: "draft", status: "draft" },
+    { id: "ready", status: "ready_to_invoice" },
+    { id: "reserved", status: "reserved" },
+  ];
+
+  assert.deepEqual(currentChargeOverviewRows(charges, true).map(({ id }) => id), ["draft", "reserved"]);
+  assert.deepEqual(currentChargeOverviewRows(charges, false), charges);
 });
 
 test("Additional Charge shortcut follows installment and Invoice lifecycle", () => {
