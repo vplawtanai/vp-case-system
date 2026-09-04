@@ -33,9 +33,7 @@ export function DocumentIdentityHeader({
       <div className={styles.provider}>
         {logoUrl ? (
           <img className={styles.logo} src={logoUrl} alt={identity.companyNameTh || identity.companyNameEn || "Document logo"} />
-        ) : (
-          <div className={styles.logoMissing}>ยังไม่ได้ตั้งค่าโลโก้</div>
-        )}
+        ) : null}
         <div className={styles.providerText}>
           <div className={styles.primaryIdentity}>
             <strong>{identity.companyNameTh || "ยังไม่ได้ตั้งค่าชื่อสำนักงาน"}</strong>

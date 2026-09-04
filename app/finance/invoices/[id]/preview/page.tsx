@@ -10,6 +10,7 @@ import {
   loadDocumentLogoUrl,
   normalizeDocumentIdentity,
   resolveDocumentIdentity,
+  resolveFrozenDocumentIdentity,
   type DocumentIdentity,
 } from "../../../../../lib/documentIdentity";
 import { supabase } from "../../../../../lib/supabase";
@@ -94,9 +95,8 @@ function InvoicePreview({ id }: { id: string }) {
       (bankAccountResult.data || null) as FinanceBankAccount | null,
     );
     const sellerSnapshot = presentation.seller;
-    const normalizedSeller = normalizeDocumentIdentity(sellerSnapshot);
     const resolvedIdentity = isFrozenInvoiceStatus(presentation.invoice.document_status)
-      ? normalizedSeller
+      ? resolveFrozenDocumentIdentity(sellerSnapshot, currentIdentityResult.identity)
       : resolveDocumentIdentity(sellerSnapshot, currentIdentityResult.identity);
     const resolvedLogoUrl = resolvedIdentity.logoStoragePath === currentIdentityResult.identity.logoStoragePath
       ? currentIdentityResult.logoUrl

@@ -24,21 +24,6 @@
   object-position: left center;
 }
 
-.logoMissing {
-  display: grid;
-  width: 24mm;
-  min-height: 16mm;
-  box-sizing: border-box;
-  flex: 0 0 auto;
-  place-items: center;
-  padding: 7px;
-  border: 1px dashed #94a3b8;
-  color: #64748b;
-  font-size: 10px;
-  line-height: 1.3;
-  text-align: center;
-}
-
 .providerText {
   display: grid;
   min-width: 0;

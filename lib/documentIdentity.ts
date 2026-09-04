@@ -68,6 +68,14 @@ export function resolveDocumentIdentity(snapshot: unknown, current: DocumentIden
   ) as DocumentIdentity;
 }
 
+export function resolveFrozenDocumentIdentity(snapshot: unknown, current: DocumentIdentity): DocumentIdentity {
+  const frozen = normalizeDocumentIdentity(snapshot);
+  return {
+    ...frozen,
+    logoStoragePath: frozen.logoStoragePath || current.logoStoragePath,
+  };
+}
+
 export async function loadCurrentDocumentIdentity(client: SupabaseClient): Promise<LoadedDocumentIdentity> {
   const { data, error } = await client
     .from("finance_company_profiles")
