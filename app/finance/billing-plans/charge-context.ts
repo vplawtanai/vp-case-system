@@ -31,7 +31,20 @@ export type ReadyChargeSummary<T> = {
 };
 
 export type InstallmentClassificationSource = {
+  id: string;
   economic_classification: string | null;
+};
+
+export type HistoricalClassificationValue = {
+  economicClassification: string;
+  unit: string;
+  confirmed: boolean;
+};
+
+export type GuidedInvoiceSourceSummary = {
+  client: string;
+  matter: string;
+  trail: string;
 };
 
 export type InstallmentChargeActionContext = {
@@ -125,11 +138,37 @@ export function historicalInstallmentClassificationItems<T extends InstallmentCl
   return hasBridge ? [] : items.filter((item) => !item.economic_classification);
 }
 
-export function historicalInstallmentClassificationPrompt(amount: string): { title: string; description: string; action: string } {
+export function updateHistoricalClassification(
+  current: Record<string, HistoricalClassificationValue>,
+  itemId: string,
+  economicClassification: string,
+  unit: string,
+): Record<string, HistoricalClassificationValue> {
   return {
-    title: "ระบุประเภทรายการตามแผน",
-    description: `งวดนี้สร้างจากข้อมูลเดิมที่ยังไม่ได้ระบุประเภทรายการ กรุณาเลือกประเภทสำหรับยอด ${amount} โดยยอดเงินและ VAT จะไม่เปลี่ยนแปลง`,
-    action: "เลือกประเภทรายการ",
+    ...current,
+    [itemId]: {
+      economicClassification,
+      unit,
+      confirmed: Boolean(economicClassification),
+    },
+  };
+}
+
+export function guidedInvoiceSourceSummary({
+  client,
+  matter,
+  quotationReference,
+  installmentNo,
+}: {
+  client: string | null | undefined;
+  matter: string;
+  quotationReference: string | null | undefined;
+  installmentNo: number | null | undefined;
+}): GuidedInvoiceSourceSummary {
+  return {
+    client: client || "ไม่พบชื่อลูกค้า",
+    matter,
+    trail: [quotationReference || "ไม่พบเลขอ้างอิง", installmentNo ? `งวดที่ ${installmentNo}` : "ไม่พบข้อมูลงวด"].join(" · "),
   };
 }
 

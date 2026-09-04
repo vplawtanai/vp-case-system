@@ -4,15 +4,17 @@ import styles from "./invoice-workspace-nav.module.css";
 
 export default function InvoiceWorkspaceNav({
   activePage,
+  quiet = false,
   showAdditionalCharges = true,
 }: {
-  activePage: InvoiceWorkspacePage;
+  activePage?: InvoiceWorkspacePage;
+  quiet?: boolean;
   showAdditionalCharges?: boolean;
 }) {
   const links = invoiceWorkspaceNavigationLinks(showAdditionalCharges);
 
   return (
-    <nav className={styles.nav} aria-label="เมนูย่อยใบแจ้งหนี้">
+    <nav className={`${styles.nav} ${quiet ? styles.quietNav : ""}`} aria-label="เมนูย่อยใบแจ้งหนี้">
       {links.map((link) => (
         <Link
           key={link.href}

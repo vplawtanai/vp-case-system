@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 // @ts-expect-error Node's strip-types test runner requires the explicit TypeScript extension.
-import { billingPlanInvoiceSelectionResumeHref, billingPlanReadyChargeCompletionState, canAddChargeFromInstallment, currentChargeOverviewRows, filterChargesForBillingContext, filterSelectableReadyCharges, historicalInstallmentClassificationItems, historicalInstallmentClassificationPrompt, invoiceCompositionMode, partitionChargesByWorkflow, summarizeReadyCharges } from "./charge-context.ts";
+import { billingPlanInvoiceSelectionResumeHref, billingPlanReadyChargeCompletionState, canAddChargeFromInstallment, currentChargeOverviewRows, filterChargesForBillingContext, filterSelectableReadyCharges, guidedInvoiceSourceSummary, historicalInstallmentClassificationItems, invoiceCompositionMode, partitionChargesByWorkflow, summarizeReadyCharges, updateHistoricalClassification } from "./charge-context.ts";
 
 const advisoryContext = { clientId: "client-1", currency: "THB", caseId: null, advisoryMatterId: "advisory-1" };
 const caseContext = { clientId: "client-1", currency: "THB", caseId: 42, advisoryMatterId: null };
@@ -140,16 +140,49 @@ test("Invoice composition mode preserves standalone Charge-only creation", () =>
 test("Historical classification fallback includes only genuinely unclassified installment items", () => {
   const historical = { id: "historical", economic_classification: null };
   const prospective = { id: "prospective", economic_classification: "professional_fee" };
+  const secondHistorical = { id: "second-historical", economic_classification: null };
 
-  assert.deepEqual(historicalInstallmentClassificationItems([historical, prospective], false), [historical]);
+  assert.deepEqual(historicalInstallmentClassificationItems([historical, prospective, secondHistorical], false), [historical, secondHistorical]);
   assert.deepEqual(historicalInstallmentClassificationItems([historical, prospective], true), []);
   assert.deepEqual(historicalInstallmentClassificationItems([prospective], false), []);
 });
 
-test("Historical classification prompt describes the only missing fact without changing money or VAT", () => {
-  assert.deepEqual(historicalInstallmentClassificationPrompt("10,000.00 THB"), {
-    title: "ระบุประเภทรายการตามแผน",
-    description: "งวดนี้สร้างจากข้อมูลเดิมที่ยังไม่ได้ระบุประเภทรายการ กรุณาเลือกประเภทสำหรับยอด 10,000.00 THB โดยยอดเงินและ VAT จะไม่เปลี่ยนแปลง",
-    action: "เลือกประเภทรายการ",
+test("Historical line classification updates only the selected source item", () => {
+  const initial = {
+    "line-a": { economicClassification: "", unit: "", confirmed: false },
+    "line-c": { economicClassification: "", unit: "item", confirmed: false },
+  };
+
+  const updated = updateHistoricalClassification(initial, "line-a", "professional_fee", "");
+
+  assert.deepEqual(updated, {
+    "line-a": { economicClassification: "professional_fee", unit: "", confirmed: true },
+    "line-c": { economicClassification: "", unit: "item", confirmed: false },
+  });
+  assert.deepEqual(initial["line-a"], { economicClassification: "", unit: "", confirmed: false });
+});
+
+test("Clearing one historical line classification does not affect another line", () => {
+  const initial = {
+    "line-a": { economicClassification: "professional_fee", unit: "", confirmed: true },
+    "line-c": { economicClassification: "government_or_court_fee", unit: "item", confirmed: true },
+  };
+
+  assert.deepEqual(updateHistoricalClassification(initial, "line-a", "", ""), {
+    "line-a": { economicClassification: "", unit: "", confirmed: false },
+    "line-c": { economicClassification: "government_or_court_fee", unit: "item", confirmed: true },
+  });
+});
+
+test("Guided Invoice source context stays compact without losing its lineage", () => {
+  assert.deepEqual(guidedInvoiceSourceSummary({
+    client: "UAT Prospect 2026-08-14",
+    matter: "ไม่ผูกกับงานเฉพาะ",
+    quotationReference: "VP-QT-202609-0002",
+    installmentNo: 1,
+  }), {
+    client: "UAT Prospect 2026-08-14",
+    matter: "ไม่ผูกกับงานเฉพาะ",
+    trail: "VP-QT-202609-0002 · งวดที่ 1",
   });
 });
