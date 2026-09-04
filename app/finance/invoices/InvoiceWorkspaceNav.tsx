@@ -1,31 +1,28 @@
 import Link from "next/link";
+import { invoiceWorkspaceNavigationLinks, type InvoiceWorkspacePage } from "./invoice-workspace-navigation";
 import styles from "./invoice-workspace-nav.module.css";
 
 export default function InvoiceWorkspaceNav({
   activePage,
   showAdditionalCharges = true,
 }: {
-  activePage: "invoices" | "billable-charges";
+  activePage: InvoiceWorkspacePage;
   showAdditionalCharges?: boolean;
 }) {
+  const links = invoiceWorkspaceNavigationLinks(showAdditionalCharges);
+
   return (
-    <nav className={styles.nav} aria-label="พื้นที่ทำงานใบแจ้งหนี้">
-      <Link
-        href="/finance/invoices"
-        className={`${styles.tab} ${activePage === "invoices" ? styles.activeTab : ""}`}
-        aria-current={activePage === "invoices" ? "page" : undefined}
-      >
-        ใบแจ้งหนี้
-      </Link>
-      {showAdditionalCharges ? (
+    <nav className={styles.nav} aria-label="เมนูย่อยใบแจ้งหนี้">
+      {links.map((link) => (
         <Link
-          href="/finance/billable-charges"
-          className={`${styles.tab} ${activePage === "billable-charges" ? styles.activeTab : ""}`}
-          aria-current={activePage === "billable-charges" ? "page" : undefined}
+          key={link.href}
+          href={link.href}
+          className={`${styles.tab} ${activePage === link.page ? styles.activeTab : ""}`}
+          aria-current={activePage === link.page ? "page" : undefined}
         >
-          รายการเรียกเก็บเพิ่มเติม
+          {link.label}
         </Link>
-      ) : null}
+      ))}
     </nav>
   );
 }
