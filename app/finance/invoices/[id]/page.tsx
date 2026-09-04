@@ -7,7 +7,7 @@ import { useParams, useRouter } from "next/navigation";
 import { QuotationGuard } from "../../quotations/shared";
 import { feeAgreementStatusLabel } from "../../fee-agreements/lifecycle";
 import { supabase } from "../../../../lib/supabase";
-import { paymentStatusLabels, safePaymentError, settlementStatusLabels, type EffectivePaymentAllocation, type FinancePayment, type InvoiceSettlement, type PaymentAllocationReallocation } from "../../payments/shared";
+import { paymentSettlementLabels, paymentStatusLabels, safePaymentError, settlementStatusLabels, type EffectivePaymentAllocation, type FinancePayment, type InvoiceSettlement, type PaymentAllocationReallocation } from "../../payments/shared";
 import InvoiceCompositionEditor from "../invoice-composition-editor";
 import { invoiceDraftDatesAreValid, resolveInvoicePaymentInstructions } from "../payment-instructions";
 import {
@@ -495,9 +495,9 @@ function InvoiceWorkspace({ canManagePayments, canManageComposition }: { canMana
       <span style={nextStepEyebrow}>การชำระเงิน</span><h2 style={nextStepTitle}>สถานะการรับชำระ</h2><p style={nextStepDescription}>ยอดรับชำระยืนยันแล้วเป็นแหล่งข้อมูลทางการของสถานะการชำระ ใบแจ้งหนี้ไม่ถือเป็นหลักฐานว่าได้รับเงิน</p>
       <div className="invoice-settlement-summary" style={settlementGrid}>
         <Metric label="ยอดใบแจ้งหนี้" value={money(settlement?.invoice_gross_amount ?? invoice.total_amount, invoice.currency)} />
-        <Metric label="เงินสดที่ได้รับ" value={money(settlement?.confirmed_cash_allocated, invoice.currency)} />
+        <Metric label={paymentSettlementLabels.receivedFull} value={money(settlement?.confirmed_cash_allocated, invoice.currency)} />
         <Metric label="เครดิตภาษีหัก ณ ที่จ่าย" value={money(settlement?.confirmed_wht_credit_allocated, invoice.currency)} />
-        <Metric label="ยอดชำระรวม" value={money(settlement?.economically_settled_amount, invoice.currency)} />
+        <Metric label={paymentSettlementLabels.settlementTotal} value={money(settlement?.economically_settled_amount, invoice.currency)} />
         <Metric label="ยอดคงค้าง" value={money(settlement?.outstanding_amount, invoice.currency)} prominent />
         <div style={metric}><small>สถานะการชำระ</small><StatusBadge status={settlement?.payment_status || "unpaid"} label={settlementStatusLabels[settlement?.payment_status || "unpaid"] || "ยังไม่ชำระ"} /></div>
       </div>
@@ -583,7 +583,7 @@ function PaymentLinks({ title, payments, effectiveAllocations, rawAllocations, r
     const original = rawAllocations.find((row) => row.payment_id === payment.id);
     const latestMovement = reallocations.find((row) => row.payment_id === payment.id && (row.source_invoice_id === invoiceId || row.target_invoice_id === invoiceId));
     const displayedAmount = effective?.effective_settlement_total ?? original?.settlement_total ?? latestMovement?.settlement_moved ?? 0;
-    const amountLabel = effective ? "ยอดที่ตัดชำระใบแจ้งหนี้นี้ในปัจจุบัน" : original ? "ยอดจัดสรรตั้งต้น" : "ยอดที่ย้ายล่าสุด";
+    const amountLabel = effective ? "ยอดที่ตัดชำระใบแจ้งหนี้นี้ในปัจจุบัน" : original ? "ยอดจัดสรรตั้งต้น" : "ยอดจากการเปลี่ยนใบแจ้งหนี้ล่าสุด";
     return <Link key={payment.id} style={{ ...paymentHistoryLink, ...(historical ? historicalPaymentLink : {}) }} href={`/finance/payments/${payment.id}`}><span style={paymentHistoryIdentity}><strong>{paymentStatusLabels[payment.status] || payment.status}</strong><small>{amountLabel}</small></span><strong>{money(displayedAmount, payment.currency)}</strong></Link>;
   })}</div>;
 }

@@ -117,6 +117,26 @@ export const paymentMethodLabels: Record<string, string> = {
   other: "อื่น ๆ",
 };
 
+export const paymentSettlementLabels = {
+  receivedFull: "เงินที่ได้รับจริง",
+  receivedCompact: "เงินรับจริง",
+  whtCredit: "เครดิตภาษีหัก ณ ที่จ่าย",
+  settlementTotal: "ยอดตัดชำระรวม",
+} as const;
+
+export const paymentCorrectionCopy = {
+  sectionTitle: "แก้ไขหลังยืนยัน",
+  wrongInvoiceTitle: "เลือกใบแจ้งหนี้ผิด",
+  wrongInvoiceDescription: "ยอดเงิน วันที่ วิธีรับ และบัญชีรับเงินถูกต้อง แต่ต้องการเปลี่ยนใบแจ้งหนี้ที่ใช้ตัดชำระ",
+  allocationHeading: "แก้ไขใบแจ้งหนี้ที่ตัดชำระ",
+  allocationHelper: "ใช้เมื่อยอดเงิน วันที่ วิธีรับชำระ และบัญชีรับเงินถูกต้อง แต่เลือกใบแจ้งหนี้ที่นำยอดไปตัดชำระผิด การแก้ไขนี้ไม่ย้ายเงินจริงระหว่างบัญชี",
+  allocationAction: "เปลี่ยนใบแจ้งหนี้ที่ตัดชำระ",
+  allocationHistory: "ประวัติการเปลี่ยนใบแจ้งหนี้ที่ตัดชำระ",
+  wrongPaymentTitle: "ข้อมูลรับชำระผิด",
+  wrongPaymentDescription: "ใช้เมื่อยอดรับชำระ วันที่ วิธีรับชำระ บัญชีรับเงิน หรือข้อมูลการรับชำระถูกบันทึกผิด",
+  paymentCorrectionAction: "แก้ไขรายการรับชำระที่บันทึกผิด",
+} as const;
+
 export function paymentForm(payment: FinancePayment): PaymentForm {
   return {
     receivedOn: payment.received_on || "",
@@ -210,24 +230,24 @@ export function safePaymentReallocationError(error: unknown) {
     ? String((error as { message?: unknown }).message || "")
     : "";
   const mappings: Array<[string, string]> = [
-    ["Not allowed to reallocate", "คุณไม่มีสิทธิ์ย้ายการจัดสรรยอดรับชำระ"],
+    ["Not allowed to reallocate", "คุณไม่มีสิทธิ์เปลี่ยนใบแจ้งหนี้ที่ตัดชำระ"],
     ["FINANCE_PAYMENT_REALLOCATION_ACK_REQUIRED", "กรุณายืนยันว่ารายการรับเงินจริงถูกต้องและต้องการเปลี่ยนเฉพาะใบแจ้งหนี้"],
-    ["Only a Confirmed Payment", "ย้ายการจัดสรรได้เฉพาะรายการรับชำระที่ยืนยันแล้ว"],
-    ["Source and target Invoice must differ", "ใบแจ้งหนี้ที่ย้ายออกและใบแจ้งหนี้ที่รับยอดต้องเป็นคนละฉบับ"],
-    ["Payment reallocation reason is required", "กรุณาระบุเหตุผลในการย้ายการจัดสรรยอดรับชำระ"],
+    ["Only a Confirmed Payment", "เปลี่ยนใบแจ้งหนี้ที่ตัดชำระได้เฉพาะรายการรับชำระที่ยืนยันแล้ว"],
+    ["Source and target Invoice must differ", "ใบแจ้งหนี้ปัจจุบันและใบแจ้งหนี้ใหม่ต้องเป็นคนละฉบับ"],
+    ["Payment reallocation reason is required", "กรุณาระบุเหตุผลในการเปลี่ยนใบแจ้งหนี้ที่ตัดชำระ"],
     ["Payment reallocation reason is too long", "เหตุผลยาวเกินกำหนด กรุณาใช้ข้อความไม่เกิน 2,000 ตัวอักษร"],
-    ["FINANCE_PAYMENT_REALLOCATION_SOURCE_INSUFFICIENT", "ยอดเงินสดหรือเครดิต WHT ที่ย้ายเกินยอดปัจจุบันของใบแจ้งหนี้ที่ย้ายออก"],
+    ["FINANCE_PAYMENT_REALLOCATION_SOURCE_INSUFFICIENT", "ยอดเงินรับจริงหรือเครดิต WHT ที่เปลี่ยนการจัดสรรเกินยอดปัจจุบันของใบแจ้งหนี้"],
     ["FINANCE_PAYMENT_REALLOCATION_CLIENT_MISMATCH", "ใบแจ้งหนี้ที่รับยอดต้องเป็นของลูกค้ารายเดียวกับรายการรับชำระ"],
     ["FINANCE_PAYMENT_REALLOCATION_CURRENCY_MISMATCH", "ใบแจ้งหนี้ที่รับยอดต้องใช้สกุลเงินเดียวกับรายการรับชำระ"],
     ["Target Invoice must be Issued", "ใบแจ้งหนี้ที่รับยอดต้องอยู่ในสถานะออกใบแจ้งหนี้แล้ว"],
-    ["FINANCE_PAYMENT_REALLOCATION_TARGET_CAPACITY_EXCEEDED", "ยอดที่ย้ายเกินความสามารถรับชำระของใบแจ้งหนี้ที่รับยอด หรือมียอดร่างอื่นจองอยู่"],
-    ["FINANCE_PAYMENT_REALLOCATION_REQUEST_CONFLICT", "คำขอนี้มีข้อมูลเปลี่ยนแปลงหลังส่ง กรุณาปิดและเริ่มการย้ายยอดใหม่"],
-    ["FINANCE_PAYMENT_REALLOCATION_HAS_DOWNSTREAM_DEPENDENCIES", "ไม่สามารถย้ายยอดได้ เนื่องจากมีเอกสารหรือรายการขั้นตอนถัดไปที่เกี่ยวข้องแล้ว"],
-    ["Moved Cash and WHT", "กรุณาระบุเงินสดและเครดิต WHT ที่ย้ายเป็นจำนวนตั้งแต่ 0 ขึ้นไป และยอดรวมต้องมากกว่า 0"],
-    ["Payment, source Invoice, and target Invoice are required", "กรุณาเลือกใบแจ้งหนี้ที่ย้ายออกและใบแจ้งหนี้ที่รับยอดให้ครบถ้วน"],
-    ["Source Invoice not found", "ไม่พบใบแจ้งหนี้ที่ย้ายยอดออก กรุณารีเฟรชและลองใหม่"],
+    ["FINANCE_PAYMENT_REALLOCATION_TARGET_CAPACITY_EXCEEDED", "ยอดที่เปลี่ยนการจัดสรรเกินยอดคงค้างที่ใบแจ้งหนี้ใหม่รับได้ หรือมียอดร่างอื่นจองอยู่"],
+    ["FINANCE_PAYMENT_REALLOCATION_REQUEST_CONFLICT", "คำขอนี้มีข้อมูลเปลี่ยนแปลงหลังส่ง กรุณาปิดและเริ่มเปลี่ยนใบแจ้งหนี้ใหม่"],
+    ["FINANCE_PAYMENT_REALLOCATION_HAS_DOWNSTREAM_DEPENDENCIES", "ไม่สามารถเปลี่ยนใบแจ้งหนี้ที่ตัดชำระได้ เนื่องจากมีเอกสารหรือรายการขั้นตอนถัดไปที่เกี่ยวข้องแล้ว"],
+    ["Moved Cash and WHT", "กรุณาระบุส่วนเงินรับจริงและเครดิต WHT ที่ต้องการเปลี่ยนการจัดสรรเป็นจำนวนตั้งแต่ 0 ขึ้นไป และยอดรวมต้องมากกว่า 0"],
+    ["Payment, source Invoice, and target Invoice are required", "กรุณาเลือกใบแจ้งหนี้ปัจจุบันและใบแจ้งหนี้ใหม่ให้ครบถ้วน"],
+    ["Source Invoice not found", "ไม่พบใบแจ้งหนี้ปัจจุบัน กรุณารีเฟรชและลองใหม่"],
     ["Target Invoice not found", "ไม่พบใบแจ้งหนี้ที่รับยอด กรุณารีเฟรชและลองใหม่"],
   ];
   return mappings.find(([needle]) => message.includes(needle))?.[1]
-    || "ย้ายการจัดสรรยอดรับชำระไม่สำเร็จ กรุณารีเฟรชและลองใหม่";
+    || "เปลี่ยนใบแจ้งหนี้ที่ตัดชำระไม่สำเร็จ กรุณารีเฟรชและลองใหม่";
 }
