@@ -9,7 +9,7 @@ import { feeAgreementStatusLabel } from "../../fee-agreements/lifecycle";
 import { supabase } from "../../../../lib/supabase";
 import { paymentStatusLabels, safePaymentError, settlementStatusLabels, type EffectivePaymentAllocation, type FinancePayment, type InvoiceSettlement, type PaymentAllocationReallocation } from "../../payments/shared";
 import InvoiceCompositionEditor from "../invoice-composition-editor";
-import { invoiceDraftDatesAreValid } from "../payment-instructions";
+import { invoiceDraftDatesAreValid, resolveInvoicePaymentInstructions } from "../payment-instructions";
 import {
   bangkokToday,
   bankAccountPaymentDestination,
@@ -135,11 +135,23 @@ function InvoiceWorkspace({ canManagePayments, canManageComposition }: { canMana
       ? await supabase.from("finance_payments").select("id,draft_origin_invoice_id,internal_reference,client_id,currency,status,cash_amount,wht_amount,settlement_amount,received_on,payment_method,receiving_bank_account_id,receiving_account_reference,external_transaction_reference,payer_name,note,created_at,updated_at,confirmed_at,cancelled_at,cancel_reason,reversed_at,reverse_reason").in("id", paymentIds).order("created_at", { ascending: false })
       : { data: [], error: null };
     if (paymentsResult.error) console.error("Failed to load linked Payments", paymentsResult.error);
-    const nextForm = invoiceDraftForm(invoiceRow);
+    const sourceInstallment = (installmentResult.data || null) as Installment | null;
+    const paymentInstructionState = resolveInvoicePaymentInstructions({
+      documentStatus: invoiceRow.document_status,
+      sourceModel: invoiceRow.source_model,
+      v2BridgeId: invoiceRow.v2_bridge_id,
+      createdAt: invoiceRow.created_at,
+      paymentInstructions: invoiceRow.payment_terms_text,
+      billingTrigger: sourceInstallment?.trigger_description,
+    });
+    const nextForm = {
+      ...invoiceDraftForm(invoiceRow),
+      paymentTermsText: paymentInstructionState.paymentInstructions,
+    };
     setInvoice(invoiceRow);
     setItems((itemsResult.data || []) as FinanceInvoiceItem[]);
     setPlan((planResult.data || null) as BillingPlan | null);
-    setInstallment((installmentResult.data || null) as Installment | null);
+    setInstallment(sourceInstallment);
     setAgreement((agreementResult.data || null) as FeeAgreement | null);
     setV2Bridge(bridge);
     setSettlement((settlementResult.data || null) as InvoiceSettlement | null);
@@ -181,6 +193,14 @@ function InvoiceWorkspace({ canManagePayments, canManageComposition }: { canMana
     () => bankAccounts.find((account) => account.id === form.paymentDestinationBankAccountId) || null,
     [bankAccounts, form.paymentDestinationBankAccountId],
   );
+  const paymentInstructionState = useMemo(() => invoice ? resolveInvoicePaymentInstructions({
+    documentStatus: invoice.document_status,
+    sourceModel: invoice.source_model,
+    v2BridgeId: invoice.v2_bridge_id,
+    createdAt: invoice.created_at,
+    paymentInstructions: invoice.payment_terms_text,
+    billingTrigger: installment?.trigger_description,
+  }) : null, [installment?.trigger_description, invoice]);
 
   const updateForm = <Key extends keyof InvoiceDraftForm>(key: Key, value: InvoiceDraftForm[Key]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -430,7 +450,7 @@ function InvoiceWorkspace({ canManagePayments, canManageComposition }: { canMana
         {paymentDestination ? <div style={bankDestinationSummary}><strong>{displayText(paymentDestination.bankName, displayText(paymentDestination.shortName))}</strong><span>ชื่อบัญชี {displayText(paymentDestination.accountName)}</span><span>เลขที่บัญชี {displayText(paymentDestination.accountNumber)}</span></div> : eligibleBankAccounts.length === 0 ? <div style={neutralWarning}>ยังไม่มีบัญชีรับชำระที่เปิดใช้งานและมีข้อมูลครบถ้วน</div> : null}
       </div>
       <div style={notesGrid}>
-        <FormField label="ข้อมูลการชำระเงินเพิ่มเติม" helper="แสดงในใบแจ้งหนี้สำหรับลูกค้า หากไม่ระบุจะไม่แสดงหัวข้อนี้"><textarea style={textareaStyle} rows={4} value={form.paymentTermsText} disabled={saving} onChange={(event) => updateForm("paymentTermsText", event.target.value)} /></FormField>
+        <FormField label="ข้อมูลการชำระเงินเพิ่มเติม" helper={paymentInstructionState?.isLegacyAutoInheritedBillingTrigger ? "ระบบไม่นำเงื่อนไขการเรียกเก็บเดิมมาใช้เป็นข้อมูลการชำระเงิน" : "แสดงในใบแจ้งหนี้สำหรับลูกค้า หากไม่ระบุจะไม่แสดงหัวข้อนี้"}><textarea style={textareaStyle} rows={4} value={form.paymentTermsText} disabled={saving} onChange={(event) => updateForm("paymentTermsText", event.target.value)} /></FormField>
         <FormField label="หมายเหตุถึงลูกค้า" helper="แสดงในเอกสารสำหรับลูกค้า"><textarea style={textareaStyle} rows={4} value={form.customerNote} disabled={saving} onChange={(event) => updateForm("customerNote", event.target.value)} /></FormField>
         <FormField label="หมายเหตุภายใน" helper="ใช้ภายในสำนักงานและไม่แสดงใน Preview/Print"><textarea style={textareaStyle} rows={4} value={form.internalNote} disabled={saving} onChange={(event) => updateForm("internalNote", event.target.value)} /></FormField>
       </div>

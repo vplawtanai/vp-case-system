@@ -14,6 +14,7 @@ import {
 } from "../../../../../lib/documentIdentity";
 import { supabase } from "../../../../../lib/supabase";
 import { InvoiceDocument } from "../../invoice-document";
+import { resolveInvoicePaymentInstructions } from "../../payment-instructions";
 import {
   asJson,
   bankAccountPaymentDestination,
@@ -26,7 +27,7 @@ import {
   type Json,
 } from "../../shared";
 
-type Installment = { installment_no: number; title: string };
+type Installment = { installment_no: number; title: string; trigger_description: string | null };
 
 const invoiceSelect = "id,billing_plan_id,primary_billing_installment_id,fee_agreement_id,source_quotation_id,client_id,case_id,advisory_matter_id,source_model,v2_bridge_id,v2_creation_request_id,invoice_no,document_status,issue_date,due_date,currency,language_code,customer_note,payment_terms_text,payment_destination_bank_account_id,payment_destination_snapshot_json,internal_note,amount_before_vat,vat_amount,total_amount,seller_name_th,seller_name_en,seller_tax_id,seller_branch,seller_address,seller_phone,seller_email,seller_website,customer_name,customer_tax_id,customer_branch,customer_billing_address,customer_phone,customer_email,seller_snapshot_json,customer_snapshot_json,matter_snapshot_json,source_snapshot_json,issued_snapshot_json,issued_at,voided_at,void_reason,cancelled_at,cancel_reason,created_at,updated_at";
 const itemSelect = "id,source_billable_charge_id,source_state,source_snapshot_json,description,source_quantity,source_unit_price,allocation_percent,vat_applicable,vat_rate,tax_category,price_tax_mode,amount_before_vat,vat_amount,line_total,sort_order";
@@ -67,7 +68,7 @@ function InvoicePreview({ id }: { id: string }) {
     const sourceInstallmentId = currentInvoice.primary_billing_installment_id || (bridgeResult.data as { billing_installment_id?: string } | null)?.billing_installment_id || null;
     const [itemsResult, installmentResult, currentIdentityResult, bankAccountResult] = await Promise.all([
       supabase.from("finance_invoice_items").select(itemSelect).eq("invoice_id", id).order("sort_order").order("id"),
-      sourceInstallmentId ? supabase.from("finance_billing_installments").select("installment_no,title").eq("id", sourceInstallmentId).maybeSingle() : Promise.resolve({ data: null, error: null }),
+      sourceInstallmentId ? supabase.from("finance_billing_installments").select("installment_no,title,trigger_description").eq("id", sourceInstallmentId).maybeSingle() : Promise.resolve({ data: null, error: null }),
       loadCurrentDocumentIdentity(supabase),
       bankAccountPromise,
     ]);
@@ -76,7 +77,22 @@ function InvoicePreview({ id }: { id: string }) {
       setError("โหลดรายการหรือข้อมูลงวดสำหรับตัวอย่างไม่สำเร็จ");
     }
 
-    const presentation = invoicePresentation(currentInvoice, (itemsResult.data || []) as FinanceInvoiceItem[], (bankAccountResult.data || null) as FinanceBankAccount | null);
+    const sourceInstallment = (installmentResult.data || null) as Installment | null;
+    const paymentInstructionState = resolveInvoicePaymentInstructions({
+      documentStatus: currentInvoice.document_status,
+      sourceModel: currentInvoice.source_model,
+      v2BridgeId: currentInvoice.v2_bridge_id,
+      createdAt: currentInvoice.created_at,
+      paymentInstructions: currentInvoice.payment_terms_text,
+      billingTrigger: sourceInstallment?.trigger_description,
+    });
+    const presentation = invoicePresentation(
+      paymentInstructionState.isLegacyAutoInheritedBillingTrigger
+        ? { ...currentInvoice, payment_terms_text: null }
+        : currentInvoice,
+      (itemsResult.data || []) as FinanceInvoiceItem[],
+      (bankAccountResult.data || null) as FinanceBankAccount | null,
+    );
     const sellerSnapshot = presentation.seller;
     const normalizedSeller = normalizeDocumentIdentity(sellerSnapshot);
     const resolvedIdentity = isFrozenInvoiceStatus(presentation.invoice.document_status)
@@ -89,7 +105,7 @@ function InvoicePreview({ id }: { id: string }) {
     setInvoice(presentation.invoice);
     setItems(presentation.items);
     setPaymentDestination(presentation.paymentDestination);
-    setInstallment((installmentResult.data || null) as Installment | null);
+    setInstallment(sourceInstallment);
     setIdentity(resolvedIdentity);
     setLogoUrl(resolvedLogoUrl);
     setLoading(false);
