@@ -9,6 +9,7 @@ import { feeAgreementStatusLabel } from "../../fee-agreements/lifecycle";
 import { supabase } from "../../../../lib/supabase";
 import { paymentStatusLabels, safePaymentError, settlementStatusLabels, type EffectivePaymentAllocation, type FinancePayment, type InvoiceSettlement, type PaymentAllocationReallocation } from "../../payments/shared";
 import InvoiceCompositionEditor from "../invoice-composition-editor";
+import { invoiceDraftDatesAreValid } from "../payment-instructions";
 import {
   bangkokToday,
   bankAccountPaymentDestination,
@@ -191,7 +192,7 @@ function InvoiceWorkspace({ canManagePayments, canManageComposition }: { canMana
   const validateDraft = (requireIssueDate: boolean, requireBankAccount: boolean) => {
     const nextErrors: FormErrors = {};
     if (requireIssueDate && !form.issueDate) nextErrors.issueDate = "กรุณาระบุวันที่ออกเอกสาร";
-    if (form.issueDate && form.dueDate && form.dueDate < form.issueDate) nextErrors.dueDate = "วันที่ครบกำหนดต้องไม่มาก่อนวันที่ออกเอกสาร";
+    if (!invoiceDraftDatesAreValid(form.issueDate, form.dueDate)) nextErrors.dueDate = "วันที่ครบกำหนดต้องไม่มาก่อนวันที่ออกเอกสาร";
     if (requireIssueDate && form.issueDate && form.issueDate > bangkokToday()) nextErrors.issueDate = "วันที่ออกใบแจ้งหนี้ต้องไม่เป็นวันในอนาคต";
     if (requireBankAccount && !form.paymentDestinationBankAccountId) nextErrors.bankAccount = "กรุณาเลือกบัญชีสำหรับรับชำระ";
     if (form.paymentDestinationBankAccountId && (!selectedBankAccount || !eligibleInvoicePaymentBankAccount(selectedBankAccount))) nextErrors.bankAccount = "บัญชีที่เลือกไม่พร้อมใช้งาน กรุณาเลือกบัญชีที่มีข้อมูลครบถ้วน";
@@ -429,7 +430,7 @@ function InvoiceWorkspace({ canManagePayments, canManageComposition }: { canMana
         {paymentDestination ? <div style={bankDestinationSummary}><strong>{displayText(paymentDestination.bankName, displayText(paymentDestination.shortName))}</strong><span>ชื่อบัญชี {displayText(paymentDestination.accountName)}</span><span>เลขที่บัญชี {displayText(paymentDestination.accountNumber)}</span></div> : eligibleBankAccounts.length === 0 ? <div style={neutralWarning}>ยังไม่มีบัญชีรับชำระที่เปิดใช้งานและมีข้อมูลครบถ้วน</div> : null}
       </div>
       <div style={notesGrid}>
-        <FormField label="ข้อมูลการชำระเงิน" helper="แสดงในเอกสารสำหรับลูกค้า"><textarea style={textareaStyle} rows={4} value={form.paymentTermsText} disabled={saving} onChange={(event) => updateForm("paymentTermsText", event.target.value)} /></FormField>
+        <FormField label="ข้อมูลการชำระเงินเพิ่มเติม" helper="แสดงในใบแจ้งหนี้สำหรับลูกค้า หากไม่ระบุจะไม่แสดงหัวข้อนี้"><textarea style={textareaStyle} rows={4} value={form.paymentTermsText} disabled={saving} onChange={(event) => updateForm("paymentTermsText", event.target.value)} /></FormField>
         <FormField label="หมายเหตุถึงลูกค้า" helper="แสดงในเอกสารสำหรับลูกค้า"><textarea style={textareaStyle} rows={4} value={form.customerNote} disabled={saving} onChange={(event) => updateForm("customerNote", event.target.value)} /></FormField>
         <FormField label="หมายเหตุภายใน" helper="ใช้ภายในสำนักงานและไม่แสดงใน Preview/Print"><textarea style={textareaStyle} rows={4} value={form.internalNote} disabled={saving} onChange={(event) => updateForm("internalNote", event.target.value)} /></FormField>
       </div>
@@ -443,7 +444,7 @@ function InvoiceWorkspace({ canManagePayments, canManageComposition }: { canMana
         <ReadOnlyValue label="บัญชีสำหรับรับชำระ" value={paymentDestination ? `${displayText(paymentDestination.bankName, displayText(paymentDestination.shortName))}\nชื่อบัญชี ${displayText(paymentDestination.accountName)}\nเลขที่บัญชี ${displayText(paymentDestination.accountNumber)}` : "ไม่ได้ระบุในเอกสารฉบับนี้"} multiline />
       </div>
       <div style={readOnlyNotesGrid}>
-        <ReadOnlyValue label="ข้อมูลการชำระเงิน" value={displayText(invoice.payment_terms_text, "ไม่ระบุ")} multiline />
+        <ReadOnlyValue label="ข้อมูลการชำระเงินเพิ่มเติม" value={displayText(invoice.payment_terms_text, "ไม่ระบุ")} multiline />
         <ReadOnlyValue label="หมายเหตุถึงลูกค้า" value={displayText(invoice.customer_note, "ไม่ระบุ")} multiline />
         <div style={internalNoteBlock}><ReadOnlyValue label="หมายเหตุภายใน" value={displayText(invoice.internal_note, "ไม่ระบุ")} multiline /><small style={internalNoteHelper}>ข้อมูลภายในสำนักงาน ไม่แสดงใน Preview หรือ Print</small></div>
       </div>

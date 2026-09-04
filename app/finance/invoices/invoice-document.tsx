@@ -11,6 +11,7 @@ import {
   type FinanceInvoiceItem,
   type InvoicePaymentDestination,
 } from "./shared";
+import { invoicePaymentSectionModel } from "./payment-instructions";
 import styles from "./invoice-document.module.css";
 
 export function InvoiceDocument({
@@ -36,6 +37,11 @@ export function InvoiceDocument({
   const isVoided = invoice.document_status === "voided";
   const showInstallment = invoice.source_model !== "billable_charge_v2" && Boolean(installmentLabel);
   const showReferencePanel = Boolean(matter || showInstallment);
+  const paymentSection = invoicePaymentSectionModel({
+    paymentDestination,
+    paymentInstructions: invoice.payment_terms_text,
+    customerNote: invoice.customer_note,
+  });
   const documentNo = isDraft
     ? labels.draftReference
     : displayText(invoice.invoice_no, labels.noNumber);
@@ -107,7 +113,7 @@ export function InvoiceDocument({
         </div>
       </section>
 
-      {paymentDestination || invoice.payment_terms_text || invoice.customer_note ? (
+      {paymentSection.showSection ? (
         <section className={styles.section}>
           <h2>{labels.terms}</h2>
           <div className={styles.notes}>
@@ -117,8 +123,8 @@ export function InvoiceDocument({
               <span>{labels.accountName} {displayText(paymentDestination.accountName)}</span>
               <span>{labels.accountNumber} {displayText(paymentDestination.accountNumber)}</span>
             </div> : null}
-            {invoice.payment_terms_text ? <DocumentNote label={labels.paymentInstructions} value={invoice.payment_terms_text} /> : null}
-            {invoice.customer_note ? <DocumentNote label={labels.customerNote} value={invoice.customer_note} /> : null}
+            {paymentSection.paymentInstructions ? <DocumentNote label={labels.paymentInstructions} value={paymentSection.paymentInstructions} /> : null}
+            {paymentSection.customerNote ? <DocumentNote label={labels.customerNote} value={paymentSection.customerNote} /> : null}
           </div>
         </section>
       ) : null}
@@ -167,7 +173,7 @@ const thaiLabels = {
   vatTotal: "ภาษีมูลค่าเพิ่ม",
   amountPayable: "ยอดรวมที่ต้องชำระ",
   terms: "เงื่อนไขและข้อมูลการชำระเงิน",
-  paymentInstructions: "ข้อมูลการชำระเงิน",
+  paymentInstructions: "ข้อมูลการชำระเงินเพิ่มเติม",
   paymentAccount: "บัญชีสำหรับรับชำระ",
   accountName: "ชื่อบัญชี",
   accountNumber: "เลขที่บัญชี",

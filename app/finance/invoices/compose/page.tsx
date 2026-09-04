@@ -9,6 +9,7 @@ import { supabase } from "../../../../lib/supabase";
 import type { UserPermissions } from "../../../../lib/permissions";
 import FinanceSubNav from "../../FinanceSubNav";
 import { displayText, eligibleInvoicePaymentBankAccount, money, safeInvoiceError, type FinanceBankAccount, type Json } from "../shared";
+import { guidedInvoiceDocumentDefaults } from "../payment-instructions";
 import InvoiceWorkspaceNav from "../InvoiceWorkspaceNav";
 import { billableChargeNatureLabel, clientCostFundingModeLabel, type ClientCostFundingMode } from "../../billable-charges/funding-semantics";
 import { billingPlanInvoiceSelectionResumeHref, guidedInvoiceSourceSummary, historicalInstallmentClassificationItems, invoiceCompositionMode, updateHistoricalClassification, type HistoricalClassificationValue } from "../../billing-plans/charge-context";
@@ -222,8 +223,12 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
       setChargeIds(requestedCharges.map((charge) => charge.id));
       setAdapter(Object.fromEntries(nextItems.map((row) => [row.id, { economicClassification: "", unit: row.unit || "", confirmed: false }])));
       setLanguageCode(agreement.language_code === "en" ? "en" : "th");
-      setDueDate(installment.due_date || "");
-      setPaymentTermsText(installment.trigger_description || "");
+      const documentDefaults = guidedInvoiceDocumentDefaults({
+        dueDate: installment.due_date,
+        billingTrigger: installment.trigger_description,
+      });
+      setDueDate(documentDefaults.dueDate);
+      setPaymentTermsText(documentDefaults.paymentInstructions);
       setSourceNotice(`เลือกงวดที่ ${installment.installment_no}${requestedCharges.length ? ` พร้อมรายการเพิ่มเติม ${requestedCharges.length} รายการ` : ""} จากแผนเรียกเก็บเงินให้แล้ว กรุณาตรวจสอบข้อมูลก่อนสร้างร่าง`);
       return;
     }
@@ -362,8 +367,8 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
     </section>
     </>}
 
-    <section className={styles.surface}><SectionHeader title={guidedMode ? "ข้อมูลใบแจ้งหนี้" : "4. ข้อมูลในใบแจ้งหนี้"} text={guidedMode ? "วันที่และเงื่อนไขรับจากงวดต้นทาง แก้ไขได้ก่อนสร้างร่างเมื่อมีเหตุผลทางธุรกิจ" : "ใช้ข้อมูลบัญชีรับชำระชุดเดียวกับใบแจ้งหนี้เดิม และแก้ไขต่อได้ในร่าง"} />
-      <div className={`${styles.contextGrid} ${guidedMode ? styles.invoiceInfoGrid : ""}`}><Field label="วันที่ครบกำหนด" helper={guidedMode ? "รับจากแผนเรียกเก็บเงิน" : "ไม่บังคับ"}><input type="date" value={dueDate} onChange={(event) => { setDueDate(event.target.value); requestRef.current = null; resetReview(); }} /></Field>{!guidedMode ? <Field label="ภาษาเอกสาร"><select value={languageCode} onChange={(event) => { setLanguageCode(event.target.value === "en" ? "en" : "th"); requestRef.current = null; resetReview(); }}><option value="th">ไทย</option><option value="en">English</option></select></Field> : null}<Field label="บัญชีสำหรับรับชำระ" helper="เลือกภายหลังในร่างได้ แต่ต้องเลือกก่อนออกใบแจ้งหนี้"><select value={bankAccountId} onChange={(event) => { setBankAccountId(event.target.value); requestRef.current = null; resetReview(); }}><option value="">ยังไม่เลือก</option>{eligibleAccounts.map((account) => <option key={account.id} value={account.id}>{displayText(account.short_name)} — {displayText(account.bank_name)} · {displayText(account.account_number)}</option>)}</select></Field><Field label="ข้อมูลการชำระเงิน" helper={guidedMode ? "รับจากเงื่อนไขของงวดต้นทาง" : undefined} wide><textarea rows={3} value={paymentTermsText} onChange={(event) => { setPaymentTermsText(event.target.value); requestRef.current = null; resetReview(); }} /></Field><Field label="หมายเหตุถึงลูกค้า"><textarea rows={3} value={customerNote} onChange={(event) => { setCustomerNote(event.target.value); requestRef.current = null; resetReview(); }} /></Field><Field label="หมายเหตุภายใน"><textarea rows={3} value={internalNote} onChange={(event) => { setInternalNote(event.target.value); requestRef.current = null; resetReview(); }} /></Field></div>
+    <section className={styles.surface}><SectionHeader title={guidedMode ? "ข้อมูลใบแจ้งหนี้" : "4. ข้อมูลในใบแจ้งหนี้"} text={guidedMode ? "วันที่ครบกำหนดอาจรับจากแผน ส่วนข้อมูลที่แสดงต่อลูกค้าระบุแยกต่างหาก" : "ใช้ข้อมูลบัญชีรับชำระชุดเดียวกับใบแจ้งหนี้เดิม และแก้ไขต่อได้ในร่าง"} />
+      <div className={`${styles.contextGrid} ${guidedMode ? styles.invoiceInfoGrid : ""}`}><Field label="วันที่ครบกำหนด" helper={guidedMode ? "รับจากแผนเรียกเก็บเงินเมื่อมีข้อมูล และไม่บังคับ" : "ไม่บังคับ"}><input type="date" value={dueDate} onChange={(event) => { setDueDate(event.target.value); requestRef.current = null; resetReview(); }} /></Field>{!guidedMode ? <Field label="ภาษาเอกสาร"><select value={languageCode} onChange={(event) => { setLanguageCode(event.target.value === "en" ? "en" : "th"); requestRef.current = null; resetReview(); }}><option value="th">ไทย</option><option value="en">English</option></select></Field> : null}<Field label="บัญชีสำหรับรับชำระ" helper="เลือกภายหลังในร่างได้ แต่ต้องเลือกก่อนออกใบแจ้งหนี้"><select value={bankAccountId} onChange={(event) => { setBankAccountId(event.target.value); requestRef.current = null; resetReview(); }}><option value="">ยังไม่เลือก</option>{eligibleAccounts.map((account) => <option key={account.id} value={account.id}>{displayText(account.short_name)} — {displayText(account.bank_name)} · {displayText(account.account_number)}</option>)}</select></Field><Field label="ข้อมูลการชำระเงินเพิ่มเติม" helper="แสดงในใบแจ้งหนี้สำหรับลูกค้า หากไม่ระบุจะไม่แสดงหัวข้อนี้" wide><textarea rows={3} value={paymentTermsText} onChange={(event) => { setPaymentTermsText(event.target.value); requestRef.current = null; resetReview(); }} /></Field><Field label="หมายเหตุถึงลูกค้า"><textarea rows={3} value={customerNote} onChange={(event) => { setCustomerNote(event.target.value); requestRef.current = null; resetReview(); }} /></Field><Field label="หมายเหตุภายใน"><textarea rows={3} value={internalNote} onChange={(event) => { setInternalNote(event.target.value); requestRef.current = null; resetReview(); }} /></Field></div>
     </section>
 
     <section className={`${styles.surface} ${styles.summary}`}><SectionHeader title="สรุปยอดที่เลือก" text="ยอดนี้ใช้เพื่อช่วยตรวจสอบจากข้อมูลต้นทาง ระบบฐานข้อมูลจะตรวจสอบและบันทึกยอดจริงอีกครั้ง" />
