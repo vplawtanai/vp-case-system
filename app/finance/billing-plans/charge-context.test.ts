@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 // @ts-expect-error Node's strip-types test runner requires the explicit TypeScript extension.
-import { billingPlanInvoiceSelectionResumeHref, billingPlanReadyChargeCompletionState, canAddChargeFromInstallment, filterChargesForBillingContext, invoiceCompositionMode, partitionChargesByWorkflow } from "./charge-context.ts";
+import { billingPlanInvoiceSelectionResumeHref, billingPlanReadyChargeCompletionState, canAddChargeFromInstallment, filterChargesForBillingContext, historicalInstallmentClassificationItems, historicalInstallmentClassificationPrompt, invoiceCompositionMode, partitionChargesByWorkflow } from "./charge-context.ts";
 
 const advisoryContext = { clientId: "client-1", currency: "THB", caseId: null, advisoryMatterId: "advisory-1" };
 const caseContext = { clientId: "client-1", currency: "THB", caseId: 42, advisoryMatterId: null };
@@ -85,4 +85,21 @@ test("Guided Invoice review returns to the same Billing Plan composition", () =>
 test("Invoice composition mode preserves standalone Charge-only creation", () => {
   assert.equal(invoiceCompositionMode("installment-1"), "billing_plan_guided");
   assert.equal(invoiceCompositionMode(""), "standalone");
+});
+
+test("Historical classification fallback includes only genuinely unclassified installment items", () => {
+  const historical = { id: "historical", economic_classification: null };
+  const prospective = { id: "prospective", economic_classification: "professional_fee" };
+
+  assert.deepEqual(historicalInstallmentClassificationItems([historical, prospective], false), [historical]);
+  assert.deepEqual(historicalInstallmentClassificationItems([historical, prospective], true), []);
+  assert.deepEqual(historicalInstallmentClassificationItems([prospective], false), []);
+});
+
+test("Historical classification prompt describes the only missing fact without changing money or VAT", () => {
+  assert.deepEqual(historicalInstallmentClassificationPrompt("10,000.00 THB"), {
+    title: "ระบุประเภทรายการตามแผน",
+    description: "งวดนี้สร้างจากข้อมูลเดิมที่ยังไม่ได้ระบุประเภทรายการ กรุณาเลือกประเภทสำหรับยอด 10,000.00 THB โดยยอดเงินและ VAT จะไม่เปลี่ยนแปลง",
+    action: "เลือกประเภทรายการ",
+  });
 });

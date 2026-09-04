@@ -11,7 +11,7 @@ import FinanceSubNav from "../../FinanceSubNav";
 import { displayText, eligibleInvoicePaymentBankAccount, money, safeInvoiceError, type FinanceBankAccount, type Json } from "../shared";
 import InvoiceWorkspaceNav from "../InvoiceWorkspaceNav";
 import { billableChargeNatureLabel, clientCostFundingModeLabel, type ClientCostFundingMode } from "../../billable-charges/funding-semantics";
-import { billingPlanInvoiceSelectionResumeHref, invoiceCompositionMode } from "../../billing-plans/charge-context";
+import { billingPlanInvoiceSelectionResumeHref, historicalInstallmentClassificationItems, historicalInstallmentClassificationPrompt, invoiceCompositionMode } from "../../billing-plans/charge-context";
 import styles from "../invoice-workspace.module.css";
 
 type Client = { id: string; name: string | null };
@@ -147,7 +147,7 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
     : selectedCharges[0] ? chargeContext(selectedCharges[0]) : null;
   const visibleCharges = useMemo(() => charges.filter((row) => row.client_id === clientId), [charges, clientId]);
   const selectedInstallmentItems = useMemo(() => installmentItems.filter((row) => row.billing_installment_id === installmentId), [installmentId, installmentItems]);
-  const missingAdapterItems = useMemo(() => bridgeIds.has(installmentId) ? [] : selectedInstallmentItems.filter((row) => !row.economic_classification), [bridgeIds, installmentId, selectedInstallmentItems]);
+  const missingAdapterItems = useMemo(() => historicalInstallmentClassificationItems(selectedInstallmentItems, bridgeIds.has(installmentId)), [bridgeIds, installmentId, selectedInstallmentItems]);
   const detailCharge = visibleCharges.find((row) => row.id === detailChargeId) || null;
   const eligibleAccounts = bankAccounts.filter(eligibleInvoicePaymentBankAccount);
   const requestedInstallmentId = searchParams.get("installment") || "";
@@ -167,6 +167,10 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
     const rows = selectedCharges.reduce((sum, row) => ({ before: sum.before + Number(row.amount_before_vat), vat: sum.vat + Number(row.vat_amount), total: sum.total + Number(row.total_amount) }), { before: 0, vat: 0, total: 0 });
     return selectedInstallment ? { before: rows.before + Number(selectedInstallment.amount_before_tax), vat: rows.vat + Number(selectedInstallment.vat_amount), total: rows.total + Number(selectedInstallment.total_amount) } : rows;
   }, [selectedCharges, selectedInstallment]);
+  const classificationPrompt = historicalInstallmentClassificationPrompt(money(
+    missingAdapterItems.reduce((sum, item) => sum + Number(item.total_amount), 0),
+    selectedPlan?.currency || "THB",
+  ));
 
   useEffect(() => {
     if (loading || prefillHandled.current) return;
@@ -205,7 +209,10 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
         setSourceError("รายการเรียกเก็บเพิ่มเติมบางรายการไม่พร้อมใช้งานหรือมีบริบทไม่ตรงกับงวด กรุณากลับไปเลือกใหม่จากแผนเรียกเก็บเงิน");
         return;
       }
-      const nextItems = installmentItems.filter((row) => row.billing_installment_id === installment.id && !row.economic_classification);
+      const nextItems = historicalInstallmentClassificationItems(
+        installmentItems.filter((row) => row.billing_installment_id === installment.id),
+        bridgeIds.has(installment.id),
+      );
       setClientId(agreement.client_id);
       setInstallmentId(installment.id);
       setChargeIds(requestedCharges.map((charge) => charge.id));
@@ -237,13 +244,16 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
     }
 
     if (requestedClientId && clients.some((client) => client.id === requestedClientId)) setClientId(requestedClientId);
-  }, [agreementMap, canApproveInstallment, charges, clients, eligibleInstallments, installmentItems, loading, planMap, requestedChargeIds, requestedClientId, requestedInstallmentId]);
+  }, [agreementMap, bridgeIds, canApproveInstallment, charges, clients, eligibleInstallments, installmentItems, loading, planMap, requestedChargeIds, requestedClientId, requestedInstallmentId]);
 
   const resetReview = () => { if (!guidedMode) setReviewing(false); setAcknowledged(false); setFieldError(""); };
   const selectClient = (value: string) => { setClientId(value); setInstallmentId(""); setChargeIds([]); setAdapter({}); requestRef.current = null; resetReview(); };
   const selectInstallment = (value: string) => {
     setInstallmentId(value); setChargeIds([]); resetReview(); requestRef.current = null;
-    const nextItems = installmentItems.filter((row) => row.billing_installment_id === value && !row.economic_classification);
+    const nextItems = historicalInstallmentClassificationItems(
+      installmentItems.filter((row) => row.billing_installment_id === value),
+      bridgeIds.has(value),
+    );
     setAdapter(Object.fromEntries(nextItems.map((row) => [row.id, { economicClassification: "", unit: row.unit || "", confirmed: false }])));
   };
   const toggleCharge = (charge: Charge) => {
@@ -265,7 +275,7 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
     if (!installmentId && chargeIds.length === 0) return setFieldError("กรุณาเลือกงวดหรือรายการเรียกเก็บเพิ่มเติมอย่างน้อยหนึ่งรายการ");
     if (missingAdapterItems.some((item) => !adapter[item.id]?.economicClassification || !adapter[item.id]?.confirmed)) {
       setShowAdapter(true);
-      return setFieldError("กรุณาระบุและยืนยันข้อมูลรายการต้นทางที่ยังไม่ครบ");
+      return setFieldError("กรุณาเลือกประเภทของยอดสำหรับรายการตามแผน");
     }
     setFieldError(""); setReviewing(true);
     requestAnimationFrame(() => reviewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
@@ -322,7 +332,7 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
       </section>
       <section className={styles.surface}><SectionHeader title="รายการเรียกเก็บ" text="องค์ประกอบนี้เลือกจากแผนเรียกเก็บเงินแล้ว หากต้องเปลี่ยนให้ใช้ปุ่มแก้ไขรายการด้านบน" />
         <div className={styles.lockedList}>{selectedInstallment ? <div className={styles.lockedRow}><div><strong>ยอดตามแผนเรียกเก็บเงิน · งวดที่ {selectedInstallment.installment_no}</strong><small>{selectedInstallment.title}</small></div><strong>{money(selectedInstallment.total_amount, selectedPlan?.currency || "THB")}</strong></div> : null}{selectedCharges.map((charge) => <div className={styles.lockedRow} key={charge.id}><div><strong>{charge.description || "รายการเรียกเก็บเพิ่มเติม"}</strong><small>{classificationLabel(charge.economic_classification)} · {taxLabel(charge)}</small></div><strong>{money(charge.total_amount, charge.currency)}</strong></div>)}</div>
-        {missingAdapterItems.length ? <div className={styles.compactAdapter}><div><strong>ข้อมูลต้นทางยังไม่ครบ</strong><p>รายการตามงวดเดิมยังไม่มีประเภทของยอด กรุณาระบุข้อมูลเฉพาะที่จำเป็นโดยไม่เปลี่ยนยอดเงิน</p></div><button className={styles.secondaryButton} type="button" onClick={() => setShowAdapter((current) => !current)}>{showAdapter ? "ซ่อนข้อมูลรายการ" : "ระบุข้อมูลรายการ"}</button></div> : null}
+        {missingAdapterItems.length ? <div className={styles.compactAdapter}><div><strong>{classificationPrompt.title}</strong><p>{classificationPrompt.description}</p></div><button className={styles.secondaryButton} type="button" onClick={() => setShowAdapter((current) => !current)}>{showAdapter ? "ซ่อนการเลือกประเภท" : classificationPrompt.action}</button></div> : null}
         {showAdapter && missingAdapterItems.length ? <AdapterFields items={missingAdapterItems} adapter={adapter} agreementItemMap={agreementItemMap} currency={selectedPlan?.currency || "THB"} onChange={(itemId, value) => { setAdapter((current) => ({ ...current, [itemId]: value })); resetReview(); }} /> : null}
       </section>
     </> : <>
@@ -371,7 +381,7 @@ function SectionHeader({ title, text }: { title: string; text: string }) { retur
 function Field({ label, helper, wide, children }: { label: string; helper?: string; wide?: boolean; children: ReactNode }) { return <label className={`${styles.field} ${wide ? styles.wide : ""}`}><span>{label}</span>{children}{helper ? <small>{helper}</small> : null}</label>; }
 function Review({ label, value }: { label: string; value: string }) { return <div><dt>{label}</dt><dd>{value}</dd></div>; }
 function AdapterFields({ items, adapter, agreementItemMap, currency, onChange }: { items: InstallmentItem[]; adapter: Record<string, AdapterValue>; agreementItemMap: Map<string, AgreementItem>; currency: string; onChange: (id: string, value: AdapterValue) => void }) {
-  return <div className={styles.adapterPanel}><h3>ระบุข้อมูลรายการ</h3><p>ระบุประเภทของยอดสำหรับข้อมูลต้นทางเดิมเท่านั้น ยอดตามงวดเป็นยอดจัดสรรคงที่ จึงไม่ต้องสร้างหน่วยหรือราคาใหม่</p><div className={styles.adapterRows}>{items.map((item) => { const agreementItem = agreementItemMap.get(item.fee_agreement_item_id); const value = adapter[item.id] || { economicClassification: "", unit: item.unit || "", confirmed: false }; return <div key={item.id} className={styles.adapterRow}><div><strong>{agreementItem?.description || "รายการตามงวด"}</strong><div className={styles.muted}>{money(item.total_amount, currency)}</div></div><Field label="ประเภทของยอด"><select value={value.economicClassification} onChange={(event) => onChange(item.id, { ...value, economicClassification: event.target.value })}><option value="">เลือกประเภท</option>{classifications.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></Field><label className={styles.checkRow}><input type="checkbox" checked={value.confirmed} onChange={(event) => onChange(item.id, { ...value, confirmed: event.target.checked })} /><span>ยืนยันข้อมูลรายการ</span></label></div>; })}</div></div>;
+  return <div className={styles.adapterPanel}><h3>เลือกประเภทรายการ</h3><p>เลือกเฉพาะประเภทของยอดสำหรับข้อมูลตามแผนเดิม ยอดเงินและ VAT ด้านล่างเป็นข้อมูลอ่านอย่างเดียวและจะไม่เปลี่ยนแปลง</p><div className={styles.adapterRows}>{items.map((item) => { const agreementItem = agreementItemMap.get(item.fee_agreement_item_id); const value = adapter[item.id] || { economicClassification: "", unit: item.unit || "", confirmed: false }; return <div key={item.id} className={styles.adapterRow}><div><strong>{agreementItem?.description || "รายการตามงวด"}</strong><div className={styles.muted}>ยอดรวม {money(item.total_amount, currency)} · VAT {money(item.vat_amount, currency)}</div></div><Field label="ประเภทของยอด"><select value={value.economicClassification} onChange={(event) => { const economicClassification = event.target.value; onChange(item.id, { ...value, economicClassification, confirmed: Boolean(economicClassification) }); }}><option value="">เลือกประเภท</option>{classifications.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></Field></div>; })}</div></div>;
 }
 function ChargeAuditHistory({ audits, loading }: { audits: AuditEvent[]; loading: boolean }) { return <details className={styles.auditDetails}><summary>ประวัติรายการ</summary>{loading ? <p>กำลังโหลดประวัติรายการ...</p> : audits.length ? <ol>{audits.map((event) => <li key={event.id}><div><strong>{auditLabel(event.event_type)}</strong><span>{event.actor_name || event.actor_email || "ผู้ใช้งานระบบ"}</span></div><time>{thaiDateTime(event.created_at)}</time></li>)}</ol> : <p>ยังไม่พบประวัติรายการ</p>}</details>; }
 function completeReadiness(row: Installment) { return Boolean(row.readiness_event_date && row.ready_to_invoice_at && row.readiness_confirmed_at && row.readiness_confirmed_by_user_id && row.readiness_evidence_json && Object.keys(row.readiness_evidence_json).length); }

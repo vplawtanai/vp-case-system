@@ -16,6 +16,10 @@ export type WorkflowCharge = {
   status: string;
 };
 
+export type InstallmentClassificationSource = {
+  economic_classification: string | null;
+};
+
 export type InstallmentChargeActionContext = {
   canManageCharges: boolean;
   planStatus: string;
@@ -79,6 +83,18 @@ export function billingPlanInvoiceSelectionResumeHref(planId: string, installmen
 
 export function invoiceCompositionMode(requestedInstallmentId: string): "billing_plan_guided" | "standalone" {
   return requestedInstallmentId ? "billing_plan_guided" : "standalone";
+}
+
+export function historicalInstallmentClassificationItems<T extends InstallmentClassificationSource>(items: T[], hasBridge: boolean): T[] {
+  return hasBridge ? [] : items.filter((item) => !item.economic_classification);
+}
+
+export function historicalInstallmentClassificationPrompt(amount: string): { title: string; description: string; action: string } {
+  return {
+    title: "ระบุประเภทรายการตามแผน",
+    description: `งวดนี้สร้างจากข้อมูลเดิมที่ยังไม่ได้ระบุประเภทรายการ กรุณาเลือกประเภทสำหรับยอด ${amount} โดยยอดเงินและ VAT จะไม่เปลี่ยนแปลง`,
+    action: "เลือกประเภทรายการ",
+  };
 }
 
 function sameNullableId(left: number | string | null | undefined, right: number | string | null | undefined): boolean {
