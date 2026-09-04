@@ -502,7 +502,7 @@ export default function FinanceCashTransactionsPage() {
 
   return (
     <AuthGuard>
-      <AppTopNav title="รายการเงินรับ–จ่าย" subtitle="ติดตามเงินของกิจการที่อยู่ในแต่ละบัญชี โดยแยกจากเงินอื่นที่ไม่อยู่ในขอบเขตของระบบ" activePage="finance" />
+      <AppTopNav title="การเงิน" activePage="finance" />
       <main className={styles.page}>
         <FinanceSubNav activePage="cash-transactions" permissions={permissions} />
         {!permissions.canViewFinanceCashTransactions ? <div className={styles.error}>คุณไม่มีสิทธิ์ดูรายการเงินรับ–จ่าย</div> : null}

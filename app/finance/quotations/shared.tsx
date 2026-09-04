@@ -711,13 +711,13 @@ export function QuotationGuard({ children, canAccess }: { children: (access: Quo
 
   return (
     <AuthGuard>
-      <AppTopNav title="Finance" subtitle="Quotations" activePage="finance" />
+      <AppTopNav title="การเงิน" activePage="finance" />
       <main style={pageStyle}>
-        {loading ? <div style={cardStyle}>Loading quotations...</div> : null}
+        {loading ? <div style={cardStyle}>กำลังโหลดพื้นที่การเงิน...</div> : null}
         {!loading && !allowed ? (
           <div style={cardStyle}>
-            <h2 style={sectionTitleStyle}>No access</h2>
-            <p style={mutedTextStyle}>You do not have permission to view Finance Quotations.</p>
+            <h2 style={sectionTitleStyle}>ไม่มีสิทธิ์เข้าถึง</h2>
+            <p style={mutedTextStyle}>บัญชีผู้ใช้นี้ไม่มีสิทธิ์เข้าถึงพื้นที่การเงินส่วนนี้</p>
           </div>
         ) : null}
         {!loading && access && allowed ? children(access) : null}

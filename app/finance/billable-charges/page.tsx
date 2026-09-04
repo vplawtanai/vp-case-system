@@ -746,7 +746,7 @@ function BillableChargesWorkspace() {
 }
 
 function PageShell({ children }: { children: React.ReactNode }) {
-  return <AuthGuard><AppTopNav title="Finance" subtitle="รายการเรียกเก็บเพิ่มเติม" activePage="finance" /><main className={styles.page}>{children}</main></AuthGuard>;
+  return <AuthGuard><AppTopNav title="การเงิน" activePage="finance" /><main className={styles.page}>{children}</main></AuthGuard>;
 }
 
 function FormField({ label, helper, error, wide, children }: { label: string; helper?: string; error?: string; wide?: boolean; children: React.ReactNode }) {

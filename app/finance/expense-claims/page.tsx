@@ -569,7 +569,7 @@ export default function ExpenseClaimsPage() {
     return (
       <AuthGuard>
         <main style={pageStyle}>
-          <AppTopNav title="Expense Claims" subtitle="Internal reimbursement requests" activePage="finance" />
+          <AppTopNav title="การเงิน" activePage="finance" />
           <div style={noAccessStyle}>No access</div>
         </main>
       </AuthGuard>
@@ -579,7 +579,7 @@ export default function ExpenseClaimsPage() {
   return (
     <AuthGuard>
       <main style={pageStyle}>
-        <AppTopNav title="Expense Claims" subtitle="Internal reimbursement requests before posting to ledger." activePage="finance" />
+        <AppTopNav title="การเงิน" activePage="finance" />
         <FinanceSubNav activePage="claims" permissions={permissions} />
         {errorText ? <div style={errorStyle}>{errorText}</div> : null}
 

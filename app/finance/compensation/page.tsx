@@ -689,7 +689,7 @@ export default function CompensationPage() {
     return (
       <AuthGuard>
         <main style={pageStyle}>
-          <AppTopNav title="Lawyer Compensation" subtitle="Compensation allocation" activePage="finance" />
+          <AppTopNav title="การเงิน" activePage="finance" />
           <div style={noAccessStyle}>No access</div>
         </main>
       </AuthGuard>
@@ -699,7 +699,7 @@ export default function CompensationPage() {
   return (
     <AuthGuard>
       <main style={pageStyle}>
-        <AppTopNav title="Lawyer Compensation" subtitle="Allocate received fees before posting company share to KBANK." activePage="finance" />
+        <AppTopNav title="การเงิน" activePage="finance" />
         <FinanceSubNav activePage="compensation" permissions={permissions} />
         {errorText ? <div style={errorStyle}>{errorText}</div> : null}
         <section style={filterPanelStyle}>

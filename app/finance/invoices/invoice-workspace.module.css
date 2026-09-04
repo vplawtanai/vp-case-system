@@ -25,7 +25,10 @@
 .invoiceCell span { color: #758195; font-size: 11px; }
 .invoiceCell strong { overflow-wrap: anywhere; }
 .status { justify-self: start; border-radius: 999px; padding: 4px 8px; background: #edf3f8; color: #37536e; font-size: 11px; font-weight: 800; white-space: nowrap; }
-.toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.contextNavigation { margin: 0 0 10px; }
+.contextBackLink { display: inline-flex; align-items: center; min-height: 34px; color: #526274; font-size: 13px; font-weight: 750; text-decoration: none; }
+.contextBackLink:hover { color: #17324d; text-decoration: underline; text-underline-offset: 3px; }
+.contextBackLink:focus-visible { border-radius: 4px; outline: 3px solid rgba(37, 99, 235, .22); outline-offset: 2px; }
 .sourceSafety { display: flex; align-items: baseline; gap: 9px; margin: -4px 0 16px; border-left: 3px solid #55708c; padding: 9px 12px; background: #f4f8fb; color: #475569; font-size: 12px; line-height: 1.55; }
 .sourceSafety strong { flex: 0 0 auto; color: #17324d; }
 .sectionHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
@@ -110,4 +113,5 @@
   .sourceSafety { align-items: flex-start; flex-direction: column; gap: 2px; }
   .lockedRow, .compactAdapter { align-items: stretch; flex-direction: column; }
   .lockedRow > strong { white-space: normal; }
+  .sectionHeader .secondaryButton { width: 100%; }
 }

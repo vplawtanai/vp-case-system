@@ -639,11 +639,7 @@ export default function FinanceLedgerPage() {
     return (
       <AuthGuard>
         <main style={pageStyle}>
-          <AppTopNav
-            title="รายการรับ–จ่ายเดิม"
-            subtitle="ระบบเดิม - ใช้งานจนกว่าจะเปลี่ยนเข้าสู่ระบบใหม่"
-            activePage="finance"
-          />
+          <AppTopNav title="การเงิน" activePage="finance" />
           <div style={noAccessStyle}>No access</div>
         </main>
       </AuthGuard>
@@ -653,11 +649,7 @@ export default function FinanceLedgerPage() {
   return (
     <AuthGuard>
       <main style={pageStyle}>
-        <AppTopNav
-          title="รายการรับ–จ่ายเดิม"
-          subtitle="ระบบเดิม - ใช้งานจนกว่าจะเปลี่ยนเข้าสู่ระบบใหม่"
-          activePage="finance"
-        />
+        <AppTopNav title="การเงิน" activePage="finance" />
 
         <FinanceSubNav activePage="ledger" permissions={permissions} />
 
