@@ -73,6 +73,8 @@ export type FinanceInvoiceItem = {
   sort_order: number;
 };
 
+export type InvoiceCompositionItem = Pick<FinanceInvoiceItem, "source_state" | "source_snapshot_json">;
+
 export type InvoiceDraftForm = {
   issueDate: string;
   dueDate: string;
@@ -256,7 +258,7 @@ export function asJson(value: unknown): Json {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Json : {};
 }
 
-function invoiceItemReadySnapshot(item: FinanceInvoiceItem) {
+function invoiceItemReadySnapshot(item: Pick<FinanceInvoiceItem, "source_snapshot_json">) {
   return asJson(asJson(item.source_snapshot_json).ready_snapshot);
 }
 
@@ -265,9 +267,27 @@ export function invoiceItemEconomicClassification(item: FinanceInvoiceItem) {
   return typeof value === "string" && value.trim() ? value : null;
 }
 
-export function invoiceItemSourceType(item: FinanceInvoiceItem) {
+export function invoiceItemSourceType(item: Pick<FinanceInvoiceItem, "source_snapshot_json">) {
   const value = asJson(invoiceItemReadySnapshot(item).source).source_type;
   return typeof value === "string" && value.trim() ? value : null;
+}
+
+export function invoiceCompositionSourceLabel(
+  sourceModel: FinanceInvoice["source_model"],
+  items: readonly InvoiceCompositionItem[],
+  legacyLabel = "ยอดตามแผนเรียกเก็บเงิน",
+) {
+  if (sourceModel !== "billable_charge_v2") return legacyLabel;
+  // V2 active items represent reserved Draft or invoiced Issued allocations;
+  // released composition history must not imply an additional current source.
+  const sourceTypes = items.filter((item) => item.source_state === "active").map(invoiceItemSourceType);
+  if (!sourceTypes.length || sourceTypes.some((type) => type !== "billing_installment_item" && type !== "ad_hoc_service" && type !== "recoverable_cost")) {
+    return "ไม่สามารถระบุที่มาของยอดเรียกเก็บ";
+  }
+  const hasInstallment = sourceTypes.includes("billing_installment_item");
+  const hasAdditional = sourceTypes.some((type) => type === "ad_hoc_service" || type === "recoverable_cost");
+  if (hasInstallment && hasAdditional) return "ยอดตามแผน + รายการเรียกเก็บเพิ่มเติม";
+  return hasInstallment ? "ยอดตามแผนเรียกเก็บเงิน" : "รายการเรียกเก็บเพิ่มเติม";
 }
 
 export function invoiceItemUnit(item: FinanceInvoiceItem) {

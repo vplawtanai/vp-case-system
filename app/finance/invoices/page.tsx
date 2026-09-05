@@ -7,7 +7,7 @@ import { supabase } from "../../../lib/supabase";
 import type { UserPermissions } from "../../../lib/permissions";
 import FinanceSubNav from "../FinanceSubNav";
 import InvoiceWorkspaceNav from "./InvoiceWorkspaceNav";
-import { formatBangkokDateTime, invoiceStatusLabels, money } from "./shared";
+import { formatBangkokDateTime, invoiceCompositionSourceLabel, invoiceStatusLabels, money, type InvoiceCompositionItem } from "./shared";
 import styles from "./invoice-workspace.module.css";
 
 type InvoiceListRow = {
@@ -15,7 +15,7 @@ type InvoiceListRow = {
   invoice_no: string | null;
   document_status: string;
   source_model: "installment_v1" | "billable_charge_v2";
-  v2_bridge_id: string | null;
+  finance_invoice_items: InvoiceCompositionItem[];
   customer_name: string | null;
   currency: string;
   total_amount: number | string;
@@ -34,7 +34,7 @@ function InvoiceListWorkspace({ permissions }: { permissions: UserPermissions })
 
   const load = useCallback(async () => {
     setLoading(true);
-    const result = await supabase.from("finance_invoices").select("id,invoice_no,document_status,source_model,v2_bridge_id,customer_name,currency,total_amount,created_at").order("created_at", { ascending: false });
+    const result = await supabase.from("finance_invoices").select("id,invoice_no,document_status,source_model,customer_name,currency,total_amount,created_at,finance_invoice_items(source_state,source_snapshot_json)").order("created_at", { ascending: false });
     if (result.error) {
       console.error("LOAD INVOICE WORKSPACE FAILED", result.error);
       setError("โหลดรายการใบแจ้งหนี้ไม่สำเร็จ");
@@ -63,15 +63,10 @@ function InvoiceListWorkspace({ permissions }: { permissions: UserPermissions })
       {!loading && rows.length ? <div className={styles.invoiceList}>{rows.map((invoice) => <article key={invoice.id} className={styles.invoiceRow}>
         <div className={styles.invoiceIdentity}><strong>{invoice.invoice_no || `ร่าง ${invoice.id.slice(0, 8).toUpperCase()}`}</strong><small>{formatBangkokDateTime(invoice.created_at)}</small></div>
         <div className={styles.invoiceCell}><span>ลูกค้า</span><strong>{invoice.customer_name || "-"}</strong></div>
-        <div className={styles.invoiceCell}><span>ที่มา</span><strong>{sourceLabel(invoice)}</strong></div>
+        <div className={styles.invoiceCell}><span>ที่มา</span><strong>{invoiceCompositionSourceLabel(invoice.source_model, invoice.finance_invoice_items || [])}</strong></div>
         <div className={styles.invoiceCell}><span>ยอดรวม</span><strong>{money(invoice.total_amount, invoice.currency)}</strong><span className={styles.status}>{invoiceStatusLabels[invoice.document_status] || invoice.document_status}</span></div>
         <Link className={styles.detailButton} href={`/finance/invoices/${invoice.id}`}>เปิดใบแจ้งหนี้</Link>
       </article>)}</div> : null}
     </section>
   </div>;
-}
-
-function sourceLabel(invoice: InvoiceListRow) {
-  if (invoice.source_model !== "billable_charge_v2") return "ยอดตามแผนเรียกเก็บเงิน";
-  return invoice.v2_bridge_id ? "ยอดตามแผน + รายการเพิ่มเติม" : "รายการเรียกเก็บเพิ่มเติม";
 }

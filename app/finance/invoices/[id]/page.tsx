@@ -18,6 +18,7 @@ import {
   eligibleInvoicePaymentBankAccount,
   formatBangkokDateTime,
   formatDocumentDate,
+  invoiceCompositionSourceLabel,
   invoiceDraftFingerprint,
   invoiceDraftForm,
   invoiceItemEconomicClassification,
@@ -356,7 +357,7 @@ function InvoiceWorkspace({ canManagePayments, canManageComposition }: { canMana
   const matter = displayText(invoice.matter_snapshot_json?.title, displayText(invoice.matter_snapshot_json?.file_no, invoice.case_id || invoice.advisory_matter_id ? "เรื่อง/คดีที่เชื่อมไว้" : "ยังไม่ผูกเรื่อง"));
   const engagementReference = agreement ? agreement.engagement_basis === "accepted_quotation" ? displayText(agreement.source_reference, agreement.title) : displayText(agreement.agreement_no, agreement.title) : "-";
   const installmentLabel = installment ? `งวดที่ ${installment.installment_no}${installment.title ? ` · ${installment.title}` : ""}` : "-";
-  const invoiceSourceLabel = isV2 ? v2Bridge ? "ยอดตามแผน + รายการเรียกเก็บเพิ่มเติม" : "รายการเรียกเก็บเพิ่มเติม" : engagementReference;
+  const invoiceSourceLabel = invoiceCompositionSourceLabel(invoice.source_model, items, engagementReference);
   const paymentDestination = isDraft
     ? bankAccountPaymentDestination(selectedBankAccount)
     : snapshotPaymentDestination(invoice.issued_snapshot_json?.payment_destination);
@@ -393,7 +394,7 @@ function InvoiceWorkspace({ canManagePayments, canManageComposition }: { canMana
         {!isV2 ? <><SourceNode label={`งวดที่ ${installment?.installment_no || "-"}`}>{displayText(installment?.title, "งวดเรียกเก็บเงิน")}{installment ? <StatusBadge status={installment.status} label={installmentStatusLabels[installment.status] || installment.status} /> : null}</SourceNode><Arrow /></> : null}
         {isV2 && agreement && invoice.fee_agreement_id ? <><SourceNode label="ข้อมูลการว่าจ้าง"><Link href={`/finance/fee-agreements/${invoice.fee_agreement_id}`}>{engagementReference}</Link></SourceNode><Arrow /></> : null}
         {isV2 && plan && invoice.billing_plan_id ? <><SourceNode label="แผนเรียกเก็บเงิน"><Link href={`/finance/billing-plans/${invoice.billing_plan_id}`}>{displayText(plan.title, "แผนเรียกเก็บเงิน")}</Link></SourceNode><Arrow /></> : null}
-        {isV2 ? <><SourceNode label={v2Bridge ? "แบบรวมรายการ" : "จากรายการเรียกเก็บ"}>{invoiceSourceLabel}</SourceNode><Arrow /></> : null}
+        {isV2 ? <><SourceNode label="ที่มาของยอดเรียกเก็บ">{invoiceSourceLabel}</SourceNode><Arrow /></> : null}
         <SourceNode label={isDraft ? "ร่างใบแจ้งหนี้" : isVoided ? "ใบแจ้งหนี้ที่ยกเลิกแล้ว" : "ใบแจ้งหนี้"} current>{invoice.invoice_no || invoice.id.slice(0, 8).toUpperCase()}</SourceNode>
       </div>
     </section>
