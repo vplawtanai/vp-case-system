@@ -103,8 +103,20 @@
   line-height: 1.5;
 }
 
-.secondaryReference {
-  margin-top: 3mm;
+.installmentContext {
+  margin: 2mm 0 0;
+  color: #475569;
+  font-size: 8pt;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.installmentContext:first-child {
+  margin-top: 0;
+}
+
+.installmentContext > span {
+  color: #64748b;
 }
 
 .tableWrap {

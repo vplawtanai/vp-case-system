@@ -75,6 +75,8 @@ export type FinanceInvoiceItem = {
 
 export type InvoiceCompositionItem = Pick<FinanceInvoiceItem, "source_state" | "source_snapshot_json">;
 
+export type InvoiceInstallmentContext = { label: string; value: string };
+
 export type InvoiceDraftForm = {
   issueDate: string;
   dueDate: string;
@@ -288,6 +290,65 @@ export function invoiceCompositionSourceLabel(
   const hasAdditional = sourceTypes.some((type) => type === "ad_hoc_service" || type === "recoverable_cost");
   if (hasInstallment && hasAdditional) return "ยอดตามแผน + รายการเรียกเก็บเพิ่มเติม";
   return hasInstallment ? "ยอดตามแผนเรียกเก็บเงิน" : "รายการเรียกเก็บเพิ่มเติม";
+}
+
+export function invoiceInstallmentContext(
+  invoice: Pick<FinanceInvoice, "document_status" | "source_model" | "language_code" | "billing_plan_id" | "v2_bridge_id" | "source_snapshot_json" | "issued_snapshot_json">,
+  draftItems: readonly InvoiceCompositionItem[],
+  draftBridge: Json | null = null,
+): InvoiceInstallmentContext | null {
+  const frozen = invoice.document_status === "issued" || invoice.document_status === "voided";
+  const snapshot = asJson(invoice.issued_snapshot_json);
+  const invoiceEvidence = frozen ? asJson(snapshot.invoice) : invoice;
+  const source = asJson(frozen ? snapshot.source : invoice.source_snapshot_json);
+  const sourceModel = frozen
+    ? snapshot.source_model || invoiceEvidence.source_model || source.invoice_source_model || (snapshot.schema_version === 1 ? "installment_v1" : null)
+    : invoice.source_model;
+  const thai = (frozen ? invoiceEvidence.language_code : invoice.language_code) !== "en";
+
+  // Legacy V1 froze the ordinal/title but not the Billing Plan's installment count.
+  // Preserve that label without inferring a count from a live plan or quotation.
+  if (sourceModel === "installment_v1") {
+    const installment = asJson(source.billing_installment);
+    if (!asJson(source.billing_plan).id || !installment.id || !positiveInteger(installment.installment_no)) return null;
+    const title = typeof installment.title === "string" ? installment.title : "";
+    return {
+      label: thai ? "งวดเรียกเก็บเงิน" : "Billing Installment",
+      value: `${thai ? "งวดที่" : "Installment"} ${installment.installment_no}${title ? ` · ${title}` : ""}`,
+    };
+  }
+  if (sourceModel !== "billable_charge_v2") return null;
+
+  // Issue embeds the immutable bridge and active item evidence. Never fall back
+  // to Draft/live inputs when rendering an Issued or Voided document.
+  const bridge = asJson(frozen ? snapshot.bridge : draftBridge);
+  const lineage = asJson(frozen ? bridge.source_snapshot : bridge.source_snapshot_json);
+  const plan = asJson(lineage.billing_plan);
+  const installment = asJson(lineage.billing_installment);
+  if (!bridge.id || bridge.id !== invoiceEvidence.v2_bridge_id || bridge.id !== source.bridge_id
+    || !plan.id || plan.id !== invoiceEvidence.billing_plan_id
+    || !installment.id || installment.billing_plan_id !== plan.id
+    || !positiveInteger(installment.installment_no) || !positiveInteger(plan.installment_count)
+    || Number(installment.installment_no) > Number(plan.installment_count)) return null;
+
+  const items = frozen
+    ? (Array.isArray(snapshot.items) ? snapshot.items.map((entry) => asJson(asJson(entry).invoice_item)) : [])
+    : draftItems;
+  const activeItems = items.filter((item) => item.source_state === "active");
+  const sourceTypes = activeItems.map((item) => invoiceItemSourceType({ source_snapshot_json: asJson(item.source_snapshot_json) }));
+  if (!sourceTypes.includes("billing_installment_item")
+    || sourceTypes.some((type) => type !== "billing_installment_item" && type !== "ad_hoc_service" && type !== "recoverable_cost")) return null;
+  const mixed = sourceTypes.some((type) => type === "ad_hoc_service" || type === "recoverable_cost");
+  return {
+    label: thai ? mixed ? "ค่าบริการตามแผน" : "งวดเรียกเก็บ" : mixed ? "Planned services" : "Billing installment",
+    value: thai
+      ? `งวดที่ ${installment.installment_no} จาก ${plan.installment_count} งวด`
+      : `Installment ${installment.installment_no} of ${plan.installment_count}`,
+  };
+}
+
+function positiveInteger(value: unknown) {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
 export function invoiceItemUnit(item: FinanceInvoiceItem) {

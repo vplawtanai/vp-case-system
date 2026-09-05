@@ -10,6 +10,7 @@ import {
   type FinanceInvoice,
   type FinanceInvoiceItem,
   type InvoicePaymentDestination,
+  type InvoiceInstallmentContext,
 } from "./shared";
 import { invoicePaymentSectionModel } from "./payment-instructions";
 import styles from "./invoice-document.module.css";
@@ -20,7 +21,7 @@ export function InvoiceDocument({
   identity,
   logoUrl,
   matter,
-  installmentLabel,
+  installmentContext,
   paymentDestination,
 }: {
   invoice: FinanceInvoice;
@@ -28,14 +29,14 @@ export function InvoiceDocument({
   identity: DocumentIdentity;
   logoUrl: string;
   matter: string | null;
-  installmentLabel: string | null;
+  installmentContext: InvoiceInstallmentContext | null;
   paymentDestination: InvoicePaymentDestination | null;
 }) {
   const thai = invoice.language_code !== "en";
   const labels = thai ? thaiLabels : englishLabels;
   const isDraft = invoice.document_status === "draft";
   const isVoided = invoice.document_status === "voided";
-  const showInstallment = invoice.source_model !== "billable_charge_v2" && Boolean(installmentLabel);
+  const showInstallment = Boolean(installmentContext);
   const showReferencePanel = Boolean(matter || showInstallment);
   const paymentSection = invoicePaymentSectionModel({
     paymentDestination,
@@ -77,7 +78,7 @@ export function InvoiceDocument({
         </div>
         {showReferencePanel ? <div className={styles.matterBlock}>
           {matter ? <DocumentField label={labels.reference} value={matter} /> : null}
-          {showInstallment && installmentLabel ? <div className={matter ? styles.secondaryReference : undefined}><DocumentField label={labels.installment} value={installmentLabel} /></div> : null}
+          {installmentContext ? <p className={styles.installmentContext}><span>{installmentContext.label}:</span> {installmentContext.value}</p> : null}
         </div> : null}
       </section>
 
@@ -160,7 +161,6 @@ const thaiLabels = {
   customer: "ลูกค้า",
   taxId: "เลขประจำตัวผู้เสียภาษี",
   reference: "เรื่อง/งานอ้างอิง",
-  installment: "งวดเรียกเก็บเงิน",
   items: "รายการเรียกเก็บ",
   description: "รายการ",
   vatTreatment: "การคิด VAT",
@@ -194,7 +194,6 @@ const englishLabels = {
   customer: "Customer",
   taxId: "Tax ID",
   reference: "Matter / Reference",
-  installment: "Billing Installment",
   items: "Billing Items",
   description: "Description",
   vatTreatment: "VAT Treatment",

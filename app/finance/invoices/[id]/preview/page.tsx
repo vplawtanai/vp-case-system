@@ -20,11 +20,13 @@ import {
   asJson,
   bankAccountPaymentDestination,
   displayText,
+  invoiceInstallmentContext,
   snapshotPaymentDestination,
   type FinanceBankAccount,
   type FinanceInvoice,
   type FinanceInvoiceItem,
   type InvoicePaymentDestination,
+  type InvoiceInstallmentContext,
   type Json,
 } from "../../shared";
 
@@ -41,7 +43,7 @@ export default function InvoicePreviewPage() {
 function InvoicePreview({ id }: { id: string }) {
   const [invoice, setInvoice] = useState<FinanceInvoice | null>(null);
   const [items, setItems] = useState<FinanceInvoiceItem[]>([]);
-  const [installment, setInstallment] = useState<Installment | null>(null);
+  const [installmentContext, setInstallmentContext] = useState<InvoiceInstallmentContext | null>(null);
   const [paymentDestination, setPaymentDestination] = useState<InvoicePaymentDestination | null>(null);
   const [identity, setIdentity] = useState<DocumentIdentity>(() => normalizeDocumentIdentity(null));
   const [logoUrl, setLogoUrl] = useState("");
@@ -63,10 +65,12 @@ function InvoicePreview({ id }: { id: string }) {
     const bankAccountPromise = currentInvoice.document_status === "draft" && currentInvoice.payment_destination_bank_account_id
       ? supabase.from("finance_bank_accounts").select("id,short_name,bank_name,account_name,account_number,is_active").eq("id", currentInvoice.payment_destination_bank_account_id).maybeSingle()
       : Promise.resolve({ data: null, error: null });
-    const bridgeResult = currentInvoice.v2_bridge_id
-      ? await supabase.from("finance_billing_installment_charge_bridges").select("billing_installment_id").eq("id", currentInvoice.v2_bridge_id).maybeSingle()
+    const bridgeResult = currentInvoice.document_status === "draft" && currentInvoice.v2_bridge_id
+      ? await supabase.from("finance_billing_installment_charge_bridges").select("id,billing_installment_id,source_snapshot_json").eq("id", currentInvoice.v2_bridge_id).maybeSingle()
       : { data: null, error: null };
-    const sourceInstallmentId = currentInvoice.primary_billing_installment_id || (bridgeResult.data as { billing_installment_id?: string } | null)?.billing_installment_id || null;
+    const sourceInstallmentId = currentInvoice.document_status === "draft"
+      ? currentInvoice.primary_billing_installment_id || (bridgeResult.data as { billing_installment_id?: string } | null)?.billing_installment_id || null
+      : null;
     const [itemsResult, installmentResult, currentIdentityResult, bankAccountResult] = await Promise.all([
       supabase.from("finance_invoice_items").select(itemSelect).eq("invoice_id", id).order("sort_order").order("id"),
       sourceInstallmentId ? supabase.from("finance_billing_installments").select("installment_no,title,trigger_description").eq("id", sourceInstallmentId).maybeSingle() : Promise.resolve({ data: null, error: null }),
@@ -105,7 +109,7 @@ function InvoicePreview({ id }: { id: string }) {
     setInvoice(presentation.invoice);
     setItems(presentation.items);
     setPaymentDestination(presentation.paymentDestination);
-    setInstallment(sourceInstallment);
+    setInstallmentContext(invoiceInstallmentContext(currentInvoice, (itemsResult.data || []) as FinanceInvoiceItem[], bridgeResult.data));
     setIdentity(resolvedIdentity);
     setLogoUrl(resolvedLogoUrl);
     setLoading(false);
@@ -131,9 +135,6 @@ function InvoicePreview({ id }: { id: string }) {
 
   const matterText = displayText(invoice.matter_snapshot_json?.title, displayText(invoice.matter_snapshot_json?.file_no, ""));
   const matter = matterText || null;
-  const installmentLabel = invoice.source_model === "billable_charge_v2"
-    ? null
-    : installment ? `งวดที่ ${installment.installment_no}${installment.title ? ` · ${installment.title}` : ""}` : null;
 
   return <main style={shell}>
     <div className="invoice-preview-controls" style={controls}>
@@ -141,7 +142,7 @@ function InvoicePreview({ id }: { id: string }) {
       <div style={controlActions}><Link style={backButton} href={`/finance/invoices/${invoice.id}`}>กลับไปใบแจ้งหนี้</Link><button type="button" style={printButton} onClick={() => window.print()}>พิมพ์ / บันทึก PDF</button></div>
     </div>
     {error ? <div style={errorNotice}>{error}</div> : null}
-    <InvoiceDocument invoice={invoice} items={items} identity={identity} logoUrl={logoUrl} matter={matter} installmentLabel={installmentLabel} paymentDestination={paymentDestination} />
+    <InvoiceDocument invoice={invoice} items={items} identity={identity} logoUrl={logoUrl} matter={matter} installmentContext={installmentContext} paymentDestination={paymentDestination} />
     <style jsx global>{`
       @media print {
         .invoice-preview-controls { display: none !important; }
