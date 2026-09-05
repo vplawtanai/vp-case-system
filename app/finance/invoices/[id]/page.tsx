@@ -21,6 +21,7 @@ import {
   invoiceCompositionSourceLabel,
   invoiceDraftFingerprint,
   invoiceDraftForm,
+  invoiceInstallmentContext,
   invoiceItemEconomicClassification,
   invoiceItemSourceType,
   invoiceItemUnit,
@@ -35,12 +36,13 @@ import {
   type FinanceInvoice,
   type FinanceInvoiceItem,
   type InvoiceDraftForm,
+  type Json,
 } from "../shared";
 
 type BillingPlan = { id: string; title: string | null; status: string; billing_method: string };
 type Installment = { id: string; installment_no: number; title: string; trigger_type: string; trigger_description: string | null; due_date: string | null; status: string; readiness_event_date: string | null; readiness_confirmed_at: string | null; readiness_reference: string | null; amount_before_tax: number | string; vat_amount: number | string; total_amount: number | string };
 type FeeAgreement = { id: string; agreement_no: string | null; title: string; status: string; engagement_basis: "formal_agreement" | "accepted_quotation" | null; source_reference: string | null };
-type V2Bridge = { billing_installment_id: string; billing_plan_id: string; fee_agreement_id: string };
+type V2Bridge = { id: string; billing_installment_id: string; billing_plan_id: string; fee_agreement_id: string; source_snapshot_json: Json };
 type FormErrors = Partial<Record<"issueDate" | "dueDate" | "bankAccount", string>>;
 type VoidFormErrors = Partial<Record<"reason" | "acknowledgement", string>>;
 type InvoicePaymentAllocation = { payment_id: string; cash_allocated: number | string; wht_credit_allocated: number | string; settlement_total: number | string };
@@ -103,7 +105,7 @@ function InvoiceWorkspace({ canManagePayments, canManageComposition }: { canMana
     if (!invoiceResult.data) { setError("ไม่พบใบแจ้งหนี้"); setLoading(false); return; }
     const invoiceRow = invoiceResult.data as FinanceInvoice;
     const bridgeResult = invoiceRow.v2_bridge_id
-      ? await supabase.from("finance_billing_installment_charge_bridges").select("billing_installment_id,billing_plan_id,fee_agreement_id").eq("id", invoiceRow.v2_bridge_id).maybeSingle()
+      ? await supabase.from("finance_billing_installment_charge_bridges").select("id,billing_installment_id,billing_plan_id,fee_agreement_id,source_snapshot_json").eq("id", invoiceRow.v2_bridge_id).maybeSingle()
       : { data: null, error: null };
     const bridge = (bridgeResult.data || null) as V2Bridge | null;
     const sourcePlanId = invoiceRow.billing_plan_id || bridge?.billing_plan_id || null;
@@ -358,6 +360,9 @@ function InvoiceWorkspace({ canManagePayments, canManageComposition }: { canMana
   const engagementReference = agreement ? agreement.engagement_basis === "accepted_quotation" ? displayText(agreement.source_reference, agreement.title) : displayText(agreement.agreement_no, agreement.title) : "-";
   const installmentLabel = installment ? `งวดที่ ${installment.installment_no}${installment.title ? ` · ${installment.title}` : ""}` : "-";
   const invoiceSourceLabel = invoiceCompositionSourceLabel(invoice.source_model, items, engagementReference);
+  const issueInstallmentContext = isDraft && isV2
+    ? invoiceInstallmentContext({ ...invoice, language_code: "th" }, items, v2Bridge)
+    : null;
   const paymentDestination = isDraft
     ? bankAccountPaymentDestination(selectedBankAccount)
     : snapshotPaymentDestination(invoice.issued_snapshot_json?.payment_destination);
@@ -518,7 +523,10 @@ function InvoiceWorkspace({ canManagePayments, canManageComposition }: { canMana
 
         {issuePanelOpen ? <div id="invoice-issue-confirmation" style={confirmationPanel}>
           <h3 style={confirmationTitle}>ยืนยันการออกใบแจ้งหนี้</h3>
-          <div style={confirmationGrid}><Field label="ลูกค้า" value={displayText(invoice.customer_name)} /><Field label="คดี/งาน" value={matter} /><Field label={isV2 ? "ที่มาของยอด" : "งวด"} value={isV2 ? invoiceSourceLabel : installmentLabel} /><Field label="มูลค่าก่อน VAT" value={money(invoice.amount_before_vat, invoice.currency)} /><Field label="VAT" value={money(invoice.vat_amount, invoice.currency)} /><Field label="ยอดรวม" value={money(invoice.total_amount, invoice.currency)} /><Field label="วันที่ออกเอกสาร" value={form.issueDate || "-"} /><Field label="วันที่ครบกำหนด" value={form.dueDate || "-"} /><Field label="บัญชีสำหรับรับชำระ" value={paymentDestination ? `${displayText(paymentDestination.shortName)} · ${displayText(paymentDestination.accountNumber)}` : "-"} /></div>
+          <div style={confirmationGrid}><Field label="ลูกค้า" value={displayText(invoice.customer_name)} /><Field label="คดี/งาน" value={matter} /><Field label={isV2 ? "ที่มาของยอด" : "งวด"} value={<>
+            {isV2 ? invoiceSourceLabel : installmentLabel}
+            {issueInstallmentContext ? <small style={issueInstallmentNote}>{issueInstallmentContext.value}</small> : null}
+          </>} /><Field label="มูลค่าก่อน VAT" value={money(invoice.amount_before_vat, invoice.currency)} /><Field label="VAT" value={money(invoice.vat_amount, invoice.currency)} /><Field label="ยอดรวม" value={money(invoice.total_amount, invoice.currency)} /><Field label="วันที่ออกเอกสาร" value={form.issueDate || "-"} /><Field label="วันที่ครบกำหนด" value={form.dueDate || "-"} /><Field label="บัญชีสำหรับรับชำระ" value={paymentDestination ? `${displayText(paymentDestination.shortName)} · ${displayText(paymentDestination.accountNumber)}` : "-"} /></div>
           <div style={issueItemsReview}><small style={fieldLabel}>รายการในใบแจ้งหนี้</small>{activeItems.map((item) => <div key={item.id} style={issueItemRow}><span>{item.description}{isV2 ? <small style={itemMeta}>{invoiceItemClassificationLabel(item)}</small> : null}</span><strong>{money(item.line_total, invoice.currency)}</strong></div>)}</div>
           <label style={confirmCheck}><input type="checkbox" checked={issueConfirmed} onChange={(event) => setIssueConfirmed(event.target.checked)} />ยืนยันว่าตรวจสอบข้อมูลใบแจ้งหนี้ครบถ้วนแล้ว และต้องการออกใบแจ้งหนี้ฉบับนี้</label>
           <p style={confirmationHelp}>ระบบจะสร้างเลขที่อย่างเป็นทางการและทำให้เอกสารเป็นแบบอ่านอย่างเดียว การออกใบแจ้งหนี้ไม่ถือว่าได้รับชำระเงิน</p>
@@ -702,6 +710,7 @@ const issueButton: CSSProperties = { display: "inline-flex", alignItems: "center
 const confirmationPanel: CSSProperties = { marginTop: 18, padding: 18, border: "1px solid #86efac", borderRadius: 6, background: "#fff", scrollMarginTop: 84 };
 const confirmationTitle: CSSProperties = { margin: "0 0 14px", color: "#14532d", fontSize: 17 };
 const confirmationGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 13 };
+const issueInstallmentNote: CSSProperties = { display: "block", marginTop: 3, color: "#64748b", fontSize: 13, lineHeight: 1.5 };
 const issueItemsReview: CSSProperties = { display: "grid", gap: 7, marginTop: 14, paddingTop: 12, borderTop: "1px solid #dce7df" };
 const issueItemRow: CSSProperties = { display: "flex", justifyContent: "space-between", gap: 14, color: "#334155", lineHeight: 1.45 };
 const confirmCheck: CSSProperties = { display: "flex", alignItems: "flex-start", gap: 9, marginTop: 16, padding: 12, border: "1px solid #cbd5e1", borderRadius: 6, color: "#334155", fontWeight: 700, lineHeight: 1.5 };
