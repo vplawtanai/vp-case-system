@@ -8,17 +8,18 @@ import { QuotationGuard } from "../../quotations/shared";
 import { supabase } from "../../../../lib/supabase";
 import { bangkokToday, displayText, formatBangkokDateTime, formatDocumentDate, money } from "../../invoices/shared";
 import {
-  calculateAssistedPaymentAmounts,
   derivePaymentWhtBase,
   hasValidCurrencyPrecision,
-  inferPaymentWhtPreset,
   normalizedAmount,
+  paymentAmountsForWhtMode,
   paymentFingerprint,
   paymentForm,
   paymentCorrectionCopy,
   paymentMethodLabels,
   paymentSettlementLabels,
   paymentStatusLabels,
+  paymentWhtAssistance,
+  paymentWhtAssistanceCopy,
   safePaymentError,
   safePaymentReallocationError,
   type EffectivePaymentAllocation,
@@ -27,6 +28,8 @@ import {
   type PaymentAllocation,
   type PaymentAllocationReallocation,
   type PaymentForm,
+  type PaymentWhtMode as WhtMode,
+  type PaymentWhtRateOption as WhtRateOption,
 } from "../shared";
 
 type PaymentAccess = {
@@ -40,8 +43,6 @@ type BankAccount = { id: string; short_name: string | null; bank_name: string | 
 type FormErrors = Partial<Record<"receivedOn" | "paymentMethod" | "bankAccount" | "settlementTarget" | "cashAmount" | "whtAmount" | "whtRate" | "allocation" | "confirmation", string>>;
 type ReallocationErrors = Partial<Record<"source" | "target" | "cash" | "wht" | "reason" | "acknowledgement", string>>;
 type ReallocationMode = "full" | "partial";
-type WhtMode = "none" | "calculated" | "manual";
-type WhtRateOption = "" | "1" | "2" | "3" | "5" | "10" | "custom";
 
 const whtRatePresets = [1, 2, 3, 5, 10] as const;
 
@@ -149,8 +150,7 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
     }
     const nextForm = paymentForm(paymentRow);
     const invoiceRows = (invoiceResult.data || []) as InvoiceContext[];
-    const invoiceRow = invoiceRows.find((row) => row.id === rawRows[0].invoice_id) || null;
-    const assistance = paymentWhtAssistance(nextForm, invoiceRow);
+    const assistance = paymentWhtAssistance(nextForm);
     setPayment(paymentRow);
     setAllocations(rawRows);
     setEffectiveAllocations(effectiveRows);
@@ -198,8 +198,6 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
   const targetSettlement = normalizedAmount(settlementTarget);
   const selectedWhtRate = whtRateOption === "custom" ? Number(customWhtRate || 0) : Number(whtRateOption || 0);
   const currentWhtBase = derivePaymentWhtBase(targetSettlement, invoiceTotals);
-  const savedWhtBase = derivePaymentWhtBase(payment?.settlement_amount || 0, invoiceTotals);
-  const savedWhtPreset = inferPaymentWhtPreset(payment?.settlement_amount || 0, payment?.wht_amount || 0, invoiceTotals, whtRatePresets);
   const currentEffectiveAllocations = effectiveAllocations.filter((row) => normalizedAmount(row.effective_settlement_total) > 0);
   const effectiveAllocationTotal = currentEffectiveAllocations.reduce((sum, row) => normalizedAmount(sum + normalizedAmount(row.effective_settlement_total)), 0);
   const selectedSourceAllocation = currentEffectiveAllocations.find((row) => row.invoice_id === reallocationSourceId) || null;
@@ -226,14 +224,9 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
   };
 
   const setAssistedAmounts = (targetValue: string, mode: WhtMode, rateOption = whtRateOption, customRate = customWhtRate, manualWht = form.whtAmount) => {
-    const target = normalizedAmount(targetValue);
     const rate = rateOption === "custom" ? Number(customRate || 0) : Number(rateOption || 0);
-    const assisted = mode === "calculated"
-      ? calculateAssistedPaymentAmounts(target, rate, invoiceTotals)
-      : null;
-    const nextWht = mode === "none" ? 0 : mode === "manual" ? normalizedAmount(manualWht) : assisted?.whtAmount || 0;
-    const nextCash = nextWht <= target ? normalizedAmount(target - nextWht) : 0;
-    setForm((current) => ({ ...current, cashAmount: nextCash.toFixed(2), whtAmount: nextWht.toFixed(2) }));
+    const amounts = paymentAmountsForWhtMode(targetValue, mode, manualWht, rate, invoiceTotals);
+    setForm((current) => ({ ...current, ...amounts }));
     setErrors((current) => ({ ...current, settlementTarget: undefined, cashAmount: undefined, whtAmount: undefined, whtRate: undefined, allocation: undefined }));
     setMessage("");
   };
@@ -244,14 +237,23 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
   };
 
   const selectWhtMode = (applies: boolean) => {
+    if (applies && whtMode !== "none") return;
+    setWhtRateOption("");
+    setCustomWhtRate("");
     if (!applies) {
       setWhtMode("none");
       setAssistedAmounts(settlementTarget, "none");
       return;
     }
-    const nextMode: WhtMode = currentWhtBase.reliable ? "calculated" : "manual";
-    setWhtMode(nextMode);
-    setAssistedAmounts(settlementTarget, nextMode, whtRateOption, customWhtRate, form.whtAmount);
+    setWhtMode("manual");
+    setAssistedAmounts(settlementTarget, "manual");
+  };
+
+  const openWhtRateAssistance = () => {
+    setWhtMode("calculated");
+    setWhtRateOption("");
+    setCustomWhtRate("");
+    setErrors((current) => ({ ...current, whtRate: undefined }));
   };
 
   const selectWhtRate = (option: WhtRateOption) => {
@@ -279,7 +281,7 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
     const next: FormErrors = {};
     if (!hasValidCurrencyPrecision(settlementTarget) || targetSettlement <= 0) next.settlementTarget = "กรุณาระบุยอดที่ต้องการตัดชำระมากกว่า 0 และมีทศนิยมไม่เกิน 2 ตำแหน่ง";
     if (!draftAllocationEditingLimited && targetSettlement > outstandingBefore) next.settlementTarget = "ยอดที่ต้องการตัดชำระเกินยอดคงค้างของใบแจ้งหนี้";
-    if (whtMode === "calculated" && !currentWhtBase.reliable) next.whtRate = "ไม่สามารถคำนวณฐาน WHT จากยอด Invoice ได้อย่างปลอดภัย กรุณาปรับยอด WHT เอง";
+    if (whtMode === "calculated" && !currentWhtBase.reliable) next.whtRate = "ไม่สามารถประมาณฐานจากยอดใบแจ้งหนี้ได้ กรุณาระบุยอด WHT เอง";
     if (whtMode === "calculated" && (!Number.isFinite(selectedWhtRate) || selectedWhtRate <= 0 || selectedWhtRate > 100)) next.whtRate = "กรุณาเลือกหรือระบุอัตราหัก ณ ที่จ่ายมากกว่า 0 และไม่เกิน 100%";
     if (whtMode === "manual" && (!hasValidCurrencyPrecision(form.whtAmount) || wht <= 0)) next.whtAmount = "กรุณาระบุเครดิตภาษีหัก ณ ที่จ่ายมากกว่า 0 และมีทศนิยมไม่เกิน 2 ตำแหน่ง";
     if (wht > targetSettlement) next.whtAmount = "เครดิตภาษีหัก ณ ที่จ่ายต้องไม่เกินยอดที่ต้องการตัดชำระ";
@@ -529,15 +531,30 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
         {draftAllocationEditingLimited ? <div style={neutralNotice}>ร่างนี้มีการจัดสรรไปยังหลายใบแจ้งหนี้ ระบบจะแสดงและคงยอดเดิมครบทุกฉบับ การแก้สัดส่วนรายใบยังไม่รองรับในหน้านี้</div> : null}
         <div className="payment-settlement-entry-grid" style={settlementEntryGrid}>
           <FormField label="ยอดที่ต้องการตัดชำระในครั้งนี้" helper={draftAllocationEditingLimited ? "ยอดรวมจากการจัดสรรทุกใบแจ้งหนี้" : `ยอดคงค้างปัจจุบัน ${money(outstandingBefore, payment.currency)}`} required error={errors.settlementTarget}><input style={inputStyle(Boolean(errors.settlementTarget))} type="number" min="0" step="0.01" value={settlementTarget} disabled={!access.canManage || saving || draftAllocationEditingLimited} onChange={(event) => updateSettlementTarget(event.target.value)} /></FormField>
-          <div style={whtChoiceField}><span style={formLabel}>ภาษีหัก ณ ที่จ่าย</span><div style={whtToggleGroup} role="group" aria-label="ภาษีหัก ณ ที่จ่าย"><button className="payment-wht-choice" type="button" aria-pressed={whtMode === "none"} style={{ ...whtToggleButton, ...(whtMode === "none" ? whtToggleButtonActive : {}) }} disabled={!access.canManage || saving || draftAllocationEditingLimited} onClick={() => selectWhtMode(false)}>ไม่มีหัก ณ ที่จ่าย</button><button className="payment-wht-choice" type="button" aria-pressed={whtMode !== "none"} style={{ ...whtToggleButton, ...(whtMode !== "none" ? whtToggleButtonActive : {}) }} disabled={!access.canManage || saving || draftAllocationEditingLimited} onClick={() => selectWhtMode(true)}>มีหัก ณ ที่จ่าย</button></div><small style={helperText}>ผู้ใช้เป็นผู้เลือกอัตราที่เหมาะสม ระบบไม่กำหนดอัตราจากประเภทบริการ</small></div>
+          <div style={whtChoiceField}><span style={formLabel}>ภาษีหัก ณ ที่จ่าย</span><div style={whtToggleGroup} role="group" aria-label="ภาษีหัก ณ ที่จ่าย"><button className="payment-wht-choice" type="button" aria-pressed={whtMode === "none"} style={{ ...whtToggleButton, ...(whtMode === "none" ? whtToggleButtonActive : {}) }} disabled={!access.canManage || saving || draftAllocationEditingLimited} onClick={() => selectWhtMode(false)}>ไม่มีหัก ณ ที่จ่าย</button><button className="payment-wht-choice" type="button" aria-pressed={whtMode !== "none"} style={{ ...whtToggleButton, ...(whtMode !== "none" ? whtToggleButtonActive : {}) }} disabled={!access.canManage || saving || draftAllocationEditingLimited} onClick={() => selectWhtMode(true)}>มีหัก ณ ที่จ่าย</button></div></div>
         </div>
-        {whtMode === "calculated" && !draftAllocationEditingLimited ? <div style={whtRateSection}><span style={formLabel}>อัตราหัก ณ ที่จ่าย</span><div className="payment-wht-rate-grid" style={whtRateGrid}>{whtRatePresets.map((rate) => { const value = String(rate) as WhtRateOption; return <button className="payment-wht-rate" key={rate} type="button" aria-pressed={whtRateOption === value} style={{ ...whtRateButton, ...(whtRateOption === value ? whtRateButtonActive : {}) }} disabled={!access.canManage || saving} onClick={() => selectWhtRate(value)}>{rate}%</button>; })}<button className="payment-wht-rate" type="button" aria-pressed={whtRateOption === "custom"} style={{ ...whtRateButton, ...(whtRateOption === "custom" ? whtRateButtonActive : {}) }} disabled={!access.canManage || saving} onClick={() => selectWhtRate("custom")}>กำหนดเอง</button></div>{whtRateOption === "custom" ? <FormField label="อัตราที่กำหนดเอง" helper="มากกว่า 0 และไม่เกิน 100%" error={errors.whtRate}><div style={percentInputWrap}><input style={inputStyle(Boolean(errors.whtRate))} type="number" min="0" max="100" step="0.01" value={customWhtRate} disabled={!access.canManage || saving} onChange={(event) => updateCustomWhtRate(event.target.value)} /><span>%</span></div></FormField> : errors.whtRate ? <div role="alert" style={inlineError}>{errors.whtRate}</div> : null}</div> : null}
-        {whtMode === "manual" && !draftAllocationEditingLimited ? <div className="payment-manual-wht-grid" style={manualWhtSection}><div><strong>ปรับยอด WHT เอง</strong><p style={manualWhtHelp}>{currentWhtBase.reliable ? "ใช้เมื่อยอดตามเอกสารแตกต่างจากผลคำนวณ ระบบจะไม่เขียนทับยอดที่ระบุเอง" : "ยอด Invoice ไม่สามารถใช้คำนวณฐาน WHT ได้อย่างปลอดภัย กรุณาระบุเครดิต WHT ตามหลักฐานจริง"}</p></div><FormField label="เครดิตภาษีหัก ณ ที่จ่าย" required error={errors.whtAmount}><input style={inputStyle(Boolean(errors.whtAmount))} type="number" min="0" step="0.01" value={form.whtAmount} disabled={!access.canManage || saving} onChange={(event) => updateManualWhtAmount(event.target.value)} /></FormField></div> : null}
-        {whtMode !== "none" && !draftAllocationEditingLimited ? <div style={whtModeActions}>{whtMode === "calculated" ? <button type="button" style={textActionButton} disabled={!access.canManage || saving} onClick={() => { setWhtMode("manual"); setAssistedAmounts(settlementTarget, "manual", whtRateOption, customWhtRate, form.whtAmount); }}>ปรับยอด WHT เอง</button> : currentWhtBase.reliable ? <button type="button" style={textActionButton} disabled={!access.canManage || saving} onClick={() => { setWhtMode("calculated"); setAssistedAmounts(settlementTarget, "calculated"); }}>กลับไปคำนวณจากอัตรา</button> : null}</div> : null}
+        {whtMode === "calculated" && !draftAllocationEditingLimited ? <div style={whtRateSection}>
+          <span style={formLabel}>{paymentWhtAssistanceCopy.rate}</span>
+          <p style={whtAssistanceHelp}>{paymentWhtAssistanceCopy.helper}</p>
+          <div className="payment-wht-rate-grid" style={whtRateGrid}>{whtRatePresets.map((rate) => {
+            const value = String(rate) as WhtRateOption;
+            return <button className="payment-wht-rate" key={rate} type="button" aria-pressed={whtRateOption === value} style={{ ...whtRateButton, ...(whtRateOption === value ? whtRateButtonActive : {}) }} disabled={!access.canManage || saving} onClick={() => selectWhtRate(value)}>{rate}%</button>;
+          })}<button className="payment-wht-rate" type="button" aria-pressed={whtRateOption === "custom"} style={{ ...whtRateButton, ...(whtRateOption === "custom" ? whtRateButtonActive : {}) }} disabled={!access.canManage || saving} onClick={() => selectWhtRate("custom")}>กำหนดเอง</button></div>
+          {whtRateOption === "custom" ? <FormField label="อัตราที่กำหนดเอง" helper="มากกว่า 0 และไม่เกิน 100%" error={errors.whtRate}><div style={percentInputWrap}><input style={inputStyle(Boolean(errors.whtRate))} type="number" min="0" max="100" step="0.01" value={customWhtRate} disabled={!access.canManage || saving} onChange={(event) => updateCustomWhtRate(event.target.value)} /><span>%</span></div></FormField> : errors.whtRate ? <div role="alert" style={inlineError}>{errors.whtRate}</div> : null}
+          <div style={contextGrid}>
+            <Field label={paymentWhtAssistanceCopy.base} value={currentWhtBase.reliable ? money(currentWhtBase.amount, payment.currency) : "ไม่สามารถประมาณฐานได้"} />
+            {currentWhtBase.reliable && Number.isFinite(selectedWhtRate) && selectedWhtRate > 0 && selectedWhtRate <= 100 ? <Field label={paymentWhtAssistanceCopy.result} value={money(wht, payment.currency)} /> : null}
+          </div>
+        </div> : null}
+        {whtMode === "manual" && !draftAllocationEditingLimited ? <div className="payment-manual-wht-grid" style={manualWhtSection}>
+          <div><strong>ระบุยอดหัก ณ ที่จ่าย</strong><p style={manualWhtHelp}>ระบุเครดิตภาษีหัก ณ ที่จ่ายตามหลักฐานจริง ระบบจะคงยอดนี้เมื่อแก้ไขข้อมูลอื่น</p></div>
+          <FormField label={paymentSettlementLabels.whtCredit} required error={errors.whtAmount}><input style={inputStyle(Boolean(errors.whtAmount))} type="number" min="0" step="0.01" value={form.whtAmount} disabled={!access.canManage || saving} onChange={(event) => updateManualWhtAmount(event.target.value)} /></FormField>
+        </div> : null}
+        {whtMode !== "none" && !draftAllocationEditingLimited ? <div style={whtModeActions}>{whtMode === "calculated"
+          ? <button className="payment-wht-assistance" type="button" style={whtAssistanceButton} disabled={!access.canManage || saving} onClick={() => { setWhtMode("manual"); setErrors((current) => ({ ...current, whtRate: undefined })); }}>ระบุยอด WHT เอง</button>
+          : currentWhtBase.reliable ? <button className="payment-wht-assistance" type="button" style={whtAssistanceButton} disabled={!access.canManage || saving} onClick={openWhtRateAssistance}>{paymentWhtAssistanceCopy.action}</button> : null}</div> : null}
         <div style={assistedAmountSummary}>
           <Metric label="ยอดที่ต้องการตัดชำระ" value={money(targetSettlement, payment.currency)} prominent />
-          {whtMode !== "none" && currentWhtBase.reliable && !draftAllocationEditingLimited ? <Metric label="ฐานคำนวณภาษีหัก ณ ที่จ่าย" value={money(currentWhtBase.amount, payment.currency)} /> : null}
-          {whtMode === "calculated" && selectedWhtRate > 0 && !draftAllocationEditingLimited ? <Metric label="อัตรา WHT" value={`${selectedWhtRate.toLocaleString("en-US", { maximumFractionDigits: 4 })}%`} /> : null}
           <Metric label={paymentSettlementLabels.whtCredit} value={money(wht, payment.currency)} />
           <Metric label={paymentSettlementLabels.receivedFull} value={money(cash, payment.currency)} />
           <Metric label={paymentSettlementLabels.settlementTotal} value={money(paymentSettlement, payment.currency)} />
@@ -557,7 +574,7 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
         <span style={eyebrow}>ตรวจสอบขั้นสุดท้าย</span><h2 style={reviewTitle}>ตรวจสอบก่อนยืนยันรับชำระ</h2><p style={sectionDescription}>ตรวจสอบหลักฐาน วันที่ วิธีรับชำระ และยอดจัดสรรให้ครบถ้วนก่อนยืนยัน</p>
         <div style={reviewGroups}>
           <div style={reviewGroup}><h3 style={reviewGroupTitle}>ข้อมูลรายการ</h3><div style={reviewGrid}><Field label="ใบแจ้งหนี้" value={displayText(invoice.invoice_no)} /><Field label="วันที่รับชำระจริง" value={form.receivedOn ? formatDocumentDate(form.receivedOn, "th") : "ยังไม่ระบุ"} /><Field label="วิธีรับชำระ" value={paymentMethodLabels[form.paymentMethod] || "ยังไม่ระบุ"} /><Field label="บัญชีที่รับเงินจริง" value={<BankAccountIdentity account={draftReceivingBankAccount} paymentMethod={form.paymentMethod} />} />{form.payerName.trim() ? <Field label="ชื่อผู้ชำระ" value={form.payerName.trim()} /> : null}{form.externalTransactionReference.trim() ? <Field label="เลขอ้างอิงรายการรับชำระ" value={form.externalTransactionReference.trim()} /> : null}{form.receivingAccountReference.trim() ? <Field label="รายละเอียดบัญชี/ช่องทางรับเงิน" value={form.receivingAccountReference.trim()} /> : null}{form.note.trim() ? <Field label="หมายเหตุ" value={form.note.trim()} /> : null}</div></div>
-          <div style={reviewGroup}><h3 style={reviewGroupTitle}>ยอดเงิน</h3><div style={reviewGrid}><Field label="ยอดที่ต้องการตัดชำระ" value={<strong>{money(targetSettlement, payment.currency)}</strong>} /><Field label="ภาษีหัก ณ ที่จ่าย" value={whtMode === "none" ? "ไม่มี" : whtMode === "manual" ? "มี · ปรับยอดเอง" : selectedWhtRate > 0 ? `มี · ${selectedWhtRate.toLocaleString("en-US", { maximumFractionDigits: 4 })}%` : "มี · ยังไม่ระบุอัตรา"} />{whtMode !== "none" && currentWhtBase.reliable ? <Field label="ฐานคำนวณ WHT" value={money(currentWhtBase.amount, payment.currency)} /> : null}<Field label={paymentSettlementLabels.receivedFull} value={money(cash, payment.currency)} /><Field label={paymentSettlementLabels.whtCredit} value={money(wht, payment.currency)} /><Field label={paymentSettlementLabels.settlementTotal} value={<strong>{money(paymentSettlement, payment.currency)}</strong>} /></div></div>
+          <div style={reviewGroup}><h3 style={reviewGroupTitle}>ยอดเงิน</h3><div style={reviewGrid}><Field label="ยอดที่ต้องการตัดชำระ" value={<strong>{money(targetSettlement, payment.currency)}</strong>} /><Field label="ภาษีหัก ณ ที่จ่าย" value={whtMode === "none" ? "ไม่มี" : whtMode === "manual" ? "มี · ระบุยอดเอง" : selectedWhtRate > 0 ? `มี · ${selectedWhtRate.toLocaleString("en-US", { maximumFractionDigits: 4 })}%` : "มี · ยังไม่ระบุอัตรา"} /><Field label={paymentSettlementLabels.receivedFull} value={money(cash, payment.currency)} /><Field label={paymentSettlementLabels.whtCredit} value={money(wht, payment.currency)} /><Field label={paymentSettlementLabels.settlementTotal} value={<strong>{money(paymentSettlement, payment.currency)}</strong>} /></div></div>
           <div style={reviewGroup}><h3 style={reviewGroupTitle}>การจัดสรร</h3><div style={allocationList}>{allocations.map((row) => { const rowInvoice = invoices.find((item) => item.id === row.invoice_id); return <AllocationSummaryCard key={row.id} invoice={rowInvoice || null} cash={draftAllocationEditingLimited ? row.cash_allocated : cash} wht={draftAllocationEditingLimited ? row.wht_credit_allocated : wht} total={draftAllocationEditingLimited ? row.settlement_total : paymentSettlement} currency={payment.currency} />; })}</div>{!draftAllocationEditingLimited ? <div style={{ marginTop: 12 }}><Field label="คาดว่ายอดคงค้างหลังยืนยัน" value={<strong>{money(expectedOutstanding, payment.currency)}</strong>} /></div> : null}</div>
         </div>
         {dirty ? <div style={neutralNotice}>กรุณาบันทึกการเปลี่ยนแปลงก่อนยืนยันรับชำระ</div> : null}
@@ -574,7 +591,7 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
         <SectionHeading title="ข้อมูลการรับชำระ" description="ข้อมูลที่ยืนยันแล้วแสดงเป็นแบบอ่านอย่างเดียว" />
         <div style={readOnlyGroups}>
           <div style={readOnlyGroup}><h3 style={readOnlyGroupTitle}>ข้อมูลรายการ</h3><div style={readOnlyGrid}><Field label="สถานะ" value={<StatusBadge status={payment.status}>{paymentStatusLabels[payment.status] || payment.status}</StatusBadge>} /><Field label="วันที่รับชำระจริง" value={payment.received_on ? formatDocumentDate(payment.received_on, "th") : "ไม่ระบุ"} /><Field label="วิธีรับชำระ" value={paymentMethodLabels[payment.payment_method || ""] || "ไม่ระบุ"} /><Field label="บัญชีที่รับเงินจริง" value={<BankAccountIdentity account={savedReceivingBankAccount} paymentMethod={payment.payment_method || ""} />} />{payment.payer_name?.trim() ? <Field label="ชื่อผู้ชำระ" value={payment.payer_name.trim()} /> : null}{payment.external_transaction_reference?.trim() ? <Field label="เลขอ้างอิงรายการรับชำระ" value={payment.external_transaction_reference.trim()} /> : null}{payment.receiving_account_reference?.trim() ? <Field label="รายละเอียดบัญชี/ช่องทางรับเงิน" value={payment.receiving_account_reference.trim()} /> : null}{payment.note?.trim() ? <Field label="หมายเหตุ" value={payment.note.trim()} /> : null}</div></div>
-          <div style={readOnlyGroup}><h3 style={readOnlyGroupTitle}>ยอดเงิน</h3><div style={summaryGrid}><Metric label="ยอดที่ตัดชำระ" value={money(payment.settlement_amount, payment.currency)} prominent />{allocations.length === 1 && normalizedAmount(payment.wht_amount) > 0 && savedWhtBase.reliable ? <Metric label="ฐานคำนวณ WHT" value={money(savedWhtBase.amount, payment.currency)} /> : null}{allocations.length === 1 && normalizedAmount(payment.wht_amount) > 0 && savedWhtPreset ? <Metric label="อัตรา WHT ที่อนุมานได้" value={`${savedWhtPreset}%`} /> : null}<Metric label={paymentSettlementLabels.receivedFull} value={money(payment.cash_amount, payment.currency)} /><Metric label={paymentSettlementLabels.whtCredit} value={money(payment.wht_amount, payment.currency)} /><Metric label={paymentSettlementLabels.settlementTotal} value={money(payment.settlement_amount, payment.currency)} />{payment.status === "confirmed" ? <Metric label="ยอดที่จัดสรรปัจจุบัน" value={money(effectiveAllocationTotal, payment.currency)} /> : null}</div></div>
+          <div style={readOnlyGroup}><h3 style={readOnlyGroupTitle}>ยอดเงิน</h3><div style={summaryGrid}><Metric label="ยอดที่ตัดชำระ" value={money(payment.settlement_amount, payment.currency)} prominent /><Metric label={paymentSettlementLabels.receivedFull} value={money(payment.cash_amount, payment.currency)} /><Metric label={paymentSettlementLabels.whtCredit} value={money(payment.wht_amount, payment.currency)} /><Metric label={paymentSettlementLabels.settlementTotal} value={money(payment.settlement_amount, payment.currency)} />{payment.status === "confirmed" ? <Metric label="ยอดที่จัดสรรปัจจุบัน" value={money(effectiveAllocationTotal, payment.currency)} /> : null}</div></div>
         </div>
         {payment.status === "confirmed" ? <div style={nextStepNotice}>การรับชำระถูกบันทึกแล้ว เอกสารใบเสร็จ/ใบกำกับภาษียังเป็นขั้นตอนถัดไป</div> : null}
       </section>
@@ -664,9 +681,9 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
       .payment-reallocation-mode small { color: #64748b; line-height: 1.45; }
       .payment-reallocation-mode:hover { border-color: #93c5fd !important; }
       .payment-reallocation-mode:focus-within { outline: 3px solid rgba(37, 99, 235, .2); outline-offset: 2px; }
-      .payment-wht-choice:hover:not(:disabled), .payment-wht-rate:hover:not(:disabled) { border-color: #64748b !important; }
-      .payment-wht-choice:focus-visible, .payment-wht-rate:focus-visible { outline: 3px solid rgba(37, 99, 235, .24); outline-offset: 2px; }
-      .payment-wht-choice:disabled, .payment-wht-rate:disabled { cursor: not-allowed !important; opacity: .58; }
+      .payment-wht-choice:hover:not(:disabled), .payment-wht-rate:hover:not(:disabled), .payment-wht-assistance:hover:not(:disabled) { border-color: #64748b !important; }
+      .payment-wht-choice:focus-visible, .payment-wht-rate:focus-visible, .payment-wht-assistance:focus-visible { outline: 3px solid rgba(37, 99, 235, .24); outline-offset: 2px; }
+      .payment-wht-choice:disabled, .payment-wht-rate:disabled, .payment-wht-assistance:disabled { cursor: not-allowed !important; opacity: .58; }
     `}</style>
   </main>;
 }
@@ -678,7 +695,6 @@ function FormField({ label, helper, required = false, error, children }: { label
 function Metric({ label, value, prominent = false }: { label: string; value: string; prominent?: boolean }) { return <div style={{ ...metric, ...(prominent ? prominentMetric : {}) }}><small>{label}</small><strong style={metricValue}>{value}</strong></div>; }
 function StatusBadge({ status, children }: { status: string; children: ReactNode }) { return <span style={{ ...badge, ...(status === "draft" ? amberBadge : status === "confirmed" ? greenBadge : redBadge) }}>{children}</span>; }
 function BankAccountIdentity({ account, paymentMethod }: { account: BankAccount | null; paymentMethod: string }) { if (!account) return <span>{paymentMethod === "bank_transfer" ? "ยังไม่ระบุ" : "ไม่ใช้บัญชีธนาคารสำหรับวิธีรับชำระนี้"}</span>; return <div style={bankAccountIdentity}><strong>{displayText(account.short_name)} — {displayText(account.bank_name)}</strong>{account.account_number ? <span style={bankAccountDetail}>{account.account_number}{account.account_name ? ` · ${account.account_name}` : ""}</span> : null}</div>; }
-function paymentWhtAssistance(form: PaymentForm, invoice: InvoiceContext | null): { settlementTarget: string; whtMode: WhtMode; whtRateOption: WhtRateOption } { const settlement = normalizedAmount(normalizedAmount(form.cashAmount) + normalizedAmount(form.whtAmount)); const wht = normalizedAmount(form.whtAmount); if (wht <= 0) return { settlementTarget: settlement.toFixed(2), whtMode: "none", whtRateOption: "" }; if (!invoice) return { settlementTarget: settlement.toFixed(2), whtMode: "manual", whtRateOption: "" }; const preset = inferPaymentWhtPreset(settlement, wht, { amountBeforeVat: invoice.amount_before_vat, vatAmount: invoice.vat_amount, totalAmount: invoice.total_amount }, whtRatePresets); return { settlementTarget: settlement.toFixed(2), whtMode: preset ? "calculated" : "manual", whtRateOption: preset ? String(preset) as WhtRateOption : "" }; }
 
 function AllocationSummaryCard({ invoice, cash, wht, total, currency }: { invoice: InvoiceContext | null; cash: number | string; wht: number | string; total: number | string; currency: string }) {
   return <div className="payment-allocation-card" style={allocationCard}><div><small style={fieldLabel}>จัดสรรไปยังใบแจ้งหนี้</small><strong>{displayText(invoice?.invoice_no)}</strong><span style={matterText}>{invoiceMatterLabel(invoice)}</span></div><span>{paymentSettlementLabels.receivedCompact} {money(cash, currency)}</span><span>WHT {money(wht, currency)}</span><strong>รวม {money(total, currency)}</strong></div>;
@@ -765,10 +781,11 @@ const whtRateGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repe
 const whtRateButton: CSSProperties = { minHeight: 40, padding: "7px 9px", border: "1px solid #cbd5e1", borderRadius: 6, background: "#fff", color: "#475569", font: "inherit", fontSize: 13, fontWeight: 700, cursor: "pointer" };
 const whtRateButtonActive: CSSProperties = { borderColor: "#2563eb", background: "#eff6ff", color: "#1d4ed8", boxShadow: "inset 0 0 0 1px #2563eb" };
 const percentInputWrap: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0,180px) auto", alignItems: "center", gap: 8 };
-const manualWhtSection: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(220px,0.7fr)", gap: 18, marginTop: 16, padding: "15px 0", borderTop: "1px solid #fcd34d", borderBottom: "1px solid #fcd34d", color: "#78350f" };
-const manualWhtHelp: CSSProperties = { margin: "5px 0 0", color: "#92400e", fontSize: 12, lineHeight: 1.5 };
+const manualWhtSection: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(220px,0.7fr)", gap: 18, marginTop: 16, padding: "15px 0", borderTop: "1px solid #e2e8f0", borderBottom: "1px solid #e2e8f0", color: "#334155" };
+const manualWhtHelp: CSSProperties = { margin: "5px 0 0", color: "#64748b", fontSize: 12, lineHeight: 1.5 };
+const whtAssistanceHelp: CSSProperties = { ...manualWhtHelp, margin: 0 };
 const whtModeActions: CSSProperties = { display: "flex", justifyContent: "flex-end", marginTop: 8 };
-const textActionButton: CSSProperties = { padding: "6px 0", border: 0, background: "transparent", color: "#1d4ed8", font: "inherit", fontSize: 13, fontWeight: 700, cursor: "pointer" };
+const whtAssistanceButton: CSSProperties = { minHeight: 40, padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: 6, background: "#fff", color: "#1d4ed8", font: "inherit", fontSize: 13, fontWeight: 700, cursor: "pointer" };
 const assistedAmountSummary: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(165px,1fr))", gap: 10, marginTop: 16 };
 const metric: CSSProperties = { display: "grid", gap: 5, minWidth: 0, padding: 13, border: "1px solid #e2e8f0", borderRadius: 6, color: "#64748b" };
 const prominentMetric: CSSProperties = { borderColor: "#86efac", background: "#f0fdf4", color: "#166534" };

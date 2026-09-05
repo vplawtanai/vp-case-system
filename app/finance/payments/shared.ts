@@ -96,6 +96,17 @@ export type AssistedPaymentAmounts = {
   reliableBase: boolean;
 };
 
+export type PaymentWhtMode = "none" | "calculated" | "manual";
+export type PaymentWhtRateOption = "" | "1" | "2" | "3" | "5" | "10" | "custom";
+
+export const paymentWhtAssistanceCopy = {
+  action: "ช่วยคำนวณจากอัตรา",
+  rate: "อัตราที่ใช้ช่วยคำนวณ",
+  base: "ฐานประมาณการสำหรับช่วยคำนวณ",
+  result: "ยอด WHT ที่คำนวณได้",
+  helper: "คำนวณจากสัดส่วนมูลค่าก่อน VAT ของใบแจ้งหนี้ ใช้เพื่อช่วยคำนวณเท่านั้น กรุณาตรวจสอบฐานและอัตราหัก ณ ที่จ่ายตามรายการจริง",
+} as const;
+
 export const paymentStatusLabels: Record<string, string> = {
   draft: "ร่างการรับชำระ",
   confirmed: "ยืนยันรับชำระแล้ว",
@@ -166,6 +177,30 @@ export function paymentFingerprint(form: PaymentForm) {
 export function normalizedAmount(value: string | number | null | undefined) {
   const amount = Number(value || 0);
   return Number.isFinite(amount) ? Math.round((amount + Number.EPSILON) * 100) / 100 : 0;
+}
+
+export function paymentWhtAssistance(form: Pick<PaymentForm, "cashAmount" | "whtAmount">): {
+  settlementTarget: string;
+  whtMode: PaymentWhtMode;
+  whtRateOption: PaymentWhtRateOption;
+} {
+  // Only monetary facts are persisted; a matching amount is not evidence of rate intent.
+  return {
+    settlementTarget: normalizedAmount(normalizedAmount(form.cashAmount) + normalizedAmount(form.whtAmount)).toFixed(2),
+    whtMode: normalizedAmount(form.whtAmount) > 0 ? "manual" : "none",
+    whtRateOption: "",
+  };
+}
+
+export function paymentAmountsForWhtMode(targetValue: string, mode: PaymentWhtMode, manualWht: string, rate: number, invoice: PaymentInvoiceTotals) {
+  const target = normalizedAmount(targetValue);
+  const assisted = mode === "calculated" && Number.isFinite(rate) && rate > 0 && rate <= 100
+    ? calculateAssistedPaymentAmounts(target, rate, invoice)
+    : null;
+  // Opening the calculator or an incomplete rate must not discard the entered amount.
+  const whtAmount = mode === "none" ? "0.00" : assisted?.reliableBase ? assisted.whtAmount.toFixed(2) : manualWht;
+  const wht = normalizedAmount(whtAmount);
+  return { cashAmount: (wht <= target ? normalizedAmount(target - wht) : 0).toFixed(2), whtAmount };
 }
 
 export function derivePaymentWhtBase(settlementValue: string | number, invoice: PaymentInvoiceTotals) {
