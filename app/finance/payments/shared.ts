@@ -9,6 +9,7 @@ export type FinancePayment = {
   status: PaymentStatus | string;
   cash_amount: number | string;
   wht_amount: number | string;
+  wht_calculation_mode?: "none" | "rate" | null;
   settlement_amount: number | string;
   received_on: string | null;
   payment_method: string | null;
@@ -82,30 +83,7 @@ export type PaymentForm = {
   whtAmount: string;
 };
 
-export type PaymentInvoiceTotals = {
-  amountBeforeVat: number | string;
-  vatAmount: number | string;
-  totalAmount: number | string;
-};
-
-export type AssistedPaymentAmounts = {
-  settlement: number;
-  whtBase: number;
-  whtAmount: number;
-  cashAmount: number;
-  reliableBase: boolean;
-};
-
-export type PaymentWhtMode = "none" | "calculated" | "manual";
 export type PaymentWhtRateOption = "" | "1" | "2" | "3" | "5" | "10" | "custom";
-
-export const paymentWhtAssistanceCopy = {
-  action: "ช่วยคำนวณจากอัตรา",
-  rate: "อัตราที่ใช้ช่วยคำนวณ",
-  base: "ฐานประมาณการสำหรับช่วยคำนวณ",
-  result: "ยอด WHT ที่คำนวณได้",
-  helper: "คำนวณจากสัดส่วนมูลค่าก่อน VAT ของใบแจ้งหนี้ ใช้เพื่อช่วยคำนวณเท่านั้น กรุณาตรวจสอบฐานและอัตราหัก ณ ที่จ่ายตามรายการจริง",
-} as const;
 
 export const paymentStatusLabels: Record<string, string> = {
   draft: "ร่างการรับชำระ",
@@ -179,65 +157,6 @@ export function normalizedAmount(value: string | number | null | undefined) {
   return Number.isFinite(amount) ? Math.round((amount + Number.EPSILON) * 100) / 100 : 0;
 }
 
-export function paymentWhtAssistance(form: Pick<PaymentForm, "cashAmount" | "whtAmount">): {
-  settlementTarget: string;
-  whtMode: PaymentWhtMode;
-  whtRateOption: PaymentWhtRateOption;
-} {
-  // Only monetary facts are persisted; a matching amount is not evidence of rate intent.
-  return {
-    settlementTarget: normalizedAmount(normalizedAmount(form.cashAmount) + normalizedAmount(form.whtAmount)).toFixed(2),
-    whtMode: normalizedAmount(form.whtAmount) > 0 ? "manual" : "none",
-    whtRateOption: "",
-  };
-}
-
-export function paymentAmountsForWhtMode(targetValue: string, mode: PaymentWhtMode, manualWht: string, rate: number, invoice: PaymentInvoiceTotals) {
-  const target = normalizedAmount(targetValue);
-  const assisted = mode === "calculated" && Number.isFinite(rate) && rate > 0 && rate <= 100
-    ? calculateAssistedPaymentAmounts(target, rate, invoice)
-    : null;
-  // Opening the calculator or an incomplete rate must not discard the entered amount.
-  const whtAmount = mode === "none" ? "0.00" : assisted?.reliableBase ? assisted.whtAmount.toFixed(2) : manualWht;
-  const wht = normalizedAmount(whtAmount);
-  return { cashAmount: (wht <= target ? normalizedAmount(target - wht) : 0).toFixed(2), whtAmount };
-}
-
-export function derivePaymentWhtBase(settlementValue: string | number, invoice: PaymentInvoiceTotals) {
-  const settlement = normalizedAmount(settlementValue);
-  const amountBeforeVat = normalizedAmount(invoice.amountBeforeVat);
-  const vatAmount = normalizedAmount(invoice.vatAmount);
-  const totalAmount = normalizedAmount(invoice.totalAmount);
-  const totalsReconcile = Math.abs(normalizedAmount(amountBeforeVat + vatAmount) - totalAmount) <= 0.01;
-  if (settlement <= 0 || totalAmount <= 0 || amountBeforeVat < 0 || vatAmount < 0 || !totalsReconcile || settlement > totalAmount + 0.01) {
-    return { amount: 0, reliable: false };
-  }
-  if (vatAmount === 0) return { amount: settlement, reliable: true };
-  return { amount: normalizedAmount((settlement * amountBeforeVat) / totalAmount), reliable: true };
-}
-
-export function calculateAssistedPaymentAmounts(settlementValue: string | number, rateValue: string | number, invoice: PaymentInvoiceTotals): AssistedPaymentAmounts {
-  const settlement = normalizedAmount(settlementValue);
-  const rate = Number(rateValue || 0);
-  const base = derivePaymentWhtBase(settlement, invoice);
-  const whtAmount = base.reliable && Number.isFinite(rate) && rate > 0
-    ? Math.min(settlement, normalizedAmount((base.amount * rate) / 100))
-    : 0;
-  return {
-    settlement,
-    whtBase: base.amount,
-    whtAmount,
-    cashAmount: normalizedAmount(settlement - whtAmount),
-    reliableBase: base.reliable,
-  };
-}
-
-export function inferPaymentWhtPreset(settlementValue: string | number, whtValue: string | number, invoice: PaymentInvoiceTotals, presets: readonly number[]) {
-  const expectedWht = normalizedAmount(whtValue);
-  if (expectedWht <= 0) return null;
-  return presets.find((rate) => calculateAssistedPaymentAmounts(settlementValue, rate, invoice).whtAmount === expectedWht) ?? null;
-}
-
 export function hasValidCurrencyPrecision(value: string) {
   return /^\d+(?:\.\d{0,2})?$/.test(value.trim());
 }
@@ -247,6 +166,13 @@ export function safePaymentError(error: unknown, fallback: string) {
     ? String((error as { message?: unknown }).message || "")
     : "";
   const mappings: Array<[string, string]> = [
+    ["WHT_LEGACY_RECALCULATION_REQUIRED", "ข้อมูล WHT เดิมยังไม่มีฐานและอัตราที่บันทึกไว้ กรุณาเลือกคำนวณ WHT ใหม่และบันทึกก่อนยืนยัน"],
+    ["WHT_COMPONENT_SCOPE_UNSUPPORTED", "รายการหลายบรรทัดหรือหลายใบแจ้งหนี้ยังไม่มีข้อมูลกำหนดฐาน WHT ที่ปลอดภัย"],
+    ["WHT_PARTIAL_SCOPE_UNSUPPORTED", "ยังไม่รองรับการกำหนดฐาน WHT สำหรับยอดรับชำระบางส่วน หรือมีรายการอื่นจองยอดใบแจ้งหนี้นี้อยู่"],
+    ["WHT_SNAPSHOT_INVALID", "หลักฐานภาษีของใบแจ้งหนี้ไม่ครบถ้วน กรุณาให้ผู้ดูแลตรวจสอบ"],
+    ["WHT_CALCULATION_MISMATCH", "ฐาน อัตรา หรือยอด WHT ไม่ตรงกับหลักฐานใบแจ้งหนี้ กรุณาคำนวณใหม่และบันทึก"],
+    ["WHT_RATE_REQUIRED", "กรุณาเลือกอัตราหัก ณ ที่จ่ายที่ถูกต้องก่อนบันทึก"],
+    ["WHT_SAVE_BEFORE_CONFIRM", "กรุณาบันทึกข้อมูล WHT ก่อนยืนยันรับชำระ"],
     ["Not allowed", "คุณไม่มีสิทธิ์ดำเนินการรับชำระนี้"],
     ["already economically settled", "ใบแจ้งหนี้นี้ชำระครบแล้ว"],
     ["outstanding is already reserved", "ยอดคงค้างนี้มีร่างการรับชำระอื่นจองไว้แล้ว"],
@@ -265,6 +191,7 @@ export function safePaymentReallocationError(error: unknown) {
     ? String((error as { message?: unknown }).message || "")
     : "";
   const mappings: Array<[string, string]> = [
+    ["WHT_REALLOCATION_REQUIRES_COMPONENT_WORKFLOW", "รายการนี้มีหลักฐาน WHT ผูกกับรายการเดิม ต้องใช้กระบวนการแก้ไขฐาน WHT ซึ่งยังไม่เปิดใช้งาน"],
     ["Not allowed to reallocate", "คุณไม่มีสิทธิ์เปลี่ยนใบแจ้งหนี้ที่ตัดชำระ"],
     ["FINANCE_PAYMENT_REALLOCATION_ACK_REQUIRED", "กรุณายืนยันว่ารายการรับเงินจริงถูกต้องและต้องการเปลี่ยนเฉพาะใบแจ้งหนี้"],
     ["Only a Confirmed Payment", "เปลี่ยนใบแจ้งหนี้ที่ตัดชำระได้เฉพาะรายการรับชำระที่ยืนยันแล้ว"],

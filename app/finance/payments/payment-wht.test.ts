@@ -2,207 +2,136 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
-// @ts-expect-error Node's strip-types test runner requires the explicit TypeScript extension.
-import { calculateAssistedPaymentAmounts, derivePaymentWhtBase, hasValidCurrencyPrecision, normalizedAmount, paymentAmountsForWhtMode, paymentFingerprint, paymentWhtAssistance, paymentWhtAssistanceCopy } from "./shared.ts";
-import type { PaymentForm, PaymentWhtMode } from "./shared";
+// @ts-expect-error Node's strip-types runner requires the explicit TypeScript extension.
+import { calculateStructuredWht, invoiceTaxFacts, paymentTaxFingerprint, paymentWhtScope, savedPaymentWht, structuredWhtCopy } from "./tax.ts";
+// @ts-expect-error Node's strip-types runner requires the explicit TypeScript extension.
+import { hasValidCurrencyPrecision, normalizedAmount, paymentFingerprint, paymentForm, safePaymentError } from "./shared.ts";
+import type { FinancePayment } from "./shared";
+import type { WhtComponent } from "./tax";
 
-const vatInclusive = { amountBeforeVat: 4672.90, vatAmount: 327.10, totalAmount: 5000 };
-const noVat = { amountBeforeVat: 5000, vatAmount: 0, totalAmount: 5000 };
-const mixed = { amountBeforeVat: 11345.79, vatAmount: 654.21, totalAmount: 12000 };
-const form: PaymentForm = {
-  cashAmount: "4850.00", whtAmount: "150.00", receivedOn: "2026-09-01", paymentMethod: "bank_transfer",
-  receivingBankAccountId: "test-bank", receivingAccountReference: "", externalTransactionReference: "", payerName: "", note: "",
-};
+function snapshot(vat = true, mixed = false) {
+  const line = { id: "line", invoice_id: "invoice", source_state: "active", vat_applicable: vat, amount_before_vat: vat ? 4672.90 : 5000, vat_amount: vat ? 327.10 : 0, line_total: 5000 };
+  return { schema_version: 2, source_model: "billable_charge_v2", invoice: { id: "invoice", document_status: "issued", currency: "THB", amount_before_vat: line.amount_before_vat + (mixed ? 2000 : 0), vat_amount: line.vat_amount, total_amount: mixed ? 7000 : 5000 },
+    items: [{ invoice_item: line }, ...(mixed ? [{ invoice_item: { ...line, id: "additional", vat_applicable: false, amount_before_vat: 2000, vat_amount: 0, line_total: 2000 } }] : [])] };
+}
+function component(): WhtComponent {
+  return { id: "component", payment_id: "payment", invoice_id: "invoice", invoice_item_id: "line", calculation_rule: "single_line_full_invoice_v1", base_amount: "4672.90", rate_percent: "3.0000", calculated_wht_amount: "140.19", basis_snapshot_json: {} };
+}
 const pageSource = readFileSync(new URL("./[id]/page.tsx", import.meta.url), "utf8");
-const pageAst = ts.createSourceFile("page.tsx", pageSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-
-// Exercise the page's actual handlers without loading Supabase or invoking any RPC.
+const ast = ts.createSourceFile("page.tsx", pageSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+const definitions = new Map<string, string>();
+function visit(node: ts.Node) {
+  if (ts.isVariableDeclaration(node) && node.initializer) definitions.set(node.name.getText(ast), node.initializer.getText(ast));
+  if (ts.isFunctionDeclaration(node) && node.name) definitions.set(node.name.text, node.getText(ast));
+  ts.forEachChild(node, visit);
+}
+visit(ast);
 function handler(name: string, context: Record<string, unknown>) {
-  let initializer: ts.Expression | undefined;
-  function visit(node: ts.Node) {
-    if (ts.isVariableDeclaration(node) && node.name.getText(pageAst) === name) initializer = node.initializer;
-    ts.forEachChild(node, visit);
-  }
-  visit(pageAst);
-  assert.ok(initializer, `Missing page handler: ${name}`);
-  const code = ts.transpileModule(`(${initializer.getText(pageAst)})`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
-  return runInNewContext(code, context);
+  return runInNewContext(ts.transpileModule(`(${definitions.get(name)})`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context);
+}
+function taxMarkup(facts: ReturnType<typeof invoiceTaxFacts>) {
+  const code = ["fieldLabel", "fieldValue", "taxSummary", "reviewGroupTitle", "contextGrid", "sectionDescription"].map((name) => `const ${name}=${definitions.get(name)};`).join("\n")
+    + definitions.get("Field") + definitions.get("InvoiceTaxSummary") + "\n(<InvoiceTaxSummary facts={facts} />)";
+  return renderToStaticMarkup(runInNewContext(ts.transpileModule(code, { compilerOptions: { jsx: ts.JsxEmit.React } }).outputText,
+    { React, facts, money: (amount: number, currency: string) => `${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}` }));
 }
 
-test("positive saved WHT reloads as manual with exact monetary facts and no preset", () => {
-  const baseline = paymentFingerprint(form);
-  assert.deepEqual(paymentWhtAssistance(form), { settlementTarget: "5000.00", whtMode: "manual", whtRateOption: "" });
-  assert.equal(form.cashAmount, "4850.00");
-  assert.equal(form.whtAmount, "150.00");
-  assert.equal(paymentFingerprint(form), baseline);
-  assert.match(pageSource, /const assistance = paymentWhtAssistance\(nextForm\)/);
-  assert.match(pageSource, /setForm\(nextForm\)/);
-  assert.doesNotMatch(pageSource, /inferPaymentWhtPreset|savedWhtBase|savedWhtPreset/);
+test("frozen VAT summary shows gross, before VAT, tax and VAT status", () => {
+  const facts = invoiceTaxFacts(snapshot());
+  assert.equal(facts?.beforeVat, 4672.90);
+  const markup = taxMarkup(facts);
+  for (const text of ["5,000.00", "4,672.90", "327.10", "มูลค่าก่อน VAT", "มี VAT"]) assert.ok(markup.includes(text));
+  assert.doesNotMatch(markup, /รายได้ก่อน VAT/);
 });
-
-test("manual WHT survives target edit even when it matches a preset", () => {
-  for (const invoice of [noVat, vatInclusive, mixed]) {
-    assert.deepEqual(paymentAmountsForWhtMode("3000", "manual", "150.00", 3, invoice), { cashAmount: "2850.00", whtAmount: "150.00" });
+test("no-VAT and mixed VAT snapshots remain distinguishable", () => {
+  assert.match(taxMarkup(invoiceTaxFacts(snapshot(false))), />0.00 THB</);
+  assert.match(taxMarkup(invoiceTaxFacts(snapshot(false))), /ไม่มี VAT/);
+  assert.match(taxMarkup(invoiceTaxFacts(snapshot(true, true))), /มีทั้งรายการที่มี VAT และไม่มี VAT/);
+});
+test("missing or inconsistent issued evidence does not fall back to mutable totals", () => {
+  assert.equal(invoiceTaxFacts(null), null);
+  const evidence = snapshot(); evidence.invoice.total_amount = 5001;
+  assert.equal(invoiceTaxFacts(evidence), null);
+  assert.equal(invoiceTaxFacts({ ...snapshot(), schema_version: 99 }), null);
+  assert.equal(invoiceTaxFacts({ ...snapshot(), items: [] }), null);
+});
+test("legacy V1 VAT evidence is readable without inventing a WHT component rule", () => {
+  const evidence = snapshot();
+  const facts = invoiceTaxFacts({ ...evidence, schema_version: 1, items: evidence.items.map((row) => row.invoice_item) });
+  assert.equal(facts?.vat, 327.10);
+  assert.equal(paymentWhtScope(facts, "5000", 5000, 1).base, null);
+});
+test("explicit 3% on the full single frozen line calculates exact amounts", () => {
+  const scope = paymentWhtScope(invoiceTaxFacts(snapshot()), "5000.00", 5000, 1);
+  assert.equal(scope.base, 4672.90);
+  assert.deepEqual(calculateStructuredWht(scope.base, "3", "5000"), { whtAmount: "140.19", cashAmount: "4859.81" });
+  assert.equal(4859.81 + 140.19, 5000);
+});
+test("invalid rates, precision and zero rounded WHT are rejected", () => {
+  for (const rate of ["", "0", "101", "NaN", "-3", "3.00001"]) assert.equal(calculateStructuredWht(4672.90, rate, "5000"), null);
+  assert.equal(calculateStructuredWht(0.01, "1", "1"), null);
+  assert.deepEqual(calculateStructuredWht(1.50, "3", "2"), { whtAmount: "0.05", cashAmount: "1.95" });
+});
+test("mixed/multi-Invoice and partial scopes cannot use proportional or full-base shortcuts", () => {
+  assert.equal(paymentWhtScope(invoiceTaxFacts(snapshot(true, true)), "7000", 7000, 1).base, null);
+  assert.equal(paymentWhtScope(invoiceTaxFacts(snapshot()), "5000", 5000, 2).base, null);
+  for (const [target, outstanding] of [["2500", 5000], ["2500", 2500], ["5000", 2500]] as const) {
+    assert.equal(paymentWhtScope(invoiceTaxFacts(snapshot()), target, outstanding, 1).error, structuredWhtCopy.partial);
   }
-  const saved = { cashAmount: "4859.81", whtAmount: "140.19" };
-  const loaded = paymentWhtAssistance(saved);
-  assert.equal(loaded.whtMode, "manual");
-  assert.equal(loaded.whtRateOption, "");
-  assert.deepEqual(paymentAmountsForWhtMode("3000", loaded.whtMode, saved.whtAmount, 0, vatInclusive), { cashAmount: "2859.81", whtAmount: "140.19" });
 });
-
-test("manual editing preserves entered strings, including invalid precision for validation", () => {
-  for (const value of ["150", "150.0", "150.00", "150.001", "", "-1"]) {
-    assert.equal(paymentAmountsForWhtMode("3000", "manual", value, 3, vatInclusive).whtAmount, value);
+test("rate/base reload from persisted evidence, never a monetary match", () => {
+  assert.deepEqual(savedPaymentWht({ cash_amount: 4859.81, wht_amount: 140.19, wht_calculation_mode: "rate" }, [component()]), { mode: "rate", rate: "3", base: 4672.90 });
+  for (const wht of [150, 140.19]) assert.deepEqual(savedPaymentWht({ cash_amount: 5000 - wht, wht_amount: wht }, []), { mode: "legacy", rate: "", base: null });
+  assert.equal(savedPaymentWht({ cash_amount: 4859.81, wht_amount: 140.19, wht_calculation_mode: "rate" }, []).mode, "legacy");
+});
+test("legacy/manual Draft loads clean and rate intent participates in dirty-state", () => {
+  const payment = { cash_amount: 4850, wht_amount: 150 } as FinancePayment;
+  const form = paymentForm(payment), state = savedPaymentWht(payment, []);
+  assert.equal(form.whtAmount, "150.00"); assert.equal(form.cashAmount, "4850.00");
+  assert.equal(paymentTaxFingerprint(paymentFingerprint(form), state.mode, state.rate), paymentTaxFingerprint(paymentFingerprint(paymentForm(payment)), "legacy", ""));
+  assert.notEqual(paymentTaxFingerprint("same", "rate", "3"), paymentTaxFingerprint("same", "rate", "2"));
+});
+test("turning WHT off zeroes credit without arbitrary monetary entry", () => {
+  let mode = "legacy", args: unknown[] = [];
+  handler("selectWhtMode", { whtMode: "rate", settlementTarget: "5000", setWhtRateOption() {}, setCustomWhtRate() {}, setWhtMode(value: string) { mode = value; }, setStructuredAmounts(...values: unknown[]) { args = values; } })(false);
+  assert.equal(mode, "none"); assert.deepEqual(args, ["5000", "none"]);
+  let form = { cashAmount: "4850.00", whtAmount: "150.00" };
+  handler("setStructuredAmounts", { whtRateOption: "", customWhtRate: "", taxFacts: invoiceTaxFacts(snapshot()), outstandingBefore: 5000, allocations: [{}], paymentWhtScope, calculateStructuredWht, normalizedAmount, setForm(update: (old: typeof form) => typeof form) { form = update(form); }, setErrors() {}, setMessage() {} })("5000", "none");
+  assert.deepEqual({ ...form }, { cashAmount: "5000.00", whtAmount: "0.00" });
+});
+test("validation rejects legacy and partial WHT before save or confirmation", () => {
+  for (const mode of ["legacy", "rate"]) {
+    let errors: Record<string, unknown> = {};
+    const validate = handler("validate", { whtMode: mode, structuredWhtCopy, currentWhtBase: { error: structuredWhtCopy.partial }, whtCalculation: null,
+      hasValidCurrencyPrecision, normalizedAmount, settlementTarget: "5000", targetSettlement: 5000, draftAllocationEditingLimited: false, outstandingBefore: 5000,
+      form: { cashAmount: "4850.00", whtAmount: "150.00", receivedOn: "2026-09-01", paymentMethod: "bank_transfer", receivingBankAccountId: "bank" },
+      cash: 4850, wht: 150, paymentSettlement: 5000, bangkokToday: () => "2026-09-05", setErrors(value: Record<string, unknown>) { errors = value; }, setError() {}, requestAnimationFrame() {},
+    });
+    assert.equal(validate(false), false); assert.equal(validate(true), false); assert.ok(errors.whtRate);
   }
 });
-
-test("unrelated page field edit cannot recalculate WHT", () => {
-  let edited = { ...form };
-  handler("updateForm", {
-    setForm: (update: (current: PaymentForm) => PaymentForm) => { edited = update(edited); },
-    setErrors: () => {}, setMessage: () => {},
-  })("note", "Updated note");
-  assert.deepEqual({ ...edited }, { ...form, note: "Updated note" });
+test("edit/review share frozen tax summary, and confirmation retains the dedicated RPC", () => {
+  assert.ok((pageSource.match(/<InvoiceTaxSummary/g) || []).length >= 3);
+  assert.match(pageSource, /<Field label="ฐาน WHT"/);
+  assert.match(pageSource, /<Field label="อัตราหัก ณ ที่จ่าย"/);
+  assert.match(pageSource, /p_wht_rate_percent: whtMode === "rate" \? selectedWhtRate : null/);
+  assert.match(pageSource, /rpc\("save_finance_payment_tax_draft"/);
+  assert.match(pageSource, /rpc\("confirm_finance_payment"/);
+  assert.doesNotMatch(pageSource, /ระบุยอด WHT เอง|updateManualWhtAmount|inferPaymentWhtPreset|value=\{form.whtAmount\}/);
 });
-
-test("enabling WHT defaults to manual, never to a rate", () => {
-  let mode = "none";
-  let rate = "3";
-  let custom = "2.5";
-  let amountMode = "";
-  handler("selectWhtMode", {
-    whtMode: "none", settlementTarget: "5000",
-    setWhtMode: (value: string) => { mode = value; },
-    setWhtRateOption: (value: string) => { rate = value; },
-    setCustomWhtRate: (value: string) => { custom = value; },
-    setAssistedAmounts: (_target: string, value: string) => { amountMode = value; },
-  })(true);
-  assert.equal(mode, "manual");
-  assert.equal(amountMode, "manual");
-  assert.equal(rate, "");
-  assert.equal(custom, "");
+test("business errors are actionable Thai", () => {
+  assert.match(safePaymentError({ message: "WHT_LEGACY_RECALCULATION_REQUIRED" }, "fallback"), /คำนวณ WHT ใหม่/);
+  assert.match(safePaymentError({ message: "WHT_PARTIAL_SCOPE_UNSUPPORTED" }, "fallback"), /บางส่วน/);
 });
-
-test("opening assistance clears rates and cannot change monetary fields", () => {
-  let mode = "manual";
-  let rate = "3";
-  let custom = "2.5";
-  handler("openWhtRateAssistance", {
-    setWhtMode: (value: string) => { mode = value; },
-    setWhtRateOption: (value: string) => { rate = value; },
-    setCustomWhtRate: (value: string) => { custom = value; },
-    setErrors: () => {},
-    setForm: () => assert.fail("Opening assistance must not change money"),
-    setAssistedAmounts: () => assert.fail("Opening assistance must not recalculate"),
-  })();
-  assert.equal(mode, "calculated");
-  assert.equal(rate, "");
-  assert.equal(custom, "");
-  assert.equal(paymentAmountsForWhtMode("3000", "calculated", "150.00", 0, vatInclusive).whtAmount, "150.00");
-});
-
-test("explicit preset and custom selection enables rate assistance in this session", () => {
-  let mode = "manual";
-  let rate = "";
-  let amounts = { ...form };
-  handler("selectWhtRate", {
-    settlementTarget: "5000", customWhtRate: "2.5",
-    setWhtMode: (value: string) => { mode = value; },
-    setWhtRateOption: (value: string) => { rate = value; },
-    setAssistedAmounts: (target: string, nextMode: PaymentWhtMode, option: string, custom: string) => {
-      amounts = { ...amounts, ...paymentAmountsForWhtMode(target, nextMode, amounts.whtAmount, Number(option === "custom" ? custom : option), vatInclusive) };
-    },
-  })("3");
-  assert.equal(mode, "calculated");
-  assert.equal(rate, "3");
-  assert.equal(amounts.whtAmount, "140.19");
-  assert.equal(amounts.cashAmount, "4859.81");
-  assert.deepEqual(paymentAmountsForWhtMode("5000", "calculated", "150.00", 2.5, vatInclusive), { cashAmount: "4883.18", whtAmount: "116.82" });
-});
-
-test("rate-assisted save reloads as manual, not as reconstructed rate intent", () => {
-  const saved = paymentAmountsForWhtMode("5000", "calculated", "150.00", 3, vatInclusive);
-  const loaded = paymentWhtAssistance(saved);
-  assert.deepEqual(loaded, { settlementTarget: "5000.00", whtMode: "manual", whtRateOption: "" });
-  assert.deepEqual(paymentAmountsForWhtMode("3000", loaded.whtMode, saved.whtAmount, 0, vatInclusive), { cashAmount: "2859.81", whtAmount: "140.19" });
-});
-
-test("VAT-inclusive proportional assistance reconciles without changing Invoice totals", () => {
-  const before = { ...vatInclusive };
-  assert.deepEqual(calculateAssistedPaymentAmounts("3000", 3, vatInclusive), {
-    settlement: 3000, whtBase: 2803.74, whtAmount: 84.11, cashAmount: 2915.89, reliableBase: true,
-  });
-  assert.deepEqual(vatInclusive, before);
-});
-
-test("mixed Invoice assistance is arithmetic only and explicitly described as estimated", () => {
-  const result = calculateAssistedPaymentAmounts(5000, 3, mixed);
-  assert.equal(result.whtBase, 4727.41);
-  assert.equal(result.whtAmount, 141.82);
-  assert.equal(normalizedAmount(result.cashAmount + result.whtAmount), 5000);
-  assert.equal(paymentWhtAssistanceCopy.base, "ฐานประมาณการสำหรับช่วยคำนวณ");
-  assert.match(paymentWhtAssistanceCopy.helper, /สัดส่วนมูลค่าก่อน VAT/);
-  assert.match(paymentWhtAssistanceCopy.helper, /ใช้เพื่อช่วยคำนวณเท่านั้น/);
-  assert.match(paymentWhtAssistanceCopy.helper, /ตรวจสอบฐานและอัตรา/);
-  const helperUi = pageSource.slice(pageSource.indexOf('{whtMode === "calculated" && !draftAllocationEditingLimited ?'), pageSource.indexOf('{whtMode === "manual" && !draftAllocationEditingLimited ?'));
-  assert.match(helperUi, /paymentWhtAssistanceCopy\.base/);
-  assert.match(helperUi, /paymentWhtAssistanceCopy\.helper/);
-  assert.equal(pageSource.split("paymentWhtAssistanceCopy.base").length - 1, 1);
-  assert.doesNotMatch(pageSource, /label="ฐานคำนวณ WHT"|อัตรา WHT ที่อนุมานได้/);
-});
-
-test("zero WHT retains none mode and deliberate removal clears WHT", () => {
-  assert.deepEqual(paymentWhtAssistance({ cashAmount: "5000.00", whtAmount: "0.00" }), { settlementTarget: "5000.00", whtMode: "none", whtRateOption: "" });
-  assert.deepEqual(paymentAmountsForWhtMode("3000", "none", "150.00", 3, vatInclusive), { cashAmount: "3000.00", whtAmount: "0.00" });
-});
-
-test("unavailable estimate or invalid rate does not silently erase entered WHT", () => {
-  for (const rate of [0, -1, 101, NaN]) {
-    assert.equal(paymentAmountsForWhtMode("5000", "calculated", "150.00", rate, vatInclusive).whtAmount, "150.00");
-  }
-  assert.equal(paymentAmountsForWhtMode("5000", "calculated", "150.00", 3, { ...vatInclusive, totalAmount: 6000 }).whtAmount, "150.00");
-});
-
-function validate(amounts: Pick<PaymentForm, "cashAmount" | "whtAmount">, target = "5000", mode: PaymentWhtMode = "manual", rate = 0) {
-  const cash = normalizedAmount(amounts.cashAmount);
-  const wht = normalizedAmount(amounts.whtAmount);
-  let errors: Record<string, string> = {};
-  const passed = handler("validate", {
-    form: { ...form, ...amounts }, settlementTarget: target, targetSettlement: normalizedAmount(target), cash, wht,
-    paymentSettlement: normalizedAmount(cash + wht), outstandingBefore: 5000,
-    draftAllocationEditingLimited: false, whtMode: mode, selectedWhtRate: rate,
-    currentWhtBase: derivePaymentWhtBase(target, vatInclusive), hasValidCurrencyPrecision, normalizedAmount,
-    bangkokToday: () => "2026-09-05", setErrors: (next: Record<string, string>) => { errors = next; },
-    requestAnimationFrame: () => {},
-  })(true);
-  return { passed, errors };
-}
-
-test("existing validation accepts complete manual and explicitly calculated amounts", () => {
-  assert.equal(validate(form).passed, true);
-  assert.equal(validate(paymentAmountsForWhtMode("5000", "calculated", "150.00", 3, vatInclusive), "5000", "calculated", 3).passed, true);
-  assert.equal(validate({ cashAmount: "5000.00", whtAmount: "0.00" }, "5000", "none").passed, true);
-});
-
-test("existing validation still rejects negative amounts, precision, and inconsistent totals", () => {
-  for (const amounts of [
-    { cashAmount: "-1", whtAmount: "5001" },
-    { cashAmount: "5001", whtAmount: "-1" },
-    { cashAmount: "4850", whtAmount: "150.001" },
-    { cashAmount: "4850", whtAmount: "100" },
-  ]) assert.equal(validate(amounts).passed, false);
-});
-
-test("existing validation rejects over-settlement and WHT above target", () => {
-  assert.ok(validate({ cashAmount: "5850", whtAmount: "150" }, "6000").errors.allocation);
-  const amounts = paymentAmountsForWhtMode("100", "manual", "150.00", 0, vatInclusive);
-  assert.equal(amounts.whtAmount, "150.00");
-  assert.equal(amounts.cashAmount, "0.00");
-  assert.ok(validate(amounts, "100").errors.whtAmount);
-});
-
-test("existing validation requires a valid explicit rate when calculator is open", () => {
-  for (const rate of [0, -1, 101, NaN]) assert.ok(validate(form, "5000", "calculated", rate).errors.whtRate);
+test("migration guards actual confirmation, preserves history and does not replace Cash/lifecycle RPCs", () => {
+  const sql = readFileSync(new URL("../../../supabase/migrations/202607180036_add_structured_payment_wht.sql", import.meta.url), "utf8");
+  assert.match(sql, /old.status='draft' and new.status='confirmed'/);
+  assert.match(sql, /assert_finance_payment_structured_wht\(old.id\)/);
+  assert.match(sql, /guard_finance_payment_child_mutation\(\)/);
+  assert.doesNotMatch(sql, /create (?:or replace )?function public\.(?:confirm_finance_payment|post_confirmed_payment_to_finance_cash_transaction|reverse_finance_payment|cancel_finance_payment_draft)\(/i);
+  const cash = readFileSync(new URL("../../../supabase/migrations/202607180027_integrate_payment_with_finance_cash_transactions.sql", import.meta.url), "utf8");
+  assert.match(cash, /'wht_excluded_from_cash_posting', true/);
 });
