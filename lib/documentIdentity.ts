@@ -76,6 +76,18 @@ export function resolveFrozenDocumentIdentity(snapshot: unknown, current: Docume
   };
 }
 
+export function formatThaiSellerAddress(address: string) {
+  // Document Settings stores one free-text address, not separate locality fields.
+  // Group only its existing trailing Thai locality/postcode; never supply a value.
+  const suffix = /(?:^|[\s,])((?:(?:จังหวัด|จ\.)[ \t]*)?[\p{Script=Thai}]+\.?)[\s]+([0-9๐-๙]{5})\s*$/u.exec(address);
+  if (!suffix) return { body: address, localityLine: "" };
+  const localityStart = suffix.index + suffix[0].indexOf(suffix[1]);
+  return {
+    body: address.slice(0, localityStart).trimEnd(),
+    localityLine: `${suffix[1]} ${suffix[2]}`,
+  };
+}
+
 export async function loadCurrentDocumentIdentity(client: SupabaseClient): Promise<LoadedDocumentIdentity> {
   const { data, error } = await client
     .from("finance_company_profiles")

@@ -93,6 +93,15 @@
   color: #475569;
 }
 
+.providerMetadata .addressLocality {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
 .documentIdentity {
   display: grid;
   min-width: 0;

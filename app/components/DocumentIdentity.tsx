@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-img-element -- Document logos use short-lived private Storage URLs. */
 
-import type { DocumentIdentity } from "../../lib/documentIdentity";
+import { formatThaiSellerAddress, type DocumentIdentity } from "../../lib/documentIdentity";
 import styles from "./DocumentIdentity.module.css";
 
 export function DocumentIdentityHeader({
@@ -24,6 +24,9 @@ export function DocumentIdentityHeader({
   const address = isThaiDocument
     ? identity.addressTh || identity.addressEn
     : identity.addressEn || identity.addressTh;
+  const addressLines = address === identity.addressTh
+    ? formatThaiSellerAddress(address)
+    : { body: address, localityLine: "" };
   const branch = isThaiDocument
     ? identity.branchTh || identity.branchEn
     : identity.branchEn || identity.branchTh;
@@ -41,7 +44,10 @@ export function DocumentIdentityHeader({
             {identity.description ? <span className={styles.description}>{identity.description}</span> : null}
           </div>
           <div className={styles.providerMetadata}>
-            <span className={styles.address}>{address || "ยังไม่ได้ตั้งค่าที่อยู่สำนักงาน"}</span>
+            <span className={styles.address}>
+              {addressLines.body || (!addressLines.localityLine ? "ยังไม่ได้ตั้งค่าที่อยู่สำนักงาน" : null)}
+              {addressLines.localityLine ? <span className={styles.addressLocality}>{addressLines.localityLine}</span> : null}
+            </span>
             <span className={styles.technicalMetadata}>
               เลขประจำตัวผู้เสียภาษี: {identity.taxId || "ยังไม่ได้ตั้งค่า"}
               {branch ? ` · ${branch}` : ""}
