@@ -14,6 +14,7 @@ import {
 } from "./shared";
 import { invoicePaymentSectionModel } from "./payment-instructions";
 import styles from "./invoice-document.module.css";
+import documentTheme from "../../components/DocumentTheme.module.css";
 
 export function InvoiceDocument({
   invoice,
@@ -48,7 +49,7 @@ export function InvoiceDocument({
     : displayText(invoice.invoice_no, labels.noNumber);
 
   return (
-    <LegalDocumentLayout className={styles.document} languageCode={invoice.language_code}>
+    <LegalDocumentLayout className={`${styles.document} ${documentTheme.invoice}`} languageCode={invoice.language_code}>
       <DocumentIdentityHeader
         identity={identity}
         logoUrl={logoUrl}

@@ -77,8 +77,8 @@
 .section h2 {
   margin: 0 0 2.5mm;
   padding-bottom: 1.5mm;
-  border-bottom: 1px solid #bbf7d0;
-  color: #166534;
+  border-bottom: 1px solid var(--document-accent-border);
+  color: var(--document-accent-strong);
   font-size: 12pt;
   break-after: avoid;
   page-break-after: avoid;
@@ -194,8 +194,8 @@
 }
 
 .grandTotal {
-  background: #f0fdf4;
-  color: #166534;
+  background: var(--document-accent-soft);
+  color: var(--document-accent-strong);
   font-size: 11pt;
   font-weight: 900;
   print-color-adjust: exact;
@@ -210,9 +210,9 @@
   display: grid;
   gap: 1mm;
   padding: 3mm 3.5mm;
-  border: 1px solid #dbeafe;
-  border-left: 1mm solid #2563eb;
-  background: #f8fbff;
+  border: 1px solid var(--document-accent-border);
+  border-left: 1mm solid var(--document-accent);
+  background: var(--document-accent-soft);
   color: #334155;
   line-height: 1.5;
   break-inside: avoid;

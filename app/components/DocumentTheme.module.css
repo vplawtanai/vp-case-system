@@ -1,0 +1,21 @@
+/* Document identity only. Lifecycle warnings and status colors stay independent. */
+.quotation {
+  --document-accent: #1d4ed8;
+  --document-accent-strong: #1e40af;
+  --document-accent-soft: #eff6ff;
+  --document-accent-border: #bfdbfe;
+}
+
+.invoice {
+  --document-accent: #b45309;
+  --document-accent-strong: #92400e;
+  --document-accent-soft: #fffbeb;
+  --document-accent-border: #fde68a;
+}
+
+.receipt {
+  --document-accent: #15803d;
+  --document-accent-strong: #166534;
+  --document-accent-soft: #f0fdf4;
+  --document-accent-border: #bbf7d0;
+}

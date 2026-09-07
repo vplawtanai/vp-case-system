@@ -25,7 +25,7 @@
 .settlement { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 8mm; margin-top: 5mm; }
 .totals > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 3mm; padding: 2mm 0; }
 .totals dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
-.cash { border-top: 2px solid #15803d; color: #166534; font-weight: 700; }
+.cash { border-top: 2px solid var(--document-accent); color: var(--document-accent-strong); font-weight: 700; }
 .whtNote { padding-top: 4mm; font-size: 8pt; color: #4b5563; }
 .footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 3mm; margin-top: 7mm; padding-top: 2mm; border-top: 1px solid #9ca3af; font-size: 7pt; color: #4b5563; }
 .invalid { padding: 16px; color: #991b1b; border: 1px solid #fecaca; }

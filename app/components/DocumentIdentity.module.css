@@ -4,7 +4,7 @@
   align-items: flex-start;
   gap: 8mm;
   padding-bottom: 4.5mm;
-  border-bottom: 3px solid #15803d;
+  border-bottom: 3px solid var(--document-accent, #15803d);
   break-inside: avoid;
   page-break-inside: avoid;
 }
@@ -113,7 +113,7 @@
 .documentIdentity h1 {
   max-width: 90mm;
   margin: 0;
-  color: #15803d;
+  color: var(--document-accent, #15803d);
   font-size: 17pt;
   line-height: 1.3;
 }

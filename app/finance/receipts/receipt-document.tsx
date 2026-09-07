@@ -3,6 +3,7 @@ import { LegalDocumentLayout } from "../../components/LegalDocumentLayout";
 import { formatThaiSellerAddress } from "../../../lib/documentIdentity";
 import { receiptDate, receiptMethodLabels, receiptMoney, receiptPresentation, type FinanceReceipt } from "./shared";
 import styles from "./receipt-document.module.css";
+import documentTheme from "../../components/DocumentTheme.module.css";
 
 export function ReceiptDocument({ receipt, logoUrl = "" }: { receipt: FinanceReceipt; logoUrl?: string }) {
   const result = receiptPresentation(receipt);
@@ -10,7 +11,7 @@ export function ReceiptDocument({ receipt, logoUrl = "" }: { receipt: FinanceRec
   if (result.value.logo && !logoUrl) return <div role="alert" className={styles.invalid}>ไม่สามารถแสดงโลโก้ตามหลักฐานเอกสารได้ กรุณาโหลดข้อมูลใหม่ก่อนตรวจสอบหรือพิมพ์</div>;
   const { identity, customer, payment, invoices, receipt: document } = result.value;
   const customerAddress = formatThaiSellerAddress(customer.address);
-  return <LegalDocumentLayout className={styles.paper} languageCode="th">
+  return <LegalDocumentLayout className={`${styles.paper} ${documentTheme.receipt}`} languageCode="th">
     <DocumentIdentityHeader identity={identity} logoUrl={result.value.logo ? logoUrl : ""} title="ใบเสร็จรับเงิน" subtitle="Receipt" documentNo={document.number || "ร่าง / DRAFT"} className={styles.header} />
     {receipt.status !== "issued" ? <div className={styles.status} data-receipt-status={receipt.status}>
       {receipt.status === "draft" ? "ร่าง / DRAFT - ยังไม่ได้ออกใบเสร็จรับเงิน" : receipt.status === "voided" ? "ยกเลิก / VOID" : "ยกเลิกร่าง / CANCELLED DRAFT"}

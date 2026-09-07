@@ -19,6 +19,7 @@ import {
 import { supabase } from "../../../../../lib/supabase";
 import { getQuotationClientDisplayName } from "../../../../../lib/quotationClientDisplay";
 import { QuotationGuard } from "../../shared";
+import documentTheme from "../../../../components/DocumentTheme.module.css";
 
 type QuotationRow = {
   id: string;
@@ -360,7 +361,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
       {!loading && quotation && isFrozenQuotation(quotation) && !frozenDocument ? <div className="print-hidden" style={errorStyle}>เอกสารที่ส่งแล้วไม่มี snapshot ที่สมบูรณ์ กรุณาตรวจสอบความถูกต้องของเอกสารก่อนใช้งาน</div> : null}
 
       {!loading && quotation ? (
-        <article className="quotation-print-document" style={documentStyle}>
+        <article className={`quotation-print-document ${documentTheme.quotation}`} style={documentStyle}>
           <header style={documentHeaderStyle}>
             <div style={providerHeaderStyle}>
               <LogoMark
@@ -1078,7 +1079,7 @@ const documentHeaderStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   gap: 24,
-  borderBottom: "2px solid #16A344",
+  borderBottom: "2px solid var(--document-accent)",
   paddingBottom: 16,
   marginBottom: 24,
 };
@@ -1115,7 +1116,7 @@ const companyNameThaiStyle: React.CSSProperties = { fontSize: 17, fontWeight: 80
 const companyNameStyle: React.CSSProperties = { marginTop: 1, fontSize: 14, fontWeight: 600, lineHeight: 1.4, color: "#374151" };
 const companyMetaStyle: React.CSSProperties = { marginTop: 4, fontSize: 12, color: "#6b7280", fontWeight: 400 };
 const documentTitleBlockStyle: React.CSSProperties = { textAlign: "right", minWidth: 220 };
-const documentTitleStyle: React.CSSProperties = { margin: 0, fontSize: 29, fontWeight: 800, letterSpacing: 0, color: "#15803D" };
+const documentTitleStyle: React.CSSProperties = { margin: 0, fontSize: 29, fontWeight: 800, letterSpacing: 0, color: "var(--document-accent)" };
 const documentSubtitleStyle: React.CSSProperties = { marginTop: 2, fontSize: 14, color: "#6B7280", fontWeight: 500 };
 const statusStyle: React.CSSProperties = {
   marginTop: 8,
@@ -1147,7 +1148,7 @@ const panelTitleStyle: React.CSSProperties = {
   margin: "0 0 12px",
   fontSize: 14,
   fontWeight: 800,
-  color: "#15803D",
+  color: "var(--document-accent)",
 };
 
 const clientGridStyle: React.CSSProperties = {
@@ -1192,8 +1193,8 @@ const tableStyle: React.CSSProperties = { width: "100%", borderCollapse: "collap
 const thStyle: React.CSSProperties = {
   textAlign: "left",
   padding: "10px 8px",
-  borderBottom: "1px solid #bbf7d0",
-  background: "#F0FDF4",
+  borderBottom: "1px solid var(--document-accent-border)",
+  background: "var(--document-accent-soft)",
   fontSize: 10.5,
   color: "#1f2937",
   fontWeight: 800,
@@ -1227,7 +1228,7 @@ const paymentSummaryStyle: React.CSSProperties = {
   gap: 4,
   marginBottom: 14,
   padding: "10px 12px",
-  borderLeft: "3px solid #16A344",
+  borderLeft: "3px solid var(--document-accent)",
   background: "#f8faf9",
   color: "#374151",
   fontSize: 12,
@@ -1238,19 +1239,19 @@ const standardConditionStyle: React.CSSProperties = { margin: 0, fontSize: 12.2,
 const totalsBoxStyle: React.CSSProperties = {
   display: "grid",
   gap: 5,
-  border: "1px solid #cce8d5",
+  border: "1px solid var(--document-accent-border)",
   borderRadius: 6,
   padding: 12,
-  background: "#F0FDF4",
+  background: "var(--document-accent-soft)",
 };
 const totalLineStyle: React.CSSProperties = { display: "flex", alignItems: "flex-start", gap: 14, fontSize: 12.5, lineHeight: 1.5, color: "#374151" };
-const totalProminentLineStyle: React.CSSProperties = { ...totalLineStyle, paddingBottom: 6, borderBottom: "1px solid #cce8d5", color: "#1f2937", fontWeight: 700 };
+const totalProminentLineStyle: React.CSSProperties = { ...totalLineStyle, paddingBottom: 6, borderBottom: "1px solid var(--document-accent-border)", color: "#1f2937", fontWeight: 700 };
 const totalBreakdownLineStyle: React.CSSProperties = { ...totalLineStyle, paddingLeft: 9, fontSize: 11.2, color: "#6b7280" };
 const totalTaxLineStyle: React.CSSProperties = { ...totalLineStyle, borderTop: "1px solid #d1d5db", paddingTop: 6, marginTop: 1 };
-const totalStrongLineStyle: React.CSSProperties = { ...totalLineStyle, borderTop: "1px solid #16A344", paddingTop: 9, marginTop: 2, fontSize: 15, color: "#15803D" };
+const totalStrongLineStyle: React.CSSProperties = { ...totalLineStyle, borderTop: "1px solid var(--document-accent)", paddingTop: 9, marginTop: 2, fontSize: 15, color: "var(--document-accent)" };
 const totalLabelStyle: React.CSSProperties = { flex: "1 1 0", minWidth: 0, wordBreak: "normal", overflowWrap: "normal", hyphens: "none" };
 const totalValueStyle: React.CSSProperties = { flex: "0 0 auto", whiteSpace: "nowrap", textAlign: "right" };
-const totalStrongValueStyle: React.CSSProperties = { ...totalValueStyle, color: "#15803D" };
+const totalStrongValueStyle: React.CSSProperties = { ...totalValueStyle, color: "var(--document-accent)" };
 
 const signatureGridStyle: React.CSSProperties = {
   display: "grid",
@@ -1272,7 +1273,7 @@ const signatureBlockStyle: React.CSSProperties = {
   gridTemplateRows: "22px 92px 1px 10px 22px 22px 22px 22px",
   padding: 16,
 };
-const signatureTitleStyle: React.CSSProperties = { alignSelf: "start", fontSize: 13, fontWeight: 800, lineHeight: "22px", margin: 0, color: "#15803D" };
+const signatureTitleStyle: React.CSSProperties = { alignSelf: "start", fontSize: 13, fontWeight: 800, lineHeight: "22px", margin: 0, color: "var(--document-accent)" };
 const signatureViewportStyle: React.CSSProperties = { width: 252, height: 92, display: "flex", alignItems: "flex-end", overflow: "visible" };
 const signatureImageStyle: React.CSSProperties = { display: "block", width: "auto", height: "auto", maxWidth: "100%", maxHeight: "100%", marginLeft: 24, objectFit: "contain", objectPosition: "left bottom", background: "transparent" };
 const signatureBlankSpaceStyle: React.CSSProperties = { width: 252, height: 92 };
