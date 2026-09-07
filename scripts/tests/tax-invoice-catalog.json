@@ -1,0 +1,823 @@
+[
+  {
+    "name": "finance_tax_invoice_audit_events",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "not_null": true,
+        "position": 1,
+        "has_default": true,
+        "default_expression": "gen_random_uuid()"
+      },
+      {
+        "name": "tax_invoice_id",
+        "type": "uuid",
+        "not_null": true,
+        "position": 2,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "event_type",
+        "type": "text",
+        "not_null": true,
+        "position": 3,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "event_payload_json",
+        "type": "jsonb",
+        "not_null": true,
+        "position": 4,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "actor_user_id",
+        "type": "uuid",
+        "not_null": true,
+        "position": 5,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "not_null": true,
+        "position": 6,
+        "has_default": true,
+        "default_expression": "now()"
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_tax_invoice_audit_events_actor_user_id_fkey",
+        "type": "f",
+        "valid": true,
+        "definition": "FOREIGN KEY (actor_user_id) REFERENCES user_profiles(id)"
+      },
+      {
+        "name": "finance_tax_invoice_audit_events_event_payload_json_check",
+        "type": "c",
+        "valid": true,
+        "definition": "CHECK ((jsonb_typeof(event_payload_json) = 'object'::text))"
+      },
+      {
+        "name": "finance_tax_invoice_audit_events_event_type_check",
+        "type": "c",
+        "valid": true,
+        "definition": "CHECK ((event_type = ANY (ARRAY['draft_created'::text, 'draft_saved'::text, 'draft_refreshed'::text, 'issued'::text, 'cancelled'::text])))"
+      },
+      {
+        "name": "finance_tax_invoice_audit_events_pkey",
+        "type": "p",
+        "valid": true,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "finance_tax_invoice_audit_events_tax_invoice_id_fkey",
+        "type": "f",
+        "valid": true,
+        "definition": "FOREIGN KEY (tax_invoice_id) REFERENCES finance_tax_invoices(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "tax_invoice_integrity",
+        "type": "t",
+        "valid": true,
+        "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_tax_invoice_audit_events_pkey",
+        "valid": true,
+        "unique": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_invoice_audit_events_pkey ON public.finance_tax_invoice_audit_events USING btree (id)"
+      },
+      {
+        "name": "tax_invoice_audit_history",
+        "valid": true,
+        "unique": false,
+        "definition": "CREATE INDEX tax_invoice_audit_history ON public.finance_tax_invoice_audit_events USING btree (tax_invoice_id, created_at)"
+      }
+    ]
+  },
+  {
+    "name": "finance_tax_invoice_items",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "not_null": true,
+        "position": 1,
+        "has_default": true,
+        "default_expression": "gen_random_uuid()"
+      },
+      {
+        "name": "tax_invoice_id",
+        "type": "uuid",
+        "not_null": true,
+        "position": 2,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "invoice_item_id",
+        "type": "uuid",
+        "not_null": true,
+        "position": 3,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "amount_before_vat",
+        "type": "numeric(14,2)",
+        "not_null": true,
+        "position": 4,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "vat_amount",
+        "type": "numeric(14,2)",
+        "not_null": true,
+        "position": 5,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "total_amount",
+        "type": "numeric(14,2)",
+        "not_null": true,
+        "position": 6,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "source_snapshot_json",
+        "type": "jsonb",
+        "not_null": true,
+        "position": 7,
+        "has_default": false,
+        "default_expression": null
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_tax_invoice_items_amount_before_vat_check",
+        "type": "c",
+        "valid": true,
+        "definition": "CHECK ((amount_before_vat > (0)::numeric))"
+      },
+      {
+        "name": "finance_tax_invoice_items_check",
+        "type": "c",
+        "valid": true,
+        "definition": "CHECK ((total_amount = (amount_before_vat + vat_amount)))"
+      },
+      {
+        "name": "finance_tax_invoice_items_invoice_item_id_fkey",
+        "type": "f",
+        "valid": true,
+        "definition": "FOREIGN KEY (invoice_item_id) REFERENCES finance_invoice_items(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_tax_invoice_items_pkey",
+        "type": "p",
+        "valid": true,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "finance_tax_invoice_items_source_snapshot_json_check",
+        "type": "c",
+        "valid": true,
+        "definition": "CHECK ((jsonb_typeof(source_snapshot_json) = 'object'::text))"
+      },
+      {
+        "name": "finance_tax_invoice_items_tax_invoice_id_fkey",
+        "type": "f",
+        "valid": true,
+        "definition": "FOREIGN KEY (tax_invoice_id) REFERENCES finance_tax_invoices(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_tax_invoice_items_tax_invoice_id_invoice_item_id_key",
+        "type": "u",
+        "valid": true,
+        "definition": "UNIQUE (tax_invoice_id, invoice_item_id)"
+      },
+      {
+        "name": "finance_tax_invoice_items_vat_amount_check",
+        "type": "c",
+        "valid": true,
+        "definition": "CHECK ((vat_amount >= (0)::numeric))"
+      },
+      {
+        "name": "tax_invoice_integrity",
+        "type": "t",
+        "valid": true,
+        "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_tax_invoice_items_pkey",
+        "valid": true,
+        "unique": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_invoice_items_pkey ON public.finance_tax_invoice_items USING btree (id)"
+      },
+      {
+        "name": "finance_tax_invoice_items_tax_invoice_id_invoice_item_id_key",
+        "valid": true,
+        "unique": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_invoice_items_tax_invoice_id_invoice_item_id_key ON public.finance_tax_invoice_items USING btree (tax_invoice_id, invoice_item_id)"
+      }
+    ]
+  },
+  {
+    "name": "finance_tax_invoice_source_coverages",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "not_null": true,
+        "position": 1,
+        "has_default": true,
+        "default_expression": "gen_random_uuid()"
+      },
+      {
+        "name": "tax_invoice_id",
+        "type": "uuid",
+        "not_null": true,
+        "position": 2,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "tax_invoice_item_id",
+        "type": "uuid",
+        "not_null": true,
+        "position": 3,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "invoice_item_id",
+        "type": "uuid",
+        "not_null": true,
+        "position": 4,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "tax_point_event_id",
+        "type": "uuid",
+        "not_null": true,
+        "position": 5,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "not_null": true,
+        "position": 6,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "amount_before_vat",
+        "type": "numeric(14,2)",
+        "not_null": true,
+        "position": 7,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "vat_amount",
+        "type": "numeric(14,2)",
+        "not_null": true,
+        "position": 8,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "total_amount",
+        "type": "numeric(14,2)",
+        "not_null": true,
+        "position": 9,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "source_snapshot_json",
+        "type": "jsonb",
+        "not_null": true,
+        "position": 10,
+        "has_default": false,
+        "default_expression": null
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_tax_invoice_source_coverages_amount_before_vat_check",
+        "type": "c",
+        "valid": true,
+        "definition": "CHECK ((amount_before_vat > (0)::numeric))"
+      },
+      {
+        "name": "finance_tax_invoice_source_coverages_check",
+        "type": "c",
+        "valid": true,
+        "definition": "CHECK ((total_amount = (amount_before_vat + vat_amount)))"
+      },
+      {
+        "name": "finance_tax_invoice_source_coverages_invoice_item_id_fkey",
+        "type": "f",
+        "valid": true,
+        "definition": "FOREIGN KEY (invoice_item_id) REFERENCES finance_invoice_items(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_tax_invoice_source_coverages_pkey",
+        "type": "p",
+        "valid": true,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "finance_tax_invoice_source_coverages_source_snapshot_json_check",
+        "type": "c",
+        "valid": true,
+        "definition": "CHECK ((jsonb_typeof(source_snapshot_json) = 'object'::text))"
+      },
+      {
+        "name": "finance_tax_invoice_source_coverages_status_check",
+        "type": "c",
+        "valid": true,
+        "definition": "CHECK ((status = ANY (ARRAY['reserved'::text, 'issued'::text, 'released'::text])))"
+      },
+      {
+        "name": "finance_tax_invoice_source_coverages_tax_invoice_id_fkey",
+        "type": "f",
+        "valid": true,
+        "definition": "FOREIGN KEY (tax_invoice_id) REFERENCES finance_tax_invoices(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_tax_invoice_source_coverages_tax_invoice_item_id_fkey",
+        "type": "f",
+        "valid": true,
+        "definition": "FOREIGN KEY (tax_invoice_item_id) REFERENCES finance_tax_invoice_items(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_tax_invoice_source_coverages_tax_invoice_item_id_key",
+        "type": "u",
+        "valid": true,
+        "definition": "UNIQUE (tax_invoice_item_id)"
+      },
+      {
+        "name": "finance_tax_invoice_source_coverages_tax_point_event_id_fkey",
+        "type": "f",
+        "valid": true,
+        "definition": "FOREIGN KEY (tax_point_event_id) REFERENCES finance_tax_point_events(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_tax_invoice_source_coverages_vat_amount_check",
+        "type": "c",
+        "valid": true,
+        "definition": "CHECK ((vat_amount >= (0)::numeric))"
+      },
+      {
+        "name": "tax_invoice_integrity",
+        "type": "t",
+        "valid": true,
+        "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_tax_invoice_source_coverages_pkey",
+        "valid": true,
+        "unique": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_invoice_source_coverages_pkey ON public.finance_tax_invoice_source_coverages USING btree (id)"
+      },
+      {
+        "name": "finance_tax_invoice_source_coverages_tax_invoice_item_id_key",
+        "valid": true,
+        "unique": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_invoice_source_coverages_tax_invoice_item_id_key ON public.finance_tax_invoice_source_coverages USING btree (tax_invoice_item_id)"
+      },
+      {
+        "name": "tax_invoice_coverage_document",
+        "valid": true,
+        "unique": false,
+        "definition": "CREATE INDEX tax_invoice_coverage_document ON public.finance_tax_invoice_source_coverages USING btree (tax_invoice_id)"
+      },
+      {
+        "name": "tax_invoice_full_line_coverage",
+        "valid": true,
+        "unique": true,
+        "definition": "CREATE UNIQUE INDEX tax_invoice_full_line_coverage ON public.finance_tax_invoice_source_coverages USING btree (invoice_item_id) WHERE (status = ANY (ARRAY['reserved'::text, 'issued'::text]))"
+      }
+    ]
+  },
+  {
+    "name": "finance_tax_invoices",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "not_null": true,
+        "position": 1,
+        "has_default": true,
+        "default_expression": "gen_random_uuid()"
+      },
+      {
+        "name": "payment_id",
+        "type": "uuid",
+        "not_null": true,
+        "position": 2,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "invoice_id",
+        "type": "uuid",
+        "not_null": true,
+        "position": 3,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "client_id",
+        "type": "uuid",
+        "not_null": true,
+        "position": 4,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "not_null": true,
+        "position": 5,
+        "has_default": true,
+        "default_expression": "'draft'::text"
+      },
+      {
+        "name": "tax_invoice_no",
+        "type": "text",
+        "not_null": false,
+        "position": 6,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "issue_date",
+        "type": "date",
+        "not_null": true,
+        "position": 7,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "source_snapshot_json",
+        "type": "jsonb",
+        "not_null": true,
+        "position": 8,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "decisions_json",
+        "type": "jsonb",
+        "not_null": true,
+        "position": 9,
+        "has_default": true,
+        "default_expression": "'{}'::jsonb"
+      },
+      {
+        "name": "draft_snapshot_json",
+        "type": "jsonb",
+        "not_null": true,
+        "position": 10,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "issued_snapshot_json",
+        "type": "jsonb",
+        "not_null": false,
+        "position": 11,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "issued_at",
+        "type": "timestamp with time zone",
+        "not_null": false,
+        "position": 12,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "issued_by_user_id",
+        "type": "uuid",
+        "not_null": false,
+        "position": 13,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "cancelled_at",
+        "type": "timestamp with time zone",
+        "not_null": false,
+        "position": 14,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "cancel_reason",
+        "type": "text",
+        "not_null": false,
+        "position": 15,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "cancelled_by_user_id",
+        "type": "uuid",
+        "not_null": false,
+        "position": 16,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "not_null": true,
+        "position": 17,
+        "has_default": true,
+        "default_expression": "now()"
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "not_null": true,
+        "position": 18,
+        "has_default": true,
+        "default_expression": "now()"
+      },
+      {
+        "name": "created_by_user_id",
+        "type": "uuid",
+        "not_null": true,
+        "position": 19,
+        "has_default": false,
+        "default_expression": null
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_tax_invoices_cancelled_by_user_id_fkey",
+        "type": "f",
+        "valid": true,
+        "definition": "FOREIGN KEY (cancelled_by_user_id) REFERENCES user_profiles(id)"
+      },
+      {
+        "name": "finance_tax_invoices_client_id_fkey",
+        "type": "f",
+        "valid": true,
+        "definition": "FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_tax_invoices_created_by_user_id_fkey",
+        "type": "f",
+        "valid": true,
+        "definition": "FOREIGN KEY (created_by_user_id) REFERENCES user_profiles(id)"
+      },
+      {
+        "name": "finance_tax_invoices_decisions_json_check",
+        "type": "c",
+        "valid": true,
+        "definition": "CHECK ((jsonb_typeof(decisions_json) = 'object'::text))"
+      },
+      {
+        "name": "finance_tax_invoices_draft_snapshot_json_check",
+        "type": "c",
+        "valid": true,
+        "definition": "CHECK ((jsonb_typeof(draft_snapshot_json) = 'object'::text))"
+      },
+      {
+        "name": "finance_tax_invoices_invoice_id_fkey",
+        "type": "f",
+        "valid": true,
+        "definition": "FOREIGN KEY (invoice_id) REFERENCES finance_invoices(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_tax_invoices_issued_by_user_id_fkey",
+        "type": "f",
+        "valid": true,
+        "definition": "FOREIGN KEY (issued_by_user_id) REFERENCES user_profiles(id)"
+      },
+      {
+        "name": "finance_tax_invoices_payment_id_fkey",
+        "type": "f",
+        "valid": true,
+        "definition": "FOREIGN KEY (payment_id) REFERENCES finance_payments(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_tax_invoices_pkey",
+        "type": "p",
+        "valid": true,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "finance_tax_invoices_source_snapshot_json_check",
+        "type": "c",
+        "valid": true,
+        "definition": "CHECK ((jsonb_typeof(source_snapshot_json) = 'object'::text))"
+      },
+      {
+        "name": "finance_tax_invoices_status_check",
+        "type": "c",
+        "valid": true,
+        "definition": "CHECK ((status = ANY (ARRAY['draft'::text, 'issued'::text, 'cancelled'::text])))"
+      },
+      {
+        "name": "finance_tax_invoices_tax_invoice_no_key",
+        "type": "u",
+        "valid": true,
+        "definition": "UNIQUE (tax_invoice_no)"
+      },
+      {
+        "name": "tax_invoice_cancel_evidence",
+        "type": "c",
+        "valid": true,
+        "definition": "CHECK ((((status = 'cancelled'::text) AND (cancelled_at IS NOT NULL) AND (cancelled_by_user_id IS NOT NULL) AND (NULLIF(btrim(cancel_reason), ''::text) IS NOT NULL)) OR ((status <> 'cancelled'::text) AND (cancelled_at IS NULL) AND (cancelled_by_user_id IS NULL) AND (cancel_reason IS NULL))))"
+      },
+      {
+        "name": "tax_invoice_integrity",
+        "type": "t",
+        "valid": true,
+        "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+      },
+      {
+        "name": "tax_invoice_lifecycle",
+        "type": "c",
+        "valid": true,
+        "definition": "CHECK ((((status = ANY (ARRAY['draft'::text, 'cancelled'::text])) AND (tax_invoice_no IS NULL) AND (issued_at IS NULL) AND (issued_by_user_id IS NULL) AND (issued_snapshot_json IS NULL)) OR ((status = 'issued'::text) AND (tax_invoice_no ~ '^VP-TI-[0-9]{6}-[0-9]{6}$'::text) AND (tax_invoice_no IS NOT NULL) AND (issued_at IS NOT NULL) AND (issued_by_user_id IS NOT NULL) AND (issued_snapshot_json IS NOT NULL) AND (jsonb_typeof(issued_snapshot_json) = 'object'::text))))"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_tax_invoices_pkey",
+        "valid": true,
+        "unique": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_invoices_pkey ON public.finance_tax_invoices USING btree (id)"
+      },
+      {
+        "name": "finance_tax_invoices_tax_invoice_no_key",
+        "valid": true,
+        "unique": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_invoices_tax_invoice_no_key ON public.finance_tax_invoices USING btree (tax_invoice_no)"
+      },
+      {
+        "name": "tax_invoice_active_payment",
+        "valid": true,
+        "unique": true,
+        "definition": "CREATE UNIQUE INDEX tax_invoice_active_payment ON public.finance_tax_invoices USING btree (payment_id) WHERE (status = ANY (ARRAY['draft'::text, 'issued'::text]))"
+      },
+      {
+        "name": "tax_invoice_source_invoice",
+        "valid": true,
+        "unique": false,
+        "definition": "CREATE INDEX tax_invoice_source_invoice ON public.finance_tax_invoices USING btree (invoice_id)"
+      }
+    ]
+  },
+  {
+    "name": "finance_tax_point_events",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "not_null": true,
+        "position": 1,
+        "has_default": true,
+        "default_expression": "gen_random_uuid()"
+      },
+      {
+        "name": "tax_invoice_id",
+        "type": "uuid",
+        "not_null": true,
+        "position": 2,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "event_type",
+        "type": "text",
+        "not_null": true,
+        "position": 3,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "occurred_on",
+        "type": "date",
+        "not_null": true,
+        "position": 4,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "evidence_json",
+        "type": "jsonb",
+        "not_null": true,
+        "position": 5,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "approved_at",
+        "type": "timestamp with time zone",
+        "not_null": false,
+        "position": 6,
+        "has_default": false,
+        "default_expression": null
+      },
+      {
+        "name": "approved_by_user_id",
+        "type": "uuid",
+        "not_null": false,
+        "position": 7,
+        "has_default": false,
+        "default_expression": null
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_tax_point_events_approved_by_user_id_fkey",
+        "type": "f",
+        "valid": true,
+        "definition": "FOREIGN KEY (approved_by_user_id) REFERENCES user_profiles(id)"
+      },
+      {
+        "name": "finance_tax_point_events_check",
+        "type": "c",
+        "valid": true,
+        "definition": "CHECK (((approved_at IS NULL) = (approved_by_user_id IS NULL)))"
+      },
+      {
+        "name": "finance_tax_point_events_event_type_check",
+        "type": "c",
+        "valid": true,
+        "definition": "CHECK ((event_type = 'payment_received'::text))"
+      },
+      {
+        "name": "finance_tax_point_events_evidence_json_check",
+        "type": "c",
+        "valid": true,
+        "definition": "CHECK ((jsonb_typeof(evidence_json) = 'object'::text))"
+      },
+      {
+        "name": "finance_tax_point_events_pkey",
+        "type": "p",
+        "valid": true,
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "finance_tax_point_events_tax_invoice_id_fkey",
+        "type": "f",
+        "valid": true,
+        "definition": "FOREIGN KEY (tax_invoice_id) REFERENCES finance_tax_invoices(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_tax_point_events_tax_invoice_id_key",
+        "type": "u",
+        "valid": true,
+        "definition": "UNIQUE (tax_invoice_id)"
+      },
+      {
+        "name": "tax_invoice_integrity",
+        "type": "t",
+        "valid": true,
+        "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_tax_point_events_pkey",
+        "valid": true,
+        "unique": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_point_events_pkey ON public.finance_tax_point_events USING btree (id)"
+      },
+      {
+        "name": "finance_tax_point_events_tax_invoice_id_key",
+        "valid": true,
+        "unique": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_point_events_tax_invoice_id_key ON public.finance_tax_point_events USING btree (tax_invoice_id)"
+      }
+    ]
+  }
+]

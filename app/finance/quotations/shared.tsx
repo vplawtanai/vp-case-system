@@ -43,6 +43,9 @@ type Profile = {
   can_reverse_finance_payments?: boolean | null;
   can_reallocate_finance_payments?: boolean | null;
   can_view_finance_receipts?: boolean | null;
+  can_view_finance_tax_invoices?: boolean | null;
+  can_manage_finance_tax_invoices?: boolean | null;
+  can_issue_finance_tax_invoices?: boolean | null;
   can_manage_finance_receipts?: boolean | null;
   can_issue_finance_receipts?: boolean | null;
   can_void_finance_receipts?: boolean | null;
@@ -667,6 +670,9 @@ const profileSelect = [
   "can_reverse_finance_payments",
   "can_reallocate_finance_payments",
   "can_view_finance_receipts",
+  "can_view_finance_tax_invoices",
+  "can_manage_finance_tax_invoices",
+  "can_issue_finance_tax_invoices",
   "can_manage_finance_receipts",
   "can_issue_finance_receipts",
   "can_void_finance_receipts",

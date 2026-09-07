@@ -1,4 +1,5 @@
 "use client";
+import { TaxInvoiceNextAction } from "../../tax-invoices/source-next-action";
 
 import { useRef, useState } from "react";
 import Link from "next/link";
@@ -76,6 +77,7 @@ function ReceiptWorkspace({ id, permissions }: { id: string; permissions: UserPe
       <section className={styles.section}><h2>ผู้รับเงินและลูกค้า</h2><dl className={styles.facts}><div><dt>ผู้รับเงิน</dt><dd>{document.identity.companyNameTh}<br />{document.identity.addressTh || document.identity.addressEn}<br />{document.identity.taxId}<br />{document.identity.branchTh || document.identity.branchEn}</dd></div><div><dt>ลูกค้า / ผู้ชำระเงิน</dt><dd>{document.customer.name}<br />{document.customer.address}{document.customer.taxId ? <><br />{document.customer.taxId}</> : null}{document.customer.branch ? <><br />{document.customer.branch}</> : null}</dd></div></dl></section>
       <section className={styles.section}><h2>ใบแจ้งหนี้ที่อ้างอิง</h2><table className={styles.table}><thead><tr><th>ใบแจ้งหนี้ / รายการ</th><th>เงินที่ได้รับจริง</th><th>ภาษีหัก ณ ที่จ่าย</th><th>ยอดชำระ</th></tr></thead><tbody>{document.invoices.map((invoice) => <tr key={invoice.id}><td data-label="ใบแจ้งหนี้ / รายการ">{invoice.number}<p>{invoice.description}</p></td><td data-label="เงินที่ได้รับจริง">{receiptMoney(invoice.cash, invoice.currency)}</td><td data-label="ภาษีหัก ณ ที่จ่าย">{receiptMoney(invoice.wht, invoice.currency)}</td><td data-label="ยอดชำระ">{receiptMoney(invoice.settlement, invoice.currency)}</td></tr>)}</tbody></table></section>
       {document.receipt.issuedAt ? <section className={styles.section}><h2>ประวัติเอกสาร</h2><dl className={styles.facts}><div><dt>ออกเอกสารเมื่อ</dt><dd>{receiptTime(document.receipt.issuedAt)}</dd></div><div><dt>ผู้ใช้ออกเอกสาร</dt><dd>{document.receipt.issuedBy}</dd></div></dl></section> : null}
+      {receipt.status === "issued" ? <TaxInvoiceNextAction paymentId={receipt.payment_id} /> : null}
     </div> : null}
     <section className={`${styles.section} ${styles.noPrint}`}>
       {receipt.status === "voided" ? <p className={styles.error}>ยกเลิกเมื่อ {receipt.voided_at && Number.isFinite(Date.parse(receipt.voided_at)) ? receiptTime(receipt.voided_at) : "ไม่พบเวลา"}<br />เหตุผล: {receipt.void_reason}</p> : null}

@@ -364,6 +364,7 @@ export function safeInvoiceError(error: unknown, fallback: string) {
   const message = error && typeof error === "object" && "message" in error
     ? String((error as { message?: unknown }).message || "")
     : error instanceof Error ? error.message : "";
+  if (message.includes("TAX_INVOICE_ACTIVE_DEPENDENCY")) return "มีใบกำกับภาษีหรือร่างที่ผูกกับใบแจ้งหนี้นี้ กรุณาตรวจสอบเอกสารภาษีก่อนดำเนินการ";
   if (message.includes("FINANCE_ISSUED_RECEIPT_DEPENDENCY")) return "มีใบเสร็จรับเงินที่ออกแล้ว กรุณายกเลิกใบเสร็จผ่านขั้นตอนที่กำหนดก่อนดำเนินการนี้";
   if (message.includes("due date cannot be before")) return "วันที่ครบกำหนดต้องไม่มาก่อนวันที่ออกเอกสาร";
   if (message.includes("issue date is required")) return "กรุณาระบุวันที่ออกเอกสาร";

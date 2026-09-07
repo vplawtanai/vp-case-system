@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { QuotationGuard } from "../../quotations/shared";
 import { PaymentReceiptNextAction } from "../../receipts/payment-next-action";
+import { TaxInvoiceNextAction } from "../../tax-invoices/source-next-action";
 import { supabase } from "../../../../lib/supabase";
 import { bangkokToday, displayText, formatBangkokDateTime, formatDocumentDate, money } from "../../invoices/shared";
 import { calculateStructuredWht, invoiceTaxFacts, paymentTaxFingerprint, paymentWhtScope, savedPaymentWht, structuredWhtCopy, type InvoiceTaxFacts, type WhtComponent, type WhtMode } from "../tax";
@@ -597,6 +598,7 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
           <div style={readOnlyGroup}><h3 style={readOnlyGroupTitle}>ยอดเงิน</h3><div style={summaryGrid}><Metric label="ยอดที่ตัดชำระ" value={money(payment.settlement_amount, payment.currency)} prominent /><Metric label={paymentSettlementLabels.receivedFull} value={money(payment.cash_amount, payment.currency)} /><Metric label={paymentSettlementLabels.whtCredit} value={money(payment.wht_amount, payment.currency)} /><Metric label={paymentSettlementLabels.settlementTotal} value={money(payment.settlement_amount, payment.currency)} />{payment.status === "confirmed" ? <Metric label="ยอดที่จัดสรรปัจจุบัน" value={money(effectiveAllocationTotal, payment.currency)} /> : null}</div></div>
         </div>
         <PaymentReceiptNextAction key={payment.id} paymentId={payment.id} paymentStatus={payment.status} />
+        {payment.status === "confirmed" ? <TaxInvoiceNextAction key={`tax-${payment.id}`} paymentId={payment.id} /> : null}
       </section>
 
       {payment.status === "confirmed" ? <section id="current-payment-allocations" style={{ ...surface, scrollMarginTop: 84 }}>

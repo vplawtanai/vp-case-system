@@ -3,7 +3,7 @@ import styles from "./DocumentAuthorization.module.css";
 // A manual signing space is not evidence that the system issuer signed the document.
 // Invoice/Receipt snapshots do not yet freeze an authorized signer or signature asset.
 export function DocumentAuthorization({ documentKind, languageCode = "th" }: {
-  documentKind: "invoice" | "receipt";
+  documentKind: "invoice" | "receipt" | "tax-invoice";
   languageCode?: string | null;
 }) {
   const english = languageCode === "en";

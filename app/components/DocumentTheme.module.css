@@ -19,3 +19,10 @@
   --document-accent-soft: #f0fdf4;
   --document-accent-border: #bbf7d0;
 }
+
+.taxInvoice {
+  --document-accent: #3730a3;
+  --document-accent-strong: #1e1b4b;
+  --document-accent-soft: #eef2ff;
+  --document-accent-border: #c7d2fe;
+}

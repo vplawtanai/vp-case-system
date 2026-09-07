@@ -215,6 +215,7 @@ export function receiptRpc(command: ReceiptCommand): { name: string; args: Recor
 export function safeReceiptError(error: unknown) {
   const message = error && typeof error === "object" && "message" in error ? String(error.message) : "";
   const codes: Record<string, string> = {
+    TAX_INVOICE_ACTIVE_DEPENDENCY: "มีใบกำกับภาษีหรือร่างอ้างอิงใบเสร็จนี้ กรุณาตรวจสอบเอกสารภาษีก่อนดำเนินการ",
     RECEIPT_LOGO_EVIDENCE_REQUIRED: "ไม่พบหลักฐานโลโก้ที่พร้อมใช้งาน กรุณาตรวจสอบ Document Settings แล้วรีเฟรชร่างและตรวจสอบตัวอย่างใหม่",
     RECEIPT_REVIEW_REQUIRED: "ร่างถูกรีเฟรชหลังการตรวจสอบ กรุณาโหลดข้อมูลและตรวจสอบตัวอย่างล่าสุดก่อนออกใบเสร็จ",
     RECEIPT_SOURCE_CHANGED_REFRESH_REQUIRED: "ข้อมูลต้นทางเปลี่ยนแปลง กรุณารีเฟรชร่างและตรวจสอบตัวอย่างใหม่ก่อนออกใบเสร็จ",

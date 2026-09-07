@@ -30,6 +30,9 @@ export type UserPermissionProfile = {
   can_manage_finance_receipts?: boolean | null;
   can_issue_finance_receipts?: boolean | null;
   can_void_finance_receipts?: boolean | null;
+  can_view_finance_tax_invoices?: boolean | null;
+  can_manage_finance_tax_invoices?: boolean | null;
+  can_issue_finance_tax_invoices?: boolean | null;
   can_view_finance_cash_transactions?: boolean | null;
   can_manage_finance_cash_transactions?: boolean | null;
   can_confirm_finance_cash_transactions?: boolean | null;
@@ -176,6 +179,9 @@ export function canViewFinanceModule(profile?: UserPermissionProfile | null) {
     profile?.can_manage_finance_receipts === true ||
     profile?.can_issue_finance_receipts === true ||
     profile?.can_void_finance_receipts === true ||
+    profile?.can_view_finance_tax_invoices === true ||
+    profile?.can_manage_finance_tax_invoices === true ||
+    profile?.can_issue_finance_tax_invoices === true ||
     isStaffUp(role)
   );
 }
@@ -350,6 +356,10 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
     profile?.can_confirm_finance_cash_transactions === true ||
     profile?.can_reverse_finance_cash_transactions === true;
   const canManageFinanceReceipts = isAdmin(role) || profile?.can_manage_finance_receipts === true;
+  const canManageFinanceTaxInvoices = isAdmin(role) || profile?.can_manage_finance_tax_invoices === true;
+  const canIssueFinanceTaxInvoices = isAdmin(role) || profile?.can_issue_finance_tax_invoices === true;
+  const canViewFinanceTaxInvoices = isAdmin(role) || profile?.can_view_finance_tax_invoices === true ||
+    canManageFinanceTaxInvoices || canIssueFinanceTaxInvoices;
   const canIssueFinanceReceipts = isAdmin(role) || profile?.can_issue_finance_receipts === true;
   const canVoidFinanceReceipts = isAdmin(role) || profile?.can_void_finance_receipts === true;
   const canViewFinanceReceipts = isAdmin(role) || profile?.can_view_finance_receipts === true ||
@@ -411,6 +421,9 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
     canManageFinanceReceipts,
     canIssueFinanceReceipts,
     canVoidFinanceReceipts,
+    canViewFinanceTaxInvoices,
+    canManageFinanceTaxInvoices,
+    canIssueFinanceTaxInvoices,
     canViewFinanceCashTransactions,
     canManageFinanceCashTransactions,
     canConfirmFinanceCashTransactions,

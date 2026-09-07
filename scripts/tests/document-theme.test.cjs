@@ -25,9 +25,11 @@ for(const [type,accent] of Object.entries({quotation:'#1d4ed8',invoice:'#b45309'
     }
   });
 }
-test('only the three approved document themes are active, with no print-specific palette',()=>{
+test('approved document themes include the separate Tax Invoice palette, identical in screen and print',()=>{
   const selectors=[];sheet.walkRules(rule=>selectors.push(rule.selector));
-  assert.deepEqual(selectors,['.quotation','.invoice','.receipt']);
+  assert.deepEqual(selectors,['.quotation','.invoice','.receipt','.taxInvoice']);
+  const tax=tokens('taxInvoice');assert.equal(tax['--document-accent'],'#3730a3');
+  assert.ok(contrast(tax['--document-accent'],tax['--document-accent-soft'])>=4.5);
   sheet.walkAtRules(()=>assert.fail('Themes must be identical for screen and print'));
   const identity=read('app/components/DocumentIdentity.module.css');
   assert.match(identity,/var\(--document-accent, #15803d\)/);

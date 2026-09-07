@@ -5,6 +5,7 @@ export type FinanceSubNavPage =
   | "fee-agreements"
   | "invoices"
   | "receipts"
+  | "tax-invoices"
   | "cash-transactions"
   | "ledger"
   | "claims"
@@ -29,6 +30,9 @@ export function financeNavigationLinks(permissions: UserPermissions): FinanceNav
       : null,
     permissions.canViewFinanceReceipts
       ? { href: "/finance/receipts", page: "receipts" as const, label: "ใบเสร็จรับเงิน" }
+      : null,
+    permissions.canViewFinanceTaxInvoices
+      ? { href: "/finance/tax-invoices", page: "tax-invoices" as const, label: "ใบกำกับภาษี" }
       : null,
     permissions.canViewFinanceCashTransactions
       ? { href: "/finance/cash-transactions", page: "cash-transactions" as const, label: "เงินรับ–จ่าย" }
