@@ -26,6 +26,10 @@ export type UserPermissionProfile = {
   can_confirm_finance_payments?: boolean | null;
   can_reverse_finance_payments?: boolean | null;
   can_reallocate_finance_payments?: boolean | null;
+  can_view_finance_receipts?: boolean | null;
+  can_manage_finance_receipts?: boolean | null;
+  can_issue_finance_receipts?: boolean | null;
+  can_void_finance_receipts?: boolean | null;
   can_view_finance_cash_transactions?: boolean | null;
   can_manage_finance_cash_transactions?: boolean | null;
   can_confirm_finance_cash_transactions?: boolean | null;
@@ -168,6 +172,10 @@ export function canViewFinanceModule(profile?: UserPermissionProfile | null) {
     profile?.can_view_finance_billable_charges === true ||
     profile?.can_manage_finance_billable_charges === true ||
     profile?.can_approve_finance_billable_charges === true ||
+    profile?.can_view_finance_receipts === true ||
+    profile?.can_manage_finance_receipts === true ||
+    profile?.can_issue_finance_receipts === true ||
+    profile?.can_void_finance_receipts === true ||
     isStaffUp(role)
   );
 }
@@ -341,6 +349,11 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
     profile?.can_manage_finance_cash_transactions === true ||
     profile?.can_confirm_finance_cash_transactions === true ||
     profile?.can_reverse_finance_cash_transactions === true;
+  const canManageFinanceReceipts = isAdmin(role) || profile?.can_manage_finance_receipts === true;
+  const canIssueFinanceReceipts = isAdmin(role) || profile?.can_issue_finance_receipts === true;
+  const canVoidFinanceReceipts = isAdmin(role) || profile?.can_void_finance_receipts === true;
+  const canViewFinanceReceipts = isAdmin(role) || profile?.can_view_finance_receipts === true ||
+    canManageFinanceReceipts || canIssueFinanceReceipts || canVoidFinanceReceipts;
   const canManageFinanceCashTransactions =
     isAdmin(role) || profile?.can_manage_finance_cash_transactions === true;
   const canConfirmFinanceCashTransactions =
@@ -394,6 +407,10 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
     canConfirmFinancePayments,
     canReverseFinancePayments,
     canReallocateFinancePayments,
+    canViewFinanceReceipts,
+    canManageFinanceReceipts,
+    canIssueFinanceReceipts,
+    canVoidFinanceReceipts,
     canViewFinanceCashTransactions,
     canManageFinanceCashTransactions,
     canConfirmFinanceCashTransactions,

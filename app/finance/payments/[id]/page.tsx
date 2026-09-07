@@ -5,6 +5,7 @@ import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { QuotationGuard } from "../../quotations/shared";
+import { PaymentReceiptNextAction } from "../../receipts/payment-next-action";
 import { supabase } from "../../../../lib/supabase";
 import { bangkokToday, displayText, formatBangkokDateTime, formatDocumentDate, money } from "../../invoices/shared";
 import { calculateStructuredWht, invoiceTaxFacts, paymentTaxFingerprint, paymentWhtScope, savedPaymentWht, structuredWhtCopy, type InvoiceTaxFacts, type WhtComponent, type WhtMode } from "../tax";
@@ -595,7 +596,7 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
           <div style={readOnlyGroup}><h3 style={readOnlyGroupTitle}>ข้อมูลรายการ</h3><div style={readOnlyGrid}><Field label="สถานะ" value={<StatusBadge status={payment.status}>{paymentStatusLabels[payment.status] || payment.status}</StatusBadge>} /><Field label="วันที่รับชำระจริง" value={payment.received_on ? formatDocumentDate(payment.received_on, "th") : "ไม่ระบุ"} /><Field label="วิธีรับชำระ" value={paymentMethodLabels[payment.payment_method || ""] || "ไม่ระบุ"} /><Field label="บัญชีที่รับเงินจริง" value={<BankAccountIdentity account={savedReceivingBankAccount} paymentMethod={payment.payment_method || ""} />} />{payment.payer_name?.trim() ? <Field label="ชื่อผู้ชำระ" value={payment.payer_name.trim()} /> : null}{payment.external_transaction_reference?.trim() ? <Field label="เลขอ้างอิงรายการรับชำระ" value={payment.external_transaction_reference.trim()} /> : null}{payment.receiving_account_reference?.trim() ? <Field label="รายละเอียดบัญชี/ช่องทางรับเงิน" value={payment.receiving_account_reference.trim()} /> : null}{payment.note?.trim() ? <Field label="หมายเหตุ" value={payment.note.trim()} /> : null}</div></div>
           <div style={readOnlyGroup}><h3 style={readOnlyGroupTitle}>ยอดเงิน</h3><div style={summaryGrid}><Metric label="ยอดที่ตัดชำระ" value={money(payment.settlement_amount, payment.currency)} prominent /><Metric label={paymentSettlementLabels.receivedFull} value={money(payment.cash_amount, payment.currency)} /><Metric label={paymentSettlementLabels.whtCredit} value={money(payment.wht_amount, payment.currency)} /><Metric label={paymentSettlementLabels.settlementTotal} value={money(payment.settlement_amount, payment.currency)} />{payment.status === "confirmed" ? <Metric label="ยอดที่จัดสรรปัจจุบัน" value={money(effectiveAllocationTotal, payment.currency)} /> : null}</div></div>
         </div>
-        {payment.status === "confirmed" ? <div style={nextStepNotice}>การรับชำระถูกบันทึกแล้ว เอกสารใบเสร็จ/ใบกำกับภาษียังเป็นขั้นตอนถัดไป</div> : null}
+        <PaymentReceiptNextAction key={payment.id} paymentId={payment.id} paymentStatus={payment.status} />
       </section>
 
       {payment.status === "confirmed" ? <section id="current-payment-allocations" style={{ ...surface, scrollMarginTop: 84 }}>
@@ -838,7 +839,6 @@ const historyAmounts: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 
 const historyReason: CSSProperties = { margin: "7px 0 0", color: "#64748b", fontSize: 12, lineHeight: 1.5 };
 const bankAccountIdentity: CSSProperties = { display: "grid", gap: 3, minWidth: 0 };
 const bankAccountDetail: CSSProperties = { color: "#64748b", fontSize: 12 };
-const nextStepNotice: CSSProperties = { marginTop: 16, padding: 13, border: "1px solid #bfdbfe", borderRadius: 6, background: "#eff6ff", color: "#1e40af" };
 const financialActionSection: CSSProperties = { ...surface, borderColor: "#bfdbfe", background: "#f8fbff", scrollMarginTop: 84 };
 const financialActionTitle: CSSProperties = { margin: 0, color: "#1e3a8a", fontSize: 17 };
 const correctionFlow: CSSProperties = { marginTop: 18, paddingTop: 2 };

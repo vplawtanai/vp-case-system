@@ -166,6 +166,7 @@ export function safePaymentError(error: unknown, fallback: string) {
     ? String((error as { message?: unknown }).message || "")
     : "";
   const mappings: Array<[string, string]> = [
+    ["FINANCE_ISSUED_RECEIPT_DEPENDENCY", "มีใบเสร็จรับเงินที่ออกแล้ว กรุณายกเลิกใบเสร็จผ่านขั้นตอนที่กำหนดก่อนดำเนินการนี้"],
     ["WHT_LEGACY_RECALCULATION_REQUIRED", "ข้อมูล WHT เดิมยังไม่มีฐานและอัตราที่บันทึกไว้ กรุณาเลือกคำนวณ WHT ใหม่และบันทึกก่อนยืนยัน"],
     ["WHT_COMPONENT_SCOPE_UNSUPPORTED", "รายการหลายบรรทัดหรือหลายใบแจ้งหนี้ยังไม่มีข้อมูลกำหนดฐาน WHT ที่ปลอดภัย"],
     ["WHT_PARTIAL_SCOPE_UNSUPPORTED", "ยังไม่รองรับการกำหนดฐาน WHT สำหรับยอดรับชำระบางส่วน หรือมีรายการอื่นจองยอดใบแจ้งหนี้นี้อยู่"],
@@ -191,6 +192,7 @@ export function safePaymentReallocationError(error: unknown) {
     ? String((error as { message?: unknown }).message || "")
     : "";
   const mappings: Array<[string, string]> = [
+    ["FINANCE_ISSUED_RECEIPT_DEPENDENCY", "มีใบเสร็จรับเงินที่ออกแล้ว กรุณายกเลิกใบเสร็จผ่านขั้นตอนที่กำหนดก่อนดำเนินการนี้"],
     ["WHT_REALLOCATION_REQUIRES_COMPONENT_WORKFLOW", "รายการนี้มีหลักฐาน WHT ผูกกับรายการเดิม ต้องใช้กระบวนการแก้ไขฐาน WHT ซึ่งยังไม่เปิดใช้งาน"],
     ["Not allowed to reallocate", "คุณไม่มีสิทธิ์เปลี่ยนใบแจ้งหนี้ที่ตัดชำระ"],
     ["FINANCE_PAYMENT_REALLOCATION_ACK_REQUIRED", "กรุณายืนยันว่ารายการรับเงินจริงถูกต้องและต้องการเปลี่ยนเฉพาะใบแจ้งหนี้"],
