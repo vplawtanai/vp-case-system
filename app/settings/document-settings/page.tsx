@@ -14,6 +14,7 @@ import {
 } from "../../../lib/companyProfile";
 import { buildPermissions } from "../../../lib/permissions";
 import { supabase } from "../../../lib/supabase";
+import { newCompanyLogoPath } from "../../../lib/documentLogo";
 
 const ASSET_BUCKET = "vp-document-assets";
 
@@ -219,8 +220,7 @@ export default function DocumentSettingsPage() {
       return;
     }
 
-    const path = makeStoragePath("company/logo", file.name);
-    const oldPath = companyForm.logo_storage_path;
+    const path = newCompanyLogoPath(file.name);
     const { error: uploadError } = await supabase.storage.from(ASSET_BUCKET).upload(path, file, { upsert: false });
     if (uploadError) {
       alert("Unable to upload logo.");
@@ -239,16 +239,12 @@ export default function DocumentSettingsPage() {
       .eq("id", "default");
 
     if (updateError) {
-      await safeRemoveAsset(path, "company/logo");
       alert("Logo uploaded, but company profile could not be updated.");
       return;
     }
 
     setCompanyForm((current) => ({ ...current, logo_storage_path: path }));
-    if (oldPath) {
-      const removed = await safeRemoveAsset(oldPath, "company/logo");
-      if (!removed) console.warn("Old logo cleanup skipped or failed.");
-    }
+    // Retain every logo version, including orphaned uploads; no automatic GC.
     await loadAssetUrl(path);
     await createAuditLog({
       tableName: "finance_company_profiles",

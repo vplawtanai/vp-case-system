@@ -1,4 +1,5 @@
 import type { DocumentIdentity } from "../../../lib/documentIdentity";
+import { documentLogoEvidence, type DocumentLogoEvidence } from "../../../lib/documentLogo";
 
 export type ReceiptStatus = "draft" | "issued" | "cancelled" | "voided";
 export type FinanceReceipt = {
@@ -36,6 +37,7 @@ type Amounts = { cash: number; wht: number; settlement: number; currency: string
 export type ReceiptPresentation = {
   status: ReceiptStatus;
   identity: DocumentIdentity;
+  logo: DocumentLogoEvidence | null;
   customer: { name: string; taxId: string; address: string; branch: string };
   payment: Amounts & {
     id: string; reference: string; receivedOn: string; method: string; receivingAccountReference: string;
@@ -88,14 +90,15 @@ function amounts(cash: unknown, wht: unknown, settlement: unknown, currency: unk
   return result;
 }
 
-// All legal facts come from the selected snapshot, including drafts. Never consult masters or logo Storage.
+// All document facts and the logo reference come from the selected snapshot.
 export function receiptPresentation(row: FinanceReceipt): ReceiptPresentationResult {
   try {
     if (!Object.hasOwn(receiptStatusLabels, row.status)) throw new Error("status");
     const frozen = row.status === "issued" || row.status === "voided";
     const snapshot = object(frozen ? row.issued_snapshot_json : row.draft_snapshot_json);
-    if (snapshot.schema_version !== 1 || snapshot.document_kind !== "receipt") throw new Error("schema version");
+    if (![1, 2].includes(Number(snapshot.schema_version)) || typeof snapshot.schema_version !== "number" || snapshot.document_kind !== "receipt") throw new Error("schema version");
     const seller = object(snapshot.seller);
+    const logo = snapshot.schema_version === 2 ? documentLogoEvidence(seller.logo_asset) : null;
     const customer = object(snapshot.customer);
     const payment = object(snapshot.payment);
     const nameTh = optionalText(seller.company_name_th);
@@ -108,7 +111,7 @@ export function receiptPresentation(row: FinanceReceipt): ReceiptPresentationRes
       companyNameTh: requiredText(nameTh || nameEn), companyNameEn: nameTh ? nameEn : "",
       addressTh, addressEn, taxId: requiredText(seller.tax_id), branchTh, branchEn,
       phone: optionalText(seller.phone), email: optionalText(seller.email), website: optionalText(seller.website),
-      description: "", logoStoragePath: "",
+      description: "", logoStoragePath: logo?.path || "",
     };
     requiredText(addressTh || addressEn);
     requiredText(branchTh || branchEn);
@@ -156,7 +159,7 @@ export function receiptPresentation(row: FinanceReceipt): ReceiptPresentationRes
     if (snapshot.structured_wht_components != null && !Array.isArray(snapshot.structured_wht_components)) throw new Error("WHT evidence");
     const structuredWhtComponents = (snapshot.structured_wht_components as unknown[] | undefined ?? []).map((value) => structuredClone(object(value)));
     return { ok: true, value: {
-      status: row.status, identity,
+      status: row.status, identity, logo,
       customer: { name: requiredText(customer.name), taxId: optionalText(customer.tax_id), address: optionalText(customer.address), branch: optionalText(customer.branch) },
       payment: paymentView, invoices, receipt: receiptView, structuredWhtComponents,
     } };
@@ -209,6 +212,7 @@ export function receiptRpc(command: ReceiptCommand): { name: string; args: Recor
 export function safeReceiptError(error: unknown) {
   const message = error && typeof error === "object" && "message" in error ? String(error.message) : "";
   const codes: Record<string, string> = {
+    RECEIPT_LOGO_EVIDENCE_REQUIRED: "ไม่พบหลักฐานโลโก้ที่พร้อมใช้งาน กรุณาตรวจสอบ Document Settings แล้วรีเฟรชร่างและตรวจสอบตัวอย่างใหม่",
     RECEIPT_REVIEW_REQUIRED: "ร่างถูกรีเฟรชหลังการตรวจสอบ กรุณาโหลดข้อมูลและตรวจสอบตัวอย่างล่าสุดก่อนออกใบเสร็จ",
     RECEIPT_SOURCE_CHANGED_REFRESH_REQUIRED: "ข้อมูลต้นทางเปลี่ยนแปลง กรุณารีเฟรชร่างและตรวจสอบตัวอย่างใหม่ก่อนออกใบเสร็จ",
     RECEIPT_PERMISSION_DENIED: "คุณไม่มีสิทธิ์ดำเนินการใบเสร็จรับเงินนี้",

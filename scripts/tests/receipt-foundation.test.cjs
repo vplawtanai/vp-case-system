@@ -283,6 +283,9 @@ beforeEach(async () => { await db.exec('begin'); });
 afterEach(async () => { await db.exec('rollback'); });
 after(async () => { await db.close(); });
 
+// Phase extensions reuse this isolated predecessor fixture and its regression suite.
+module.exports = {db,query,scalar,flush,row,count,rpc,rejects,asActor,ids,invoice,payment,financialState,createReceipt,issueReceipt,voidReceipt,migration,root};
+
 test('037 applies in full and installs real deferred reconciliation triggers', async () => {
   const triggers = await query(`select tgname,tgdeferrable,tginitdeferred from pg_trigger
     where tgname in ('validate_finance_receipt_integrity','validate_finance_receipt_allocation_integrity') order by tgname`);

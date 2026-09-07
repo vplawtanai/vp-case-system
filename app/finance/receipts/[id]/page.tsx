@@ -17,7 +17,7 @@ export default function ReceiptDetailPage() {
 }
 
 function ReceiptWorkspace({ id, permissions }: { id: string; permissions: UserPermissions }) {
-  const { receipt, loading, error: loadError, reload } = useReceipt(id);
+  const { receipt, loading, error: loadError, reload, logoUrl } = useReceipt(id);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -30,7 +30,8 @@ function ReceiptWorkspace({ id, permissions }: { id: string; permissions: UserPe
   const presentation = receipt ? receiptPresentation(receipt) : null;
   const document = presentation?.ok ? presentation.value : null;
   const fingerprint = receipt ? JSON.stringify([receipt.id, receipt.updated_at, receipt.draft_snapshot_json]) : "";
-  const canIssue = receipt?.status === "draft" && permissions.canIssueFinanceReceipts && Boolean(document) && reviewed === fingerprint;
+  const logoReady = Boolean(document && (!document.logo || logoUrl));
+  const canIssue = receipt?.status === "draft" && permissions.canIssueFinanceReceipts && Boolean(document?.logo) && logoReady && reviewed === fingerprint;
   function clearReview() { setReviewed(""); setPreview(false); setMode(null); setAcknowledged(false); setReason(""); }
   function startMode(next: "issue" | "cancel" | "void") { setMode(next); setReason(""); setAcknowledged(false); setError(""); }
   async function run(command: ReceiptCommand) {
@@ -62,6 +63,7 @@ function ReceiptWorkspace({ id, permissions }: { id: string; permissions: UserPe
     {error || loadError ? <p role="alert" className={styles.error}>{error || loadError}</p> : null}
     {message ? <p role="status" className={styles.notice}>{message}</p> : null}
     {presentation && !presentation.ok ? <p role="alert" className={styles.error}>{presentation.error}</p> : null}
+    {document && !document.logo ? <p className={`${styles.notice} ${styles.noPrint}`}>{receipt.status === "draft" ? "ร่างนี้ยังไม่มีหลักฐานโลโก้ กรุณารีเฟรชร่างจากรายการรับชำระและตรวจสอบตัวอย่างใหม่ก่อนออกใบเสร็จ" : "เอกสารเดิมไม่มีหลักฐานโลโก้ที่ตรึงไว้ จึงไม่ใช้โลโก้ปัจจุบันแทน"}</p> : null}
     {document ? <div className={styles.noPrint}>
       <section className={styles.section}><h2>ยอดรับชำระ</h2><dl className={styles.facts}>
         <div><dt>ยอดชำระ</dt><dd><strong>{receiptMoney(document.payment.settlement, document.payment.currency)}</strong></dd></div>
@@ -79,11 +81,11 @@ function ReceiptWorkspace({ id, permissions }: { id: string; permissions: UserPe
       {receipt.status === "voided" ? <p className={styles.error}>ยกเลิกเมื่อ {receipt.voided_at && Number.isFinite(Date.parse(receipt.voided_at)) ? receiptTime(receipt.voided_at) : "ไม่พบเวลา"}<br />เหตุผล: {receipt.void_reason}</p> : null}
       {receipt.replaces_receipt_id ? <p>ทดแทนใบเสร็จ <Link className={styles.link} href={`/finance/receipts/${receipt.replaces_receipt_id}`}>{receipt.replaces_receipt_id}</Link></p> : null}
       <div className={styles.actions}>
-        {document ? <><button type="button" className={styles.button} disabled={busy} onClick={() => { setPreview(true); setReviewed(fingerprint); }}>ตรวจสอบตัวอย่าง</button><Link className={styles.button} href={`/finance/receipts/${id}/preview`}>เปิดตัวอย่าง / PDF</Link></> : null}
+        {document ? <><button type="button" className={styles.button} disabled={busy || !logoReady} onClick={() => { setPreview(true); setReviewed(fingerprint); }}>ตรวจสอบตัวอย่าง</button><Link className={styles.button} href={`/finance/receipts/${id}/preview`}>เปิดตัวอย่าง / PDF</Link></> : null}
         {receipt.status === "draft" && permissions.canManageFinanceReceipts ? <button type="button" className={styles.button} disabled={busy} onClick={() => void run({ kind: "refresh", receiptId: id })}>รีเฟรชร่างจากรายการรับชำระ</button> : null}
       </div>
     </section>
-    {preview && document ? <div className={styles.preview}><ReceiptDocument receipt={receipt} /></div> : null}
+    {preview && document ? <div className={styles.preview}><ReceiptDocument receipt={receipt} logoUrl={logoUrl} /></div> : null}
     <section className={`${styles.section} ${styles.noPrint}`} aria-label="ตรวจสอบและยืนยันใบเสร็จ">
       {receipt.status === "draft" && permissions.canIssueFinanceReceipts ? <>
         <h2>ยืนยันการออกใบเสร็จรับเงิน</h2>

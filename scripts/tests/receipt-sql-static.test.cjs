@@ -56,6 +56,7 @@ function lexical(sql) {
   assert.equal(depth, 0, 'Unclosed parenthesis');
   return clean;
 }
+module.exports = {lexical};
 
 for (const kind of ['preflight', 'verify']) {
   test(`${kind} is one SELECT-only statement with balanced structure`, () => {
