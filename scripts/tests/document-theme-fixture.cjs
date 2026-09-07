@@ -26,7 +26,7 @@ const helpers = quotationSource.statements.filter(n=>!ts.isImportDeclaration(n)
   &&!(ts.isFunctionDeclaration(n)&&['QuotationPreview','QuotationPreviewPage'].includes(n.name?.text)))
   .map(n=>n.getText(quotationSource)).join('\n');
 
-function quotation(status) {
+function quotation(status, {signature = false} = {}) {
   const identity=shared.receiptPresentation(logoFixture()).value.identity;
   const data={
     documentTheme:theme,companyProfile:identity,logoUrl:syntheticLogoUrl,logoImageRef:null,
@@ -39,7 +39,7 @@ function quotation(status) {
     displayItems:[{id:'item',description:'ค่าที่ปรึกษาทดสอบ',quantity:1,unit_price:5000,vat_applicable:true,vat_rate:7,amount_before_tax:4672.90,vat_amount:327.10,line_total:5000}],
     displaySubtotalVatable:4672.90,displaySubtotalNonVatable:0,displayVatAmount:327.10,displayGrandTotal:5000,
     displayPaymentTerms:null,displayInstallments:[],displayAllocations:[],
-    signer:{name:'ผู้ทดสอบ',position:'กรรมการ',email:''},showSignerSignature:false,signerSignatureUrl:'',signerSignatureImageRef:null,
+    signer:{name:'ผู้ทดสอบ',position:'กรรมการ',email:''},showSignerSignature:signature,signerSignatureUrl:signature?syntheticLogoUrl:'',signerSignatureImageRef:null,
   };
   // Extract the production article and its helpers, not a separate approximation of the layout.
   const code=helpers+`\nexport function renderDocument(data) { const {${Object.keys(data).join(',')}}=data; return <><style>{printCss}</style>${article.getText(quotationSource)}</>; }`;
@@ -49,10 +49,13 @@ function quotation(status) {
   return renderToStaticMarkup(React.createElement(fixture.exports.renderDocument,data));
 }
 
-function invoice(status) {
+function invoice(status, {count = 1, languageCode = 'th'} = {}) {
   const identity=shared.receiptPresentation(logoFixture()).value.identity;
   const items=[{id:'local-item',description:'ค่าที่ปรึกษาทดสอบ',source_type:'billing_installment_item',source_state:'active',allocation_percent:null,vat_applicable:true,vat_rate:7,amount_before_vat:4672.90,vat_amount:327.10,line_total:5000,source_snapshot_json:{ready_snapshot:{source:{source_type:'billing_installment_item'}}}}];
   const row={id:'local-invoice',document_status:status,invoice_no:status==='draft'?null:'LOCAL-IV-TEST',source_model:'billable_charge_v2',language_code:'th',customer_name:'ลูกค้าทดสอบ',currency:'THB',issue_date:'2026-09-01',due_date:null,amount_before_vat:4672.90,vat_amount:327.10,total_amount:5000,billing_plan_id:'plan',v2_bridge_id:'bridge',source_snapshot_json:{bridge_id:'bridge'},voided_at:status==='voided'?'2026-09-02T00:00:00Z':null};
+  for(let i=1;i<count;i++)items.push({...items[0],id:`local-item-${i}`,description:`ค่าที่ปรึกษาทดสอบ ${i+1}`});
+  for(const key of ['amount_before_vat','vat_amount','total_amount'])row[key]=Math.round(row[key]*count*100)/100;
+  row.language_code=languageCode;
   const bridge={id:'bridge',source_snapshot_json:{billing_plan:{id:'plan',installment_count:3},billing_installment:{id:'installment',billing_plan_id:'plan',installment_no:2}}};
   if(status!=='draft')row.issued_snapshot_json={schema_version:2,source_model:'billable_charge_v2',invoice:{...row},source:row.source_snapshot_json,bridge:{id:bridge.id,source_snapshot:bridge.source_snapshot_json},items:items.map(invoice_item=>({invoice_item}))};
   const before=JSON.stringify({row,items});
@@ -65,8 +68,8 @@ function invoice(status) {
   return markup;
 }
 
-function receipt(status) {
-  const row=logoFixture(status);
+function receipt(status, {count = 1} = {}) {
+  const row=logoFixture(status,count);
   const before=JSON.stringify(row);
   const markup=renderToStaticMarkup(React.createElement(ReceiptDocument,{receipt:row,logoUrl:syntheticLogoUrl}));
   if(JSON.stringify(row)!==before)throw new Error('Receipt renderer mutated fixture');
@@ -74,8 +77,8 @@ function receipt(status) {
 }
 
 const renderers={quotation,invoice,receipt};
-function documentHtml(type,status) {
-  const markup=renderers[type](status);
+function documentHtml(type,status,options) {
+  const markup=renderers[type](status,options);
   return `<!doctype html><html lang="th"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Local ${type} ${status}</title><style>*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif}${css.join('\n')}</style>${markup}</html>`;
 }
 module.exports={root,read,theme,renderers,documentHtml};

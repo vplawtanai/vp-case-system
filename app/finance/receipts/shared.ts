@@ -174,6 +174,9 @@ export function receiptMoney(valueInCents: number, currency: string) {
 export function receiptDate(value: string) {
   return new Intl.DateTimeFormat("th-TH", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Bangkok" }).format(new Date(`${value}T00:00:00+07:00`));
 }
+export function receiptIssueDate(issuedAt: string) {
+  return new Intl.DateTimeFormat("th-TH", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Bangkok" }).format(new Date(issuedAt));
+}
 export function receiptTime(value: string) {
   return new Intl.DateTimeFormat("th-TH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Bangkok" }).format(new Date(value));
 }

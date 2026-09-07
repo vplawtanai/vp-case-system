@@ -1,4 +1,5 @@
 import { DocumentIdentityFooter, DocumentIdentityHeader } from "../../components/DocumentIdentity";
+import { DocumentAuthorization } from "../../components/DocumentAuthorization";
 import { LegalDocumentLayout } from "../../components/LegalDocumentLayout";
 import type { DocumentIdentity } from "../../../lib/documentIdentity";
 import {
@@ -131,6 +132,7 @@ export function InvoiceDocument({
         </section>
       ) : null}
 
+      <DocumentAuthorization documentKind="invoice" languageCode={invoice.language_code} />
       <DocumentIdentityFooter identity={identity} />
     </LegalDocumentLayout>
   );

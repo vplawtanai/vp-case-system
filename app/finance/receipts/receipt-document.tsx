@@ -1,7 +1,8 @@
 import { DocumentIdentityHeader } from "../../components/DocumentIdentity";
+import { DocumentAuthorization } from "../../components/DocumentAuthorization";
 import { LegalDocumentLayout } from "../../components/LegalDocumentLayout";
 import { formatThaiSellerAddress } from "../../../lib/documentIdentity";
-import { receiptDate, receiptMethodLabels, receiptMoney, receiptPresentation, type FinanceReceipt } from "./shared";
+import { receiptDate, receiptIssueDate, receiptMethodLabels, receiptMoney, receiptPresentation, type FinanceReceipt } from "./shared";
 import styles from "./receipt-document.module.css";
 import documentTheme from "../../components/DocumentTheme.module.css";
 
@@ -23,7 +24,12 @@ export function ReceiptDocument({ receipt, logoUrl = "" }: { receipt: FinanceRec
         {customer.taxId ? <p>เลขประจำตัวผู้เสียภาษี: {customer.taxId}</p> : null}
         {customer.branch ? <p>{customer.branch}</p> : null}
       </div>
-      <dl className={styles.metadata}><div><dt>วันที่รับชำระ</dt><dd>{receiptDate(document.date)}</dd></div><div><dt>อ้างอิงการรับชำระ</dt><dd>{payment.reference}</dd></div><div><dt>วิธีรับชำระ</dt><dd>{receiptMethodLabels[payment.method]}</dd></div></dl>
+      <dl className={styles.metadata}>
+        {document.issuedAt ? <div><dt>วันที่ออกใบเสร็จรับเงิน</dt><dd>{receiptIssueDate(document.issuedAt)}</dd></div> : null}
+        <div><dt>วันที่รับชำระ</dt><dd>{receiptDate(payment.receivedOn)}</dd></div>
+        <div><dt>อ้างอิงการรับชำระ</dt><dd>{payment.reference}</dd></div>
+        <div><dt>วิธีรับชำระ</dt><dd>{receiptMethodLabels[payment.method]}</dd></div>
+      </dl>
     </section>
     <table className={styles.allocations}>
       <caption>รายการอ้างอิงใบแจ้งหนี้</caption>
@@ -40,7 +46,8 @@ export function ReceiptDocument({ receipt, logoUrl = "" }: { receipt: FinanceRec
       </dl>
     </section>
     {payment.wht > 0 ? <p className={styles.whtNote}>ภาษีหัก ณ ที่จ่ายตามรายการรับชำระ ไม่ใช่เงินที่ได้รับจริง</p> : null}
-    <footer className={styles.footer}><strong>{identity.companyNameTh || identity.companyNameEn}</strong><span>{[identity.phone, identity.email, identity.website].filter(Boolean).join(" · ")}</span></footer>
     </div>
+    <DocumentAuthorization documentKind="receipt" />
+    <footer className={styles.footer}><strong>{identity.companyNameTh || identity.companyNameEn}</strong><span>{[identity.phone, identity.email, identity.website].filter(Boolean).join(" · ")}</span></footer>
   </LegalDocumentLayout>;
 }

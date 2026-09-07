@@ -1,0 +1,20 @@
+.authorization {
+  width: 80mm;
+  max-width: 100%;
+  margin: 6mm 0 0 auto;
+  color: #374151;
+  font-size: 9pt;
+  line-height: 1.6;
+  letter-spacing: 0;
+  text-align: center;
+  overflow-wrap: anywhere;
+  break-inside: avoid;
+  break-after: avoid;
+  page-break-inside: avoid;
+  page-break-after: avoid;
+}
+.handwritingSpace { height: 18mm; }
+.signingLine { display: flex; align-items: baseline; gap: 2mm; }
+.line { flex: 1; min-width: 0; border-bottom: 1px solid #4b5563; }
+.name { margin-top: 2mm; }
+.capacity { margin-top: 1mm; color: #4b5563; }
