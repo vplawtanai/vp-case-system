@@ -3,7 +3,8 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { invoiceId, snapshot, eligibility, render } = require('./vat-eligibility-fixture.cjs');
-const { invoiceVatLines, vatTreatmentPresentation, vatSummaryUnavailable, unknownVatExplanation, unknownTaxDecision } = require('../../app/finance/tax-invoices/vat-treatment.ts');
+const { invoiceVatLines, vatTreatmentPresentation, vatSummaryUnavailable, unknownVatExplanation, unknownTaxDecision,
+  vatConfirmationBlocker, vatEligibilityBlockerMessage } = require('../../app/finance/tax-invoices/vat-treatment.ts');
 const { loadPaymentVatLines } = require('../../app/finance/tax-invoices/vat-summary-source.ts');
 const { taxError } = require('../../app/finance/tax-invoices/shared.ts');
 const zero = { amount_before_vat: 2000, vat_amount: 0, line_total: 2000, vat_rate: 0 };
@@ -70,10 +71,47 @@ test('UAT standard VAT relevance never removes buyer/tax-point/external/VAT conf
   for (const state of [eligibility, { ...eligibility, existing_id: 'tax-draft', existing_status: 'draft' }]) {
     const result = render({ eligibility: state });
     assert.match(result, /ยังไม่พร้อมออกใบกำกับภาษี/);
-    for (const blocker of state.blockers) assert.ok(result.includes(taxError(blocker)), blocker);
+    assert.equal((result.match(/<li>/g) || []).length, state.blockers.length);
+    for (const blocker of state.blockers) assert.ok(result.includes(vatEligibilityBlockerMessage(blocker, invoiceVatLines(snapshot(), invoiceId))), blocker);
   }
   assert.match(render({ lines: invoiceVatLines(snapshot([{ ...zero }]), invoiceId), eligibility: { can_prepare: true, blockers: [] } }), /ยังไม่พร้อมออกใบกำกับภาษี/);
   assert.match(render({ eligibility: { can_prepare: true, blockers: [] } }), /ตรวจสอบและยืนยันการออกใบกำกับภาษีในร่าง/);
+});
+test('Known source VAT and pending Tax Invoice treatment confirmation are separate, without changing UAT amounts or blockers', () => {
+  const result = render();
+  assert.match(result, /ข้อมูล VAT จากใบแจ้งหนี้/);
+  assert.match(result, /VAT 7%/);
+  assert.match(result, /VAT Treatment สำหรับใบกำกับภาษี<br\/><strong>รอการยืนยัน<\/strong>/);
+  assert.ok(result.includes('ระบบตรวจพบ VAT 7% จากข้อมูลใบแจ้งหนี้ กรุณายืนยัน VAT Treatment สำหรับใบกำกับภาษี'));
+  assert.doesNotMatch(result, /ยังไม่ได้ยืนยันประเภท VAT/);
+  for (const text of ['4,672.90 THB', '327.10 THB', 'ต้องดำเนินการใบกำกับภาษี', 'ยังไม่พร้อมออกใบกำกับภาษี']) assert.ok(result.includes(text));
+  const row = result.match(/<tbody>(.*?)<\/tbody>/s)[1];
+  assert.equal((row.match(/<td /g) || []).length, 4, 'No extra column/card for the second layer');
+});
+test('Pending treatment wording follows the existing blocker, never guesses confirmation from the VAT rate', () => {
+  for (const state of [null, { can_prepare: true, blockers: [] },
+    { can_prepare: false, blockers: ['TAX_INVOICE_MULTILINE_UNSUPPORTED'] },
+    { can_prepare: false, existing_id: 'tax-issued', existing_status: 'issued', blockers: ['TAX_INVOICE_ALREADY_COVERED'] }]) {
+    const result = render({ eligibility: state });
+    assert.match(result, /VAT 7%/); assert.doesNotMatch(result, /รอการยืนยัน|ยืนยันแล้ว/);
+  }
+});
+test('Contextual blocker wording uses authoritative positive rates only and leaves all other messages intact', () => {
+  const lines = invoiceVatLines(snapshot(), invoiceId);
+  const differentRate = [{ ...lines[0], rate: 10 }];
+  assert.match(vatEligibilityBlockerMessage(vatConfirmationBlocker, differentRate), /ระบบตรวจพบ VAT 10%/);
+  assert.match(vatEligibilityBlockerMessage(vatConfirmationBlocker, [...lines, ...lines, ...differentRate]), /ระบบตรวจพบ VAT 7%, VAT 10%/);
+  for (const state of [null, [], [{ ...lines[0], rate: null }],
+    ...['unknown', 'zero_rated', 'exempt', 'outside_scope'].map(treatment => [{ ...lines[0], rate: 0, treatment }])]) {
+    assert.equal(vatEligibilityBlockerMessage(vatConfirmationBlocker, state), taxError(vatConfirmationBlocker));
+  }
+  for (const code of eligibility.blockers.filter(code => code !== vatConfirmationBlocker)) {
+    assert.equal(vatEligibilityBlockerMessage(code, lines), taxError(code));
+  }
+  const unknown = render({ lines: invoiceVatLines(snapshot([{ ...zero }]), invoiceId) });
+  assert.match(unknown, /ยังไม่ได้กำหนด VAT Treatment/);
+  assert.match(unknown, /ยังไม่พร้อมออกใบกำกับภาษี/);
+  assert.doesNotMatch(unknown, /ระบบตรวจพบ VAT 0%|รอการยืนยัน|ไม่ต้องออกใบกำกับภาษี/);
 });
 test('Issued coverage, loading and unavailable states do not imply that new issuance is ready', () => {
   assert.match(render({ eligibility: { can_prepare: false, existing_status: 'issued', existing_id: 'tax', blockers: ['TAX_INVOICE_ALREADY_COVERED'] } }), /ออกใบกำกับภาษีแล้ว/);

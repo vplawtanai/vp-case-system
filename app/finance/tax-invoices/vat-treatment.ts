@@ -1,5 +1,5 @@
 import { invoiceTaxFacts } from "../payments/tax";
-import { taxObject, taxText } from "./shared";
+import { taxError, taxObject, taxText } from "./shared";
 
 export type VatTreatment = "standard_rate" | "zero_rated" | "exempt" | "outside_scope" | "unknown";
 export type VatTreatmentPresentation = { label: string; workflow: "applies" | "not_applicable" | "unresolved"; status: string; explanation: string };
@@ -36,6 +36,17 @@ export type InvoiceVatLine = {
   invoiceId: string; invoiceNumber: string; id: string; description: string; currency: string;
   beforeVat: number; vat: number; treatment: VatTreatment; rate: number | null;
 };
+
+export const vatConfirmationBlocker = "TAX_INVOICE_VAT_TREATMENT_UNRESOLVED";
+
+export function vatEligibilityBlockerMessage(code: string, lines: InvoiceVatLine[] | null): string {
+  if (code === vatConfirmationBlocker && lines?.length && lines.every(line => line.treatment === "standard_rate"
+    && vatTreatmentPresentation(line.treatment, line.rate).workflow === "applies")) {
+    const rates = [...new Set(lines.map(line => vatTreatmentPresentation(line.treatment, line.rate).label))];
+    return `ระบบตรวจพบ ${rates.join(", ")} จากข้อมูลใบแจ้งหนี้ กรุณายืนยัน VAT Treatment สำหรับใบกำกับภาษี`;
+  }
+  return taxError(code);
+}
 
 export function invoiceVatLines(snapshot: unknown, expectedInvoiceId: string): InvoiceVatLine[] {
   const facts = invoiceTaxFacts(snapshot);
