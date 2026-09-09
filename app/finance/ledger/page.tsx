@@ -1,4 +1,8 @@
 "use client";
+import { useI18n, useUiAlert } from "../../../lib/i18n/provider";
+import { uiMessage, type UiMessage, type UiLocale } from "../../../lib/i18n/core";
+import { translate } from "../../../lib/i18n/catalog";
+import { legacyCategoryLabel, legacyStatusLabel, legacyOperationError } from "../../../lib/i18n/legacy-finance";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
@@ -153,6 +157,8 @@ const claimantRequiredCategories = [
 ];
 
 export default function FinanceLedgerPage() {
+  const { t, text, locale, date } = useI18n();
+  const notify = useUiAlert();
   const [profile, setProfile] = useState<Profile>({ role: "", financial_access: false });
   const [userId, setUserId] = useState("");
   const [userEmail, setUserEmail] = useState("");
@@ -170,7 +176,7 @@ export default function FinanceLedgerPage() {
   const [monthFilter, setMonthFilter] = useState(getMonthKey(new Date()));
   const [entryTypeFilter, setEntryTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("active");
-  const [errorText, setErrorText] = useState("");
+  const [errorText, setErrorText] = useState<UiMessage | string>("");
   const formRef = useRef<HTMLElement | null>(null);
 
   const permissions: UserPermissions = useMemo(() => buildPermissions(profile), [profile]);
@@ -257,15 +263,15 @@ export default function FinanceLedgerPage() {
       ]);
 
       if (ledgerRes.error) {
-        setErrorText(ledgerRes.error.message);
+        setErrorText(legacyOperationError(ledgerRes.error, uiMessage("finance.legacy.error.load")));
         return;
       }
       if (bankAccountsRes.error) {
-        setErrorText(bankAccountsRes.error.message);
+        setErrorText(legacyOperationError(bankAccountsRes.error, uiMessage("finance.legacy.error.load")));
         return;
       }
       if (bankAccessRes.error) {
-        setErrorText(bankAccessRes.error.message);
+        setErrorText(legacyOperationError(bankAccessRes.error, uiMessage("finance.legacy.error.load")));
         return;
       }
 
@@ -347,7 +353,7 @@ export default function FinanceLedgerPage() {
   const startEdit = (row: LedgerRow) => {
     if (row.status !== "active") return;
     if (row.entry_type === "transfer_in" || row.entry_type === "transfer_out") {
-      alert("Transfer entries cannot be edited. Void the transfer and create a new one.");
+      notify(uiMessage("finance.legacy.validation.transferEdit"));
       return;
     }
     const entryType = normalizeEntryType(row.entry_type);
@@ -386,29 +392,29 @@ export default function FinanceLedgerPage() {
     if (!permissions.canEditCompanyLedger) return;
 
     const amount = parseMoney(form.amount);
-    if (!form.transaction_date) return alert("Transaction date is required");
-    if (!amount || amount <= 0) return alert("Amount must be greater than zero");
+    if (!form.transaction_date) return notify(uiMessage("finance.legacy.validation.date"));
+    if (!amount || amount <= 0) return notify(uiMessage("finance.legacy.validation.amount"));
     if (form.entry_type === "transfer") {
-      if (isEditing) return alert("Transfer entries cannot be edited. Void the transfer and create a new one.");
-      if (!form.from_bank_account_id) return alert("From Bank Account is required");
-      if (!form.to_bank_account_id) return alert("To Bank Account is required");
-      if (form.from_bank_account_id === form.to_bank_account_id) return alert("From Bank and To Bank must be different");
+      if (isEditing) return notify(uiMessage("finance.legacy.validation.transferEdit"));
+      if (!form.from_bank_account_id) return notify(uiMessage("finance.legacy.validation.fromBank"));
+      if (!form.to_bank_account_id) return notify(uiMessage("finance.legacy.validation.toBank"));
+      if (form.from_bank_account_id === form.to_bank_account_id) return notify(uiMessage("finance.legacy.validation.differentBanks"));
     } else if (!form.bank_account_id) {
-      return alert("Bank account is required");
+      return notify(uiMessage("finance.legacy.validation.bank"));
     }
-    if (!form.category.trim()) return alert("Category is required");
+    if (!form.category.trim()) return notify(uiMessage("finance.legacy.validation.category"));
     const category = form.entry_type === "transfer" ? transferCategories[0] : getCategoryForSave(form);
-    if (!category) return alert("Custom Category is required");
+    if (!category) return notify(uiMessage("finance.legacy.validation.customCategory"));
     if (
       !isAdmin &&
       form.entry_type === "expense" &&
       form.expense_claimant_user_id === otherClaimantValue &&
       !form.expense_claimant_name.trim()
     ) {
-      return alert("Claimant Name is required");
+      return notify(uiMessage("finance.legacy.validation.claimantName"));
     }
     if (!isAdmin && isClaimantRequired(form) && !getClaimantName(form, claimantUsers)) {
-      return alert("Expense claimant is required for this category");
+      return notify(uiMessage("finance.legacy.validation.claimantCategory"));
     }
 
     const basePayload = {
@@ -445,7 +451,7 @@ export default function FinanceLedgerPage() {
 
       if (isEditing) {
         const oldData = rows.find((row) => row.id === form.id) || null;
-        if (oldData?.status !== "active") return alert("Only active entries can be edited.");
+        if (oldData?.status !== "active") return notify(uiMessage("finance.legacy.validation.active"));
 
         const { data, error } = await supabase
           .from("finance_company_ledger")
@@ -455,7 +461,7 @@ export default function FinanceLedgerPage() {
           .select("*")
           .single();
 
-        if (error || !data) return alert(error?.message || "Update ledger failed");
+        if (error || !data) return notify(legacyOperationError(error, uiMessage("finance.legacy.error.ledgerUpdate")));
 
         await auditLedger("update", data.id, oldData, data, "Update company ledger entry");
       } else {
@@ -486,7 +492,7 @@ export default function FinanceLedgerPage() {
           const { data, error } = await supabase.from("finance_company_ledger").insert(transferRows).select("*");
           if (error || !data) {
             await loadLedger();
-            return alert(error?.message || "Create transfer failed");
+            return notify(legacyOperationError(error, uiMessage("finance.legacy.error.transferCreate")));
           }
           await auditLedger("create", transferGroupId, null, data, "Create company ledger transfer pair");
         } else {
@@ -504,7 +510,7 @@ export default function FinanceLedgerPage() {
           .select("*")
           .single();
 
-        if (error || !data) return alert(error?.message || "Create ledger failed");
+        if (error || !data) return notify(legacyOperationError(error, uiMessage("finance.legacy.error.ledgerCreate")));
 
         await auditLedger("create", data.id, null, data, "Create company ledger entry");
         }
@@ -519,7 +525,7 @@ export default function FinanceLedgerPage() {
 
   const voidLedger = async (row: LedgerRow) => {
     if (!permissions.canVoidCompanyLedger || row.status !== "active") return;
-    const reason = window.prompt("Void reason");
+    const reason = window.prompt(t("finance.legacy.dialog.voidReason"));
     if (!reason?.trim()) return;
 
     const payload = {
@@ -539,7 +545,7 @@ export default function FinanceLedgerPage() {
         .eq("status", "active")
         .select("*");
 
-      if (error || !data) return alert(error?.message || "Void transfer failed");
+      if (error || !data) return notify(legacyOperationError(error, uiMessage("finance.legacy.error.transferVoid")));
       await auditLedger("update", row.transfer_group_id, oldGroupRows, data, "Void company ledger transfer pair");
       await loadLedger();
       return;
@@ -553,7 +559,7 @@ export default function FinanceLedgerPage() {
       .select("*")
       .single();
 
-    if (error || !data) return alert(error?.message || "Void ledger failed");
+    if (error || !data) return notify(legacyOperationError(error, uiMessage("finance.legacy.error.ledgerVoid")));
 
     await auditLedger("update", row.id, row, data, "Void company ledger entry");
     await loadLedger();
@@ -629,7 +635,7 @@ export default function FinanceLedgerPage() {
     return (
       <AuthGuard>
         <main style={pageStyle}>
-          <div style={panelStyle}>Loading permission...</div>
+          <div style={panelStyle}>{t("finance.legacy.access.loading")}</div>
         </main>
       </AuthGuard>
     );
@@ -639,8 +645,8 @@ export default function FinanceLedgerPage() {
     return (
       <AuthGuard>
         <main style={pageStyle}>
-          <AppTopNav title="การเงิน" activePage="finance" />
-          <div style={noAccessStyle}>No access</div>
+          <AppTopNav title={t("finance.legacy.title")} activePage="finance" />
+          <div style={noAccessStyle}>{t("finance.legacy.access.denied")}</div>
         </main>
       </AuthGuard>
     );
@@ -649,29 +655,29 @@ export default function FinanceLedgerPage() {
   return (
     <AuthGuard>
       <main style={pageStyle}>
-        <AppTopNav title="การเงิน" activePage="finance" />
+        <AppTopNav title={t("finance.legacy.title")} activePage="finance" />
 
         <FinanceSubNav activePage="ledger" permissions={permissions} />
 
-        {errorText ? <div style={errorStyle}>{errorText}</div> : null}
+        {errorText ? <div style={errorStyle}>{text(errorText)}</div> : null}
 
         <section style={summaryGridStyle}>
-          <SummaryCard label="Operating Income" value={formatMoney(summary.income)} />
-          <SummaryCard label="Operating Expense" value={formatMoney(summary.expense)} />
-          <SummaryCard label="Operating Net" value={formatMoney(summary.net)} />
+          <SummaryCard label={t("finance.legacy.ledger.income")} value={formatMoney(summary.income)} />
+          <SummaryCard label={t("finance.legacy.ledger.expense")} value={formatMoney(summary.expense)} />
+          <SummaryCard label={t("finance.legacy.ledger.net")} value={formatMoney(summary.net)} />
           <SummaryCard
-            label="Total Visible Bank Balance"
+            label={t("finance.legacy.ledger.visibleBankBalance")}
             value={formatMoney(summary.totalBankBalance)}
             tone="totalBank"
           />
-          <SummaryCard label="Active Entries" value={String(summary.activeCount)} />
+          <SummaryCard label={t("finance.legacy.ledger.activeEntries")} value={String(summary.activeCount)} />
         </section>
 
         <section style={summaryGridStyle}>
           {summary.bankBalances.map(({ account, balance }) => (
             <SummaryCard
               key={account.id}
-              label={`${account.short_name || "-"} Balance`}
+              label={t("finance.legacy.bank.balance", { bank: account.short_name || "-" })}
               value={formatMoney(balance)}
               tone={getBankTone(account.short_name)}
             />
@@ -681,25 +687,22 @@ export default function FinanceLedgerPage() {
         <section style={panelStyle}>
           <div style={filterGridStyle}>
             <label style={labelStyle}>
-              Month
-              <input value={monthFilter} onChange={(event) => setMonthFilter(event.target.value)} type="month" style={inputStyle} />
+              {t("finance.legacy.fields.month")}<input value={monthFilter} onChange={(event) => setMonthFilter(event.target.value)} type="month" style={inputStyle} />
             </label>
             <label style={labelStyle}>
-              Type
-              <select value={entryTypeFilter} onChange={(event) => setEntryTypeFilter(event.target.value)} style={inputStyle}>
-                <option value="all">All</option>
-                <option value="income">Income</option>
-                <option value="expense">Expense</option>
-                <option value="transfer_in">Transfer In</option>
-                <option value="transfer_out">Transfer Out</option>
+              {t("finance.legacy.fields.type")}<select value={entryTypeFilter} onChange={(event) => setEntryTypeFilter(event.target.value)} style={inputStyle}>
+                <option value="all">{t("finance.legacy.filter.all")}</option>
+                <option value="income">{t("finance.legacy.type.income")}</option>
+                <option value="expense">{t("finance.legacy.type.expense")}</option>
+                <option value="transfer_in">{t("finance.legacy.type.transfer_in")}</option>
+                <option value="transfer_out">{t("finance.legacy.type.transfer_out")}</option>
               </select>
             </label>
             <label style={labelStyle}>
-              Status
-              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={inputStyle}>
-                <option value="active">Active</option>
-                <option value="voided">Voided</option>
-                <option value="all">All</option>
+              {t("finance.legacy.fields.status")}<select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={inputStyle}>
+                <option value="active">{t("finance.legacy.status.active")}</option>
+                <option value="voided">{t("finance.legacy.status.voided")}</option>
+                <option value="all">{t("finance.legacy.filter.all")}</option>
               </select>
             </label>
           </div>
@@ -707,66 +710,66 @@ export default function FinanceLedgerPage() {
 
         {permissions.canEditCompanyLedger ? (
           <section ref={formRef} style={panelStyle}>
-            <h2 style={sectionTitleStyle}>{isEditing ? "Edit ledger entry" : "Create ledger entry"}</h2>
+            <h2 style={sectionTitleStyle}>{isEditing ? t("finance.legacy.ledger.editTitle") : t("finance.legacy.ledger.createTitle")}</h2>
             <div style={formGridStyle}>
-              <label style={labelStyle}>Date<input type="date" value={form.transaction_date} onChange={(event) => setForm({ ...form, transaction_date: event.target.value })} style={inputStyle} /></label>
-              <label style={labelStyle}>Type<select value={form.entry_type} onChange={(event) => updateEntryType(event.target.value as EntryType)} style={inputStyle}><option value="income">Income</option><option value="expense">Expense</option><option value="transfer">Transfer</option></select></label>
+              <label style={labelStyle}>{t("finance.legacy.fields.date")}<input type="date" value={form.transaction_date} onChange={(event) => setForm({ ...form, transaction_date: event.target.value })} style={inputStyle} /></label>
+              <label style={labelStyle}>{t("finance.legacy.fields.type")}<select value={form.entry_type} onChange={(event) => updateEntryType(event.target.value as EntryType)} style={inputStyle}><option value="income">{t("finance.legacy.type.income")}</option><option value="expense">{t("finance.legacy.type.expense")}</option><option value="transfer">{t("finance.legacy.type.transfer")}</option></select></label>
               {form.entry_type === "transfer" ? (
                 <>
-                  <label style={labelStyle}>From Bank Account<select value={form.from_bank_account_id} onChange={(event) => setForm({ ...form, from_bank_account_id: event.target.value })} style={inputStyle}><option value="">Select from bank</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{renderBankLabel(account)}</option>)}</select></label>
-                  <label style={labelStyle}>To Bank Account<select value={form.to_bank_account_id} onChange={(event) => setForm({ ...form, to_bank_account_id: event.target.value })} style={inputStyle}><option value="">Select to bank</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{renderBankLabel(account)}</option>)}</select></label>
+                  <label style={labelStyle}>{t("finance.legacy.fields.fromBank")}<select value={form.from_bank_account_id} onChange={(event) => setForm({ ...form, from_bank_account_id: event.target.value })} style={inputStyle}><option value="">{t("finance.legacy.placeholder.fromBank")}</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{renderBankLabel(account)}</option>)}</select></label>
+                  <label style={labelStyle}>{t("finance.legacy.fields.toBank")}<select value={form.to_bank_account_id} onChange={(event) => setForm({ ...form, to_bank_account_id: event.target.value })} style={inputStyle}><option value="">{t("finance.legacy.placeholder.toBank")}</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{renderBankLabel(account)}</option>)}</select></label>
                 </>
               ) : (
-                <label style={labelStyle}>Bank Account<select value={form.bank_account_id} onChange={(event) => setForm({ ...form, bank_account_id: event.target.value })} style={inputStyle}><option value="">Select bank</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{renderBankLabel(account)}</option>)}</select></label>
+                <label style={labelStyle}>{t("finance.legacy.fields.bankAccount")}<select value={form.bank_account_id} onChange={(event) => setForm({ ...form, bank_account_id: event.target.value })} style={inputStyle}><option value="">{t("finance.legacy.placeholder.bank")}</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{renderBankLabel(account)}</option>)}</select></label>
               )}
               {bankAccounts.length === 0 ? (
-                <div style={bankAccessHintStyle}>No bank accounts available for your permission.</div>
+                <div style={bankAccessHintStyle}>{t("finance.legacy.bank.noAccess")}</div>
               ) : null}
-              <label style={labelStyle}>Category<select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} style={inputStyle}>{categoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
+              <label style={labelStyle}>{t("finance.legacy.fields.category")}<select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} style={inputStyle}>{categoryOptions.map((category) => <option key={category} value={category}>{legacyCategoryLabel(category, locale)}</option>)}</select></label>
               {form.category === "Other" ? (
-                <label style={labelStyle}>Custom Category<input value={form.custom_category} onChange={(event) => setForm({ ...form, custom_category: event.target.value })} style={inputStyle} placeholder="ระบุหมวดรายการเอง" /></label>
+                <label style={labelStyle}>{t("finance.legacy.fields.customCategory")}<input value={form.custom_category} onChange={(event) => setForm({ ...form, custom_category: event.target.value })} style={inputStyle} placeholder={t("finance.legacy.placeholder.category")} /></label>
               ) : null}
-              <label style={labelStyle}>Amount<input value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} style={inputStyle} placeholder="0.00" /></label>
-              <label style={labelStyle}>Payment Method<input value={form.payment_method} onChange={(event) => setForm({ ...form, payment_method: event.target.value })} style={inputStyle} /></label>
-              <label style={labelStyle}>Reference No.<input value={form.reference_no} onChange={(event) => setForm({ ...form, reference_no: event.target.value })} style={inputStyle} /></label>
+              <label style={labelStyle}>{t("finance.legacy.fields.amount")}<input value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} style={inputStyle} placeholder="0.00" /></label>
+              <label style={labelStyle}>{t("finance.legacy.fields.paymentMethod")}<input value={form.payment_method} onChange={(event) => setForm({ ...form, payment_method: event.target.value })} style={inputStyle} /></label>
+              <label style={labelStyle}>{t("finance.legacy.fields.referenceNumber")}<input value={form.reference_no} onChange={(event) => setForm({ ...form, reference_no: event.target.value })} style={inputStyle} /></label>
               {form.entry_type === "expense" ? (
                 <>
-                  <label style={labelStyle}>Claimant User<select value={form.expense_claimant_user_id} onChange={(event) => updateClaimantUser(event.target.value)} style={inputStyle}><option value="">-</option>{claimantUsers.map((user) => <option key={user.id} value={user.id}>{renderUserLabel(user)}</option>)}<option value={otherClaimantValue}>Other</option></select></label>
+                  <label style={labelStyle}>{t("finance.legacy.fields.claimantUser")}<select value={form.expense_claimant_user_id} onChange={(event) => updateClaimantUser(event.target.value)} style={inputStyle}><option value="">-</option>{claimantUsers.map((user) => <option key={user.id} value={user.id}>{renderUserLabel(user)}</option>)}<option value={otherClaimantValue}>{t("finance.legacy.choice.other")}</option></select></label>
                   {form.expense_claimant_user_id === otherClaimantValue ? (
-                    <label style={labelStyle}>Claimant Name<input value={form.expense_claimant_name} onChange={(event) => setForm({ ...form, expense_claimant_name: event.target.value })} style={inputStyle} placeholder="ระบุชื่อผู้เบิก" /></label>
+                    <label style={labelStyle}>{t("finance.legacy.fields.claimantName")}<input value={form.expense_claimant_name} onChange={(event) => setForm({ ...form, expense_claimant_name: event.target.value })} style={inputStyle} placeholder={t("finance.legacy.placeholder.claimant")} /></label>
                   ) : null}
                 </>
               ) : null}
-              <label style={labelStyle}>Client<select value={form.client_id} onChange={(event) => setForm({ ...form, client_id: event.target.value })} style={inputStyle}><option value="">-</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name || client.id}</option>)}</select></label>
-              <label style={labelStyle}>Case<select value={form.case_id} onChange={(event) => setForm({ ...form, case_id: event.target.value })} style={inputStyle}><option value="">-</option>{cases.map((item) => <option key={item.id} value={item.id}>{renderCaseLabel(item)}</option>)}</select></label>
-              <label style={labelStyle}>Advisory Matter<select value={form.advisory_matter_id} onChange={(event) => setForm({ ...form, advisory_matter_id: event.target.value })} style={inputStyle}><option value="">-</option>{matters.map((item) => <option key={item.id} value={item.id}>{renderMatterLabel(item)}</option>)}</select></label>
-              <label style={labelStyle}>Description<input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} style={inputStyle} /></label>
-              <label style={wideLabelStyle}>Note<textarea value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} style={textareaStyle} /></label>
+              <label style={labelStyle}>{t("finance.legacy.fields.client")}<select value={form.client_id} onChange={(event) => setForm({ ...form, client_id: event.target.value })} style={inputStyle}><option value="">-</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name || client.id}</option>)}</select></label>
+              <label style={labelStyle}>{t("finance.legacy.fields.case")}<select value={form.case_id} onChange={(event) => setForm({ ...form, case_id: event.target.value })} style={inputStyle}><option value="">-</option>{cases.map((item) => <option key={item.id} value={item.id}>{renderCaseLabel(item)}</option>)}</select></label>
+              <label style={labelStyle}>{t("finance.legacy.fields.advisory")}<select value={form.advisory_matter_id} onChange={(event) => setForm({ ...form, advisory_matter_id: event.target.value })} style={inputStyle}><option value="">-</option>{matters.map((item) => <option key={item.id} value={item.id}>{renderMatterLabel(item)}</option>)}</select></label>
+              <label style={labelStyle}>{t("finance.legacy.fields.description")}<input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} style={inputStyle} /></label>
+              <label style={wideLabelStyle}>{t("finance.legacy.fields.note")}<textarea value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} style={textareaStyle} /></label>
             </div>
             <div style={actionRowStyle}>
-              <button type="button" onClick={saveLedger} disabled={saving} style={primaryButtonStyle}>{saving ? "Saving..." : isEditing ? "Update Entry" : "Create Entry"}</button>
-              <button type="button" onClick={resetForm} style={secondaryButtonStyle}>Clear</button>
+              <button type="button" onClick={saveLedger} disabled={saving} style={primaryButtonStyle}>{saving ? t("finance.legacy.state.saving") : isEditing ? t("finance.legacy.ledger.update") : t("finance.legacy.ledger.create")}</button>
+              <button type="button" onClick={resetForm} style={secondaryButtonStyle}>{t("finance.legacy.actions.clear")}</button>
             </div>
           </section>
         ) : null}
 
         <section style={panelStyle}>
-          <h2 style={sectionTitleStyle}>Ledger Entries</h2>
-          {loading ? <div style={emptyStyle}>Loading ledger...</div> : null}
+          <h2 style={sectionTitleStyle}>{t("finance.legacy.ledger.entries")}</h2>
+          {loading ? <div style={emptyStyle}>{t("finance.legacy.ledger.loading")}</div> : null}
           <div style={tableWrapStyle}>
             <table style={tableStyle}>
               <thead>
                 <tr>
-                  <th style={thStyle}>Date</th>
-                  <th style={thStyle}>Type</th>
-                  <th style={thStyle}>Bank</th>
-                  <th style={thStyle}>Category</th>
-                  <th style={thStyle}>Amount</th>
-                  <th style={thStyle}>Claimant</th>
-                  <th style={thStyle}>Reference</th>
-                  <th style={thStyle}>Matter</th>
-                  <th style={thStyle}>Status</th>
-                  <th style={{ ...thStyle, ...actionColumnStyle }}>Actions</th>
+                  <th style={thStyle}>{t("finance.legacy.fields.date")}</th>
+                  <th style={thStyle}>{t("finance.legacy.fields.type")}</th>
+                  <th style={thStyle}>{t("finance.legacy.fields.bank")}</th>
+                  <th style={thStyle}>{t("finance.legacy.fields.category")}</th>
+                  <th style={thStyle}>{t("finance.legacy.fields.amount")}</th>
+                  <th style={thStyle}>{t("finance.legacy.fields.claimant")}</th>
+                  <th style={thStyle}>{t("finance.legacy.fields.reference")}</th>
+                  <th style={thStyle}>{t("finance.legacy.fields.matter")}</th>
+                  <th style={thStyle}>{t("finance.legacy.fields.status")}</th>
+                  <th style={{ ...thStyle, ...actionColumnStyle }}>{t("finance.legacy.fields.actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -775,22 +778,22 @@ export default function FinanceLedgerPage() {
                   const amountTextStyle = { ...entryTextStyle, fontWeight: 800 };
                   return (
                   <tr key={row.id}>
-                    <td style={tdStyle}>{formatDate(row.transaction_date)}</td>
-                    <td style={{ ...tdStyle, ...entryTextStyle }}>{renderEntryType(row.entry_type)}</td>
+                    <td style={tdStyle}>{date(row.transaction_date)}</td>
+                    <td style={{ ...tdStyle, ...entryTextStyle }}>{renderEntryType(row.entry_type, locale)}</td>
                     <td style={{ ...tdStyle, ...entryTextStyle }}>{renderBankName(row.bank_account_id, bankAccounts)}</td>
-                    <td style={{ ...tdStyle, ...entryTextStyle }}>{renderCategoryDetail(row)}</td>
+                    <td style={{ ...tdStyle, ...entryTextStyle }}>{renderCategoryDetail(row, locale)}</td>
                     <td style={{ ...tdStyle, ...amountTextStyle }}>{formatMoney(toAmount(row.amount))}</td>
                     <td style={{ ...tdStyle, ...entryTextStyle }}>{row.expense_claimant_name || "-"}</td>
                     <td style={{ ...tdStyle, ...entryTextStyle }}>{row.reference_no || row.payment_method || "-"}</td>
                     <td style={{ ...tdStyle, ...entryTextStyle }}>{renderRelation(row, clients, cases, matters)}</td>
-                    <td style={{ ...tdStyle, ...entryTextStyle }}>{row.status}</td>
+                    <td style={{ ...tdStyle, ...entryTextStyle }}>{legacyStatusLabel(row.status, locale)}</td>
                     <td style={{ ...tdStyle, ...actionColumnStyle }}>
                       <div style={actionButtonGroupStyle}>
                         {row.status === "active" && permissions.canEditCompanyLedger && row.entry_type !== "transfer_in" && row.entry_type !== "transfer_out" ? (
-                          <button type="button" onClick={() => startEdit(row)} style={smallButtonStyle}>Edit</button>
+                          <button type="button" onClick={() => startEdit(row)} style={smallButtonStyle}>{t("finance.legacy.actions.edit")}</button>
                         ) : null}
                         {row.status === "active" && permissions.canVoidCompanyLedger ? (
-                          <button type="button" onClick={() => voidLedger(row)} style={dangerButtonStyle}>Void</button>
+                          <button type="button" onClick={() => voidLedger(row)} style={dangerButtonStyle}>{t("finance.legacy.actions.void")}</button>
                         ) : null}
                       </div>
                     </td>
@@ -799,7 +802,7 @@ export default function FinanceLedgerPage() {
                 })}
                 {filteredRows.length === 0 ? (
                   <tr>
-                    <td colSpan={10} style={tdStyle}>No ledger entries.</td>
+                    <td colSpan={10} style={tdStyle}>{t("finance.legacy.ledger.empty")}</td>
                   </tr>
                 ) : null}
               </tbody>
@@ -884,9 +887,6 @@ function formatMoney(value: number) {
   return value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function formatDate(value: string | null) {
-  return value || "-";
-}
 
 function renderCaseLabel(item: CaseRow) {
   return [item.file_no, item.title || item.client_name].filter(Boolean).join(" - ") || String(item.id);
@@ -928,11 +928,11 @@ function renderUserLabel(user: UserProfileRow) {
   return user.staff_name || user.full_name || user.email || user.id;
 }
 
-function renderEntryType(value: string) {
-  if (value === "income") return "Income";
-  if (value === "expense") return "Expense";
-  if (value === "transfer_in") return "Transfer In";
-  if (value === "transfer_out") return "Transfer Out";
+function renderEntryType(value: string, locale: UiLocale) {
+  if (value === "income") return translate(locale, "finance.legacy.type.income");
+  if (value === "expense") return translate(locale, "finance.legacy.type.expense");
+  if (value === "transfer_in") return translate(locale, "finance.legacy.type.transfer_in");
+  if (value === "transfer_out") return translate(locale, "finance.legacy.type.transfer_out");
   return value || "-";
 }
 
@@ -1002,19 +1002,19 @@ function renderRelation(row: LedgerRow, clients: ClientRow[], cases: CaseRow[], 
   return client?.name || "-";
 }
 
-function renderCategoryDetail(row: LedgerRow) {
+function renderCategoryDetail(row: LedgerRow, locale: UiLocale) {
   return (
     <div style={detailStackStyle}>
-      <div>{row.category || "-"}</div>
+      <div>{legacyCategoryLabel(row.category, locale)}</div>
       {row.transfer_group_id ? (
-        <div style={noteTextStyle}>Transfer group: {row.transfer_group_id}</div>
+        <div style={noteTextStyle}>{translate(locale, "finance.legacy.detail.transferGroup")}{row.transfer_group_id}</div>
       ) : null}
       {row.description ? (
-        <div style={descriptionTextStyle}>Description: {row.description}</div>
+        <div style={descriptionTextStyle}>{translate(locale, "finance.legacy.detail.description")}{row.description}</div>
       ) : null}
-      {row.note ? <div style={noteTextStyle}>Note: {row.note}</div> : null}
+      {row.note ? <div style={noteTextStyle}>{translate(locale, "finance.legacy.detail.note")}{row.note}</div> : null}
       {row.status === "voided" && row.void_reason ? (
-        <div style={voidReasonTextStyle}>Void reason: {row.void_reason}</div>
+        <div style={voidReasonTextStyle}>{translate(locale, "finance.legacy.detail.voidReason")}{row.void_reason}</div>
       ) : null}
     </div>
   );

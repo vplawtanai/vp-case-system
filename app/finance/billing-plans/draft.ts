@@ -1,3 +1,5 @@
+import { uiMessage, type UiMessage } from "../../../lib/i18n/core";
+
 export type BillingAgreementItem = {
   id: string;
   source_quotation_item_id: string | null;
@@ -108,12 +110,12 @@ export function buildBillingPlanDraftFromFeeAgreement(input: {
   engagementBasis?: "formal_agreement" | "accepted_quotation" | null;
   sourceDocumentSnapshot: Json | null;
   agreementItems: BillingAgreementItem[];
-}): { ok: true; payload: BillingPlanDraftPayload } | { ok: false; message: string } {
+}): { ok: true; payload: BillingPlanDraftPayload } | { ok: false; message: UiMessage } {
   const acceptedQuotationBasis = input.engagementBasis === "accepted_quotation";
   const paymentTerms = object(object(input.sourceDocumentSnapshot).payment_terms);
   const sourceInstallments = rows(paymentTerms.installments).map(object);
   if (!sourceInstallments.length) {
-    return { ok: false, message: "ไม่พบงวดการชำระเงินจากใบเสนอราคาต้นทาง กรุณาตรวจสอบข้อมูลข้อตกลงก่อนสร้างแผนเรียกเก็บเงิน" };
+    return { ok: false, message: uiMessage("finance.feeAgreement.workspace.billingPlan.error.schedule") };
   }
 
   const agreementItemBySourceId = new Map(
@@ -122,7 +124,7 @@ export function buildBillingPlanDraftFromFeeAgreement(input: {
       .map((item) => [item.source_quotation_item_id as string, item]),
   );
   if (agreementItemBySourceId.size !== input.agreementItems.length) {
-    return { ok: false, message: "รายการค่าบริการบางรายการไม่เชื่อมกับใบเสนอราคาต้นทาง จึงยังสร้างแผนเรียกเก็บเงินอย่างปลอดภัยไม่ได้" };
+    return { ok: false, message: uiMessage("finance.feeAgreement.workspace.billingPlan.error.itemLineage") };
   }
 
   const installments: BillingPlanDraftInstallment[] = [];
@@ -130,7 +132,7 @@ export function buildBillingPlanDraftFromFeeAgreement(input: {
     const installmentNo = Number(installment.installment_no || installmentIndex + 1);
     const sourceItems = rows(installment.items).map(object);
     if (!sourceItems.length) {
-      return { ok: false, message: `งวดที่ ${installmentNo} ไม่มีรายการค่าบริการที่ตรวจสอบได้` };
+      return { ok: false, message: uiMessage("finance.feeAgreement.workspace.billingPlan.error.noInstallmentItems", { number: installmentNo }) };
     }
 
     const mappedItems: BillingPlanDraftItem[] = [];
@@ -138,13 +140,13 @@ export function buildBillingPlanDraftFromFeeAgreement(input: {
       const sourceItemId = stringValue(sourceItem.quotation_item_id);
       const agreementItem = agreementItemBySourceId.get(sourceItemId);
       if (!agreementItem) {
-        return { ok: false, message: `ไม่สามารถเชื่อมรายการค่าบริการในงวดที่ ${installmentNo} กับข้อตกลงฉบับนี้ได้` };
+        return { ok: false, message: uiMessage("finance.feeAgreement.workspace.billingPlan.error.installmentLineage", { number: installmentNo }) };
       }
       const beforeTax = numberValue(sourceItem.allocated_amount_before_tax);
       const vat = numberValue(sourceItem.allocated_vat_amount);
       const total = numberValue(sourceItem.allocated_total);
       if (![beforeTax, vat, total].every(Number.isFinite) || beforeTax < 0 || vat < 0 || total < 0 || satang(total) !== satang(beforeTax + vat)) {
-        return { ok: false, message: `ยอดจัดสรรในงวดที่ ${installmentNo} ไม่ถูกต้อง กรุณาตรวจสอบใบเสนอราคาต้นทาง` };
+        return { ok: false, message: uiMessage("finance.feeAgreement.workspace.billingPlan.error.installmentAllocation", { number: installmentNo }) };
       }
       mappedItems.push({
         fee_agreement_item_id: agreementItem.id,
@@ -185,7 +187,7 @@ export function buildBillingPlanDraftFromFeeAgreement(input: {
       || allocations.reduce((sum, item) => sum + satang(item.amount_before_tax), 0) !== satang(agreementItem.amount_before_tax)
       || allocations.reduce((sum, item) => sum + satang(item.vat_amount), 0) !== satang(agreementItem.vat_amount)
       || allocations.reduce((sum, item) => sum + satang(item.total_amount), 0) !== satang(agreementItem.line_total)) {
-      return { ok: false, message: `การจัดสรรรายการ “${agreementItem.description}” ไม่ตรงกับยอดตามข้อตกลง จึงยังสร้างแผนเรียกเก็บเงินไม่ได้` };
+      return { ok: false, message: uiMessage("finance.feeAgreement.workspace.billingPlan.error.itemAllocation", { description: agreementItem.description }) };
     }
   }
 

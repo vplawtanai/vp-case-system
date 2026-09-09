@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import styles from "./DetailModal.module.css";
+import { useI18n } from "../../lib/i18n/provider";
 
 type DetailModalProps = {
   open: boolean;
@@ -38,9 +39,11 @@ export default function DetailModal({
   children,
   footer,
   onClose,
-  closeLabel = "ปิดรายละเอียด",
+  closeLabel,
   closeOnBackdrop = true,
 }: DetailModalProps) {
+  const { t } = useI18n();
+  const resolvedCloseLabel = closeLabel || t("common.actions.closeDetails");
   const mounted = useSyncExternalStore(subscribeToClient, getClientSnapshot, getServerSnapshot);
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -114,7 +117,7 @@ export default function DetailModal({
             </div>
             {status || prominentValue ? <div className={styles.summary}>{status}{prominentValue ? <strong>{prominentValue}</strong> : null}</div> : null}
           </div>
-          <button ref={closeButtonRef} className={styles.closeButton} type="button" aria-label={closeLabel} title={closeLabel} onClick={onClose}>×</button>
+          <button ref={closeButtonRef} className={styles.closeButton} type="button" aria-label={resolvedCloseLabel} title={resolvedCloseLabel} onClick={onClose}>×</button>
         </header>
         <div className={styles.body}>{children}</div>
         {footer ? <footer className={styles.footer}>{footer}</footer> : null}

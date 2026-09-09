@@ -1,4 +1,8 @@
 "use client";
+import { useI18n, useUiAlert } from "../../../lib/i18n/provider";
+import { uiMessage, type UiMessage, type UiLocale } from "../../../lib/i18n/core";
+import { translate } from "../../../lib/i18n/catalog";
+import { legacyStatusLabel, legacyOperationError, compensationRoleLabel } from "../../../lib/i18n/legacy-finance";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
@@ -107,6 +111,8 @@ const roleLabels = [
 const recipientTypes = ["company", "source", "lawyer", "lead_lawyer", "worker", "assistant", "qc", "other"];
 
 export default function CompensationPage() {
+  const { t, text, locale, date } = useI18n();
+  const notify = useUiAlert();
   const [profile, setProfile] = useState<Profile>({ role: "", financial_access: false });
   const [userId, setUserId] = useState("");
   const [userEmail, setUserEmail] = useState("");
@@ -129,7 +135,7 @@ export default function CompensationPage() {
   const [selectedMonth, setSelectedMonth] = useState(getMonthKey(new Date()));
   const [openActionMenuId, setOpenActionMenuId] = useState("");
   const formRef = useRef<HTMLElement | null>(null);
-  const [errorText, setErrorText] = useState("");
+  const [errorText, setErrorText] = useState<UiMessage | string>("");
 
   const permissions: UserPermissions = useMemo(() => buildPermissions(profile), [profile]);
   const actorName = profile.full_name || profile.staff_name || userEmail;
@@ -234,7 +240,7 @@ export default function CompensationPage() {
         supabase.from("finance_bank_accounts").select("id, short_name, bank_name").eq("is_active", true).order("short_name", { ascending: true }),
       ]);
       if (batchRes.error) {
-        setErrorText(batchRes.error.message);
+        setErrorText(legacyOperationError(batchRes.error, uiMessage("finance.legacy.error.load")));
         return;
       }
       setBatches((batchRes.data || []) as BatchRow[]);
@@ -330,9 +336,9 @@ export default function CompensationPage() {
     if (saving) return;
     const allocationRows = normalizeAllocationsForSave(receivedAmount, form.formula_code, allocations);
     const validation = validateAllocations(form, allocationRows);
-    if (validation) return alert(validation);
+    if (validation) return notify(validation);
     const safeguard = validateNormalizedRowsForSave(receivedAmount, form.formula_code, allocationRows);
-    if (safeguard) return alert(safeguard);
+    if (safeguard) return notify(safeguard);
     const payload = {
       received_date: form.received_date,
       received_amount: receivedAmount,
@@ -350,7 +356,7 @@ export default function CompensationPage() {
       setSaving(true);
       if (editingBatchId) {
         const oldBatch = batches.find((item) => item.id === editingBatchId);
-        if (oldBatch?.status !== "draft") return alert("Only draft batches can be edited.");
+        if (oldBatch?.status !== "draft") return notify(uiMessage("finance.compensation.validation.draftOnly"));
         const { error: deleteError } = await supabase.from("finance_compensation_allocations").delete().eq("batch_id", editingBatchId);
         if (deleteError) throw new Error(`Delete old allocations failed: ${deleteError.message}`);
         const { data: remainingRows, error: verifyDeleteError } = await supabase
@@ -360,7 +366,7 @@ export default function CompensationPage() {
         if (verifyDeleteError) throw new Error(`Verify allocation delete failed: ${verifyDeleteError.message}`);
         if ((remainingRows || []).length > 0) throw new Error("Delete old allocations failed: existing allocations remain.");
         const { data, error } = await supabase.from("finance_compensation_batches").update(payload).eq("id", editingBatchId).eq("status", "draft").select("*").single();
-        if (error || !data) return alert(error?.message || "Update batch failed");
+        if (error || !data) return notify(legacyOperationError(error, uiMessage("finance.compensation.error.update")));
         await insertAllocations(editingBatchId, allocationRows);
         await auditFinance("update", "finance_compensation_batches", editingBatchId, oldBatch, data, "Update compensation draft");
       } else {
@@ -370,14 +376,14 @@ export default function CompensationPage() {
           created_by_email: userEmail || null,
           created_by_name: actorName || null,
         }]).select("*").single();
-        if (error || !data) return alert(error?.message || "Create batch failed");
+        if (error || !data) return notify(legacyOperationError(error, uiMessage("finance.compensation.error.create")));
         await insertAllocations(data.id, allocationRows);
         await auditFinance("create", "finance_compensation_batches", data.id, null, data, "Create compensation draft");
       }
       await loadData();
       resetForm();
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Save draft failed");
+      notify(legacyOperationError(error, uiMessage("finance.compensation.error.save")));
     } finally {
       setSaving(false);
     }
@@ -439,7 +445,7 @@ export default function CompensationPage() {
       },
       batchAllocations
     );
-    if (validation) return alert(validation);
+    if (validation) return notify(validation);
     await updateBatch(batch, { status: "finalized" }, "Finalize compensation batch");
   };
 
@@ -449,15 +455,15 @@ export default function CompensationPage() {
     try {
       setPostingBatchId(batch.id);
       const { data: latestBatch, error: latestError } = await supabase.from("finance_compensation_batches").select("*").eq("id", batch.id).single();
-      if (latestError || !latestBatch) return alert(latestError?.message || "Batch not found");
+      if (latestError || !latestBatch) return notify(legacyOperationError(latestError, uiMessage("finance.compensation.error.notFound")));
       const currentBatch = latestBatch as BatchRow;
       if (currentBatch.status !== "finalized") {
         await loadData();
-        return alert("This batch is no longer finalized.");
+        return notify(uiMessage("finance.compensation.validation.finalized"));
       }
       if (currentBatch.ledger_entry_id) {
         await loadData();
-        return alert("This batch is already posted to Ledger.");
+        return notify(uiMessage("finance.compensation.validation.posted"));
       }
       const companyShare = allAllocations
         .filter((item) => item.batch_id === batch.id && item.is_company_share)
@@ -465,7 +471,7 @@ export default function CompensationPage() {
       const now = new Date().toISOString();
       if (companyShare <= 0) {
         if (normalizeFormula(currentBatch.formula_code) !== "custom") {
-          return alert("Company share must be greater than zero");
+          return notify(uiMessage("finance.compensation.validation.companyPositive"));
         }
 
         const { data: postedBatch, error: postError } = await supabase
@@ -483,7 +489,7 @@ export default function CompensationPage() {
 
         if (postError || !postedBatch) {
           await loadData();
-          return alert(postError?.message || "Batch post update failed.");
+          return notify(legacyOperationError(postError, uiMessage("finance.compensation.error.postUpdate")));
         }
 
         await auditFinance(
@@ -495,11 +501,11 @@ export default function CompensationPage() {
           "No company share to post for this custom batch"
         );
         await loadData();
-        return alert("No company share to post for this custom batch.");
+        return notify(uiMessage("finance.compensation.validation.noCustomCompany"));
       }
 
       const kbank = bankAccounts.find((account) => (account.short_name || "").toUpperCase() === "KBANK");
-      if (!kbank) return alert("ไม่พบ KBANK bank account");
+      if (!kbank) return notify(uiMessage("finance.compensation.error.kbank"));
       const { data: ledgerData, error: ledgerError } = await supabase.from("finance_company_ledger").insert([{
         source_compensation_batch_id: batch.id,
         transaction_date: getDateKey(new Date()),
@@ -521,9 +527,9 @@ export default function CompensationPage() {
       if (ledgerError || !ledgerData) {
         if (isDuplicatePostError(ledgerError)) {
           await loadData();
-          return alert("This batch has already been posted to Ledger.");
+          return notify(uiMessage("finance.compensation.validation.posted"));
         }
-        return alert(ledgerError?.message || "Post ledger failed");
+        return notify(legacyOperationError(ledgerError, uiMessage("finance.compensation.error.post")));
       }
       const { data: postedBatch, error: postError } = await supabase.from("finance_compensation_batches").update({
         status: "posted",
@@ -533,7 +539,7 @@ export default function CompensationPage() {
       }).eq("id", batch.id).eq("status", "finalized").select("*").single();
       if (postError || !postedBatch) {
         await loadData();
-        return alert(postError?.message || "Batch post update failed. Ledger entry was created; please review manually.");
+        return notify(legacyOperationError(postError, uiMessage("finance.compensation.error.postPartial")));
       }
       await auditFinance("create", "finance_company_ledger", ledgerData.id, null, ledgerData, "Post company share from compensation to ledger");
       await auditFinance("update", "finance_compensation_batches", batch.id, currentBatch, postedBatch, "Post compensation company share");
@@ -545,9 +551,9 @@ export default function CompensationPage() {
 
   const voidBatch = async (batch: BatchRow) => {
     if (!permissions.canVoidLawyerCompensation) return;
-    if (batch.status === "posted" || batch.ledger_entry_id) return alert("Posted batches cannot be voided in this phase.");
+    if (batch.status === "posted" || batch.ledger_entry_id) return notify(uiMessage("finance.compensation.validation.postedVoid"));
     if (!["draft", "finalized"].includes(batch.status)) return;
-    const reason = window.prompt("Void reason");
+    const reason = window.prompt(t("finance.legacy.dialog.voidReason"));
     if (!reason?.trim()) return;
     await updateBatch(batch, {
       status: "voided",
@@ -569,7 +575,7 @@ export default function CompensationPage() {
         .eq("id", allocation.id)
         .select("*")
         .single();
-      if (error || !data) return alert(error?.message || "Mark as paid failed");
+      if (error || !data) return notify(legacyOperationError(error, uiMessage("finance.compensation.error.paid")));
       await auditFinance("update", "finance_compensation_allocations", allocation.id, allocation, data, "Mark recipient allocation as paid");
       await loadData();
     } finally {
@@ -579,7 +585,7 @@ export default function CompensationPage() {
 
   const updateBatch = async (batch: BatchRow, payload: Record<string, unknown>, note: string) => {
     const { data, error } = await supabase.from("finance_compensation_batches").update({ ...payload, updated_at: new Date().toISOString() }).eq("id", batch.id).select("*").single();
-    if (error || !data) return alert(error?.message || "Update batch failed");
+    if (error || !data) return notify(legacyOperationError(error, uiMessage("finance.compensation.error.update")));
     await auditFinance("update", "finance_compensation_batches", batch.id, batch, data, note);
     await loadData();
   };
@@ -682,15 +688,15 @@ export default function CompensationPage() {
   };
 
   if (loadingProfile) {
-    return <AuthGuard><main style={pageStyle}><div style={panelStyle}>Loading permission...</div></main></AuthGuard>;
+    return <AuthGuard><main style={pageStyle}><div style={panelStyle}>{t("finance.legacy.access.loading")}</div></main></AuthGuard>;
   }
 
   if (!permissions.canViewLawyerCompensation) {
     return (
       <AuthGuard>
         <main style={pageStyle}>
-          <AppTopNav title="การเงิน" activePage="finance" />
-          <div style={noAccessStyle}>No access</div>
+          <AppTopNav title={t("finance.legacy.title")} activePage="finance" />
+          <div style={noAccessStyle}>{t("finance.legacy.access.denied")}</div>
         </main>
       </AuthGuard>
     );
@@ -699,40 +705,39 @@ export default function CompensationPage() {
   return (
     <AuthGuard>
       <main style={pageStyle}>
-        <AppTopNav title="การเงิน" activePage="finance" />
+        <AppTopNav title={t("finance.legacy.title")} activePage="finance" />
         <FinanceSubNav activePage="compensation" permissions={permissions} />
-        {errorText ? <div style={errorStyle}>{errorText}</div> : null}
+        {errorText ? <div style={errorStyle}>{text(errorText)}</div> : null}
         <section style={filterPanelStyle}>
           <label style={labelStyle}>
-            Month
-            <input type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} style={inputStyle} />
+            {t("finance.legacy.fields.month")}<input type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} style={inputStyle} />
           </label>
-          <button type="button" onClick={() => setSelectedMonth(getMonthKey(new Date()))} style={secondaryButtonStyle}>This Month</button>
+          <button type="button" onClick={() => setSelectedMonth(getMonthKey(new Date()))} style={secondaryButtonStyle}>{t("finance.compensation.summary.thisMonth")}</button>
         </section>
         <section style={summaryGridStyle}>
-          <SummaryCard label="Draft" value={String(summary.draft)} />
-          <SummaryCard label="Finalized" value={String(summary.finalized)} />
-          <SummaryCard label="Posted" value={String(summary.posted)} />
-          <SummaryCard label="Company Share Total" value={formatMoney(summary.companyShare)} />
-          <SummaryCard label="Total Recipient Share" value={formatMoney(summary.recipientTotal)} />
-          <SummaryCard label="Total Recipient Paid" value={formatMoney(summary.recipientPaid)} />
-          <SummaryCard label="Total Recipient Unpaid" value={formatMoney(summary.recipientUnpaid)} />
-          <SummaryCard label="Number of Recipients" value={String(summary.recipientCount)} />
+          <SummaryCard label={t("finance.legacy.status.draft")} value={String(summary.draft)} />
+          <SummaryCard label={t("finance.legacy.status.finalized")} value={String(summary.finalized)} />
+          <SummaryCard label={t("finance.legacy.status.posted")} value={String(summary.posted)} />
+          <SummaryCard label={t("finance.compensation.summary.company")} value={formatMoney(summary.companyShare)} />
+          <SummaryCard label={t("finance.compensation.summary.recipient")} value={formatMoney(summary.recipientTotal)} />
+          <SummaryCard label={t("finance.compensation.summary.paid")} value={formatMoney(summary.recipientPaid)} />
+          <SummaryCard label={t("finance.compensation.summary.unpaid")} value={formatMoney(summary.recipientUnpaid)} />
+          <SummaryCard label={t("finance.compensation.summary.recipientCount")} value={String(summary.recipientCount)} />
         </section>
 
         {canCreateCompensationBatch ? (
         <section style={panelStyle}>
-          <h2 style={sectionTitleStyle}>Recipient Income Summary — {formatMonthLabel(selectedMonth)}</h2>
-          <p style={mutedTextStyle}>Recipient Summary is filtered by selected month.</p>
+          <h2 style={sectionTitleStyle}>{t("finance.compensation.summary.title")}{formatMonthLabel(selectedMonth, locale)}</h2>
+          <p style={mutedTextStyle}>{t("finance.compensation.summary.help")}</p>
           <div style={tableWrapStyle}>
             <table style={compactTableStyle}>
-              <thead><tr><th style={thStyle}>Recipient</th><th style={thStyle}>Source / Broker</th><th style={thStyle}>Work Income</th><th style={thStyle}>Other</th><th style={thStyle}>Total Allocated</th><th style={thStyle}>Paid</th></tr></thead>
+              <thead><tr><th style={thStyle}>{t("finance.compensation.fields.recipient")}</th><th style={thStyle}>{t("finance.compensation.fields.source")}</th><th style={thStyle}>{t("finance.compensation.fields.workIncome")}</th><th style={thStyle}>{t("finance.compensation.type.other")}</th><th style={thStyle}>{t("finance.compensation.fields.totalAllocated")}</th><th style={thStyle}>{t("finance.legacy.status.paid")}</th></tr></thead>
               <tbody>
                 {recipientSummary.map((item) => (
                   <tr key={item.key}>
                     <td style={tdStyle}>
-                      <div>{item.name}</div>
-                      <div style={mutedTextStyle}>Items: {item.items} {item.roles.length ? `| Roles: ${item.roles.join(", ")}` : ""}</div>
+                      <div>{item.name === "Unknown Recipient" ? t("finance.compensation.unknownRecipient") : item.name}</div>
+                      <div style={mutedTextStyle}>{t("finance.compensation.fields.items")}{item.items} {item.roles.length ? `| ${t("finance.compensation.fields.role")}: ${item.roles.map(role => compensationRoleLabel(role, locale)).join(", ")}` : ""}</div>
                     </td>
                     <td style={tdStyle}>{formatMoney(item.sourceBroker)}</td>
                     <td style={tdStyle}>{formatMoney(item.workIncome)}</td>
@@ -741,7 +746,7 @@ export default function CompensationPage() {
                     <td style={tdStyle}>{formatMoney(item.paid)}</td>
                   </tr>
                 ))}
-                {recipientSummary.length === 0 ? <tr><td colSpan={6} style={tdStyle}>No recipient income in this month.</td></tr> : null}
+                {recipientSummary.length === 0 ? <tr><td colSpan={6} style={tdStyle}>{t("finance.compensation.summary.empty")}</td></tr> : null}
               </tbody>
             </table>
           </div>
@@ -750,104 +755,103 @@ export default function CompensationPage() {
 
         {canCreateCompensationBatch ? (
         <section ref={formRef} style={panelStyle}>
-          <h2 style={sectionTitleStyle}>{editingBatchId ? "Edit Draft" : "Create Compensation Batch"}</h2>
+          <h2 style={sectionTitleStyle}>{editingBatchId ? t("finance.compensation.actions.edit") : t("finance.compensation.actions.create")}</h2>
           <div style={formGridStyle}>
-            <label style={labelStyle}>Received Date<input type="date" value={form.received_date} onChange={(event) => setForm({ ...form, received_date: event.target.value })} style={inputStyle} /></label>
-            <label style={labelStyle}>Received Amount<input value={form.received_amount} onChange={(event) => updateReceivedAmount(event.target.value)} style={inputStyle} /></label>
-            <label style={labelStyle}>Revenue Type<select value={form.revenue_type} onChange={(event) => setForm({ ...form, revenue_type: event.target.value })} style={inputStyle}><option value="professional_fee">Professional Fee</option><option value="service_fee">Service Fee</option><option value="travel_fee">Travel Fee</option><option value="other">Other</option></select></label>
-            <label style={labelStyle}>Formula<select value={form.formula_code} onChange={(event) => setForm({ ...form, formula_code: event.target.value as FormulaCode })} style={inputStyle}><option value="pao_line">Pao Line</option><option value="tun_line">Tun Line</option><option value="source_worker_qc">Source / Worker / QC</option><option value="travel_fee">Travel Fee</option><option value="custom">Custom</option></select></label>
-            <label style={labelStyle}>Client<select value={form.client_id} onChange={(event) => setForm({ ...form, client_id: event.target.value })} style={inputStyle}><option value="">-</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name || client.id}</option>)}</select></label>
-            <label style={labelStyle}>Case<select value={form.case_id} onChange={(event) => setForm({ ...form, case_id: event.target.value })} style={inputStyle}><option value="">-</option>{cases.map((item) => <option key={item.id} value={item.id}>{renderCaseLabel(item)}</option>)}</select></label>
-            <label style={labelStyle}>Advisory Matter<select value={form.advisory_matter_id} onChange={(event) => setForm({ ...form, advisory_matter_id: event.target.value })} style={inputStyle}><option value="">-</option>{matters.map((item) => <option key={item.id} value={item.id}>{renderMatterLabel(item)}</option>)}</select></label>
-            <label style={wideLabelStyle}>Description<input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} style={inputStyle} /></label>
-            <label style={wideLabelStyle}>Note<textarea value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} style={textareaStyle} /></label>
+            <label style={labelStyle}>{t("finance.compensation.fields.receivedDate")}<input type="date" value={form.received_date} onChange={(event) => setForm({ ...form, received_date: event.target.value })} style={inputStyle} /></label>
+            <label style={labelStyle}>{t("finance.compensation.fields.receivedAmount")}<input value={form.received_amount} onChange={(event) => updateReceivedAmount(event.target.value)} style={inputStyle} /></label>
+            <label style={labelStyle}>{t("finance.compensation.fields.revenueType")}<select value={form.revenue_type} onChange={(event) => setForm({ ...form, revenue_type: event.target.value })} style={inputStyle}><option value="professional_fee">{t("finance.compensation.revenue.professional_fee")}</option><option value="service_fee">{t("finance.compensation.revenue.service_fee")}</option><option value="travel_fee">{t("finance.compensation.revenue.travel_fee")}</option><option value="other">{t("finance.compensation.type.other")}</option></select></label>
+            <label style={labelStyle}>{t("finance.compensation.fields.formula")}<select value={form.formula_code} onChange={(event) => setForm({ ...form, formula_code: event.target.value as FormulaCode })} style={inputStyle}><option value="pao_line">{t("finance.compensation.formula.pao_line")}</option><option value="tun_line">{t("finance.compensation.formula.tun_line")}</option><option value="source_worker_qc">{t("finance.compensation.formula.source_worker_qc")}</option><option value="travel_fee">{t("finance.compensation.revenue.travel_fee")}</option><option value="custom">{t("finance.compensation.formula.custom")}</option></select></label>
+            <label style={labelStyle}>{t("finance.legacy.fields.client")}<select value={form.client_id} onChange={(event) => setForm({ ...form, client_id: event.target.value })} style={inputStyle}><option value="">-</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name || client.id}</option>)}</select></label>
+            <label style={labelStyle}>{t("finance.legacy.fields.case")}<select value={form.case_id} onChange={(event) => setForm({ ...form, case_id: event.target.value })} style={inputStyle}><option value="">-</option>{cases.map((item) => <option key={item.id} value={item.id}>{renderCaseLabel(item)}</option>)}</select></label>
+            <label style={labelStyle}>{t("finance.legacy.fields.advisory")}<select value={form.advisory_matter_id} onChange={(event) => setForm({ ...form, advisory_matter_id: event.target.value })} style={inputStyle}><option value="">-</option>{matters.map((item) => <option key={item.id} value={item.id}>{renderMatterLabel(item)}</option>)}</select></label>
+            <label style={wideLabelStyle}>{t("finance.legacy.fields.description")}<input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} style={inputStyle} /></label>
+            <label style={wideLabelStyle}>{t("finance.legacy.fields.note")}<textarea value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} style={textareaStyle} /></label>
           </div>
         </section>
         ) : null}
 
         <section style={panelStyle}>
           <div style={toolbarStyle}>
-            <h2 style={sectionTitleStyle}>Allocation Editor</h2>
-            <button type="button" onClick={addAllocation} disabled={isSourceWorkerQc && !multipleWorkPool} style={secondaryButtonStyle}>{isSourceWorkerQc ? "Add Work Pool Row" : "Add Row"}</button>
+            <h2 style={sectionTitleStyle}>{t("finance.compensation.editor.title")}</h2>
+            <button type="button" onClick={addAllocation} disabled={isSourceWorkerQc && !multipleWorkPool} style={secondaryButtonStyle}>{isSourceWorkerQc ? t("finance.compensation.actions.addPool") : t("finance.compensation.actions.add")}</button>
           </div>
           {isSourceWorkerQc ? (
             <div style={workPoolPanelStyle}>
-              <div><strong>Source / เจ้าของสายลูกค้า:</strong> 20% of received amount</div>
-              <div><strong>Company Share:</strong> 40% of received amount</div>
-              <div><strong>Work Pool / ทีมทำงาน:</strong> 40% of received amount = 100% inside work pool</div>
+              <div><strong>{t("finance.compensation.editor.sourceLabel")}</strong>{" "}{t("finance.compensation.editor.sourceProportion")}</div>
+              <div><strong>{t("finance.compensation.editor.companyLabel")}</strong>{" "}{t("finance.compensation.editor.companyProportion")}</div>
+              <div><strong>{t("finance.compensation.editor.poolLabel")}</strong>{" "}{t("finance.compensation.editor.poolProportion")}</div>
               <div style={workPoolSummaryStyle}>
-                <span>Received Amount: {formatMoney(receivedAmount)}</span>
-                <span>Work Pool 40%: {formatMoney(workPoolAmount)}</span>
-                <span>Work Pool Allocation: {formatPercent(workPoolPercentTotal)}%</span>
+                <span>{t("finance.compensation.editor.receivedLabel")}{formatMoney(receivedAmount)}</span>
+                <span>{t("finance.compensation.editor.poolFortyLabel")}{formatMoney(workPoolAmount)}</span>
+                <span>{t("finance.compensation.editor.poolAllocationLabel")}{formatPercent(workPoolPercentTotal)}%</span>
               </div>
               <label style={checkboxLabelStyle}>
                 <input type="checkbox" checked={multipleWorkPool} onChange={(event) => updateMultipleWorkPool(event.target.checked)} />
-                Multiple work pool recipients
-              </label>
+                {t("finance.compensation.editor.multiple")}</label>
             </div>
           ) : null}
           <div style={tableWrapStyle}>
             <table style={tableStyle}>
-              <thead><tr><th style={thStyle}>Type</th><th style={thStyle}>Recipient</th><th style={thStyle}>Role</th><th style={thStyle}>{isSourceWorkerQc ? "Work Pool %" : "Percent"}</th><th style={thStyle}>Amount</th><th style={thStyle}>Company</th><th style={thStyle}>Note</th><th style={thStyle}>Actions</th></tr></thead>
+              <thead><tr><th style={thStyle}>{t("finance.legacy.fields.type")}</th><th style={thStyle}>{t("finance.compensation.fields.recipient")}</th><th style={thStyle}>{t("finance.compensation.fields.role")}</th><th style={thStyle}>{isSourceWorkerQc ? t("finance.compensation.fields.poolPercent") : t("finance.compensation.fields.percent")}</th><th style={thStyle}>{t("finance.legacy.fields.amount")}</th><th style={thStyle}>{t("finance.compensation.type.company")}</th><th style={thStyle}>{t("finance.legacy.fields.note")}</th><th style={thStyle}>{t("finance.legacy.fields.actions")}</th></tr></thead>
               <tbody>
                 {allocations.map((row, index) => (
                   <tr key={`${index}-${row.recipient_type}`}>
-                    <td style={tdStyle}><select value={row.recipient_type} onChange={(event) => updateRecipientType(index, event.target.value)} style={inputStyle}>{recipientTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></td>
+                    <td style={tdStyle}><select value={row.recipient_type} onChange={(event) => updateRecipientType(index, event.target.value)} style={inputStyle}>{recipientTypes.map((type) => <option key={type} value={type}>{t(`finance.compensation.type.${type}`)}</option>)}</select></td>
                     <td style={tdStyle}><RecipientEditor row={row} users={users} onChange={(patch) => updateAllocation(index, patch)} /></td>
                     <td style={tdStyle}>
-                      <select value={row.role_label} onChange={(event) => updateRole(index, event.target.value)} style={inputStyle}><option value="">-</option>{roleLabels.map((label) => <option key={label} value={label}>{label}</option>)}</select>
+                      <select value={row.role_label} onChange={(event) => updateRole(index, event.target.value)} style={inputStyle}><option value="">-</option>{roleLabels.map((label) => <option key={label} value={label}>{compensationRoleLabel(label, locale)}</option>)}</select>
                       {row.role_label === "Other" ? (
-                        <input value={row.custom_role || ""} onChange={(event) => updateAllocation(index, { custom_role: event.target.value })} style={inputStyle} placeholder="Custom Role / ระบุบทบาทเอง" />
+                        <input value={row.custom_role || ""} onChange={(event) => updateAllocation(index, { custom_role: event.target.value })} style={inputStyle} placeholder={t("finance.compensation.fields.customRole")} />
                       ) : null}
                     </td>
                     <td style={tdStyle}>
                       <input value={getDisplayPercent(row, form.formula_code)} onChange={(event) => updatePercent(index, event.target.value)} disabled={isFixedSourceWorkerRow(row, form.formula_code)} style={inputStyle} />
-                      {isSourcePoolRow(row, form.formula_code) ? <div style={mutedTextStyle}>Actual: {formatPercent(parseMoney(row.percent))}% of received amount</div> : null}
+                      {isSourcePoolRow(row, form.formula_code) ? <div style={mutedTextStyle}>{t("finance.compensation.editor.actual", { percent: formatPercent(parseMoney(row.percent)) })}</div> : null}
                     </td>
                     <td style={tdStyle}><input value={row.amount} onChange={(event) => updateAmount(index, event.target.value)} disabled={isFixedSourceWorkerRow(row, form.formula_code)} style={inputStyle} /></td>
                     <td style={tdStyle}><input type="checkbox" checked={row.is_company_share} onChange={(event) => updateAllocation(index, { is_company_share: event.target.checked })} /></td>
                     <td style={tdStyle}><input value={row.note} onChange={(event) => updateAllocation(index, { note: event.target.value })} style={inputStyle} /></td>
-                    <td style={tdStyle}><button type="button" onClick={() => removeAllocation(index)} disabled={isSourceWorkerQc && (row.recipient_type === "source" || row.is_company_share || isSourcePoolOwnerRow(row, form.formula_code))} style={dangerButtonStyle}>Remove</button></td>
+                    <td style={tdStyle}><button type="button" onClick={() => removeAllocation(index)} disabled={isSourceWorkerQc && (row.recipient_type === "source" || row.is_company_share || isSourcePoolOwnerRow(row, form.formula_code))} style={dangerButtonStyle}>{t("common.actions.remove")}</button></td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           <div style={actionRowStyle}>
-            <button type="button" onClick={saveDraft} disabled={saving} style={primaryButtonStyle}>{saving ? "Saving..." : "Save Draft"}</button>
-            <button type="button" onClick={resetForm} style={secondaryButtonStyle}>Clear</button>
+            <button type="button" onClick={saveDraft} disabled={saving} style={primaryButtonStyle}>{saving ? t("finance.legacy.state.saving") : t("finance.compensation.actions.save")}</button>
+            <button type="button" onClick={resetForm} style={secondaryButtonStyle}>{t("finance.legacy.actions.clear")}</button>
           </div>
         </section>
 
         <section style={panelStyle}>
-          <h2 style={sectionTitleStyle}>Batches</h2>
-          {loading ? <div style={emptyStyle}>Loading batches...</div> : null}
+          <h2 style={sectionTitleStyle}>{t("finance.compensation.history.title")}</h2>
+          {loading ? <div style={emptyStyle}>{t("finance.compensation.history.loading")}</div> : null}
           <div style={tableWrapStyle}>
             <table style={tableStyle}>
-              <thead><tr><th style={thStyle}>Date</th><th style={thStyle}>Client / Matter</th><th style={thStyle}>Formula</th><th style={thStyle}>Amount</th><th style={thStyle}>Company Share</th><th style={thStyle}>Status</th><th style={thStyle}>Ledger</th><th style={thStyle}>Actions</th></tr></thead>
+              <thead><tr><th style={thStyle}>{t("finance.legacy.fields.date")}</th><th style={thStyle}>{t("finance.compensation.fields.context")}</th><th style={thStyle}>{t("finance.compensation.fields.formula")}</th><th style={thStyle}>{t("finance.legacy.fields.amount")}</th><th style={thStyle}>{t("finance.compensation.fields.companyShare")}</th><th style={thStyle}>{t("finance.legacy.fields.status")}</th><th style={thStyle}>{t("finance.legacy.fields.ledger")}</th><th style={thStyle}>{t("finance.legacy.fields.actions")}</th></tr></thead>
               <tbody>
                 {visibleBatches.map((batch) => {
                   const companyShare = getCompanyShare(batch.id, allAllocations);
                   return (
                     <tr key={batch.id}>
-                      <td style={tdStyle}>{batch.received_date}</td>
-                      <td style={tdStyle}>{renderBatchContext(batch, clients, cases, matters)}</td>
-                      <td style={tdStyle}>{renderFormula(batch.formula_code)}{renderAllocationDetails(batch, allAllocations, permissions.canEditLawyerCompensation, payingAllocationId, markAllocationPaid)}</td>
+                      <td style={tdStyle}>{date(batch.received_date)}</td>
+                      <td style={tdStyle}>{renderBatchContext(batch, clients, cases, matters, locale)}</td>
+                      <td style={tdStyle}>{renderFormula(batch.formula_code, locale)}{renderAllocationDetails(batch, allAllocations, permissions.canEditLawyerCompensation, payingAllocationId, markAllocationPaid, locale)}</td>
                       <td style={tdStyle}>{formatMoney(toAmount(batch.received_amount))}</td>
                       <td style={tdStyle}>{formatMoney(companyShare)}</td>
-                      <td style={tdStyle}>{renderBatchStatus(batch)}</td>
-                      <td style={tdStyle}>{batch.ledger_entry_id ? `Posted: ${batch.ledger_entry_id}` : batch.status === "posted" ? "No company share" : "-"}</td>
+                      <td style={tdStyle}>{renderBatchStatus(batch, locale)}</td>
+                      <td style={tdStyle}>{batch.ledger_entry_id ? t("finance.compensation.history.postedReference", { id: batch.ledger_entry_id }) : batch.status === "posted" ? t("finance.compensation.history.noCompany") : "-"}</td>
                       <td style={tdStyle}>
                         <div style={actionStackStyle}>
-                          {batch.status === "draft" && permissions.canEditLawyerCompensation ? <button type="button" onClick={() => editDraft(batch)} style={smallButtonStyle}>Edit</button> : null}
-                          {batch.status === "draft" && permissions.canEditLawyerCompensation ? <button type="button" onClick={() => finalizeBatch(batch)} style={smallButtonStyle}>Finalize</button> : null}
-                          {batch.status === "finalized" && !batch.ledger_entry_id ? <div style={helpTextStyle}>ส่วนของบริษัทจะเข้าบัญชี KBANK เท่านั้น</div> : null}
-                          {batch.status === "finalized" && !batch.ledger_entry_id && permissions.canEditLawyerCompensation ? <button type="button" onClick={() => postCompanyShare(batch)} disabled={postingBatchId === batch.id} style={primarySmallButtonStyle}>{postingBatchId === batch.id ? "Posting..." : "Post Company Share"}</button> : null}
+                          {batch.status === "draft" && permissions.canEditLawyerCompensation ? <button type="button" onClick={() => editDraft(batch)} style={smallButtonStyle}>{t("finance.legacy.actions.edit")}</button> : null}
+                          {batch.status === "draft" && permissions.canEditLawyerCompensation ? <button type="button" onClick={() => finalizeBatch(batch)} style={smallButtonStyle}>{t("finance.compensation.actions.finalize")}</button> : null}
+                          {batch.status === "finalized" && !batch.ledger_entry_id ? <div style={helpTextStyle}>{t("finance.compensation.actions.postHelp")}</div> : null}
+                          {batch.status === "finalized" && !batch.ledger_entry_id && permissions.canEditLawyerCompensation ? <button type="button" onClick={() => postCompanyShare(batch)} disabled={postingBatchId === batch.id} style={primarySmallButtonStyle}>{postingBatchId === batch.id ? t("finance.legacy.state.posting") : t("finance.compensation.actions.post")}</button> : null}
                           {["draft", "finalized"].includes(batch.status) && permissions.canVoidLawyerCompensation ? (
                             <details data-action-menu-root="true" open={openActionMenuId === batch.id} style={moreMenuStyle}>
                               <summary
-                                aria-label="More actions"
-                                title="More actions"
+                                aria-label={t("finance.legacy.actions.more")}
+                                title={t("finance.legacy.actions.more")}
                                 onClick={(event) => {
                                   event.preventDefault();
                                   setOpenActionMenuId((current) => current === batch.id ? "" : batch.id);
@@ -865,18 +869,17 @@ export default function CompensationPage() {
                                   }}
                                   style={dangerMenuButtonStyle}
                                 >
-                                  Void
-                                </button>
+                                  {t("finance.legacy.actions.void")}</button>
                               </div>
                             </details>
                           ) : null}
-                          {batch.status === "posted" ? <div style={postedStyle}>{batch.ledger_entry_id ? "Posted to Ledger" : "No company share to post"}</div> : null}
+                          {batch.status === "posted" ? <div style={postedStyle}>{batch.ledger_entry_id ? t("finance.legacy.ledger.posted") : t("finance.compensation.history.noCompanyToPost")}</div> : null}
                         </div>
                       </td>
                     </tr>
                   );
                 })}
-                {visibleBatches.length === 0 ? <tr><td colSpan={8} style={tdStyle}>No compensation batches.</td></tr> : null}
+                {visibleBatches.length === 0 ? <tr><td colSpan={8} style={tdStyle}>{t("finance.compensation.history.empty")}</td></tr> : null}
               </tbody>
             </table>
           </div>
@@ -887,6 +890,7 @@ export default function CompensationPage() {
 }
 
 function RecipientEditor({ row, users, onChange }: { row: AllocationRow; users: UserProfileRow[]; onChange: (patch: Partial<AllocationRow>) => void }) {
+  const { t } = useI18n();
   return (
     <div style={recipientGridStyle}>
       <select value={row.recipient_user_id} onChange={(event) => {
@@ -898,9 +902,9 @@ function RecipientEditor({ row, users, onChange }: { row: AllocationRow; users: 
       }} style={inputStyle}>
         <option value="">-</option>
         {users.map((user) => <option key={user.id} value={user.id}>{renderUserLabel(user)}</option>)}
-        <option value={otherValue}>Other</option>
+        <option value={otherValue}>{t("finance.compensation.type.other")}</option>
       </select>
-      {row.recipient_user_id === otherValue ? <input value={row.recipient_name} onChange={(event) => onChange({ recipient_name: event.target.value })} style={inputStyle} placeholder="Recipient name" /> : null}
+      {row.recipient_user_id === otherValue ? <input value={row.recipient_name} onChange={(event) => onChange({ recipient_name: event.target.value })} style={inputStyle} placeholder={t("finance.compensation.fields.recipientName")} /> : null}
     </div>
   );
 }
@@ -948,22 +952,22 @@ function createAllocation(type: string, name: string, percent: number | string, 
 
 function validateAllocations(form: BatchForm, rows: AllocationRow[]) {
   const total = parseMoney(form.received_amount);
-  if (total <= 0) return "Received amount must be greater than zero";
-  if (rows.length === 0) return "Allocation rows are required";
+  if (total <= 0) return uiMessage("finance.compensation.validation.received");
+  if (rows.length === 0) return uiMessage("finance.compensation.validation.allocationsRequired");
   const allocationTotal = rows.reduce((sum, item) => sum + parseMoney(item.amount), 0);
-  if (Math.abs(allocationTotal - total) > 0.01) return "Allocation total must equal received amount";
-  if (rows.some((item) => parseMoney(item.amount) <= 0)) return "Every allocation row needs amount greater than zero";
+  if (Math.abs(allocationTotal - total) > 0.01) return uiMessage("finance.compensation.validation.total");
+  if (rows.some((item) => parseMoney(item.amount) <= 0)) return uiMessage("finance.compensation.validation.rowPositive");
   if (form.formula_code === "custom") {
     const percentTotal = rows.reduce((sum, item) => sum + parseMoney(item.percent), 0);
-    if (Math.abs(percentTotal - 100) > 0.01) return "Custom allocation percent must equal 100%";
+    if (Math.abs(percentTotal - 100) > 0.01) return uiMessage("finance.compensation.validation.customTotal");
   }
-  if (form.formula_code !== "custom" && !rows.some((item) => item.is_company_share)) return "At least one company allocation is required";
-  if (rows.some((item) => item.is_company_share && item.recipient_type !== "company")) return "Company allocation must use recipient_type company";
-  if (rows.some((item) => !item.payment_status)) return "Every allocation row needs payment status";
-  if (rows.some((item) => item.recipient_type === "source" && !item.role_label)) return "Source row needs Client Source / Broker role";
-  if (rows.some((item) => item.role_label === "Other" && !item.custom_role?.trim())) return "Custom Role is required when role is Other";
-  if (rows.some((item) => !getRecipientName(item, []))) return "Every allocation row needs recipient name";
-  if (form.formula_code === "travel_fee" && (rows.length !== 1 || !rows[0].is_company_share || parseMoney(rows[0].amount) !== total)) return "Travel Fee must be company 100%";
+  if (form.formula_code !== "custom" && !rows.some((item) => item.is_company_share)) return uiMessage("finance.compensation.validation.companyRequired");
+  if (rows.some((item) => item.is_company_share && item.recipient_type !== "company")) return uiMessage("finance.compensation.validation.companyType");
+  if (rows.some((item) => !item.payment_status)) return uiMessage("finance.compensation.validation.paymentStatus");
+  if (rows.some((item) => item.recipient_type === "source" && !item.role_label)) return uiMessage("finance.compensation.validation.sourceRole");
+  if (rows.some((item) => item.role_label === "Other" && !item.custom_role?.trim())) return uiMessage("finance.compensation.validation.customRole");
+  if (rows.some((item) => !getRecipientName(item, []))) return uiMessage("finance.compensation.validation.recipient");
+  if (form.formula_code === "travel_fee" && (rows.length !== 1 || !rows[0].is_company_share || parseMoney(rows[0].amount) !== total)) return uiMessage("finance.compensation.validation.travel");
   if (form.formula_code === "source_worker_qc") {
     const source = rows.filter((item) => item.recipient_type === "source").reduce((sum, item) => sum + parseMoney(item.amount), 0);
     const company = rows.filter((item) => item.is_company_share).reduce((sum, item) => sum + parseMoney(item.amount), 0);
@@ -974,14 +978,14 @@ function validateAllocations(form: BatchForm, rows: AllocationRow[]) {
     const poolPercent = rows
       .filter((item) => isSourcePoolRow(item, form.formula_code))
       .reduce((sum, item) => sum + getPoolPercent(item), 0);
-    if (sourceRows.length !== 1) return "Source / Worker / QC needs exactly one source row";
-    if (companyRows.length !== 1) return "Source / Worker / QC needs exactly one company share row";
-    if (ownerRows.length !== 1) return "Work Pool needs exactly one Lead Lawyer / Case Owner row";
-    if (getPoolPercent(ownerRows[0]) < 0) return "Owner work pool percent cannot be negative";
-    if (Math.abs(source - total * 0.2) > 0.01) return "Source must be 20%";
-    if (Math.abs(company - total * 0.4) > 0.01) return "Company must be 40%";
-    if (Math.abs(pool - total * 0.4) > 0.01) return "Work Pool must be 40%";
-    if (Math.abs(poolPercent - 100) > 0.01) return "Work Pool percent must equal 100%";
+    if (sourceRows.length !== 1) return uiMessage("finance.compensation.validation.sourceCount");
+    if (companyRows.length !== 1) return uiMessage("finance.compensation.validation.companyCount");
+    if (ownerRows.length !== 1) return uiMessage("finance.compensation.validation.ownerCount");
+    if (getPoolPercent(ownerRows[0]) < 0) return uiMessage("finance.compensation.validation.ownerPercent");
+    if (Math.abs(source - total * 0.2) > 0.01) return uiMessage("finance.compensation.validation.sourcePercent");
+    if (Math.abs(company - total * 0.4) > 0.01) return uiMessage("finance.compensation.validation.companyPercent");
+    if (Math.abs(pool - total * 0.4) > 0.01) return uiMessage("finance.compensation.validation.poolAmount");
+    if (Math.abs(poolPercent - 100) > 0.01) return uiMessage("finance.compensation.validation.poolPercent");
   }
   return "";
 }
@@ -1087,7 +1091,7 @@ function validateNormalizedRowsForSave(receivedAmount: number, formula: FormulaC
     .reduce((sum, item) => sum + parseMoney(item.amount), 0);
   const expectedCompanyAmount = roundMoney(receivedAmount * 0.4);
   if (Math.abs(companyAmount - expectedCompanyAmount) > 0.01) {
-    return `Company share must be ${formatMoney(expectedCompanyAmount)} for received amount ${formatMoney(receivedAmount)}`;
+    return uiMessage("finance.compensation.validation.expectedCompany", { expected: formatMoney(expectedCompanyAmount), received: formatMoney(receivedAmount) });
   }
   return "";
 }
@@ -1205,30 +1209,31 @@ function getRecipientRoleCategory(roleLabel?: string | null) {
   return "other";
 }
 
-function renderBatchStatus(batch: BatchRow) {
-  if (batch.status === "posted") return <div style={postedStyle}>Company Share Posted to Ledger</div>;
-  return batch.status;
+function renderBatchStatus(batch: BatchRow, locale: UiLocale) {
+  if (batch.status === "posted") return <div style={postedStyle}>{translate(locale, "finance.compensation.history.companyPosted")}</div>;
+  return legacyStatusLabel(batch.status, locale);
 }
 
 function renderBatchContext(
   batch: BatchRow,
   clients: ClientRow[],
   cases: CaseRow[],
-  matters: MatterRow[]
+  matters: MatterRow[],
+  locale: UiLocale
 ) {
   const client = clients.find((item) => item.id === batch.client_id);
   const caseItem = cases.find((item) => String(item.id) === String(batch.case_id));
   const matter = matters.find((item) => item.id === batch.advisory_matter_id);
   const clientName = client?.name || caseItem?.client_name || "-";
   const matterLabel = caseItem
-    ? `Case: ${renderCaseLabel(caseItem)}`
+    ? translate(locale, "finance.compensation.context.case", { name: renderCaseLabel(caseItem) })
     : matter
-      ? `Advisory: ${renderMatterLabel(matter)}`
-      : "Matter: Manual / Unlinked";
+      ? translate(locale, "finance.compensation.context.advisory", { name: renderMatterLabel(matter) })
+      : translate(locale, "finance.compensation.context.unlinked");
 
   return (
     <div style={batchContextStyle}>
-      <div>Client: {clientName}</div>
+      <div>{translate(locale, "finance.compensation.context.client")}{clientName}</div>
       <div style={mutedTextStyle}>{matterLabel}</div>
     </div>
   );
@@ -1239,7 +1244,8 @@ function renderAllocationDetails(
   rows: AllocationRow[],
   canEdit: boolean,
   payingAllocationId: string,
-  onMarkPaid: (allocation: AllocationRow, batch: BatchRow) => void
+  onMarkPaid: (allocation: AllocationRow, batch: BatchRow) => void,
+  locale: UiLocale
 ) {
   const batchRows = rows.filter((item) => item.batch_id === batch.id);
   if (batchRows.length === 0) return null;
@@ -1248,12 +1254,12 @@ function renderAllocationDetails(
     <div style={allocationDetailStyle}>
       {batchRows.map((item) => {
         const paid = item.payment_status === "paid";
-        const statusLabel = item.is_company_share ? "Company Share" : paid ? "Paid" : item.payment_status === "voided" ? "Voided" : "Unpaid";
+        const statusLabel = item.is_company_share ? translate(locale, "finance.compensation.fields.companyShare") : paid ? translate(locale, "finance.legacy.status.paid") : item.payment_status === "voided" ? translate(locale, "finance.legacy.status.voided") : translate(locale, "finance.legacy.status.unpaid");
         return (
           <div key={item.id || `${item.recipient_name}-${item.amount}`} style={allocationRowStyle}>
             <div>
               <strong>{item.recipient_name || "-"}</strong>
-              {item.role_label ? <span style={mutedInlineStyle}> {item.role_label}</span> : null}
+              {item.role_label ? <span style={mutedInlineStyle}> {compensationRoleLabel(item.role_label, locale)}</span> : null}
               {item.percent ? <span style={mutedInlineStyle}> {item.percent}%</span> : null}
               <span style={item.is_company_share ? companyTagStyle : recipientTagStyle}> {statusLabel}</span>
               <div style={mutedTextStyle}>{formatMoney(parseMoney(item.amount))}</div>
@@ -1265,7 +1271,7 @@ function renderAllocationDetails(
                 disabled={payingAllocationId === item.id}
                 style={smallButtonStyle}
               >
-                {payingAllocationId === item.id ? "Paying..." : "Mark as Paid"}
+                {payingAllocationId === item.id ? translate(locale, "finance.legacy.state.paying") : translate(locale, "finance.legacy.actions.markPaid")}
               </button>
             ) : null}
           </div>
@@ -1292,12 +1298,12 @@ function normalizeFormula(value?: string | null): FormulaCode {
   return "pao_line";
 }
 
-function renderFormula(value?: string | null) {
-  if (value === "pao_line") return "Pao Line";
-  if (value === "tun_line") return "Tun Line";
-  if (value === "source_worker_qc") return "Source / Worker / QC";
-  if (value === "travel_fee") return "Travel Fee";
-  if (value === "custom") return "Custom";
+function renderFormula(value: string | null | undefined, locale: UiLocale) {
+  if (value === "pao_line") return translate(locale, "finance.compensation.formula.pao_line");
+  if (value === "tun_line") return translate(locale, "finance.compensation.formula.tun_line");
+  if (value === "source_worker_qc") return translate(locale, "finance.compensation.formula.source_worker_qc");
+  if (value === "travel_fee") return translate(locale, "finance.compensation.revenue.travel_fee");
+  if (value === "custom") return translate(locale, "finance.compensation.formula.custom");
   return value || "-";
 }
 
@@ -1324,11 +1330,11 @@ function isBatchInSelectedMonth(batch: BatchRow, selectedMonth: string) {
   if (!selectedMonth) return true;
   return String(batch.received_date || "").startsWith(selectedMonth);
 }
-function formatMonthLabel(value: string) {
-  if (!value) return "All Time";
+function formatMonthLabel(value: string, locale: UiLocale) {
+  if (!value) return translate(locale, "finance.compensation.filter.allTime");
   const [year, month] = value.split("-").map(Number);
   if (!year || !month) return value;
-  return new Date(year, month - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  return new Date(year, month - 1, 1).toLocaleDateString(locale === "th" ? "th-TH" : "en-GB", { month: "long", year: "numeric" });
 }
 
 const pageStyle: CSSProperties = { minHeight: "100vh", padding: 24, background: "#f7f7f8", color: "#111111", overflowX: "hidden" };

@@ -7,11 +7,15 @@ const evidenceExtensions: Record<string, string> = {
   "image/png": "png",
 };
 
-export function validateFeeAgreementEvidenceFile(file: File) {
-  if (!Object.hasOwn(evidenceExtensions, file.type)) return "เอกสารหลักฐานต้องเป็นไฟล์ PDF, JPEG หรือ PNG";
-  if (file.size <= 0) return "ไฟล์หลักฐานไม่มีข้อมูล กรุณาเลือกไฟล์ใหม่";
-  if (file.size > MAX_FEE_AGREEMENT_EVIDENCE_BYTES) return "ไฟล์หลักฐานต้องมีขนาดไม่เกิน 25 MB";
+export function feeAgreementEvidenceFileError(file: File): UiMessage | "" {
+  if (!Object.hasOwn(evidenceExtensions, file.type)) return uiMessage("finance.feeAgreement.workspace.error.fileType");
+  if (file.size <= 0) return uiMessage("finance.feeAgreement.workspace.error.fileEmpty");
+  if (file.size > MAX_FEE_AGREEMENT_EVIDENCE_BYTES) return uiMessage("finance.feeAgreement.workspace.error.fileSize");
   return "";
+}
+
+export function validateFeeAgreementEvidenceFile(file: File, locale: UiLocale = "th") {
+  return resolveUiMessage(locale, feeAgreementEvidenceFileError(file));
 }
 
 export function buildFeeAgreementEvidencePath(feeAgreementId: string, mimeType: string) {
@@ -31,3 +35,5 @@ export function formatEvidenceFileSize(value: unknown) {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toLocaleString("th-TH", { maximumFractionDigits: 1 })} KB`;
   return `${(bytes / (1024 * 1024)).toLocaleString("th-TH", { maximumFractionDigits: 1 })} MB`;
 }
+import { uiMessage, type UiMessage, type UiLocale } from "../../../lib/i18n/core";
+import { resolveUiMessage } from "../../../lib/i18n/catalog";

@@ -1,5 +1,8 @@
 "use client";
 
+import { useI18n } from "../../../../../lib/i18n/provider";
+import { uiMessage, type UiMessage } from "../../../../../lib/i18n/core";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import Link from "next/link";
@@ -41,6 +44,7 @@ export default function InvoicePreviewPage() {
 }
 
 function InvoicePreview({ id }: { id: string }) {
+  const { t, text } = useI18n();
   const [invoice, setInvoice] = useState<FinanceInvoice | null>(null);
   const [items, setItems] = useState<FinanceInvoiceItem[]>([]);
   const [installmentContext, setInstallmentContext] = useState<InvoiceInstallmentContext | null>(null);
@@ -48,19 +52,19 @@ function InvoicePreview({ id }: { id: string }) {
   const [identity, setIdentity] = useState<DocumentIdentity>(() => normalizeDocumentIdentity(null));
   const [logoUrl, setLogoUrl] = useState("");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<UiMessage | string>("");
   const printed = useRef(false);
 
   const load = useCallback(async () => {
     const result = await supabase.from("finance_invoices").select(invoiceSelect).eq("id", id).maybeSingle();
     if (result.error || !result.data) {
       console.error("Failed to load Invoice preview", result.error);
-      setError("ไม่สามารถโหลดตัวอย่างใบแจ้งหนี้ได้"); setLoading(false); return;
+      setError(uiMessage("finance.invoice.ui.previewLoadFailed")); setLoading(false); return;
     }
     const currentInvoice = result.data as FinanceInvoice;
     if (isFrozenInvoiceStatus(currentInvoice.document_status) && !currentInvoice.issued_snapshot_json) {
       console.error("Frozen Invoice preview is missing its issued snapshot", { invoiceId: currentInvoice.id, status: currentInvoice.document_status });
-      setError("ไม่พบข้อมูลเอกสารฉบับที่ออกแล้ว จึงไม่สามารถแสดง Preview ได้อย่างปลอดภัย"); setLoading(false); return;
+      setError(uiMessage("finance.invoice.ui.frozenMissing")); setLoading(false); return;
     }
     const bankAccountPromise = currentInvoice.document_status === "draft" && currentInvoice.payment_destination_bank_account_id
       ? supabase.from("finance_bank_accounts").select("id,short_name,bank_name,account_name,account_number,is_active").eq("id", currentInvoice.payment_destination_bank_account_id).maybeSingle()
@@ -79,7 +83,7 @@ function InvoicePreview({ id }: { id: string }) {
     ]);
     if (bridgeResult.error || itemsResult.error || installmentResult.error || bankAccountResult.error) {
       console.error("Failed to load Invoice preview context", { items: itemsResult.error, installment: installmentResult.error, bankAccount: bankAccountResult.error });
-      setError("โหลดรายการหรือข้อมูลงวดสำหรับตัวอย่างไม่สำเร็จ");
+      setError(uiMessage("finance.invoice.ui.previewSourceFailed"));
     }
 
     const sourceInstallment = (installmentResult.data || null) as Installment | null;
@@ -130,18 +134,18 @@ function InvoicePreview({ id }: { id: string }) {
     return () => window.clearTimeout(timer);
   }, [invoice, loading]);
 
-  if (loading) return <main style={shell}>กำลังโหลดตัวอย่างใบแจ้งหนี้...</main>;
-  if (!invoice) return <main style={shell}>{error || "ไม่พบใบแจ้งหนี้"}</main>;
+  if (loading) return <main style={shell}>{t("finance.invoice.ui.previewLoading")}</main>;
+  if (!invoice) return <main style={shell}>{text(error) || t("finance.invoice.ui.notFound")}</main>;
 
   const matterText = displayText(invoice.matter_snapshot_json?.title, displayText(invoice.matter_snapshot_json?.file_no, ""));
   const matter = matterText || null;
 
   return <main style={shell}>
     <div className="invoice-preview-controls" style={controls}>
-      <div><strong style={controlTitle}>{invoice.document_status === "draft" ? "ตัวอย่างร่างใบแจ้งหนี้" : invoice.document_status === "voided" ? `ใบแจ้งหนี้ที่ยกเลิกแล้ว ${invoice.invoice_no || ""}` : `ใบแจ้งหนี้ ${invoice.invoice_no || ""}`}</strong><span style={controlText}>{invoice.document_status === "draft" ? "การดูตัวอย่างและการพิมพ์ไม่ออกเลขที่เอกสารและไม่เปลี่ยนสถานะ" : invoice.document_status === "voided" ? "เอกสารประวัตินี้แสดงจากข้อมูลที่ถูกล็อกเมื่อออกใบแจ้งหนี้ พร้อมเครื่องหมาย VOID" : "เอกสารนี้แสดงจากข้อมูลที่ถูกล็อกเมื่อออกใบแจ้งหนี้"}</span></div>
-      <div style={controlActions}><Link style={backButton} href={`/finance/invoices/${invoice.id}`}>กลับไปใบแจ้งหนี้</Link><button type="button" style={printButton} onClick={() => window.print()}>พิมพ์ / บันทึก PDF</button></div>
+      <div><strong style={controlTitle}>{invoice.document_status === "draft" ? t("finance.invoice.ui.draftPreview") : invoice.document_status === "voided" ? t("finance.invoice.ui.voidedNumberTitle", { number: invoice.invoice_no || "" }) : t("finance.invoice.ui.numberTitle", { number: invoice.invoice_no || "" })}</strong><span style={controlText}>{invoice.document_status === "draft" ? t("finance.invoice.ui.previewNoIssue") : invoice.document_status === "voided" ? t("finance.invoice.ui.voidedPreviewEvidence") : t("finance.invoice.ui.issuedPreviewEvidence")}</span></div>
+      <div style={controlActions}><Link style={backButton} href={`/finance/invoices/${invoice.id}`}>{t("finance.invoice.ui.backToInvoice")}</Link><button type="button" style={printButton} onClick={() => window.print()}>{t("finance.invoice.ui.printPdf")}</button></div>
     </div>
-    {error ? <div style={errorNotice}>{error}</div> : null}
+    {error ? <div style={errorNotice}>{text(error)}</div> : null}
     <InvoiceDocument invoice={invoice} items={items} identity={identity} logoUrl={logoUrl} matter={matter} installmentContext={installmentContext} paymentDestination={paymentDestination} />
     <style jsx global>{`
       @media print {

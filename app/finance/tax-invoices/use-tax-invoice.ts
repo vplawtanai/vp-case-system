@@ -3,9 +3,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../../../lib/supabase";
 import { loadReviewedDocumentLogo } from "../../../lib/documentLogo";
 import { taxError, taxInvoiceSelect, taxPresentation, type TaxEligibility, type TaxInvoice } from "./shared";
+import { useI18n } from "../../../lib/i18n/provider";
+import { uiMessage } from "../../../lib/i18n/core";
 
 export function useTaxInvoice(id: string) {
-  const [row, setRow] = useState<TaxInvoice | null>(null), [loading, setLoading] = useState(true), [error, setError] = useState("");
+  const { locale } = useI18n();
+  const [row, setRow] = useState<TaxInvoice | null>(null), [loading, setLoading] = useState(true), [error, setError] = useState<unknown>(null);
   const [blockers, setBlockers] = useState<string[]>([]), [logoUrl, setLogoUrl] = useState("");
   const generation = useRef(0), blob = useRef("");
   const reload = useCallback(async () => {
@@ -20,14 +23,14 @@ export function useTaxInvoice(id: string) {
       if (generation.current !== current) return;
       setRow(value); setBlockers((eligibility?.data as TaxEligibility | null)?.blockers || []);
       const presentation = taxPresentation(value);
-      if (!presentation.ok) { setError(presentation.error); return; }
+      if (!presentation.ok) { setError(uiMessage("finance.taxInvoice.ui.evidenceInvalid")); return; }
       const url = await loadReviewedDocumentLogo(supabase, presentation.value.logo);
       if (generation.current !== current) { URL.revokeObjectURL(url); return; }
       blob.current = url; setLogoUrl(url);
-    } catch (cause) { if (generation.current === current) setError(taxError(cause)); }
+    } catch (cause) { if (generation.current === current) setError(cause); }
     finally { if (generation.current === current) setLoading(false); }
   }, [id]);
   const dispose = useCallback(() => { generation.current++; if (blob.current) URL.revokeObjectURL(blob.current); }, []);
   useEffect(() => { const timer = setTimeout(() => { void reload(); }, 0); return () => { clearTimeout(timer); dispose(); }; }, [reload, dispose]);
-  return { row, loading, error, blockers, logoUrl, reload };
+  return { row, loading, error: error ? taxError(error, locale) : "", blockers, logoUrl, reload };
 }

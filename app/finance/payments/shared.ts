@@ -1,3 +1,5 @@
+import { translate, resolveUiMessage } from "../../../lib/i18n/catalog";
+import { isUiMessage, uiMessage, type UiLocale, type UiMessage } from "../../../lib/i18n/core";
 export type PaymentStatus = "draft" | "confirmed" | "cancelled" | "reversed";
 
 export type FinancePayment = {
@@ -86,44 +88,44 @@ export type PaymentForm = {
 export type PaymentWhtRateOption = "" | "1" | "2" | "3" | "5" | "10" | "custom";
 
 export const paymentStatusLabels: Record<string, string> = {
-  draft: "ร่างการรับชำระ",
-  confirmed: "ยืนยันรับชำระแล้ว",
-  cancelled: "ยกเลิกร่างแล้ว",
-  reversed: "กลับรายการแล้ว",
+  draft: translate("th", "finance.payment.ui.draftTitle"),
+  confirmed: translate("th", "finance.payment.ui.confirmed"),
+  cancelled: translate("th", "finance.taxInvoice.ui.statusCancelled"),
+  reversed: translate("th", "status.reversed"),
 };
 
 export const settlementStatusLabels: Record<string, string> = {
-  unpaid: "ยังไม่ชำระ",
-  partially_settled: "ชำระบางส่วน",
-  settled: "ชำระครบแล้ว",
+  unpaid: translate("th", "status.unpaid"),
+  partially_settled: translate("th", "status.partiallySettled"),
+  settled: translate("th", "status.settled"),
 };
 
 export const paymentMethodLabels: Record<string, string> = {
-  bank_transfer: "โอนเงินผ่านธนาคาร",
-  cash: "เงินสด",
-  cheque: "เช็ค",
-  card_or_gateway: "บัตรหรือช่องทางรับชำระ",
-  other: "อื่น ๆ",
+  bank_transfer: translate("th", "finance.payment.method.bankTransfer"),
+  cash: translate("th", "finance.payment.method.cash"),
+  cheque: translate("th", "finance.payment.method.cheque"),
+  card_or_gateway: translate("th", "finance.payment.method.cardGateway"),
+  other: translate("th", "finance.payment.method.other"),
 };
 
 export const paymentSettlementLabels = {
-  receivedFull: "เงินที่ได้รับจริง",
-  receivedCompact: "เงินรับจริง",
-  whtCredit: "เครดิตภาษีหัก ณ ที่จ่าย",
-  settlementTotal: "ยอดตัดชำระรวม",
+  receivedFull: translate("th", "finance.taxInvoice.ui.actualReceived"),
+  receivedCompact: translate("th", "finance.payment.settlement.receivedCompact"),
+  whtCredit: translate("th", "finance.payment.settlement.whtCredit"),
+  settlementTotal: translate("th", "finance.payment.settlement.settlementTotal"),
 } as const;
 
 export const paymentCorrectionCopy = {
-  sectionTitle: "แก้ไขหลังยืนยัน",
-  wrongInvoiceTitle: "เลือกใบแจ้งหนี้ผิด",
-  wrongInvoiceDescription: "ยอดเงิน วันที่ วิธีรับ และบัญชีรับเงินถูกต้อง แต่ต้องการเปลี่ยนใบแจ้งหนี้ที่ใช้ตัดชำระ",
-  allocationHeading: "แก้ไขใบแจ้งหนี้ที่ตัดชำระ",
-  allocationHelper: "ใช้เมื่อยอดเงิน วันที่ วิธีรับชำระ และบัญชีรับเงินถูกต้อง แต่เลือกใบแจ้งหนี้ที่นำยอดไปตัดชำระผิด การแก้ไขนี้ไม่ย้ายเงินจริงระหว่างบัญชี",
-  allocationAction: "เปลี่ยนใบแจ้งหนี้ที่ตัดชำระ",
-  allocationHistory: "ประวัติการเปลี่ยนใบแจ้งหนี้ที่ตัดชำระ",
-  wrongPaymentTitle: "ข้อมูลรับชำระผิด",
-  wrongPaymentDescription: "ใช้เมื่อยอดรับชำระ วันที่ วิธีรับชำระ บัญชีรับเงิน หรือข้อมูลการรับชำระถูกบันทึกผิด",
-  paymentCorrectionAction: "แก้ไขรายการรับชำระที่บันทึกผิด",
+  sectionTitle: translate("th", "finance.payment.correction.sectionTitle"),
+  wrongInvoiceTitle: translate("th", "finance.payment.correction.wrongInvoiceTitle"),
+  wrongInvoiceDescription: translate("th", "finance.payment.correction.wrongInvoiceDescription"),
+  allocationHeading: translate("th", "finance.payment.correction.allocationHeading"),
+  allocationHelper: translate("th", "finance.payment.correction.allocationHelper"),
+  allocationAction: translate("th", "finance.payment.ui.changeInvoice"),
+  allocationHistory: translate("th", "finance.payment.correction.allocationHistory"),
+  wrongPaymentTitle: translate("th", "finance.payment.correction.wrongPaymentTitle"),
+  wrongPaymentDescription: translate("th", "finance.payment.correction.wrongPaymentDescription"),
+  paymentCorrectionAction: translate("th", "finance.payment.correction.paymentCorrectionAction"),
 } as const;
 
 export function paymentForm(payment: FinancePayment): PaymentForm {
@@ -137,6 +139,16 @@ export function paymentForm(payment: FinancePayment): PaymentForm {
     note: payment.note || "",
     cashAmount: Number(payment.cash_amount || 0).toFixed(2),
     whtAmount: Number(payment.wht_amount || 0).toFixed(2),
+  };
+}
+
+export function paymentUiLabels(locale: UiLocale = "th") {
+  return {
+    statuses: { draft: translate(locale, "finance.payment.ui.draftTitle"), confirmed: translate(locale, "finance.payment.ui.confirmed"), cancelled: translate(locale, "finance.taxInvoice.ui.statusCancelled"), reversed: translate(locale, "status.reversed") } as Record<string, string>,
+    settlementStatuses: { unpaid: translate(locale, "status.unpaid"), partially_settled: translate(locale, "status.partiallySettled"), settled: translate(locale, "status.settled") } as Record<string, string>,
+    methods: Object.fromEntries(Object.entries({ bank_transfer: "bankTransfer", cash: "cash", cheque: "cheque", card_or_gateway: "cardGateway", other: "other" }).map(([code, key]) => [code, translate(locale, `finance.payment.method.${key}`)])),
+    settlement: Object.fromEntries(Object.keys(paymentSettlementLabels).map(key => [key, translate(locale, `finance.payment.settlement.${key}`)])) as Record<keyof typeof paymentSettlementLabels, string>,
+    correction: Object.fromEntries(Object.keys(paymentCorrectionCopy).map(key => [key, translate(locale, `finance.payment.correction.${key}`)])) as Record<keyof typeof paymentCorrectionCopy, string>,
   };
 }
 
@@ -161,59 +173,70 @@ export function hasValidCurrencyPrecision(value: string) {
   return /^\d+(?:\.\d{0,2})?$/.test(value.trim());
 }
 
-export function safePaymentError(error: unknown, fallback: string) {
+export function paymentErrorMessage(error: unknown, fallback: UiMessage | string): UiMessage | string {
+  if (isUiMessage(error)) return error;
   const message = typeof error === "object" && error && "message" in error
     ? String((error as { message?: unknown }).message || "")
     : "";
   const mappings: Array<[string, string]> = [
-    ["TAX_INVOICE_ACTIVE_DEPENDENCY", "มีใบกำกับภาษีหรือร่างที่ผูกกับรายการนี้ กรุณาตรวจสอบเอกสารภาษีก่อนดำเนินการ"],
-    ["FINANCE_ISSUED_RECEIPT_DEPENDENCY", "มีใบเสร็จรับเงินที่ออกแล้ว กรุณายกเลิกใบเสร็จผ่านขั้นตอนที่กำหนดก่อนดำเนินการนี้"],
-    ["WHT_LEGACY_RECALCULATION_REQUIRED", "ข้อมูล WHT เดิมยังไม่มีฐานและอัตราที่บันทึกไว้ กรุณาเลือกคำนวณ WHT ใหม่และบันทึกก่อนยืนยัน"],
-    ["WHT_COMPONENT_SCOPE_UNSUPPORTED", "รายการหลายบรรทัดหรือหลายใบแจ้งหนี้ยังไม่มีข้อมูลกำหนดฐาน WHT ที่ปลอดภัย"],
-    ["WHT_PARTIAL_SCOPE_UNSUPPORTED", "ยังไม่รองรับการกำหนดฐาน WHT สำหรับยอดรับชำระบางส่วน หรือมีรายการอื่นจองยอดใบแจ้งหนี้นี้อยู่"],
-    ["WHT_SNAPSHOT_INVALID", "หลักฐานภาษีของใบแจ้งหนี้ไม่ครบถ้วน กรุณาให้ผู้ดูแลตรวจสอบ"],
-    ["WHT_CALCULATION_MISMATCH", "ฐาน อัตรา หรือยอด WHT ไม่ตรงกับหลักฐานใบแจ้งหนี้ กรุณาคำนวณใหม่และบันทึก"],
-    ["WHT_RATE_REQUIRED", "กรุณาเลือกอัตราหัก ณ ที่จ่ายที่ถูกต้องก่อนบันทึก"],
-    ["WHT_SAVE_BEFORE_CONFIRM", "กรุณาบันทึกข้อมูล WHT ก่อนยืนยันรับชำระ"],
-    ["Not allowed", "คุณไม่มีสิทธิ์ดำเนินการรับชำระนี้"],
-    ["already economically settled", "ใบแจ้งหนี้นี้ชำระครบแล้ว"],
-    ["outstanding is already reserved", "ยอดคงค้างนี้มีร่างการรับชำระอื่นจองไว้แล้ว"],
-    ["Actual Payment received date is required", "กรุณาระบุวันที่รับชำระจริง"],
-    ["cannot be in the future", "วันที่รับชำระจริงต้องไม่เป็นวันในอนาคต"],
-    ["Payment method is required", "กรุณาเลือกวิธีรับชำระ"],
-    ["Receiving bank account is required", "กรุณาเลือกบัญชีธนาคารที่รับเงิน"],
-    ["allocation exceeds", "ยอดจัดสรรเกินยอดคงค้างของใบแจ้งหนี้"],
-    ["downstream records", "ไม่สามารถกลับรายการได้ เนื่องจากมีเอกสารขั้นตอนถัดไปแล้ว"],
+    ["TAX_INVOICE_ACTIVE_DEPENDENCY", "finance.payment.error.taxDependency"],
+    ["FINANCE_ISSUED_RECEIPT_DEPENDENCY", "finance.payment.error.receiptDependency"],
+    ["WHT_LEGACY_RECALCULATION_REQUIRED", "finance.payment.error.legacyRecalculation"],
+    ["WHT_COMPONENT_SCOPE_UNSUPPORTED", "finance.payment.error.whtScope"],
+    ["WHT_PARTIAL_SCOPE_UNSUPPORTED", "finance.payment.error.partialWhtScope"],
+    ["WHT_SNAPSHOT_INVALID", "finance.payment.error.whtSnapshot"],
+    ["WHT_CALCULATION_MISMATCH", "finance.payment.error.whtMismatch"],
+    ["WHT_RATE_REQUIRED", "finance.payment.error.whtRate"],
+    ["WHT_SAVE_BEFORE_CONFIRM", "finance.payment.error.saveWht"],
+    ["Not allowed", "finance.payment.error.permission"],
+    ["already economically settled", "finance.payment.error.settled"],
+    ["outstanding is already reserved", "finance.payment.error.reserved"],
+    ["Actual Payment received date is required", "finance.payment.error.dateRequired"],
+    ["cannot be in the future", "finance.payment.error.futureDate"],
+    ["Payment method is required", "finance.payment.error.method"],
+    ["Receiving bank account is required", "finance.payment.error.bank"],
+    ["allocation exceeds", "finance.payment.error.allocation"],
+    ["downstream records", "finance.payment.error.downstream"],
   ];
-  return mappings.find(([needle]) => message.includes(needle))?.[1] || fallback;
+  const key = mappings.find(([needle]) => message.includes(needle))?.[1];
+  return key ? uiMessage(key) : fallback;
 }
 
-export function safePaymentReallocationError(error: unknown) {
+export function paymentReallocationErrorMessage(error: unknown): UiMessage {
+  if (isUiMessage(error)) return error;
   const message = typeof error === "object" && error && "message" in error
     ? String((error as { message?: unknown }).message || "")
     : "";
   const mappings: Array<[string, string]> = [
-    ["TAX_INVOICE_ACTIVE_DEPENDENCY", "มีใบกำกับภาษีหรือร่างที่ผูกกับรายการนี้ กรุณาตรวจสอบเอกสารภาษีก่อนดำเนินการ"],
-    ["FINANCE_ISSUED_RECEIPT_DEPENDENCY", "มีใบเสร็จรับเงินที่ออกแล้ว กรุณายกเลิกใบเสร็จผ่านขั้นตอนที่กำหนดก่อนดำเนินการนี้"],
-    ["WHT_REALLOCATION_REQUIRES_COMPONENT_WORKFLOW", "รายการนี้มีหลักฐาน WHT ผูกกับรายการเดิม ต้องใช้กระบวนการแก้ไขฐาน WHT ซึ่งยังไม่เปิดใช้งาน"],
-    ["Not allowed to reallocate", "คุณไม่มีสิทธิ์เปลี่ยนใบแจ้งหนี้ที่ตัดชำระ"],
-    ["FINANCE_PAYMENT_REALLOCATION_ACK_REQUIRED", "กรุณายืนยันว่ารายการรับเงินจริงถูกต้องและต้องการเปลี่ยนเฉพาะใบแจ้งหนี้"],
-    ["Only a Confirmed Payment", "เปลี่ยนใบแจ้งหนี้ที่ตัดชำระได้เฉพาะรายการรับชำระที่ยืนยันแล้ว"],
-    ["Source and target Invoice must differ", "ใบแจ้งหนี้ปัจจุบันและใบแจ้งหนี้ใหม่ต้องเป็นคนละฉบับ"],
-    ["Payment reallocation reason is required", "กรุณาระบุเหตุผลในการเปลี่ยนใบแจ้งหนี้ที่ตัดชำระ"],
-    ["Payment reallocation reason is too long", "เหตุผลยาวเกินกำหนด กรุณาใช้ข้อความไม่เกิน 2,000 ตัวอักษร"],
-    ["FINANCE_PAYMENT_REALLOCATION_SOURCE_INSUFFICIENT", "ยอดเงินรับจริงหรือเครดิต WHT ที่เปลี่ยนการจัดสรรเกินยอดปัจจุบันของใบแจ้งหนี้"],
-    ["FINANCE_PAYMENT_REALLOCATION_CLIENT_MISMATCH", "ใบแจ้งหนี้ที่รับยอดต้องเป็นของลูกค้ารายเดียวกับรายการรับชำระ"],
-    ["FINANCE_PAYMENT_REALLOCATION_CURRENCY_MISMATCH", "ใบแจ้งหนี้ที่รับยอดต้องใช้สกุลเงินเดียวกับรายการรับชำระ"],
-    ["Target Invoice must be Issued", "ใบแจ้งหนี้ที่รับยอดต้องอยู่ในสถานะออกใบแจ้งหนี้แล้ว"],
-    ["FINANCE_PAYMENT_REALLOCATION_TARGET_CAPACITY_EXCEEDED", "ยอดที่เปลี่ยนการจัดสรรเกินยอดคงค้างที่ใบแจ้งหนี้ใหม่รับได้ หรือมียอดร่างอื่นจองอยู่"],
-    ["FINANCE_PAYMENT_REALLOCATION_REQUEST_CONFLICT", "คำขอนี้มีข้อมูลเปลี่ยนแปลงหลังส่ง กรุณาปิดและเริ่มเปลี่ยนใบแจ้งหนี้ใหม่"],
-    ["FINANCE_PAYMENT_REALLOCATION_HAS_DOWNSTREAM_DEPENDENCIES", "ไม่สามารถเปลี่ยนใบแจ้งหนี้ที่ตัดชำระได้ เนื่องจากมีเอกสารหรือรายการขั้นตอนถัดไปที่เกี่ยวข้องแล้ว"],
-    ["Moved Cash and WHT", "กรุณาระบุส่วนเงินรับจริงและเครดิต WHT ที่ต้องการเปลี่ยนการจัดสรรเป็นจำนวนตั้งแต่ 0 ขึ้นไป และยอดรวมต้องมากกว่า 0"],
-    ["Payment, source Invoice, and target Invoice are required", "กรุณาเลือกใบแจ้งหนี้ปัจจุบันและใบแจ้งหนี้ใหม่ให้ครบถ้วน"],
-    ["Source Invoice not found", "ไม่พบใบแจ้งหนี้ปัจจุบัน กรุณารีเฟรชและลองใหม่"],
-    ["Target Invoice not found", "ไม่พบใบแจ้งหนี้ที่รับยอด กรุณารีเฟรชและลองใหม่"],
+    ["TAX_INVOICE_ACTIVE_DEPENDENCY", "finance.payment.error.taxDependency"],
+    ["FINANCE_ISSUED_RECEIPT_DEPENDENCY", "finance.payment.error.receiptDependency"],
+    ["WHT_REALLOCATION_REQUIRES_COMPONENT_WORKFLOW", "finance.payment.error.whtReallocation"],
+    ["Not allowed to reallocate", "finance.payment.error.reallocationPermission"],
+    ["FINANCE_PAYMENT_REALLOCATION_ACK_REQUIRED", "finance.payment.error.reallocationAck"],
+    ["Only a Confirmed Payment", "finance.payment.error.confirmedRequired"],
+    ["Source and target Invoice must differ", "finance.payment.error.differentInvoices"],
+    ["Payment reallocation reason is required", "finance.payment.error.reason"],
+    ["Payment reallocation reason is too long", "finance.payment.error.reasonLength"],
+    ["FINANCE_PAYMENT_REALLOCATION_SOURCE_INSUFFICIENT", "finance.payment.error.sourceInsufficient"],
+    ["FINANCE_PAYMENT_REALLOCATION_CLIENT_MISMATCH", "finance.payment.error.clientMismatch"],
+    ["FINANCE_PAYMENT_REALLOCATION_CURRENCY_MISMATCH", "finance.payment.error.currencyMismatch"],
+    ["Target Invoice must be Issued", "finance.payment.error.issuedTarget"],
+    ["FINANCE_PAYMENT_REALLOCATION_TARGET_CAPACITY_EXCEEDED", "finance.payment.error.targetCapacity"],
+    ["FINANCE_PAYMENT_REALLOCATION_REQUEST_CONFLICT", "finance.payment.error.requestConflict"],
+    ["FINANCE_PAYMENT_REALLOCATION_HAS_DOWNSTREAM_DEPENDENCIES", "finance.payment.error.reallocationDownstream"],
+    ["Moved Cash and WHT", "finance.payment.error.moveAmounts"],
+    ["Payment, source Invoice, and target Invoice are required", "finance.payment.error.sourceTargetRequired"],
+    ["Source Invoice not found", "finance.payment.error.sourceMissing"],
+    ["Target Invoice not found", "finance.payment.error.targetMissing"],
   ];
-  return mappings.find(([needle]) => message.includes(needle))?.[1]
-    || "เปลี่ยนใบแจ้งหนี้ที่ตัดชำระไม่สำเร็จ กรุณารีเฟรชและลองใหม่";
+  return uiMessage(mappings.find(([needle]) => message.includes(needle))?.[1]
+    || "finance.payment.error.reallocationFailed");
+}
+
+export function safePaymentError(error: unknown, fallback: string, locale: UiLocale = "th") {
+  return resolveUiMessage(locale, paymentErrorMessage(error, fallback));
+}
+export function safePaymentReallocationError(error: unknown, locale: UiLocale = "th") {
+  const message = paymentReallocationErrorMessage(error);
+  return translate(locale, message.key, message.parameters);
 }

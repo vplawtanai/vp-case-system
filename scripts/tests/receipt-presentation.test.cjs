@@ -58,6 +58,6 @@ test('Receipt view, manage, issue and void capabilities stay separate from Payme
 });
 test('final Issue action follows Preview and destructive actions remain separate',()=>{
   const source=fs.readFileSync(path.join(root,'app/finance/receipts/[id]/page.tsx'),'utf8');
-  assert.ok(source.indexOf('<ReceiptDocument receipt={receipt}')<source.indexOf('aria-label="ตรวจสอบและยืนยันใบเสร็จ"'));
-  assert.match(source,/การดำเนินการอื่น/);assert.match(source,/reviewedSnapshot: receipt.draft_snapshot_json/);assert.match(source,/reviewed === fingerprint/);
+  assert.ok(source.indexOf('<ReceiptDocument receipt={receipt}')<source.indexOf('aria-label={t("finance.receipt.reviewConfirm")}'));
+  assert.match(source,/finance\.taxInvoice\.ui\.otherActions/);assert.match(source,/reviewedSnapshot: receipt.draft_snapshot_json/);assert.match(source,/reviewed === fingerprint/);
 });

@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "../../../lib/i18n/provider";
 
 import { useRef } from "react";
 import type { CSSProperties, ReactNode } from "react";
@@ -62,6 +63,7 @@ export function FeeAgreementSignatoryEditor({
   disabled: boolean;
   onChange: (next: FeeAgreementSignatory[]) => void;
 }) {
+  const { t } = useI18n();
   const groupRefs = useRef<Partial<Record<FeeAgreementPartyType | "unclassified", HTMLDivElement | null>>>({});
   const ordered = [...value].sort(compareSignatories);
   const clientRows = ordered.filter((row) => row.party_type === "client");
@@ -137,7 +139,7 @@ export function FeeAgreementSignatoryEditor({
     />
 
     <div ref={(node) => { groupRefs.current.client = node; }} style={scrollTarget}>
-      <SignerGroup title="ฝ่ายลูกค้า" description={`คู่สัญญา: ${client.name || "-"}`}>
+      <SignerGroup title={t("finance.feeAgreement.signers.clientParty")} description={t("finance.feeAgreement.signers.contractualPartyName", { name: client.name || "-" })}>
         {clientRows.map((row, index) => <ClientSignerRow
           key={`client-${index}-${row.sort_order}`}
           row={row}
@@ -150,13 +152,13 @@ export function FeeAgreementSignatoryEditor({
           onRemove={() => removeRow(row)}
           onMove={(direction) => moveRow("client", index, direction)}
         />)}
-        {!clientRows.length ? <p style={missing}>ยังไม่มีผู้ลงนามฝ่ายลูกค้า</p> : null}
-        <button type="button" style={secondaryButton} disabled={disabled || !partyIsAllowed("client")} onClick={addClient}>+ เพิ่มผู้ลงนามฝ่ายลูกค้า</button>
+        {!clientRows.length ? <p style={missing}>{t("finance.feeAgreement.signers.noClient")}</p> : null}
+        <button type="button" style={secondaryButton} disabled={disabled || !partyIsAllowed("client")} onClick={addClient}>{t("finance.feeAgreement.signers.addClient")}</button>
       </SignerGroup>
     </div>
 
     <div ref={(node) => { groupRefs.current.firm = node; }} style={scrollTarget}>
-      <SignerGroup title="ฝ่ายสำนักงาน" description="เลือกจากผู้ลงนามที่เปิดใช้งานใน Settings → ตั้งค่าเอกสาร">
+      <SignerGroup title={t("finance.feeAgreement.signers.firmParty")} description={t("finance.feeAgreement.signers.firmHelp")}>
         {firmRows.map((row, index) => <OfficeSignerRow
           key={`firm-${index}-${row.sort_order}`}
           row={row}
@@ -169,13 +171,13 @@ export function FeeAgreementSignatoryEditor({
           onRemove={() => removeRow(row)}
           onMove={(direction) => moveRow("firm", index, direction)}
         />)}
-        {!firmRows.length ? <p style={missing}>ยังไม่มีผู้ลงนามฝ่ายสำนักงาน</p> : null}
-        <button type="button" style={secondaryButton} disabled={disabled || !partyIsAllowed("firm") || !availableOfficeSigners.length} onClick={addOffice}>+ เพิ่มผู้ลงนามฝ่ายสำนักงาน</button>
+        {!firmRows.length ? <p style={missing}>{t("finance.feeAgreement.signers.noFirm")}</p> : null}
+        <button type="button" style={secondaryButton} disabled={disabled || !partyIsAllowed("firm") || !availableOfficeSigners.length} onClick={addOffice}>{t("finance.feeAgreement.signers.addFirm")}</button>
       </SignerGroup>
     </div>
 
     <div ref={(node) => { groupRefs.current.witness = node; }} style={scrollTarget}>
-      <SignerGroup title="พยาน" description={minimumWitness ? `แม่แบบกำหนดให้มีพยานอย่างน้อย ${minimumWitness} คน` : "ไม่บังคับ เว้นแต่แม่แบบที่เลือกกำหนดไว้"}>
+      <SignerGroup title={t("finance.feeAgreement.signers.witness")} description={minimumWitness ? t("finance.feeAgreement.signers.witnessMinimumHelp", { count: minimumWitness }) : t("finance.feeAgreement.signers.optionalWitness")}>
         {witnessRows.map((row, index) => <SimpleSignerRow
           key={`witness-${index}-${row.sort_order}`}
           row={row}
@@ -186,12 +188,12 @@ export function FeeAgreementSignatoryEditor({
           onRemove={() => removeRow(row)}
           onMove={(direction) => moveRow("witness", index, direction)}
         />)}
-        <button type="button" style={secondaryButton} disabled={disabled || !partyIsAllowed("witness")} onClick={addWitness}>+ เพิ่มพยาน</button>
+        <button type="button" style={secondaryButton} disabled={disabled || !partyIsAllowed("witness")} onClick={addWitness}>{t("finance.feeAgreement.signers.addWitness")}</button>
       </SignerGroup>
     </div>
 
     {unclassifiedRows.length ? <div ref={(node) => { groupRefs.current.unclassified = node; }} style={scrollTarget}>
-      <SignerGroup title="ข้อมูลผู้ลงนามเดิมที่ต้องตรวจสอบ" description="เลือกฝ่ายให้ข้อมูลเดิมก่อนบันทึก โดยระบบจะไม่เปลี่ยนข้อมูลนี้ให้อัตโนมัติ">
+      <SignerGroup title={t("finance.feeAgreement.signers.legacyTitle")} description={t("finance.feeAgreement.signers.legacyHelp")}>
         {unclassifiedRows.map((row, index) => <UnclassifiedSignerRow
           key={`unclassified-${index}-${row.sort_order}`}
           row={row}
@@ -215,6 +217,7 @@ function ClientSignerRow({ row, client, disabled, canRemove, canMoveUp, canMoveD
   onRemove: () => void;
   onMove: (direction: -1 | 1) => void;
 }) {
+  const { t } = useI18n();
   const individual = isIndividual(client.clientType);
   const mode = effectiveClientSigningMode(row, client);
   const delegated = mode === "attorney_in_fact";
@@ -241,23 +244,23 @@ function ClientSignerRow({ row, client, disabled, canRemove, canMoveUp, canMoveD
     });
   };
   return <div style={signerCard}>
-    <div style={cardHeader}><strong>{individual ? "ผู้ลงนามฝ่ายลูกค้า" : "ผู้แทนผู้ลงนามของลูกค้า"}</strong><OrderActions disabled={disabled} canMoveUp={canMoveUp} canMoveDown={canMoveDown} onMove={onMove} /></div>
+    <div style={cardHeader}><strong>{individual ? t("finance.feeAgreement.signers.clientSignatory") : t("finance.feeAgreement.signers.clientRepresentative")}</strong><OrderActions disabled={disabled} canMoveUp={canMoveUp} canMoveDown={canMoveDown} onMove={onMove} /></div>
     <div style={compactGrid}>
-      <label style={labelStyle}>รูปแบบการลงนาม<select style={input} value={mode} disabled={disabled} onChange={(event) => updateMode(event.target.value as "self" | "attorney_in_fact" | "authorized_representative")}>
-        {individual ? <><option value="self">ลงนามด้วยตนเอง</option><option value="attorney_in_fact">ลงนามโดยผู้รับมอบอำนาจ</option></> : <><option value="authorized_representative">ผู้แทนผู้มีอำนาจของนิติบุคคล</option><option value="attorney_in_fact">ผู้รับมอบอำนาจ</option></>}
+      <label style={labelStyle}>{t("finance.feeAgreement.signers.signingMode")}<select style={input} value={mode} disabled={disabled} onChange={(event) => updateMode(event.target.value as "self" | "attorney_in_fact" | "authorized_representative")}>
+        {individual ? <><option value="self">{t("finance.feeAgreement.signers.self")}</option><option value="attorney_in_fact">{t("finance.feeAgreement.signers.delegated")}</option></> : <><option value="authorized_representative">{t("finance.feeAgreement.signers.legalRepresentative")}</option><option value="attorney_in_fact">{t("finance.feeAgreement.signers.attorney")}</option></>}
       </select></label>
-      <ReadOnlyField label="คู่สัญญา" value={client.name} />
+      <ReadOnlyField label={t("finance.feeAgreement.signers.contractualParty")} value={client.name} />
     </div>
-    {mode === "self" ? <div style={identityLine}><strong>{client.name || "-"}</strong><span>ลงนามด้วยตนเอง</span></div> : <>
+    {mode === "self" ? <div style={identityLine}><strong>{client.name || "-"}</strong><span>{t("finance.feeAgreement.signers.self")}</span></div> : <>
       <div style={compactGrid}>
-        <Input label={delegated ? "ชื่อผู้รับมอบอำนาจ" : "ชื่อผู้ลงนาม"} value={row.name} disabled={disabled} onChange={(name) => onChange({ ...row, name, contractual_party_name: client.name, signing_mode: mode })} />
-        <Input label="ตำแหน่ง/ฐานะ" value={row.capacity} disabled={disabled} onChange={(capacity) => onChange({ ...row, capacity })} />
-        {delegated ? <><Input label="หนังสือมอบอำนาจเลขที่" value={text(row.power_of_attorney_no)} disabled={disabled} onChange={(power_of_attorney_no) => onChange({ ...row, power_of_attorney_no })} /><Input label="วันที่หนังสือมอบอำนาจ" type="date" value={text(row.power_of_attorney_date)} disabled={disabled} onChange={(power_of_attorney_date) => onChange({ ...row, power_of_attorney_date })} /></> : null}
+        <Input label={delegated ? t("finance.feeAgreement.signers.attorneyName") : t("finance.feeAgreement.signers.name")} value={row.name} disabled={disabled} onChange={(name) => onChange({ ...row, name, contractual_party_name: client.name, signing_mode: mode })} />
+        <Input label={t("finance.feeAgreement.signers.capacity")} value={row.capacity} disabled={disabled} onChange={(capacity) => onChange({ ...row, capacity })} />
+        {delegated ? <><Input label={t("finance.feeAgreement.signers.poaNumber")} value={text(row.power_of_attorney_no)} disabled={disabled} onChange={(power_of_attorney_no) => onChange({ ...row, power_of_attorney_no })} /><Input label={t("finance.feeAgreement.signers.poaDate")} type="date" value={text(row.power_of_attorney_date)} disabled={disabled} onChange={(power_of_attorney_date) => onChange({ ...row, power_of_attorney_date })} /></> : null}
       </div>
-      <Input label="หมายเหตุอ้างอิงอำนาจ" value={text(row.authority_reference, text(row.authority_note))} disabled={disabled} onChange={(authority_reference) => onChange({ ...row, authority_reference })} />
-      {!individual && client.contactName ? <p style={suggestion}>ผู้ติดต่อในข้อมูลลูกค้า: {client.contactName} โปรดตรวจสอบอำนาจก่อนกรอกเป็นผู้ลงนาม ระบบจะไม่เลือกให้โดยอัตโนมัติ</p> : null}
+      <Input label={t("finance.feeAgreement.signers.authorityReference")} value={text(row.authority_reference, text(row.authority_note))} disabled={disabled} onChange={(authority_reference) => onChange({ ...row, authority_reference })} />
+      {!individual && client.contactName ? <p style={suggestion}>{t("finance.feeAgreement.signers.clientContact", { name: client.contactName })}</p> : null}
     </>}
-    <div style={rowFooter}>{canRemove ? <button type="button" style={removeButton} disabled={disabled} onClick={onRemove}>ลบผู้ลงนามนี้</button> : null}</div>
+    <div style={rowFooter}>{canRemove ? <button type="button" style={removeButton} disabled={disabled} onClick={onRemove}>{t("finance.feeAgreement.signers.remove")}</button> : null}</div>
   </div>;
 }
 
@@ -272,25 +275,26 @@ function OfficeSignerRow({ row, authorizedSigners, disabled, canRemove, canMoveU
   onRemove: () => void;
   onMove: (direction: -1 | 1) => void;
 }) {
+  const { t } = useI18n();
   const savedKey = text(row.authorized_signer_key);
   const activeMatch = authorizedSigners.find((signer) => signer.key === savedKey);
   const selectedValue = activeMatch ? activeMatch.key : "__saved__";
   return <div style={signerCard}>
-    <div style={cardHeader}><strong>ผู้ลงนามฝ่ายสำนักงาน</strong><OrderActions disabled={disabled} canMoveUp={canMoveUp} canMoveDown={canMoveDown} onMove={onMove} /></div>
-    <label style={labelStyle}>ผู้ลงนามที่ได้รับมอบอำนาจ<select style={input} value={selectedValue} disabled={disabled} onChange={(event) => {
+    <div style={cardHeader}><strong>{t("finance.feeAgreement.signers.firmSignatory")}</strong><OrderActions disabled={disabled} canMoveUp={canMoveUp} canMoveDown={canMoveDown} onMove={onMove} /></div>
+    <label style={labelStyle}>{t("finance.feeAgreement.signers.authorized")}<select style={input} value={selectedValue} disabled={disabled} onChange={(event) => {
       const signer = authorizedSigners.find((candidate) => candidate.key === event.target.value);
       if (signer) onChange(officeSignatory(signer, row.sort_order));
     }}>
-      {!activeMatch ? <option value="__saved__">{row.name || "ผู้ลงนามเดิม"} — ข้อมูลที่บันทึกไว้</option> : null}
-      {authorizedSigners.map((signer) => <option key={signer.key} value={signer.key}>{signer.displayName} — {signer.positionTh || signer.positionEn || "ไม่ระบุตำแหน่ง"}</option>)}
+      {!activeMatch ? <option value="__saved__">{row.name || t("finance.feeAgreement.signers.historical")}  {t("finance.feeAgreement.signers.savedEvidence")}</option> : null}
+      {authorizedSigners.map((signer) => <option key={signer.key} value={signer.key}>{signer.displayName} — {signer.positionTh || signer.positionEn || t("finance.feeAgreement.signers.noPosition")}</option>)}
     </select></label>
     <div style={compactGrid}>
-      <ReadOnlyField label="ชื่อ" value={row.name} />
-      <ReadOnlyField label="ตำแหน่ง" value={[text(row.position_th, row.capacity), text(row.position_en)].filter(Boolean).join(" / ")} />
-      <ReadOnlyField label="อีเมล" value={text(row.email, "-")} />
-      <ReadOnlyField label="ลายมือชื่อ" value={row.signature_storage_path ? "มีไฟล์ลายมือชื่อ" : "ยังไม่มีไฟล์ลายมือชื่อ"} />
+      <ReadOnlyField label={t("finance.feeAgreement.signers.personName")} value={row.name} />
+      <ReadOnlyField label={t("finance.feeAgreement.signers.position")} value={[text(row.position_th, row.capacity), text(row.position_en)].filter(Boolean).join(" / ")} />
+      <ReadOnlyField label={t("finance.feeAgreement.signers.email")} value={text(row.email, "-")} />
+      <ReadOnlyField label={t("finance.feeAgreement.signers.signature")} value={row.signature_storage_path ? t("finance.feeAgreement.signers.signaturePresent") : t("finance.feeAgreement.signers.signatureAbsent")} />
     </div>
-    <div style={rowFooter}>{canRemove ? <button type="button" style={removeButton} disabled={disabled} onClick={onRemove}>ลบผู้ลงนามนี้</button> : null}</div>
+    <div style={rowFooter}>{canRemove ? <button type="button" style={removeButton} disabled={disabled} onClick={onRemove}>{t("finance.feeAgreement.signers.remove")}</button> : null}</div>
   </div>;
 }
 
@@ -303,22 +307,25 @@ function SimpleSignerRow({ row, disabled, canMoveUp, canMoveDown, onChange, onRe
   onRemove: () => void;
   onMove: (direction: -1 | 1) => void;
 }) {
+  const { t } = useI18n();
   return <div style={signerCard}>
-    <div style={cardHeader}><strong>พยาน</strong><OrderActions disabled={disabled} canMoveUp={canMoveUp} canMoveDown={canMoveDown} onMove={onMove} /></div>
-    <div style={compactGrid}><Input label="ชื่อพยาน" value={row.name} disabled={disabled} onChange={(name) => onChange({ ...row, name, signing_mode: "witness" })} /><Input label="ตำแหน่ง/คำอธิบาย" value={row.capacity} disabled={disabled} onChange={(capacity) => onChange({ ...row, capacity })} /></div>
-    <div style={rowFooter}><button type="button" style={removeButton} disabled={disabled} onClick={onRemove}>ลบพยาน</button></div>
+    <div style={cardHeader}><strong>{t("finance.feeAgreement.signers.witness")}</strong><OrderActions disabled={disabled} canMoveUp={canMoveUp} canMoveDown={canMoveDown} onMove={onMove} /></div>
+    <div style={compactGrid}><Input label={t("finance.feeAgreement.signers.witnessName")} value={row.name} disabled={disabled} onChange={(name) => onChange({ ...row, name, signing_mode: "witness" })} /><Input label={t("finance.feeAgreement.signers.witnessCapacity")} value={row.capacity} disabled={disabled} onChange={(capacity) => onChange({ ...row, capacity })} /></div>
+    <div style={rowFooter}><button type="button" style={removeButton} disabled={disabled} onClick={onRemove}>{t("finance.feeAgreement.signers.removeWitness")}</button></div>
   </div>;
 }
 
 function UnclassifiedSignerRow({ row, disabled, onChange, onRemove }: { row: FeeAgreementSignatory; disabled: boolean; onChange: (next: FeeAgreementSignatory) => void; onRemove: () => void }) {
-  return <div style={signerCard}><div style={compactGrid}><Input label="ชื่อ" value={row.name} disabled={disabled} onChange={(name) => onChange({ ...row, name })} /><Input label="ตำแหน่ง/ฐานะ" value={row.capacity} disabled={disabled} onChange={(capacity) => onChange({ ...row, capacity })} /><label style={labelStyle}>ฝ่าย<select style={input} value="" disabled={disabled} onChange={(event) => onChange({ ...row, party_type: event.target.value as FeeAgreementPartyType, signing_mode: event.target.value === "witness" ? "witness" : "" })}><option value="">เลือกฝ่าย</option><option value="client">ฝ่ายลูกค้า</option><option value="firm">ฝ่ายสำนักงาน</option><option value="witness">พยาน</option></select></label></div><div style={rowFooter}><button type="button" style={removeButton} disabled={disabled} onClick={onRemove}>ลบข้อมูลนี้</button></div></div>;
+  const { t } = useI18n();
+  return <div style={signerCard}><div style={compactGrid}><Input label={t("finance.feeAgreement.signers.personName")} value={row.name} disabled={disabled} onChange={(name) => onChange({ ...row, name })} /><Input label={t("finance.feeAgreement.signers.capacity")} value={row.capacity} disabled={disabled} onChange={(capacity) => onChange({ ...row, capacity })} /><label style={labelStyle}>{t("finance.feeAgreement.signers.party")}<select style={input} value="" disabled={disabled} onChange={(event) => onChange({ ...row, party_type: event.target.value as FeeAgreementPartyType, signing_mode: event.target.value === "witness" ? "witness" : "" })}><option value="">{t("finance.feeAgreement.signers.selectParty")}</option><option value="client">{t("finance.feeAgreement.signers.clientParty")}</option><option value="firm">{t("finance.feeAgreement.signers.firmParty")}</option><option value="witness">{t("finance.feeAgreement.signers.witness")}</option></select></label></div><div style={rowFooter}><button type="button" style={removeButton} disabled={disabled} onClick={onRemove}>{t("finance.feeAgreement.signers.removeHistorical")}</button></div></div>;
 }
 
 function RequirementSummary({ minimumClient, minimumFirm, minimumWitness, clientCount, firmCount, witnessCount }: { minimumClient: number; minimumFirm: number; minimumWitness: number; clientCount: number; firmCount: number; witnessCount: number }) {
-  const requirements = [minimumClient ? `ฝ่ายลูกค้าอย่างน้อย ${minimumClient}` : "", minimumFirm ? `ฝ่ายสำนักงานอย่างน้อย ${minimumFirm}` : "", minimumWitness ? `พยานอย่างน้อย ${minimumWitness}` : ""].filter(Boolean);
-  if (!requirements.length) return <p style={requirement}>แม่แบบไม่กำหนดจำนวนผู้ลงนามขั้นต่ำเพิ่มเติม ระบบยังตรวจสอบความพร้อมก่อนบันทึกว่าส่งเอกสารให้ลูกค้าแล้ว</p>;
+  const { t } = useI18n();
+  const requirements = [minimumClient ? t("finance.feeAgreement.signers.minimumClient", { count: minimumClient }) : "", minimumFirm ? t("finance.feeAgreement.signers.minimumFirm", { count: minimumFirm }) : "", minimumWitness ? t("finance.feeAgreement.signers.minimumWitness", { count: minimumWitness }) : ""].filter(Boolean);
+  if (!requirements.length) return <p style={requirement}>{t("finance.feeAgreement.signers.noMinimum")}</p>;
   const complete = clientCount >= minimumClient && firmCount >= minimumFirm && witnessCount >= minimumWitness;
-  return <p style={{ ...requirement, ...(complete ? requirementReady : requirementPending) }}>ข้อกำหนดแม่แบบ: {requirements.join(" · ")} {complete ? "— ครบแล้ว" : "— ยังไม่ครบ"}</p>;
+  return <p style={{ ...requirement, ...(complete ? requirementReady : requirementPending) }}>{t("finance.feeAgreement.signers.requirements")} {requirements.join(" · ")} {complete ? t("finance.feeAgreement.signers.complete") : t("finance.feeAgreement.signers.incomplete")}</p>;
 }
 
 function SignerGroup({ title, description, children }: { title: string; description: string; children: ReactNode }) {
@@ -326,7 +333,8 @@ function SignerGroup({ title, description, children }: { title: string; descript
 }
 
 function OrderActions({ disabled, canMoveUp, canMoveDown, onMove }: { disabled: boolean; canMoveUp: boolean; canMoveDown: boolean; onMove: (direction: -1 | 1) => void }) {
-  return <div style={orderActions}><button type="button" style={iconButton} title="เลื่อนขึ้น" aria-label="เลื่อนผู้ลงนามขึ้น" disabled={disabled || !canMoveUp} onClick={() => onMove(-1)}>↑</button><button type="button" style={iconButton} title="เลื่อนลง" aria-label="เลื่อนผู้ลงนามลง" disabled={disabled || !canMoveDown} onClick={() => onMove(1)}>↓</button></div>;
+  const { t } = useI18n();
+  return <div style={orderActions}><button type="button" style={iconButton} title={t("finance.feeAgreement.signers.moveUp")} aria-label={t("finance.feeAgreement.signers.moveSignatoryUp")} disabled={disabled || !canMoveUp} onClick={() => onMove(-1)}>↑</button><button type="button" style={iconButton} title={t("finance.feeAgreement.signers.moveDown")} aria-label={t("finance.feeAgreement.signers.moveSignatoryDown")} disabled={disabled || !canMoveDown} onClick={() => onMove(1)}>↓</button></div>;
 }
 
 function Input({ label, value, disabled, onChange, type = "text" }: { label: string; value: string; disabled: boolean; onChange: (value: string) => void; type?: string }) {

@@ -1,4 +1,7 @@
 "use client";
+import { useI18n } from "../../../lib/i18n/provider";
+import { translate } from "../../../lib/i18n/catalog";
+import { uiMessage, type UiMessage, type UiLocale } from "../../../lib/i18n/core";
 import { VatTreatmentInput } from "../document-decision/vat-input";
 import type { VatEvidence } from "../document-decision/shared";
 
@@ -75,7 +78,7 @@ type AuditEvent = {
   created_at: string;
 };
 type ChargeInvoiceLink = { invoiceId: string; invoiceNo: string | null; documentStatus: string };
-type BillingPlanReturnContext = { returnTo: string; returnLabel: string; clientId: string; caseId: number | null; advisoryMatterId: string | null; clientName: string; matterLabel: string };
+type BillingPlanReturnContext = { returnTo: string; returnLabel: UiMessage; clientId: string; caseId: number | null; advisoryMatterId: string | null; clientName: string | null; };
 
 type ChargeForm = {
   vatTreatment?: VatEvidence | null;
@@ -139,24 +142,26 @@ const profileSelect = [
   "can_approve_finance_billable_charges",
 ].join(", ");
 
-const statusTabs: Array<{ value: "all" | ChargeStatus; label: string }> = [
-  { value: "all", label: "ทั้งหมด" },
-  { value: "draft", label: "ร่าง" },
-  { value: "ready_to_invoice", label: "พร้อมออกใบแจ้งหนี้" },
-  { value: "reserved", label: "กำลังจัดทำใบแจ้งหนี้" },
-  { value: "invoiced", label: "ออกใบแจ้งหนี้แล้ว" },
-  { value: "cancelled", label: "ยกเลิก" },
-];
+function localizedStatusTabs(locale: UiLocale): Array<{ value: "all" | ChargeStatus; label: string }> { return [
+  { value: "all", label: translate(locale, "finance.charge.ui.all") },
+  { value: "draft", label: translate(locale, "finance.charge.ui.draft") },
+  { value: "ready_to_invoice", label: translate(locale, "finance.invoice.ui.readyToInvoice") },
+  { value: "reserved", label: translate(locale, "finance.charge.ui.reserved") },
+  { value: "invoiced", label: translate(locale, "finance.invoice.installment.invoiced") },
+  { value: "cancelled", label: translate(locale, "finance.invoice.installment.cancelled") },
+]; }
 
 export default function BillableChargesPage() {
+  const { t } = useI18n();
   return (
-    <Suspense fallback={<PageShell><div className={styles.loading}>กำลังโหลดรายการเรียกเก็บเพิ่มเติม...</div></PageShell>}>
+    <Suspense fallback={<PageShell><div className={styles.loading}>{t("finance.charge.ui.loading")}</div></PageShell>}>
       <BillableChargesWorkspace />
     </Suspense>
   );
 }
 
 function BillableChargesWorkspace() {
+  const { t, text, date, locale } = useI18n();
   const searchParams = useSearchParams();
   const [profile, setProfile] = useState<Profile>({ role: "" });
   const [loadingProfile, setLoadingProfile] = useState(true);
@@ -176,15 +181,15 @@ function BillableChargesWorkspace() {
   const [chargeId, setChargeId] = useState("");
   const [form, setForm] = useState<ChargeForm>(() => emptyForm());
   const [baseline, setBaseline] = useState("");
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState<Record<string, UiMessage | "">>({});
+  const [message, setMessage] = useState<UiMessage | string>("");
+  const [error, setError] = useState<UiMessage | string>("");
   const [saving, setSaving] = useState(false);
   const [createSourceLocked, setCreateSourceLocked] = useState(false);
   const [readyAcknowledged, setReadyAcknowledged] = useState(false);
   const [cancelContext, setCancelContext] = useState<"editor" | "detail" | null>(null);
   const [cancelReason, setCancelReason] = useState("");
-  const [billingPlanContext, setBillingPlanContext] = useState<BillingPlanReturnContext | null>(null);
+  const [billingPlanSource, setBillingPlanContext] = useState<BillingPlanReturnContext | null>(null);
 
   const panelRef = useRef<HTMLElement | null>(null);
   const reviewRef = useRef<HTMLElement | null>(null);
@@ -234,7 +239,7 @@ function BillableChargesWorkspace() {
     const firstError = chargeResult.error || clientResult.error || caseResult.error || advisoryResult.error || allocationResult.error;
     if (firstError) {
       console.error("LOAD BILLABLE CHARGE WORKSPACE FAILED", { chargeResult, clientResult, caseResult, advisoryResult });
-      setError("โหลดรายการเรียกเก็บเพิ่มเติมไม่สำเร็จ กรุณารีเฟรชและลองอีกครั้ง");
+      setError(uiMessage("finance.charge.ui.loadFailed"));
     } else {
       setCharges((chargeResult.data || []) as BillableCharge[]);
       setClients((clientResult.data || []) as ClientOption[]);
@@ -300,7 +305,7 @@ function BillableChargesWorkspace() {
       const requestedResumeInstallmentId = searchParams.get("resumeInvoiceForInstallment") || "";
       const returnTo = safeBillingPlanReturnPath(requestedReturnTo);
 
-      const failPreselection = (message: string) => {
+      const failPreselection = (message: UiMessage) => {
         if (!active) return;
         setBillingPlanContext(null);
         openNew();
@@ -308,7 +313,7 @@ function BillableChargesWorkspace() {
       };
 
       if (requestedReturnTo && !returnTo) {
-        failPreselection("ลิงก์กลับไปแผนเรียกเก็บเงินไม่ถูกต้อง ระบบไม่ได้ใช้ข้อมูลจากลิงก์นี้ กรุณาเลือกข้อมูลใหม่");
+        failPreselection(uiMessage("finance.charge.ui.returnLinkInvalid"));
         return;
       }
 
@@ -317,7 +322,7 @@ function BillableChargesWorkspace() {
         const planResult = await supabase.from("finance_billing_plans").select("id,fee_agreement_id").eq("id", planId).maybeSingle();
         if (planResult.error || !planResult.data) {
           console.error("LOAD BILLABLE CHARGE BILLING PLAN CONTEXT FAILED", planResult.error);
-          failPreselection("ไม่พบแผนเรียกเก็บเงินจากลิงก์นี้ กรุณาเลือกลูกค้าและเรื่อง/งานใหม่");
+          failPreselection(uiMessage("finance.charge.ui.planMissing"));
           return;
         }
         const agreementResult = await supabase
@@ -327,7 +332,7 @@ function BillableChargesWorkspace() {
           .maybeSingle();
         if (agreementResult.error || !agreementResult.data) {
           console.error("LOAD BILLABLE CHARGE AGREEMENT CONTEXT FAILED", agreementResult.error);
-          failPreselection("ไม่พบข้อมูลลูกค้าหรือเรื่อง/งานของแผนเรียกเก็บเงิน กรุณาเลือกข้อมูลใหม่");
+          failPreselection(uiMessage("finance.charge.ui.planContextMissing"));
           return;
         }
 
@@ -341,14 +346,14 @@ function BillableChargesWorkspace() {
         const matterIsValid = canonicalCaseId ? Boolean(caseItem) : canonicalAdvisoryId ? Boolean(advisory) : true;
 
         if (!client || !queryMatchesCanonical || !matterIsValid || (canonicalCaseId && canonicalAdvisoryId)) {
-          failPreselection("ข้อมูลลูกค้าหรือเรื่อง/งานจากลิงก์ไม่ตรงกับข้อมูลปัจจุบัน กรุณาเลือกใหม่ก่อนบันทึก");
+          failPreselection(uiMessage("finance.charge.ui.planContextChanged"));
           return;
         }
         let finalReturnTo = returnTo;
-        let returnLabel = "กลับไปแผนเรียกเก็บเงิน";
+        let returnLabel = uiMessage("finance.invoice.ui.backToPlan");
         if (requestedResumeInstallmentId) {
           if (!isUuid(requestedResumeInstallmentId)) {
-            failPreselection("ลิงก์กลับมาจัดทำใบแจ้งหนี้ไม่ถูกต้อง กรุณากลับไปเลือกงวดจากแผนอีกครั้ง");
+            failPreselection(uiMessage("finance.charge.ui.composerReturnInvalid"));
             return;
           }
           const installmentResult = await supabase
@@ -359,15 +364,14 @@ function BillableChargesWorkspace() {
             .maybeSingle();
           if (installmentResult.error || !installmentResult.data) {
             console.error("LOAD BILLABLE CHARGE RESUME INSTALLMENT FAILED", installmentResult.error);
-            failPreselection("ไม่พบงวดเรียกเก็บเงินจากลิงก์นี้ กรุณากลับไปเลือกงวดจากแผนอีกครั้ง");
+            failPreselection(uiMessage("finance.charge.ui.installmentMissing"));
             return;
           }
           finalReturnTo = `${returnTo}?resumeInvoiceForInstallment=${encodeURIComponent(requestedResumeInstallmentId)}`;
-          returnLabel = "กลับไปจัดทำใบแจ้งหนี้";
+          returnLabel = uiMessage("finance.charge.ui.backToCompose");
         }
         if (!active) return;
-        const resolvedMatterLabel = caseItem ? `คดี · ${caseOptionLabel(caseItem)}` : advisory ? `งานที่ปรึกษา · ${advisoryOptionLabel(advisory)}` : "ไม่ผูกกับงานเฉพาะ";
-        setBillingPlanContext({ returnTo: finalReturnTo, returnLabel, clientId: canonicalClientId, caseId: canonicalCaseId ? Number(canonicalCaseId) : null, advisoryMatterId: canonicalAdvisoryId || null, clientName: client.name || "ลูกค้าไม่มีชื่อ", matterLabel: resolvedMatterLabel });
+        setBillingPlanContext({ returnTo: finalReturnTo, returnLabel, clientId: canonicalClientId, caseId: canonicalCaseId ? Number(canonicalCaseId) : null, advisoryMatterId: canonicalAdvisoryId || null, clientName: client.name });
         openNew({
           clientId: canonicalClientId,
           matterMode: canonicalCaseId ? "case" : canonicalAdvisoryId ? "advisory" : "unlinked",
@@ -385,7 +389,7 @@ function BillableChargesWorkspace() {
       const caseItem = requestedCaseId ? cases.find((item) => String(item.id) === requestedCaseId && item.client_id === requestedClientId) : null;
       const advisory = requestedAdvisoryId ? advisories.find((item) => item.id === requestedAdvisoryId && item.client_id === requestedClientId) : null;
       if (!client || (requestedCaseId && !caseItem) || (requestedAdvisoryId && !advisory) || (requestedCaseId && requestedAdvisoryId)) {
-        failPreselection("ข้อมูลลูกค้าหรือเรื่อง/งานจากลิงก์ไม่ตรงกับข้อมูลปัจจุบัน กรุณาเลือกใหม่ก่อนบันทึก");
+        failPreselection(uiMessage("finance.charge.ui.planContextChanged"));
         return;
       }
       if (!active) return;
@@ -536,11 +540,11 @@ function BillableChargesWorkspace() {
       });
       if (saveResult.error) throw saveResult.error;
       await reloadCharge(id);
-      setMessage("บันทึกร่างรายการเรียกเก็บแล้ว");
+      setMessage(uiMessage("finance.charge.ui.saved"));
       if (isFirstSave) scrollToReview();
     } catch (caught) {
       console.error("SAVE BILLABLE CHARGE DRAFT FAILED", caught);
-      setError(billableChargeError(caught, "บันทึกร่างรายการเรียกเก็บไม่สำเร็จ"));
+      setError(billableChargeError(caught, uiMessage("finance.charge.ui.saveFailed")));
     } finally {
       actionLockRef.current = false;
       setSaving(false);
@@ -549,12 +553,12 @@ function BillableChargesWorkspace() {
 
   const markReady = async () => {
     const nextErrors = validateReady(form);
-    if (dirty) nextErrors.ready = "มีข้อมูลที่ยังไม่ได้บันทึก กรุณาบันทึกร่างก่อนยืนยัน";
-    if (!chargeId) nextErrors.ready = "กรุณาบันทึกร่างก่อนยืนยัน";
-    if (!readyAcknowledged) nextErrors.acknowledgement = "กรุณายืนยันว่าได้ตรวจสอบรายการและยอดเรียกเก็บแล้ว";
+    if (dirty) nextErrors.ready = uiMessage("finance.charge.ui.saveBeforeReadyDirty");
+    if (!chargeId) nextErrors.ready = uiMessage("finance.charge.ui.saveBeforeReady");
+    if (!readyAcknowledged) nextErrors.acknowledgement = uiMessage("finance.charge.ui.reviewRequired");
     setErrors(nextErrors);
     if (actionLockRef.current || Object.keys(nextErrors).length || !permissions.canApproveFinanceBillableCharges) {
-      focusFirstError(nextErrors);
+      focusFirstError(nextErrors, locale);
       return;
     }
     actionLockRef.current = true;
@@ -568,10 +572,10 @@ function BillableChargesWorkspace() {
       if (rpcError) throw rpcError;
       await reloadCharge(chargeId);
       setReadyAcknowledged(false);
-      setMessage("ยืนยันรายการพร้อมออกใบแจ้งหนี้แล้ว");
+      setMessage(uiMessage("finance.charge.ui.readySuccess"));
     } catch (caught) {
       console.error("MARK BILLABLE CHARGE READY FAILED", caught);
-      setError(billableChargeError(caught, "ยืนยันรายการพร้อมออกใบแจ้งหนี้ไม่สำเร็จ"));
+      setError(billableChargeError(caught, uiMessage("finance.charge.ui.readyFailed")));
     } finally {
       actionLockRef.current = false;
       setSaving(false);
@@ -581,7 +585,7 @@ function BillableChargesWorkspace() {
   const cancelCharge = async (targetChargeId = chargeId, context: "editor" | "detail" = "editor") => {
     const trimmedReason = cancelReason.trim();
     if (!trimmedReason) {
-      setErrors((current) => ({ ...current, cancelReason: "กรุณาระบุเหตุผลที่ยกเลิกรายการ" }));
+      setErrors((current) => ({ ...current, cancelReason: uiMessage("finance.charge.ui.cancelReasonRequired") }));
       return;
     }
     if (actionLockRef.current || !targetChargeId) return;
@@ -605,22 +609,24 @@ function BillableChargesWorkspace() {
       }
       setCancelContext(null);
       setCancelReason("");
-      setMessage("ยกเลิกรายการเรียกเก็บแล้ว โดยยังเก็บรายการไว้เป็นประวัติ");
+      setMessage(uiMessage("finance.charge.ui.cancelledSuccess"));
     } catch (caught) {
       console.error("CANCEL BILLABLE CHARGE FAILED", caught);
-      setError(billableChargeError(caught, "ยกเลิกรายการเรียกเก็บไม่สำเร็จ"));
+      setError(billableChargeError(caught, uiMessage("finance.charge.ui.cancelFailed")));
     } finally {
       actionLockRef.current = false;
       setSaving(false);
     }
   };
 
+  const billingPlanContext = billingPlanSource ? { ...billingPlanSource, returnLabel: text(billingPlanSource.returnLabel), clientName: billingPlanSource.clientName || t("finance.invoice.composer.unnamedClient"), matterLabel: matterLabel({ case_id: billingPlanSource.caseId, advisory_matter_id: billingPlanSource.advisoryMatterId }, cases, advisories, locale) } : null;
+
   const filteredCharges = useMemo(() => charges.filter((charge) => {
     if (filter !== "all" && charge.status !== filter) return false;
     if (!search.trim()) return true;
-    const haystack = [charge.description, charge.source_reference, clientLabel(charge.client_id, clients), matterLabel(charge, cases, advisories)].join(" ").toLocaleLowerCase("th");
+    const haystack = [charge.description, charge.source_reference, clientLabel(charge.client_id, clients, locale), matterLabel(charge, cases, advisories, locale)].join(" ").toLocaleLowerCase("th");
     return haystack.includes(search.trim().toLocaleLowerCase("th"));
-  }), [advisories, cases, charges, clients, filter, search]);
+  }), [advisories, cases, charges, clients, filter, search, locale]);
 
   useEffect(() => {
     if (!detailChargeId || filteredCharges.some((charge) => charge.id === detailChargeId)) return;
@@ -641,49 +647,49 @@ function BillableChargesWorkspace() {
 
   return (
     <PageShell>
-      {loadingProfile || loading ? <div className={styles.loading}>กำลังโหลดรายการเรียกเก็บเพิ่มเติม...</div> : null}
-      {!loadingProfile && !permissions.canViewFinanceBillableCharges ? <div className={styles.noAccess}><h1>ไม่มีสิทธิ์เข้าถึง</h1><p>บัญชีผู้ใช้นี้ไม่มีสิทธิ์ดูรายการเรียกเก็บเพิ่มเติม</p></div> : null}
+      {loadingProfile || loading ? <div className={styles.loading}>{t("finance.charge.ui.loading")}</div> : null}
+      {!loadingProfile && !permissions.canViewFinanceBillableCharges ? <div className={styles.noAccess}><h1>{t("finance.charge.ui.accessDenied")}</h1><p>{t("finance.charge.ui.accessDeniedHelp")}</p></div> : null}
       {!loadingProfile && permissions.canViewFinanceBillableCharges ? <>
         <FinanceSubNav activePage="invoices" permissions={permissions} />
         <InvoiceWorkspaceNav activePage="billable-charges" />
         <header className={styles.workspaceHeader}>
-          <div><span className={styles.eyebrow}>INVOICE WORKSPACE</span><h1>รายการเรียกเก็บเพิ่มเติม</h1><p>ยอดที่อยู่นอกงวดคงที่ของแผนเรียกเก็บเงิน เช่น ค่าเดินทาง ค่าแปล ค่าธรรมเนียม และงานเพิ่มเติม</p></div>
-          <div className={styles.headerActions}>{canComposeInvoice ? <Link className={styles.secondaryButton} href="/finance/invoices/compose">จัดทำใบแจ้งหนี้</Link> : null}{permissions.canManageFinanceBillableCharges ? <button className={styles.primaryButton} type="button" onClick={() => openNew()}><PlusIcon />เพิ่มรายการ</button> : null}</div>
+          <div><span className={styles.eyebrow}>{t("finance.invoice.ui.workspace")}</span><h1>{t("finance.invoice.ui.additionalCharges")}</h1><p>{t("finance.charge.ui.workspaceHelp")}</p></div>
+          <div className={styles.headerActions}>{canComposeInvoice ? <Link className={styles.secondaryButton} href="/finance/invoices/compose">{t("finance.invoice.composer.compose")}</Link> : null}{permissions.canManageFinanceBillableCharges ? <button className={styles.primaryButton} type="button" onClick={() => openNew()}><PlusIcon />{t("finance.charge.ui.add")}</button> : null}</div>
         </header>
 
-        {billingPlanContext ? <section className={styles.billingPlanContext} aria-label="บริบทแผนเรียกเก็บเงิน">
-          <div><span className={styles.eyebrow}>เพิ่มรายการสำหรับแผนเรียกเก็บเงินนี้</span><strong>{billingPlanContext.clientName}</strong><span>{billingPlanContext.matterLabel}</span><p>รายการที่พร้อมออกใบแจ้งหนี้สามารถนำไปรวมกับงวดตามแผนในขั้นตอนจัดทำใบแจ้งหนี้</p></div>
+        {billingPlanContext ? <section className={styles.billingPlanContext} aria-label={t("finance.charge.ui.planContext")}>
+          <div><span className={styles.eyebrow}>{t("finance.charge.ui.addForPlan")}</span><strong>{billingPlanContext.clientName}</strong><span>{billingPlanContext.matterLabel}</span><p>{t("finance.charge.ui.combineWithPlanHelp")}</p></div>
           <Link className={styles.secondaryButton} href={billingPlanContext.returnTo}>{billingPlanContext.returnLabel}</Link>
         </section> : null}
 
-        {error ? <div className={styles.errorBanner}>{error}</div> : null}
-        {message ? <div className={styles.successBanner}>{message}</div> : null}
+        {error ? <div className={styles.errorBanner}>{text(error)}</div> : null}
+        {message ? <div className={styles.successBanner}>{text(message)}</div> : null}
 
         <section className={styles.listSection}>
           <div className={styles.filterBar}>
-            <div className={styles.tabs} aria-label="กรองสถานะรายการเรียกเก็บเพิ่มเติม">{statusTabs.map((tab) => <button key={tab.value} type="button" className={filter === tab.value ? styles.activeTab : ""} onClick={() => { closeChargeDetails(); setFilter(tab.value); }}>{tab.label}<span>{countStatus(charges, tab.value)}</span></button>)}</div>
-            <input aria-label="ค้นหารายการเรียกเก็บเพิ่มเติม" value={search} onChange={(event) => { closeChargeDetails(); setSearch(event.target.value); }} placeholder="ค้นหาลูกค้า เรื่อง หรือรายการ" />
+            <div className={styles.tabs} aria-label={t("finance.charge.ui.statusFilter")}>{localizedStatusTabs(locale).map((tab) => <button key={tab.value} type="button" className={filter === tab.value ? styles.activeTab : ""} onClick={() => { closeChargeDetails(); setFilter(tab.value); }}>{tab.label}<span>{countStatus(charges, tab.value)}</span></button>)}</div>
+            <input aria-label={t("finance.charge.ui.searchLabel")} value={search} onChange={(event) => { closeChargeDetails(); setSearch(event.target.value); }} placeholder={t("finance.charge.ui.searchPlaceholder")} />
           </div>
-          {!filteredCharges.length ? <div className={styles.emptyState}><strong>{charges.length ? "ไม่พบรายการตามตัวกรอง" : "ยังไม่มีรายการเรียกเก็บเพิ่มเติม"}</strong><p>{charges.length ? "ลองเปลี่ยนสถานะหรือคำค้นหา" : "เพิ่มรายการเมื่อลูกค้ามียอดนอกงวดตามแผนที่ต้องนำไปออกใบแจ้งหนี้"}</p></div> : <div className={styles.chargeGrid}>{filteredCharges.map((charge) => <article key={charge.id} className={styles.chargeCard}>
-              <div className={styles.chargeCardHeader}><div><span>{thaiDate(charge.service_date || charge.created_at)}</span><h2>{charge.description || "ร่างรายการเรียกเก็บ"}</h2></div><StatusBadge status={charge.status} /></div>
-              <div className={styles.chargeContext}><strong>{clientLabel(charge.client_id, clients)}</strong><span>{matterLabel(charge, cases, advisories)}</span></div>
-              <dl className={styles.cardMetrics}><div><dt>ประเภทของยอด</dt><dd>{classificationLabel(charge.economic_classification)}</dd></div><div><dt>VAT</dt><dd>{taxModeLabel(charge.price_tax_mode, charge.vat_rate)}</dd></div><div><dt>ยอดเรียกเก็บ</dt><dd>{money(charge.total_amount, charge.currency)}</dd></div></dl>
-              <button className={styles.openButton} type="button" onClick={() => openChargeDetails(charge)}>ดูรายละเอียด</button>
+          {!filteredCharges.length ? <div className={styles.emptyState}><strong>{charges.length ? t("finance.charge.ui.noMatches") : t("finance.charge.ui.empty")}</strong><p>{charges.length ? t("finance.charge.ui.adjustFilters") : t("finance.charge.ui.emptyHelp")}</p></div> : <div className={styles.chargeGrid}>{filteredCharges.map((charge) => <article key={charge.id} className={styles.chargeCard}>
+              <div className={styles.chargeCardHeader}><div><span>{date(charge.service_date || charge.created_at)}</span><h2>{charge.description || t("finance.charge.ui.draftCharge")}</h2></div><StatusBadge status={charge.status} /></div>
+              <div className={styles.chargeContext}><strong>{clientLabel(charge.client_id, clients, locale)}</strong><span>{matterLabel(charge, cases, advisories, locale)}</span></div>
+              <dl className={styles.cardMetrics}><div><dt>{t("finance.invoice.ui.classification")}</dt><dd>{classificationLabel(charge.economic_classification, locale)}</dd></div><div><dt>VAT</dt><dd>{taxModeLabel(charge.price_tax_mode, charge.vat_rate, locale)}</dd></div><div><dt>{t("finance.charge.ui.chargeAmount")}</dt><dd>{money(charge.total_amount, charge.currency)}</dd></div></dl>
+              <button className={styles.openButton} type="button" onClick={() => openChargeDetails(charge)}>{t("finance.invoice.ui.details")}</button>
             </article>)}</div>}
         </section>
 
-        {detailCharge ? <DetailModal open title={detailCharge.description || "ร่างรายการเรียกเก็บ"} subtitle={<>{clientLabel(detailCharge.client_id, clients)} · {matterLabel(detailCharge, cases, advisories)}</>} status={<StatusBadge status={detailCharge.status} />} prominentValue={money(detailCharge.total_amount, detailCharge.currency)} footer={billingPlanContext ? <div className={styles.returnFooter}><Link className={detailCharge.status === "ready_to_invoice" ? styles.primaryButton : styles.secondaryButton} href={billingPlanContext.returnTo}>{billingPlanContext.returnLabel}</Link></div> : undefined} onClose={closeChargeDetails}>
+        {detailCharge ? <DetailModal open title={detailCharge.description || t("finance.charge.ui.draftCharge")} subtitle={<>{clientLabel(detailCharge.client_id, clients, locale)} · {matterLabel(detailCharge, cases, advisories, locale)}</>} status={<StatusBadge status={detailCharge.status} />} prominentValue={money(detailCharge.total_amount, detailCharge.currency)} footer={billingPlanContext ? <div className={styles.returnFooter}><Link className={detailCharge.status === "ready_to_invoice" ? styles.primaryButton : styles.secondaryButton} href={billingPlanContext.returnTo}>{billingPlanContext.returnLabel}</Link></div> : undefined} onClose={closeChargeDetails}>
           <BillableChargeModalDetail charge={detailCharge} clients={clients} cases={cases} advisories={advisories} />
-          {chargeInvoiceLinks[detailCharge.id] ? <div className={styles.detailActionRow}><Link className={styles.secondaryButton} href={`/finance/invoices/${chargeInvoiceLinks[detailCharge.id].invoiceId}`}>เปิดใบแจ้งหนี้ {chargeInvoiceLinks[detailCharge.id].invoiceNo || "ฉบับร่าง"}</Link></div> : null}
-          {detailCharge.status === "ready_to_invoice" && !chargeInvoiceLinks[detailCharge.id] && canComposeInvoice ? <div className={styles.detailActionRow}><Link className={styles.primaryButton} href={`/finance/invoices/compose?charge=${detailCharge.id}`}>จัดทำใบแจ้งหนี้</Link></div> : null}
-          {canEditDetailDraft ? <div className={styles.detailActionRow}><button className={styles.secondaryButton} type="button" onClick={() => openCharge(detailCharge)}>แก้ไขร่างรายการ</button></div> : null}
+          {chargeInvoiceLinks[detailCharge.id] ? <div className={styles.detailActionRow}><Link className={styles.secondaryButton} href={`/finance/invoices/${chargeInvoiceLinks[detailCharge.id].invoiceId}`}>{t("finance.invoice.ui.open")} {chargeInvoiceLinks[detailCharge.id].invoiceNo || t("finance.charge.ui.draftVersion")}</Link></div> : null}
+          {detailCharge.status === "ready_to_invoice" && !chargeInvoiceLinks[detailCharge.id] && canComposeInvoice ? <div className={styles.detailActionRow}><Link className={styles.primaryButton} href={`/finance/invoices/compose?charge=${detailCharge.id}`}>{t("finance.invoice.composer.compose")}</Link></div> : null}
+          {canEditDetailDraft ? <div className={styles.detailActionRow}><button className={styles.secondaryButton} type="button" onClick={() => openCharge(detailCharge)}>{t("finance.charge.ui.editDraft")}</button></div> : null}
           <AuditHistory audits={detailAudits} loading={detailAuditLoading} />
-          {canCancelDetail ? <section className={styles.otherActions}><div><strong>การดำเนินการอื่น</strong><p>การยกเลิกจะเก็บรายการนี้ไว้เป็นประวัติและต้องระบุเหตุผล</p></div>{cancelContext === "detail" ? <div className={styles.cancelForm}><FormField label="เหตุผลที่ยกเลิกรายการ" error={errors.cancelReason}><textarea rows={3} value={cancelReason} onChange={(event) => { setCancelReason(event.target.value); setErrors((current) => ({ ...current, cancelReason: "" })); }} /></FormField><div className={styles.actionRow}><button className={styles.secondaryButton} type="button" onClick={() => setCancelContext(null)}>ไม่ดำเนินการ</button><button className={styles.dangerButton} type="button" disabled={saving} onClick={() => void cancelCharge(detailCharge.id, "detail")}>ยืนยันยกเลิกรายการ</button></div></div> : <button className={styles.dangerButton} type="button" onClick={() => setCancelContext("detail")}>ยกเลิกรายการเรียกเก็บ</button>}</section> : null}
+          {canCancelDetail ? <section className={styles.otherActions}><div><strong>{t("finance.invoice.ui.otherActions")}</strong><p>{t("finance.charge.ui.cancelHelp")}</p></div>{cancelContext === "detail" ? <div className={styles.cancelForm}><FormField label={t("finance.charge.ui.cancelReason")} error={errors.cancelReason}><textarea rows={3} value={cancelReason} onChange={(event) => { setCancelReason(event.target.value); setErrors((current) => ({ ...current, cancelReason: "" })); }} /></FormField><div className={styles.actionRow}><button className={styles.secondaryButton} type="button" onClick={() => setCancelContext(null)}>{t("finance.charge.ui.dismissAction")}</button><button className={styles.dangerButton} type="button" disabled={saving} onClick={() => void cancelCharge(detailCharge.id, "detail")}>{t("finance.charge.ui.confirmCancel")}</button></div></div> : <button className={styles.dangerButton} type="button" onClick={() => setCancelContext("detail")}>{t("finance.charge.ui.cancel")}</button>}</section> : null}
         </DetailModal> : null}
 
         {panelOpen ? <section ref={panelRef} className={styles.editorSection}>
-          <div className={styles.editorHeader}><div><span className={styles.eyebrow}>{chargeId ? "รายละเอียดรายการ" : "สร้างรายการ"}</span><h2>{chargeId ? selectedCharge?.status === "draft" ? "แก้ไขร่างรายการเรียกเก็บ" : "รายละเอียดรายการเรียกเก็บ" : "เพิ่มรายการเรียกเก็บ"}</h2><p>{selectedCharge?.status === "draft" || !chargeId ? "บันทึกยอดที่ลูกค้าเป็นหนี้ VP โดยไม่กำหนดความหมายของรายได้ VAT หรือค่าตอบแทนอัตโนมัติ" : statusExplanation(selectedCharge?.status)}</p></div><button className={styles.iconButton} type="button" aria-label="ปิดรายละเอียดรายการเรียกเก็บ" onClick={() => { setPanelOpen(false); if (!chargeId) void loadWorkspace(); }}>×</button></div>
-          {billingPlanContext ? <div className={`${styles.editorReturn} ${selectedCharge?.status === "ready_to_invoice" ? styles.editorReturnReady : ""}`}><div><strong>{selectedCharge?.status === "ready_to_invoice" ? "รายการพร้อมกลับไปจัดทำใบแจ้งหนี้" : "รายการนี้เปิดจากแผนเรียกเก็บเงิน"}</strong><span>{billingPlanContext.clientName} · {billingPlanContext.matterLabel}</span></div><Link className={selectedCharge?.status === "ready_to_invoice" ? styles.primaryButton : styles.secondaryButton} href={billingPlanContext.returnTo}>{billingPlanContext.returnLabel}</Link></div> : null}
+          <div className={styles.editorHeader}><div><span className={styles.eyebrow}>{chargeId ? t("finance.charge.ui.itemDetails") : t("finance.charge.ui.created")}</span><h2>{chargeId ? selectedCharge?.status === "draft" ? t("finance.charge.ui.editChargeDraft") : t("finance.charge.ui.chargeDetails") : t("finance.charge.ui.addCharge")}</h2><p>{selectedCharge?.status === "draft" || !chargeId ? t("finance.charge.ui.chargeSemantics") : statusExplanation(selectedCharge?.status, locale)}</p></div><button className={styles.iconButton} type="button" aria-label={t("finance.charge.ui.closeDetails")} onClick={() => { setPanelOpen(false); if (!chargeId) void loadWorkspace(); }}>×</button></div>
+          {billingPlanContext ? <div className={`${styles.editorReturn} ${selectedCharge?.status === "ready_to_invoice" ? styles.editorReturnReady : ""}`}><div><strong>{selectedCharge?.status === "ready_to_invoice" ? t("finance.charge.ui.readyToReturn") : t("finance.charge.ui.openedFromPlan")}</strong><span>{billingPlanContext.clientName} · {billingPlanContext.matterLabel}</span></div><Link className={selectedCharge?.status === "ready_to_invoice" ? styles.primaryButton : styles.secondaryButton} href={billingPlanContext.returnTo}>{billingPlanContext.returnLabel}</Link></div> : null}
 
           {!chargeId ? <BillableChargeCreateWorkflow
             clients={clients}
@@ -695,57 +701,57 @@ function BillableChargesWorkspace() {
             readyActionLabel={billingPlanContext?.returnLabel}
             onReadyAction={billingPlanContext ? () => { window.location.href = billingPlanContext.returnTo; } : undefined}
           /> : selectedCharge && (selectedCharge.status !== "draft" || selectedCharge.source_type === "billing_installment_item") ? <ReadOnlyDetail charge={selectedCharge} clients={clients} cases={cases} advisories={advisories} /> : <>
-            {!permissions.canManageFinanceBillableCharges ? <div className={styles.readOnlyNotice}>ข้อมูลร่างเป็นแบบอ่านอย่างเดียวสำหรับสิทธิ์ของคุณ คุณยังตรวจสอบและยืนยันพร้อมออกใบแจ้งหนี้ได้เมื่อมีสิทธิ์อนุมัติ</div> : null}
-            {!chargeId ? <fieldset className={styles.sourceChoices}><legend>ลักษณะของรายการ</legend><label className={form.sourceType === "ad_hoc_service" ? styles.choiceActive : ""}><input type="radio" name="sourceType" value="ad_hoc_service" disabled={createSourceLocked || !permissions.canManageFinanceBillableCharges} checked={form.sourceType === "ad_hoc_service"} onChange={() => { updateForm("sourceType", "ad_hoc_service"); updateForm("clientCostFundingMode", ""); }} /><span><strong>ค่าบริการ / งานเพิ่มเติม</strong><small>ค่าบริการหรือผลงานเพิ่มเติมที่ VP เรียกเก็บจากลูกค้า</small></span></label><label className={form.sourceType === "recoverable_cost" ? styles.choiceActive : ""}><input type="radio" name="sourceType" value="recoverable_cost" disabled={createSourceLocked || !permissions.canManageFinanceBillableCharges} checked={form.sourceType === "recoverable_cost"} onChange={() => updateForm("sourceType", "recoverable_cost")} /><span><strong>ค่าธรรมเนียม / ค่าใช้จ่ายแทนลูกค้า</strong><small>เงินที่ต้องนำไปชำระบุคคลหรือหน่วยงานอื่นแทนลูกค้า หรือเงินที่ VP สำรองจ่ายไปก่อน</small></span></label></fieldset> : <div className={styles.sourceSummary}><span>ลักษณะของรายการ</span><strong>{sourceTypeLabel(form.sourceType)}</strong></div>}
+            {!permissions.canManageFinanceBillableCharges ? <div className={styles.readOnlyNotice}>{t("finance.charge.ui.draftReadOnly")}</div> : null}
+            {!chargeId ? <fieldset className={styles.sourceChoices}><legend>{t("finance.charge.ui.nature")}</legend><label className={form.sourceType === "ad_hoc_service" ? styles.choiceActive : ""}><input type="radio" name="sourceType" value="ad_hoc_service" disabled={createSourceLocked || !permissions.canManageFinanceBillableCharges} checked={form.sourceType === "ad_hoc_service"} onChange={() => { updateForm("sourceType", "ad_hoc_service"); updateForm("clientCostFundingMode", ""); }} /><span><strong>{t("finance.charge.ui.additionalNature")}</strong><small>{t("finance.charge.ui.additionalNatureHelp")}</small></span></label><label className={form.sourceType === "recoverable_cost" ? styles.choiceActive : ""}><input type="radio" name="sourceType" value="recoverable_cost" disabled={createSourceLocked || !permissions.canManageFinanceBillableCharges} checked={form.sourceType === "recoverable_cost"} onChange={() => updateForm("sourceType", "recoverable_cost")} /><span><strong>{t("finance.charge.ui.recoverableNature")}</strong><small>{t("finance.charge.ui.recoverableNatureHelp")}</small></span></label></fieldset> : <div className={styles.sourceSummary}><span>{t("finance.charge.ui.nature")}</span><strong>{sourceTypeLabel(form.sourceType, locale)}</strong></div>}
 
-            {form.sourceType === "recoverable_cost" ? <><fieldset id="billable-charge-funding-mode" className={`${styles.sourceChoices} ${errors.clientCostFundingMode ? styles.invalidChoices : ""}`}><legend>การจ่ายรายการนี้เป็นแบบใด</legend><label className={form.clientCostFundingMode === "collect_before_disbursement" ? styles.choiceActive : ""}><input type="radio" name="clientCostFundingMode" disabled={!permissions.canManageFinanceBillableCharges} checked={form.clientCostFundingMode === "collect_before_disbursement"} onChange={() => updateForm("clientCostFundingMode", "collect_before_disbursement")} /><span><strong>เรียกเก็บจากลูกค้าก่อน แล้วจึงนำไปชำระ</strong><small>VP ยังไม่ได้สำรองจ่ายรายการนี้</small></span></label><label className={form.clientCostFundingMode === "reimburse_after_advance" ? styles.choiceActive : ""}><input type="radio" name="clientCostFundingMode" disabled={!permissions.canManageFinanceBillableCharges} checked={form.clientCostFundingMode === "reimburse_after_advance"} onChange={() => updateForm("clientCostFundingMode", "reimburse_after_advance")} /><span><strong>VP สำรองจ่ายแล้ว และเรียกคืนจากลูกค้า</strong><small>VP ได้ชำระค่าใช้จ่ายนี้ไปแล้ว และกำลังเรียกคืนจากลูกค้า</small></span></label></fieldset>{errors.clientCostFundingMode ? <p className={styles.fieldError}>{errors.clientCostFundingMode}</p> : null}</> : null}
-
-            <div className={styles.formGrid}>
-              <FormField label="ลูกค้า" error={errors.clientId}><select disabled={!permissions.canManageFinanceBillableCharges} value={form.clientId} onChange={(event) => { setForm((current) => ({ ...current, clientId: event.target.value, matterMode: "unlinked", caseId: "", advisoryMatterId: "" })); setErrors((current) => ({ ...current, clientId: "", matter: "" })); }}><option value="">เลือกลูกค้า</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name || "ลูกค้าไม่มีชื่อ"}</option>)}</select></FormField>
-              <FormField label="วันที่เกิดรายการ / วันที่ให้บริการ" error={errors.serviceDate}><input disabled={!permissions.canManageFinanceBillableCharges} type="date" value={form.serviceDate} onChange={(event) => updateForm("serviceDate", event.target.value)} /></FormField>
-            </div>
-
-            <div id="billable-charge-matter" className={styles.matterSection}><span className={styles.fieldHeading}>เชื่อมกับเรื่อง/งาน</span><div className={styles.segmented}><button disabled={!permissions.canManageFinanceBillableCharges} type="button" className={form.matterMode === "unlinked" ? styles.segmentActive : ""} onClick={() => setMatterMode("unlinked")}>ไม่ผูกกับงานเฉพาะ</button><button disabled={!permissions.canManageFinanceBillableCharges} type="button" className={form.matterMode === "case" ? styles.segmentActive : ""} onClick={() => setMatterMode("case")}>คดี</button><button disabled={!permissions.canManageFinanceBillableCharges} type="button" className={form.matterMode === "advisory" ? styles.segmentActive : ""} onClick={() => setMatterMode("advisory")}>งานที่ปรึกษา</button></div>
-              {form.matterMode === "case" ? <FormField label="เลือกคดี" error={errors.matter}><select disabled={!permissions.canManageFinanceBillableCharges} value={form.caseId} onChange={(event) => { updateForm("caseId", event.target.value); setErrors((current) => ({ ...current, matter: "" })); }}><option value="">เลือกคดีของลูกค้ารายนี้</option>{clientCases.map((item) => <option key={item.id} value={item.id}>{caseOptionLabel(item)}</option>)}</select></FormField> : null}
-              {form.matterMode === "advisory" ? <FormField label="เลือกงานที่ปรึกษา" error={errors.matter}><select disabled={!permissions.canManageFinanceBillableCharges} value={form.advisoryMatterId} onChange={(event) => { updateForm("advisoryMatterId", event.target.value); setErrors((current) => ({ ...current, matter: "" })); }}><option value="">เลือกงานที่ปรึกษาของลูกค้ารายนี้</option>{clientAdvisories.map((item) => <option key={item.id} value={item.id}>{advisoryOptionLabel(item)}</option>)}</select></FormField> : null}
-              {form.matterMode === "unlinked" ? <p className={styles.helper}>รายการนี้จะผูกกับลูกค้าโดยตรง กรุณาเลือกตัวเลือกนี้โดยตั้งใจเมื่อไม่มีคดีหรืองานที่ปรึกษาที่เกี่ยวข้อง</p> : null}
-            </div>
+            {form.sourceType === "recoverable_cost" ? <><fieldset id="billable-charge-funding-mode" className={`${styles.sourceChoices} ${errors.clientCostFundingMode ? styles.invalidChoices : ""}`}><legend>{t("finance.charge.ui.fundingMode")}</legend><label className={form.clientCostFundingMode === "collect_before_disbursement" ? styles.choiceActive : ""}><input type="radio" name="clientCostFundingMode" disabled={!permissions.canManageFinanceBillableCharges} checked={form.clientCostFundingMode === "collect_before_disbursement"} onChange={() => updateForm("clientCostFundingMode", "collect_before_disbursement")} /><span><strong>{t("finance.charge.ui.collectFunding")}</strong><small>{t("finance.charge.ui.notAdvanced")}</small></span></label><label className={form.clientCostFundingMode === "reimburse_after_advance" ? styles.choiceActive : ""}><input type="radio" name="clientCostFundingMode" disabled={!permissions.canManageFinanceBillableCharges} checked={form.clientCostFundingMode === "reimburse_after_advance"} onChange={() => updateForm("clientCostFundingMode", "reimburse_after_advance")} /><span><strong>{t("finance.charge.ui.advanceFunding")}</strong><small>{t("finance.charge.ui.alreadyAdvanced")}</small></span></label></fieldset>{errors.clientCostFundingMode ? <p className={styles.fieldError}>{text(errors.clientCostFundingMode)}</p> : null}</> : null}
 
             <div className={styles.formGrid}>
-              <FormField label="รายการ" error={errors.description} wide><textarea disabled={!permissions.canManageFinanceBillableCharges} rows={3} value={form.description} onChange={(event) => updateForm("description", event.target.value)} placeholder="เช่น ค่าเดินทางไปศาล" /></FormField>
-              <FormField label="จำนวน" error={errors.quantity}><input disabled={!permissions.canManageFinanceBillableCharges} inputMode="decimal" value={form.quantity} onChange={(event) => updateForm("quantity", event.target.value)} /></FormField>
-              <FormField label="หน่วย" error={errors.unit}><input disabled={!permissions.canManageFinanceBillableCharges} value={form.unit} onChange={(event) => updateForm("unit", event.target.value)} placeholder="เช่น ครั้ง หน้า วัน" /></FormField>
-              <FormField label="ราคาต่อหน่วย" helper={!form.unitRate.trim() ? "ยังไม่ได้ระบุราคา" : undefined} error={errors.unitRate}><input disabled={!permissions.canManageFinanceBillableCharges} inputMode="decimal" value={form.unitRate} onChange={(event) => updateForm("unitRate", event.target.value)} placeholder="0.00" /></FormField>
-              <FormField label="ประเภทของยอด" error={errors.economicClassification}><select disabled={!permissions.canManageFinanceBillableCharges} value={form.economicClassification} onChange={(event) => updateForm("economicClassification", event.target.value as ChargeForm["economicClassification"])}><option value="">เลือกประเภทของยอด</option><option value="professional_fee">ค่าวิชาชีพ</option><option value="additional_service">ค่าบริการเพิ่มเติม</option><option value="reimbursable_expense">ค่าใช้จ่ายเรียกคืน</option><option value="government_or_court_fee">ค่าธรรมเนียมศาล / หน่วยงานรัฐ</option><option value="other">อื่น ๆ</option></select><small>ใช้จำแนกความหมายของยอด ไม่ได้กำหนด VAT, WHT หรือค่าตอบแทนอัตโนมัติ</small></FormField>
-              <FormField label="การคิด VAT" error={errors.priceTaxMode}><select disabled={!permissions.canManageFinanceBillableCharges} value={form.priceTaxMode} onChange={(event) => { const mode = event.target.value as FinancePriceTaxMode; setForm((current) => ({ ...current, vatTreatment: null, priceTaxMode: mode, vatRate: mode === "non_vat" ? "0" : Number(current.vatRate) > 0 ? current.vatRate : "7" })); setErrors((current) => ({ ...current, priceTaxMode: "", vatRate: "" })); }}><option value="non_vat">ไม่มี VAT</option><option value="vat_exclusive">ราคายังไม่รวม VAT</option><option value="vat_inclusive">ราคารวม VAT แล้ว</option></select></FormField>
-              {form.priceTaxMode !== "non_vat" ? <FormField label="อัตรา VAT (%)" error={errors.vatRate}><input disabled={!permissions.canManageFinanceBillableCharges} inputMode="decimal" value={form.vatRate} onChange={(event) => setForm(current => ({ ...current, vatTreatment: null, vatRate: event.target.value }))} /></FormField> : null}
+              <FormField label={t("finance.invoice.ui.customer")} error={errors.clientId}><select disabled={!permissions.canManageFinanceBillableCharges} value={form.clientId} onChange={(event) => { setForm((current) => ({ ...current, clientId: event.target.value, matterMode: "unlinked", caseId: "", advisoryMatterId: "" })); setErrors((current) => ({ ...current, clientId: "", matter: "" })); }}><option value="">{t("finance.invoice.composer.selectClient")}</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name || t("finance.invoice.composer.unnamedClient")}</option>)}</select></FormField>
+              <FormField label={t("finance.charge.ui.serviceDate")} error={errors.serviceDate}><input disabled={!permissions.canManageFinanceBillableCharges} type="date" value={form.serviceDate} onChange={(event) => updateForm("serviceDate", event.target.value)} /></FormField>
+            </div>
+
+            <div id="billable-charge-matter" className={styles.matterSection}><span className={styles.fieldHeading}>{t("finance.charge.ui.matterLink")}</span><div className={styles.segmented}><button disabled={!permissions.canManageFinanceBillableCharges} type="button" className={form.matterMode === "unlinked" ? styles.segmentActive : ""} onClick={() => setMatterMode("unlinked")}>{t("finance.invoice.composer.generalContext")}</button><button disabled={!permissions.canManageFinanceBillableCharges} type="button" className={form.matterMode === "case" ? styles.segmentActive : ""} onClick={() => setMatterMode("case")}>{t("finance.charge.ui.case")}</button><button disabled={!permissions.canManageFinanceBillableCharges} type="button" className={form.matterMode === "advisory" ? styles.segmentActive : ""} onClick={() => setMatterMode("advisory")}>{t("finance.charge.ui.advisory")}</button></div>
+              {form.matterMode === "case" ? <FormField label={t("finance.charge.ui.selectCase")} error={errors.matter}><select disabled={!permissions.canManageFinanceBillableCharges} value={form.caseId} onChange={(event) => { updateForm("caseId", event.target.value); setErrors((current) => ({ ...current, matter: "" })); }}><option value="">{t("finance.charge.ui.selectClientCase")}</option>{clientCases.map((item) => <option key={item.id} value={item.id}>{caseOptionLabel(item, locale)}</option>)}</select></FormField> : null}
+              {form.matterMode === "advisory" ? <FormField label={t("finance.charge.ui.selectAdvisory")} error={errors.matter}><select disabled={!permissions.canManageFinanceBillableCharges} value={form.advisoryMatterId} onChange={(event) => { updateForm("advisoryMatterId", event.target.value); setErrors((current) => ({ ...current, matter: "" })); }}><option value="">{t("finance.charge.ui.selectClientAdvisory")}</option>{clientAdvisories.map((item) => <option key={item.id} value={item.id}>{advisoryOptionLabel(item, locale)}</option>)}</select></FormField> : null}
+              {form.matterMode === "unlinked" ? <p className={styles.helper}>{t("finance.charge.ui.unlinkedHelp")}</p> : null}
+            </div>
+
+            <div className={styles.formGrid}>
+              <FormField label={t("finance.invoice.ui.item")} error={errors.description} wide><textarea disabled={!permissions.canManageFinanceBillableCharges} rows={3} value={form.description} onChange={(event) => updateForm("description", event.target.value)} placeholder={t("finance.charge.ui.descriptionPlaceholder")} /></FormField>
+              <FormField label={t("finance.charge.ui.quantity")} error={errors.quantity}><input disabled={!permissions.canManageFinanceBillableCharges} inputMode="decimal" value={form.quantity} onChange={(event) => updateForm("quantity", event.target.value)} /></FormField>
+              <FormField label={t("finance.invoice.ui.unit")} error={errors.unit}><input disabled={!permissions.canManageFinanceBillableCharges} value={form.unit} onChange={(event) => updateForm("unit", event.target.value)} placeholder={t("finance.charge.ui.unitPlaceholder")} /></FormField>
+              <FormField label={t("finance.charge.ui.unitRate")} helper={!form.unitRate.trim() ? t("finance.charge.ui.rateMissing") : undefined} error={errors.unitRate}><input disabled={!permissions.canManageFinanceBillableCharges} inputMode="decimal" value={form.unitRate} onChange={(event) => updateForm("unitRate", event.target.value)} placeholder="0.00" /></FormField>
+              <FormField label={t("finance.invoice.ui.classification")} error={errors.economicClassification}><select disabled={!permissions.canManageFinanceBillableCharges} value={form.economicClassification} onChange={(event) => updateForm("economicClassification", event.target.value as ChargeForm["economicClassification"])}><option value="">{t("finance.charge.ui.selectClassification")}</option><option value="professional_fee">{t("finance.invoice.classification.professional_fee")}</option><option value="additional_service">{t("finance.invoice.classification.additional_service")}</option><option value="reimbursable_expense">{t("finance.invoice.classification.reimbursable_expense")}</option><option value="government_or_court_fee">{t("finance.invoice.classification.government_or_court_fee")}</option><option value="other">{t("finance.invoice.classification.other")}</option></select><small>{t("finance.charge.ui.classificationHelp")}</small></FormField>
+              <FormField label={t("finance.charge.ui.vatMode")} error={errors.priceTaxMode}><select disabled={!permissions.canManageFinanceBillableCharges} value={form.priceTaxMode} onChange={(event) => { const mode = event.target.value as FinancePriceTaxMode; setForm((current) => ({ ...current, vatTreatment: null, priceTaxMode: mode, vatRate: mode === "non_vat" ? "0" : Number(current.vatRate) > 0 ? current.vatRate : "7" })); setErrors((current) => ({ ...current, priceTaxMode: "", vatRate: "" })); }}><option value="non_vat">{t("finance.invoice.ui.noVat")}</option><option value="vat_exclusive">{t("finance.charge.ui.vatExclusive")}</option><option value="vat_inclusive">{t("finance.charge.ui.vatInclusive")}</option></select></FormField>
+              {form.priceTaxMode !== "non_vat" ? <FormField label={t("finance.charge.ui.vatRate")} error={errors.vatRate}><input disabled={!permissions.canManageFinanceBillableCharges} inputMode="decimal" value={form.vatRate} onChange={(event) => setForm(current => ({ ...current, vatTreatment: null, vatRate: event.target.value }))} /></FormField> : null}
               <VatTreatmentInput disabled={!permissions.canManageFinanceBillableCharges} value={form.vatTreatment} applicable={form.priceTaxMode !== "non_vat"} rate={form.priceTaxMode === "non_vat" ? 0 : Number(form.vatRate)} onChange={vatTreatment => setForm(current => ({ ...current, vatTreatment }))} />
             </div>
 
             <section className={styles.additionalSection}>
-              <div className={styles.additionalHeading}><h3>ข้อมูลเพิ่มเติม</h3><p>ข้อมูลประกอบรายการที่ไม่บังคับ</p></div>
+              <div className={styles.additionalHeading}><h3>{t("finance.charge.ui.additionalInformation")}</h3><p>{t("finance.charge.ui.optionalEvidence")}</p></div>
               <div className={styles.formGrid}>
-                <FormField label="เลขอ้างอิง / หลักฐานประกอบ" helper="ไม่บังคับ"><input disabled={!permissions.canManageFinanceBillableCharges} value={form.sourceReference} onChange={(event) => updateForm("sourceReference", event.target.value)} /></FormField>
-                <FormField label="ข้อมูลภาษีเพิ่มเติม (ถ้ามี)" helper="ใช้สำหรับข้อมูลประกอบเพิ่มเติมเท่านั้น ไม่ได้กำหนด VAT หรือ WHT อัตโนมัติ"><input disabled={!permissions.canManageFinanceBillableCharges} value={form.taxCategory} onChange={(event) => updateForm("taxCategory", event.target.value)} /></FormField>
+                <FormField label={t("finance.charge.ui.sourceReference")} helper={t("finance.invoice.composer.optional")}><input disabled={!permissions.canManageFinanceBillableCharges} value={form.sourceReference} onChange={(event) => updateForm("sourceReference", event.target.value)} /></FormField>
+                <FormField label={t("finance.charge.ui.taxInformation")} helper={t("finance.charge.ui.taxInformationHelp")}><input disabled={!permissions.canManageFinanceBillableCharges} value={form.taxCategory} onChange={(event) => updateForm("taxCategory", event.target.value)} /></FormField>
               </div>
             </section>
 
             <AmountReview form={form} amounts={amounts} />
-            <div className={styles.saveRow}><span className={dirty ? styles.unsavedState : styles.savedState}>{dirty ? "มีข้อมูลที่ยังไม่ได้บันทึก" : chargeId ? "บันทึกร่างแล้ว" : "ยังไม่สร้างข้อมูลในระบบ"}</span><button className={styles.secondaryButton} type="button" disabled={saving || !dirty || !permissions.canManageFinanceBillableCharges} onClick={() => void saveDraft()}>{saving ? "กำลังบันทึก..." : "บันทึกร่าง"}</button></div>
+            <div className={styles.saveRow}><span className={dirty ? styles.unsavedState : styles.savedState}>{dirty ? t("finance.charge.ui.unsaved") : chargeId ? t("finance.charge.ui.draftSaved") : t("finance.charge.ui.notCreated")}</span><button className={styles.secondaryButton} type="button" disabled={saving || !dirty || !permissions.canManageFinanceBillableCharges} onClick={() => void saveDraft()}>{saving ? t("finance.invoice.ui.saving") : t("finance.charge.ui.saveDraft")}</button></div>
 
             {selectedCharge?.status === "draft" ? <section ref={reviewRef} className={styles.reviewZone} tabIndex={-1}>
-              <div><span className={styles.eyebrow}>ตรวจสอบรายการ</span><h3>ตรวจสอบก่อนพร้อมออกใบแจ้งหนี้</h3><p>ตรวจสอบลูกค้า เรื่อง วันที่ รายการ ประเภทของยอด การคิด VAT และยอดเงินทั้งหมดก่อนยืนยัน</p></div>
+              <div><span className={styles.eyebrow}>{t("finance.charge.ui.review")}</span><h3>{t("finance.charge.ui.reviewBeforeReady")}</h3><p>{t("finance.charge.ui.reviewHelp")}</p></div>
               <ReviewGrid form={form} amounts={amounts} clients={clients} cases={cases} advisories={advisories} />
-              {errors.ready ? <p className={styles.fieldError}>{errors.ready}</p> : null}
-              <label id="billable-charge-acknowledgement" className={errors.acknowledgement ? styles.invalidCheck : styles.checkLabel}><input type="checkbox" checked={readyAcknowledged} onChange={(event) => { setReadyAcknowledged(event.target.checked); setErrors((current) => ({ ...current, acknowledgement: "" })); }} /><span>ยืนยันว่ารายการและยอดเรียกเก็บนี้ถูกต้อง และพร้อมนำไปออกใบแจ้งหนี้</span></label>
-              {errors.acknowledgement ? <p className={styles.fieldError}>{errors.acknowledgement}</p> : null}
-              <button className={styles.primaryButton} type="button" disabled={saving || !chargeId || dirty || !permissions.canApproveFinanceBillableCharges} onClick={() => void markReady()}>ยืนยันพร้อมออกใบแจ้งหนี้</button>
-              {dirty ? <p className={styles.permissionNote}>มีข้อมูลที่ยังไม่ได้บันทึก กรุณาบันทึกร่างก่อนยืนยันพร้อมออกใบแจ้งหนี้</p> : null}
-              {!permissions.canApproveFinanceBillableCharges ? <p className={styles.permissionNote}>คุณบันทึกร่างได้ แต่ไม่มีสิทธิ์ยืนยันรายการพร้อมออกใบแจ้งหนี้</p> : null}
+              {errors.ready ? <p className={styles.fieldError}>{text(errors.ready)}</p> : null}
+              <label id="billable-charge-acknowledgement" className={errors.acknowledgement ? styles.invalidCheck : styles.checkLabel}><input type="checkbox" checked={readyAcknowledged} onChange={(event) => { setReadyAcknowledged(event.target.checked); setErrors((current) => ({ ...current, acknowledgement: "" })); }} /><span>{t("finance.charge.ui.readyAcknowledgement")}</span></label>
+              {errors.acknowledgement ? <p className={styles.fieldError}>{text(errors.acknowledgement)}</p> : null}
+              <button className={styles.primaryButton} type="button" disabled={saving || !chargeId || dirty || !permissions.canApproveFinanceBillableCharges} onClick={() => void markReady()}>{t("finance.invoice.ui.audit.ready")}</button>
+              {dirty ? <p className={styles.permissionNote}>{t("finance.charge.ui.dirtyReadyHelp")}</p> : null}
+              {!permissions.canApproveFinanceBillableCharges ? <p className={styles.permissionNote}>{t("finance.charge.ui.approvalPermission")}</p> : null}
             </section> : null}
           </>}
 
-          {canCancelSelected ? <section className={styles.otherActions}><div><strong>การดำเนินการอื่น</strong><p>การยกเลิกจะเก็บรายการนี้ไว้เป็นประวัติและต้องระบุเหตุผล</p></div>{cancelContext === "editor" ? <div className={styles.cancelForm}><FormField label="เหตุผลที่ยกเลิกรายการ" error={errors.cancelReason}><textarea rows={3} value={cancelReason} onChange={(event) => { setCancelReason(event.target.value); setErrors((current) => ({ ...current, cancelReason: "" })); }} /></FormField><div className={styles.actionRow}><button className={styles.secondaryButton} type="button" onClick={() => setCancelContext(null)}>ไม่ดำเนินการ</button><button className={styles.dangerButton} type="button" disabled={saving} onClick={() => void cancelCharge()}>ยืนยันยกเลิกรายการ</button></div></div> : <button className={styles.dangerButton} type="button" onClick={() => setCancelContext("editor")}>ยกเลิกรายการเรียกเก็บ</button>}</section> : null}
+          {canCancelSelected ? <section className={styles.otherActions}><div><strong>{t("finance.invoice.ui.otherActions")}</strong><p>{t("finance.charge.ui.cancelHelp")}</p></div>{cancelContext === "editor" ? <div className={styles.cancelForm}><FormField label={t("finance.charge.ui.cancelReason")} error={errors.cancelReason}><textarea rows={3} value={cancelReason} onChange={(event) => { setCancelReason(event.target.value); setErrors((current) => ({ ...current, cancelReason: "" })); }} /></FormField><div className={styles.actionRow}><button className={styles.secondaryButton} type="button" onClick={() => setCancelContext(null)}>{t("finance.charge.ui.dismissAction")}</button><button className={styles.dangerButton} type="button" disabled={saving} onClick={() => void cancelCharge()}>{t("finance.charge.ui.confirmCancel")}</button></div></div> : <button className={styles.dangerButton} type="button" onClick={() => setCancelContext("editor")}>{t("finance.charge.ui.cancel")}</button>}</section> : null}
 
           {chargeId ? <AuditHistory audits={audits} /> : null}
         </section> : null}
@@ -755,21 +761,25 @@ function BillableChargesWorkspace() {
 }
 
 function PageShell({ children }: { children: React.ReactNode }) {
-  return <AuthGuard><AppTopNav title="การเงิน" activePage="finance" /><main className={styles.page}>{children}</main></AuthGuard>;
+  const { t } = useI18n();
+  return <AuthGuard><AppTopNav title={t("finance.charge.ui.finance")} activePage="finance" /><main className={styles.page}>{children}</main></AuthGuard>;
 }
 
-function FormField({ label, helper, error, wide, children }: { label: string; helper?: string; error?: string; wide?: boolean; children: React.ReactNode }) {
-  return <label id={`billable-charge-field-${fieldId(label)}`} className={`${styles.field} ${wide ? styles.wideField : ""} ${error ? styles.invalidField : ""}`}><span>{label}</span>{children}{helper ? <small>{helper}</small> : null}{error ? <em>{error}</em> : null}</label>;
+function FormField({ label, helper, error, wide, children }: { label: string; helper?: string; error?: UiMessage | ""; wide?: boolean; children: React.ReactNode }) {
+  const { text } = useI18n();
+  return <label id={`billable-charge-field-${fieldId(label)}`} className={`${styles.field} ${wide ? styles.wideField : ""} ${error ? styles.invalidField : ""}`}><span>{label}</span>{children}{helper ? <small>{helper}</small> : null}{error ? <em>{text(error)}</em> : null}</label>;
 }
 
 function AmountReview({ form, amounts }: { form: ChargeForm; amounts: ReturnType<typeof calculateFormAmounts> }) {
+  const { t } = useI18n();
   const hasUnitRate = Boolean(form.unitRate.trim());
   const amountValue = (value: number) => hasUnitRate ? money(value) : "-";
-  return <section className={styles.amountReview}><div><span>จำนวน × ราคาต่อหน่วย</span><strong>{number(form.quantity)} {form.unit || "หน่วย"} × {hasUnitRate ? money(form.unitRate) : "ยังไม่ได้ระบุราคา"}</strong></div><dl><div><dt>ยอดก่อน VAT</dt><dd>{amountValue(amounts.amountBeforeVat)}</dd></div><div><dt>VAT</dt><dd>{amountValue(amounts.vatAmount)}</dd></div><div className={styles.totalLine}><dt>ยอดเรียกเก็บ</dt><dd>{amountValue(amounts.totalAmount)}</dd></div></dl><p>ยอดที่แสดงใช้วิธีคำนวณเดียวกับใบเสนอราคาและเป็นข้อมูลช่วยตรวจสอบ เมื่อบันทึกแล้วระบบจะโหลดจำนวนเงินที่คำนวณโดยฐานข้อมูลกลับมา</p></section>;
+  return <section className={styles.amountReview}><div><span>{t("finance.charge.ui.quantityTimesRate")}</span><strong>{number(form.quantity)} {form.unit || t("finance.invoice.ui.unit")} × {hasUnitRate ? money(form.unitRate) : t("finance.charge.ui.rateMissing")}</strong></div><dl><div><dt>{t("finance.invoice.ui.netAmount")}</dt><dd>{amountValue(amounts.amountBeforeVat)}</dd></div><div><dt>VAT</dt><dd>{amountValue(amounts.vatAmount)}</dd></div><div className={styles.totalLine}><dt>{t("finance.charge.ui.chargeAmount")}</dt><dd>{amountValue(amounts.totalAmount)}</dd></div></dl><p>{t("finance.charge.ui.calculationHelp")}</p></section>;
 }
 
 function ReviewGrid({ form, amounts, clients, cases, advisories }: { form: ChargeForm; amounts: ReturnType<typeof calculateFormAmounts>; clients: ClientOption[]; cases: CaseOption[]; advisories: AdvisoryOption[] }) {
-  return <dl className={styles.reviewGrid}><ReviewItem label="ลูกค้า" value={clientLabel(form.clientId, clients)} /><ReviewItem label="คดี / งานที่ปรึกษา" value={formMatterLabel(form, cases, advisories)} /><ReviewItem label="ลักษณะรายการ" value={sourceTypeLabel(form.sourceType)} />{form.sourceType === "recoverable_cost" ? <ReviewItem label="การจ่าย" value={clientCostFundingModeLabel(form.clientCostFundingMode || null)} /> : null}<ReviewItem label="วันที่เกิดรายการ" value={thaiDate(form.serviceDate)} /><ReviewItem label="รายการ" value={form.description || "-"} /><ReviewItem label="จำนวน / หน่วย / ราคา" value={`${number(form.quantity)} ${form.unit || "-"} × ${money(form.unitRate || 0)}`} /><ReviewItem label="ประเภทของยอด" value={classificationLabel(form.economicClassification || null)} /><ReviewItem label="การคิด VAT" value={taxModeLabel(form.priceTaxMode, form.vatRate)} /><ReviewItem label="ยอดก่อน VAT" value={money(amounts.amountBeforeVat)} /><ReviewItem label="VAT" value={money(amounts.vatAmount)} /><ReviewItem label="ยอดเรียกเก็บ" value={money(amounts.totalAmount)} /><ReviewItem label="อ้างอิง / หลักฐาน" value={form.sourceReference || "-"} /></dl>;
+  const { t, date, locale } = useI18n();
+  return <dl className={styles.reviewGrid}><ReviewItem label={t("finance.invoice.ui.customer")} value={clientLabel(form.clientId, clients, locale)} /><ReviewItem label={t("finance.charge.ui.caseAdvisory")} value={formMatterLabel(form, cases, advisories, locale)} /><ReviewItem label={t("finance.invoice.ui.chargeNature")} value={sourceTypeLabel(form.sourceType, locale)} />{form.sourceType === "recoverable_cost" ? <ReviewItem label={t("finance.invoice.ui.funding")} value={clientCostFundingModeLabel(form.clientCostFundingMode || null, locale)} /> : null}<ReviewItem label={t("finance.charge.ui.transactionDate")} value={date(form.serviceDate)} /><ReviewItem label={t("finance.invoice.ui.item")} value={form.description || "-"} /><ReviewItem label={t("finance.charge.ui.quantityUnitRate")} value={`${number(form.quantity)} ${form.unit || "-"} × ${money(form.unitRate || 0)}`} /><ReviewItem label={t("finance.invoice.ui.classification")} value={classificationLabel(form.economicClassification || null, locale)} /><ReviewItem label={t("finance.charge.ui.vatMode")} value={taxModeLabel(form.priceTaxMode, form.vatRate, locale)} /><ReviewItem label={t("finance.invoice.ui.netAmount")} value={money(amounts.amountBeforeVat)} /><ReviewItem label="VAT" value={money(amounts.vatAmount)} /><ReviewItem label={t("finance.charge.ui.chargeAmount")} value={money(amounts.totalAmount)} /><ReviewItem label={t("finance.charge.ui.referenceEvidence")} value={form.sourceReference || "-"} /></dl>;
 }
 
 function ReviewItem({ label, value }: { label: string; value: string }) {
@@ -777,34 +787,40 @@ function ReviewItem({ label, value }: { label: string; value: string }) {
 }
 
 function ReadOnlyDetail({ charge, clients, cases, advisories }: { charge: BillableCharge; clients: ClientOption[]; cases: CaseOption[]; advisories: AdvisoryOption[] }) {
-  const notice = charge.status === "ready_to_invoice" ? "รายการนี้พร้อมใช้ในการออกใบแจ้งหนี้ ข้อมูลรายการ ยอด ภาษี และประเภทของยอดเป็นแบบอ่านอย่างเดียว หากข้อมูลผิด ให้ยกเลิกรายการนี้และสร้างรายการใหม่" : statusExplanation(charge.status);
+  const { t, date, locale } = useI18n();
+  const dateTime = (value: string | null) => date(value, true);
+  const notice = charge.status === "ready_to_invoice" ? t("finance.charge.ui.readyReadOnlyHelp") : statusExplanation(charge.status, locale);
   return <>
     {notice ? <div className={styles.readOnlyNotice}>{notice}</div> : null}
-    <dl className={styles.detailGrid}><Detail label="ลูกค้า" value={clientLabel(charge.client_id, clients)} link="/clients" /><Detail label="คดี / งานที่ปรึกษา" value={matterLabel(charge, cases, advisories)} link={charge.case_id ? `/cases/${charge.case_id}` : charge.advisory_matter_id ? `/advisory/${charge.advisory_matter_id}` : undefined} /><Detail label="ลักษณะรายการ" value={sourceTypeLabel(charge.source_type)} />{charge.source_type === "recoverable_cost" ? <Detail label="การจ่าย" value={clientCostFundingModeLabel(charge.client_cost_funding_mode)} /> : null}<Detail label="วันที่เกิดรายการ" value={thaiDate(charge.service_date)} /><Detail label="รายการ" value={charge.description || "-"} /><Detail label="จำนวน / หน่วย / ราคา" value={`${number(charge.quantity)} ${charge.unit || "-"} × ${money(charge.unit_rate, charge.currency)}`} /><Detail label="ประเภทของยอด" value={classificationLabel(charge.economic_classification)} /><Detail label="การคิด VAT" value={taxModeLabel(charge.price_tax_mode, charge.vat_rate)} /><Detail label="ยอดก่อน VAT" value={money(charge.amount_before_vat, charge.currency)} /><Detail label="VAT" value={money(charge.vat_amount, charge.currency)} /><Detail label="ยอดเรียกเก็บ" value={money(charge.total_amount, charge.currency)} prominent /><Detail label="เลขอ้างอิง / หลักฐาน" value={charge.source_reference || "-"} /><Detail label="สร้างเมื่อ" value={thaiDateTime(charge.created_at)} /><Detail label="ยืนยันพร้อมออกใบแจ้งหนี้" value={thaiDateTime(charge.ready_to_invoice_at)} />{charge.status === "cancelled" ? <><Detail label="ยกเลิกเมื่อ" value={thaiDateTime(charge.cancelled_at)} /><Detail label="เหตุผลที่ยกเลิก" value={charge.cancel_reason || "-"} /></> : null}</dl>
+    <dl className={styles.detailGrid}><Detail label={t("finance.invoice.ui.customer")} value={clientLabel(charge.client_id, clients, locale)} link="/clients" /><Detail label={t("finance.charge.ui.caseAdvisory")} value={matterLabel(charge, cases, advisories, locale)} link={charge.case_id ? `/cases/${charge.case_id}` : charge.advisory_matter_id ? `/advisory/${charge.advisory_matter_id}` : undefined} /><Detail label={t("finance.invoice.ui.chargeNature")} value={sourceTypeLabel(charge.source_type, locale)} />{charge.source_type === "recoverable_cost" ? <Detail label={t("finance.invoice.ui.funding")} value={clientCostFundingModeLabel(charge.client_cost_funding_mode, locale)} /> : null}<Detail label={t("finance.charge.ui.transactionDate")} value={date(charge.service_date)} /><Detail label={t("finance.invoice.ui.item")} value={charge.description || "-"} /><Detail label={t("finance.charge.ui.quantityUnitRate")} value={`${number(charge.quantity)} ${charge.unit || "-"} × ${money(charge.unit_rate, charge.currency)}`} /><Detail label={t("finance.invoice.ui.classification")} value={classificationLabel(charge.economic_classification, locale)} /><Detail label={t("finance.charge.ui.vatMode")} value={taxModeLabel(charge.price_tax_mode, charge.vat_rate, locale)} /><Detail label={t("finance.invoice.ui.netAmount")} value={money(charge.amount_before_vat, charge.currency)} /><Detail label="VAT" value={money(charge.vat_amount, charge.currency)} /><Detail label={t("finance.charge.ui.chargeAmount")} value={money(charge.total_amount, charge.currency)} prominent /><Detail label={t("finance.charge.ui.referenceEvidenceNumber")} value={charge.source_reference || "-"} /><Detail label={t("finance.charge.ui.createdAt")} value={dateTime(charge.created_at)} /><Detail label={t("finance.invoice.ui.audit.ready")} value={dateTime(charge.ready_to_invoice_at)} />{charge.status === "cancelled" ? <><Detail label={t("finance.invoice.ui.voidedAt")} value={dateTime(charge.cancelled_at)} /><Detail label={t("finance.charge.ui.cancelledReason")} value={charge.cancel_reason || "-"} /></> : null}</dl>
   </>;
 }
 
 function BillableChargeModalDetail({ charge, clients, cases, advisories }: { charge: BillableCharge; clients: ClientOption[]; cases: CaseOption[]; advisories: AdvisoryOption[] }) {
-  const notice = charge.status === "ready_to_invoice" ? "รายการนี้พร้อมใช้ในการออกใบแจ้งหนี้ ข้อมูลรายการ ยอด ภาษี และประเภทของยอดเป็นแบบอ่านอย่างเดียว" : statusExplanation(charge.status);
+  const { t, date, locale } = useI18n();
+  const dateTime = (value: string | null) => date(value, true);
+  const notice = charge.status === "ready_to_invoice" ? t("finance.charge.ui.readyReadOnly") : statusExplanation(charge.status, locale);
   return <div className={styles.modalDetailContent}>
     {notice ? <div className={styles.readOnlyNotice}>{notice}</div> : null}
     <section className={styles.detailSection}>
-      <div className={styles.detailSectionHeading}><span className={styles.eyebrow}>ข้อมูลหลัก</span><h3>ข้อมูลรายการ</h3></div>
-      <dl className={styles.detailGrid}><Detail label="รายการ" value={charge.description || "-"} prominent /><Detail label="ลูกค้า" value={clientLabel(charge.client_id, clients)} link="/clients" /><Detail label="คดี / งานที่ปรึกษา" value={matterLabel(charge, cases, advisories)} link={charge.case_id ? `/cases/${charge.case_id}` : charge.advisory_matter_id ? `/advisory/${charge.advisory_matter_id}` : undefined} /><Detail label="ลักษณะรายการ" value={sourceTypeLabel(charge.source_type)} />{charge.source_type === "recoverable_cost" ? <Detail label="การจ่าย" value={clientCostFundingModeLabel(charge.client_cost_funding_mode)} /> : null}<Detail label="วันที่เกิดรายการ" value={thaiDate(charge.service_date)} /></dl>
+      <div className={styles.detailSectionHeading}><span className={styles.eyebrow}>{t("finance.charge.ui.primaryInformation")}</span><h3>{t("finance.charge.ui.itemInformation")}</h3></div>
+      <dl className={styles.detailGrid}><Detail label={t("finance.invoice.ui.item")} value={charge.description || "-"} prominent /><Detail label={t("finance.invoice.ui.customer")} value={clientLabel(charge.client_id, clients, locale)} link="/clients" /><Detail label={t("finance.charge.ui.caseAdvisory")} value={matterLabel(charge, cases, advisories, locale)} link={charge.case_id ? `/cases/${charge.case_id}` : charge.advisory_matter_id ? `/advisory/${charge.advisory_matter_id}` : undefined} /><Detail label={t("finance.invoice.ui.chargeNature")} value={sourceTypeLabel(charge.source_type, locale)} />{charge.source_type === "recoverable_cost" ? <Detail label={t("finance.invoice.ui.funding")} value={clientCostFundingModeLabel(charge.client_cost_funding_mode, locale)} /> : null}<Detail label={t("finance.charge.ui.transactionDate")} value={date(charge.service_date)} /></dl>
     </section>
     <section className={styles.detailSection}>
-      <div className={styles.detailSectionHeading}><span className={styles.eyebrow}>ยอดเรียกเก็บ</span><h3>การคำนวณยอด</h3></div>
-      <dl className={styles.detailGrid}><Detail label="จำนวน / หน่วย / ราคา" value={`${number(charge.quantity)} ${charge.unit || "-"} × ${money(charge.unit_rate, charge.currency)}`} /><Detail label="ประเภทของยอด" value={classificationLabel(charge.economic_classification)} /><Detail label="การคิด VAT" value={taxModeLabel(charge.price_tax_mode, charge.vat_rate)} /><Detail label="ยอดก่อน VAT" value={money(charge.amount_before_vat, charge.currency)} /><Detail label="VAT" value={money(charge.vat_amount, charge.currency)} /><Detail label="ยอดเรียกเก็บ" value={money(charge.total_amount, charge.currency)} prominent /></dl>
+      <div className={styles.detailSectionHeading}><span className={styles.eyebrow}>{t("finance.charge.ui.chargeAmount")}</span><h3>{t("finance.charge.ui.amountCalculation")}</h3></div>
+      <dl className={styles.detailGrid}><Detail label={t("finance.charge.ui.quantityUnitRate")} value={`${number(charge.quantity)} ${charge.unit || "-"} × ${money(charge.unit_rate, charge.currency)}`} /><Detail label={t("finance.invoice.ui.classification")} value={classificationLabel(charge.economic_classification, locale)} /><Detail label={t("finance.charge.ui.vatMode")} value={taxModeLabel(charge.price_tax_mode, charge.vat_rate, locale)} /><Detail label={t("finance.invoice.ui.netAmount")} value={money(charge.amount_before_vat, charge.currency)} /><Detail label="VAT" value={money(charge.vat_amount, charge.currency)} /><Detail label={t("finance.charge.ui.chargeAmount")} value={money(charge.total_amount, charge.currency)} prominent /></dl>
     </section>
     <section className={styles.detailSection}>
-      <div className={styles.detailSectionHeading}><span className={styles.eyebrow}>ข้อมูลรอง</span><h3>ข้อมูลประกอบ</h3></div>
-      <dl className={styles.detailGrid}><Detail label="เลขอ้างอิง / หลักฐาน" value={charge.source_reference || "-"} /><Detail label="สร้างเมื่อ" value={thaiDateTime(charge.created_at)} /><Detail label="ยืนยันพร้อมออกใบแจ้งหนี้" value={thaiDateTime(charge.ready_to_invoice_at)} />{charge.status === "cancelled" ? <><Detail label="ยกเลิกเมื่อ" value={thaiDateTime(charge.cancelled_at)} /><Detail label="เหตุผลที่ยกเลิก" value={charge.cancel_reason || "-"} /></> : null}</dl>
+      <div className={styles.detailSectionHeading}><span className={styles.eyebrow}>{t("finance.charge.ui.secondaryInformation")}</span><h3>{t("finance.charge.ui.supportingInformation")}</h3></div>
+      <dl className={styles.detailGrid}><Detail label={t("finance.charge.ui.referenceEvidenceNumber")} value={charge.source_reference || "-"} /><Detail label={t("finance.charge.ui.createdAt")} value={dateTime(charge.created_at)} /><Detail label={t("finance.invoice.ui.audit.ready")} value={dateTime(charge.ready_to_invoice_at)} />{charge.status === "cancelled" ? <><Detail label={t("finance.invoice.ui.voidedAt")} value={dateTime(charge.cancelled_at)} /><Detail label={t("finance.charge.ui.cancelledReason")} value={charge.cancel_reason || "-"} /></> : null}</dl>
     </section>
   </div>;
 }
 
 function AuditHistory({ audits, loading = false }: { audits: AuditEvent[]; loading?: boolean }) {
-  return <details className={styles.auditDetails}><summary>ประวัติรายการ</summary>{loading ? <p>กำลังโหลดประวัติรายการ...</p> : audits.length ? <ol>{audits.map((event) => <li key={event.id}><div><strong>{auditLabel(event.event_type)}</strong><span>{event.actor_name || event.actor_email || "ผู้ใช้งานระบบ"}</span></div><time>{thaiDateTime(event.created_at)}</time></li>)}</ol> : <p>ยังไม่พบประวัติรายการ</p>}</details>;
+  const { t, locale, date } = useI18n();
+  const dateTime = (value: string | null) => date(value, true);
+  return <details className={styles.auditDetails}><summary>{t("finance.invoice.ui.chargeHistory")}</summary>{loading ? <p>{t("finance.invoice.ui.historyLoading")}</p> : audits.length ? <ol>{audits.map((event) => <li key={event.id}><div><strong>{auditLabel(event.event_type, locale)}</strong><span>{event.actor_name || event.actor_email || t("finance.invoice.ui.systemUser")}</span></div><time>{dateTime(event.created_at)}</time></li>)}</ol> : <p>{t("finance.invoice.ui.noHistory")}</p>}</details>;
 }
 
 function Detail({ label, value, link, prominent }: { label: string; value: string; link?: string; prominent?: boolean }) {
@@ -812,7 +828,8 @@ function Detail({ label, value, link, prominent }: { label: string; value: strin
 }
 
 function StatusBadge({ status }: { status: ChargeStatus }) {
-  return <span className={`${styles.statusBadge} ${styles[`status_${status}`]}`}>{statusLabel(status)}</span>;
+  const { locale } = useI18n();
+  return <span className={`${styles.statusBadge} ${styles[`status_${status}`]}`}>{statusLabel(status, locale)}</span>;
 }
 
 function PlusIcon() {
@@ -828,24 +845,24 @@ function chargeToForm(charge: BillableCharge): ChargeForm {
 }
 
 function validateDraft(form: ChargeForm) {
-  const errors: Record<string, string> = {};
-  if (!form.clientId) errors.clientId = "กรุณาเลือกลูกค้า";
-  if (form.matterMode === "case" && !form.caseId) errors.matter = "กรุณาเลือกคดีของลูกค้ารายนี้";
-  if (form.matterMode === "advisory" && !form.advisoryMatterId) errors.matter = "กรุณาเลือกงานที่ปรึกษาของลูกค้ารายนี้";
-  if (!isDecimal(form.quantity, 4, false)) errors.quantity = "กรุณาระบุจำนวนมากกว่า 0 และไม่เกิน 4 ตำแหน่งทศนิยม";
-  if (!isDecimal(form.unitRate || "0", 2, true)) errors.unitRate = "กรุณาระบุราคาต่อหน่วยไม่ติดลบและไม่เกิน 2 ตำแหน่งทศนิยม";
-  if (form.priceTaxMode !== "non_vat" && !isDecimal(form.vatRate, 4, true)) errors.vatRate = "กรุณาระบุอัตรา VAT ที่ถูกต้อง";
+  const errors: Record<string, UiMessage | ""> = {};
+  if (!form.clientId) errors.clientId = uiMessage("finance.invoice.composer.clientRequired");
+  if (form.matterMode === "case" && !form.caseId) errors.matter = uiMessage("finance.charge.ui.error.case");
+  if (form.matterMode === "advisory" && !form.advisoryMatterId) errors.matter = uiMessage("finance.charge.ui.error.advisory");
+  if (!isDecimal(form.quantity, 4, false)) errors.quantity = uiMessage("finance.charge.ui.error.quantity");
+  if (!isDecimal(form.unitRate || "0", 2, true)) errors.unitRate = uiMessage("finance.charge.ui.error.unitRate");
+  if (form.priceTaxMode !== "non_vat" && !isDecimal(form.vatRate, 4, true)) errors.vatRate = uiMessage("finance.charge.ui.error.vatRate");
   return errors;
 }
 
 function validateReady(form: ChargeForm) {
   const errors = validateDraft(form);
-  if (clientCostFundingModeRequired(form.sourceType, form.clientCostFundingMode)) errors.clientCostFundingMode = "กรุณาระบุรูปแบบการจ่ายของรายการนี้";
-  if (!form.serviceDate) errors.serviceDate = "กรุณาระบุวันที่เกิดรายการ";
-  if (!form.description.trim()) errors.description = "กรุณาระบุรายการที่จะเรียกเก็บ";
-  if (!form.unit.trim()) errors.unit = "กรุณาระบุหน่วย";
-  if (!form.economicClassification) errors.economicClassification = "กรุณาเลือกประเภทของยอด";
-  if (calculateFormAmounts(form).totalAmount <= 0) errors.unitRate = "ยอดเรียกเก็บต้องมากกว่า 0 ก่อนยืนยัน";
+  if (clientCostFundingModeRequired(form.sourceType, form.clientCostFundingMode)) errors.clientCostFundingMode = uiMessage("finance.charge.ui.error.funding");
+  if (!form.serviceDate) errors.serviceDate = uiMessage("finance.charge.ui.error.date");
+  if (!form.description.trim()) errors.description = uiMessage("finance.charge.ui.error.description");
+  if (!form.unit.trim()) errors.unit = uiMessage("finance.charge.ui.error.unit");
+  if (!form.economicClassification) errors.economicClassification = uiMessage("finance.charge.ui.error.classification");
+  if (calculateFormAmounts(form).totalAmount <= 0) errors.unitRate = uiMessage("finance.charge.ui.error.positiveTotal");
   return errors;
 }
 
@@ -856,18 +873,18 @@ function calculateFormAmounts(form: ChargeForm) {
   return calculateFinanceLineAmounts(quantity, unitRate, form.priceTaxMode, vatRate);
 }
 
-function focusFirstError(errors: Record<string, string>) {
+function focusFirstError(errors: Record<string, UiMessage | "">, locale: UiLocale = "th") {
   const first = Object.keys(errors)[0];
   if (!first) return;
   window.requestAnimationFrame(() => {
-    const target = first === "acknowledgement" ? document.getElementById("billable-charge-acknowledgement") : first === "matter" ? document.getElementById("billable-charge-matter") : first === "clientCostFundingMode" ? document.getElementById("billable-charge-funding-mode") : document.getElementById(`billable-charge-field-${fieldId(errorFieldLabel(first))}`);
+    const target = first === "acknowledgement" ? document.getElementById("billable-charge-acknowledgement") : first === "matter" ? document.getElementById("billable-charge-matter") : first === "clientCostFundingMode" ? document.getElementById("billable-charge-funding-mode") : document.getElementById(`billable-charge-field-${fieldId(errorFieldLabel(first, locale))}`);
     target?.scrollIntoView({ behavior: "smooth", block: "center" });
     target?.querySelector<HTMLElement>("input,select,textarea")?.focus({ preventScroll: true });
   });
 }
 
-function errorFieldLabel(field: string) {
-  const labels: Record<string, string> = { clientId: "ลูกค้า", clientCostFundingMode: "การจ่ายรายการนี้เป็นแบบใด", serviceDate: "วันที่เกิดรายการ / วันที่ให้บริการ", description: "รายการ", quantity: "จำนวน", unit: "หน่วย", unitRate: "ราคาต่อหน่วย", economicClassification: "ประเภทของยอด", vatRate: "อัตรา VAT (%)", matter: "เลือกคดี" };
+function errorFieldLabel(field: string, locale: UiLocale = "th") {
+  const labels: Record<string, string> = { clientId: translate(locale, "finance.invoice.ui.customer"), clientCostFundingMode: translate(locale, "finance.charge.ui.fundingMode"), serviceDate: translate(locale, "finance.charge.ui.serviceDate"), description: translate(locale, "finance.invoice.ui.item"), quantity: translate(locale, "finance.charge.ui.quantity"), unit: translate(locale, "finance.invoice.ui.unit"), unitRate: translate(locale, "finance.charge.ui.unitRate"), economicClassification: translate(locale, "finance.invoice.ui.classification"), vatRate: translate(locale, "finance.charge.ui.vatRate"), matter: translate(locale, "finance.charge.ui.selectCase") };
   return labels[field] || field;
 }
 
@@ -879,36 +896,34 @@ function nullable(value: string) { return value.trim() || null; }
 function safeNumber(value: number | string) { const next = Number(value || 0); return Number.isFinite(next) ? next : 0; }
 function isDecimal(value: string, decimals: number, allowZero: boolean) { const normalized = value.trim(); if (!new RegExp(`^\\d+(?:\\.\\d{1,${decimals}})?$`).test(normalized)) return false; const parsed = Number(normalized); return allowZero ? parsed >= 0 : parsed > 0; }
 function bangkokToday() { return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()); }
-function thaiDate(value: string | null) { return value ? new Intl.DateTimeFormat("th-TH", { timeZone: "Asia/Bangkok", dateStyle: "medium" }).format(new Date(value.length === 10 ? `${value}T12:00:00+07:00` : value)) : "-"; }
-function thaiDateTime(value: string | null) { return value ? new Intl.DateTimeFormat("th-TH", { timeZone: "Asia/Bangkok", dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "-"; }
 function money(value: number | string, currency = "THB") { return `${new Intl.NumberFormat("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(safeNumber(value))} ${currency}`; }
 function number(value: number | string) { return new Intl.NumberFormat("th-TH", { maximumFractionDigits: 4 }).format(safeNumber(value)); }
 function sortCharges(a: BillableCharge, b: BillableCharge) { return new Date(b.created_at).getTime() - new Date(a.created_at).getTime(); }
 function countStatus(charges: BillableCharge[], status: "all" | ChargeStatus) { return status === "all" ? charges.length : charges.filter((item) => item.status === status).length; }
-function clientLabel(id: string, clients: ClientOption[]) { return clients.find((item) => item.id === id)?.name || "ไม่พบชื่อลูกค้า"; }
-function caseOptionLabel(item: CaseOption) { return [item.file_no, item.title].filter(Boolean).join(" · ") || `คดี ${item.id}`; }
-function advisoryOptionLabel(item: AdvisoryOption) { return [item.matter_no, item.title].filter(Boolean).join(" · ") || "งานที่ปรึกษา"; }
-function matterLabel(charge: Pick<BillableCharge, "case_id" | "advisory_matter_id">, cases: CaseOption[], advisories: AdvisoryOption[]) { if (charge.case_id) return `คดี · ${caseOptionLabel(cases.find((item) => item.id === charge.case_id) || { id: charge.case_id, client_id: null, file_no: null, title: null })}`; if (charge.advisory_matter_id) return `งานที่ปรึกษา · ${advisoryOptionLabel(advisories.find((item) => item.id === charge.advisory_matter_id) || { id: charge.advisory_matter_id, client_id: null, matter_no: null, title: null })}`; return "ไม่ผูกกับงานเฉพาะ"; }
-function formMatterLabel(form: ChargeForm, cases: CaseOption[], advisories: AdvisoryOption[]) { if (form.matterMode === "case") return caseOptionLabel(cases.find((item) => String(item.id) === form.caseId) || { id: Number(form.caseId || 0), client_id: null, file_no: null, title: null }); if (form.matterMode === "advisory") return advisoryOptionLabel(advisories.find((item) => item.id === form.advisoryMatterId) || { id: form.advisoryMatterId, client_id: null, matter_no: null, title: null }); return "ไม่ผูกกับงานเฉพาะ"; }
-function sourceTypeLabel(value: SourceType | ChargeForm["sourceType"]) { return billableChargeNatureLabel(value); }
-function classificationLabel(value: EconomicClassification | null) { if (value === "professional_fee") return "ค่าวิชาชีพ"; if (value === "additional_service") return "ค่าบริการเพิ่มเติม"; if (value === "reimbursable_expense") return "ค่าใช้จ่ายเรียกคืน"; if (value === "government_or_court_fee") return "ค่าธรรมเนียมศาล / หน่วยงานรัฐ"; if (value === "other") return "อื่น ๆ"; return "ยังไม่ระบุ"; }
-function taxModeLabel(mode: FinancePriceTaxMode, vatRate: number | string) { if (mode === "non_vat") return "ไม่มี VAT"; return `${mode === "vat_inclusive" ? "ราคารวม VAT แล้ว" : "ราคายังไม่รวม VAT"} · ${number(vatRate)}%`; }
-function statusLabel(status: ChargeStatus) { if (status === "ready_to_invoice") return "พร้อมออกใบแจ้งหนี้"; if (status === "reserved") return "กำลังจัดทำใบแจ้งหนี้"; if (status === "invoiced") return "ออกใบแจ้งหนี้แล้ว"; if (status === "cancelled") return "ยกเลิก"; return "ร่าง"; }
-function statusExplanation(status?: ChargeStatus) { if (status === "ready_to_invoice") return "รายการนี้พร้อมใช้ในการออกใบแจ้งหนี้"; if (status === "reserved") return "รายการนี้กำลังอยู่ในขั้นตอนจัดทำใบแจ้งหนี้"; if (status === "invoiced") return "รายการนี้ถูกนำไปออกใบแจ้งหนี้แล้ว"; if (status === "cancelled") return "รายการนี้ถูกยกเลิกและเก็บไว้เป็นประวัติ"; return ""; }
-function auditLabel(event: string) { if (event === "draft_saved") return "แก้ไขร่าง"; if (event === "marked_ready") return "ยืนยันพร้อมออกใบแจ้งหนี้"; if (event === "cancelled") return "ยกเลิกรายการ"; return "สร้างรายการ"; }
+function clientLabel(id: string, clients: ClientOption[], locale: UiLocale = "th") { return clients.find((item) => item.id === id)?.name || translate(locale, "finance.charge.ui.clientMissing"); }
+function caseOptionLabel(item: CaseOption, locale: UiLocale = "th") { return [item.file_no, item.title].filter(Boolean).join(" · ") || translate(locale, "finance.charge.ui.caseReference", { id: item.id }); }
+function advisoryOptionLabel(item: AdvisoryOption, locale: UiLocale = "th") { return [item.matter_no, item.title].filter(Boolean).join(" · ") || translate(locale, "finance.charge.ui.advisory"); }
+function matterLabel(charge: Pick<BillableCharge, "case_id" | "advisory_matter_id">, cases: CaseOption[], advisories: AdvisoryOption[], locale: UiLocale = "th") { if (charge.case_id) return `${translate(locale, "finance.charge.ui.case")} · ${caseOptionLabel(cases.find((item) => item.id === charge.case_id) || { id: charge.case_id, client_id: null, file_no: null, title: null }, locale)}`; if (charge.advisory_matter_id) return `${translate(locale, "finance.charge.ui.advisory")} · ${advisoryOptionLabel(advisories.find((item) => item.id === charge.advisory_matter_id) || { id: charge.advisory_matter_id, client_id: null, matter_no: null, title: null }, locale)}`; return translate(locale, "finance.invoice.composer.generalContext"); }
+function formMatterLabel(form: ChargeForm, cases: CaseOption[], advisories: AdvisoryOption[], locale: UiLocale = "th") { if (form.matterMode === "case") return caseOptionLabel(cases.find((item) => String(item.id) === form.caseId) || { id: Number(form.caseId || 0), client_id: null, file_no: null, title: null }, locale); if (form.matterMode === "advisory") return advisoryOptionLabel(advisories.find((item) => item.id === form.advisoryMatterId) || { id: form.advisoryMatterId, client_id: null, matter_no: null, title: null }, locale); return translate(locale, "finance.invoice.composer.generalContext"); }
+function sourceTypeLabel(value: SourceType | ChargeForm["sourceType"], locale: UiLocale = "th") { return billableChargeNatureLabel(value, locale); }
+function classificationLabel(value: EconomicClassification | null, locale: UiLocale = "th") { if (value === "professional_fee") return translate(locale, "finance.invoice.classification.professional_fee"); if (value === "additional_service") return translate(locale, "finance.invoice.classification.additional_service"); if (value === "reimbursable_expense") return translate(locale, "finance.invoice.classification.reimbursable_expense"); if (value === "government_or_court_fee") return translate(locale, "finance.invoice.classification.government_or_court_fee"); if (value === "other") return translate(locale, "finance.invoice.classification.other"); return translate(locale, "finance.invoice.classification.unspecified"); }
+function taxModeLabel(mode: FinancePriceTaxMode, vatRate: number | string, locale: UiLocale = "th") { if (mode === "non_vat") return translate(locale, "finance.invoice.ui.noVat"); return `${mode === "vat_inclusive" ? translate(locale, "finance.charge.ui.vatInclusive") : translate(locale, "finance.charge.ui.vatExclusive")} · ${number(vatRate)}%`; }
+function statusLabel(status: ChargeStatus, locale: UiLocale = "th") { if (status === "ready_to_invoice") return translate(locale, "finance.invoice.ui.readyToInvoice"); if (status === "reserved") return translate(locale, "finance.charge.ui.reserved"); if (status === "invoiced") return translate(locale, "finance.invoice.installment.invoiced"); if (status === "cancelled") return translate(locale, "finance.invoice.installment.cancelled"); return translate(locale, "finance.charge.ui.draft"); }
+function statusExplanation(status?: ChargeStatus, locale: UiLocale = "th") { if (status === "ready_to_invoice") return translate(locale, "finance.charge.ui.statusHelp.ready"); if (status === "reserved") return translate(locale, "finance.charge.ui.statusHelp.reserved"); if (status === "invoiced") return translate(locale, "finance.charge.ui.statusHelp.invoiced"); if (status === "cancelled") return translate(locale, "finance.charge.ui.statusHelp.cancelled"); return ""; }
+function auditLabel(event: string, locale: UiLocale = "th") { if (event === "draft_saved") return translate(locale, "finance.charge.ui.audit.draftSaved"); if (event === "marked_ready") return translate(locale, "finance.invoice.ui.audit.ready"); if (event === "cancelled") return translate(locale, "finance.invoice.ui.audit.cancelled"); return translate(locale, "finance.charge.ui.created"); }
 
-function billableChargeError(value: unknown, fallback: string) {
+function billableChargeError(value: unknown, fallback: UiMessage | string) {
   const message = typeof value === "object" && value && "message" in value ? String((value as { message?: unknown }).message || "") : String(value || "");
-  if (message.includes("Case must belong") || message.includes("Advisory matter must belong")) return "คดีหรืองานที่ปรึกษาไม่ได้อยู่ภายใต้ลูกค้าที่เลือก กรุณาตรวจสอบอีกครั้ง";
-  if (message.includes("Only a Draft") || message.includes("can be saved")) return "รายการนี้ไม่ใช่สถานะร่างแล้ว กรุณารีเฟรชและตรวจสอบสถานะล่าสุด";
-  if (message.includes("Reserved or Invoiced")) return "รายการที่กำลังจัดทำหรือออกใบแจ้งหนี้แล้วไม่สามารถยกเลิกจากหน้านี้ได้";
-  if (message.includes("description is required")) return "กรุณาระบุรายการที่จะเรียกเก็บก่อนยืนยัน";
-  if (message.includes("unit is required")) return "กรุณาระบุหน่วยก่อนยืนยัน";
-  if (message.includes("economic classification is required")) return "กรุณาเลือกประเภทของยอดก่อนยืนยัน";
-  if (message.includes("funding mode is required")) return "กรุณาระบุรูปแบบการจ่ายของรายการค่าธรรมเนียมหรือค่าใช้จ่ายแทนลูกค้าก่อนยืนยัน";
-  if (message.includes("funding mode is invalid") || message.includes("funding mode is inconsistent")) return "ลักษณะรายการและรูปแบบการจ่ายไม่สอดคล้องกัน กรุณาตรวจสอบอีกครั้ง";
-  if (message.includes("total must be positive")) return "ยอดเรียกเก็บต้องมากกว่า 0 ก่อนยืนยัน";
-  if (message.includes("request id was already used")) return "ข้อมูลการสร้างรายการเปลี่ยนไประหว่างการบันทึก กรุณาปิดแบบฟอร์มและเริ่มรายการใหม่";
-  if (message.includes("Not allowed")) return "คุณไม่มีสิทธิ์ดำเนินการนี้ กรุณาติดต่อ Admin";
+  if (message.includes("Case must belong") || message.includes("Advisory matter must belong")) return uiMessage("finance.charge.ui.error.context");
+  if (message.includes("Only a Draft") || message.includes("can be saved")) return uiMessage("finance.charge.ui.error.notDraft");
+  if (message.includes("Reserved or Invoiced")) return uiMessage("finance.charge.ui.error.reserved");
+  if (message.includes("description is required")) return uiMessage("finance.charge.ui.error.descriptionReady");
+  if (message.includes("unit is required")) return uiMessage("finance.charge.ui.error.unitReady");
+  if (message.includes("economic classification is required")) return uiMessage("finance.charge.ui.error.classificationReady");
+  if (message.includes("funding mode is required")) return uiMessage("finance.charge.ui.error.fundingReady");
+  if (message.includes("funding mode is invalid") || message.includes("funding mode is inconsistent")) return uiMessage("finance.charge.ui.error.fundingConflict");
+  if (message.includes("total must be positive")) return uiMessage("finance.charge.ui.error.positiveTotal");
+  if (message.includes("request id was already used")) return uiMessage("finance.charge.ui.error.requestChanged");
+  if (message.includes("Not allowed")) return uiMessage("finance.charge.ui.error.permission");
   return fallback;
 }

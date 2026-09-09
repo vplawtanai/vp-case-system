@@ -1,3 +1,6 @@
+import { translate } from "../../../lib/i18n/catalog";
+import type { UiLocale } from "../../../lib/i18n/core";
+
 export type WhtMode = "none" | "rate" | "legacy";
 export type WhtComponent = {
   id: string; payment_id: string; invoice_id: string; invoice_item_id: string;
@@ -10,12 +13,12 @@ export type InvoiceTaxFacts = {
   lines: { id: string; beforeVat: number; vat: number; gross: number; vatApplicable: boolean }[];
 };
 export const structuredWhtCopy = {
-  legacy: "ต้องคำนวณ WHT ใหม่ตามฐานและอัตราที่ระบุก่อนยืนยันรับชำระ ระบบจะไม่เดาอัตราจากยอดเดิม",
-  mixed: "รายการในใบแจ้งหนี้มีหลายประเภท ระบบยังไม่สามารถกำหนดฐาน WHT อัตโนมัติได้อย่างปลอดภัย",
-  partial: "การรับชำระบางส่วนยังไม่มีข้อมูลกำหนดส่วนของฐาน WHT ที่ใช้ในครั้งนี้ จึงยังคำนวณ WHT อัตโนมัติไม่ได้",
-  snapshot: "ยังไม่มีหลักฐานใบแจ้งหนี้ที่เพียงพอสำหรับคำนวณ WHT กรุณาให้ผู้ดูแลตรวจสอบ",
-  rate: "กรุณาเลือกอัตราหัก ณ ที่จ่ายที่ใช้กับรายการนี้",
-  applicability: "การเลือกอัตราเป็นการยืนยันว่าใช้กับมูลค่าก่อน VAT ทั้งบรรทัดนี้ตามหลักฐานของผู้จ่าย ระบบไม่ได้กำหนดอัตราภาษีจากประเภทรายการ",
+  legacy: translate("th", "finance.payment.wht.legacy"),
+  mixed: translate("th", "finance.payment.wht.mixed"),
+  partial: translate("th", "finance.payment.wht.partial"),
+  snapshot: translate("th", "finance.payment.wht.snapshot"),
+  rate: translate("th", "finance.payment.wht.rate"),
+  applicability: translate("th", "finance.payment.wht.applicability"),
 } as const;
 
 function object(value: unknown): Record<string, unknown> {
@@ -58,11 +61,16 @@ export function invoiceTaxFacts(snapshot: unknown): InvoiceTaxFacts | null {
 }
 
 export function paymentWhtScope(facts: InvoiceTaxFacts | null, target: string, outstanding: number, allocationCount: number) {
-  if (!facts || facts.version !== 2) return { base: null, error: structuredWhtCopy.snapshot };
-  if (facts.lines.length !== 1 || allocationCount !== 1) return { base: null, error: structuredWhtCopy.mixed };
-  if (cents(target) !== cents(facts.gross) || cents(outstanding) !== cents(facts.gross)) return { base: null, error: structuredWhtCopy.partial };
-  if (facts.lines[0].beforeVat <= 0) return { base: null, error: structuredWhtCopy.snapshot };
-  return { base: facts.lines[0].beforeVat, error: "" };
+  if (!facts || facts.version !== 2) return { base: null, error: structuredWhtCopy.snapshot, errorKey: "finance.payment.wht.snapshot" };
+  if (facts.lines.length !== 1 || allocationCount !== 1) return { base: null, error: structuredWhtCopy.mixed, errorKey: "finance.payment.wht.mixed" };
+  if (cents(target) !== cents(facts.gross) || cents(outstanding) !== cents(facts.gross)) return { base: null, error: structuredWhtCopy.partial, errorKey: "finance.payment.wht.partial" };
+  if (facts.lines[0].beforeVat <= 0) return { base: null, error: structuredWhtCopy.snapshot, errorKey: "finance.payment.wht.snapshot" };
+  return { base: facts.lines[0].beforeVat, error: "", errorKey: "" };
+}
+
+export function invoiceTaxVatLabel(facts: InvoiceTaxFacts, locale: UiLocale = "th") {
+  const key = facts.vat === 0 ? "none" : facts.lines.some(line => line.vatApplicable) && facts.lines.some(line => !line.vatApplicable) ? "mixed" : "applies";
+  return translate(locale, `finance.payment.vat.${key}`);
 }
 
 export function calculateStructuredWht(base: number | null, rate: string, target: string) {

@@ -1,5 +1,8 @@
 "use client";
 
+import { useI18n } from "@/lib/i18n/provider";
+import { uiMessage, type UiMessage, type UiLocale } from "@/lib/i18n/core";
+import { translate } from "@/lib/i18n/catalog";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
@@ -129,6 +132,7 @@ const asText = (value: unknown) => typeof value === "string" ? value.trim() : ""
 const hasValue = (value: unknown) => value !== null && value !== undefined && value !== "";
 
 export default function DraftTemplatePreviewPage() {
+  const { t, text, locale } = useI18n();
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const templateId = typeof params.id === "string" ? params.id : "";
@@ -136,7 +140,7 @@ export default function DraftTemplatePreviewPage() {
   const requestedContextId = searchParams.get("context") || "";
   const access = useDocumentPlatformAccess();
   const [loading, setLoading] = useState(true);
-  const [errorText, setErrorText] = useState("");
+  const [errorText, setErrorText] = useState<UiMessage | string>("");
   const [template, setTemplate] = useState<TemplateRow | null>(null);
   const [version, setVersion] = useState<VersionRow | null>(null);
   const [sections, setSections] = useState<SectionRow[]>([]);
@@ -178,7 +182,7 @@ export default function DraftTemplatePreviewPage() {
 
     if (templateResult.error || versionsResult.error || !templateResult.data) {
       console.error("Unable to load Draft Template Preview", templateResult.error || versionsResult.error);
-      setErrorText("ไม่สามารถโหลดแม่แบบสำหรับดูตัวอย่างได้");
+      setErrorText(uiMessage("settings.documents.preview.load"));
       setLoading(false);
       return;
     }
@@ -190,12 +194,12 @@ export default function DraftTemplatePreviewPage() {
       : versionRows.find((entry) => ["draft", "under_review"].includes(entry.status));
 
     if (templateRow.document_type !== "fee_agreement" || !targetVersion) {
-      setErrorText("ไม่พบเวอร์ชันร่างหรือเวอร์ชันที่อยู่ระหว่างตรวจสำหรับแม่แบบนี้");
+      setErrorText(uiMessage("settings.documents.preview.noVersion"));
       setLoading(false);
       return;
     }
     if (!["draft", "under_review"].includes(targetVersion.status)) {
-      setErrorText("หน้า Preview นี้เปิดได้เฉพาะแม่แบบสถานะ Draft หรือ Under Review");
+      setErrorText(uiMessage("settings.documents.preview.status"));
       setLoading(false);
       return;
     }
@@ -208,7 +212,7 @@ export default function DraftTemplatePreviewPage() {
       .limit(1000);
     if (sectionsResult.error) {
       console.error("Unable to load Draft Template sections", sectionsResult.error);
-      setErrorText("ไม่สามารถโหลดโครงสร้างแม่แบบได้");
+      setErrorText(uiMessage("settings.documents.preview.structure"));
       setLoading(false);
       return;
     }
@@ -232,7 +236,7 @@ export default function DraftTemplatePreviewPage() {
     ]);
     if (slotsResult.error || templateBindingsResult.error) {
       console.error("Unable to load Draft Template slots or variables", slotsResult.error || templateBindingsResult.error);
-      setErrorText("ไม่สามารถโหลดข้อสัญญาหรือตัวแปรของแม่แบบได้");
+      setErrorText(uiMessage("settings.documents.preview.clauses"));
       setLoading(false);
       return;
     }
@@ -258,7 +262,7 @@ export default function DraftTemplatePreviewPage() {
     ]);
     if (clausesResult.error || clauseBindingsResult.error) {
       console.error("Unable to load Published Clause content", clausesResult.error || clauseBindingsResult.error);
-      setErrorText("ไม่สามารถโหลดถ้อยคำข้อสัญญาที่เผยแพร่แล้วได้");
+      setErrorText(uiMessage("settings.documents.preview.published"));
       setLoading(false);
       return;
     }
@@ -278,7 +282,7 @@ export default function DraftTemplatePreviewPage() {
       : { data: [], error: null };
     if (definitionsResult.error) {
       console.error("Unable to load controlled Document variables", definitionsResult.error);
-      setErrorText("ไม่สามารถโหลดทะเบียนตัวแปรเอกสารได้");
+      setErrorText(uiMessage("settings.documents.preview.variables"));
       setLoading(false);
       return;
     }
@@ -332,19 +336,19 @@ export default function DraftTemplatePreviewPage() {
   const missingClauseSlots = slots.filter((slot) => !slot.clause_version_id || !clauseById.has(slot.clause_version_id));
 
   return (
-    <DocumentPlatformPage title="Settings" subtitle="Draft Template Preview">
+    <DocumentPlatformPage title={t("settings.documents.title")} subtitle={t("settings.documents.preview.title")}>
       <AccessState access={access} />
       {access.allowed ? (
         <>
           <div className={styles.toolbar}>
-            <Link href={`/settings/document-templates/${templateId}`} className={styles.backLink}>กลับไปแม่แบบ</Link>
+            <Link href={`/settings/document-templates/${templateId}`} className={styles.backLink}>{t("settings.documents.preview.back")}</Link>
             <label className={styles.contextField}>
-              บริบทตัวอย่าง
+              {t("settings.documents.preview.context")}
               <select value={contextId} onChange={(event) => setContextId(event.target.value)}>
-                <option value="">ข้อมูลตัวอย่างแบบไม่ผูกกับสัญญา</option>
+                <option value="">{t("settings.documents.preview.synthetic")}</option>
                 {contexts.map((entry) => (
                   <option key={entry.id} value={entry.id}>
-                    {contextLabel(entry)}
+                    {contextLabel(entry, locale)}
                   </option>
                 ))}
               </select>
@@ -352,35 +356,35 @@ export default function DraftTemplatePreviewPage() {
           </div>
 
           <div className={styles.previewMode}>
-            <strong>โหมดตัวอย่าง — ยังไม่ได้เผยแพร่หรือผูกกับสัญญาจริง</strong>
-            <span>หน้านี้อ่านข้อมูลเพื่อประกอบภาพตัวอย่างเท่านั้น และไม่บันทึกการเปลี่ยนแปลงใด ๆ</span>
+            <strong>{t("settings.documents.preview.mode")}</strong>
+            <span>{t("settings.documents.preview.readOnly")}</span>
           </div>
 
-          {errorText ? <div className={styles.error}>{errorText}</div> : null}
-          {loading ? <div className={styles.loading}>กำลังประกอบตัวอย่างแม่แบบ...</div> : null}
+          {errorText ? <div className={styles.error}>{text(errorText)}</div> : null}
+          {loading ? <div className={styles.loading}>{t("settings.documents.preview.loading")}</div> : null}
 
           {!loading && template && version ? (
             <>
               <details className={styles.diagnostics}>
-                <summary>ข้อมูลตรวจสอบ Renderer</summary>
+                <summary>{t("settings.documents.preview.diagnostics")}</summary>
                 <div className={styles.diagnosticGrid}>
-                  <Diagnostic label="แม่แบบ" value={`${template.template_code} · รุ่น ${version.version_no}`} />
-                  <Diagnostic label="Renderer schema" value={String(version.renderer_schema_version)} />
-                  <Diagnostic label="ส่วนของเอกสาร" value={`${sections.length} ส่วน`} />
-                  <Diagnostic label="ตำแหน่งข้อสัญญา" value={`${slots.length} ตำแหน่ง`} />
-                  <Diagnostic label="PREAMBLE variables" value={`${preambleVariables.filter((entry) => entry.resolved).length}/${preambleVariables.length} resolved`} />
-                  <Diagnostic label="บริบท" value={context ? contextLabel(context) : "Synthetic placeholders (read-only)"} />
-                  <Diagnostic label="ข้อกำหนดผู้ลงนาม" value={signatureSummary(requirements)} />
-                  <Diagnostic label="ข้อสัญญาที่โหลดไม่ได้" value={missingClauseSlots.length ? `${missingClauseSlots.length} ตำแหน่ง` : "ไม่มี"} />
+                  <Diagnostic label={t("settings.documents.templates.template")} value={`${template.template_code} · ${t("settings.documents.count.version", { number: version.version_no })}`} />
+                  <Diagnostic label={t("settings.documents.preview.renderer")} value={String(version.renderer_schema_version)} />
+                  <Diagnostic label={t("settings.documents.template.sections")} value={t("settings.documents.count.sections", { count: sections.length })} />
+                  <Diagnostic label={t("settings.documents.preview.slots")} value={t("settings.documents.preview.slotCount", { count: slots.length })} />
+                  <Diagnostic label={t("settings.documents.preview.preambleVariables")} value={t("settings.documents.preview.resolvedCount", { count: preambleVariables.filter((entry) => entry.resolved).length, total: preambleVariables.length })} />
+                  <Diagnostic label={t("settings.documents.preview.contextLabel")} value={context ? contextLabel(context, locale) : t("settings.documents.preview.placeholderContext")} />
+                  <Diagnostic label={t("settings.documents.preview.signers")} value={signatureSummary(requirements, locale)} />
+                  <Diagnostic label={t("settings.documents.preview.missingClauses")} value={missingClauseSlots.length ? t("settings.documents.preview.slotCount", { count: missingClauseSlots.length }) : t("settings.documents.template.none")} />
                 </div>
                 <div className={styles.unresolved}>
-                  <strong>ตัวแปรจำเป็นที่ยังไม่มีข้อมูล</strong>
-                  <span>{unresolvedRequired.length ? unresolvedRequired.map((entry) => `${entry.label} (${entry.key})`).join(", ") : "ไม่มี"}</span>
+                  <strong>{t("settings.documents.preview.missingVariables")}</strong>
+                  <span>{unresolvedRequired.length ? unresolvedRequired.map((entry) => `${entry.label} (${entry.key})`).join(", ") : t("settings.documents.template.none")}</span>
                 </div>
               </details>
 
               {version.renderer_schema_version !== 3 ? (
-                <div className={styles.error}>แม่แบบนี้ไม่ใช่ Renderer schema v3 จึงไม่สามารถแสดงตัวอย่างด้วย renderer นี้ได้</div>
+                <div className={styles.error}>{t("settings.documents.preview.unsupported")}</div>
               ) : (
                 <LegalDocumentLayout className={styles.document} languageCode={version.language_code}>
                   {sortedSections.map((section) => {
@@ -574,15 +578,15 @@ function sectionTitle(section: SectionRow) {
   return prefix ? `${prefix} ${section.title}` : section.title;
 }
 
-function contextLabel(context: AgreementContextRow) {
+function contextLabel(context: AgreementContextRow, locale: UiLocale = "th") {
   const client = asObject(context.client_snapshot_json);
   const clientName = asText(client.name || client.client_name || client.display_name);
-  return [context.agreement_no || "Draft ไม่มีเลขที่", context.title, clientName].filter(Boolean).join(" · ");
+  return [context.agreement_no || translate(locale, "settings.documents.preview.noNumber"), context.title, clientName].filter(Boolean).join(" · ");
 }
 
-function signatureSummary(requirements: JsonObject) {
+function signatureSummary(requirements: JsonObject, locale: UiLocale = "th") {
   const client = Number(requirements.minimum_client_signers || 0);
   const firm = Number(requirements.minimum_firm_signers || 0);
   const witness = Math.max(requirements.witness_required === true ? 1 : 0, Number(requirements.minimum_witnesses || 0));
-  return `ลูกค้า ${client} · สำนักงาน ${firm} · พยาน ${witness}${requirements.witness_required === true ? " (บังคับ)" : " (ไม่บังคับ)"}`;
+  return translate(locale, requirements.witness_required === true ? "settings.documents.preview.requiredSigners" : "settings.documents.preview.optionalSigners", { client, firm, witness });
 }

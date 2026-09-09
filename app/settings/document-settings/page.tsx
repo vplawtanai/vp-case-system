@@ -1,5 +1,9 @@
 "use client";
 
+import { useI18n, useUiAlert } from "@/lib/i18n/provider";
+import { uiMessage, type UiMessage } from "@/lib/i18n/core";
+import { resolveUiMessage } from "@/lib/i18n/catalog";
+import { legacyOperationError } from "@/lib/i18n/legacy-finance";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, ChangeEvent } from "react";
 import AuthGuard from "../../components/AuthGuard";
@@ -69,6 +73,8 @@ type ServicePatternForm = {
 };
 
 export default function DocumentSettingsPage() {
+  const { t } = useI18n();
+  const notify = useUiAlert();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [userId, setUserId] = useState("");
@@ -196,7 +202,7 @@ export default function DocumentSettingsPage() {
     });
 
     if (error) {
-      alert("Unable to save company profile.");
+      notify(uiMessage("settings.documents.identity.error.saveCompany"));
       setSaving(false);
       return;
     }
@@ -216,14 +222,14 @@ export default function DocumentSettingsPage() {
     const file = event.target.files[0];
     const error = validateImage(file, ["image/png", "image/jpeg", "image/webp", "image/svg+xml"]);
     if (error) {
-      alert(error);
+      notify(error);
       return;
     }
 
     const path = newCompanyLogoPath(file.name);
     const { error: uploadError } = await supabase.storage.from(ASSET_BUCKET).upload(path, file, { upsert: false });
     if (uploadError) {
-      alert("Unable to upload logo.");
+      notify(uiMessage("settings.documents.identity.error.uploadLogo"));
       return;
     }
 
@@ -239,7 +245,7 @@ export default function DocumentSettingsPage() {
       .eq("id", "default");
 
     if (updateError) {
-      alert("Logo uploaded, but company profile could not be updated.");
+      notify(uiMessage("settings.documents.identity.error.logoProfile"));
       return;
     }
 
@@ -257,15 +263,15 @@ export default function DocumentSettingsPage() {
   const saveSigner = async () => {
     if (!canManageSigners || saving) return;
     if (!signerForm.signer_key.trim() || !signerForm.display_name.trim()) {
-      alert("Signer key and name are required.");
+      notify(uiMessage("settings.documents.identity.error.signerRequired"));
       return;
     }
     if (signerForm.is_default && !signerForm.is_active) {
-      alert("Default signer must be active.");
+      notify(uiMessage("settings.documents.identity.error.defaultActive"));
       return;
     }
     if (signerForm.id && !signerForm.is_active && signers.find((signer) => signer.id === signerForm.id)?.is_default) {
-      alert("กรุณาตั้งผู้ลงนามเริ่มต้นคนใหม่ก่อนปิดใช้งานรายนี้");
+      notify(uiMessage("settings.documents.identity.error.replaceDefault"));
       return;
     }
     setSaving(true);
@@ -292,7 +298,7 @@ export default function DocumentSettingsPage() {
     const { data: savedSigner, error } = await query;
 
     if (error) {
-      alert("Unable to save signer.");
+      notify(uiMessage("settings.documents.identity.error.saveSigner"));
       setSaving(false);
       return;
     }
@@ -306,7 +312,7 @@ export default function DocumentSettingsPage() {
       });
 
       if (defaultError) {
-        alert("Signer saved, but default signer could not be updated.");
+        notify(uiMessage("settings.documents.identity.error.saveDefault"));
         setSaving(false);
         await loadSettings();
         return;
@@ -329,7 +335,7 @@ export default function DocumentSettingsPage() {
     const file = event.target.files[0];
     const error = validateImage(file, ["image/png", "image/jpeg", "image/webp"]);
     if (error) {
-      alert(error);
+      notify(error);
       return;
     }
 
@@ -337,7 +343,7 @@ export default function DocumentSettingsPage() {
     try {
       croppedSignature = await cropSignatureImage(file);
     } catch (cropError) {
-      alert(cropError instanceof SignatureCropError ? cropError.message : "ไม่สามารถเตรียมไฟล์ลายเซ็นได้ กรุณาเลือกภาพลายเซ็นใหม่");
+      notify(cropError instanceof SignatureCropError ? cropError.uiMessage : t("settings.documents.identity.error.crop"));
       return;
     }
 
@@ -346,7 +352,7 @@ export default function DocumentSettingsPage() {
     const signerPrefix = `signers/${signer.id}`;
     const { error: uploadError } = await supabase.storage.from(ASSET_BUCKET).upload(path, croppedSignature, { upsert: false });
     if (uploadError) {
-      alert("Unable to upload signature.");
+      notify(uiMessage("settings.documents.identity.error.uploadSignature"));
       return;
     }
 
@@ -363,7 +369,7 @@ export default function DocumentSettingsPage() {
 
     if (updateError) {
       await safeRemoveAsset(path, signerPrefix);
-      alert("Signature uploaded, but signer could not be updated.");
+      notify(uiMessage("settings.documents.identity.error.signatureProfile"));
       return;
     }
 
@@ -377,13 +383,13 @@ export default function DocumentSettingsPage() {
       action: "update",
       note: `Uploaded/replaced signature for ${signer.display_name}`,
     });
-    alert("ครอปพื้นที่ว่างและอัปโหลดลายเซ็นเรียบร้อยแล้ว");
+    notify(uiMessage("settings.documents.identity.signatureUploaded"));
     await loadSettings();
   };
 
   const removeSignature = async (signer: SignerForm) => {
     if (!canManageSigners || !signer.id || !signer.signature_storage_path) return;
-    if (!window.confirm("Remove this signature image?")) return;
+    if (!window.confirm(t("settings.documents.identity.removeSignatureConfirm"))) return;
     const oldPath = signer.signature_storage_path;
     const signerPrefix = `signers/${signer.id}`;
     const { error } = await supabase
@@ -397,7 +403,7 @@ export default function DocumentSettingsPage() {
       })
       .eq("id", signer.id);
     if (error) {
-      alert("Unable to remove signature.");
+      notify(uiMessage("settings.documents.identity.error.removeSignature"));
       return;
     }
     const removed = await safeRemoveAsset(oldPath, signerPrefix);
@@ -414,7 +420,7 @@ export default function DocumentSettingsPage() {
   const setSignerActive = async (signer: SignerForm, isActive: boolean) => {
     if (!canManageSigners || !signer.id || saving) return;
     if (!isActive && signer.is_default) {
-      alert("กรุณาตั้งผู้ลงนามเริ่มต้นคนใหม่ก่อนปิดใช้งานรายนี้");
+      notify(uiMessage("settings.documents.identity.error.replaceDefault"));
       return;
     }
 
@@ -424,7 +430,7 @@ export default function DocumentSettingsPage() {
       p_is_active: isActive,
     });
     if (error) {
-      alert(error.message.includes("กรุณาตั้งผู้ลงนาม") ? error.message : "Unable to update signer status.");
+      notify(error.message.includes("กรุณาตั้งผู้ลงนาม") ? uiMessage("settings.documents.identity.error.replaceDefault") : legacyOperationError(error, uiMessage("settings.documents.identity.error.signerStatus")));
       setSaving(false);
       return;
     }
@@ -442,17 +448,17 @@ export default function DocumentSettingsPage() {
   const deleteSigner = async (signer: SignerForm) => {
     if (!canManageSigners || !signer.id || saving) return;
     if (signer.is_default) {
-      alert("กรุณาตั้งผู้ลงนามเริ่มต้นคนใหม่ก่อนลบรายนี้");
+      notify(uiMessage("settings.documents.identity.error.deleteDefault"));
       return;
     }
-    if (!window.confirm("ต้องการลบผู้ลงนามรายนี้ถาวรหรือไม่?\nหากเคยใช้ในเอกสาร แนะนำให้ปิดใช้งานแทน")) return;
+    if (!window.confirm(t("settings.documents.identity.deleteConfirm"))) return;
 
     setSaving(true);
     const { data: signaturePath, error } = await supabase.rpc("delete_finance_authorized_signer", {
       p_signer_id: signer.id,
     });
     if (error) {
-      alert(error.message.includes("ผู้ลงนามรายนี้เคยถูกใช้") || error.message.includes("กรุณาตั้งผู้ลงนาม") ? error.message : "Unable to delete signer.");
+      notify(error.message.includes("ผู้ลงนามรายนี้เคยถูกใช้") ? uiMessage("settings.documents.identity.error.usedSigner") : error.message.includes("กรุณาตั้งผู้ลงนาม") ? uiMessage("settings.documents.identity.error.deleteDefault") : legacyOperationError(error, uiMessage("settings.documents.identity.error.deleteSigner")));
       setSaving(false);
       return;
     }
@@ -486,11 +492,11 @@ export default function DocumentSettingsPage() {
   const saveServicePattern = async () => {
     if (!canManageSigners || saving) return;
     if (!servicePatternForm.pattern_code.trim() || !servicePatternForm.display_name.trim()) {
-      alert("กรุณาระบุรหัสและชื่อรูปแบบงาน");
+      notify(uiMessage("settings.documents.identity.error.patternRequired"));
       return;
     }
     if (![servicePatternForm.scope_text, servicePatternForm.included_services_text, servicePatternForm.excluded_services_text].some((value) => value.trim())) {
-      alert("กรุณาระบุข้อความอย่างน้อยหนึ่งส่วน");
+      notify(uiMessage("settings.documents.identity.error.patternText"));
       return;
     }
 
@@ -509,7 +515,7 @@ export default function DocumentSettingsPage() {
 
     if (error) {
       console.error("Unable to save quotation service pattern", { code: error.code, message: error.message });
-      alert(error.code === "23505" ? "รหัสรูปแบบงานนี้มีอยู่แล้ว" : "ไม่สามารถบันทึกรูปแบบงานได้");
+      notify(error.code === "23505" ? t("settings.documents.identity.error.duplicatePattern") : t("settings.documents.identity.error.savePattern"));
       setSaving(false);
       return;
     }
@@ -527,7 +533,7 @@ export default function DocumentSettingsPage() {
 
   const setServicePatternActive = async (pattern: ServicePatternForm, isActive: boolean) => {
     if (!canManageSigners || !pattern.id || saving) return;
-    if (!window.confirm(isActive ? `เปิดใช้งานรูปแบบ “${pattern.display_name}” หรือไม่?` : `ปิดใช้งานรูปแบบ “${pattern.display_name}” หรือไม่?\nใบเสนอราคาเดิมจะไม่เปลี่ยนแปลง`)) return;
+    if (!window.confirm(isActive ? t("settings.documents.identity.confirmActivatePattern", { name: pattern.display_name }) : t("settings.documents.identity.confirmDeactivatePattern", { name: pattern.display_name }))) return;
 
     setSaving(true);
     const { error } = await supabase.rpc("set_finance_quotation_service_pattern_active", {
@@ -536,7 +542,7 @@ export default function DocumentSettingsPage() {
     });
     if (error) {
       console.error("Unable to update quotation service pattern status", { code: error.code, message: error.message });
-      alert("ไม่สามารถเปลี่ยนสถานะรูปแบบงานได้");
+      notify(uiMessage("settings.documents.identity.error.patternStatus"));
       setSaving(false);
       return;
     }
@@ -554,8 +560,8 @@ export default function DocumentSettingsPage() {
   if (loading) {
     return (
       <AuthGuard>
-        <AppTopNav title="Settings" subtitle="Document Settings" activePage="settings" />
-        <main style={pageStyle}><div style={cardStyle}>Loading document settings...</div></main>
+        <AppTopNav title={t("settings.documents.title")} subtitle={t("settings.documents.nav.settings")} activePage="settings" />
+        <main style={pageStyle}><div style={cardStyle}>{t("settings.documents.identity.loading")}</div></main>
       </AuthGuard>
     );
   }
@@ -563,11 +569,11 @@ export default function DocumentSettingsPage() {
   if (!canManageSigners) {
     return (
       <AuthGuard>
-        <AppTopNav title="Settings" subtitle="Document Settings" activePage="settings" />
+        <AppTopNav title={t("settings.documents.title")} subtitle={t("settings.documents.nav.settings")} activePage="settings" />
         <main style={pageStyle}>
           <div style={cardStyle}>
-            <h1 style={pageTitleStyle}>No access</h1>
-            <p style={mutedTextStyle}>Only admin and partner users can manage document settings.</p>
+            <h1 style={pageTitleStyle}>{t("settings.documents.access.denied")}</h1>
+            <p style={mutedTextStyle}>{t("settings.documents.access.help")}</p>
           </div>
         </main>
       </AuthGuard>
@@ -576,61 +582,61 @@ export default function DocumentSettingsPage() {
 
   return (
     <AuthGuard>
-      <AppTopNav title="Settings" subtitle="Document Settings" activePage="settings" />
+      <AppTopNav title={t("settings.documents.title")} subtitle={t("settings.documents.nav.settings")} activePage="settings" />
       <main style={pageStyle}>
         <div style={sectionHeaderStyle}>
           <div>
-            <h1 style={pageTitleStyle}>Document Settings</h1>
-            <p style={mutedTextStyle}>Company profile, quotation prefix, logo, authorized signers, and private signature assets.</p>
+            <h1 style={pageTitleStyle}>{t("settings.documents.nav.settings")}</h1>
+            <p style={mutedTextStyle}>{t("settings.documents.identity.description")}</p>
           </div>
         </div>
 
         <section style={cardStyle}>
           <div style={sectionHeaderStyle}>
-            <h2 style={sectionTitleStyle}>Company Profile</h2>
-            {!isAdmin ? <span style={badgeStyle}>Admin only</span> : null}
+            <h2 style={sectionTitleStyle}>{t("settings.documents.identity.company")}</h2>
+            {!isAdmin ? <span style={badgeStyle}>{t("settings.documents.identity.adminOnly")}</span> : null}
           </div>
           <div style={formGridStyle}>
-            <TextField label="Thai company name" value={companyForm.company_name_th} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, company_name_th: value })} />
-            <TextField label="English company name" value={companyForm.company_name_en} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, company_name_en: value })} />
-            <TextField label="Tax ID" value={companyForm.tax_id} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, tax_id: value })} />
-            <TextField label="Quotation prefix" value={companyForm.quotation_prefix} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, quotation_prefix: value })} />
-            <TextField label="สาขาภาษาไทย / Branch (TH)" value={companyForm.branch_th} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, branch_th: value })} />
-            <TextField label="สาขาภาษาอังกฤษ / Branch (EN)" value={companyForm.branch_en} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, branch_en: value })} />
-            <TextField label="Phone" value={companyForm.phone} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, phone: value })} />
-            <TextField label="Email" value={companyForm.email} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, email: value })} />
-            <TextField label="Website" value={companyForm.website} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, website: value })} />
-            <label style={wideLabelStyle}>ที่อยู่ภาษาไทย / Address (TH)
+            <TextField label={t("settings.documents.identity.companyNameTh")} value={companyForm.company_name_th} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, company_name_th: value })} />
+            <TextField label={t("settings.documents.identity.companyNameEn")} value={companyForm.company_name_en} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, company_name_en: value })} />
+            <TextField label={t("settings.documents.identity.taxId")} value={companyForm.tax_id} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, tax_id: value })} />
+            <TextField label={t("settings.documents.identity.prefix")} value={companyForm.quotation_prefix} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, quotation_prefix: value })} />
+            <TextField label={t("settings.documents.identity.branchTh")} value={companyForm.branch_th} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, branch_th: value })} />
+            <TextField label={t("settings.documents.identity.branchEn")} value={companyForm.branch_en} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, branch_en: value })} />
+            <TextField label={t("settings.documents.identity.phone")} value={companyForm.phone} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, phone: value })} />
+            <TextField label={t("settings.documents.identity.email")} value={companyForm.email} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, email: value })} />
+            <TextField label={t("settings.documents.identity.website")} value={companyForm.website} disabled={!isAdmin} onChange={(value) => setCompanyForm({ ...companyForm, website: value })} />
+            <label style={wideLabelStyle}>{t("settings.documents.identity.addressTh")}
               <textarea value={companyForm.address_th} disabled={!isAdmin} onChange={(event) => setCompanyForm({ ...companyForm, address_th: event.target.value })} style={textareaStyle} />
             </label>
-            <label style={wideLabelStyle}>ที่อยู่ภาษาอังกฤษ / Address (EN)
+            <label style={wideLabelStyle}>{t("settings.documents.identity.addressEn")}
               <textarea value={companyForm.address_en} disabled={!isAdmin} onChange={(event) => setCompanyForm({ ...companyForm, address_en: event.target.value })} style={textareaStyle} />
             </label>
-            <label style={wideLabelStyle}>Description
+            <label style={wideLabelStyle}>{t("settings.documents.identity.companyDescription")}
               <textarea value={companyForm.description} disabled={!isAdmin} onChange={(event) => setCompanyForm({ ...companyForm, description: event.target.value })} style={textareaStyle} />
             </label>
           </div>
           <div style={assetRowStyle}>
             <AssetPreview path={companyForm.logo_storage_path} urls={assetUrls} fallback="VP" />
             <div>
-              <div style={mutedTextStyle}>Current logo: {companyForm.logo_storage_path || "-"}</div>
+              <div style={mutedTextStyle}>{t("settings.documents.identity.currentLogo")} {companyForm.logo_storage_path || "-"}</div>
               {isAdmin ? <input type="file" accept=".png,.jpg,.jpeg,.webp,.svg,image/png,image/jpeg,image/webp,image/svg+xml" onChange={uploadLogo} /> : null}
             </div>
           </div>
-          {isAdmin ? <button type="button" onClick={saveCompanyProfile} disabled={saving} style={primaryButtonStyle}>{saving ? "Saving..." : "Save Company Profile"}</button> : null}
+          {isAdmin ? <button type="button" onClick={saveCompanyProfile} disabled={saving} style={primaryButtonStyle}>{saving ? t("settings.documents.clause.saving") : t("settings.documents.identity.saveCompany")}</button> : null}
         </section>
 
         <section id="quotation-service-patterns" style={cardStyle}>
           <div style={sectionHeaderStyle}>
             <div>
-              <h2 style={sectionTitleStyle}>รูปแบบขอบเขตงานใบเสนอราคา</h2>
-              <p style={mutedTextStyle}>จัดเก็บข้อความตั้งต้นสำหรับขอบเขตงาน งานที่รวม และงานที่ไม่รวม ผู้ใช้ยังแก้ข้อความในใบเสนอราคาแต่ละฉบับได้ตามปกติ</p>
+              <h2 style={sectionTitleStyle}>{t("settings.documents.identity.patterns")}</h2>
+              <p style={mutedTextStyle}>{t("settings.documents.identity.patternsHelp")}</p>
             </div>
-            <button type="button" onClick={() => openServicePatternForm()} style={primaryButtonStyle}>เพิ่มรูปแบบงาน</button>
+            <button type="button" onClick={() => openServicePatternForm()} style={primaryButtonStyle}>{t("settings.documents.identity.addPattern")}</button>
           </div>
 
           {servicePatterns.length === 0 ? (
-            <div style={emptyStateStyle}>ยังไม่มีรูปแบบงานที่บันทึกไว้</div>
+            <div style={emptyStateStyle}>{t("settings.documents.identity.noPatterns")}</div>
           ) : (
             <div style={patternListStyle}>
               {servicePatterns.map((pattern) => (
@@ -639,15 +645,15 @@ export default function DocumentSettingsPage() {
                     <div style={actionGroupStyle}>
                       <strong>{pattern.display_name}</strong>
                       <span style={codeBadgeStyle}>{pattern.pattern_code}</span>
-                      {!pattern.is_active ? <span style={dangerBadgeStyle}>ปิดใช้งาน</span> : null}
+                      {!pattern.is_active ? <span style={dangerBadgeStyle}>{t("settings.documents.identity.deactivate")}</span> : null}
                     </div>
-                    <div style={mutedTextStyle}>{[pattern.category, pattern.short_description].filter(Boolean).join(" · ") || "ไม่มีคำอธิบายเพิ่มเติม"}</div>
-                    <div style={mutedTextStyle}>ลำดับ {pattern.sort_order} · {[pattern.scope_text && "ขอบเขตงาน", pattern.included_services_text && "งานที่รวม", pattern.excluded_services_text && "งานที่ไม่รวม"].filter(Boolean).join(" / ")}</div>
+                    <div style={mutedTextStyle}>{[pattern.category, pattern.short_description].filter(Boolean).join(" · ") || t("settings.documents.identity.noDescription")}</div>
+                    <div style={mutedTextStyle}>{t("settings.documents.template.order")} {pattern.sort_order} · {[pattern.scope_text && t("settings.documents.identity.scopeFull"), pattern.included_services_text && t("settings.documents.identity.included"), pattern.excluded_services_text && t("settings.documents.identity.excluded")].filter(Boolean).join(" / ")}</div>
                   </div>
                   <div style={actionGroupStyle}>
-                    <button type="button" onClick={() => openServicePatternForm(pattern)} style={secondaryButtonStyle}>แก้ไข</button>
+                    <button type="button" onClick={() => openServicePatternForm(pattern)} style={secondaryButtonStyle}>{t("settings.documents.identity.edit")}</button>
                     <button type="button" onClick={() => { void setServicePatternActive(pattern, !pattern.is_active); }} disabled={saving} style={secondaryButtonStyle}>
-                      {pattern.is_active ? "ปิดใช้งาน" : "เปิดใช้งาน"}
+                      {pattern.is_active ? t("settings.documents.identity.deactivate") : t("settings.documents.identity.activate")}
                     </button>
                   </div>
                 </div>
@@ -657,38 +663,38 @@ export default function DocumentSettingsPage() {
 
           {isServicePatternFormOpen ? (
             <div ref={servicePatternFormRef} style={servicePatternFormPanelStyle}>
-              <h3 style={sectionTitleStyle}>{servicePatternForm.id ? "แก้ไขรูปแบบงาน" : "เพิ่มรูปแบบงาน"}</h3>
-              <p style={mutedTextStyle}>รูปแบบเป็นเพียงข้อความตั้งต้น การแก้ไขที่นี่จะไม่เปลี่ยนใบเสนอราคาที่บันทึกไปแล้ว</p>
+              <h3 style={sectionTitleStyle}>{servicePatternForm.id ? t("settings.documents.identity.editPattern") : t("settings.documents.identity.addPattern")}</h3>
+              <p style={mutedTextStyle}>{t("settings.documents.identity.patternHelp")}</p>
               <div style={formGridStyle}>
-                <TextField label="รหัสรูปแบบ *" value={servicePatternForm.pattern_code} onChange={(value) => setServicePatternForm({ ...servicePatternForm, pattern_code: value.toUpperCase() })} />
-                <TextField label="ชื่อรูปแบบ *" value={servicePatternForm.display_name} onChange={(value) => setServicePatternForm({ ...servicePatternForm, display_name: value })} />
-                <TextField label="หมวดงาน" value={servicePatternForm.category} onChange={(value) => setServicePatternForm({ ...servicePatternForm, category: value })} />
-                <label style={labelStyle}>ลำดับการแสดง
+                <TextField label={t("settings.documents.identity.patternCode")} value={servicePatternForm.pattern_code} onChange={(value) => setServicePatternForm({ ...servicePatternForm, pattern_code: value.toUpperCase() })} />
+                <TextField label={t("settings.documents.identity.patternName")} value={servicePatternForm.display_name} onChange={(value) => setServicePatternForm({ ...servicePatternForm, display_name: value })} />
+                <TextField label={t("settings.documents.identity.category")} value={servicePatternForm.category} onChange={(value) => setServicePatternForm({ ...servicePatternForm, category: value })} />
+                <label style={labelStyle}>{t("settings.documents.identity.order")}
                   <input type="number" min="0" step="1" value={servicePatternForm.sort_order} onChange={(event) => setServicePatternForm({ ...servicePatternForm, sort_order: Math.max(0, Number.parseInt(event.target.value || "0", 10) || 0) })} style={inputStyle} />
                 </label>
-                <label style={wideLabelStyle}>คำอธิบายสั้น
+                <label style={wideLabelStyle}>{t("settings.documents.identity.shortDescription")}
                   <textarea value={servicePatternForm.short_description} onChange={(event) => setServicePatternForm({ ...servicePatternForm, short_description: event.target.value })} style={compactTextareaStyle} />
                 </label>
-                <label style={wideLabelStyle}>ขอบเขตงาน / Scope of Legal Services
+                <label style={wideLabelStyle}>{t("settings.documents.identity.scopeFull")}
                   <textarea value={servicePatternForm.scope_text} onChange={(event) => setServicePatternForm({ ...servicePatternForm, scope_text: event.target.value })} style={patternTextareaStyle} />
                 </label>
-                <label style={wideLabelStyle}>งานที่รวมอยู่ในค่าบริการ / Included Services
+                <label style={wideLabelStyle}>{t("settings.documents.identity.includedFull")}
                   <textarea value={servicePatternForm.included_services_text} onChange={(event) => setServicePatternForm({ ...servicePatternForm, included_services_text: event.target.value })} style={patternTextareaStyle} />
                 </label>
-                <label style={wideLabelStyle}>งานหรือค่าใช้จ่ายที่ไม่รวม / Excluded Services
+                <label style={wideLabelStyle}>{t("settings.documents.identity.excludedFull")}
                   <textarea value={servicePatternForm.excluded_services_text} onChange={(event) => setServicePatternForm({ ...servicePatternForm, excluded_services_text: event.target.value })} style={patternTextareaStyle} />
                 </label>
               </div>
               <div style={actionGroupWithTopMarginStyle}>
-                <button type="button" onClick={saveServicePattern} disabled={saving} style={primaryButtonStyle}>{saving ? "กำลังบันทึก..." : "บันทึกรูปแบบงาน"}</button>
-                <button type="button" onClick={closeServicePatternForm} disabled={saving} style={secondaryButtonStyle}>ยกเลิก</button>
+                <button type="button" onClick={saveServicePattern} disabled={saving} style={primaryButtonStyle}>{saving ? t("settings.documents.clause.saving") : t("settings.documents.identity.savePattern")}</button>
+                <button type="button" onClick={closeServicePatternForm} disabled={saving} style={secondaryButtonStyle}>{t("settings.documents.actions.cancel")}</button>
               </div>
             </div>
           ) : null}
         </section>
 
         <section style={cardStyle}>
-          <h2 style={sectionTitleStyle}>Authorized Signers</h2>
+          <h2 style={sectionTitleStyle}>{t("settings.documents.identity.signers")}</h2>
           <div style={signerListStyle}>
             {signers.map((signer) => (
               <div key={signer.signer_key} style={signerCardStyle}>
@@ -699,20 +705,20 @@ export default function DocumentSettingsPage() {
                     <div style={mutedTextStyle}>{signer.email || "-"}</div>
                   </div>
                   <div style={actionGroupStyle}>
-                    {signer.is_default ? <span style={badgeStyle}>Default</span> : null}
-                    {!signer.is_active ? <span style={dangerBadgeStyle}>Inactive</span> : null}
+                    {signer.is_default ? <span style={badgeStyle}>{t("settings.documents.identity.default")}</span> : null}
+                    {!signer.is_active ? <span style={dangerBadgeStyle}>{t("settings.documents.identity.inactive")}</span> : null}
                   </div>
                 </div>
                 <div style={assetRowStyle}>
-                  <AssetPreview path={signer.signature_storage_path} urls={assetUrls} fallback="Signature" />
+                  <AssetPreview path={signer.signature_storage_path} urls={assetUrls} fallback={t("settings.documents.identity.signature")} />
                   <div style={actionGroupStyle}>
-                    <button type="button" onClick={() => setSignerForm(signer)} style={secondaryButtonStyle}>Edit</button>
+                    <button type="button" onClick={() => setSignerForm(signer)} style={secondaryButtonStyle}>{t("settings.documents.identity.edit")}</button>
                     <button type="button" onClick={() => { void setSignerActive(signer, !signer.is_active); }} disabled={saving} style={secondaryButtonStyle}>
-                      {signer.is_active ? "Deactivate" : "Activate"}
+                      {signer.is_active ? t("settings.documents.identity.deactivate") : t("settings.documents.identity.activate")}
                     </button>
                     {signer.id ? <input type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" onChange={(event) => uploadSignature(signer, event)} /> : null}
-                    {signer.signature_storage_path ? <button type="button" onClick={() => removeSignature(signer)} style={dangerButtonStyle}>Remove Signature</button> : null}
-                    <button type="button" onClick={() => { void deleteSigner(signer); }} disabled={saving} style={dangerButtonStyle}>Delete Signer</button>
+                    {signer.signature_storage_path ? <button type="button" onClick={() => removeSignature(signer)} style={dangerButtonStyle}>{t("settings.documents.identity.removeSignature")}</button> : null}
+                    <button type="button" onClick={() => { void deleteSigner(signer); }} disabled={saving} style={dangerButtonStyle}>{t("settings.documents.identity.deleteSigner")}</button>
                   </div>
                 </div>
               </div>
@@ -720,23 +726,23 @@ export default function DocumentSettingsPage() {
           </div>
 
           <div style={formPanelStyle}>
-            <h3 style={sectionTitleStyle}>{signerForm.id ? "Edit Signer" : "Add Signer"}</h3>
+            <h3 style={sectionTitleStyle}>{signerForm.id ? t("settings.documents.identity.editSigner") : t("settings.documents.identity.addSigner")}</h3>
             <div style={formGridStyle}>
-              <TextField label="Signer key" value={signerForm.signer_key} onChange={(value) => setSignerForm({ ...signerForm, signer_key: value })} />
-              <TextField label="Display name" value={signerForm.display_name} onChange={(value) => setSignerForm({ ...signerForm, display_name: value })} />
-              <TextField label="Nickname" value={signerForm.nickname} onChange={(value) => setSignerForm({ ...signerForm, nickname: value })} />
-              <TextField label="Position TH" value={signerForm.position_th} onChange={(value) => setSignerForm({ ...signerForm, position_th: value })} />
-              <TextField label="Position EN" value={signerForm.position_en} onChange={(value) => setSignerForm({ ...signerForm, position_en: value })} />
-              <TextField label="Email" value={signerForm.email} onChange={(value) => setSignerForm({ ...signerForm, email: value })} />
-              <TextField label="Sort order" value={String(signerForm.sort_order)} onChange={(value) => setSignerForm({ ...signerForm, sort_order: Number(value || 0) })} />
+              <TextField label={t("settings.documents.identity.signerKey")} value={signerForm.signer_key} onChange={(value) => setSignerForm({ ...signerForm, signer_key: value })} />
+              <TextField label={t("settings.documents.identity.displayName")} value={signerForm.display_name} onChange={(value) => setSignerForm({ ...signerForm, display_name: value })} />
+              <TextField label={t("settings.documents.identity.nickname")} value={signerForm.nickname} onChange={(value) => setSignerForm({ ...signerForm, nickname: value })} />
+              <TextField label={t("settings.documents.identity.positionTh")} value={signerForm.position_th} onChange={(value) => setSignerForm({ ...signerForm, position_th: value })} />
+              <TextField label={t("settings.documents.identity.positionEn")} value={signerForm.position_en} onChange={(value) => setSignerForm({ ...signerForm, position_en: value })} />
+              <TextField label={t("settings.documents.identity.email")} value={signerForm.email} onChange={(value) => setSignerForm({ ...signerForm, email: value })} />
+              <TextField label={t("settings.documents.identity.order")} value={String(signerForm.sort_order)} onChange={(value) => setSignerForm({ ...signerForm, sort_order: Number(value || 0) })} />
             </div>
             <div style={checkRowStyle}>
-              <label><input type="checkbox" checked={signerForm.is_active} onChange={(event) => setSignerForm({ ...signerForm, is_active: event.target.checked })} /> Active</label>
-              <label><input type="checkbox" checked={signerForm.is_default} onChange={(event) => setSignerForm({ ...signerForm, is_default: event.target.checked })} /> Default</label>
+              <label><input type="checkbox" checked={signerForm.is_active} onChange={(event) => setSignerForm({ ...signerForm, is_active: event.target.checked })} /> {t("settings.documents.identity.active")}</label>
+              <label><input type="checkbox" checked={signerForm.is_default} onChange={(event) => setSignerForm({ ...signerForm, is_default: event.target.checked })} /> {t("settings.documents.identity.default")}</label>
             </div>
             <div style={actionGroupStyle}>
-              <button type="button" onClick={saveSigner} disabled={saving} style={primaryButtonStyle}>{saving ? "Saving..." : "Save Signer"}</button>
-              <button type="button" onClick={() => setSignerForm(emptySignerForm())} style={secondaryButtonStyle}>Clear</button>
+              <button type="button" onClick={saveSigner} disabled={saving} style={primaryButtonStyle}>{saving ? t("settings.documents.clause.saving") : t("settings.documents.identity.saveSigner")}</button>
+              <button type="button" onClick={() => setSignerForm(emptySignerForm())} style={secondaryButtonStyle}>{t("settings.documents.identity.clear")}</button>
             </div>
           </div>
         </section>
@@ -842,12 +848,16 @@ function toSignerForm(signer: ReturnType<typeof normalizeAuthorizedSigner> | (ty
 }
 
 function validateImage(file: File, allowedTypes: string[]) {
-  if (!allowedTypes.includes(file.type)) return "Unsupported image type.";
-  if (file.size > 2 * 1024 * 1024) return "Image must be 2 MB or smaller.";
+  if (!allowedTypes.includes(file.type)) return uiMessage("settings.documents.identity.error.imageType");
+  if (file.size > 2 * 1024 * 1024) return uiMessage("settings.documents.identity.error.imageSize");
   return "";
 }
 
-class SignatureCropError extends Error {}
+class SignatureCropError extends Error {
+  constructor(readonly uiMessage: UiMessage) {
+    super(resolveUiMessage("th", uiMessage));
+  }
+}
 
 async function cropSignatureImage(file: File) {
   const sourceUrl = URL.createObjectURL(file);
@@ -857,18 +867,18 @@ async function cropSignatureImage(file: File) {
     image.src = sourceUrl;
     await image.decode();
 
-    if (!image.naturalWidth || !image.naturalHeight) throw new SignatureCropError("ไม่พบเส้นลายเซ็นในไฟล์ กรุณาเลือกภาพลายเซ็นใหม่");
+    if (!image.naturalWidth || !image.naturalHeight) throw new SignatureCropError(uiMessage("settings.documents.identity.error.noSignature"));
 
     const sourceCanvas = document.createElement("canvas");
     sourceCanvas.width = image.naturalWidth;
     sourceCanvas.height = image.naturalHeight;
     const sourceContext = sourceCanvas.getContext("2d", { willReadFrequently: true });
-    if (!sourceContext) throw new SignatureCropError("ไม่สามารถเตรียมไฟล์ลายเซ็นได้ กรุณาเลือกภาพลายเซ็นใหม่");
+    if (!sourceContext) throw new SignatureCropError(uiMessage("settings.documents.identity.error.crop"));
 
     sourceContext.drawImage(image, 0, 0);
     const pixels = sourceContext.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
     const bounds = findSignatureBounds(pixels, file.type === "image/jpeg");
-    if (!bounds) throw new SignatureCropError("ไม่พบเส้นลายเซ็นในไฟล์ กรุณาเลือกภาพลายเซ็นใหม่");
+    if (!bounds) throw new SignatureCropError(uiMessage("settings.documents.identity.error.noSignature"));
 
     const padding = Math.ceil(Math.max(bounds.width, bounds.height) * 0.06);
     const crop = {
@@ -886,16 +896,16 @@ async function cropSignatureImage(file: File) {
     outputCanvas.width = outputWidth;
     outputCanvas.height = outputHeight;
     const outputContext = outputCanvas.getContext("2d");
-    if (!outputContext) throw new SignatureCropError("ไม่สามารถเตรียมไฟล์ลายเซ็นได้ กรุณาเลือกภาพลายเซ็นใหม่");
+    if (!outputContext) throw new SignatureCropError(uiMessage("settings.documents.identity.error.crop"));
 
     outputContext.drawImage(sourceCanvas, crop.left, crop.top, cropWidth, cropHeight, 0, 0, outputWidth, outputHeight);
     const outputBlob = await canvasToPng(outputCanvas);
-    if (outputBlob.size > 2 * 1024 * 1024) throw new SignatureCropError("ไฟล์ลายเซ็นหลังครอปมีขนาดใหญ่เกินไป กรุณาเลือกภาพที่เล็กลง");
+    if (outputBlob.size > 2 * 1024 * 1024) throw new SignatureCropError(uiMessage("settings.documents.identity.error.cropSize"));
 
     return new File([outputBlob], toPngFileName(file.name), { type: "image/png" });
   } catch (error) {
     if (error instanceof SignatureCropError) throw error;
-    throw new SignatureCropError("ไม่สามารถเตรียมไฟล์ลายเซ็นได้ กรุณาเลือกภาพลายเซ็นใหม่");
+    throw new SignatureCropError(uiMessage("settings.documents.identity.error.crop"));
   } finally {
     URL.revokeObjectURL(sourceUrl);
   }
@@ -938,7 +948,7 @@ function canvasToPng(canvas: HTMLCanvasElement) {
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (blob) resolve(blob);
-      else reject(new SignatureCropError("ไม่สามารถเตรียมไฟล์ลายเซ็นได้ กรุณาเลือกภาพลายเซ็นใหม่"));
+      else reject(new SignatureCropError(uiMessage("settings.documents.identity.error.crop")));
     }, "image/png");
   });
 }

@@ -1,3 +1,6 @@
+import { translate } from "../../../lib/i18n/catalog";
+import type { UiLocale } from "../../../lib/i18n/core";
+
 export type BillingChargeContext = {
   clientId: string;
   currency: string;
@@ -164,11 +167,11 @@ export function guidedInvoiceSourceSummary({
   matter: string;
   quotationReference: string | null | undefined;
   installmentNo: number | null | undefined;
-}): GuidedInvoiceSourceSummary {
+}, locale: UiLocale = "th"): GuidedInvoiceSourceSummary {
   return {
-    client: client || "ไม่พบชื่อลูกค้า",
+    client: client || translate(locale, "finance.invoice.composer.missingClient"),
     matter,
-    trail: [quotationReference || "ไม่พบเลขอ้างอิง", installmentNo ? `งวดที่ ${installmentNo}` : "ไม่พบข้อมูลงวด"].join(" · "),
+    trail: [quotationReference || translate(locale, "finance.invoice.composer.noReference"), installmentNo ? translate(locale, "finance.invoice.ui.installmentNumber", { number: installmentNo }) : translate(locale, "finance.invoice.composer.missingInstallment")].join(" · "),
   };
 }
 

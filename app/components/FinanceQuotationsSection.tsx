@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "../../lib/i18n/provider";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -22,6 +23,7 @@ export default function FinanceQuotationsSection({
   caseId,
   advisoryMatterId,
 }: FinanceQuotationsSectionProps) {
+  const { t, date } = useI18n();
   const [quotations, setQuotations] = useState<QuotationRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -64,30 +66,30 @@ export default function FinanceQuotationsSection({
     <section style={sectionStyle}>
       <div style={headerStyle}>
         <div>
-          <h2 style={titleStyle}>Finance Documents</h2>
+          <h2 style={titleStyle}>{t("finance.quotation.linked.title")}</h2>
           <p style={noteStyle}>
-            Finance documents are separate from legacy fee references. Quotations are not invoices or receipts.
+            {t("finance.quotation.linked.description")}
           </p>
         </div>
       </div>
 
       <div style={subsectionStyle}>
-        <h3 style={subTitleStyle}>Quotations</h3>
-        {loading ? <div style={emptyStyle}>Loading quotations...</div> : null}
+        <h3 style={subTitleStyle}>{t("finance.quotation.list.title")}</h3>
+        {loading ? <div style={emptyStyle}>{t("finance.quotation.list.loading")}</div> : null}
         {!loading && quotations.length === 0 ? (
-          <div style={emptyStyle}>No quotations linked to this matter yet.</div>
+          <div style={emptyStyle}>{t("finance.quotation.linked.empty")}</div>
         ) : null}
         {!loading && quotations.length > 0 ? (
           <div style={tableWrapStyle}>
             <table style={tableStyle}>
               <thead>
                 <tr>
-                  <th style={thStyle}>Quotation No</th>
-                  <th style={thStyle}>Status</th>
-                  <th style={thStyle}>Issue Date</th>
-                  <th style={thStyle}>Valid Until</th>
-                  <th style={rightThStyle}>Grand Total</th>
-                  <th style={thStyle}>Action</th>
+                  <th style={thStyle}>{t("finance.quotation.list.number")}</th>
+                  <th style={thStyle}>{t("finance.quotation.list.status")}</th>
+                  <th style={thStyle}>{t("finance.quotation.form.issueDate")}</th>
+                  <th style={thStyle}>{t("finance.quotation.form.validUntil")}</th>
+                  <th style={rightThStyle}>{t("finance.quotation.list.payable")}</th>
+                  <th style={thStyle}>{t("finance.quotation.list.actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -95,12 +97,12 @@ export default function FinanceQuotationsSection({
                   <tr key={quotation.id}>
                     <td style={tdStyle}>{quotation.quotation_no || "-"}</td>
                     <td style={tdStyle}><StatusBadge status={quotation.status} /></td>
-                    <td style={tdStyle}>{formatDate(quotation.issue_date)}</td>
-                    <td style={tdStyle}>{formatDate(quotation.valid_until)}</td>
+                    <td style={tdStyle}>{date(quotation.issue_date)}</td>
+                    <td style={tdStyle}>{date(quotation.valid_until)}</td>
                     <td style={rightTdStyle}>{formatMoney(quotation.grand_total)}</td>
                     <td style={tdStyle}>
                       <Link href={`/finance/quotations/${quotation.id}`} style={viewLinkStyle}>
-                        View
+                        {t("finance.quotation.list.view")}
                       </Link>
                     </td>
                   </tr>
@@ -115,14 +117,12 @@ export default function FinanceQuotationsSection({
 }
 
 function StatusBadge({ status }: { status: string | null }) {
+  const { t } = useI18n();
   const normalized = String(status || "draft").toLowerCase();
   const style = statusStyles[normalized] || statusStyles.draft;
-  return <span style={{ ...badgeStyle, ...style }}>{normalized}</span>;
+  return <span style={{ ...badgeStyle, ...style }}>{["draft", "sent", "accepted", "cancelled"].includes(normalized) ? t(`finance.quotation.status.${normalized}`) : normalized}</span>;
 }
 
-function formatDate(value: string | null) {
-  return value ? String(value).slice(0, 10) : "-";
-}
 
 function formatMoney(value: number | string | null) {
   const amount = Number(value || 0);

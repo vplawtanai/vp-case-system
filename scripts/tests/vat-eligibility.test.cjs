@@ -31,7 +31,7 @@ test('Zero VAT never implies zero-rating, exemption, outside scope or no Tax Inv
     const lines = invoiceVatLines(snapshot([{ ...zero, vat_applicable }]), invoiceId);
     assert.equal(lines[0].treatment, 'unknown');
     const result = render({ lines });
-    for (const text of ['ยังไม่ได้กำหนด VAT Treatment', unknownVatExplanation, unknownTaxDecision, 'ยังไม่พร้อมออกใบกำกับภาษี']) assert.ok(result.includes(text));
+    for (const text of ['ยังไม่ได้กำหนด ประเภท VAT', unknownVatExplanation, unknownTaxDecision, 'ยังไม่พร้อมออกใบกำกับภาษี']) assert.ok(result.includes(text));
     assert.doesNotMatch(result, /ไม่ต้องออกใบกำกับภาษี|VAT 0% \(อัตราศูนย์\)/);
   }
 });
@@ -65,7 +65,7 @@ test('Mixed/multi-line summary retains per-line amounts and identifies unresolve
   assert.deepEqual(lines.map(l => l.treatment), ['standard_rate', 'unknown']);
   const result = render({ lines, eligibility: { can_prepare: false, blockers: ['TAX_INVOICE_MULTILINE_UNSUPPORTED'] } });
   assert.equal((result.match(/<tr>/g) || []).length, 3);
-  for (const text of ['ค่าเดินทาง', '2,000.00 THB', 'VAT 7%', 'ยังไม่ได้กำหนด VAT Treatment', taxError('TAX_INVOICE_MULTILINE_UNSUPPORTED')]) assert.ok(result.includes(text));
+  for (const text of ['ค่าเดินทาง', '2,000.00 THB', 'VAT 7%', 'ยังไม่ได้กำหนด ประเภท VAT', taxError('TAX_INVOICE_MULTILINE_UNSUPPORTED')]) assert.ok(result.includes(text));
 });
 test('UAT standard VAT relevance never removes buyer/tax-point/external/VAT confirmation or other server blockers', () => {
   for (const state of [eligibility, { ...eligibility, existing_id: 'tax-draft', existing_status: 'draft' }]) {
@@ -81,8 +81,8 @@ test('Known source VAT and pending Tax Invoice treatment confirmation are separa
   const result = render();
   assert.match(result, /ข้อมูล VAT จากใบแจ้งหนี้/);
   assert.match(result, /VAT 7%/);
-  assert.match(result, /VAT Treatment สำหรับใบกำกับภาษี<br\/><strong>รอการยืนยัน<\/strong>/);
-  assert.ok(result.includes('ระบบตรวจพบ VAT 7% จากข้อมูลใบแจ้งหนี้ กรุณายืนยัน VAT Treatment สำหรับใบกำกับภาษี'));
+  assert.match(result, /ประเภท VAT สำหรับใบกำกับภาษี<br\/><strong>รอการยืนยัน<\/strong>/);
+  assert.ok(result.includes('ระบบตรวจพบ VAT 7% จากข้อมูลใบแจ้งหนี้ กรุณายืนยัน ประเภท VAT สำหรับใบกำกับภาษี'));
   assert.doesNotMatch(result, /ยังไม่ได้ยืนยันประเภท VAT/);
   for (const text of ['4,672.90 THB', '327.10 THB', 'ต้องดำเนินการใบกำกับภาษี', 'ยังไม่พร้อมออกใบกำกับภาษี']) assert.ok(result.includes(text));
   const row = result.match(/<tbody>(.*?)<\/tbody>/s)[1];
@@ -109,7 +109,7 @@ test('Contextual blocker wording uses authoritative positive rates only and leav
     assert.equal(vatEligibilityBlockerMessage(code, lines), taxError(code));
   }
   const unknown = render({ lines: invoiceVatLines(snapshot([{ ...zero }]), invoiceId) });
-  assert.match(unknown, /ยังไม่ได้กำหนด VAT Treatment/);
+  assert.match(unknown, /ยังไม่ได้กำหนด ประเภท VAT/);
   assert.match(unknown, /ยังไม่พร้อมออกใบกำกับภาษี/);
   assert.doesNotMatch(unknown, /ระบบตรวจพบ VAT 0%|รอการยืนยัน|ไม่ต้องออกใบกำกับภาษี/);
 });

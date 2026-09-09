@@ -1,4 +1,6 @@
 "use client";
+import { useI18n } from "../../../lib/i18n/provider";
+import { uiMessage, type UiMessage } from "../../../lib/i18n/core";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -54,9 +56,10 @@ type TemplateSummary = TemplateRow & {
 };
 
 export default function DocumentTemplatesPage() {
+  const { t, text, locale } = useI18n();
   const access = useDocumentPlatformAccess();
   const [loading, setLoading] = useState(true);
-  const [errorText, setErrorText] = useState("");
+  const [errorText, setErrorText] = useState<UiMessage | string>("");
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
   const [versions, setVersions] = useState<VersionRow[]>([]);
   const [sections, setSections] = useState<SectionRow[]>([]);
@@ -74,7 +77,7 @@ export default function DocumentTemplatesPage() {
       .limit(200);
 
     if (templatesResult.error) {
-      setErrorText(friendlyError(templatesResult.error, "ไม่สามารถโหลดรายการแม่แบบเอกสารได้"));
+      setErrorText(friendlyError(templatesResult.error, uiMessage("settings.documents.templates.error.load")));
       setLoading(false);
       return;
     }
@@ -98,7 +101,7 @@ export default function DocumentTemplatesPage() {
       .limit(1000);
 
     if (versionsResult.error) {
-      setErrorText(friendlyError(versionsResult.error, "ไม่สามารถโหลดเวอร์ชันแม่แบบเอกสารได้"));
+      setErrorText(friendlyError(versionsResult.error, uiMessage("settings.documents.templates.error.versions")));
       setLoading(false);
       return;
     }
@@ -115,7 +118,7 @@ export default function DocumentTemplatesPage() {
         .in("template_version_id", versionIds)
         .limit(5000);
       if (sectionsResult.error) {
-        setErrorText(friendlyError(sectionsResult.error, "ไม่สามารถโหลดโครงสร้างแม่แบบเอกสารได้"));
+        setErrorText(friendlyError(sectionsResult.error, uiMessage("settings.documents.templates.error.structure")));
         setLoading(false);
         return;
       }
@@ -129,7 +132,7 @@ export default function DocumentTemplatesPage() {
           .in("template_section_id", sectionIds)
           .limit(10000);
         if (slotsResult.error) {
-          setErrorText(friendlyError(slotsResult.error, "ไม่สามารถโหลดข้อสัญญาในแม่แบบได้"));
+          setErrorText(friendlyError(slotsResult.error, uiMessage("settings.documents.templates.error.slots")));
           setLoading(false);
           return;
         }
@@ -172,26 +175,24 @@ export default function DocumentTemplatesPage() {
   }), [sections, slots, templates, versions]);
 
   return (
-    <DocumentPlatformPage title="Settings" subtitle="Document Template Management">
+    <DocumentPlatformPage title={t("settings.documents.title")} subtitle={t("settings.documents.subtitle.templates")}>
       <AccessState access={access} />
       {access.allowed ? (
         <>
           <header className={styles.pageHeader}>
             <div>
-              <h1 className={styles.pageTitle}>แม่แบบเอกสาร</h1>
+              <h1 className={styles.pageTitle}>{t("settings.documents.nav.templates")}</h1>
               <p className={styles.pageDescription}>
-                จัดการโครงสร้างและเวอร์ชันของเอกสารสำนักงาน โดยแยกออกจากการตั้งค่าหัวเอกสารและตราสัญลักษณ์
-              </p>
+                {t("settings.documents.templates.description")}</p>
             </div>
             <button type="button" className={styles.button} onClick={() => void loadTemplates()} disabled={loading}>
-              รีเฟรช
-            </button>
+              {t("settings.documents.actions.refresh")}</button>
           </header>
 
-          {errorText ? <div className={styles.error}>{errorText}</div> : null}
-          {loading ? <div className={styles.emptyState}>กำลังโหลดแม่แบบเอกสาร...</div> : null}
+          {errorText ? <div className={styles.error}>{text(errorText)}</div> : null}
+          {loading ? <div className={styles.emptyState}>{t("settings.documents.templates.loading")}</div> : null}
           {!loading && !errorText && summaries.length === 0 ? (
-            <div className={styles.emptyState}>ยังไม่มีแม่แบบเอกสาร</div>
+            <div className={styles.emptyState}>{t("settings.documents.templates.empty")}</div>
           ) : null}
 
           {!loading && summaries.length > 0 ? (
@@ -200,13 +201,13 @@ export default function DocumentTemplatesPage() {
                 <table className={styles.table}>
                   <thead>
                     <tr>
-                      <th>แม่แบบ</th>
-                      <th>ประเภท</th>
-                      <th>ภาษา / เวอร์ชัน</th>
-                      <th>สถานะ</th>
-                      <th>โครงสร้าง</th>
-                      <th>ตรวจล่าสุด</th>
-                      <th>ดำเนินการ</th>
+                      <th>{t("settings.documents.templates.template")}</th>
+                      <th>{t("settings.documents.fields.type")}</th>
+                      <th>{t("settings.documents.fields.languageVersion")}</th>
+                      <th>{t("settings.documents.fields.status")}</th>
+                      <th>{t("settings.documents.fields.structure")}</th>
+                      <th>{t("settings.documents.fields.reviewed")}</th>
+                      <th>{t("settings.documents.fields.actions")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -224,11 +225,11 @@ export default function DocumentTemplatesPage() {
                             <div className={styles.primaryText}>{template.name}</div>
                             <div className={styles.codeText}>{template.template_code}</div>
                           </td>
-                          <td>{documentTypeLabel(template.document_type)}</td>
+                          <td>{documentTypeLabel(template.document_type, locale)}</td>
                           <td>
-                            {languageLabel(template.latestVersion?.language_code || template.language_code)}
+                            {languageLabel(template.latestVersion?.language_code || template.language_code, locale)}
                             <div className={styles.muted}>
-                              เวอร์ชัน {template.latestVersion?.version_no || "-"}
+                              {t("settings.documents.count.version", { number: template.latestVersion?.version_no || "-" })}
                             </div>
                           </td>
                           <td>
@@ -238,14 +239,13 @@ export default function DocumentTemplatesPage() {
                             </div>
                           </td>
                           <td>
-                            <div>{template.sectionCount} ส่วน</div>
-                            <div className={styles.muted}>{template.slotCount} ข้อสัญญา</div>
+                            <div>{t("settings.documents.count.sections", { count: template.sectionCount })}</div>
+                            <div className={styles.muted}>{t("settings.documents.count.clauses", { count: template.slotCount })}</div>
                           </td>
-                          <td>{formatDateTime(reviewedAt)}</td>
+                          <td>{formatDateTime(reviewedAt, locale)}</td>
                           <td>
                             <Link href={`/settings/document-templates/${template.id}`} className={styles.linkButton}>
-                              เปิดแม่แบบ
-                            </Link>
+                              {t("settings.documents.templates.open")}</Link>
                           </td>
                         </tr>
                       );

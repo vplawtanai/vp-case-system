@@ -3,23 +3,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
+import { useI18n } from "../../../../lib/i18n/provider";
+import { translate } from "../../../../lib/i18n/catalog";
+import { uiMessage, type UiMessage, type UiLocale } from "../../../../lib/i18n/core";
 import { useParams } from "next/navigation";
 import { QuotationGuard } from "../../quotations/shared";
 import { FinanceDocumentNextAction } from "../../document-decision/next-action";
 import { supabase } from "../../../../lib/supabase";
-import { bangkokToday, displayText, formatBangkokDateTime, formatDocumentDate, money } from "../../invoices/shared";
-import { calculateStructuredWht, invoiceTaxFacts, paymentTaxFingerprint, paymentWhtScope, savedPaymentWht, structuredWhtCopy, type InvoiceTaxFacts, type WhtComponent, type WhtMode } from "../tax";
+import { bangkokToday, displayText, money } from "../../invoices/shared";
+import { calculateStructuredWht, invoiceTaxFacts, paymentTaxFingerprint, paymentWhtScope, savedPaymentWht, invoiceTaxVatLabel, type InvoiceTaxFacts, type WhtComponent, type WhtMode } from "../tax";
 import {
   hasValidCurrencyPrecision,
   normalizedAmount,
   paymentFingerprint,
   paymentForm,
-  paymentCorrectionCopy,
-  paymentMethodLabels,
-  paymentSettlementLabels,
-  paymentStatusLabels,
-  safePaymentError,
-  safePaymentReallocationError,
+  paymentUiLabels,
+  paymentErrorMessage,
+  paymentReallocationErrorMessage,
   type EffectivePaymentAllocation,
   type FinancePayment,
   type InvoiceSettlement,
@@ -37,8 +37,8 @@ type PaymentAccess = {
 };
 type InvoiceContext = { id: string; invoice_no: string | null; customer_name: string | null; client_id: string; case_id: number | null; advisory_matter_id: string | null; matter_snapshot_json: Record<string, unknown> | null; currency: string; amount_before_vat: number | string; vat_amount: number | string; total_amount: number | string; document_status: string; issued_snapshot_json: Record<string, unknown> | null };
 type BankAccount = { id: string; short_name: string | null; bank_name: string | null; account_name: string | null; account_number: string | null; is_active: boolean };
-type FormErrors = Partial<Record<"receivedOn" | "paymentMethod" | "bankAccount" | "settlementTarget" | "cashAmount" | "whtAmount" | "whtRate" | "allocation" | "confirmation", string>>;
-type ReallocationErrors = Partial<Record<"source" | "target" | "cash" | "wht" | "reason" | "acknowledgement", string>>;
+type FormErrors = Partial<Record<"receivedOn" | "paymentMethod" | "bankAccount" | "settlementTarget" | "cashAmount" | "whtAmount" | "whtRate" | "allocation" | "confirmation", UiMessage>>;
+type ReallocationErrors = Partial<Record<"source" | "target" | "cash" | "wht" | "reason" | "acknowledgement", UiMessage>>;
 type ReallocationMode = "full" | "partial";
 
 const whtRatePresets = [1, 2, 3, 5, 10] as const;
@@ -54,6 +54,8 @@ export default function PaymentDetailPage() {
 }
 
 function PaymentWorkspace({ access }: { access: PaymentAccess }) {
+  const { locale, t, text, date } = useI18n();
+  const { statuses: paymentStatusLabels, methods: paymentMethodLabels, settlement: paymentSettlementLabels, correction: paymentCorrectionCopy } = paymentUiLabels(locale);
   const { id } = useParams<{ id: string }>();
   const [payment, setPayment] = useState<FinancePayment | null>(null);
   const [allocations, setAllocations] = useState<PaymentAllocation[]>([]);
@@ -91,8 +93,8 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
   const [reallocating, setReallocating] = useState(false);
   const [reallocationRequestId, setReallocationRequestId] = useState("");
   const [reallocationAttempted, setReallocationAttempted] = useState(false);
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
+  const [error, setError] = useState<UiMessage | string>("");
+  const [message, setMessage] = useState<UiMessage | string>("");
   const actionLock = useRef(false);
   const firstInputRef = useRef<HTMLInputElement | null>(null);
   const reviewRef = useRef<HTMLElement | null>(null);
@@ -106,7 +108,7 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
     const paymentResult = await supabase.from("finance_payments").select(paymentSelect).eq("id", id).maybeSingle();
     if (paymentResult.error || !paymentResult.data) {
       console.error("Failed to load Payment", paymentResult.error);
-      setError(paymentResult.error ? "ไม่สามารถโหลดข้อมูลการรับชำระได้" : "ไม่พบข้อมูลการรับชำระ");
+      setError(paymentResult.error ? uiMessage("finance.payment.ui.loadFailed") : uiMessage("finance.payment.ui.notFound"));
       setLoading(false);
       return;
     }
@@ -121,13 +123,13 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
     ]);
     if (allocationsResult.error || whtResult.error || !allocationsResult.data?.length) {
       console.error("Failed to load Payment allocation", allocationsResult.error);
-      setError("ไม่สามารถโหลดการจัดสรรยอดรับชำระได้");
+      setError(uiMessage("finance.payment.ui.allocationLoadFailed"));
       setLoading(false);
       return;
     }
     if (effectiveResult.error || reallocationResult.error || candidateResult.error || bankResult.error) {
       console.error("Failed to load Payment allocation context", { effective: effectiveResult.error, history: reallocationResult.error, candidates: candidateResult.error, bank: bankResult.error });
-      setError("โหลดข้อมูลการจัดสรรยอดรับชำระบางส่วนไม่สำเร็จ กรุณารีเฟรช");
+      setError(uiMessage("finance.payment.ui.contextLoadFailed"));
     }
     const rawRows = (allocationsResult.data || []) as PaymentAllocation[];
     const effectiveRows = (effectiveResult.data || []) as EffectivePaymentAllocation[];
@@ -145,7 +147,7 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
     ]);
     if (invoiceResult.error || settlementResult.error) {
       console.error("Failed to load Payment Invoice context", { invoice: invoiceResult.error, settlement: settlementResult.error });
-      setError("โหลดข้อมูลใบแจ้งหนี้หรือบัญชีรับเงินไม่สำเร็จ");
+      setError(uiMessage("finance.payment.ui.invoiceBankLoadFailed"));
     }
     const nextForm = paymentForm(paymentRow);
     const invoiceRows = (invoiceResult.data || []) as InvoiceContext[];
@@ -273,30 +275,30 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
 
   const validate = (forConfirmation: boolean) => {
     const next: FormErrors = {};
-    if (!hasValidCurrencyPrecision(settlementTarget) || targetSettlement <= 0) next.settlementTarget = "กรุณาระบุยอดที่ต้องการตัดชำระมากกว่า 0 และมีทศนิยมไม่เกิน 2 ตำแหน่ง";
-    if (!draftAllocationEditingLimited && targetSettlement > outstandingBefore) next.settlementTarget = "ยอดที่ต้องการตัดชำระเกินยอดคงค้างของใบแจ้งหนี้";
-    if (whtMode === "legacy") next.whtRate = structuredWhtCopy.legacy;
-    if (whtMode === "rate" && currentWhtBase.error) next.whtRate = currentWhtBase.error;
-    else if (whtMode === "rate" && !whtCalculation) next.whtRate = structuredWhtCopy.rate;
-    else if (whtMode === "rate" && (form.whtAmount !== whtCalculation?.whtAmount || form.cashAmount !== whtCalculation?.cashAmount)) next.whtRate = "ยอดคำนวณ WHT ไม่ตรงกับข้อมูลปัจจุบัน กรุณาเลือกอัตราใหม่และบันทึก";
-    if (wht > targetSettlement) next.whtAmount = "เครดิตภาษีหัก ณ ที่จ่ายต้องไม่เกินยอดที่ต้องการตัดชำระ";
-    if (!hasValidCurrencyPrecision(form.cashAmount) || cash < 0) next.cashAmount = "กรุณาระบุยอดเงินที่ได้รับจริงตั้งแต่ 0 ขึ้นไป และมีทศนิยมไม่เกิน 2 ตำแหน่ง";
-    if (!hasValidCurrencyPrecision(form.whtAmount) || wht < 0) next.whtAmount = "กรุณาระบุเครดิตภาษีหัก ณ ที่จ่ายตั้งแต่ 0 ขึ้นไป และมีทศนิยมไม่เกิน 2 ตำแหน่ง";
-    if (Math.abs(paymentSettlement - targetSettlement) > 0.009) next.allocation = "เงินที่ได้รับจริง + เครดิตภาษีหัก ณ ที่จ่าย ต้องเท่ากับยอดที่ต้องการตัดชำระ";
-    if (paymentSettlement <= 0) next.allocation = "ยอดตัดชำระรวมต้องมากกว่า 0";
-    if (!draftAllocationEditingLimited && paymentSettlement > outstandingBefore) next.allocation = "ยอดจัดสรรเกินยอดคงค้างก่อนการรับชำระครั้งนี้";
+    if (!hasValidCurrencyPrecision(settlementTarget) || targetSettlement <= 0) next.settlementTarget = uiMessage("finance.payment.ui.targetPrecision");
+    if (!draftAllocationEditingLimited && targetSettlement > outstandingBefore) next.settlementTarget = uiMessage("finance.payment.ui.targetExceedsOutstanding");
+    if (whtMode === "legacy") next.whtRate = uiMessage("finance.payment.wht.legacy");
+    if (whtMode === "rate" && currentWhtBase.error) next.whtRate = uiMessage(currentWhtBase.errorKey);
+    else if (whtMode === "rate" && !whtCalculation) next.whtRate = uiMessage("finance.payment.wht.rate");
+    else if (whtMode === "rate" && (form.whtAmount !== whtCalculation?.whtAmount || form.cashAmount !== whtCalculation?.cashAmount)) next.whtRate = uiMessage("finance.payment.ui.whtCalculationChanged");
+    if (wht > targetSettlement) next.whtAmount = uiMessage("finance.payment.ui.whtExceedsTarget");
+    if (!hasValidCurrencyPrecision(form.cashAmount) || cash < 0) next.cashAmount = uiMessage("finance.payment.ui.receivedPrecision");
+    if (!hasValidCurrencyPrecision(form.whtAmount) || wht < 0) next.whtAmount = uiMessage("finance.payment.ui.whtPrecision");
+    if (Math.abs(paymentSettlement - targetSettlement) > 0.009) next.allocation = uiMessage("finance.payment.ui.allocationMismatch");
+    if (paymentSettlement <= 0) next.allocation = uiMessage("finance.payment.ui.positiveSettlement");
+    if (!draftAllocationEditingLimited && paymentSettlement > outstandingBefore) next.allocation = uiMessage("finance.payment.ui.allocationExceedsOutstanding");
     if (draftAllocationEditingLimited) {
       const rawCash = normalizedAmount(allocations.reduce((sum, row) => sum + normalizedAmount(row.cash_allocated), 0));
       const rawWht = normalizedAmount(allocations.reduce((sum, row) => sum + normalizedAmount(row.wht_credit_allocated), 0));
-      if (rawCash !== cash || rawWht !== wht) next.allocation = "ยอดรวมของรายการจัดสรรหลายใบแจ้งหนี้ไม่ตรงกับยอดรับชำระ กรุณาให้ผู้ดูแลตรวจสอบ";
+      if (rawCash !== cash || rawWht !== wht) next.allocation = uiMessage("finance.payment.ui.multiInvoiceMismatch");
     }
-    if (forConfirmation && !form.receivedOn) next.receivedOn = "กรุณาระบุวันที่รับชำระจริง";
-    if (forConfirmation && form.receivedOn > bangkokToday()) next.receivedOn = "วันที่รับชำระจริงต้องไม่เป็นวันในอนาคต";
-    if (forConfirmation && !form.paymentMethod) next.paymentMethod = "กรุณาเลือกวิธีรับชำระ";
-    if (forConfirmation && form.paymentMethod === "bank_transfer" && !form.receivingBankAccountId) next.bankAccount = "กรุณาเลือกบัญชีธนาคารที่รับเงิน";
+    if (forConfirmation && !form.receivedOn) next.receivedOn = uiMessage("finance.payment.ui.dateRequired");
+    if (forConfirmation && form.receivedOn > bangkokToday()) next.receivedOn = uiMessage("finance.payment.ui.futureDate");
+    if (forConfirmation && !form.paymentMethod) next.paymentMethod = uiMessage("finance.payment.ui.methodRequired");
+    if (forConfirmation && form.paymentMethod === "bank_transfer" && !form.receivingBankAccountId) next.bankAccount = uiMessage("finance.payment.ui.bankRequired");
     setErrors(next);
     if (Object.keys(next).length) {
-      setError(next.whtRate || "กรุณาตรวจสอบข้อมูลที่จำเป็นก่อนบันทึกหรือยืนยันรับชำระ");
+      setError(next.whtRate || uiMessage("finance.payment.ui.validationSummary"));
       requestAnimationFrame(() => { firstInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }); firstInputRef.current?.focus(); });
     }
     return Object.keys(next).length === 0;
@@ -327,10 +329,10 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
       });
       if (result.error) throw result.error;
       await load();
-      setMessage("บันทึกร่างการรับชำระแล้ว");
+      setMessage(uiMessage("finance.payment.ui.saved"));
     } catch (saveError) {
       console.error("Failed to save Payment Draft", saveError);
-      setError(safePaymentError(saveError, "บันทึกร่างการรับชำระไม่สำเร็จ"));
+      setError(paymentErrorMessage(saveError, uiMessage("finance.payment.ui.saveFailed")));
     } finally {
       actionLock.current = false; setSaving(false);
     }
@@ -338,7 +340,7 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
 
   const openConfirmation = () => {
     setError(""); setMessage("");
-    if (dirty) { setError("กรุณาบันทึกการเปลี่ยนแปลงก่อนยืนยันรับชำระ"); return; }
+    if (dirty) { setError(uiMessage("finance.payment.ui.saveBeforeConfirm")); return; }
     if (!validate(true)) return;
     setConfirmationAcknowledged(false); setConfirmationOpen(true);
     requestAnimationFrame(() => reviewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
@@ -352,10 +354,10 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
       if (result.error) throw result.error;
       setConfirmationOpen(false);
       await load();
-      setMessage("ยืนยันรับชำระแล้ว ยอดคงค้างของใบแจ้งหนี้ได้รับการปรับปรุงเรียบร้อย");
+      setMessage(uiMessage("finance.payment.ui.confirmedSuccess"));
     } catch (confirmError) {
       console.error("Failed to confirm Payment", confirmError);
-      setError(safePaymentError(confirmError, "ยืนยันรับชำระไม่สำเร็จ"));
+      setError(paymentErrorMessage(confirmError, uiMessage("finance.payment.ui.confirmFailed")));
     } finally {
       actionLock.current = false; setConfirming(false);
     }
@@ -374,10 +376,10 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
       const completedMode = exceptionMode;
       setExceptionMode(null); setExceptionReason("");
       await load();
-      setMessage(completedMode === "cancel" ? "ยกเลิกร่างการรับชำระแล้ว" : "กลับรายการรับชำระแล้ว ยอดคงค้างได้รับการปรับปรุงเรียบร้อย");
+      setMessage(completedMode === "cancel" ? uiMessage("finance.payment.ui.cancelledSuccess") : uiMessage("finance.payment.ui.reversedSuccess"));
     } catch (exceptionError) {
       console.error("Failed to change Payment state", exceptionError);
-      setError(safePaymentError(exceptionError, exceptionMode === "cancel" ? "ยกเลิกร่างการรับชำระไม่สำเร็จ" : "กลับรายการรับชำระไม่สำเร็จ"));
+      setError(paymentErrorMessage(exceptionError, exceptionMode === "cancel" ? uiMessage("finance.payment.ui.cancelFailed") : uiMessage("finance.payment.ui.reverseFailed")));
     } finally {
       actionLock.current = false; setProcessingException(false);
     }
@@ -417,19 +419,19 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
 
   const validateReallocation = () => {
     const next: ReallocationErrors = {};
-    if (!selectedSourceAllocation) next.source = "กรุณาเลือกใบแจ้งหนี้ที่ตัดชำระอยู่ในปัจจุบัน";
-    if (!selectedTargetInvoice) next.target = "กรุณาเลือกใบแจ้งหนี้ใหม่ที่ต้องการนำยอดไปตัดชำระ";
-    if (reallocationSourceId && reallocationSourceId === reallocationTargetId) next.target = "ใบแจ้งหนี้ปัจจุบันและใบแจ้งหนี้ใหม่ต้องเป็นคนละฉบับ";
-    if (reallocationMode === "partial" && (!hasValidCurrencyPrecision(reallocationCash) || reallocationCashAmount < 0)) next.cash = "กรุณาระบุส่วนเงินรับจริงตั้งแต่ 0 ขึ้นไป และมีทศนิยมไม่เกิน 2 ตำแหน่ง";
-    if (reallocationMode === "partial" && (!hasValidCurrencyPrecision(reallocationWht) || reallocationWhtAmount < 0)) next.wht = "กรุณาระบุเครดิต WHT ตั้งแต่ 0 ขึ้นไป และมีทศนิยมไม่เกิน 2 ตำแหน่ง";
-    if (selectedSourceAllocation && reallocationCashAmount > normalizedAmount(selectedSourceAllocation.effective_cash_allocated)) next.cash = "ส่วนเงินรับจริงที่เปลี่ยนการจัดสรรเกินยอดปัจจุบันของใบแจ้งหนี้";
-    if (selectedSourceAllocation && reallocationWhtAmount > normalizedAmount(selectedSourceAllocation.effective_wht_credit_allocated)) next.wht = "เครดิต WHT ที่เปลี่ยนการจัดสรรเกินยอดปัจจุบันของใบแจ้งหนี้";
-    if (reallocationTotal <= 0) next.cash = "ส่วนเงินรับจริงและเครดิต WHT ที่เปลี่ยนการจัดสรรรวมกันต้องมากกว่า 0";
+    if (!selectedSourceAllocation) next.source = uiMessage("finance.payment.ui.sourceRequired");
+    if (!selectedTargetInvoice) next.target = uiMessage("finance.payment.ui.targetRequired");
+    if (reallocationSourceId && reallocationSourceId === reallocationTargetId) next.target = uiMessage("finance.payment.ui.differentInvoices");
+    if (reallocationMode === "partial" && (!hasValidCurrencyPrecision(reallocationCash) || reallocationCashAmount < 0)) next.cash = uiMessage("finance.payment.ui.moveReceivedPrecision");
+    if (reallocationMode === "partial" && (!hasValidCurrencyPrecision(reallocationWht) || reallocationWhtAmount < 0)) next.wht = uiMessage("finance.payment.ui.moveWhtPrecision");
+    if (selectedSourceAllocation && reallocationCashAmount > normalizedAmount(selectedSourceAllocation.effective_cash_allocated)) next.cash = uiMessage("finance.payment.ui.moveReceivedExceeds");
+    if (selectedSourceAllocation && reallocationWhtAmount > normalizedAmount(selectedSourceAllocation.effective_wht_credit_allocated)) next.wht = uiMessage("finance.payment.ui.moveWhtExceeds");
+    if (reallocationTotal <= 0) next.cash = uiMessage("finance.payment.ui.positiveMove");
     const targetSettlementSummary = settlements.find((row) => row.invoice_id === reallocationTargetId);
-    if (targetSettlementSummary && reallocationTotal > normalizedAmount(targetSettlementSummary.outstanding_amount)) next.target = "ยอดที่เปลี่ยนการจัดสรรเกินยอดคงค้างปัจจุบันของใบแจ้งหนี้ใหม่";
-    if (!reallocationReason.trim()) next.reason = "กรุณาระบุเหตุผลในการเปลี่ยนใบแจ้งหนี้ที่ตัดชำระ";
-    if (reallocationReason.trim().length > 2000) next.reason = "เหตุผลต้องไม่เกิน 2,000 ตัวอักษร";
-    if (!reallocationAcknowledged) next.acknowledgement = "กรุณายืนยันว่ารายการรับเงินจริงถูกต้องและต้องการเปลี่ยนเฉพาะใบแจ้งหนี้";
+    if (targetSettlementSummary && reallocationTotal > normalizedAmount(targetSettlementSummary.outstanding_amount)) next.target = uiMessage("finance.payment.ui.targetCapacity");
+    if (!reallocationReason.trim()) next.reason = uiMessage("finance.payment.ui.moveReasonRequired");
+    if (reallocationReason.trim().length > 2000) next.reason = uiMessage("finance.payment.ui.reasonLength");
+    if (!reallocationAcknowledged) next.acknowledgement = uiMessage("finance.payment.ui.moveAckRequired");
     setReallocationErrors(next);
     if (Object.keys(next).length) requestAnimationFrame(() => { reallocationFirstInvalidRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }); reallocationFirstInvalidRef.current?.focus(); });
     return Object.keys(next).length === 0;
@@ -473,88 +475,87 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
       }
       const successfulSourceInvoice = invoices.find((row) => row.id === successfulSourceId) || selectedSourceInvoice;
       const successfulTargetInvoice = invoices.find((row) => row.id === successfulTargetId) || selectedTargetInvoice;
-      const successTitle = `เปลี่ยนใบแจ้งหนี้ที่ตัดชำระสำหรับยอด ${money(successfulSettlement, payment.currency)} จาก ${displayText(successfulSourceInvoice?.invoice_no)} เป็น ${displayText(successfulTargetInvoice?.invoice_no)} เรียบร้อยแล้ว`;
-      const successDetail = `ข้อมูลรับชำระเดิมไม่เปลี่ยน: เงินที่ได้รับจริง ${money(successfulCash, payment.currency)} และเครดิต WHT ${money(successfulWht, payment.currency)}`;
+      const successMessage = uiMessage("finance.payment.ui.moveSuccess", { settlement: money(successfulSettlement, payment.currency), source: displayText(successfulSourceInvoice?.invoice_no), target: displayText(successfulTargetInvoice?.invoice_no), received: money(successfulCash, payment.currency), wht: money(successfulWht, payment.currency) });
       setReallocationOpen(false);
       setReallocationRequestId("");
       setReallocationAttempted(false);
       await load();
-      setMessage(`${successTitle}\n${successDetail}`);
+      setMessage(successMessage);
     } catch (reallocationError) {
       console.error("Failed to reallocate Payment allocation", reallocationError);
-      setError(safePaymentReallocationError(reallocationError));
+      setError(paymentReallocationErrorMessage(reallocationError));
     } finally {
       reallocationLock.current = false; setReallocating(false);
     }
   };
 
-  if (loading) return <main style={page}>กำลังโหลดข้อมูลการรับชำระ...</main>;
-  if (!payment || !allocation || !invoice) return <main style={page}>{error || "ไม่พบข้อมูลการรับชำระ"}</main>;
+  if (loading) return <main style={page}>{t("finance.payment.ui.loading")}</main>;
+  if (!payment || !allocation || !invoice) return <main style={page}>{error ? text(error) : t("finance.payment.ui.notFound")}</main>;
 
   return <main className="payment-workspace" style={page}>
-    <nav style={navigationToolbar}>{payment.status === "confirmed" ? currentAllocatedInvoice ? <Link style={navigationLink} href={`/finance/invoices/${currentAllocatedInvoice.id}`}>เปิดใบแจ้งหนี้ที่ได้รับการจัดสรรปัจจุบัน {displayText(currentAllocatedInvoice.invoice_no)}</Link> : <a style={navigationLink} href="#current-payment-allocations">ดูใบแจ้งหนี้ที่เกี่ยวข้อง</a> : <Link style={navigationLink} href={`/finance/invoices/${invoice.id}`}>← กลับไปใบแจ้งหนี้ {displayText(invoice.invoice_no)}</Link>}</nav>
-    {error ? <div role="alert" style={errorNotice}>{error}</div> : null}
-    {message ? <SuccessNotice message={message} /> : null}
+    <nav style={navigationToolbar}>{payment.status === "confirmed" ? currentAllocatedInvoice ? <Link style={navigationLink} href={`/finance/invoices/${currentAllocatedInvoice.id}`}>{t("finance.payment.ui.openCurrentInvoice")} {displayText(currentAllocatedInvoice.invoice_no)}</Link> : <a style={navigationLink} href="#current-payment-allocations">{t("finance.payment.ui.relatedInvoices")}</a> : <Link style={navigationLink} href={`/finance/invoices/${invoice.id}`}>{t("finance.payment.ui.backInvoice")} {displayText(invoice.invoice_no)}</Link>}</nav>
+    {error ? <div role="alert" style={errorNotice}>{text(error)}</div> : null}
+    {message ? <SuccessNotice message={text(message)} /> : null}
 
     <section style={{ ...surface, ...headerSurface }}>
       <div className="payment-header" style={identityHeader}>
-        <div><span style={eyebrow}>PAYMENT</span><h1 style={title}>{payment.status === "draft" ? "ร่างการรับชำระ" : "ข้อมูลการรับชำระ"}</h1><p style={reference}>รหัสอ้างอิง {displayText(payment.internal_reference, payment.id.slice(0, 8).toUpperCase())}</p></div>
-        <div style={statusPanel}><small style={fieldLabel}>สถานะ</small><StatusBadge status={payment.status}>{paymentStatusLabels[payment.status] || payment.status}</StatusBadge><span style={smallText}>แก้ไขล่าสุด {formatBangkokDateTime(payment.updated_at)}</span></div>
+        <div><span style={eyebrow}>{t("finance.receipt.payment")}</span><h1 style={title}>{payment.status === "draft" ? t("finance.payment.ui.draftTitle") : t("finance.payment.ui.details")}</h1><p style={reference}>{t("finance.payment.ui.reference")} {displayText(payment.internal_reference, payment.id.slice(0, 8).toUpperCase())}</p></div>
+        <div style={statusPanel}><small style={fieldLabel}>{t("finance.payment.ui.status")}</small><StatusBadge status={payment.status}>{paymentStatusLabels[payment.status] || payment.status}</StatusBadge><span style={smallText}>{t("finance.payment.ui.updated")} {date(payment.updated_at, true)}</span></div>
       </div>
-      {payment.status === "confirmed" ? <div style={confirmedNotice}><strong>ยืนยันรับชำระแล้ว</strong><span>ข้อมูลนี้เป็นแบบอ่านอย่างเดียว</span></div> : null}
-      {payment.status === "cancelled" ? <div style={cancelledNotice}><strong>ร่างนี้ถูกยกเลิกแล้ว</strong><span>{displayText(payment.cancel_reason)}</span></div> : null}
-      {payment.status === "reversed" ? <div style={cancelledNotice}><strong>รายการรับชำระนี้ถูกกลับรายการแล้ว</strong><span>{displayText(payment.reverse_reason)}</span></div> : null}
+      {payment.status === "confirmed" ? <div style={confirmedNotice}><strong>{t("finance.payment.ui.confirmed")}</strong><span>{t("finance.payment.ui.readonly")}</span></div> : null}
+      {payment.status === "cancelled" ? <div style={cancelledNotice}><strong>{t("finance.payment.ui.cancelled")}</strong><span>{displayText(payment.cancel_reason)}</span></div> : null}
+      {payment.status === "reversed" ? <div style={cancelledNotice}><strong>{t("finance.payment.ui.reversed")}</strong><span>{displayText(payment.reverse_reason)}</span></div> : null}
     </section>
 
     <section style={surface}>
-      <SectionHeading title="บริบทการรับชำระ" description="ตรวจสอบลูกค้า สกุลเงิน และใบแจ้งหนี้ที่เกี่ยวข้องกับรายการนี้" />
-      <div style={contextGrid}><Field label="ลูกค้า" value={displayText(invoice.customer_name)} /><Field label="ใบแจ้งหนี้ที่จัดสรร" value={`${payment.status === "confirmed" ? currentEffectiveAllocations.length : allocations.length} ฉบับ`} /><Field label={paymentSettlementLabels.settlementTotal} value={money(payment.settlement_amount, payment.currency)} /><Field label="สกุลเงิน" value={payment.currency} /></div>
+      <SectionHeading title={t("finance.payment.ui.context")} description={t("finance.payment.ui.contextHelp")} />
+      <div style={contextGrid}><Field label={t("finance.payment.ui.client")} value={displayText(invoice.customer_name)} /><Field label={t("finance.payment.ui.allocatedInvoices")} value={t("finance.payment.ui.invoiceCount", { count: payment.status === "confirmed" ? currentEffectiveAllocations.length : allocations.length })} /><Field label={paymentSettlementLabels.settlementTotal} value={money(payment.settlement_amount, payment.currency)} /><Field label={t("finance.payment.ui.currency")} value={payment.currency} /></div>
     </section>
 
     {isDraft ? <>
       <section style={surface}>
-        <SectionHeading title="ข้อมูลการรับชำระ" description="ระบุข้อมูลตามหลักฐานการรับเงินจริง ภาษีหัก ณ ที่จ่ายเป็นเครดิตสำหรับตัดชำระและไม่ใช่เงินที่เข้าบัญชี" />
-        {!access.canManage ? <div style={neutralNotice}>คุณดูร่างนี้ได้ แต่ไม่มีสิทธิ์แก้ไขหรือยกเลิกร่างการรับชำระ</div> : null}
+        <SectionHeading title={t("finance.payment.ui.details")} description={t("finance.payment.ui.paymentHelp")} />
+        {!access.canManage ? <div style={neutralNotice}>{t("finance.payment.ui.readonlyDraft")}</div> : null}
         <div style={formGrid}>
-          <FormField label="วันที่รับชำระจริง" required error={errors.receivedOn}><input ref={firstInputRef} style={inputStyle(Boolean(errors.receivedOn))} type="date" value={form.receivedOn} disabled={!access.canManage || saving} onChange={(event) => updateForm("receivedOn", event.target.value)} /></FormField>
-          <FormField label="วิธีรับชำระ" required error={errors.paymentMethod}><select style={inputStyle(Boolean(errors.paymentMethod))} value={form.paymentMethod} disabled={!access.canManage || saving} onChange={(event) => updateForm("paymentMethod", event.target.value)}><option value="">เลือกวิธีรับชำระ</option>{Object.entries(paymentMethodLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></FormField>
-          <FormField label="บัญชีธนาคารที่รับเงิน" required={form.paymentMethod === "bank_transfer"} error={errors.bankAccount}><select style={inputStyle(Boolean(errors.bankAccount))} value={form.receivingBankAccountId} disabled={!access.canManage || saving} onChange={(event) => updateForm("receivingBankAccountId", event.target.value)}><option value="">ไม่ระบุ</option>{bankAccounts.filter((account) => account.is_active || account.id === form.receivingBankAccountId).map((account) => <option key={account.id} value={account.id}>{displayText(account.short_name, account.bank_name || "บัญชีธนาคาร")}{account.is_active ? "" : " (ไม่ใช้งาน)"}</option>)}</select></FormField>
-          <FormField label="ชื่อผู้ชำระ"><input style={inputStyle(false)} value={form.payerName} disabled={!access.canManage || saving} onChange={(event) => updateForm("payerName", event.target.value)} /></FormField>
-          <FormField label="เลขอ้างอิงรายการรับชำระ"><input style={inputStyle(false)} value={form.externalTransactionReference} disabled={!access.canManage || saving} onChange={(event) => updateForm("externalTransactionReference", event.target.value)} /></FormField>
-          <FormField label="รายละเอียดบัญชี/ช่องทางรับเงิน"><input style={inputStyle(false)} value={form.receivingAccountReference} disabled={!access.canManage || saving} onChange={(event) => updateForm("receivingAccountReference", event.target.value)} /></FormField>
+          <FormField label={t("finance.payment.ui.actualDate")} required error={errors.receivedOn}><input ref={firstInputRef} style={inputStyle(Boolean(errors.receivedOn))} type="date" value={form.receivedOn} disabled={!access.canManage || saving} onChange={(event) => updateForm("receivedOn", event.target.value)} /></FormField>
+          <FormField label={t("finance.payment.ui.method")} required error={errors.paymentMethod}><select style={inputStyle(Boolean(errors.paymentMethod))} value={form.paymentMethod} disabled={!access.canManage || saving} onChange={(event) => updateForm("paymentMethod", event.target.value)}><option value="">{t("finance.payment.ui.chooseMethod")}</option>{Object.entries(paymentMethodLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></FormField>
+          <FormField label={t("finance.payment.ui.receivingBank")} required={form.paymentMethod === "bank_transfer"} error={errors.bankAccount}><select style={inputStyle(Boolean(errors.bankAccount))} value={form.receivingBankAccountId} disabled={!access.canManage || saving} onChange={(event) => updateForm("receivingBankAccountId", event.target.value)}><option value="">{t("finance.payment.ui.unspecified")}</option>{bankAccounts.filter((account) => account.is_active || account.id === form.receivingBankAccountId).map((account) => <option key={account.id} value={account.id}>{displayText(account.short_name, account.bank_name || t("finance.payment.ui.bankAccount"))}{account.is_active ? "" : t("finance.payment.ui.inactive")}</option>)}</select></FormField>
+          <FormField label={t("finance.payment.ui.payer")}><input style={inputStyle(false)} value={form.payerName} disabled={!access.canManage || saving} onChange={(event) => updateForm("payerName", event.target.value)} /></FormField>
+          <FormField label={t("finance.payment.ui.transactionReference")}><input style={inputStyle(false)} value={form.externalTransactionReference} disabled={!access.canManage || saving} onChange={(event) => updateForm("externalTransactionReference", event.target.value)} /></FormField>
+          <FormField label={t("finance.payment.ui.channelDetails")}><input style={inputStyle(false)} value={form.receivingAccountReference} disabled={!access.canManage || saving} onChange={(event) => updateForm("receivingAccountReference", event.target.value)} /></FormField>
         </div>
-        <FormField label="หมายเหตุ"><textarea style={textareaStyle} rows={3} value={form.note} disabled={!access.canManage || saving} onChange={(event) => updateForm("note", event.target.value)} /></FormField>
+        <FormField label={t("finance.payment.ui.note")}><textarea style={textareaStyle} rows={3} value={form.note} disabled={!access.canManage || saving} onChange={(event) => updateForm("note", event.target.value)} /></FormField>
       </section>
 
       <section style={surface}>
-        <SectionHeading title="ยอดตัดชำระและภาษีหัก ณ ที่จ่าย" description="กำหนดยอดที่ต้องการตัดชำระ ระบบจะช่วยคำนวณเงินที่ได้รับจริงและเครดิตภาษีหัก ณ ที่จ่าย โดยยอด Invoice ไม่เปลี่ยนแปลง" />
+        <SectionHeading title={t("finance.payment.ui.settlementWht")} description={t("finance.payment.ui.settlementHelp")} />
         {allocations.map((row) => <InvoiceTaxSummary key={row.id} facts={invoiceTaxFacts(invoices.find((item) => item.id === row.invoice_id)?.issued_snapshot_json)} />)}
-        {draftAllocationEditingLimited ? <div style={neutralNotice}>ร่างนี้มีการจัดสรรไปยังหลายใบแจ้งหนี้ ระบบจะแสดงและคงยอดเดิมครบทุกฉบับ การแก้สัดส่วนรายใบยังไม่รองรับในหน้านี้</div> : null}
+        {draftAllocationEditingLimited ? <div style={neutralNotice}>{t("finance.payment.ui.multiInvoiceReadonly")}</div> : null}
         <div className="payment-settlement-entry-grid" style={settlementEntryGrid}>
-          <FormField label="ยอดที่ต้องการตัดชำระในครั้งนี้" helper={draftAllocationEditingLimited ? "ยอดรวมจากการจัดสรรทุกใบแจ้งหนี้" : `ยอดคงค้างปัจจุบัน ${money(outstandingBefore, payment.currency)}`} required error={errors.settlementTarget}><input style={inputStyle(Boolean(errors.settlementTarget))} type="number" min="0" step="0.01" value={settlementTarget} disabled={!access.canManage || saving || draftAllocationEditingLimited || whtMode === "legacy"} onChange={(event) => updateSettlementTarget(event.target.value)} /></FormField>
-          <div style={whtChoiceField}><span style={formLabel}>ภาษีหัก ณ ที่จ่าย</span><div style={whtToggleGroup} role="group" aria-label="ภาษีหัก ณ ที่จ่าย"><button className="payment-wht-choice" type="button" aria-pressed={whtMode === "none"} style={{ ...whtToggleButton, ...(whtMode === "none" ? whtToggleButtonActive : {}) }} disabled={!access.canManage || saving || draftAllocationEditingLimited} onClick={() => selectWhtMode(false)}>ไม่มีหัก ณ ที่จ่าย</button><button className="payment-wht-choice" type="button" aria-pressed={whtMode !== "none"} style={{ ...whtToggleButton, ...(whtMode !== "none" ? whtToggleButtonActive : {}) }} disabled={!access.canManage || saving || draftAllocationEditingLimited} onClick={() => selectWhtMode(true)}>มีหัก ณ ที่จ่าย</button></div></div>
+          <FormField label={t("finance.payment.ui.targetThisPayment")} helper={draftAllocationEditingLimited ? t("finance.payment.ui.allInvoiceAllocationTotal") : t("finance.payment.ui.outstandingValue", { amount: money(outstandingBefore, payment.currency) })} required error={errors.settlementTarget}><input style={inputStyle(Boolean(errors.settlementTarget))} type="number" min="0" step="0.01" value={settlementTarget} disabled={!access.canManage || saving || draftAllocationEditingLimited || whtMode === "legacy"} onChange={(event) => updateSettlementTarget(event.target.value)} /></FormField>
+          <div style={whtChoiceField}><span style={formLabel}>{t("finance.payment.ui.wht")}</span><div style={whtToggleGroup} role="group" aria-label={t("finance.payment.ui.wht")}><button className="payment-wht-choice" type="button" aria-pressed={whtMode === "none"} style={{ ...whtToggleButton, ...(whtMode === "none" ? whtToggleButtonActive : {}) }} disabled={!access.canManage || saving || draftAllocationEditingLimited} onClick={() => selectWhtMode(false)}>{t("finance.payment.ui.noWhtChoice")}</button><button className="payment-wht-choice" type="button" aria-pressed={whtMode !== "none"} style={{ ...whtToggleButton, ...(whtMode !== "none" ? whtToggleButtonActive : {}) }} disabled={!access.canManage || saving || draftAllocationEditingLimited} onClick={() => selectWhtMode(true)}>{t("finance.payment.ui.whtChoice")}</button></div></div>
         </div>
         {whtMode === "rate" && !draftAllocationEditingLimited ? <div style={whtRateSection}>
-          <Field label="ฐานคำนวณ WHT" value={currentWhtBase.base !== null ? money(currentWhtBase.base, payment.currency) : "ยังระบุฐานไม่ได้"} />
-          {currentWhtBase.error ? <div role="alert" style={neutralNotice}>{currentWhtBase.error}</div> : <>
-          <span style={formLabel}>อัตราหัก ณ ที่จ่าย</span>
-          <p style={whtAssistanceHelp}>{structuredWhtCopy.applicability}</p>
+          <Field label={t("finance.payment.ui.whtBase")} value={currentWhtBase.base !== null ? money(currentWhtBase.base, payment.currency) : t("finance.payment.ui.baseUnknown")} />
+          {currentWhtBase.error ? <div role="alert" style={neutralNotice}>{t(currentWhtBase.errorKey)}</div> : <>
+          <span style={formLabel}>{t("finance.payment.ui.whtRate")}</span>
+          <p style={whtAssistanceHelp}>{t("finance.payment.wht.applicability")}</p>
           <div className="payment-wht-rate-grid" style={whtRateGrid}>{whtRatePresets.map((rate) => {
             const value = String(rate) as WhtRateOption;
             return <button className="payment-wht-rate" key={rate} type="button" aria-pressed={whtRateOption === value} style={{ ...whtRateButton, ...(whtRateOption === value ? whtRateButtonActive : {}) }} disabled={!access.canManage || saving} onClick={() => selectWhtRate(value)}>{rate}%</button>;
-          })}<button className="payment-wht-rate" type="button" aria-pressed={whtRateOption === "custom"} style={{ ...whtRateButton, ...(whtRateOption === "custom" ? whtRateButtonActive : {}) }} disabled={!access.canManage || saving} onClick={() => selectWhtRate("custom")}>อัตราอื่น</button></div>
-          {whtRateOption === "custom" ? <FormField label="อัตราที่กำหนดเอง" helper="มากกว่า 0 และไม่เกิน 100%" error={errors.whtRate}><div style={percentInputWrap}><input style={inputStyle(Boolean(errors.whtRate))} type="number" min="0" max="100" step="0.01" value={customWhtRate} disabled={!access.canManage || saving} onChange={(event) => updateCustomWhtRate(event.target.value)} /><span>%</span></div></FormField> : errors.whtRate ? <div role="alert" style={inlineError}>{errors.whtRate}</div> : null}
-          <Field label="WHT ที่คำนวณ" value={whtCalculation ? money(wht, payment.currency) : "กรุณาเลือกอัตรา"} />
+          })}<button className="payment-wht-rate" type="button" aria-pressed={whtRateOption === "custom"} style={{ ...whtRateButton, ...(whtRateOption === "custom" ? whtRateButtonActive : {}) }} disabled={!access.canManage || saving} onClick={() => selectWhtRate("custom")}>{t("finance.payment.ui.otherRate")}</button></div>
+          {whtRateOption === "custom" ? <FormField label={t("finance.payment.ui.customRate")} helper={t("finance.payment.ui.rateRange")} error={errors.whtRate}><div style={percentInputWrap}><input style={inputStyle(Boolean(errors.whtRate))} type="number" min="0" max="100" step="0.01" value={customWhtRate} disabled={!access.canManage || saving} onChange={(event) => updateCustomWhtRate(event.target.value)} /><span>%</span></div></FormField> : errors.whtRate ? <div role="alert" style={inlineError}>{text(errors.whtRate)}</div> : null}
+          <Field label={t("finance.payment.ui.calculatedWht")} value={whtCalculation ? money(wht, payment.currency) : t("finance.payment.ui.chooseRate")} />
           </>}
         </div> : null}
         {whtMode === "legacy" ? <div style={neutralNotice}>
-          <strong>ข้อมูล WHT เดิม: ระบุยอดเอง {money(payment.wht_amount, payment.currency)}</strong>
-          <p>{structuredWhtCopy.legacy}</p>
-          <button type="button" style={secondaryButton} disabled={!access.canManage || saving || draftAllocationEditingLimited} onClick={recalculateLegacyWht}>คำนวณ WHT ใหม่</button>
+          <strong>{t("finance.payment.ui.legacyWht")} {money(payment.wht_amount, payment.currency)}</strong>
+          <p>{t("finance.payment.wht.legacy")}</p>
+          <button type="button" style={secondaryButton} disabled={!access.canManage || saving || draftAllocationEditingLimited} onClick={recalculateLegacyWht}>{t("finance.payment.ui.recalculateWht")}</button>
         </div> : null}
-        {errors.whtRate || errors.whtAmount ? <div role="alert" style={inlineError}>{errors.whtRate || errors.whtAmount}</div> : null}
+        {errors.whtRate || errors.whtAmount ? <div role="alert" style={inlineError}>{text(errors.whtRate || errors.whtAmount || "")}</div> : null}
         <div style={assistedAmountSummary}>
-          <Metric label="ยอดที่ต้องการตัดชำระ" value={money(targetSettlement, payment.currency)} prominent />
+          <Metric label={t("finance.payment.ui.targetSettlement")} value={money(targetSettlement, payment.currency)} prominent />
           <Metric label={paymentSettlementLabels.whtCredit} value={money(wht, payment.currency)} />
           <Metric label={paymentSettlementLabels.receivedFull} value={money(cash, payment.currency)} />
           <Metric label={paymentSettlementLabels.settlementTotal} value={money(paymentSettlement, payment.currency)} />
@@ -566,56 +567,56 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
           const rowTotal = draftAllocationEditingLimited ? row.settlement_total : paymentSettlement;
           return <AllocationSummaryCard key={row.id} invoice={rowInvoice || null} cash={rowCash} wht={rowWht} total={rowTotal} currency={payment.currency} />;
         })}</div>
-        {errors.allocation ? <div role="alert" style={inlineError}>{errors.allocation}</div> : null}
-        {access.canManage ? <div style={saveRow}><span style={dirty ? unsavedState : savedState}>{dirty ? "มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก" : "บันทึกแล้ว"}</span><button type="button" style={{ ...secondaryButton, ...(!dirty ? disabledButton : {}) }} disabled={!dirty || saving} onClick={() => void saveDraft()}>{saving ? "กำลังบันทึก..." : dirty ? "บันทึกการเปลี่ยนแปลง" : "บันทึกแล้ว"}</button></div> : null}
+        {errors.allocation ? <div role="alert" style={inlineError}>{text(errors.allocation)}</div> : null}
+        {access.canManage ? <div style={saveRow}><span style={dirty ? unsavedState : savedState}>{dirty ? t("finance.payment.ui.unsaved") : t("finance.payment.ui.savedState")}</span><button type="button" style={{ ...secondaryButton, ...(!dirty ? disabledButton : {}) }} disabled={!dirty || saving} onClick={() => void saveDraft()}>{saving ? t("finance.payment.ui.saving") : dirty ? t("finance.payment.ui.saveChanges") : t("finance.payment.ui.savedState")}</button></div> : null}
       </section>
 
       <section ref={reviewRef} style={reviewZone}>
-        <span style={eyebrow}>ตรวจสอบขั้นสุดท้าย</span><h2 style={reviewTitle}>ตรวจสอบก่อนยืนยันรับชำระ</h2><p style={sectionDescription}>ตรวจสอบหลักฐาน วันที่ วิธีรับชำระ และยอดจัดสรรให้ครบถ้วนก่อนยืนยัน</p>
+        <span style={eyebrow}>{t("finance.payment.ui.finalReview")}</span><h2 style={reviewTitle}>{t("finance.payment.ui.confirmReview")}</h2><p style={sectionDescription}>{t("finance.payment.ui.confirmReviewHelp")}</p>
         <div style={reviewGroups}>
           <div style={reviewGroup}>{allocations.map((row) => <InvoiceTaxSummary key={row.id} facts={invoiceTaxFacts(invoices.find((item) => item.id === row.invoice_id)?.issued_snapshot_json)} />)}</div>
-          <div style={reviewGroup}><h3 style={reviewGroupTitle}>ข้อมูลรายการ</h3><div style={reviewGrid}><Field label="ใบแจ้งหนี้" value={displayText(invoice.invoice_no)} /><Field label="วันที่รับชำระจริง" value={form.receivedOn ? formatDocumentDate(form.receivedOn, "th") : "ยังไม่ระบุ"} /><Field label="วิธีรับชำระ" value={paymentMethodLabels[form.paymentMethod] || "ยังไม่ระบุ"} /><Field label="บัญชีที่รับเงินจริง" value={<BankAccountIdentity account={draftReceivingBankAccount} paymentMethod={form.paymentMethod} />} />{form.payerName.trim() ? <Field label="ชื่อผู้ชำระ" value={form.payerName.trim()} /> : null}{form.externalTransactionReference.trim() ? <Field label="เลขอ้างอิงรายการรับชำระ" value={form.externalTransactionReference.trim()} /> : null}{form.receivingAccountReference.trim() ? <Field label="รายละเอียดบัญชี/ช่องทางรับเงิน" value={form.receivingAccountReference.trim()} /> : null}{form.note.trim() ? <Field label="หมายเหตุ" value={form.note.trim()} /> : null}</div></div>
-          <div style={reviewGroup}><h3 style={reviewGroupTitle}>ยอดเงินและ WHT</h3><div style={reviewGrid}><Field label="ยอดที่ต้องการตัดชำระ" value={<strong>{money(targetSettlement, payment.currency)}</strong>} /><Field label="ฐาน WHT" value={whtMode === "rate" && currentWhtBase.base !== null ? money(currentWhtBase.base, payment.currency) : whtMode === "none" ? "ไม่ใช้ WHT" : "ยังไม่ระบุ"} /><Field label="อัตราหัก ณ ที่จ่าย" value={whtMode === "none" ? "ไม่มี WHT" : whtMode === "legacy" ? "ข้อมูลเดิม: ไม่มีอัตราที่บันทึกไว้" : selectedWhtRate > 0 ? `${selectedWhtRate.toLocaleString("en-US", { maximumFractionDigits: 4 })}%` : "ยังไม่เลือกอัตรา"} /><Field label={paymentSettlementLabels.receivedFull} value={money(cash, payment.currency)} /><Field label={paymentSettlementLabels.whtCredit} value={money(wht, payment.currency)} /><Field label={paymentSettlementLabels.settlementTotal} value={<strong>{money(paymentSettlement, payment.currency)}</strong>} /></div></div>
-          <div style={reviewGroup}><h3 style={reviewGroupTitle}>การจัดสรร</h3><div style={allocationList}>{allocations.map((row) => { const rowInvoice = invoices.find((item) => item.id === row.invoice_id); return <AllocationSummaryCard key={row.id} invoice={rowInvoice || null} cash={draftAllocationEditingLimited ? row.cash_allocated : cash} wht={draftAllocationEditingLimited ? row.wht_credit_allocated : wht} total={draftAllocationEditingLimited ? row.settlement_total : paymentSettlement} currency={payment.currency} />; })}</div>{!draftAllocationEditingLimited ? <div style={{ marginTop: 12 }}><Field label="คาดว่ายอดคงค้างหลังยืนยัน" value={<strong>{money(expectedOutstanding, payment.currency)}</strong>} /></div> : null}</div>
+          <div style={reviewGroup}><h3 style={reviewGroupTitle}>{t("finance.payment.ui.recordDetails")}</h3><div style={reviewGrid}><Field label={t("finance.payment.ui.invoice")} value={displayText(invoice.invoice_no)} /><Field label={t("finance.payment.ui.actualDate")} value={form.receivedOn ? date(form.receivedOn) : t("finance.payment.ui.notEntered")} /><Field label={t("finance.payment.ui.method")} value={paymentMethodLabels[form.paymentMethod] || t("finance.payment.ui.notEntered")} /><Field label={t("finance.payment.ui.actualReceivingAccount")} value={<BankAccountIdentity account={draftReceivingBankAccount} paymentMethod={form.paymentMethod} />} />{form.payerName.trim() ? <Field label={t("finance.payment.ui.payer")} value={form.payerName.trim()} /> : null}{form.externalTransactionReference.trim() ? <Field label={t("finance.payment.ui.transactionReference")} value={form.externalTransactionReference.trim()} /> : null}{form.receivingAccountReference.trim() ? <Field label={t("finance.payment.ui.channelDetails")} value={form.receivingAccountReference.trim()} /> : null}{form.note.trim() ? <Field label={t("finance.payment.ui.note")} value={form.note.trim()} /> : null}</div></div>
+          <div style={reviewGroup}><h3 style={reviewGroupTitle}>{t("finance.payment.ui.amountsWht")}</h3><div style={reviewGrid}><Field label={t("finance.payment.ui.targetSettlement")} value={<strong>{money(targetSettlement, payment.currency)}</strong>} /><Field label={t("finance.payment.ui.whtBaseShort")} value={whtMode === "rate" && currentWhtBase.base !== null ? money(currentWhtBase.base, payment.currency) : whtMode === "none" ? t("finance.payment.ui.whtNotUsed") : t("finance.payment.ui.notEntered")} /><Field label={t("finance.payment.ui.whtRate")} value={whtMode === "none" ? t("finance.payment.ui.noWht") : whtMode === "legacy" ? t("finance.payment.ui.legacyNoRate") : selectedWhtRate > 0 ? `${selectedWhtRate.toLocaleString("en-US", { maximumFractionDigits: 4 })}%` : t("finance.payment.ui.rateNotSelected")} /><Field label={paymentSettlementLabels.receivedFull} value={money(cash, payment.currency)} /><Field label={paymentSettlementLabels.whtCredit} value={money(wht, payment.currency)} /><Field label={paymentSettlementLabels.settlementTotal} value={<strong>{money(paymentSettlement, payment.currency)}</strong>} /></div></div>
+          <div style={reviewGroup}><h3 style={reviewGroupTitle}>{t("finance.payment.ui.allocations")}</h3><div style={allocationList}>{allocations.map((row) => { const rowInvoice = invoices.find((item) => item.id === row.invoice_id); return <AllocationSummaryCard key={row.id} invoice={rowInvoice || null} cash={draftAllocationEditingLimited ? row.cash_allocated : cash} wht={draftAllocationEditingLimited ? row.wht_credit_allocated : wht} total={draftAllocationEditingLimited ? row.settlement_total : paymentSettlement} currency={payment.currency} />; })}</div>{!draftAllocationEditingLimited ? <div style={{ marginTop: 12 }}><Field label={t("finance.payment.ui.expectedOutstanding")} value={<strong>{money(expectedOutstanding, payment.currency)}</strong>} /></div> : null}</div>
         </div>
-        {dirty ? <div style={neutralNotice}>กรุณาบันทึกการเปลี่ยนแปลงก่อนยืนยันรับชำระ</div> : null}
-        {!access.canConfirm ? <div style={neutralNotice}>คุณไม่มีสิทธิ์ยืนยันรับชำระ กรุณาให้ผู้มีสิทธิ์ตรวจสอบและยืนยันรายการนี้</div> : null}
-        {access.canConfirm && !confirmationOpen ? <button type="button" style={{ ...primaryButton, ...(dirty ? disabledButton : {}) }} disabled={dirty} onClick={openConfirmation}>ยืนยันรับชำระ</button> : null}
+        {dirty ? <div style={neutralNotice}>{t("finance.payment.ui.saveBeforeConfirm")}</div> : null}
+        {!access.canConfirm ? <div style={neutralNotice}>{t("finance.payment.ui.noConfirmPermission")}</div> : null}
+        {access.canConfirm && !confirmationOpen ? <button type="button" style={{ ...primaryButton, ...(dirty ? disabledButton : {}) }} disabled={dirty} onClick={openConfirmation}>{t("finance.payment.ui.confirm")}</button> : null}
         {confirmationOpen ? <div style={confirmationPanel}>
-          <label style={{ ...confirmationCheck, ...(errors.confirmation ? invalidConfirmation : {}) }}><input type="checkbox" checked={confirmationAcknowledged} onChange={(event) => { setConfirmationAcknowledged(event.target.checked); setErrors((current) => ({ ...current, confirmation: undefined })); }} />ยืนยันว่าได้ตรวจสอบข้อมูลและหลักฐานการรับชำระครบถ้วนแล้ว และต้องการบันทึกยอดชำระนี้</label>
-          <p style={sectionDescription}>เมื่อยืนยันแล้ว ข้อมูลการรับชำระจะเป็นแบบอ่านอย่างเดียวและปรับยอดคงค้างของใบแจ้งหนี้ เอกสารใบเสร็จ/ใบกำกับภาษียังไม่ถูกสร้างในขั้นตอนนี้</p>
-          <div style={actionRow}><button type="button" style={secondaryButton} disabled={confirming} onClick={() => setConfirmationOpen(false)}>กลับไปตรวจสอบ</button><button type="button" style={{ ...primaryButton, ...(!confirmationAcknowledged ? disabledButton : {}) }} disabled={!confirmationAcknowledged || confirming} onClick={() => void confirmPayment()}>{confirming ? "กำลังยืนยัน..." : "ยืนยันรับชำระ"}</button></div>
+          <label style={{ ...confirmationCheck, ...(errors.confirmation ? invalidConfirmation : {}) }}><input type="checkbox" checked={confirmationAcknowledged} onChange={(event) => { setConfirmationAcknowledged(event.target.checked); setErrors((current) => ({ ...current, confirmation: undefined })); }} />{t("finance.payment.ui.confirmAck")}</label>
+          <p style={sectionDescription}>{t("finance.payment.ui.confirmScope")}</p>
+          <div style={actionRow}><button type="button" style={secondaryButton} disabled={confirming} onClick={() => setConfirmationOpen(false)}>{t("finance.payment.ui.backReview")}</button><button type="button" style={{ ...primaryButton, ...(!confirmationAcknowledged ? disabledButton : {}) }} disabled={!confirmationAcknowledged || confirming} onClick={() => void confirmPayment()}>{confirming ? t("finance.payment.ui.confirming") : t("finance.payment.ui.confirm")}</button></div>
         </div> : null}
       </section>
     </> : <>
       <section style={surface}>
-        <SectionHeading title="ข้อมูลการรับชำระ" description="ข้อมูลที่ยืนยันแล้วแสดงเป็นแบบอ่านอย่างเดียว" />
+        <SectionHeading title={t("finance.payment.ui.details")} description={t("finance.payment.ui.confirmedReadonlyHelp")} />
         {allocations.map((row) => <InvoiceTaxSummary key={row.id} facts={invoiceTaxFacts(invoices.find((item) => item.id === row.invoice_id)?.issued_snapshot_json)} />)}
-        {whtComponents.length ? <div style={contextGrid}>{whtComponents.map((component) => <div key={component.id}><Field label="ฐาน WHT ที่บันทึกไว้" value={money(component.base_amount, payment.currency)} /><Field label="อัตรา WHT ที่เลือกไว้" value={`${Number(component.rate_percent)}%`} /></div>)}</div> : Number(payment.wht_amount) > 0 ? <p style={sectionDescription}>ข้อมูล WHT เดิม: ระบุยอดเอง {money(payment.wht_amount, payment.currency)} ไม่มีข้อมูลฐานหรืออัตราที่บันทึกไว้</p> : null}
+        {whtComponents.length ? <div style={contextGrid}>{whtComponents.map((component) => <div key={component.id}><Field label={t("finance.payment.ui.storedWhtBase")} value={money(component.base_amount, payment.currency)} /><Field label={t("finance.payment.ui.storedWhtRate")} value={`${Number(component.rate_percent)}%`} /></div>)}</div> : Number(payment.wht_amount) > 0 ? <p style={sectionDescription}>{t("finance.payment.ui.legacyWht")} {money(payment.wht_amount, payment.currency)} {t("finance.payment.ui.noStoredBasis")}</p> : null}
         <div style={readOnlyGroups}>
-          <div style={readOnlyGroup}><h3 style={readOnlyGroupTitle}>ข้อมูลรายการ</h3><div style={readOnlyGrid}><Field label="สถานะ" value={<StatusBadge status={payment.status}>{paymentStatusLabels[payment.status] || payment.status}</StatusBadge>} /><Field label="วันที่รับชำระจริง" value={payment.received_on ? formatDocumentDate(payment.received_on, "th") : "ไม่ระบุ"} /><Field label="วิธีรับชำระ" value={paymentMethodLabels[payment.payment_method || ""] || "ไม่ระบุ"} /><Field label="บัญชีที่รับเงินจริง" value={<BankAccountIdentity account={savedReceivingBankAccount} paymentMethod={payment.payment_method || ""} />} />{payment.payer_name?.trim() ? <Field label="ชื่อผู้ชำระ" value={payment.payer_name.trim()} /> : null}{payment.external_transaction_reference?.trim() ? <Field label="เลขอ้างอิงรายการรับชำระ" value={payment.external_transaction_reference.trim()} /> : null}{payment.receiving_account_reference?.trim() ? <Field label="รายละเอียดบัญชี/ช่องทางรับเงิน" value={payment.receiving_account_reference.trim()} /> : null}{payment.note?.trim() ? <Field label="หมายเหตุ" value={payment.note.trim()} /> : null}</div></div>
-          <div style={readOnlyGroup}><h3 style={readOnlyGroupTitle}>ยอดเงิน</h3><div style={summaryGrid}><Metric label="ยอดที่ตัดชำระ" value={money(payment.settlement_amount, payment.currency)} prominent /><Metric label={paymentSettlementLabels.receivedFull} value={money(payment.cash_amount, payment.currency)} /><Metric label={paymentSettlementLabels.whtCredit} value={money(payment.wht_amount, payment.currency)} /><Metric label={paymentSettlementLabels.settlementTotal} value={money(payment.settlement_amount, payment.currency)} />{payment.status === "confirmed" ? <Metric label="ยอดที่จัดสรรปัจจุบัน" value={money(effectiveAllocationTotal, payment.currency)} /> : null}</div></div>
+          <div style={readOnlyGroup}><h3 style={readOnlyGroupTitle}>{t("finance.payment.ui.recordDetails")}</h3><div style={readOnlyGrid}><Field label={t("finance.payment.ui.status")} value={<StatusBadge status={payment.status}>{paymentStatusLabels[payment.status] || payment.status}</StatusBadge>} /><Field label={t("finance.payment.ui.actualDate")} value={payment.received_on ? date(payment.received_on) : t("finance.payment.ui.unspecified")} /><Field label={t("finance.payment.ui.method")} value={paymentMethodLabels[payment.payment_method || ""] || t("finance.payment.ui.unspecified")} /><Field label={t("finance.payment.ui.actualReceivingAccount")} value={<BankAccountIdentity account={savedReceivingBankAccount} paymentMethod={payment.payment_method || ""} />} />{payment.payer_name?.trim() ? <Field label={t("finance.payment.ui.payer")} value={payment.payer_name.trim()} /> : null}{payment.external_transaction_reference?.trim() ? <Field label={t("finance.payment.ui.transactionReference")} value={payment.external_transaction_reference.trim()} /> : null}{payment.receiving_account_reference?.trim() ? <Field label={t("finance.payment.ui.channelDetails")} value={payment.receiving_account_reference.trim()} /> : null}{payment.note?.trim() ? <Field label={t("finance.payment.ui.note")} value={payment.note.trim()} /> : null}</div></div>
+          <div style={readOnlyGroup}><h3 style={readOnlyGroupTitle}>{t("finance.payment.ui.amounts")}</h3><div style={summaryGrid}><Metric label={t("finance.payment.ui.settledAmount")} value={money(payment.settlement_amount, payment.currency)} prominent /><Metric label={paymentSettlementLabels.receivedFull} value={money(payment.cash_amount, payment.currency)} /><Metric label={paymentSettlementLabels.whtCredit} value={money(payment.wht_amount, payment.currency)} /><Metric label={paymentSettlementLabels.settlementTotal} value={money(payment.settlement_amount, payment.currency)} />{payment.status === "confirmed" ? <Metric label={t("finance.payment.ui.currentlyAllocated")} value={money(effectiveAllocationTotal, payment.currency)} /> : null}</div></div>
         </div>
         {payment.status === "confirmed" ? <FinanceDocumentNextAction key={payment.id} paymentId={payment.id} /> : null}
       </section>
 
       {payment.status === "confirmed" ? <section id="current-payment-allocations" style={{ ...surface, scrollMarginTop: 84 }}>
-        <SectionHeading title="การจัดสรรปัจจุบัน" description="แสดงใบแจ้งหนี้ที่ได้รับการตัดชำระจากรายการนี้ในสถานะปัจจุบัน" />
+        <SectionHeading title={t("finance.payment.ui.currentAllocation")} description={t("finance.payment.ui.currentAllocationHelp")} />
         <div className="payment-effective-allocation-grid" style={effectiveAllocationGrid}>{currentEffectiveAllocations.map((row) => {
           const rowInvoice = invoices.find((item) => item.id === row.invoice_id) || null;
           const rowSettlement = settlements.find((item) => item.invoice_id === row.invoice_id) || null;
           return <EffectiveAllocationCard key={row.invoice_id} allocation={row} invoice={rowInvoice} settlement={rowSettlement} currency={payment.currency} />;
         })}</div>
-        {!currentEffectiveAllocations.length ? <div style={neutralNotice}>ไม่มีใบแจ้งหนี้ที่ได้รับการจัดสรรยอดในปัจจุบัน</div> : null}
-      </section> : <section style={surface}><SectionHeading title="การจัดสรรตามรายการ" description="แสดงข้อมูลการจัดสรรเดิมเพื่อการตรวจสอบ รายการนี้ไม่อยู่ในสถานะยืนยันรับชำระแล้ว" /><div style={allocationList}>{allocations.map((row) => <AllocationSummaryCard key={row.id} invoice={invoices.find((item) => item.id === row.invoice_id) || null} cash={row.cash_allocated} wht={row.wht_credit_allocated} total={row.settlement_total} currency={payment.currency} />)}</div></section>}
+        {!currentEffectiveAllocations.length ? <div style={neutralNotice}>{t("finance.payment.ui.noCurrentAllocations")}</div> : null}
+      </section> : <section style={surface}><SectionHeading title={t("finance.payment.ui.originalAllocation")} description={t("finance.payment.ui.originalAllocationHelp")} /><div style={allocationList}>{allocations.map((row) => <AllocationSummaryCard key={row.id} invoice={invoices.find((item) => item.id === row.invoice_id) || null} cash={row.cash_allocated} wht={row.wht_credit_allocated} total={row.settlement_total} currency={payment.currency} />)}</div></section>}
 
       <section style={surface}>
         <details>
           <summary style={historySummary}>{paymentCorrectionCopy.allocationHistory} {reallocations.length ? `(${reallocations.length})` : ""}</summary>
-          <p style={sectionDescription}>เก็บรายการจัดสรรตั้งต้นและการเปลี่ยนใบแจ้งหนี้ทุกครั้งเพื่อการตรวจสอบ โดยไม่เปลี่ยนข้อมูลการรับเงินจริง</p>
+          <p style={sectionDescription}>{t("finance.payment.ui.historyHelp")}</p>
           <div style={historyList}>
-            {allocations.map((row) => <HistoryRow key={`original-${row.id}`} title="การจัดสรรตั้งต้น" source={null} target={invoices.find((item) => item.id === row.invoice_id) || null} cash={row.cash_allocated} wht={row.wht_credit_allocated} total={row.settlement_total} reason={null} createdAt={null} currency={payment.currency} />)}
-            {reallocations.map((row) => <HistoryRow key={row.id} title="เปลี่ยนใบแจ้งหนี้ที่ตัดชำระ" source={invoices.find((item) => item.id === row.source_invoice_id) || null} target={invoices.find((item) => item.id === row.target_invoice_id) || null} cash={row.cash_moved} wht={row.wht_moved} total={row.settlement_moved} reason={row.reason} createdAt={row.created_at} currency={payment.currency} />)}
+            {allocations.map((row) => <HistoryRow key={`original-${row.id}`} title={t("finance.payment.ui.initialAllocation")} source={null} target={invoices.find((item) => item.id === row.invoice_id) || null} cash={row.cash_allocated} wht={row.wht_credit_allocated} total={row.settlement_total} reason={null} createdAt={null} currency={payment.currency} />)}
+            {reallocations.map((row) => <HistoryRow key={row.id} title={t("finance.payment.ui.changeInvoice")} source={invoices.find((item) => item.id === row.source_invoice_id) || null} target={invoices.find((item) => item.id === row.target_invoice_id) || null} cash={row.cash_moved} wht={row.wht_moved} total={row.settlement_moved} reason={row.reason} createdAt={row.created_at} currency={payment.currency} />)}
           </div>
         </details>
       </section>
@@ -623,50 +624,50 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
 
     {payment.status === "confirmed" && (access.canReallocate || access.canReverse) ? <section ref={reallocationRef} style={financialActionSection}>
       <h2 style={financialActionTitle}>{paymentCorrectionCopy.sectionTitle}</h2>
-      <p style={sectionDescription}>เลือกแนวทางให้ตรงกับสิ่งที่บันทึกผิด เพื่อคงประวัติและผลทางการเงินอย่างถูกต้อง</p>
+      <p style={sectionDescription}>{t("finance.payment.ui.correctionHelp")}</p>
       {access.canReallocate ? <div style={correctionFlow}>
         <h3 style={correctionFlowTitle}>1. {paymentCorrectionCopy.wrongInvoiceTitle}</h3>
         <p style={sectionDescription}>{paymentCorrectionCopy.wrongInvoiceDescription}</p>
-        {whtComponents.length ? <div style={neutralNotice}>รายการนี้มีหลักฐาน WHT ผูกกับรายการในใบแจ้งหนี้ การเปลี่ยนการจัดสรรต้องใช้กระบวนการแก้ไขฐาน WHT ซึ่งยังไม่เปิดใช้งาน</div> : !reallocationOpen ? <button type="button" style={reallocationButton} onClick={openReallocation}>{paymentCorrectionCopy.allocationAction}</button> : <div style={reallocationPanel}>
+        {whtComponents.length ? <div style={neutralNotice}>{t("finance.payment.ui.whtReallocationBlocked")}</div> : !reallocationOpen ? <button type="button" style={reallocationButton} onClick={openReallocation}>{paymentCorrectionCopy.allocationAction}</button> : <div style={reallocationPanel}>
         <h3 style={reallocationPanelTitle}>{paymentCorrectionCopy.allocationHeading}</h3>
-        <div style={coreWarning}><strong>{paymentCorrectionCopy.allocationHelper}</strong><span>ข้อมูลรับชำระและเงินจริงในบัญชียังคงเดิม ระบบเปลี่ยนเฉพาะใบแจ้งหนี้ที่นำยอดไปตัดชำระ</span></div>
-        {Object.keys(reallocationErrors).length ? <div role="alert" style={validationSummary}>กรุณาตรวจสอบข้อมูลที่จำเป็นก่อนยืนยันการเปลี่ยนใบแจ้งหนี้</div> : null}
+        <div style={coreWarning}><strong>{paymentCorrectionCopy.allocationHelper}</strong><span>{t("finance.payment.ui.reallocationScope")}</span></div>
+        {Object.keys(reallocationErrors).length ? <div role="alert" style={validationSummary}>{t("finance.payment.ui.reallocationValidation")}</div> : null}
         <div className="payment-reallocation-form-grid" style={reallocationFormGrid}>
-          <FormField label="1. ใบแจ้งหนี้ที่ตัดชำระอยู่ในปัจจุบัน" required error={reallocationErrors.source}><select ref={reallocationFirstInvalidRef} style={inputStyle(Boolean(reallocationErrors.source))} value={reallocationSourceId} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationSourceId(event.target.value); if (event.target.value === reallocationTargetId) setReallocationTargetId(""); setReallocationErrors((current) => ({ ...current, source: undefined, target: undefined, cash: undefined, wht: undefined })); }}><option value="">เลือกใบแจ้งหนี้ปัจจุบัน</option>{currentEffectiveAllocations.map((row) => { const rowInvoice = invoices.find((item) => item.id === row.invoice_id); return <option key={row.invoice_id} value={row.invoice_id}>{displayText(rowInvoice?.invoice_no)} · {money(row.effective_settlement_total, payment.currency)}</option>; })}</select></FormField>
-          <FormField label="2. ใบแจ้งหนี้ที่ต้องการใช้ตัดชำระ" required error={reallocationErrors.target}><select style={inputStyle(Boolean(reallocationErrors.target))} value={reallocationTargetId} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationTargetId(event.target.value); setReallocationErrors((current) => ({ ...current, target: undefined })); }}><option value="">เลือกใบแจ้งหนี้ใหม่</option>{candidateInvoices.filter((row) => row.id !== reallocationSourceId && normalizedAmount(settlements.find((item) => item.invoice_id === row.id)?.outstanding_amount) > 0).map((row) => { const rowSettlement = settlements.find((item) => item.invoice_id === row.id); return <option key={row.id} value={row.id}>{displayText(row.invoice_no)} · คงค้าง {money(rowSettlement?.outstanding_amount, row.currency)}</option>; })}</select></FormField>
+          <FormField label={t("finance.payment.ui.sourceStep")} required error={reallocationErrors.source}><select ref={reallocationFirstInvalidRef} style={inputStyle(Boolean(reallocationErrors.source))} value={reallocationSourceId} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationSourceId(event.target.value); if (event.target.value === reallocationTargetId) setReallocationTargetId(""); setReallocationErrors((current) => ({ ...current, source: undefined, target: undefined, cash: undefined, wht: undefined })); }}><option value="">{t("finance.payment.ui.chooseSource")}</option>{currentEffectiveAllocations.map((row) => { const rowInvoice = invoices.find((item) => item.id === row.invoice_id); return <option key={row.invoice_id} value={row.invoice_id}>{displayText(rowInvoice?.invoice_no)} · {money(row.effective_settlement_total, payment.currency)}</option>; })}</select></FormField>
+          <FormField label={t("finance.payment.ui.targetStep")} required error={reallocationErrors.target}><select style={inputStyle(Boolean(reallocationErrors.target))} value={reallocationTargetId} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationTargetId(event.target.value); setReallocationErrors((current) => ({ ...current, target: undefined })); }}><option value="">{t("finance.payment.ui.chooseTarget")}</option>{candidateInvoices.filter((row) => row.id !== reallocationSourceId && normalizedAmount(settlements.find((item) => item.invoice_id === row.id)?.outstanding_amount) > 0).map((row) => { const rowSettlement = settlements.find((item) => item.invoice_id === row.id); return <option key={row.id} value={row.id}>{displayText(row.invoice_no)} {t("finance.payment.ui.outstandingOption")} {money(rowSettlement?.outstanding_amount, row.currency)}</option>; })}</select></FormField>
         </div>
         <div className="payment-reallocation-context-grid" style={reallocationContextGrid}>
-          {selectedSourceAllocation ? <InvoiceMoveContext title="ใบแจ้งหนี้ปัจจุบัน" invoice={selectedSourceInvoice} tone="neutral"><small style={contextSectionLabel}>การจัดสรรปัจจุบัน</small><div style={contextAmounts}><span>{paymentSettlementLabels.receivedCompact} {money(selectedSourceAllocation.effective_cash_allocated, payment.currency)}</span><span>WHT {money(selectedSourceAllocation.effective_wht_credit_allocated, payment.currency)}</span><strong>รวม {money(selectedSourceAllocation.effective_settlement_total, payment.currency)}</strong></div></InvoiceMoveContext> : null}
-          {selectedTargetInvoice ? <InvoiceMoveContext title="ใบแจ้งหนี้ใหม่" invoice={selectedTargetInvoice} tone="accent"><div style={contextAmounts}><span>ยอดใบแจ้งหนี้ {money(selectedTargetInvoice.total_amount, payment.currency)}</span><strong>ยอดคงค้าง {money(settlements.find((row) => row.invoice_id === selectedTargetInvoice.id)?.outstanding_amount, payment.currency)}</strong></div></InvoiceMoveContext> : null}
+          {selectedSourceAllocation ? <InvoiceMoveContext title={t("finance.payment.ui.currentInvoice")} invoice={selectedSourceInvoice} tone="neutral"><small style={contextSectionLabel}>{t("finance.payment.ui.currentAllocation")}</small><div style={contextAmounts}><span>{paymentSettlementLabels.receivedCompact} {money(selectedSourceAllocation.effective_cash_allocated, payment.currency)}</span><span>WHT {money(selectedSourceAllocation.effective_wht_credit_allocated, payment.currency)}</span><strong>{t("finance.payment.ui.total")} {money(selectedSourceAllocation.effective_settlement_total, payment.currency)}</strong></div></InvoiceMoveContext> : null}
+          {selectedTargetInvoice ? <InvoiceMoveContext title={t("finance.payment.ui.newInvoice")} invoice={selectedTargetInvoice} tone="accent"><div style={contextAmounts}><span>{t("finance.payment.ui.invoiceAmount")} {money(selectedTargetInvoice.total_amount, payment.currency)}</span><strong>{t("finance.payment.ui.outstanding")} {money(settlements.find((row) => row.invoice_id === selectedTargetInvoice.id)?.outstanding_amount, payment.currency)}</strong></div></InvoiceMoveContext> : null}
         </div>
-        {crossMatterReallocation ? <div style={crossMatterWarning}>ใบแจ้งหนี้ทั้งสองฉบับอยู่คนละคดี/งาน กรุณาตรวจสอบให้แน่ใจก่อนยืนยัน</div> : null}
-        <div><h3 style={moveTitle}>3. ต้องการเปลี่ยนการจัดสรรเท่าใด</h3><div className="payment-reallocation-mode-grid" style={reallocationModeGrid}>{([{
+        {crossMatterReallocation ? <div style={crossMatterWarning}>{t("finance.payment.ui.crossMatter")}</div> : null}
+        <div><h3 style={moveTitle}>{t("finance.payment.ui.moveAmountStep")}</h3><div className="payment-reallocation-mode-grid" style={reallocationModeGrid}>{([{
           value: "full" as const,
-          title: "ทั้งหมด",
-          description: "นำยอดเงินรับจริงและเครดิต WHT ที่จัดสรรอยู่ทั้งหมดไปตัดชำระใบแจ้งหนี้ใหม่",
+          title: t("finance.payment.ui.full"),
+          description: t("finance.payment.ui.fullHelp"),
         }, {
           value: "partial" as const,
-          title: "บางส่วน",
-          description: "ระบุส่วนเงินรับจริงและเครดิต WHT ที่ต้องการนำไปตัดชำระใบแจ้งหนี้ใหม่",
+          title: t("finance.payment.ui.partial"),
+          description: t("finance.payment.ui.partialHelp"),
         }]).map((option) => <label key={option.value} className="payment-reallocation-mode" style={{ ...reallocationModeOption, ...(reallocationMode === option.value ? selectedReallocationModeOption : {}) }}><input type="radio" name="reallocation-mode" value={option.value} checked={reallocationMode === option.value} disabled={reallocating} onChange={() => { beginChangedReallocationIntent(); setReallocationMode(option.value); if (option.value === "partial") { setReallocationCash("0.00"); setReallocationWht("0.00"); } setReallocationErrors((current) => ({ ...current, cash: undefined, wht: undefined })); }} /><span><strong>{option.title}</strong><small>{option.description}</small></span></label>)}</div></div>
-        {reallocationMode === "full" ? <div style={fullMoveSummary}><span>ยอดตัดชำระที่จะเปลี่ยนไปใช้ใบแจ้งหนี้ใหม่</span><div className="payment-full-move-grid" style={fullMoveGrid}><Metric label={paymentSettlementLabels.receivedCompact} value={money(reallocationCashAmount, payment.currency)} /><Metric label="เครดิต WHT" value={money(reallocationWhtAmount, payment.currency)} /><Metric label={paymentSettlementLabels.settlementTotal} value={money(reallocationTotal, payment.currency)} prominent /></div></div> : <div className="payment-reallocation-form-grid" style={reallocationFormGrid}><FormField label="ส่วนเงินรับจริงที่นำไปตัดชำระ" required error={reallocationErrors.cash}><input style={inputStyle(Boolean(reallocationErrors.cash))} type="number" min="0" step="0.01" value={reallocationCash} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationCash(event.target.value); setReallocationErrors((current) => ({ ...current, cash: undefined })); }} /></FormField><FormField label="เครดิตภาษีหัก ณ ที่จ่ายที่นำไปตัดชำระ" required error={reallocationErrors.wht}><input style={inputStyle(Boolean(reallocationErrors.wht))} type="number" min="0" step="0.01" value={reallocationWht} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationWht(event.target.value); setReallocationErrors((current) => ({ ...current, wht: undefined })); }} /></FormField></div>}
+        {reallocationMode === "full" ? <div style={fullMoveSummary}><span>{t("finance.payment.ui.movingSettlement")}</span><div className="payment-full-move-grid" style={fullMoveGrid}><Metric label={paymentSettlementLabels.receivedCompact} value={money(reallocationCashAmount, payment.currency)} /><Metric label={t("finance.payment.ui.whtCredit")} value={money(reallocationWhtAmount, payment.currency)} /><Metric label={paymentSettlementLabels.settlementTotal} value={money(reallocationTotal, payment.currency)} prominent /></div></div> : <div className="payment-reallocation-form-grid" style={reallocationFormGrid}><FormField label={t("finance.payment.ui.movingReceived")} required error={reallocationErrors.cash}><input style={inputStyle(Boolean(reallocationErrors.cash))} type="number" min="0" step="0.01" value={reallocationCash} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationCash(event.target.value); setReallocationErrors((current) => ({ ...current, cash: undefined })); }} /></FormField><FormField label={t("finance.payment.ui.movingWht")} required error={reallocationErrors.wht}><input style={inputStyle(Boolean(reallocationErrors.wht))} type="number" min="0" step="0.01" value={reallocationWht} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationWht(event.target.value); setReallocationErrors((current) => ({ ...current, wht: undefined })); }} /></FormField></div>}
         {selectedSourceAllocation && selectedTargetInvoice ? <ReallocationReview sourceInvoice={selectedSourceInvoice} targetInvoice={selectedTargetInvoice} source={selectedSourceAllocation} target={selectedTargetAllocation} cashMoved={reallocationCashAmount} whtMoved={reallocationWhtAmount} currency={payment.currency} /> : null}
-        <div style={unchangedSummary}><strong>เงินจริงและข้อมูลรับชำระไม่เปลี่ยน</strong><div style={unchangedTotals}><Metric label={paymentSettlementLabels.settlementTotal} value={money(payment.settlement_amount, payment.currency)} prominent /><Metric label={paymentSettlementLabels.receivedCompact} value={money(payment.cash_amount, payment.currency)} /><Metric label="เครดิต WHT" value={money(payment.wht_amount, payment.currency)} /></div></div>
-        <FormField label="5. เหตุผลในการเปลี่ยนใบแจ้งหนี้ที่ตัดชำระ" required error={reallocationErrors.reason}><textarea style={{ ...textareaStyle, ...(reallocationErrors.reason ? invalidInput : {}) }} rows={3} value={reallocationReason} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationReason(event.target.value); setReallocationErrors((current) => ({ ...current, reason: undefined })); }} /></FormField>
-        <label style={{ ...reallocationAcknowledgement, ...(reallocationErrors.acknowledgement ? invalidConfirmation : {}) }}><input type="checkbox" checked={reallocationAcknowledged} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationAcknowledged(event.target.checked); setReallocationErrors((current) => ({ ...current, acknowledgement: undefined })); }} /><span>ยืนยันว่ารายการรับเงินจริงถูกต้อง และต้องการเปลี่ยนเฉพาะใบแจ้งหนี้ที่ได้รับการตัดชำระ{reallocationErrors.acknowledgement ? <small style={formError}>{reallocationErrors.acknowledgement}</small> : null}</span></label>
-        <div style={actionRow}><button type="button" style={secondaryButton} disabled={reallocating} onClick={closeReallocation}>ยกเลิก</button><button type="button" style={primaryButton} disabled={reallocating} onClick={() => void submitReallocation()}>{reallocating ? "กำลังเปลี่ยนใบแจ้งหนี้..." : "ยืนยันเปลี่ยนใบแจ้งหนี้"}</button></div>
+        <div style={unchangedSummary}><strong>{t("finance.payment.ui.moneyUnchanged")}</strong><div style={unchangedTotals}><Metric label={paymentSettlementLabels.settlementTotal} value={money(payment.settlement_amount, payment.currency)} prominent /><Metric label={paymentSettlementLabels.receivedCompact} value={money(payment.cash_amount, payment.currency)} /><Metric label={t("finance.payment.ui.whtCredit")} value={money(payment.wht_amount, payment.currency)} /></div></div>
+        <FormField label={t("finance.payment.ui.reasonStep")} required error={reallocationErrors.reason}><textarea style={{ ...textareaStyle, ...(reallocationErrors.reason ? invalidInput : {}) }} rows={3} value={reallocationReason} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationReason(event.target.value); setReallocationErrors((current) => ({ ...current, reason: undefined })); }} /></FormField>
+        <label style={{ ...reallocationAcknowledgement, ...(reallocationErrors.acknowledgement ? invalidConfirmation : {}) }}><input type="checkbox" checked={reallocationAcknowledged} disabled={reallocating} onChange={(event) => { beginChangedReallocationIntent(); setReallocationAcknowledged(event.target.checked); setReallocationErrors((current) => ({ ...current, acknowledgement: undefined })); }} /><span>{t("finance.payment.ui.moveAck")}{reallocationErrors.acknowledgement ? <small style={formError}>{text(reallocationErrors.acknowledgement)}</small> : null}</span></label>
+        <div style={actionRow}><button type="button" style={secondaryButton} disabled={reallocating} onClick={closeReallocation}>{t("finance.payment.ui.cancel")}</button><button type="button" style={primaryButton} disabled={reallocating} onClick={() => void submitReallocation()}>{reallocating ? t("finance.payment.ui.moving") : t("finance.payment.ui.confirmMove")}</button></div>
       </div>}
       </div> : null}
       {access.canReverse ? <div style={{ ...correctionFlow, ...(access.canReallocate ? correctionFlowDivider : {}) }}>
         <h3 style={correctionFlowTitle}>{access.canReallocate ? "2. " : ""}{paymentCorrectionCopy.wrongPaymentTitle}</h3>
         <p style={sectionDescription}>{paymentCorrectionCopy.wrongPaymentDescription}</p>
-        {!exceptionMode ? <button type="button" style={dangerOutlineButton} onClick={() => setExceptionMode("reverse")}>{paymentCorrectionCopy.paymentCorrectionAction}</button> : <div style={exceptionPanel}><FormField label="เหตุผลที่แก้ไขรายการรับชำระ" required><textarea style={textareaStyle} rows={3} value={exceptionReason} onChange={(event) => setExceptionReason(event.target.value)} /></FormField><div style={actionRow}><button type="button" style={secondaryButton} disabled={processingException} onClick={() => { setExceptionMode(null); setExceptionReason(""); }}>ไม่ดำเนินการ</button><button type="button" style={{ ...dangerButton, ...(!exceptionReason.trim() ? disabledButton : {}) }} disabled={!exceptionReason.trim() || processingException} onClick={() => void runException()}>{processingException ? "กำลังดำเนินการ..." : "ยืนยันแก้ไขรายการ"}</button></div></div>}
+        {!exceptionMode ? <button type="button" style={dangerOutlineButton} onClick={() => setExceptionMode("reverse")}>{paymentCorrectionCopy.paymentCorrectionAction}</button> : <div style={exceptionPanel}><FormField label={t("finance.payment.ui.correctionReason")} required><textarea style={textareaStyle} rows={3} value={exceptionReason} onChange={(event) => setExceptionReason(event.target.value)} /></FormField><div style={actionRow}><button type="button" style={secondaryButton} disabled={processingException} onClick={() => { setExceptionMode(null); setExceptionReason(""); }}>{t("finance.payment.ui.doNotProceed")}</button><button type="button" style={{ ...dangerButton, ...(!exceptionReason.trim() ? disabledButton : {}) }} disabled={!exceptionReason.trim() || processingException} onClick={() => void runException()}>{processingException ? t("finance.payment.ui.processing") : t("finance.payment.ui.confirmCorrection")}</button></div></div>}
       </div> : null}
     </section> : null}
 
     {payment.status === "draft" && access.canManage ? <section style={otherActions}>
-      <h2 style={otherTitle}>การดำเนินการอื่น</h2><p style={sectionDescription}>ยกเลิกร่างเมื่อไม่ต้องการใช้รายการรับชำระนี้</p>
-      {!exceptionMode ? <button type="button" style={dangerOutlineButton} onClick={() => setExceptionMode("cancel")}>ยกเลิกร่างการรับชำระ</button> : <div style={exceptionPanel}><FormField label="เหตุผลที่ยกเลิกร่าง" required><textarea style={textareaStyle} rows={3} value={exceptionReason} onChange={(event) => setExceptionReason(event.target.value)} /></FormField><div style={actionRow}><button type="button" style={secondaryButton} disabled={processingException} onClick={() => { setExceptionMode(null); setExceptionReason(""); }}>ไม่ดำเนินการ</button><button type="button" style={{ ...dangerButton, ...(!exceptionReason.trim() ? disabledButton : {}) }} disabled={!exceptionReason.trim() || processingException} onClick={() => void runException()}>{processingException ? "กำลังดำเนินการ..." : "ยืนยันยกเลิกร่าง"}</button></div></div>}
+      <h2 style={otherTitle}>{t("finance.payment.ui.otherActions")}</h2><p style={sectionDescription}>{t("finance.payment.ui.cancelHelp")}</p>
+      {!exceptionMode ? <button type="button" style={dangerOutlineButton} onClick={() => setExceptionMode("cancel")}>{t("finance.payment.ui.cancelDraft")}</button> : <div style={exceptionPanel}><FormField label={t("finance.payment.ui.cancelReason")} required><textarea style={textareaStyle} rows={3} value={exceptionReason} onChange={(event) => setExceptionReason(event.target.value)} /></FormField><div style={actionRow}><button type="button" style={secondaryButton} disabled={processingException} onClick={() => { setExceptionMode(null); setExceptionReason(""); }}>{t("finance.payment.ui.doNotProceed")}</button><button type="button" style={{ ...dangerButton, ...(!exceptionReason.trim() ? disabledButton : {}) }} disabled={!exceptionReason.trim() || processingException} onClick={() => void runException()}>{processingException ? t("finance.payment.ui.processing") : t("finance.payment.ui.confirmCancel")}</button></div></div>}
     </section> : null}
 
     <style jsx global>{`
@@ -694,66 +695,66 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
 function SectionHeading({ title, description }: { title: string; description: string }) { return <div style={{ marginBottom: 16 }}><h2 style={sectionTitle}>{title}</h2><p style={sectionDescription}>{description}</p></div>; }
 function SuccessNotice({ message }: { message: string }) { const [titleLine, ...detailLines] = message.split("\n"); return <div role="status" style={successNotice}><strong>{titleLine}</strong>{detailLines.map((line) => <span key={line}>{line}</span>)}</div>; }
 function Field({ label, value }: { label: string; value: ReactNode }) { return <div style={{ minWidth: 0 }}><small style={fieldLabel}>{label}</small><div style={fieldValue}>{value}</div></div>; }
-function InvoiceTaxSummary({ facts }: { facts: InvoiceTaxFacts | null }) {
-  return <div style={taxSummary}><h3 style={reviewGroupTitle}>ข้อมูลใบแจ้งหนี้</h3>{facts ? <div style={contextGrid}>
-    <Field label="ยอดรวมใบแจ้งหนี้" value={money(facts.gross, facts.currency)} />
-    <Field label="มูลค่าก่อน VAT" value={money(facts.beforeVat, facts.currency)} />
+function InvoiceTaxSummary({ facts }: { facts: InvoiceTaxFacts | null }) { const { locale, t } = useI18n();
+  return <div style={taxSummary}><h3 style={reviewGroupTitle}>{t("finance.payment.ui.invoiceInfo")}</h3>{facts ? <div style={contextGrid}>
+    <Field label={t("finance.payment.ui.invoiceGross")} value={money(facts.gross, facts.currency)} />
+    <Field label={t("finance.payment.ui.beforeVat")} value={money(facts.beforeVat, facts.currency)} />
     <Field label="VAT" value={money(facts.vat, facts.currency)} />
-    <Field label="สถานะ VAT" value={facts.vatLabel} />
-  </div> : <p style={sectionDescription}>ไม่พบข้อมูลภาษีจากหลักฐานใบแจ้งหนี้ที่ออกแล้ว กรุณาให้ผู้ดูแลตรวจสอบ</p>}</div>;
+    <Field label={t("finance.payment.ui.vatStatus")} value={invoiceTaxVatLabel(facts, locale)} />
+  </div> : <p style={sectionDescription}>{t("finance.payment.ui.taxEvidenceMissing")}</p>}</div>;
 }
-function FormField({ label, helper, required = false, error, children }: { label: string; helper?: string; required?: boolean; error?: string; children: ReactNode }) { return <label style={formField}><span style={formLabel}>{label}{required ? <strong style={{ color: "#b91c1c" }}> *</strong> : null}</span>{children}{helper ? <small style={helperText}>{helper}</small> : null}{error ? <small style={formError}>{error}</small> : null}</label>; }
+function FormField({ label, helper, required = false, error, children }: { label: string; helper?: string; required?: boolean; error?: UiMessage; children: ReactNode }) { const { text } = useI18n(); return <label style={formField}><span style={formLabel}>{label}{required ? <strong style={{ color: "#b91c1c" }}> *</strong> : null}</span>{children}{helper ? <small style={helperText}>{helper}</small> : null}{error ? <small style={formError}>{text(error)}</small> : null}</label>; }
 function Metric({ label, value, prominent = false }: { label: string; value: string; prominent?: boolean }) { return <div style={{ ...metric, ...(prominent ? prominentMetric : {}) }}><small>{label}</small><strong style={metricValue}>{value}</strong></div>; }
 function StatusBadge({ status, children }: { status: string; children: ReactNode }) { return <span style={{ ...badge, ...(status === "draft" ? amberBadge : status === "confirmed" ? greenBadge : redBadge) }}>{children}</span>; }
-function BankAccountIdentity({ account, paymentMethod }: { account: BankAccount | null; paymentMethod: string }) { if (!account) return <span>{paymentMethod === "bank_transfer" ? "ยังไม่ระบุ" : "ไม่ใช้บัญชีธนาคารสำหรับวิธีรับชำระนี้"}</span>; return <div style={bankAccountIdentity}><strong>{displayText(account.short_name)} — {displayText(account.bank_name)}</strong>{account.account_number ? <span style={bankAccountDetail}>{account.account_number}{account.account_name ? ` · ${account.account_name}` : ""}</span> : null}</div>; }
+function BankAccountIdentity({ account, paymentMethod }: { account: BankAccount | null; paymentMethod: string }) { const { t } = useI18n(); if (!account) return <span>{paymentMethod === "bank_transfer" ? t("finance.payment.ui.notEntered") : t("finance.payment.ui.bankNotUsed")}</span>; return <div style={bankAccountIdentity}><strong>{displayText(account.short_name)} — {displayText(account.bank_name)}</strong>{account.account_number ? <span style={bankAccountDetail}>{account.account_number}{account.account_name ? ` · ${account.account_name}` : ""}</span> : null}</div>; }
 
-function AllocationSummaryCard({ invoice, cash, wht, total, currency }: { invoice: InvoiceContext | null; cash: number | string; wht: number | string; total: number | string; currency: string }) {
-  return <div className="payment-allocation-card" style={allocationCard}><div><small style={fieldLabel}>จัดสรรไปยังใบแจ้งหนี้</small><strong>{displayText(invoice?.invoice_no)}</strong><span style={matterText}>{invoiceMatterLabel(invoice)}</span></div><span>{paymentSettlementLabels.receivedCompact} {money(cash, currency)}</span><span>WHT {money(wht, currency)}</span><strong>รวม {money(total, currency)}</strong></div>;
+function AllocationSummaryCard({ invoice, cash, wht, total, currency }: { invoice: InvoiceContext | null; cash: number | string; wht: number | string; total: number | string; currency: string }) { const { locale, t } = useI18n(); const { settlement: paymentSettlementLabels } = paymentUiLabels(locale);
+  return <div className="payment-allocation-card" style={allocationCard}><div><small style={fieldLabel}>{t("finance.payment.ui.allocatedTo")}</small><strong>{displayText(invoice?.invoice_no)}</strong><span style={matterText}>{invoiceMatterLabel(invoice, locale)}</span></div><span>{paymentSettlementLabels.receivedCompact} {money(cash, currency)}</span><span>WHT {money(wht, currency)}</span><strong>{t("finance.payment.ui.total")} {money(total, currency)}</strong></div>;
 }
 
-function EffectiveAllocationCard({ allocation, invoice, settlement, currency }: { allocation: EffectivePaymentAllocation; invoice: InvoiceContext | null; settlement: InvoiceSettlement | null; currency: string }) {
-  return <article style={effectiveAllocationCard}><div style={effectiveAllocationHeader}><div><Link style={invoiceLink} href={`/finance/invoices/${allocation.invoice_id}`}>{displayText(invoice?.invoice_no)}</Link><p style={matterText}>{invoiceMatterLabel(invoice)}</p></div><span style={invoiceStatusBadge}>{invoiceStatusLabel(invoice?.document_status)}</span></div><div style={allocationMetrics}><Field label="ลูกค้า" value={displayText(invoice?.customer_name)} /><Field label={paymentSettlementLabels.receivedCompact} value={money(allocation.effective_cash_allocated, currency)} /><Field label="เครดิต WHT" value={money(allocation.effective_wht_credit_allocated, currency)} /><Field label={paymentSettlementLabels.settlementTotal} value={<strong>{money(allocation.effective_settlement_total, currency)}</strong>} /><Field label="ยอดใบแจ้งหนี้" value={money(invoice?.total_amount, currency)} /><Field label="ยอดคงค้างปัจจุบัน" value={money(settlement?.outstanding_amount, currency)} /></div></article>;
+function EffectiveAllocationCard({ allocation, invoice, settlement, currency }: { allocation: EffectivePaymentAllocation; invoice: InvoiceContext | null; settlement: InvoiceSettlement | null; currency: string }) { const { locale, t } = useI18n(); const { settlement: paymentSettlementLabels } = paymentUiLabels(locale);
+  return <article style={effectiveAllocationCard}><div style={effectiveAllocationHeader}><div><Link style={invoiceLink} href={`/finance/invoices/${allocation.invoice_id}`}>{displayText(invoice?.invoice_no)}</Link><p style={matterText}>{invoiceMatterLabel(invoice, locale)}</p></div><span style={invoiceStatusBadge}>{invoiceStatusLabel(invoice?.document_status, locale)}</span></div><div style={allocationMetrics}><Field label={t("finance.payment.ui.client")} value={displayText(invoice?.customer_name)} /><Field label={paymentSettlementLabels.receivedCompact} value={money(allocation.effective_cash_allocated, currency)} /><Field label={t("finance.payment.ui.whtCredit")} value={money(allocation.effective_wht_credit_allocated, currency)} /><Field label={paymentSettlementLabels.settlementTotal} value={<strong>{money(allocation.effective_settlement_total, currency)}</strong>} /><Field label={t("finance.payment.ui.invoiceAmount")} value={money(invoice?.total_amount, currency)} /><Field label={t("finance.payment.ui.currentOutstanding")} value={money(settlement?.outstanding_amount, currency)} /></div></article>;
 }
 
-function HistoryRow({ title, source, target, cash, wht, total, reason, createdAt, currency }: { title: string; source: InvoiceContext | null; target: InvoiceContext | null; cash: number | string; wht: number | string; total: number | string; reason: string | null; createdAt: string | null; currency: string }) {
-  return <div style={historyRow}><div style={historyRowHeader}><strong>{title}</strong>{createdAt ? <span>{formatBangkokDateTime(createdAt)}</span> : null}</div><div style={historyRoute}>{source ? <span>จาก <Link href={`/finance/invoices/${source.id}`}>{displayText(source.invoice_no)}</Link></span> : null}<span>{source ? "เป็น" : "ใบแจ้งหนี้"} {target ? <Link href={`/finance/invoices/${target.id}`}>{displayText(target.invoice_no)}</Link> : "ไม่พบข้อมูล"}</span></div><div style={historyAmounts}><span>{paymentSettlementLabels.receivedCompact} {money(cash, currency)}</span><span>WHT {money(wht, currency)}</span><strong>รวม {money(total, currency)}</strong></div>{reason ? <p style={historyReason}>เหตุผล: {reason}</p> : null}</div>;
+function HistoryRow({ title, source, target, cash, wht, total, reason, createdAt, currency }: { title: string; source: InvoiceContext | null; target: InvoiceContext | null; cash: number | string; wht: number | string; total: number | string; reason: string | null; createdAt: string | null; currency: string }) { const { locale, t, date } = useI18n(); const { settlement: paymentSettlementLabels } = paymentUiLabels(locale);
+  return <div style={historyRow}><div style={historyRowHeader}><strong>{title}</strong>{createdAt ? <span>{date(createdAt, true)}</span> : null}</div><div style={historyRoute}>{source ? <span>{t("finance.payment.ui.from")} <Link href={`/finance/invoices/${source.id}`}>{displayText(source.invoice_no)}</Link></span> : null}<span>{source ? t("finance.payment.ui.to") : t("finance.payment.ui.invoice")} {target ? <Link href={`/finance/invoices/${target.id}`}>{displayText(target.invoice_no)}</Link> : t("finance.payment.ui.noData")}</span></div><div style={historyAmounts}><span>{paymentSettlementLabels.receivedCompact} {money(cash, currency)}</span><span>WHT {money(wht, currency)}</span><strong>{t("finance.payment.ui.total")} {money(total, currency)}</strong></div>{reason ? <p style={historyReason}>{t("finance.payment.ui.reasonLabel")} {reason}</p> : null}</div>;
 }
 
-function InvoiceMoveContext({ title, invoice, tone, children }: { title: string; invoice: InvoiceContext | null; tone: "neutral" | "accent"; children: ReactNode }) {
-  return <article style={{ ...invoiceMoveContext, ...(tone === "accent" ? accentInvoiceMoveContext : {}) }}><small style={contextLabel}>{title}</small><strong style={contextInvoiceNo}>{displayText(invoice?.invoice_no)}</strong><span style={matterText}>{invoiceMatterLabel(invoice)}</span>{children}</article>;
+function InvoiceMoveContext({ title, invoice, tone, children }: { title: string; invoice: InvoiceContext | null; tone: "neutral" | "accent"; children: ReactNode }) { const { locale } = useI18n();
+  return <article style={{ ...invoiceMoveContext, ...(tone === "accent" ? accentInvoiceMoveContext : {}) }}><small style={contextLabel}>{title}</small><strong style={contextInvoiceNo}>{displayText(invoice?.invoice_no)}</strong><span style={matterText}>{invoiceMatterLabel(invoice, locale)}</span>{children}</article>;
 }
 
-function ReallocationReview({ sourceInvoice, targetInvoice, source, target, cashMoved, whtMoved, currency }: { sourceInvoice: InvoiceContext | null; targetInvoice: InvoiceContext; source: EffectivePaymentAllocation; target: EffectivePaymentAllocation | null; cashMoved: number; whtMoved: number; currency: string }) {
+function ReallocationReview({ sourceInvoice, targetInvoice, source, target, cashMoved, whtMoved, currency }: { sourceInvoice: InvoiceContext | null; targetInvoice: InvoiceContext; source: EffectivePaymentAllocation; target: EffectivePaymentAllocation | null; cashMoved: number; whtMoved: number; currency: string }) { const { locale, t } = useI18n(); const { settlement: paymentSettlementLabels } = paymentUiLabels(locale);
   const sourceCashAfter = normalizedAmount(normalizedAmount(source.effective_cash_allocated) - cashMoved);
   const sourceWhtAfter = normalizedAmount(normalizedAmount(source.effective_wht_credit_allocated) - whtMoved);
   const targetCashAfter = normalizedAmount(normalizedAmount(target?.effective_cash_allocated) + cashMoved);
   const targetWhtAfter = normalizedAmount(normalizedAmount(target?.effective_wht_credit_allocated) + whtMoved);
-  return <section style={reviewComparison}><h3 style={comparisonTitle}>4. ตรวจสอบก่อนเปลี่ยนใบแจ้งหนี้</h3><div><h4 style={reviewStageTitle}>ก่อนแก้ไข</h4><div className="payment-review-invoice-grid" style={reviewInvoiceGrid}><AllocationReviewCard invoice={sourceInvoice} total={source.effective_settlement_total} currency={currency} /><AllocationReviewCard invoice={targetInvoice} total={normalizedAmount(target?.effective_settlement_total)} currency={currency} /></div></div><div style={movingSummary}><small>ยอดตัดชำระที่เปลี่ยนใบแจ้งหนี้</small><strong>{money(cashMoved + whtMoved, currency)}</strong><span>{paymentSettlementLabels.receivedCompact} {money(cashMoved, currency)}</span><span>เครดิต WHT {money(whtMoved, currency)}</span></div><div><h4 style={reviewStageTitle}>หลังแก้ไข</h4><div className="payment-review-invoice-grid" style={reviewInvoiceGrid}><AllocationReviewCard invoice={sourceInvoice} total={normalizedAmount(sourceCashAfter + sourceWhtAfter)} currency={currency} /><AllocationReviewCard invoice={targetInvoice} total={normalizedAmount(targetCashAfter + targetWhtAfter)} currency={currency} /></div></div></section>;
+  return <section style={reviewComparison}><h3 style={comparisonTitle}>{t("finance.payment.ui.reviewMoveStep")}</h3><div><h4 style={reviewStageTitle}>{t("finance.payment.ui.beforeChange")}</h4><div className="payment-review-invoice-grid" style={reviewInvoiceGrid}><AllocationReviewCard invoice={sourceInvoice} total={source.effective_settlement_total} currency={currency} /><AllocationReviewCard invoice={targetInvoice} total={normalizedAmount(target?.effective_settlement_total)} currency={currency} /></div></div><div style={movingSummary}><small>{t("finance.payment.ui.movedSettlement")}</small><strong>{money(cashMoved + whtMoved, currency)}</strong><span>{paymentSettlementLabels.receivedCompact} {money(cashMoved, currency)}</span><span>{t("finance.payment.ui.whtCredit")} {money(whtMoved, currency)}</span></div><div><h4 style={reviewStageTitle}>{t("finance.payment.ui.afterChange")}</h4><div className="payment-review-invoice-grid" style={reviewInvoiceGrid}><AllocationReviewCard invoice={sourceInvoice} total={normalizedAmount(sourceCashAfter + sourceWhtAfter)} currency={currency} /><AllocationReviewCard invoice={targetInvoice} total={normalizedAmount(targetCashAfter + targetWhtAfter)} currency={currency} /></div></div></section>;
 }
 
-function AllocationReviewCard({ invoice, total, currency }: { invoice: InvoiceContext | null; total: number | string; currency: string }) {
-  return <div style={allocationReviewCard}><strong>{displayText(invoice?.invoice_no)}</strong><span style={matterText}>{invoiceMatterLabel(invoice)}</span><div style={allocationReviewTotal}><small>ยอดตัดชำระ</small><strong>{money(total, currency)}</strong></div></div>;
+function AllocationReviewCard({ invoice, total, currency }: { invoice: InvoiceContext | null; total: number | string; currency: string }) { const { locale, t } = useI18n();
+  return <div style={allocationReviewCard}><strong>{displayText(invoice?.invoice_no)}</strong><span style={matterText}>{invoiceMatterLabel(invoice, locale)}</span><div style={allocationReviewTotal}><small>{t("finance.payment.ui.settlement")}</small><strong>{money(total, currency)}</strong></div></div>;
 }
 
-function invoiceMatterLabel(invoice: InvoiceContext | null | undefined) {
-  if (!invoice) return "ไม่ระบุคดี/งาน";
+function invoiceMatterLabel(invoice: InvoiceContext | null | undefined, locale: UiLocale = "th") {
+  if (!invoice) return translate(locale, "finance.payment.ui.matterMissing");
   const snapshot = invoice.matter_snapshot_json || {};
   const references = [snapshot.file_no, snapshot.matter_no, snapshot.title, snapshot.name].filter((value, index, values) => typeof value === "string" && value.trim() && values.indexOf(value) === index) as string[];
   if (references.length) return references.join(" - ");
-  if (invoice.case_id != null) return `Case ${invoice.case_id}`;
-  if (invoice.advisory_matter_id) return "Advisory";
-  return "ยังไม่ผูกคดี/งาน";
+  if (invoice.case_id != null) return `${translate(locale, "common.nav.cases")} ${invoice.case_id}`;
+  if (invoice.advisory_matter_id) return translate(locale, "common.nav.advisory");
+  return translate(locale, "finance.payment.ui.matterUnlinked");
 }
 
 function sameInvoiceMatter(left: InvoiceContext, right: InvoiceContext) {
   return left.case_id === right.case_id && left.advisory_matter_id === right.advisory_matter_id;
 }
 
-function invoiceStatusLabel(status?: string) {
-  if (status === "issued") return "ออกใบแจ้งหนี้แล้ว";
-  if (status === "voided") return "ยกเลิกแล้ว";
-  if (status === "cancelled") return "ยกเลิกร่างแล้ว";
-  return status || "ไม่ระบุ";
+function invoiceStatusLabel(status?: string, locale: UiLocale = "th") {
+  if (status === "issued") return translate(locale, "finance.payment.ui.invoiceIssued");
+  if (status === "voided") return translate(locale, "finance.payment.ui.invoiceVoided");
+  if (status === "cancelled") return translate(locale, "finance.payment.ui.draftCancelled");
+  return status || translate(locale, "finance.payment.ui.unspecified");
 }
 
 const page: CSSProperties = { maxWidth: 1080, margin: "0 auto", padding: 24, color: "#172033" };
@@ -798,7 +799,7 @@ const assistedAmountSummary: CSSProperties = { display: "grid", gridTemplateColu
 const metric: CSSProperties = { display: "grid", gap: 5, minWidth: 0, padding: 13, border: "1px solid #e2e8f0", borderRadius: 6, color: "#64748b" };
 const prominentMetric: CSSProperties = { borderColor: "#86efac", background: "#f0fdf4", color: "#166534" };
 const metricValue: CSSProperties = { color: "#172033", fontSize: 17, fontVariantNumeric: "tabular-nums", overflowWrap: "anywhere" };
-const allocationCard: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(180px,1fr) repeat(3,max-content)", alignItems: "center", gap: 18, marginTop: 16, padding: 14, border: "1px solid #cbd5e1", borderRadius: 6, background: "#f8fafc", fontVariantNumeric: "tabular-nums" };
+const allocationCard: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,180px),1fr))", alignItems: "center", gap: 18, minWidth: 0, marginTop: 16, padding: 14, border: "1px solid #cbd5e1", borderRadius: 6, background: "#f8fafc", fontVariantNumeric: "tabular-nums" };
 const allocationList: CSSProperties = { display: "grid", gap: 10 };
 const matterText: CSSProperties = { display: "block", margin: "3px 0 0", color: "#64748b", fontSize: 12, lineHeight: 1.45 };
 const inlineError: CSSProperties = { marginTop: 10, color: "#b91c1c", fontSize: 12 };

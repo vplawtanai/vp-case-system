@@ -1,4 +1,7 @@
 "use client";
+import { useI18n, useUiAlert } from "../../../lib/i18n/provider";
+import { uiMessage, type UiMessage, type UiLocale } from "../../../lib/i18n/core";
+import { translate } from "../../../lib/i18n/catalog";
 import { VatTreatmentInput } from "../document-decision/vat-input";
 import type { VatEvidence } from "../document-decision/shared";
 
@@ -161,18 +164,18 @@ type PaymentInstallmentRow = Omit<PaymentInstallment, "percentage" | "payment_du
 type PaymentAllocationRow = { payment_installment_id: string; quotation_item_id: string; allocated_amount_before_tax: number | string; allocated_vat_amount: number | string; allocated_total: number | string; allocation_percentage?: number | string | null };
 type PaymentTermsSnapshot = { ready: boolean; saved: string; current: string };
 type NewPaymentTermsPayload = { payment_method_type: PaymentMethodType; client_summary: string; allocation_mode: PaymentAllocationMode; installments: PaymentInstallment[] };
-type PaymentTermsValidationIssue = { message: string; installmentIndex: number; field: "title" | "trigger" | "trigger_description" | "due_date" | "payment_due_days" | "percentage" };
-type PaymentAllocationValidationIssue = { message: string; itemReference?: string; installmentIndex?: number };
+type PaymentTermsValidationIssue = { message: UiMessage | string; installmentIndex: number; field: "title" | "trigger" | "trigger_description" | "due_date" | "payment_due_days" | "percentage" };
+type PaymentAllocationValidationIssue = { message: UiMessage | string; itemReference?: string; installmentIndex?: number };
 type PaymentInstallmentTotal = { beforeTax: number; vat: number; total: number };
 type PaymentLineItemSource = { item: QuotationItemRow; reference: string };
-type PendingNavigation = { href: string; label: string };
+type PendingNavigation = { href: string; label: UiMessage | string };
 type QuotationEngagementBasis = "formal_agreement" | "accepted_quotation";
 type QuotationEngagementReference = { id: string; engagement_basis: QuotationEngagementBasis | null; status: string; source_reference: string | null };
 type EngagementConfirmationForm = { confirmedOn: string; channel: string; note: string };
-type EngagementConfirmationErrors = Partial<Record<"confirmedOn" | "channel", string>>;
+type EngagementConfirmationErrors = Partial<Record<"confirmedOn" | "channel", UiMessage | string>>;
 type SaveAllResult =
   | { ok: true }
-  | { ok: false; stage: "quotation" | "payment_terms" | "refetch"; message: string };
+  | { ok: false; stage: "quotation" | "payment_terms" | "refetch"; message: UiMessage | string };
 
 type ClientRow = { id: string; name: string | null; client_type?: string | null; tax_id?: string | null; email?: string | null; phone?: string | null; address?: string | null };
 type CaseRow = { id: number; file_no: string | null; title: string | null; client_name: string | null };
@@ -277,11 +280,11 @@ const emptyItem: QuotationItemRow = {
 };
 
 const quotationEconomicClassifications = [
-  ["professional_fee", "ค่าวิชาชีพ"],
-  ["additional_service", "ค่าบริการเพิ่มเติม"],
-  ["reimbursable_expense", "ค่าใช้จ่ายเรียกคืน"],
-  ["government_or_court_fee", "ค่าธรรมเนียมศาล / หน่วยงานรัฐ"],
-  ["other", "อื่น ๆ"],
+  ["professional_fee", translate("th", "finance.invoice.classification.professional_fee")],
+  ["additional_service", translate("th", "finance.invoice.classification.additional_service")],
+  ["reimbursable_expense", translate("th", "finance.invoice.classification.reimbursable_expense")],
+  ["government_or_court_fee", translate("th", "finance.invoice.classification.government_or_court_fee")],
+  ["other", translate("th", "finance.payment.method.other")],
 ] as const;
 const quotationEconomicClassificationIds = new Set<string>(quotationEconomicClassifications.map(([value]) => value));
 
@@ -452,22 +455,22 @@ function normalizePaymentInstallments(installments: PaymentInstallment[], method
 }
 
 function getPaymentTermsPlanValidationIssue(method: PaymentMethodType, installments: PaymentInstallment[], allocationMode: PaymentAllocationMode = "proportional_all_items"): PaymentTermsValidationIssue | null {
-  if (installments.length === 0) return { message: "กรุณาเพิ่มอย่างน้อยหนึ่งงวดการชำระเงิน", installmentIndex: 0, field: "title" };
-  if (method === "single" && installments.length !== 1) return { message: "การชำระครั้งเดียวต้องมีเพียงหนึ่งงวด", installmentIndex: 0, field: "title" };
-  if (method === "installments" && installments.length < 2) return { message: "การแบ่งชำระหลายงวดต้องมีอย่างน้อยสองงวด", installmentIndex: 0, field: "title" };
-  if (allocationMode === "proportional_all_items" && new Set(installments.map((installment) => installment.calculation_type)).size > 1) return { message: "ไม่สามารถใช้การคำนวณแบบเปอร์เซ็นต์และจำนวนเงินคงที่ร่วมกันได้", installmentIndex: 0, field: "trigger" };
+  if (installments.length === 0) return { message: uiMessage("finance.quotation.validation.installmentRequired"), installmentIndex: 0, field: "title" };
+  if (method === "single" && installments.length !== 1) return { message: uiMessage("finance.quotation.validation.singleCount"), installmentIndex: 0, field: "title" };
+  if (method === "installments" && installments.length < 2) return { message: uiMessage("finance.quotation.validation.installmentCount"), installmentIndex: 0, field: "title" };
+  if (allocationMode === "proportional_all_items" && new Set(installments.map((installment) => installment.calculation_type)).size > 1) return { message: uiMessage("finance.quotation.validation.mixedCalculation"), installmentIndex: 0, field: "trigger" };
 
   for (const [installmentIndex, installment] of installments.entries()) {
-    if (!installment.title.trim()) return { message: "กรุณากรอกชื่อรายการของแต่ละงวดให้ครบถ้วน", installmentIndex, field: "title" };
-    if (!Number.isInteger(toAmount(installment.payment_due_days)) || toAmount(installment.payment_due_days) < 0) return { message: "จำนวนวันชำระเงินของแต่ละงวดต้องเป็นจำนวนเต็มที่ไม่ติดลบ", installmentIndex, field: "payment_due_days" };
-    if (triggerUsesFixedCalendarDate(method, installment.trigger_type) && !isIsoDate(installment.due_date)) return { message: "กรุณาระบุวันครบกำหนดสำหรับงวดที่เลือก Specific date", installmentIndex, field: "due_date" };
-    if (["case_milestone", "recurring_period", "manual"].includes(getEffectivePaymentTrigger(method, installment.trigger_type)) && !installment.trigger_description.trim()) return { message: "กรุณาระบุรายละเอียด Trigger ของแต่ละงวดให้ครบถ้วน", installmentIndex, field: "trigger_description" };
+    if (!installment.title.trim()) return { message: uiMessage("finance.quotation.validation.installmentTitle"), installmentIndex, field: "title" };
+    if (!Number.isInteger(toAmount(installment.payment_due_days)) || toAmount(installment.payment_due_days) < 0) return { message: uiMessage("finance.quotation.validation.dueDays"), installmentIndex, field: "payment_due_days" };
+    if (triggerUsesFixedCalendarDate(method, installment.trigger_type) && !isIsoDate(installment.due_date)) return { message: uiMessage("finance.quotation.validation.fixedDate"), installmentIndex, field: "due_date" };
+    if (["case_milestone", "recurring_period", "manual"].includes(getEffectivePaymentTrigger(method, installment.trigger_type)) && !installment.trigger_description.trim()) return { message: uiMessage("finance.quotation.validation.triggerDescription"), installmentIndex, field: "trigger_description" };
   }
 
-  if (method === "installments" && installments.some((installment) => installment.trigger_type === "recurring_period")) return { message: "การแบ่งชำระหลายงวดไม่สามารถใช้ Trigger แบบ Recurring period ได้", installmentIndex: 0, field: "trigger" };
-  if (method === "milestone" && installments.some((installment) => installment.trigger_type !== "case_milestone")) return { message: "วิธีชำระตามขั้นตอนงานต้องใช้ Trigger แบบ Case milestone", installmentIndex: 0, field: "trigger" };
-  if (method === "recurring" && installments.some((installment) => installment.trigger_type !== "recurring_period")) return { message: "วิธีเรียกเก็บเป็นรอบต้องใช้ Trigger แบบ Recurring period", installmentIndex: 0, field: "trigger" };
-  if (method === "manual" && installments.some((installment) => installment.trigger_type !== "manual")) return { message: "วิธีกำหนดเองต้องใช้ Trigger แบบ Manual", installmentIndex: 0, field: "trigger" };
+  if (method === "installments" && installments.some((installment) => installment.trigger_type === "recurring_period")) return { message: uiMessage("finance.quotation.validation.recurringTrigger"), installmentIndex: 0, field: "trigger" };
+  if (method === "milestone" && installments.some((installment) => installment.trigger_type !== "case_milestone")) return { message: uiMessage("finance.quotation.validation.milestoneTrigger"), installmentIndex: 0, field: "trigger" };
+  if (method === "recurring" && installments.some((installment) => installment.trigger_type !== "recurring_period")) return { message: uiMessage("finance.quotation.validation.recurringMethod"), installmentIndex: 0, field: "trigger" };
+  if (method === "manual" && installments.some((installment) => installment.trigger_type !== "manual")) return { message: uiMessage("finance.quotation.validation.manualTrigger"), installmentIndex: 0, field: "trigger" };
   return null;
 }
 
@@ -480,7 +483,7 @@ function getPaymentAllocationValidationIssue(allocationMode: PaymentAllocationMo
     });
     if (staleAllocation) {
       return {
-        message: `งวดที่ ${installmentIndex + 1} มีข้อมูลจัดสรรของรายการที่ถูกลบ กรุณาตรวจสอบอีกครั้ง`,
+        message: uiMessage("finance.quotation.validation.staleAllocation", { number: installmentIndex + 1 }),
         itemReference: paymentAllocationReference(staleAllocation),
         installmentIndex,
       };
@@ -491,7 +494,7 @@ function getPaymentAllocationValidationIssue(allocationMode: PaymentAllocationMo
     const percentageInstallments = installments.filter((installment) => installment.calculation_type === "percentage");
     if (percentageInstallments.length > 0) {
       const invalidInstallmentIndex = installments.findIndex((installment) => installment.calculation_type === "percentage" && (toAmount(installment.percentage) <= 0 || toAmount(installment.percentage) > 100));
-      if (invalidInstallmentIndex >= 0) return { message: `สัดส่วนของงวดที่ ${invalidInstallmentIndex + 1} ต้องมากกว่า 0 และไม่เกิน 100%`, installmentIndex: invalidInstallmentIndex };
+      if (invalidInstallmentIndex >= 0) return { message: uiMessage("finance.quotation.validation.proportionRange", { number: invalidInstallmentIndex + 1 }), installmentIndex: invalidInstallmentIndex };
       const total = normalizePercentage(percentageInstallments.reduce((sum, installment) => sum + toAmount(installment.percentage), 0));
       if (total > 100) {
         let cumulative = 0;
@@ -499,9 +502,9 @@ function getPaymentAllocationValidationIssue(allocationMode: PaymentAllocationMo
           cumulative = normalizePercentage(cumulative + toAmount(installment.percentage));
           return cumulative > 100;
         });
-        return { message: `งวดที่ ${installmentIndex + 1} ทำให้สัดส่วนรวมเกิน 100% (ปัจจุบัน ${total}%)`, installmentIndex };
+        return { message: uiMessage("finance.quotation.validation.proportionTotal", { number: installmentIndex + 1, total }), installmentIndex };
       }
-      if (requireComplete && total !== 100) return { message: "สัดส่วนการชำระเงินต้องครบ 100% ก่อนส่งใบเสนอราคา" };
+      if (requireComplete && total !== 100) return { message: uiMessage("finance.quotation.validation.percentageComplete") };
     }
     return null;
   }
@@ -514,7 +517,7 @@ function getPaymentAllocationValidationIssue(allocationMode: PaymentAllocationMo
     const missingInstallmentIndex = installments.findIndex((installment) => !installment.items.some((allocation) => paymentAllocationReference(allocation) === reference));
     if (missingInstallmentIndex >= 0) {
       return {
-        message: `รายการ ${item.description.trim() || reference} ยังไม่มีช่องจัดสรรสำหรับงวดที่ ${missingInstallmentIndex + 1}`,
+        message: uiMessage("finance.quotation.validation.missingAllocation", { description: item.description.trim() || reference, number: missingInstallmentIndex + 1 }),
         itemReference: reference,
         installmentIndex: missingInstallmentIndex,
       };
@@ -526,8 +529,8 @@ function getPaymentAllocationValidationIssue(allocationMode: PaymentAllocationMo
       if (overLimitInstallment < 0 && cumulative > 100) overLimitInstallment = installmentIndex;
     });
     const total = cumulative;
-    if (total > 100) return { message: `รายการ ${item.description.trim() || reference} จัดสรรเกิน 100% ที่งวด ${overLimitInstallment + 1} (ปัจจุบัน ${total}%)`, itemReference: reference, installmentIndex: overLimitInstallment };
-    if (requireComplete && total !== 100) return { message: `รายการ ${item.description.trim() || reference} ยังจัดสรรไม่ครบ`, itemReference: reference };
+    if (total > 100) return { message: uiMessage("finance.quotation.validation.itemOver", { description: item.description.trim() || reference, number: overLimitInstallment + 1, total }), itemReference: reference, installmentIndex: overLimitInstallment };
+    if (requireComplete && total !== 100) return { message: uiMessage("finance.quotation.validation.itemIncomplete", { description: item.description.trim() || reference }), itemReference: reference };
   }
   return null;
 }
@@ -690,6 +693,7 @@ const profileSelect = [
 ].join(", ");
 
 export function QuotationGuard({ children, canAccess }: { children: (access: QuotationAccess) => ReactNode; canAccess?: (access: QuotationAccess) => boolean }) {
+  const { t } = useI18n();
   const [loading, setLoading] = useState(true);
   const [access, setAccess] = useState<QuotationAccess | null>(null);
 
@@ -729,13 +733,13 @@ export function QuotationGuard({ children, canAccess }: { children: (access: Quo
 
   return (
     <AuthGuard>
-      <AppTopNav title="การเงิน" activePage="finance" />
+      <AppTopNav title={t("finance.quotation.guard.title")} activePage="finance" />
       <main style={pageStyle}>
-        {loading ? <div style={cardStyle}>กำลังโหลดพื้นที่การเงิน...</div> : null}
+        {loading ? <div style={cardStyle}>{t("finance.quotation.guard.loading")}</div> : null}
         {!loading && !allowed ? (
           <div style={cardStyle}>
-            <h2 style={sectionTitleStyle}>ไม่มีสิทธิ์เข้าถึง</h2>
-            <p style={mutedTextStyle}>บัญชีผู้ใช้นี้ไม่มีสิทธิ์เข้าถึงพื้นที่การเงินส่วนนี้</p>
+            <h2 style={sectionTitleStyle}>{t("finance.quotation.guard.denied")}</h2>
+            <p style={mutedTextStyle}>{t("finance.quotation.guard.deniedHelp")}</p>
           </div>
         ) : null}
         {!loading && access && allowed ? children(access) : null}
@@ -747,19 +751,22 @@ export function QuotationGuard({ children, canAccess }: { children: (access: Quo
 export { FinanceSubNav };
 
 export function QuotationList({ access }: { access: QuotationAccess }) {
+  const { t, locale, text, date } = useI18n();
+  const [error, setError] = useState<UiMessage | string>("");
   const [quotations, setQuotations] = useState<QuotationRow[]>([]);
   const [lookups, setLookups] = useState<LookupState>(getEmptyLookups());
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setError("");
     const [quotationRes, lookupRes] = await Promise.all([
       supabase.from("finance_quotations").select("*").order("created_at", { ascending: false }),
       loadLookups(),
     ]);
 
     if (quotationRes.error) {
-      alert("Unable to load quotations.");
+      setError(uiMessage("finance.quotation.list.loadFailed"));
       setLoading(false);
       return;
     }
@@ -781,43 +788,44 @@ export function QuotationList({ access }: { access: QuotationAccess }) {
       <FinanceSubNav activePage="quotations" permissions={access.permissions} />
       <div style={sectionHeaderStyle}>
         <div>
-          <h1 style={pageTitleStyle}>Finance Quotations</h1>
-          <p style={mutedTextStyle}>Structured quotation records only. No ledger posting, invoice, receipt, or legacy conversion.</p>
+          <h1 style={pageTitleStyle}>{t("finance.quotation.list.title")}</h1>
+          <p style={mutedTextStyle}>{t("finance.quotation.list.help")}</p>
         </div>
-        {access.permissions.canCreateFinanceQuotation ? <Link href="/finance/quotations/new" style={primaryButtonStyle}>New Quotation</Link> : null}
+        {access.permissions.canCreateFinanceQuotation ? <Link href="/finance/quotations/new" style={primaryButtonStyle}>{t("finance.quotation.list.new")}</Link> : null}
       </div>
 
+      {error ? <p role="alert" style={errorNoticeTextStyle}>{text(error)}</p> : null}
       <div style={cardStyle}>
         <div style={tableWrapStyle}>
           <table style={tableStyle}>
             <thead>
               <tr>
-                <th style={thStyle}>Quotation No</th>
-                <th style={thStyle}>Client</th>
-                <th style={thStyle}>Linked Matter</th>
-                <th style={thStyle}>Issue Date</th>
-                <th style={thStyle}>Valid Until</th>
-                <th style={thStyle}>Status</th>
-                <th style={rightThStyle}>ยอดสุทธิ / Amount Payable</th>
-                <th style={thStyle}>Actions</th>
+                <th style={thStyle}>{t("finance.quotation.list.number")}</th>
+                <th style={thStyle}>{t("finance.quotation.list.client")}</th>
+                <th style={thStyle}>{t("finance.quotation.list.matter")}</th>
+                <th style={thStyle}>{t("finance.quotation.list.issueDate")}</th>
+                <th style={thStyle}>{t("finance.quotation.list.validUntil")}</th>
+                <th style={thStyle}>{t("finance.quotation.list.status")}</th>
+                <th style={rightThStyle}>{t("finance.quotation.list.payable")}</th>
+                <th style={thStyle}>{t("finance.quotation.list.actions")}</th>
               </tr>
             </thead>
             <tbody>
-              {loading ? <tr><td style={tdStyle} colSpan={8}>Loading...</td></tr> : null}
-              {!loading && quotations.length === 0 ? <tr><td style={tdStyle} colSpan={8}>No quotations yet.</td></tr> : null}
+              {loading ? <tr><td style={tdStyle} colSpan={8}>{t("finance.quotation.list.loading")}</td></tr> : null}
+              {!loading && quotations.length === 0 ? <tr><td style={tdStyle} colSpan={8}>{t("finance.quotation.list.empty")}</td></tr> : null}
               {!loading && quotations.map((quotation) => (
                 <tr key={quotation.id}>
                   <td style={tdStyle}><Link href={`/finance/quotations/${quotation.id}`} style={linkStyle}>{quotation.quotation_no}</Link></td>
                   <td style={tdStyle}>{renderQuotationClientName(quotation, lookups.clients)}</td>
-                  <td style={tdStyle}>{renderMatterLink(quotation, lookups)}</td>
-                  <td style={tdStyle}>{formatDate(quotation.issue_date)}</td>
-                  <td style={tdStyle}>{formatDate(quotation.valid_until)}</td>
+                  <td style={tdStyle}>{renderMatterLink(quotation, lookups, locale)}</td>
+                  <td style={tdStyle}>{date(quotation.issue_date)}</td>
+                  <td style={tdStyle}>{date(quotation.valid_until)}</td>
                   <td style={tdStyle}><StatusBadge status={quotation.status} /></td>
                   <td style={rightTdStyle}>{formatMoney(toAmount(quotation.grand_total))}</td>
                   <td style={tdStyle}>
                     <div style={actionGroupStyle}>
-                      <Link href={`/finance/quotations/${quotation.id}`} style={smallButtonStyle}>View</Link>
-                      {quotation.status === "draft" && access.permissions.canEditFinanceQuotation ? <Link href={`/finance/quotations/${quotation.id}/edit`} style={smallButtonStyle}>Edit</Link> : null}
+                      <Link href={`/finance/quotations/${quotation.id}`} style={smallButtonStyle}>{t("finance.quotation.list.view")}</Link>
+                      {quotation.status === "draft" && access.permissions.canEditFinanceQuotation ? <Link href={`/finance/quotations/${quotation.id}/edit`} style={smallButtonStyle}>{t("finance.quotation.list.edit")}</Link> : null}
                     </div>
                   </td>
                 </tr>
@@ -831,6 +839,8 @@ export function QuotationList({ access }: { access: QuotationAccess }) {
 }
 
 export function QuotationForm({ access, quotationId }: { access: QuotationAccess; quotationId?: string }) {
+  const notify = useUiAlert();
+  const { t, text: uiText } = useI18n();
   const router = useRouter();
   const searchParams = useSearchParams();
   const isEdit = Boolean(quotationId);
@@ -840,7 +850,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
   const [items, setItems] = useState<QuotationItemRow[]>(() => quotationId ? [{ ...emptyItem }] : [createNewQuotationItem()]);
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState(() => searchParams.get("focus") === "payment-terms" ? "สร้างร่างใบเสนอราคาเรียบร้อยแล้ว กรุณากำหนดเงื่อนไขการชำระเงิน" : "");
+  const [saveMessage, setSaveMessage] = useState<UiMessage | string>(() => searchParams.get("focus") === "payment-terms" ? uiMessage("finance.quotation.save.created") : "");
   const [savedDraftSnapshot, setSavedDraftSnapshot] = useState<string | null>(null);
   const [paymentTermsSnapshot, setPaymentTermsSnapshot] = useState<PaymentTermsSnapshot>({ ready: !isEdit, saved: "", current: "" });
   const [, setPaymentTermsValid] = useState(true);
@@ -864,15 +874,15 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       setItems(initialItems);
       setSavedDraftSnapshot(normalizedQuotationDraftSnapshot(nextForm, initialItems));
       setLoading(false);
-      return { ok: false, stage: "refetch", message: "Unable to load quotation form." } as SaveAllResult;
+      return { ok: false, stage: "refetch", message: uiMessage("finance.quotation.error.loadForm") } as SaveAllResult;
     }
 
     const quotationRes = await supabase.from("finance_quotations").select("*").eq("id", quotationId).maybeSingle();
     if (quotationRes.error || !quotationRes.data) {
       console.error("Failed to load quotation for edit", { quotationId, error: quotationRes.error });
-      alert(quotationRes.error ? "Unable to load quotation." : "Quotation not found.");
+      notify(quotationRes.error ? uiMessage("finance.quotation.error.load") : uiMessage("finance.quotation.error.notFound"));
       setLoading(false);
-      return { ok: false, stage: "refetch", message: quotationRes.error ? "Unable to load quotation." : "Quotation not found." } as SaveAllResult;
+      return { ok: false, stage: "refetch", message: quotationRes.error ? uiMessage("finance.quotation.error.load") : uiMessage("finance.quotation.error.notFound") } as SaveAllResult;
     }
 
     const loadedQuotation = quotationRes.data as QuotationRow;
@@ -926,7 +936,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
     setSavedDraftSnapshot(normalizedQuotationDraftSnapshot(nextForm, nextItems));
     setLoading(false);
     return { ok: true } as SaveAllResult;
-  }, [quotationId]);
+  }, [quotationId, notify]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void loadFormData(); }, 0);
@@ -971,7 +981,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
     const changesWording = form.scope_of_legal_services !== nextWording.scope_of_legal_services
       || form.included_services !== nextWording.included_services
       || form.excluded_services !== nextWording.excluded_services;
-    if (hasExistingWording && changesWording && !window.confirm("การเลือกรูปแบบงานใหม่จะแทนที่ข้อความขอบเขตงาน งานที่รวม และงานที่ไม่รวมในฟอร์มนี้ ต้องการดำเนินการต่อหรือไม่?")) return;
+    if (hasExistingWording && changesWording && !window.confirm(t("finance.quotation.pattern.replaceConfirm"))) return;
 
     setForm((current) => ({
       ...current,
@@ -987,21 +997,21 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
   };
 
   const saveDraft = async () => {
-    if (saving || saveInFlightRef.current) return { ok: false, stage: "quotation", message: "A save is already in progress." } as SaveAllResult;
+    if (saving || saveInFlightRef.current) return { ok: false, stage: "quotation", message: uiMessage("finance.quotation.save.inProgress") } as SaveAllResult;
     saveInFlightRef.current = true;
     try {
     if (!canSave) {
-      alert("You do not have permission to save quotations.");
-      return { ok: false, stage: "quotation", message: "You do not have permission to save quotations." } as SaveAllResult;
+      notify(uiMessage("finance.quotation.validation.savePermission"));
+      return { ok: false, stage: "quotation", message: uiMessage("finance.quotation.validation.savePermission") } as SaveAllResult;
     }
     if (isEdit && quotation?.status !== "draft") {
-      alert("Only draft quotations can be edited.");
-      return { ok: false, stage: "quotation", message: "Only draft quotations can be edited." } as SaveAllResult;
+      notify(uiMessage("finance.quotation.validation.draftOnly"));
+      return { ok: false, stage: "quotation", message: uiMessage("finance.quotation.validation.draftOnly") } as SaveAllResult;
     }
 
     const validationError = validateForm(form, items);
     if (validationError) {
-      alert(validationError);
+      notify(validationError);
       return { ok: false, stage: "quotation", message: validationError } as SaveAllResult;
     }
 
@@ -1046,23 +1056,23 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
 
     if (isEdit && quotationId) {
       if (!paymentTermsSnapshot.ready) {
-        alert("กรุณารอให้เงื่อนไขการชำระเงินโหลดเสร็จก่อนบันทึก");
+        notify(uiMessage("finance.quotation.validation.termsLoading"));
         setSaving(false);
-        return { ok: false, stage: "payment_terms", message: "Payment terms are still loading." } as SaveAllResult;
+        return { ok: false, stage: "payment_terms", message: uiMessage("finance.quotation.validation.termsStillLoading") } as SaveAllResult;
       }
 
       const draftTerms = newPaymentTerms;
       if (draftTerms) {
         const paymentTermsValidationIssue = getPaymentTermsPlanValidationIssue(draftTerms.payment_method_type, draftTerms.installments, draftTerms.allocation_mode);
         if (paymentTermsValidationIssue) {
-          alert(paymentTermsValidationIssue.message);
+          notify(paymentTermsValidationIssue.message);
           focusPaymentTermsValidationIssue(paymentTermsValidationIssue);
           setSaving(false);
           return { ok: false, stage: "payment_terms", message: paymentTermsValidationIssue.message } as SaveAllResult;
         }
         const allocationValidationIssue = getPaymentAllocationValidationIssue(draftTerms.allocation_mode, draftTerms.installments, normalizedItems);
         if (allocationValidationIssue) {
-          alert(allocationValidationIssue.message);
+          notify(allocationValidationIssue.message);
           focusPaymentAllocationValidationIssue(allocationValidationIssue);
           setSaving(false);
           return { ok: false, stage: "payment_terms", message: allocationValidationIssue.message } as SaveAllResult;
@@ -1077,7 +1087,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
         ? getAtomicEditPaymentAllocationMappingError(normalizedItems, atomicInstallments)
         : null;
       if (allocationMappingError) {
-        alert(allocationMappingError.message);
+        notify(allocationMappingError.message);
         focusPaymentAllocationValidationIssue(allocationMappingError.issue);
         setSaving(false);
         return { ok: false, stage: "payment_terms", message: allocationMappingError.message } as SaveAllResult;
@@ -1119,7 +1129,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       const invalidPayloadMessage = validateDraftSavePayload(draftSavePayload, currentTotals);
       if (invalidPayloadMessage) {
         console.error("Quotation save validation failed", { rpc: "save_finance_quotation_draft_atomic", safePayload: getSafeAtomicDraftPayloadDiagnostic(draftSavePayload), validation: invalidPayloadMessage });
-        alert("ข้อมูลใบเสนอราคายังไม่ครบถ้วน กรุณาตรวจสอบรายการที่ระบุ");
+        notify(uiMessage("finance.quotation.validation.incomplete"));
         setSaving(false);
         return { ok: false, stage: "quotation", message: invalidPayloadMessage } as SaveAllResult;
       }
@@ -1136,7 +1146,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
           status: (updateError as typeof updateError & { status?: number }).status,
         });
         const message = getAtomicDraftEditErrorMessage(updateError);
-        alert(message);
+        notify(message);
         setSaving(false);
         return { ok: false, stage: "quotation", message } as SaveAllResult;
       }
@@ -1159,26 +1169,26 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       setPaymentTermsReloadVersion((current) => current + 1);
       setSaving(false);
       if (!reloaded.ok) return reloaded;
-      setSaveMessage("บันทึกร่างใบเสนอราคาเรียบร้อยแล้ว");
+      setSaveMessage(uiMessage("finance.quotation.save.saved"));
       return { ok: true } as SaveAllResult;
     }
 
     const draftTerms = newPaymentTerms;
     if (!draftTerms) {
-      alert("กรุณาตรวจสอบเงื่อนไขการชำระเงินก่อนบันทึกร่างใบเสนอราคา");
+      notify(uiMessage("finance.quotation.validation.reviewTerms"));
       setSaving(false);
-      return { ok: false, stage: "payment_terms", message: "Payment terms are not ready." } as SaveAllResult;
+      return { ok: false, stage: "payment_terms", message: uiMessage("finance.quotation.validation.termsNotReady") } as SaveAllResult;
     }
     const paymentTermsValidationIssue = getPaymentTermsPlanValidationIssue(draftTerms.payment_method_type, draftTerms.installments, draftTerms.allocation_mode);
     if (paymentTermsValidationIssue) {
-      alert(paymentTermsValidationIssue.message);
+      notify(paymentTermsValidationIssue.message);
       focusPaymentTermsValidationIssue(paymentTermsValidationIssue);
       setSaving(false);
       return { ok: false, stage: "payment_terms", message: paymentTermsValidationIssue.message } as SaveAllResult;
     }
     const allocationValidationIssue = getPaymentAllocationValidationIssue(draftTerms.allocation_mode, draftTerms.installments, normalizedItems);
     if (allocationValidationIssue) {
-      alert(allocationValidationIssue.message);
+      notify(allocationValidationIssue.message);
       focusPaymentAllocationValidationIssue(allocationValidationIssue);
       setSaving(false);
       return { ok: false, stage: "payment_terms", message: allocationValidationIssue.message } as SaveAllResult;
@@ -1200,7 +1210,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
     const atomicInstallments = buildAtomicPaymentInstallments(draftTerms.payment_method_type, draftTerms.allocation_mode, draftTerms.installments, normalizedItems);
     const allocationMappingError = getAtomicPaymentAllocationMappingError(atomicItems, atomicInstallments);
     if (allocationMappingError) {
-      alert(allocationMappingError.message);
+      notify(allocationMappingError.message);
       focusPaymentTermsValidationIssue(allocationMappingError.issue);
       setSaving(false);
       return { ok: false, stage: "payment_terms", message: allocationMappingError.message } as SaveAllResult;
@@ -1242,9 +1252,9 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
         status: (error as typeof error & { status?: number })?.status,
         returnedQuotationId: created?.quotation_id || null,
       });
-      alert(getAtomicDraftCreateErrorMessage(error));
+      notify(getAtomicDraftCreateErrorMessage(error));
       setSaving(false);
-      return { ok: false, stage: "quotation", message: "Atomic quotation draft creation failed." } as SaveAllResult;
+      return { ok: false, stage: "quotation", message: uiMessage("finance.quotation.error.atomicCreate") } as SaveAllResult;
     }
     setSaving(false);
     router.replace(`/finance/quotations/${created.quotation_id}/edit`);
@@ -1254,7 +1264,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
     }
   };
 
-  const requestNavigation = (href: string, label: string) => {
+  const requestNavigation = (href: string, label: UiMessage | string) => {
     if (!isDirty) {
       router.push(href);
       return;
@@ -1279,7 +1289,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
     return (
       <>
         <FinanceSubNav activePage="quotations" permissions={access.permissions} />
-        <div style={cardStyle}>Loading quotation form...</div>
+        <div style={cardStyle}>{t("finance.quotation.form.loading")}</div>
       </>
     );
   }
@@ -1289,8 +1299,8 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       <>
         <FinanceSubNav activePage="quotations" permissions={access.permissions} />
         <div style={cardStyle}>
-          <h2 style={sectionTitleStyle}>No access</h2>
-          <p style={mutedTextStyle}>You do not have permission to save quotations.</p>
+          <h2 style={sectionTitleStyle}>{t("finance.quotation.guard.denied")}</h2>
+          <p style={mutedTextStyle}>{t("finance.quotation.validation.savePermission")}</p>
         </div>
       </>
     );
@@ -1302,9 +1312,9 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       <>
         <FinanceSubNav activePage="quotations" permissions={access.permissions} />
         <div style={cardStyle}>
-          <h2 style={sectionTitleStyle}>Readonly quotation</h2>
-          <p style={mutedTextStyle}>{readonlyMessage}</p>
-          {quotation ? <Link href={`/finance/quotations/${quotation.id}`} style={primaryButtonStyle}>Back to quotation</Link> : null}
+          <h2 style={sectionTitleStyle}>{t("finance.quotation.form.readOnly")}</h2>
+          <p style={mutedTextStyle}>{uiText(readonlyMessage)}</p>
+          {quotation ? <Link href={`/finance/quotations/${quotation.id}`} style={primaryButtonStyle}>{t("finance.quotation.form.back")}</Link> : null}
         </div>
       </>
     );
@@ -1316,85 +1326,79 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       <style>{quotationHeaderFormCss}</style>
       <div style={sectionHeaderStyle}>
         <div>
-          <h1 style={pageTitleStyle}>{isEdit ? `Edit ${quotation?.quotation_no || "Quotation"}` : "New Quotation"}</h1>
-          <p style={mutedTextStyle}>Create a standalone quotation. This does not create invoice, receipt, ledger, compensation, or legacy conversion records.</p>
+          <h1 style={pageTitleStyle}>{isEdit ? t("finance.quotation.form.editTitle", { number: quotation?.quotation_no || "-" }) : t("finance.quotation.list.new")}</h1>
+          <p style={mutedTextStyle}>{t("finance.quotation.form.help")}</p>
         </div>
         <div style={actionGroupStyle}>
-          <span style={isDirty ? unsavedIndicatorStyle : savedIndicatorStyle}>{!isEdit ? "ยังไม่ได้สร้างร่าง / Draft not created" : isDirty ? "มีการแก้ไขที่ยังไม่ได้บันทึก / Unsaved changes" : "บันทึกแล้ว / Saved"}</span>
-          <button type="button" onClick={() => requestNavigation(isEdit && quotationId ? `/finance/quotations/${quotationId}` : "/finance/quotations", isEdit ? "กลับไปใบเสนอราคา / Back to Quotation" : "Back")} style={secondaryButtonStyle}>กลับไปใบเสนอราคา / Back to Quotation</button>
-          {isEdit && quotationId ? <button type="button" onClick={() => requestNavigation(`/finance/quotations/${quotationId}/preview`, "ดูตัวอย่าง / Preview")} style={secondaryButtonStyle}>ดูตัวอย่าง / Preview</button> : null}
-          {isEdit && quotationId ? <button type="button" onClick={() => requestNavigation(`/finance/quotations/${quotationId}/preview?print=1`, "พิมพ์ / Print")} style={secondaryButtonStyle}>พิมพ์ / Print</button> : null}
+          <span style={isDirty ? unsavedIndicatorStyle : savedIndicatorStyle}>{!isEdit ? t("finance.quotation.save.notCreated") : isDirty ? t("finance.quotation.save.unsaved") : t("finance.quotation.save.clean")}</span>
+          <button type="button" onClick={() => requestNavigation(isEdit && quotationId ? `/finance/quotations/${quotationId}` : "/finance/quotations", isEdit ? uiMessage("finance.quotation.nav.back") : uiMessage("common.actions.back"))} style={secondaryButtonStyle}>{t("finance.quotation.nav.back")}</button>
+          {isEdit && quotationId ? <button type="button" onClick={() => requestNavigation(`/finance/quotations/${quotationId}/preview`, uiMessage("finance.quotation.nav.preview"))} style={secondaryButtonStyle}>{t("finance.quotation.nav.preview")}</button> : null}
+          {isEdit && quotationId ? <button type="button" onClick={() => requestNavigation(`/finance/quotations/${quotationId}/preview?print=1`, uiMessage("finance.quotation.nav.print"))} style={secondaryButtonStyle}>{t("finance.quotation.nav.print")}</button> : null}
         </div>
       </div>
 
       <div style={cardStyle}>
         <div className="quotation-header-form-grid" style={formGridStyle}>
           <div style={wideFieldGroupStyle}>
-            <div style={fieldHeadingStyle}>ลูกค้า / Customer</div>
-            <div style={segmentedControlStyle} role="group" aria-label="เลือกรูปแบบลูกค้า">
-              <button type="button" onClick={() => setForm((current) => ({ ...current, customer_mode: "existing_client", prospect_name: "", prospect_contact_person: "", prospect_phone: "", prospect_email: "", prospect_tax_id: "", prospect_address: "" }))} style={getSegmentButtonStyle(form.customer_mode === "existing_client")}>ลูกค้าในระบบ</button>
-              <button type="button" onClick={() => setForm((current) => ({ ...current, customer_mode: "prospect", client_id: "" }))} style={getSegmentButtonStyle(form.customer_mode === "prospect")}>ลูกค้าใหม่ / ผู้มุ่งหวัง</button>
+            <div style={fieldHeadingStyle}>{t("finance.quotation.form.customer")}</div>
+            <div style={segmentedControlStyle} role="group" aria-label={t("finance.quotation.form.customerMode")}>
+              <button type="button" onClick={() => setForm((current) => ({ ...current, customer_mode: "existing_client", prospect_name: "", prospect_contact_person: "", prospect_phone: "", prospect_email: "", prospect_tax_id: "", prospect_address: "" }))} style={getSegmentButtonStyle(form.customer_mode === "existing_client")}>{t("finance.quotation.form.existingClient")}</button>
+              <button type="button" onClick={() => setForm((current) => ({ ...current, customer_mode: "prospect", client_id: "" }))} style={getSegmentButtonStyle(form.customer_mode === "prospect")}>{t("finance.quotation.form.prospect")}</button>
             </div>
             {form.customer_mode === "existing_client" ? (
-              <label style={labelStyle}>เลือกลูกค้าในระบบ
-                <select value={form.client_id} onChange={(event) => setForm({ ...form, client_id: event.target.value })} style={inputStyle}>
-                  <option value="">เลือกลูกค้า</option>
+              <label style={labelStyle}>{t("finance.quotation.form.selectExistingClient")}<select value={form.client_id} onChange={(event) => setForm({ ...form, client_id: event.target.value })} style={inputStyle}>
+                  <option value="">{t("finance.quotation.form.selectClient")}</option>
                   {lookups.clients.map((client) => <option key={client.id} value={client.id}>{client.name || client.id}</option>)}
                 </select>
               </label>
             ) : (
               <div style={nestedFormGridStyle}>
-                <label style={labelStyle}>ชื่อบุคคล / บริษัท *<input value={form.prospect_name} onChange={(event) => setForm({ ...form, prospect_name: event.target.value })} style={inputStyle} /></label>
-                <label style={labelStyle}>ผู้ติดต่อ<input value={form.prospect_contact_person} onChange={(event) => setForm({ ...form, prospect_contact_person: event.target.value })} style={inputStyle} /></label>
-                <label style={labelStyle}>โทรศัพท์<input value={form.prospect_phone} onChange={(event) => setForm({ ...form, prospect_phone: event.target.value })} style={inputStyle} /></label>
-                <label style={labelStyle}>อีเมล<input type="email" value={form.prospect_email} onChange={(event) => setForm({ ...form, prospect_email: event.target.value })} style={inputStyle} /></label>
-                <label style={labelStyle}>เลขประจำตัวผู้เสียภาษี<input value={form.prospect_tax_id} onChange={(event) => setForm({ ...form, prospect_tax_id: event.target.value })} style={inputStyle} /></label>
-                <label style={{ ...labelStyle, gridColumn: "1 / -1" }}>ที่อยู่<textarea value={form.prospect_address} onChange={(event) => setForm({ ...form, prospect_address: event.target.value })} style={compactTextareaStyle} /></label>
+                <label style={labelStyle}>{t("finance.quotation.form.prospectName")}<input value={form.prospect_name} onChange={(event) => setForm({ ...form, prospect_name: event.target.value })} style={inputStyle} /></label>
+                <label style={labelStyle}>{t("finance.quotation.form.contact")}<input value={form.prospect_contact_person} onChange={(event) => setForm({ ...form, prospect_contact_person: event.target.value })} style={inputStyle} /></label>
+                <label style={labelStyle}>{t("finance.quotation.form.phone")}<input value={form.prospect_phone} onChange={(event) => setForm({ ...form, prospect_phone: event.target.value })} style={inputStyle} /></label>
+                <label style={labelStyle}>{t("finance.quotation.detail.email")}<input type="email" value={form.prospect_email} onChange={(event) => setForm({ ...form, prospect_email: event.target.value })} style={inputStyle} /></label>
+                <label style={labelStyle}>{t("finance.quotation.form.taxId")}<input value={form.prospect_tax_id} onChange={(event) => setForm({ ...form, prospect_tax_id: event.target.value })} style={inputStyle} /></label>
+                <label style={{ ...labelStyle, gridColumn: "1 / -1" }}>{t("finance.quotation.form.address")}<textarea value={form.prospect_address} onChange={(event) => setForm({ ...form, prospect_address: event.target.value })} style={compactTextareaStyle} /></label>
               </div>
             )}
-            <p style={helperTextStyle}>{form.customer_mode === "prospect" ? "ข้อมูลนี้ใช้สำหรับใบเสนอราคาเท่านั้น ระบบจะไม่สร้างทะเบียนลูกค้าโดยอัตโนมัติ" : "ใช้ข้อมูลจากทะเบียนลูกค้าที่มีอยู่ในระบบ"}</p>
+            <p style={helperTextStyle}>{form.customer_mode === "prospect" ? t("finance.quotation.form.prospectHelp") : t("finance.quotation.form.clientHelp")}</p>
           </div>
 
           <div style={wideFieldGroupStyle}>
-            <div style={fieldHeadingStyle}>เรื่อง / งาน</div>
-            <div style={segmentedControlStyle} role="group" aria-label="เลือกรูปแบบเรื่องหรืองาน">
-              <button type="button" onClick={() => setForm((current) => ({ ...current, matter_mode: "unlinked", case_id: "", advisory_matter_id: "" }))} style={getSegmentButtonStyle(form.matter_mode === "unlinked")}>ยังไม่ผูกเรื่องในระบบ</button>
-              <button type="button" onClick={() => setForm((current) => ({ ...current, matter_mode: "case", advisory_matter_id: "", unlinked_matter_name: "", unlinked_matter_description: "" }))} style={getSegmentButtonStyle(form.matter_mode === "case")}>Case</button>
-              <button type="button" onClick={() => setForm((current) => ({ ...current, matter_mode: "advisory", case_id: "", unlinked_matter_name: "", unlinked_matter_description: "" }))} style={getSegmentButtonStyle(form.matter_mode === "advisory")}>Advisory</button>
+            <div style={fieldHeadingStyle}>{t("finance.quotation.form.matter")}</div>
+            <div style={segmentedControlStyle} role="group" aria-label={t("finance.quotation.form.matterMode")}>
+              <button type="button" onClick={() => setForm((current) => ({ ...current, matter_mode: "unlinked", case_id: "", advisory_matter_id: "" }))} style={getSegmentButtonStyle(form.matter_mode === "unlinked")}>{t("finance.quotation.form.unlinkedMatter")}</button>
+              <button type="button" onClick={() => setForm((current) => ({ ...current, matter_mode: "case", advisory_matter_id: "", unlinked_matter_name: "", unlinked_matter_description: "" }))} style={getSegmentButtonStyle(form.matter_mode === "case")}>{t("finance.quotation.form.case")}</button>
+              <button type="button" onClick={() => setForm((current) => ({ ...current, matter_mode: "advisory", case_id: "", unlinked_matter_name: "", unlinked_matter_description: "" }))} style={getSegmentButtonStyle(form.matter_mode === "advisory")}>{t("finance.quotation.form.advisory")}</button>
             </div>
             {form.matter_mode === "case" ? (
-              <label style={labelStyle}>เลือก Case
-                <select value={form.case_id} onChange={(event) => setForm({ ...form, case_id: event.target.value, advisory_matter_id: "" })} style={inputStyle}>
-                  <option value="">เลือก Case</option>
+              <label style={labelStyle}>{t("finance.quotation.form.selectCase")}<select value={form.case_id} onChange={(event) => setForm({ ...form, case_id: event.target.value, advisory_matter_id: "" })} style={inputStyle}>
+                  <option value="">{t("finance.quotation.form.selectCase")}</option>
                   {lookups.cases.map((item) => <option key={item.id} value={item.id}>{renderCaseLabel(item)}</option>)}
                 </select>
               </label>
             ) : null}
             {form.matter_mode === "advisory" ? (
-              <label style={labelStyle}>เลือก Advisory
-                <select value={form.advisory_matter_id} onChange={(event) => setForm({ ...form, advisory_matter_id: event.target.value, case_id: "" })} style={inputStyle}>
-                  <option value="">เลือก Advisory</option>
+              <label style={labelStyle}>{t("finance.quotation.form.selectAdvisory")}<select value={form.advisory_matter_id} onChange={(event) => setForm({ ...form, advisory_matter_id: event.target.value, case_id: "" })} style={inputStyle}>
+                  <option value="">{t("finance.quotation.form.selectAdvisory")}</option>
                   {lookups.matters.map((item) => <option key={item.id} value={item.id}>{renderMatterLabel(item)}</option>)}
                 </select>
               </label>
             ) : null}
             {form.matter_mode === "unlinked" ? (
               <div style={nestedFormGridStyle}>
-                <label style={labelStyle}>ชื่อเรื่อง / ชื่องาน<input value={form.unlinked_matter_name} onChange={(event) => setForm({ ...form, unlinked_matter_name: event.target.value })} style={inputStyle} /></label>
-                <label style={{ ...labelStyle, gridColumn: "1 / -1" }}>รายละเอียดสั้น ๆ<textarea value={form.unlinked_matter_description} onChange={(event) => setForm({ ...form, unlinked_matter_description: event.target.value })} style={compactTextareaStyle} /></label>
+                <label style={labelStyle}>{t("finance.quotation.form.matterTitle")}<input value={form.unlinked_matter_name} onChange={(event) => setForm({ ...form, unlinked_matter_name: event.target.value })} style={inputStyle} /></label>
+                <label style={{ ...labelStyle, gridColumn: "1 / -1" }}>{t("finance.quotation.form.matterDescription")}<textarea value={form.unlinked_matter_description} onChange={(event) => setForm({ ...form, unlinked_matter_description: event.target.value })} style={compactTextareaStyle} /></label>
               </div>
             ) : null}
-            <p style={helperTextStyle}>{form.matter_mode === "unlinked" ? "เว้นว่างได้ และสามารถเชื่อม Case หรือ Advisory ภายหลังโดยไม่สร้างรายการใหม่อัตโนมัติ" : "ใบเสนอราคาจะเชื่อมกับเรื่องที่เลือกไว้"}</p>
+            <p style={helperTextStyle}>{form.matter_mode === "unlinked" ? t("finance.quotation.form.unlinkedHelp") : t("finance.quotation.form.linkedHelp")}</p>
           </div>
 
-          <label style={labelStyle}>Issue Date
-            <input type="date" value={form.issue_date} onChange={(event) => setForm({ ...form, issue_date: event.target.value })} style={inputStyle} />
+          <label style={labelStyle}>{t("finance.quotation.form.issueDate")}<input type="date" value={form.issue_date} onChange={(event) => setForm({ ...form, issue_date: event.target.value })} style={inputStyle} />
           </label>
-          <label style={labelStyle}>Valid Until
-            <input type="date" value={form.valid_until} onChange={(event) => setForm({ ...form, valid_until: event.target.value })} style={inputStyle} />
+          <label style={labelStyle}>{t("finance.quotation.form.validUntil")}<input type="date" value={form.valid_until} onChange={(event) => setForm({ ...form, valid_until: event.target.value })} style={inputStyle} />
           </label>
-          <label className="quotation-authorized-signer-field" style={authorizedSignerLabelStyle}>ผู้ลงนามใบเสนอราคา / Authorized Signer
-            <select value={form.authorized_signer_key} onChange={(event) => setForm({ ...form, authorized_signer_key: event.target.value })} style={authorizedSignerSelectStyle}>
+          <label className="quotation-authorized-signer-field" style={authorizedSignerLabelStyle}>{t("finance.quotation.form.signer")}<select value={form.authorized_signer_key} onChange={(event) => setForm({ ...form, authorized_signer_key: event.target.value })} style={authorizedSignerSelectStyle}>
               {lookups.signers.map((signer) => (
                 <option key={signer.key} value={signer.key}>
                   {signer.displayName} — {formatSignerPosition(signer)}
@@ -1409,11 +1413,10 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
         <div style={formGridStyle}>
           <div style={wideFieldGroupStyle}>
             <div style={servicePatternHeaderStyle}>
-              <label style={servicePatternLabelStyle}>รูปแบบงาน / Service Pattern
-                <select value={form.service_pattern_id} onChange={(event) => applyServicePattern(event.target.value)} style={inputStyle}>
-                  <option value="">ไม่ใช้รูปแบบ / กรอกเอง</option>
+              <label style={servicePatternLabelStyle}>{t("finance.quotation.pattern.label")}<select value={form.service_pattern_id} onChange={(event) => applyServicePattern(event.target.value)} style={inputStyle}>
+                  <option value="">{t("finance.quotation.pattern.none")}</option>
                   {form.service_pattern_id && !lookups.servicePatterns.some((pattern) => pattern.id === form.service_pattern_id) ? (
-                    <option value={form.service_pattern_id} disabled>รูปแบบเดิม: {form.service_pattern_name || form.service_pattern_code || "ไม่เปิดใช้งานแล้ว"}</option>
+                    <option value={form.service_pattern_id} disabled>{t("finance.quotation.pattern.historical")}{form.service_pattern_name || form.service_pattern_code || t("finance.quotation.pattern.inactive")}</option>
                   ) : null}
                   {lookups.servicePatterns.map((pattern) => (
                     <option key={pattern.id} value={pattern.id}>
@@ -1422,32 +1425,29 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
                   ))}
                 </select>
               </label>
-              <Link href="/settings/document-settings#quotation-service-patterns" target="_blank" rel="noreferrer" style={managePatternLinkStyle}>จัดการรูปแบบงาน</Link>
+              <Link href="/settings/document-settings#quotation-service-patterns" target="_blank" rel="noreferrer" style={managePatternLinkStyle}>{t("finance.quotation.pattern.manage")}</Link>
             </div>
-            <p style={helperTextStyle}>รูปแบบงานช่วยเติมข้อความตั้งต้นทั้งสามส่วนครั้งเดียว หลังจากนั้นสามารถแก้ไขข้อความในใบเสนอราคาฉบับนี้ได้อย่างอิสระ</p>
+            <p style={helperTextStyle}>{t("finance.quotation.pattern.help")}</p>
           </div>
-          <label style={wideLabelStyle}>ขอบเขตงาน / Scope of Legal Services
-            <textarea
+          <label style={wideLabelStyle}>{t("finance.quotation.scope.label")}<textarea
               value={form.scope_of_legal_services}
               onChange={(event) => setForm({ ...form, scope_of_legal_services: event.target.value })}
               style={textareaStyle}
-              placeholder="ระบุขอบเขตงานบริการทางกฎหมายที่ใบเสนอราคานี้ครอบคลุม เช่น การให้คำปรึกษา การจัดทำเอกสาร การดำเนินคดี หรือการติดต่อหน่วยงานที่เกี่ยวข้อง"
+              placeholder={t("finance.quotation.scope.placeholder")}
             />
           </label>
-          <label style={wideLabelStyle}>งานที่รวมอยู่ในค่าบริการ / Included Services
-            <textarea
+          <label style={wideLabelStyle}>{t("finance.quotation.scope.included")}<textarea
               value={form.included_services}
               onChange={(event) => setForm({ ...form, included_services: event.target.value })}
               style={textareaStyle}
-              placeholder="ระบุงานหรือบริการที่รวมอยู่ในค่าบริการตามใบเสนอราคานี้"
+              placeholder={t("finance.quotation.scope.includedPlaceholder")}
             />
           </label>
-          <label style={wideLabelStyle}>งานหรือค่าใช้จ่ายที่ไม่รวม / Excluded Services
-            <textarea
+          <label style={wideLabelStyle}>{t("finance.quotation.scope.excluded")}<textarea
               value={form.excluded_services}
               onChange={(event) => setForm({ ...form, excluded_services: event.target.value })}
               style={textareaStyle}
-              placeholder="ระบุงาน ค่าใช้จ่าย หรือค่าธรรมเนียมที่ไม่รวมอยู่ในใบเสนอราคานี้"
+              placeholder={t("finance.quotation.scope.excludedPlaceholder")}
             />
           </label>
         </div>
@@ -1455,20 +1455,20 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
 
       <div style={cardStyle}>
         <div style={sectionHeaderStyle}>
-          <h2 style={sectionTitleStyle}>Line Items / Fee Items</h2>
-          <button type="button" onClick={() => setItems((current) => [...current, createNewQuotationItem(current.length)])} style={secondaryButtonStyle}>Add Item</button>
+          <h2 style={sectionTitleStyle}>{t("finance.quotation.form.feeItems")}</h2>
+          <button type="button" onClick={() => setItems((current) => [...current, createNewQuotationItem(current.length)])} style={secondaryButtonStyle}>{t("finance.quotation.form.addItem")}</button>
         </div>
         <div style={tableWrapStyle}>
           <table style={tableStyle}>
             <thead>
               <tr>
-                <th style={thStyle}>Description</th>
-                <th style={thStyle}>ประเภท / หน่วย</th>
-                <th style={rightThStyle}>Qty</th>
-                <th style={rightThStyle}>Unit Price</th>
-                <th style={thStyle}>VAT</th>
-                <th style={rightThStyle}>Line Total</th>
-                <th style={thStyle}>Actions</th>
+                <th style={thStyle}>{t("finance.quotation.form.description")}</th>
+                <th style={thStyle}>{t("finance.quotation.items.classificationUnit")}</th>
+                <th style={rightThStyle}>{t("finance.quotation.form.quantity")}</th>
+                <th style={rightThStyle}>{t("finance.quotation.form.unitPrice")}</th>
+                <th style={thStyle}>{t("finance.quotation.totals.vat")}</th>
+                <th style={rightThStyle}>{t("finance.quotation.form.lineTotal")}</th>
+                <th style={thStyle}>{t("finance.quotation.form.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -1476,20 +1476,20 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
                 const normalized = normalizeItem(item, index);
                 return (
                   <tr key={index}>
-                    <td style={tdStyle}><input value={item.description} onChange={(event) => updateItem(index, { description: event.target.value })} style={inputStyle} placeholder="Service description" /></td>
-                    <td style={tdStyle}><select aria-label="ประเภทของยอด" value={item.economic_classification} onChange={(event) => updateItem(index, { economic_classification: event.target.value })} style={inputStyle}><option value="">เลือกประเภท</option>{quotationEconomicClassifications.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><input aria-label="หน่วยรายการ" value={item.unit} onChange={(event) => updateItem(index, { unit: event.target.value })} style={vatInputStyle} placeholder="หน่วย เช่น งาน" /></td>
+                    <td style={tdStyle}><input value={item.description} onChange={(event) => updateItem(index, { description: event.target.value })} style={inputStyle} placeholder={t("finance.quotation.form.servicePlaceholder")} /></td>
+                    <td style={tdStyle}><select aria-label={t("finance.quotation.items.classification")} value={item.economic_classification} onChange={(event) => updateItem(index, { economic_classification: event.target.value })} style={inputStyle}><option value="">{t("finance.quotation.items.selectClassification")}</option>{quotationEconomicClassifications.map(([value]) => <option key={value} value={value}>{t(`finance.quotation.classification.${value}`)}</option>)}</select><input aria-label={t("finance.quotation.items.unit")} value={item.unit} onChange={(event) => updateItem(index, { unit: event.target.value })} style={vatInputStyle} placeholder={t("finance.quotation.items.unitPlaceholder")} /></td>
                     <td style={rightTdStyle}><input type="number" min="0.01" step="0.01" value={item.quantity} onChange={(event) => updateItem(index, { quantity: event.target.value })} style={compactInputStyle} /></td>
                     <td style={rightTdStyle}><input type="number" min="0" step="0.01" value={item.unit_price} onChange={(event) => updateItem(index, { unit_price: event.target.value })} style={compactInputStyle} /></td>
                     <td style={tdStyle}>
-                      <select value={item.price_tax_mode || (item.vat_applicable ? "vat_exclusive" : "non_vat")} onChange={(event) => { const price_tax_mode = event.target.value as NonNullable<QuotationItemRow["price_tax_mode"]>; updateItem(index, { vat_treatment_json: null, price_tax_mode, vat_applicable: price_tax_mode !== "non_vat", vat_rate: price_tax_mode === "non_vat" ? 0 : (item.vat_rate || 7) }); }} style={inputStyle}><option value="non_vat">Non-VAT</option><option value="vat_exclusive">VAT Exclusive</option><option value="vat_inclusive">VAT Inclusive</option></select>
-                      {(item.price_tax_mode || (item.vat_applicable ? "vat_exclusive" : "non_vat")) !== "non_vat" ? <input aria-label="VAT rate" type="number" min="0" step="0.01" value={item.vat_rate} onChange={(event) => updateItem(index, { vat_treatment_json: null, vat_rate: event.target.value })} style={vatInputStyle} /> : null}
+                      <select value={item.price_tax_mode || (item.vat_applicable ? "vat_exclusive" : "non_vat")} onChange={(event) => { const price_tax_mode = event.target.value as NonNullable<QuotationItemRow["price_tax_mode"]>; updateItem(index, { vat_treatment_json: null, price_tax_mode, vat_applicable: price_tax_mode !== "non_vat", vat_rate: price_tax_mode === "non_vat" ? 0 : (item.vat_rate || 7) }); }} style={inputStyle}><option value="non_vat">{t("finance.quotation.form.nonVat")}</option><option value="vat_exclusive">{t("finance.quotation.form.vatExclusive")}</option><option value="vat_inclusive">{t("finance.quotation.form.vatInclusive")}</option></select>
+                      {(item.price_tax_mode || (item.vat_applicable ? "vat_exclusive" : "non_vat")) !== "non_vat" ? <input aria-label={t("finance.quotation.form.vatRate")} type="number" min="0" step="0.01" value={item.vat_rate} onChange={(event) => updateItem(index, { vat_treatment_json: null, vat_rate: event.target.value })} style={vatInputStyle} /> : null}
                       <VatTreatmentInput value={item.vat_treatment_json} applicable={item.price_tax_mode !== "non_vat" && item.vat_applicable} rate={toAmount(item.vat_rate)} onChange={vat_treatment_json => updateItem(index, { vat_treatment_json })} />
                     </td>
                     <td style={rightTdStyle}>
                       <strong>{formatMoney(toAmount(normalized.line_total))}</strong>
                       <LineItemVatExplanation item={normalized} />
                     </td>
-                    <td style={tdStyle}><button type="button" onClick={() => removeItem(index)} style={dangerSmallButtonStyle} disabled={items.length === 1}>Remove</button></td>
+                    <td style={tdStyle}><button type="button" onClick={() => removeItem(index)} style={dangerSmallButtonStyle} disabled={items.length === 1}>{t("finance.quotation.form.remove")}</button></td>
                   </tr>
                 );
               })}
@@ -1503,26 +1503,24 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
 
       <div style={cardStyle}>
         <div style={formGridStyle}>
-          <label style={wideLabelStyle}>Note
-            <textarea value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} style={textareaStyle} />
+          <label style={wideLabelStyle}>{t("finance.quotation.form.note")}<textarea value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} style={textareaStyle} />
           </label>
-          <label style={wideLabelStyle}>Internal Note
-            <textarea value={form.internal_note} onChange={(event) => setForm({ ...form, internal_note: event.target.value })} style={textareaStyle} />
+          <label style={wideLabelStyle}>{t("finance.quotation.form.internalNote")}<textarea value={form.internal_note} onChange={(event) => setForm({ ...form, internal_note: event.target.value })} style={textareaStyle} />
           </label>
         </div>
         <div style={buttonRowStyle}>
-          {saveMessage ? <span style={noticeTextStyle}>{saveMessage}</span> : null}
-          <button type="button" onClick={() => { void saveDraft(); }} disabled={saveDisabled} style={{ ...primaryButtonStyle, whiteSpace: "normal", textAlign: "center" }}>{saving ? "Saving..." : isEdit ? "บันทึกร่างทั้งหมด / Save All Draft Changes" : <>สร้างร่างและกำหนดเงื่อนไขการชำระเงิน<br /><span style={{ fontSize: 12, fontWeight: 500 }}>Create Draft and Set Payment Terms</span></>}</button>
+          {saveMessage ? <span style={noticeTextStyle}>{uiText(saveMessage)}</span> : null}
+          <button type="button" onClick={() => { void saveDraft(); }} disabled={saveDisabled} style={{ ...primaryButtonStyle, whiteSpace: "normal", textAlign: "center" }}>{saving ? t("finance.quotation.engagement.saving") : isEdit ? t("finance.quotation.save.all") : t("finance.quotation.form.createButtonTitle")}</button>
         </div>
       </div>
       {pendingNavigation ? <div style={dialogBackdropStyle} role="dialog" aria-modal="true" aria-labelledby="unsaved-changes-title">
         <div style={dialogStyle}>
-          <h2 id="unsaved-changes-title" style={sectionTitleStyle}>มีการแก้ไขที่ยังไม่ได้บันทึก</h2>
-          <p style={mutedTextStyle}>คุณต้องการบันทึกร่างทั้งหมดก่อน{pendingNavigation.label}หรือไม่</p>
+          <h2 id="unsaved-changes-title" style={sectionTitleStyle}>{t("finance.quotation.navigation.unsaved")}</h2>
+          <p style={mutedTextStyle}>{t("finance.quotation.navigation.confirm", { action: uiText(pendingNavigation.label) })}</p>
           <div style={{ ...actionGroupStyle, justifyContent: "flex-end", marginTop: 18 }}>
-            <button type="button" onClick={() => setPendingNavigation(null)} disabled={saving} style={secondaryButtonStyle}>ยกเลิก / Cancel</button>
-            <button type="button" onClick={() => { const destination = pendingNavigation; setPendingNavigation(null); router.push(destination.href); }} disabled={saving} style={dangerButtonStyle}>ดำเนินการต่อโดยไม่บันทึก</button>
-            <button type="button" onClick={() => { void saveAndContinue(); }} disabled={saveDisabled} style={primaryButtonStyle}>{saving ? "Saving..." : "บันทึกแล้วดำเนินการต่อ / Save and continue"}</button>
+            <button type="button" onClick={() => setPendingNavigation(null)} disabled={saving} style={secondaryButtonStyle}>{t("finance.quotation.navigation.cancel")}</button>
+            <button type="button" onClick={() => { const destination = pendingNavigation; setPendingNavigation(null); router.push(destination.href); }} disabled={saving} style={dangerButtonStyle}>{t("finance.quotation.navigation.discard")}</button>
+            <button type="button" onClick={() => { void saveAndContinue(); }} disabled={saveDisabled} style={primaryButtonStyle}>{saving ? t("finance.quotation.engagement.saving") : t("finance.quotation.navigation.saveContinue")}</button>
           </div>
         </div>
       </div> : null}
@@ -1531,6 +1529,8 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
 }
 
 function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onFocusHandled, onDraftPayloadChange, onSnapshotChange, onValidityChange }: { quotationId?: string; isNew: boolean; quotationItems: QuotationItemRow[]; autoFocus: boolean; onFocusHandled: () => void; onDraftPayloadChange: (payload: NewPaymentTermsPayload | null) => void; onSnapshotChange: (snapshot: PaymentTermsSnapshot) => void; onValidityChange: (valid: boolean) => void }) {
+  const notify = useUiAlert();
+  const { t, text: uiText } = useI18n();
   const [terms, setTerms] = useState<PaymentTermsRow | null>(() => isNew ? { id: "new", payment_method_type: "single", client_summary: null } : null);
   const [method, setMethod] = useState<PaymentMethodType>("single");
   const [summary, setSummary] = useState("");
@@ -1603,7 +1603,7 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
       .maybeSingle();
     if (headerError) {
       console.error("Failed to load quotation payment terms", { quotationId, error: headerError });
-      alert("ไม่สามารถโหลดเงื่อนไขการชำระเงินได้");
+      notify(uiMessage("finance.quotation.error.termsLoad"));
       setLoading(false);
       return;
     }
@@ -1621,7 +1621,7 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
       .order("installment_no", { ascending: true });
     if (installmentRes.error) {
       console.error("Failed to load payment installments", { quotationId, error: installmentRes.error });
-      alert("ไม่สามารถโหลดงวดการชำระเงินได้");
+      notify(uiMessage("finance.quotation.error.installmentsLoad"));
       setLoading(false);
       return;
     }
@@ -1635,7 +1635,7 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
         .order("sort_order", { ascending: true });
     if (allocationRes.error) {
       console.error("Failed to load payment allocations", { quotationId, error: allocationRes.error });
-      alert("ไม่สามารถโหลดรายการจัดสรรการชำระเงินได้");
+      notify(uiMessage("finance.quotation.error.allocationsLoad"));
       setLoading(false);
       return;
     }
@@ -1670,7 +1670,7 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
     setInstallments(nextInstallments);
     setSavedSnapshot(normalizedPaymentTermsSnapshot(nextMethod, effectiveSummary, nextInstallments, nextAllocationMode));
     setLoading(false);
-  }, [isNew, quotationId]);
+  }, [isNew, quotationId, notify]);
 
   useEffect(() => {
     if (!autoFocus || loading || hasFocusedRef.current) return;
@@ -1746,7 +1746,7 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
     const hasPerItemValues = allocationMode === "per_item" && installments.some((installment) => (
       installment.items.some((allocation) => toAmount(allocation.allocation_percentage || 0) > 0)
     ));
-    if (nextMode === "proportional_all_items" && hasPerItemValues && !window.confirm("การเปลี่ยนเป็นการกระจายสัดส่วนเดียวกันจะไม่ใช้ค่าที่กรอกแยกตามรายการเมื่อบันทึก ต้องการเปลี่ยนโหมดหรือไม่?")) return;
+    if (nextMode === "proportional_all_items" && hasPerItemValues && !window.confirm(t("finance.quotation.allocation.modeConfirm"))) return;
     setAllocationMode(nextMode);
     if (nextMode === "per_item") {
       setInstallments((current) => current.map((item) => ({ ...item, calculation_type: "percentage", percentage: "100" })));
@@ -1784,7 +1784,7 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
     const calculationType = installments[0]?.calculation_type || "percentage";
     const remaining = normalizePercentage(100 - installments.reduce((sum, item) => sum + (item.calculation_type === "percentage" ? toAmount(item.percentage) : 0), 0));
     if (allocationMode === "proportional_all_items" && calculationType === "percentage" && remaining <= 0) {
-      alert("เปอร์เซ็นต์รวมครบ 100% แล้ว ไม่สามารถเพิ่มงวดได้");
+      notify(uiMessage("finance.quotation.allocation.full"));
       return;
     }
     const nextInstallmentIndex = installments.length;
@@ -1820,13 +1820,13 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
   const paymentTermsValid = !terms || (!allocationValidationIssue && !paymentTermsValidationMessage);
   const allocationStatusMessage = paymentTermsValidationMessage || allocationValidationIssue?.message || (allocationMode === "per_item"
     ? (complete
-      ? "ทุกรายการจัดสรรครบ 100% พร้อมสำหรับการตรวจสอบก่อนส่ง"
-      : incompletePerItem.map(({ item, remaining }) => `รายการ ${item.description || item.id || "-"} ยังจัดสรรไม่ครบ เหลือ ${remaining}% หรือ ${formatMoney(toAmount(item.line_total) * remaining / 100)}`).join(" | "))
+      ? t("finance.quotation.allocation.allItemsComplete")
+      : incompletePerItem.map(({ item, remaining }) => t("finance.quotation.allocation.itemRemaining", { description: item.description || item.id || "-", percentage: remaining, amount: formatMoney(toAmount(item.line_total) * remaining / 100) })).join(" | "))
     : isPercentage
       ? (complete
-        ? "สัดส่วนรวมครบ 100% พร้อมสำหรับการตรวจสอบก่อนส่ง"
-        : `สัดส่วนรวม ${percentageTotal.toFixed(6).replace(/\.0+$/, "")}% ยังขาด ${normalizePercentage(100 - percentageTotal).toFixed(6).replace(/\.0+$/, "")}%`)
-      : `จัดสรรแล้ว ${formatMoney(fixedAllocated)} คงเหลือ ${formatMoney(Math.max(0, quotationTotal - fixedAllocated))}${complete ? " พร้อมสำหรับการตรวจสอบก่อนส่ง" : " ยังไม่ครบสำหรับการส่งใบเสนอราคา"}`);
+        ? t("finance.quotation.allocation.proportionsComplete")
+        : t("finance.quotation.allocation.percentageRemaining", { total: percentageTotal.toFixed(6).replace(/\.0+$/, ""), remaining: normalizePercentage(100 - percentageTotal).toFixed(6).replace(/\.0+$/, "") }))
+      : t(complete ? "finance.quotation.allocation.fixedComplete" : "finance.quotation.allocation.fixedIncomplete", { allocated: formatMoney(fixedAllocated), remaining: formatMoney(Math.max(0, quotationTotal - fixedAllocated)) }));
   const allocationStatusHasError = Boolean(paymentTermsValidationMessage || allocationValidationIssue);
 
   useEffect(() => {
@@ -1838,63 +1838,64 @@ function PaymentTermsEditor({ quotationId, isNew, quotationItems, autoFocus, onF
     if (saving) return;
     setSaving(true);
     const { error } = await supabase.rpc("create_default_finance_quotation_payment_terms", { p_quotation_id: quotationId, p_payment_due_days: 0 });
-    if (error) alert("ไม่สามารถสร้างเงื่อนไขชำระเต็มจำนวนได้ กรุณาลองใหม่");
+    if (error) notify(uiMessage("finance.quotation.error.createTerms"));
     else await loadTerms();
     setSaving(false);
   };
-  if (loading) return <div style={cardStyle}>Loading payment terms...</div>;
-  if (!terms) return <div id="quotation-payment-terms" ref={sectionRef} tabIndex={-1} style={{ ...cardStyle, scrollMarginTop: 96 }}><h2 style={sectionTitleStyle}>เงื่อนไขการชำระเงิน / Payment Terms</h2><p style={mutedTextStyle}>ยังไม่มีเงื่อนไขการชำระเงินสำหรับใบเสนอราคาฉบับร่างนี้</p><button type="button" onClick={createDefault} disabled={saving} style={primaryButtonStyle}>{saving ? "Creating..." : "สร้างเงื่อนไขชำระเต็มจำนวน / Create Full Payment Terms"}</button></div>;
+  if (loading) return <div style={cardStyle}>{t("finance.quotation.terms.loading")}</div>;
+  if (!terms) return <div id="quotation-payment-terms" ref={sectionRef} tabIndex={-1} style={{ ...cardStyle, scrollMarginTop: 96 }}><h2 style={sectionTitleStyle}>{t("finance.quotation.terms.heading")}</h2><p style={mutedTextStyle}>{t("finance.quotation.terms.none")}</p><button type="button" onClick={createDefault} disabled={saving} style={primaryButtonStyle}>{saving ? t("finance.quotation.engagement.creating") : t("finance.quotation.terms.createFull")}</button></div>;
 
   return <div id="quotation-payment-terms" ref={sectionRef} tabIndex={-1} style={{ ...cardStyle, scrollMarginTop: 96 }}>
-    <div style={sectionHeaderStyle}><div><h2 style={sectionTitleStyle}>เงื่อนไขการชำระเงิน / Payment Terms</h2><p style={mutedTextStyle}>เงื่อนไขการชำระเงินจะบันทึกพร้อมกับร่างใบเสนอราคา</p></div></div>
+    <div style={sectionHeaderStyle}><div><h2 style={sectionTitleStyle}>{t("finance.quotation.terms.heading")}</h2><p style={mutedTextStyle}>{t("finance.quotation.terms.atomicSave")}</p></div></div>
     <div style={formGridStyle}>
-      <label style={labelStyle}>วิธีชำระเงิน / Payment Method<select ref={paymentMethodRef} value={method} onChange={(event) => setPaymentMethod(event.target.value as PaymentMethodType)} style={inputStyle}><option value="single">ชำระครั้งเดียว / Single Payment</option><option value="installments">แบ่งชำระหลายงวด / Installments</option><option value="milestone">ตามขั้นตอนงาน / Milestone</option><option value="recurring">เรียกเก็บเป็นรอบ / Recurring</option><option value="manual">กำหนดเอง / Manual</option></select></label>
-      <label style={labelStyle}>วิธีกระจายค่าบริการในแต่ละงวด<select value={allocationMode} onChange={(event) => setPaymentAllocationMode(event.target.value as PaymentAllocationMode)} style={inputStyle}><option value="proportional_all_items">กระจายทุกรายการตามสัดส่วนเดียวกัน</option><option value="per_item">กำหนดสัดส่วนแยกแต่ละรายการ</option></select><span style={helperTextStyle}>กำหนดว่ารายการค่าบริการในใบเสนอราคาจะถูกกระจายเข้าแต่ละงวดอย่างไร ไม่เกี่ยวกับการแบ่งค่าตอบแทนภายในสำนักงาน</span></label>
+      <label style={labelStyle}>{t("finance.quotation.terms.method")}<select ref={paymentMethodRef} value={method} onChange={(event) => setPaymentMethod(event.target.value as PaymentMethodType)} style={inputStyle}><option value="single">{t("finance.quotation.method.single")}</option><option value="installments">{t("finance.quotation.method.installments")}</option><option value="milestone">{t("finance.quotation.method.milestone")}</option><option value="recurring">{t("finance.quotation.method.recurring")}</option><option value="manual">{t("finance.quotation.method.manual")}</option></select></label>
+      <label style={labelStyle}>{t("finance.quotation.allocation.mode")}<select value={allocationMode} onChange={(event) => setPaymentAllocationMode(event.target.value as PaymentAllocationMode)} style={inputStyle}><option value="proportional_all_items">{t("finance.quotation.allocation.proportional")}</option><option value="per_item">{t("finance.quotation.allocation.perItem")}</option></select><span style={helperTextStyle}>{t("finance.quotation.allocation.help")}</span></label>
     </div>
     {installments.map((installment, index) => <div id={`payment-installment-${index}`} key={index} tabIndex={-1} style={{ ...cardStyle, marginTop: 12, background: "#f8fafc", scrollMarginTop: 96 }}>
-      <div style={sectionHeaderStyle}><h3 style={sectionTitleStyle}>งวดที่ {index + 1}</h3>{method !== "single" ? <div style={actionGroupStyle}><button type="button" title="เลื่อนงวดขึ้น" disabled={index === 0} onClick={() => setInstallments((current) => { const next = [...current]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; return normalizePaymentInstallments(next, method); })} style={smallButtonStyle}>เลื่อนขึ้น</button><button type="button" title="เลื่อนงวดลง" disabled={index === installments.length - 1} onClick={() => setInstallments((current) => { const next = [...current]; [next[index], next[index + 1]] = [next[index + 1], next[index]]; return normalizePaymentInstallments(next, method); })} style={smallButtonStyle}>เลื่อนลง</button><button type="button" onClick={() => setInstallments((current) => normalizePaymentInstallments(current.filter((_, itemIndex) => itemIndex !== index), method))} style={dangerSmallButtonStyle}>ลบงวด</button></div> : null}</div>
+      <div style={sectionHeaderStyle}><h3 style={sectionTitleStyle}>{t("finance.quotation.installment.number", { number: index + 1 })}</h3>{method !== "single" ? <div style={actionGroupStyle}><button type="button" title={t("finance.quotation.installment.moveUpLabel")} disabled={index === 0} onClick={() => setInstallments((current) => { const next = [...current]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; return normalizePaymentInstallments(next, method); })} style={smallButtonStyle}>{t("finance.quotation.installment.moveUp")}</button><button type="button" title={t("finance.quotation.installment.moveDownLabel")} disabled={index === installments.length - 1} onClick={() => setInstallments((current) => { const next = [...current]; [next[index], next[index + 1]] = [next[index + 1], next[index]]; return normalizePaymentInstallments(next, method); })} style={smallButtonStyle}>{t("finance.quotation.installment.moveDown")}</button><button type="button" onClick={() => setInstallments((current) => normalizePaymentInstallments(current.filter((_, itemIndex) => itemIndex !== index), method))} style={dangerSmallButtonStyle}>{t("finance.quotation.installment.remove")}</button></div> : null}</div>
       <InstallmentAmountSummary total={installmentTotals[index]} percentage={allocationMode === "proportional_all_items" && installment.calculation_type === "percentage" ? toAmount(installment.percentage) : null} effectivePercentage={quotationTotal > 0 ? installmentTotals[index].total * 100 / quotationTotal : 0} perItem={allocationMode === "per_item"} />
       <div style={formGridStyle}>
-        <label style={labelStyle}>ชื่องวด<input id={`payment-installment-${index}-title`} value={installment.title} onChange={(event) => updateInstallment(index, { title: event.target.value })} style={inputStyle} /></label>
-        {allocationMode === "proportional_all_items" ? <><label style={labelStyle}>วิธีคำนวณ<select value={installment.calculation_type} disabled={method === "single"} onChange={(event) => changeCalculationType(event.target.value as PaymentCalculationType)} style={inputStyle}><option value="percentage">ตามสัดส่วน (%)</option><option value="fixed_amount">กำหนดยอดเงินแยกรายการ</option></select></label>
-        {installment.calculation_type === "percentage" ? <label style={labelStyle}>สัดส่วน<div style={compactFieldGroupStyle}><select value={percentageChoice(installment.percentage)} disabled={method === "single"} onChange={(event) => { const value = event.target.value; updateInstallment(index, { percentage: value === "other" ? "" : value }); }} style={compactSelectStyle}><option value="50">50%</option><option value="25">25%</option><option value="20">20%</option><option value="other">กำหนดเอง</option></select>{percentageChoice(installment.percentage) === "other" ? <input id={`payment-installment-${index}-percentage`} aria-label={`สัดส่วนงวดที่ ${index + 1}`} type="number" min="0.000001" max="100" step="0.000001" value={installment.percentage} onChange={(event) => updateInstallment(index, { percentage: event.target.value })} style={compactInputStyle} /> : null}</div></label> : null}</> : null}
-        <label style={labelStyle}>เงื่อนไขเรียกเก็บ<select id={`payment-installment-${index}-trigger`} value={forcedTrigger(method) || installment.trigger_type} disabled={Boolean(forcedTrigger(method))} onChange={(event) => updateInstallment(index, { trigger_type: event.target.value as PaymentTriggerType })} style={inputStyle}><option value="quotation_acceptance">เมื่อลูกค้ายืนยันใบเสนอราคา</option><option value="agreement_effective">เมื่อข้อตกลงมีผล</option><option value="date">ตามวันที่กำหนด</option><option value="case_milestone">ตามขั้นตอนงานหรือคดี</option>{method !== "installments" ? <option value="recurring_period">ตามรอบเวลา</option> : null}<option value="manual">กำหนดเงื่อนไขเอง</option></select><span style={helperTextStyle}>เหตุการณ์ที่ทำให้ถึงงวดเรียกเก็บ</span></label>
-        {triggerUsesFixedCalendarDate(method, installment.trigger_type) ? <label style={labelStyle}>วันที่เรียกเก็บ<input id={`payment-installment-${index}-due_date`} type="date" value={installment.due_date} onChange={(event) => updateInstallment(index, { due_date: event.target.value })} style={inputStyle} /></label> : null}
-        {["case_milestone", "recurring_period", "manual"].includes(forcedTrigger(method) || installment.trigger_type) ? <label style={wideLabelStyle}>รายละเอียดเงื่อนไข<input id={`payment-installment-${index}-trigger_description`} placeholder="เช่น เมื่อยื่นฟ้องหรือคำให้การ ก่อนวันนัดสืบพยาน หรือเมื่อส่งมอบงาน" value={installment.trigger_description} onChange={(event) => updateInstallment(index, { trigger_description: event.target.value })} style={inputStyle} /></label> : null}
-        <label style={labelStyle}>กำหนดชำระ<div style={compactFieldGroupStyle}><select id={`payment-installment-${index}-payment_due_days`} value={paymentDueChoice(installment.payment_due_days)} onChange={(event) => { const value = event.target.value; updateInstallment(index, { payment_due_days: value === "other" ? "" : value }); }} style={compactSelectStyle}>{paymentDueDayPresets.map((days) => <option key={days} value={days}>{days} วัน</option>)}<option value="other">กำหนดเอง</option></select>{paymentDueChoice(installment.payment_due_days) === "other" ? <input id={`payment-installment-${index}-payment_due_days`} aria-label={`จำนวนวันชำระงวดที่ ${index + 1}`} type="number" min="0" step="1" value={installment.payment_due_days} onChange={(event) => updateInstallment(index, { payment_due_days: event.target.value })} style={compactInputStyle} /> : null}</div><span style={helperTextStyle}>เมื่อถึงงวดแล้ว ลูกค้าต้องชำระภายในกี่วันนับแต่ได้รับใบแจ้งหนี้</span></label>
-        <label style={wideLabelStyle}>หมายเหตุที่แสดงแก่ลูกค้า<textarea value={installment.client_note} onChange={(event) => updateInstallment(index, { client_note: event.target.value })} style={textareaStyle} /></label>
+        <label style={labelStyle}>{t("finance.quotation.installment.title")}<input id={`payment-installment-${index}-title`} value={installment.title} onChange={(event) => updateInstallment(index, { title: event.target.value })} style={inputStyle} /></label>
+        {allocationMode === "proportional_all_items" ? <><label style={labelStyle}>{t("finance.quotation.installment.calculation")}<select value={installment.calculation_type} disabled={method === "single"} onChange={(event) => changeCalculationType(event.target.value as PaymentCalculationType)} style={inputStyle}><option value="percentage">{t("finance.quotation.installment.percentage")}</option><option value="fixed_amount">{t("finance.quotation.installment.fixed")}</option></select></label>
+        {installment.calculation_type === "percentage" ? <label style={labelStyle}>{t("finance.quotation.installment.proportion")}<div style={compactFieldGroupStyle}><select value={percentageChoice(installment.percentage)} disabled={method === "single"} onChange={(event) => { const value = event.target.value; updateInstallment(index, { percentage: value === "other" ? "" : value }); }} style={compactSelectStyle}><option value="50">50%</option><option value="25">25%</option><option value="20">20%</option><option value="other">{t("finance.quotation.installment.custom")}</option></select>{percentageChoice(installment.percentage) === "other" ? <input id={`payment-installment-${index}-percentage`} aria-label={t("finance.quotation.installment.proportionLabel", { number: index + 1 })} type="number" min="0.000001" max="100" step="0.000001" value={installment.percentage} onChange={(event) => updateInstallment(index, { percentage: event.target.value })} style={compactInputStyle} /> : null}</div></label> : null}</> : null}
+        <label style={labelStyle}>{t("finance.quotation.installment.trigger")}<select id={`payment-installment-${index}-trigger`} value={forcedTrigger(method) || installment.trigger_type} disabled={Boolean(forcedTrigger(method))} onChange={(event) => updateInstallment(index, { trigger_type: event.target.value as PaymentTriggerType })} style={inputStyle}><option value="quotation_acceptance">{t("finance.quotation.trigger.acceptance")}</option><option value="agreement_effective">{t("finance.quotation.trigger.agreementEffective")}</option><option value="date">{t("finance.quotation.trigger.date")}</option><option value="case_milestone">{t("finance.quotation.trigger.milestone")}</option>{method !== "installments" ? <option value="recurring_period">{t("finance.quotation.trigger.recurring")}</option> : null}<option value="manual">{t("finance.quotation.trigger.manual")}</option></select><span style={helperTextStyle}>{t("finance.quotation.trigger.help")}</span></label>
+        {triggerUsesFixedCalendarDate(method, installment.trigger_type) ? <label style={labelStyle}>{t("finance.quotation.installment.billingDate")}<input id={`payment-installment-${index}-due_date`} type="date" value={installment.due_date} onChange={(event) => updateInstallment(index, { due_date: event.target.value })} style={inputStyle} /></label> : null}
+        {["case_milestone", "recurring_period", "manual"].includes(forcedTrigger(method) || installment.trigger_type) ? <label style={wideLabelStyle}>{t("finance.quotation.installment.triggerDescription")}<input id={`payment-installment-${index}-trigger_description`} placeholder={t("finance.quotation.installment.triggerPlaceholder")} value={installment.trigger_description} onChange={(event) => updateInstallment(index, { trigger_description: event.target.value })} style={inputStyle} /></label> : null}
+        <label style={labelStyle}>{t("finance.quotation.installment.paymentDue")}<div style={compactFieldGroupStyle}><select id={`payment-installment-${index}-payment_due_days`} value={paymentDueChoice(installment.payment_due_days)} onChange={(event) => { const value = event.target.value; updateInstallment(index, { payment_due_days: value === "other" ? "" : value }); }} style={compactSelectStyle}>{paymentDueDayPresets.map((days) => <option key={days} value={days}>{days} {t("finance.quotation.installment.days")}</option>)}<option value="other">{t("finance.quotation.installment.custom")}</option></select>{paymentDueChoice(installment.payment_due_days) === "other" ? <input id={`payment-installment-${index}-payment_due_days`} aria-label={t("finance.quotation.installment.dueDaysLabel", { number: index + 1 })} type="number" min="0" step="1" value={installment.payment_due_days} onChange={(event) => updateInstallment(index, { payment_due_days: event.target.value })} style={compactInputStyle} /> : null}</div><span style={helperTextStyle}>{t("finance.quotation.installment.dueHelp")}</span></label>
+        <label style={wideLabelStyle}>{t("finance.quotation.installment.clientNote")}<textarea value={installment.client_note} onChange={(event) => updateInstallment(index, { client_note: event.target.value })} style={textareaStyle} /></label>
       </div>
-      {allocationMode === "proportional_all_items" ? installment.calculation_type === "fixed_amount" ? <div style={tableWrapStyle}><h4 style={sectionTitleStyle}>Advanced Item Allocation</h4><table style={tableStyle}><thead><tr><th style={thStyle}>Quotation Item</th><th style={rightThStyle}>Before VAT</th><th style={rightThStyle}>VAT</th><th style={rightThStyle}>Total</th><th style={rightThStyle}>Remaining</th></tr></thead><tbody>{quotationItems.filter((item) => item.id || item.client_item_key).map((quotationItem) => { const reference = paymentReferenceForItem(quotationItem); const allocation = installment.items.find((item) => paymentAllocationReference(item) === reference) || { ...(quotationItem.id ? { quotation_item_id: quotationItem.id } : { client_item_key: quotationItem.client_item_key }), allocated_amount_before_tax: 0, allocated_vat_amount: 0, allocated_total: 0 }; const allocatedElsewhere = installments.filter((_, installmentIndex) => installmentIndex !== index).reduce((sum, other) => sum + (other.items.find((item) => paymentAllocationReference(item) === reference)?.allocated_total || 0), 0); const patch = (field: keyof PaymentAllocation, value: string) => updateInstallment(index, { items: installment.items.some((item) => paymentAllocationReference(item) === reference) ? installment.items.map((item) => paymentAllocationReference(item) === reference ? { ...item, [field]: toAmount(value), allocated_total: field === "allocated_total" ? toAmount(value) : (field === "allocated_amount_before_tax" ? toAmount(value) : item.allocated_amount_before_tax) + (field === "allocated_vat_amount" ? toAmount(value) : item.allocated_amount_before_tax) } : item) : [...installment.items, { ...allocation, [field]: toAmount(value), allocated_total: field === "allocated_total" ? toAmount(value) : (field === "allocated_amount_before_tax" ? toAmount(value) : 0) + (field === "allocated_vat_amount" ? toAmount(value) : 0) }] }); return <tr key={reference}><td style={tdStyle}>{quotationItem.description}</td><td style={rightTdStyle}><input type="number" min="0" step="0.01" value={allocation.allocated_amount_before_tax} onChange={(event) => patch("allocated_amount_before_tax", event.target.value)} style={compactInputStyle} /></td><td style={rightTdStyle}><input type="number" min="0" step="0.01" value={allocation.allocated_vat_amount} onChange={(event) => patch("allocated_vat_amount", event.target.value)} style={compactInputStyle} /></td><td style={rightTdStyle}>{formatMoney(allocation.allocated_amount_before_tax + allocation.allocated_vat_amount)}</td><td style={rightTdStyle}>{formatMoney(toAmount(quotationItem.line_total) - allocatedElsewhere - allocation.allocated_total)}</td></tr>; })}</tbody></table></div> : <p style={mutedTextStyle}>ระบบจะรวมทุกรายการค่าบริการและคำนวณ Before VAT, VAT และ Total จากเปอร์เซ็นต์ในฝั่งเซิร์ฟเวอร์</p> : null}
+      {allocationMode === "proportional_all_items" ? installment.calculation_type === "fixed_amount" ? <div style={tableWrapStyle}><h4 style={sectionTitleStyle}>{t("finance.quotation.allocation.advanced")}</h4><table style={tableStyle}><thead><tr><th style={thStyle}>{t("finance.quotation.allocation.quotationItem")}</th><th style={rightThStyle}>{t("finance.quotation.allocation.beforeVat")}</th><th style={rightThStyle}>{t("finance.quotation.totals.vat")}</th><th style={rightThStyle}>{t("finance.quotation.allocation.totalAmount")}</th><th style={rightThStyle}>{t("finance.quotation.allocation.remaining")}</th></tr></thead><tbody>{quotationItems.filter((item) => item.id || item.client_item_key).map((quotationItem) => { const reference = paymentReferenceForItem(quotationItem); const allocation = installment.items.find((item) => paymentAllocationReference(item) === reference) || { ...(quotationItem.id ? { quotation_item_id: quotationItem.id } : { client_item_key: quotationItem.client_item_key }), allocated_amount_before_tax: 0, allocated_vat_amount: 0, allocated_total: 0 }; const allocatedElsewhere = installments.filter((_, installmentIndex) => installmentIndex !== index).reduce((sum, other) => sum + (other.items.find((item) => paymentAllocationReference(item) === reference)?.allocated_total || 0), 0); const patch = (field: keyof PaymentAllocation, value: string) => updateInstallment(index, { items: installment.items.some((item) => paymentAllocationReference(item) === reference) ? installment.items.map((item) => paymentAllocationReference(item) === reference ? { ...item, [field]: toAmount(value), allocated_total: field === "allocated_total" ? toAmount(value) : (field === "allocated_amount_before_tax" ? toAmount(value) : item.allocated_amount_before_tax) + (field === "allocated_vat_amount" ? toAmount(value) : item.allocated_amount_before_tax) } : item) : [...installment.items, { ...allocation, [field]: toAmount(value), allocated_total: field === "allocated_total" ? toAmount(value) : (field === "allocated_amount_before_tax" ? toAmount(value) : 0) + (field === "allocated_vat_amount" ? toAmount(value) : 0) }] }); return <tr key={reference}><td style={tdStyle}>{quotationItem.description}</td><td style={rightTdStyle}><input type="number" min="0" step="0.01" value={allocation.allocated_amount_before_tax} onChange={(event) => patch("allocated_amount_before_tax", event.target.value)} style={compactInputStyle} /></td><td style={rightTdStyle}><input type="number" min="0" step="0.01" value={allocation.allocated_vat_amount} onChange={(event) => patch("allocated_vat_amount", event.target.value)} style={compactInputStyle} /></td><td style={rightTdStyle}>{formatMoney(allocation.allocated_amount_before_tax + allocation.allocated_vat_amount)}</td><td style={rightTdStyle}>{formatMoney(toAmount(quotationItem.line_total) - allocatedElsewhere - allocation.allocated_total)}</td></tr>; })}</tbody></table></div> : <p style={mutedTextStyle}>{t("finance.quotation.installment.calculationHelp")}</p> : null}
     </div>)}
-    {method !== "single" ? <button type="button" onClick={addInstallment} style={secondaryButtonStyle}>เพิ่มงวด</button> : null}
+    {method !== "single" ? <button type="button" onClick={addInstallment} style={secondaryButtonStyle}>{t("finance.quotation.installment.add")}</button> : null}
     {allocationMode === "per_item" && installments.every((installment) => installment.calculation_type === "percentage") ? <PerItemAllocationMatrix sources={lineItemSource} installments={installments} onChange={updatePerItemAllocation} /> : null}
     <section style={{ ...allocationStatusPanelStyle, ...(allocationStatusHasError ? allocationStatusErrorStyle : complete ? allocationStatusCompleteStyle : allocationStatusIncompleteStyle) }} aria-live="polite">
-      <span style={allocationStatusLabelStyle}>สถานะการจัดสรรค่าบริการ</span>
-      <strong style={allocationStatusHeadingStyle}>{allocationStatusHasError ? "ต้องแก้ไขข้อมูล" : complete ? "ครบ 100%" : "ยังจัดสรรไม่ครบ"}</strong>
-      <span style={allocationStatusDetailStyle}>{allocationStatusMessage}</span>
+      <span style={allocationStatusLabelStyle}>{t("finance.quotation.allocation.status")}</span>
+      <strong style={allocationStatusHeadingStyle}>{allocationStatusHasError ? t("finance.quotation.allocation.needsCorrection") : complete ? t("finance.quotation.allocation.complete") : t("finance.quotation.allocation.incomplete")}</strong>
+      <span style={allocationStatusDetailStyle}>{uiText(allocationStatusMessage)}</span>
     </section>
     <section style={paymentSummarySectionStyle}>
       <div style={sectionHeaderStyle}>
         <div>
-          <h3 style={sectionTitleStyle}>ข้อความสรุปที่จะแสดงในใบเสนอราคา</h3>
-          <p style={mutedTextStyle}>ระบบสร้างข้อความนี้จากงวดและเงื่อนไขการชำระเงินด้านบน เพื่อให้ลูกค้าอ่านเข้าใจง่าย</p>
+          <h3 style={sectionTitleStyle}>{t("finance.quotation.summary.heading")}</h3>
+          <p style={mutedTextStyle}>{t("finance.quotation.summary.help")}</p>
         </div>
         {summaryIsCustom
-          ? <button type="button" onClick={() => { setSummaryIsCustom(false); setSummary(generatedSummary); }} style={smallButtonStyle}>คืนค่าเป็นข้อความจากระบบ</button>
-          : <button type="button" onClick={() => { setSummary(generatedSummary); setSummaryIsCustom(true); }} style={smallButtonStyle}>ปรับข้อความสำหรับลูกค้า</button>}
+          ? <button type="button" onClick={() => { setSummaryIsCustom(false); setSummary(generatedSummary); }} style={smallButtonStyle}>{t("finance.quotation.summary.restore")}</button>
+          : <button type="button" onClick={() => { setSummary(generatedSummary); setSummaryIsCustom(true); }} style={smallButtonStyle}>{t("finance.quotation.summary.customize")}</button>}
       </div>
       {summaryIsCustom ? <>
-        <textarea id="payment-client-summary" aria-label="ข้อความสรุปที่จะแสดงในใบเสนอราคา" value={summary} onChange={(event) => setSummary(event.target.value)} style={textareaStyle} />
-        <p style={paymentSummaryOverrideNoticeStyle}>การแก้ข้อความนี้เปลี่ยนเฉพาะข้อความที่แสดงในใบเสนอราคา ไม่เปลี่ยนจำนวนเงิน งวด หรือเงื่อนไขเรียกเก็บในระบบ</p>
-      </> : <div style={paymentSummaryOutputStyle} aria-live="polite">{generatedSummary || "ระบบจะสร้างข้อความสรุปเมื่อมีข้อมูลงวดการชำระเงิน"}</div>}
+        <textarea id="payment-client-summary" aria-label={t("finance.quotation.summary.heading")} value={summary} onChange={(event) => setSummary(event.target.value)} style={textareaStyle} />
+        <p style={paymentSummaryOverrideNoticeStyle}>{t("finance.quotation.summary.customHelp")}</p>
+      </> : <div style={paymentSummaryOutputStyle} aria-live="polite">{generatedSummary || t("finance.quotation.summary.empty")}</div>}
     </section>
   </div>;
 }
 
 function PerItemAllocationMatrix({ sources, installments, onChange }: { sources: PaymentLineItemSource[]; installments: PaymentInstallment[]; onChange: (source: PaymentLineItemSource, installmentIndex: number, value: string) => void }) {
+  const { t } = useI18n();
   return <div style={{ ...cardStyle, marginTop: 12 }}>
-    <h3 style={sectionTitleStyle}>กระจายค่าบริการแยกตามรายการ</h3>
-    <p style={mutedTextStyle}>กำหนดสัดส่วนของแต่ละรายการแยกกัน โดยแต่ละรายการต้องรวมครบ 100% ก่อนส่งใบเสนอราคา</p>
+    <h3 style={sectionTitleStyle}>{t("finance.quotation.allocation.matrixTitle")}</h3>
+    <p style={mutedTextStyle}>{t("finance.quotation.allocation.matrixHelp")}</p>
     <div style={perItemMatrixListStyle}>
       {sources.map((source) => {
         const itemTotals = calculatePaymentItemInstallmentTotals("per_item", installments, source.item);
@@ -1905,17 +1906,17 @@ function PerItemAllocationMatrix({ sources, installments, onChange }: { sources:
         const isOverAllocated = remainingPercentage < 0;
         return <div id={`payment-allocation-item-${source.reference}`} key={source.reference} tabIndex={-1} style={perItemMatrixRowStyle}>
           <div style={perItemMatrixItemStyle}>
-            <strong style={perItemDescriptionStyle}>{source.item.description.trim() || "ยังไม่ได้ระบุชื่อรายการ"}</strong>
-            <span style={mutedTextStyle}>มูลค่ารายการ {formatMoney(toAmount(source.item.line_total))}</span>
+            <strong style={perItemDescriptionStyle}>{source.item.description.trim() || t("finance.quotation.allocation.unnamedItem")}</strong>
+            <span style={mutedTextStyle}>{t("finance.quotation.allocation.itemValue")}{formatMoney(toAmount(source.item.line_total))}</span>
             <span style={isOverAllocated ? perItemErrorTextStyle : helperTextStyle}>
-              รวม {formatCompactPercentage(allocatedPercentage)} · {isOverAllocated ? "เกิน" : "คงเหลือ"} {formatCompactPercentage(Math.abs(remainingPercentage))} ({formatMoney(Math.abs(remainingAmount))})
+              {t("finance.quotation.allocation.total")}{formatCompactPercentage(allocatedPercentage)} · {isOverAllocated ? t("finance.quotation.allocation.excess") : t("finance.quotation.allocation.remaining")} {formatCompactPercentage(Math.abs(remainingPercentage))} ({formatMoney(Math.abs(remainingAmount))})
             </span>
           </div>
           <div style={perItemInstallmentGridStyle}>
             {installments.map((installment, installmentIndex) => {
               const allocation = installment.items.find((entry) => paymentAllocationReference(entry) === source.reference);
               return <label key={installmentIndex} style={labelStyle}>
-                งวดที่ {installmentIndex + 1} (%)
+                {t("finance.quotation.installment.number", { number: installmentIndex + 1 })} (%)
                 <input
                   id={`payment-allocation-${source.reference}-${installmentIndex}`}
                   type="number"
@@ -1926,7 +1927,7 @@ function PerItemAllocationMatrix({ sources, installments, onChange }: { sources:
                   onChange={(event) => onChange(source, installmentIndex, event.target.value)}
                   style={perItemPercentageInputStyle}
                 />
-                <span style={helperTextStyle}>ยอดงวด {formatMoney(itemTotals[installmentIndex]?.total || 0)}</span>
+                <span style={helperTextStyle}>{t("finance.quotation.allocation.installmentAmount")}{formatMoney(itemTotals[installmentIndex]?.total || 0)}</span>
               </label>;
             })}
           </div>
@@ -1937,14 +1938,17 @@ function PerItemAllocationMatrix({ sources, installments, onChange }: { sources:
 }
 
 function InstallmentAmountSummary({ total, percentage, effectivePercentage, perItem }: { total: PaymentInstallmentTotal; percentage: number | null; effectivePercentage: number; perItem: boolean }) {
+  const { t } = useI18n();
   return <div style={installmentAmountSummaryStyle}>
-    <div><strong>ยอดเงินงวดนี้</strong>{percentage != null ? <span style={installmentPercentageStyle}>{formatCompactPercentage(percentage)}</span> : perItem ? <span style={installmentPercentageStyle}>คิดเป็น {formatCompactPercentage(effectivePercentage)} ของใบเสนอราคา</span> : null}</div>
-    <div style={installmentAmountGridStyle}><span>ก่อน VAT<br /><strong>{formatMoney(total.beforeTax)}</strong></span><span>VAT<br /><strong>{formatMoney(total.vat)}</strong></span><span>ยอดรวมงวด<br /><strong>{formatMoney(total.total)}</strong></span></div>
-    {perItem ? <p style={helperTextStyle}>ยอดงวดคำนวณจากการกระจายค่าบริการแยกตามรายการ</p> : null}
+    <div><strong>{t("finance.quotation.installment.amount")}</strong>{percentage != null ? <span style={installmentPercentageStyle}>{formatCompactPercentage(percentage)}</span> : perItem ? <span style={installmentPercentageStyle}>{t("finance.quotation.installment.share", { percentage: formatCompactPercentage(effectivePercentage) })}</span> : null}</div>
+    <div style={installmentAmountGridStyle}><span>{t("finance.quotation.allocation.beforeVat")}<br /><strong>{formatMoney(total.beforeTax)}</strong></span><span>{t("finance.quotation.totals.vat")}<br /><strong>{formatMoney(total.vat)}</strong></span><span>{t("finance.quotation.installment.total")}<br /><strong>{formatMoney(total.total)}</strong></span></div>
+    {perItem ? <p style={helperTextStyle}>{t("finance.quotation.installment.perItemHelp")}</p> : null}
   </div>;
 }
 
 export function QuotationDetail({ access, quotationId }: { access: QuotationAccess; quotationId: string }) {
+  const notify = useUiAlert();
+  const { t, text: uiText, locale, date: uiDate } = useI18n();
   const router = useRouter();
   const [quotation, setQuotation] = useState<QuotationRow | null>(null);
   const [items, setItems] = useState<QuotationItemRow[]>([]);
@@ -1959,7 +1963,7 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
   const [engagementChoice, setEngagementChoice] = useState<QuotationEngagementBasis | null>(null);
   const [confirmationForm, setConfirmationForm] = useState<EngagementConfirmationForm>({ confirmedOn: "", channel: "", note: "" });
   const [confirmationErrors, setConfirmationErrors] = useState<EngagementConfirmationErrors>({});
-  const [engagementMessage, setEngagementMessage] = useState("");
+  const [engagementMessage, setEngagementMessage] = useState<UiMessage | string>("");
   const feeAgreementCreatingRef = useRef(false);
   const engagementConfirmingRef = useRef(false);
   const confirmationPanelRef = useRef<HTMLDivElement>(null);
@@ -1970,7 +1974,7 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
     setLoading(true);
     if (!quotationId) {
       console.error("Missing quotation id in quotation detail route");
-      alert("Quotation not found.");
+      notify(uiMessage("finance.quotation.error.notFound"));
       setLoading(false);
       return;
     }
@@ -1978,7 +1982,7 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
     const quotationRes = await supabase.from("finance_quotations").select("*").eq("id", quotationId).maybeSingle();
     if (quotationRes.error || !quotationRes.data) {
       console.error("Failed to load quotation", { quotationId, error: quotationRes.error });
-      alert(quotationRes.error ? "Unable to load quotation." : "Quotation not found.");
+      notify(quotationRes.error ? uiMessage("finance.quotation.error.load") : uiMessage("finance.quotation.error.notFound"));
       setLoading(false);
       return;
     }
@@ -2003,7 +2007,7 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
     setLinkCaseId(canonicalMatterLink.caseId);
     setLinkAdvisoryMatterId(canonicalMatterLink.advisoryMatterId);
     setLoading(false);
-  }, [quotationId]);
+  }, [quotationId, notify]);
 
   const createFeeAgreement = async () => {
     if (!quotation || saving || feeAgreementCreatingRef.current) return;
@@ -2013,7 +2017,7 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
     const result = Array.isArray(data) ? data[0] : data;
     if (error || !result?.fee_agreement_id) {
       console.error("Unable to create Fee Agreement draft", error);
-      alert(error?.message || "Unable to create Fee Agreement draft.");
+      notify(uiMessage("finance.quotation.error.createAgreement"));
       setSaving(false);
       feeAgreementCreatingRef.current = false;
       return;
@@ -2029,7 +2033,7 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
       });
       if (titleResult.error) console.warn("Fee Agreement default title could not be saved", titleResult.error);
     }
-    if (agreementRes.data?.agreement_no) alert(`สร้าง Fee Agreement ${agreementRes.data.agreement_no} แล้ว`);
+    if (agreementRes.data?.agreement_no) notify(uiMessage("finance.quotation.engagement.agreementCreated", { number: agreementRes.data.agreement_no }));
     router.push(`/finance/fee-agreements/${result.fee_agreement_id}`);
   };
 
@@ -2043,12 +2047,12 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
   const confirmAcceptedQuotationEngagement = async () => {
     if (!quotation || saving || engagementConfirmingRef.current) return;
     const nextErrors: EngagementConfirmationErrors = {};
-    if (!confirmationForm.confirmedOn) nextErrors.confirmedOn = "กรุณาระบุวันที่ลูกค้ายืนยันว่าจ้าง";
-    else if (confirmationForm.confirmedOn > getBangkokDateKey()) nextErrors.confirmedOn = "วันที่ลูกค้ายืนยันว่าจ้างต้องไม่เป็นวันที่ในอนาคต";
-    if (!confirmationForm.channel) nextErrors.channel = "กรุณาเลือกช่องทางการยืนยัน";
+    if (!confirmationForm.confirmedOn) nextErrors.confirmedOn = uiMessage("finance.quotation.engagement.dateRequired");
+    else if (confirmationForm.confirmedOn > getBangkokDateKey()) nextErrors.confirmedOn = uiMessage("finance.quotation.engagement.futureDate");
+    if (!confirmationForm.channel) nextErrors.channel = uiMessage("finance.quotation.engagement.channelRequired");
     if (Object.keys(nextErrors).length) {
       setConfirmationErrors(nextErrors);
-      setEngagementMessage("กรุณากรอกข้อมูลที่จำเป็นให้ครบก่อนยืนยันการว่าจ้าง");
+      setEngagementMessage(uiMessage("finance.quotation.engagement.required"));
       const firstTarget = nextErrors.confirmedOn ? confirmationDateRef.current : confirmationChannelRef.current;
       window.setTimeout(() => { firstTarget?.focus({ preventScroll: true }); firstTarget?.scrollIntoView({ behavior: "smooth", block: "center" }); }, 0);
       return;
@@ -2073,7 +2077,7 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
       router.push(`/finance/fee-agreements/${result.fee_agreement_id}`);
     } catch (confirmationError) {
       console.error("Unexpected accepted quotation engagement confirmation failure", confirmationError);
-      setEngagementMessage("ยืนยันการว่าจ้างไม่สำเร็จ กรุณารีเฟรชและลองอีกครั้ง");
+      setEngagementMessage(uiMessage("finance.quotation.engagement.failed"));
     } finally {
       engagementConfirmingRef.current = false;
       setSaving(false);
@@ -2083,15 +2087,15 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
   const linkMasterRecords = async () => {
     if (!quotation || saving) return;
     if (!linkClientId) {
-      alert("กรุณาเลือกลูกค้าในระบบก่อนสร้าง Fee Agreement");
+      notify(uiMessage("finance.quotation.engagement.clientBeforeAgreement"));
       return;
     }
     if (linkMatterMode === "case" && !linkCaseId) {
-      alert("กรุณาเลือก Case");
+      notify(uiMessage("finance.quotation.engagement.caseRequired"));
       return;
     }
     if (linkMatterMode === "advisory" && !linkAdvisoryMatterId) {
-      alert("กรุณาเลือก Advisory");
+      notify(uiMessage("finance.quotation.engagement.advisoryRequired"));
       return;
     }
     setSaving(true);
@@ -2103,7 +2107,7 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
     });
     if (error) {
       console.error("Unable to link accepted quotation to master records", { quotationId: quotation.id, error });
-      alert("เชื่อมข้อมูลลูกค้าหรือเรื่องไม่สำเร็จ กรุณาตรวจสอบข้อมูลอีกครั้ง");
+      notify(uiMessage("finance.quotation.engagement.linkFailed"));
       setSaving(false);
       return;
     }
@@ -2133,7 +2137,7 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
 
     let cancelReason: string | null = null;
     if (nextStatus === "cancelled") {
-      cancelReason = window.prompt("Cancel reason") || "Cancelled by user";
+      cancelReason = window.prompt(t("finance.quotation.detail.cancelPrompt")) || "Cancelled by user";
       if (!cancelReason.trim()) return;
     }
 
@@ -2148,7 +2152,7 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
     });
     if (error) {
       console.error("Unable to update quotation status", error);
-      alert(getQuotationStatusErrorMessage(error));
+      notify(getQuotationStatusErrorMessage(error));
       setSaving(false);
       return;
     }
@@ -2174,72 +2178,71 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
   return (
     <>
       <FinanceSubNav activePage="quotations" permissions={access.permissions} />
-      {loading ? <div style={cardStyle}>Loading quotation...</div> : null}
+      {loading ? <div style={cardStyle}>{t("finance.quotation.detail.loading")}</div> : null}
       {!loading && quotation ? (
         <>
           <div style={sectionHeaderStyle}>
             <div>
               <h1 style={pageTitleStyle}>{quotation.quotation_no}</h1>
-              <p style={mutedTextStyle}>Quotation document record. No invoice, receipt, ledger posting, or compensation is created from this page.</p>
-              {quotation.status !== "draft" ? <p style={noticeTextStyle}>{getReadonlyMessage(quotation.status)}</p> : null}
+              <p style={mutedTextStyle}>{t("finance.quotation.detail.help")}</p>
+              {quotation.status !== "draft" ? <p style={noticeTextStyle}>{uiText(getReadonlyMessage(quotation.status))}</p> : null}
             </div>
             <div style={actionGroupStyle}>
-              <Link href="/finance/quotations" style={secondaryButtonStyle}>Back</Link>
-              <Link href={`/finance/quotations/${quotation.id}/preview`} style={secondaryButtonStyle}>Preview</Link>
-              <Link href={`/finance/quotations/${quotation.id}/preview?print=1`} style={secondaryButtonStyle} title="Open Browser Print for this quotation">Print</Link>
-              {quotation.status === "accepted" && access.permissions.canCreateFinanceQuotation && engagement ? <Link href={`/finance/fee-agreements/${engagement.id}`} style={primaryButtonStyle}>{engagement.engagement_basis === "accepted_quotation" ? "เปิดการว่าจ้างตามใบเสนอราคา" : "เปิดข้อตกลงค่าบริการ"}</Link> : null}
-              {quotation.status === "draft" && access.permissions.canEditFinanceQuotation ? <Link href={`/finance/quotations/${quotation.id}/edit`} style={primaryButtonStyle}>Edit Draft</Link> : null}
-              {quotation.status === "draft" && access.permissions.canMarkFinanceQuotationSent ? <button type="button" onClick={() => updateStatus("sent")} disabled={saving} style={secondaryButtonStyle}>Mark Sent</button> : null}
-              {quotation.status === "sent" && access.permissions.canMarkFinanceQuotationAccepted ? <button type="button" onClick={() => updateStatus("accepted")} disabled={saving} style={secondaryButtonStyle}>Mark Accepted</button> : null}
-              {(quotation.status === "draft" || quotation.status === "sent") && access.permissions.canCancelFinanceQuotation ? <button type="button" onClick={() => updateStatus("cancelled")} disabled={saving} style={dangerButtonStyle}>Cancel</button> : null}
+              <Link href="/finance/quotations" style={secondaryButtonStyle}>{t("common.actions.back")}</Link>
+              <Link href={`/finance/quotations/${quotation.id}/preview`} style={secondaryButtonStyle}>{t("finance.quotation.detail.preview")}</Link>
+              <Link href={`/finance/quotations/${quotation.id}/preview?print=1`} style={secondaryButtonStyle} title={t("finance.quotation.detail.printTitle")}>{t("finance.quotation.detail.print")}</Link>
+              {quotation.status === "accepted" && access.permissions.canCreateFinanceQuotation && engagement ? <Link href={`/finance/fee-agreements/${engagement.id}`} style={primaryButtonStyle}>{engagement.engagement_basis === "accepted_quotation" ? t("finance.quotation.engagement.openAccepted") : t("finance.quotation.engagement.openAgreement")}</Link> : null}
+              {quotation.status === "draft" && access.permissions.canEditFinanceQuotation ? <Link href={`/finance/quotations/${quotation.id}/edit`} style={primaryButtonStyle}>{t("finance.quotation.detail.edit")}</Link> : null}
+              {quotation.status === "draft" && access.permissions.canMarkFinanceQuotationSent ? <button type="button" onClick={() => updateStatus("sent")} disabled={saving} style={secondaryButtonStyle}>{t("finance.quotation.detail.markSent")}</button> : null}
+              {quotation.status === "sent" && access.permissions.canMarkFinanceQuotationAccepted ? <button type="button" onClick={() => updateStatus("accepted")} disabled={saving} style={secondaryButtonStyle}>{t("finance.quotation.detail.markAccepted")}</button> : null}
+              {(quotation.status === "draft" || quotation.status === "sent") && access.permissions.canCancelFinanceQuotation ? <button type="button" onClick={() => updateStatus("cancelled")} disabled={saving} style={dangerButtonStyle}>{t("finance.quotation.detail.cancel")}</button> : null}
             </div>
           </div>
 
           {quotation.status === "accepted" && !engagement && access.permissions.canCreateFinanceQuotation ? (
             <div style={cardStyle}>
-              <h2 style={sectionTitleStyle}>ลูกค้าตอบรับใบเสนอราคาแล้ว</h2>
-              <p style={mutedTextStyle}>ตรวจสอบลูกค้าและเรื่อง/งานก่อนเลือกวิธีดำเนินการต่อ ระบบจะไม่สร้างลูกค้า Case หรือ Advisory ใหม่โดยอัตโนมัติ และจะไม่แก้ไข snapshot ของใบเสนอราคาที่ส่งแล้ว</p>
+              <h2 style={sectionTitleStyle}>{t("finance.quotation.engagement.accepted")}</h2>
+              <p style={mutedTextStyle}>{t("finance.quotation.engagement.contextHelp")}</p>
               <div style={{ ...formGridStyle, marginTop: 14 }}>
-                <label style={labelStyle}>ลูกค้าในระบบ *
-                  <select value={linkClientId} disabled={Boolean(quotation.client_id)} onChange={(event) => setLinkClientId(event.target.value)} style={inputStyle}>
-                    <option value="">เลือกลูกค้า</option>
+                <label style={labelStyle}>{t("finance.quotation.engagement.client")}<select value={linkClientId} disabled={Boolean(quotation.client_id)} onChange={(event) => setLinkClientId(event.target.value)} style={inputStyle}>
+                    <option value="">{t("finance.quotation.form.selectClient")}</option>
                     {lookups.clients.map((client) => <option key={client.id} value={client.id}>{client.name || client.id}</option>)}
                   </select>
                 </label>
                 <div style={wideFieldGroupStyle}>
-                  <div style={fieldHeadingStyle}>เรื่อง / งาน</div>
+                  <div style={fieldHeadingStyle}>{t("finance.quotation.form.matter")}</div>
                   <div style={segmentedControlStyle}>
-                    <button type="button" disabled={hasCanonicalMatter} onClick={() => { setLinkMatterMode("unlinked"); setLinkCaseId(""); setLinkAdvisoryMatterId(""); }} style={getSegmentButtonStyle(linkMatterMode === "unlinked")}>ยังไม่ผูกเรื่อง</button>
-                    <button type="button" disabled={hasCanonicalMatter} onClick={() => { setLinkMatterMode("case"); setLinkAdvisoryMatterId(""); }} style={getSegmentButtonStyle(linkMatterMode === "case")}>Case</button>
-                    <button type="button" disabled={hasCanonicalMatter} onClick={() => { setLinkMatterMode("advisory"); setLinkCaseId(""); }} style={getSegmentButtonStyle(linkMatterMode === "advisory")}>Advisory</button>
+                    <button type="button" disabled={hasCanonicalMatter} onClick={() => { setLinkMatterMode("unlinked"); setLinkCaseId(""); setLinkAdvisoryMatterId(""); }} style={getSegmentButtonStyle(linkMatterMode === "unlinked")}>{t("finance.quotation.engagement.unlinked")}</button>
+                    <button type="button" disabled={hasCanonicalMatter} onClick={() => { setLinkMatterMode("case"); setLinkAdvisoryMatterId(""); }} style={getSegmentButtonStyle(linkMatterMode === "case")}>{t("finance.quotation.form.case")}</button>
+                    <button type="button" disabled={hasCanonicalMatter} onClick={() => { setLinkMatterMode("advisory"); setLinkCaseId(""); }} style={getSegmentButtonStyle(linkMatterMode === "advisory")}>{t("finance.quotation.form.advisory")}</button>
                   </div>
-                  {linkMatterMode === "case" ? <select value={linkCaseId} disabled={Boolean(canonicalMatterLink?.caseId)} onChange={(event) => setLinkCaseId(event.target.value)} style={inputStyle}><option value="">เลือก Case</option>{lookups.cases.map((item) => <option key={item.id} value={item.id}>{renderCaseLabel(item)}</option>)}</select> : null}
-                  {linkMatterMode === "advisory" ? <select value={linkAdvisoryMatterId} disabled={Boolean(canonicalMatterLink?.advisoryMatterId)} onChange={(event) => setLinkAdvisoryMatterId(event.target.value)} style={inputStyle}><option value="">เลือก Advisory</option>{lookups.matters.map((item) => <option key={item.id} value={item.id}>{renderMatterLabel(item)}</option>)}</select> : null}
+                  {linkMatterMode === "case" ? <select value={linkCaseId} disabled={Boolean(canonicalMatterLink?.caseId)} onChange={(event) => setLinkCaseId(event.target.value)} style={inputStyle}><option value="">{t("finance.quotation.form.selectCase")}</option>{lookups.cases.map((item) => <option key={item.id} value={item.id}>{renderCaseLabel(item)}</option>)}</select> : null}
+                  {linkMatterMode === "advisory" ? <select value={linkAdvisoryMatterId} disabled={Boolean(canonicalMatterLink?.advisoryMatterId)} onChange={(event) => setLinkAdvisoryMatterId(event.target.value)} style={inputStyle}><option value="">{t("finance.quotation.form.selectAdvisory")}</option>{lookups.matters.map((item) => <option key={item.id} value={item.id}>{renderMatterLabel(item)}</option>)}</select> : null}
                 </div>
               </div>
-              {!quotation.client_id ? <p style={noticeTextStyle}>การดำเนินการต่อจำเป็นต้องอ้างอิงลูกค้าในระบบ กรุณาเชื่อมลูกค้าก่อน</p> : null}
-              {hasCanonicalMatter ? <p style={helperTextStyle}>เรื่อง/งานนี้เชื่อมกับใบเสนอราคาแล้วและจะใช้เป็นข้อมูลอ้างอิงของการว่าจ้าง</p> : null}
-              {requiresMasterRecordLink ? <div style={buttonRowStyle}><button type="button" onClick={linkMasterRecords} disabled={saving} style={primaryButtonStyle}>{saving ? "กำลังบันทึก..." : "บันทึกการเชื่อมข้อมูล"}</button></div> : <>
-                <div style={engagementDecisionIntroStyle}><strong>เลือกวิธีดำเนินการต่อให้ตรงกับการว่าจ้างจริง</strong><span>แต่ละทางเลือกใช้หลักฐานและขั้นตอนดำเนินงานต่างกัน</span></div>
+              {!quotation.client_id ? <p style={noticeTextStyle}>{t("finance.quotation.engagement.linkRequired")}</p> : null}
+              {hasCanonicalMatter ? <p style={helperTextStyle}>{t("finance.quotation.engagement.matterLinked")}</p> : null}
+              {requiresMasterRecordLink ? <div style={buttonRowStyle}><button type="button" onClick={linkMasterRecords} disabled={saving} style={primaryButtonStyle}>{saving ? t("finance.quotation.engagement.saving") : t("finance.quotation.engagement.saveLink")}</button></div> : <>
+                <div style={engagementDecisionIntroStyle}><strong>{t("finance.quotation.engagement.nextStep")}</strong><span>{t("finance.quotation.engagement.choiceHelp")}</span></div>
                 <div style={engagementChoiceGridStyle}>
                   <div style={{ ...engagementChoiceCardStyle, ...(engagementChoice === "formal_agreement" ? engagementChoiceActiveStyle : {}) }}>
-                    <div><span style={engagementChoiceEyebrowStyle}>มีเอกสารสัญญาแยก</span><h3 style={engagementChoiceTitleStyle}>จัดทำสัญญาว่าจ้าง</h3><p style={engagementChoiceDescriptionStyle}>ใช้เมื่อจะจัดทำสัญญาว่าจ้างแยกและดำเนินการตรวจทาน ส่ง และลงนาม</p></div>
-                    <button type="button" onClick={() => { setEngagementChoice("formal_agreement"); void createFeeAgreement(); }} disabled={saving} style={secondaryButtonStyle}>{saving && engagementChoice === "formal_agreement" ? "กำลังสร้าง..." : "จัดทำสัญญาว่าจ้าง"}</button>
+                    <div><span style={engagementChoiceEyebrowStyle}>{t("finance.quotation.engagement.formalEyebrow")}</span><h3 style={engagementChoiceTitleStyle}>{t("finance.quotation.engagement.prepareAgreement")}</h3><p style={engagementChoiceDescriptionStyle}>{t("finance.quotation.engagement.formalHelp")}</p></div>
+                    <button type="button" onClick={() => { setEngagementChoice("formal_agreement"); void createFeeAgreement(); }} disabled={saving} style={secondaryButtonStyle}>{saving && engagementChoice === "formal_agreement" ? t("finance.quotation.engagement.creating") : t("finance.quotation.engagement.prepareAgreement")}</button>
                   </div>
                   <div style={{ ...engagementChoiceCardStyle, ...(engagementChoice === "accepted_quotation" ? engagementChoiceActiveStyle : {}) }}>
-                    <div><span style={engagementChoiceEyebrowStyle}>ไม่มีเอกสารสัญญาแยก</span><h3 style={engagementChoiceTitleStyle}>เริ่มงานตามใบเสนอราคาที่ตอบรับ</h3><p style={engagementChoiceDescriptionStyle}>ใช้เมื่อลูกค้ายืนยันว่าจ้างตามใบเสนอราคาและไม่จัดทำสัญญาแยก</p></div>
-                    <button type="button" onClick={openConfirmationPanel} disabled={saving} style={primaryButtonStyle}>บันทึกการยืนยันว่าจ้าง</button>
+                    <div><span style={engagementChoiceEyebrowStyle}>{t("finance.quotation.engagement.acceptedEyebrow")}</span><h3 style={engagementChoiceTitleStyle}>{t("finance.quotation.engagement.acceptedTitle")}</h3><p style={engagementChoiceDescriptionStyle}>{t("finance.quotation.engagement.acceptedHelp")}</p></div>
+                    <button type="button" onClick={openConfirmationPanel} disabled={saving} style={primaryButtonStyle}>{t("finance.quotation.engagement.record")}</button>
                   </div>
                 </div>
                 {engagementChoice === "accepted_quotation" ? <div ref={confirmationPanelRef} tabIndex={-1} style={engagementConfirmationPanelStyle}>
-                  <div><h3 style={engagementChoiceTitleStyle}>ยืนยันการว่าจ้างตามใบเสนอราคา</h3><p style={engagementChoiceDescriptionStyle}>ระบบจะบันทึกใบเสนอราคาที่ตอบรับไว้เป็นหลักฐานการว่าจ้าง และเปิดขั้นตอนจัดทำแผนเรียกเก็บเงิน</p><p style={engagementConfirmationClarificationStyle}>ไม่ได้สร้างสัญญาว่าจ้างแยก และไม่มีขั้นตอนลงนามสัญญา</p></div>
-                  {engagementMessage ? <div role="alert" style={errorNoticeTextStyle}>{engagementMessage}</div> : null}
+                  <div><h3 style={engagementChoiceTitleStyle}>{t("finance.quotation.engagement.confirm")}</h3><p style={engagementChoiceDescriptionStyle}>{t("finance.quotation.engagement.confirmHelp")}</p><p style={engagementConfirmationClarificationStyle}>{t("finance.quotation.engagement.noSigning")}</p></div>
+                  {engagementMessage ? <div role="alert" style={errorNoticeTextStyle}>{uiText(engagementMessage)}</div> : null}
                   <div style={formGridStyle}>
-                    <label style={labelStyle}>วันที่ลูกค้ายืนยันว่าจ้าง *<input ref={confirmationDateRef} type="date" value={confirmationForm.confirmedOn} aria-invalid={Boolean(confirmationErrors.confirmedOn)} onChange={(event) => { const confirmedOn = event.target.value; setConfirmationForm({ ...confirmationForm, confirmedOn }); if (confirmedOn) { setConfirmationErrors((current) => { const next = { ...current }; delete next.confirmedOn; return next; }); setEngagementMessage(""); } }} style={{ ...inputStyle, ...(confirmationErrors.confirmedOn ? invalidEngagementInputStyle : {}) }} />{confirmationErrors.confirmedOn ? <span style={engagementFieldErrorStyle}>{confirmationErrors.confirmedOn}</span> : null}</label>
-                    <label style={labelStyle}>ช่องทางการยืนยัน *<select ref={confirmationChannelRef} value={confirmationForm.channel} aria-invalid={Boolean(confirmationErrors.channel)} onChange={(event) => { const channel = event.target.value; setConfirmationForm({ ...confirmationForm, channel }); if (channel) { setConfirmationErrors((current) => { const next = { ...current }; delete next.channel; return next; }); setEngagementMessage(""); } }} style={{ ...inputStyle, ...(confirmationErrors.channel ? invalidEngagementInputStyle : {}) }}><option value="">เลือกช่องทาง</option><option value="line">LINE</option><option value="email">Email</option><option value="phone">โทรศัพท์</option><option value="meeting">นัด/ประชุม</option><option value="written">หนังสือ/ข้อความเป็นลายลักษณ์อักษร</option><option value="other">อื่น ๆ</option></select>{confirmationErrors.channel ? <span style={engagementFieldErrorStyle}>{confirmationErrors.channel}</span> : null}</label>
-                    <label style={wideLabelStyle}>หมายเหตุ (ถ้ามี)<textarea value={confirmationForm.note} maxLength={4000} onChange={(event) => setConfirmationForm({ ...confirmationForm, note: event.target.value })} style={textareaStyle} /></label>
+                    <label style={labelStyle}>{t("finance.quotation.engagement.date")}<input ref={confirmationDateRef} type="date" value={confirmationForm.confirmedOn} aria-invalid={Boolean(confirmationErrors.confirmedOn)} onChange={(event) => { const confirmedOn = event.target.value; setConfirmationForm({ ...confirmationForm, confirmedOn }); if (confirmedOn) { setConfirmationErrors((current) => { const next = { ...current }; delete next.confirmedOn; return next; }); setEngagementMessage(""); } }} style={{ ...inputStyle, ...(confirmationErrors.confirmedOn ? invalidEngagementInputStyle : {}) }} />{confirmationErrors.confirmedOn ? <span style={engagementFieldErrorStyle}>{uiText(confirmationErrors.confirmedOn || "")}</span> : null}</label>
+                    <label style={labelStyle}>{t("finance.quotation.engagement.channel")}<select ref={confirmationChannelRef} value={confirmationForm.channel} aria-invalid={Boolean(confirmationErrors.channel)} onChange={(event) => { const channel = event.target.value; setConfirmationForm({ ...confirmationForm, channel }); if (channel) { setConfirmationErrors((current) => { const next = { ...current }; delete next.channel; return next; }); setEngagementMessage(""); } }} style={{ ...inputStyle, ...(confirmationErrors.channel ? invalidEngagementInputStyle : {}) }}><option value="">{t("finance.quotation.engagement.selectChannel")}</option><option value="line">LINE</option><option value="email">{t("finance.quotation.detail.email")}</option><option value="phone">{t("finance.quotation.form.phone")}</option><option value="meeting">{t("finance.quotation.engagement.meeting")}</option><option value="written">{t("finance.quotation.engagement.written")}</option><option value="other">{t("finance.quotation.classification.other")}</option></select>{confirmationErrors.channel ? <span style={engagementFieldErrorStyle}>{uiText(confirmationErrors.channel || "")}</span> : null}</label>
+                    <label style={wideLabelStyle}>{t("finance.quotation.engagement.note")}<textarea value={confirmationForm.note} maxLength={4000} onChange={(event) => setConfirmationForm({ ...confirmationForm, note: event.target.value })} style={textareaStyle} /></label>
                   </div>
-                  <div style={engagementConfirmationActionsStyle}><button type="button" onClick={() => { setEngagementChoice(null); setConfirmationErrors({}); setEngagementMessage(""); }} disabled={saving} style={secondaryButtonStyle}>ยกเลิก</button><button type="button" onClick={() => void confirmAcceptedQuotationEngagement()} disabled={saving} style={primaryButtonStyle}>{saving ? "กำลังยืนยัน..." : "ยืนยันการว่าจ้างตามใบเสนอราคา"}</button></div>
+                  <div style={engagementConfirmationActionsStyle}><button type="button" onClick={() => { setEngagementChoice(null); setConfirmationErrors({}); setEngagementMessage(""); }} disabled={saving} style={secondaryButtonStyle}>{t("finance.quotation.detail.cancel")}</button><button type="button" onClick={() => void confirmAcceptedQuotationEngagement()} disabled={saving} style={primaryButtonStyle}>{saving ? t("finance.quotation.engagement.confirming") : t("finance.quotation.engagement.confirm")}</button></div>
                 </div> : null}
               </>}
             </div>
@@ -2247,40 +2250,40 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
 
           <div style={cardStyle}>
             <div style={detailGridStyle}>
-              <Detail label="Status" value={<StatusBadge status={quotation.status} />} />
-              <Detail label="ลูกค้า / Customer" value={renderQuotationClientName(quotation, lookups.clients)} />
-              <Detail label="ที่มาลูกค้า" value={quotation.customer_source_type === "prospect" || (!quotation.client_id && getSnapshotString(quotation.client_snapshot_json, "source_type") === "prospect") ? "ลูกค้าใหม่ / ผู้มุ่งหวัง" : "ลูกค้าในระบบ"} />
+              <Detail label={t("finance.quotation.detail.status")} value={<StatusBadge status={quotation.status} />} />
+              <Detail label={t("finance.quotation.form.customer")} value={renderQuotationClientName(quotation, lookups.clients)} />
+              <Detail label={t("finance.quotation.source.customer")} value={quotation.customer_source_type === "prospect" || (!quotation.client_id && getSnapshotString(quotation.client_snapshot_json, "source_type") === "prospect") ? t("finance.quotation.form.prospect") : t("finance.quotation.form.existingClient")} />
               {quotation.customer_source_type === "prospect" || getSnapshotString(quotation.client_snapshot_json, "source_type") === "prospect" ? <>
-                <Detail label="ผู้ติดต่อ" value={quotation.prospect_contact_person || getSnapshotString(quotation.client_snapshot_json, "contact_person") || "-"} />
-                <Detail label="โทรศัพท์" value={quotation.prospect_phone || getSnapshotString(quotation.client_snapshot_json, "phone") || "-"} />
-                <Detail label="อีเมล" value={quotation.prospect_email || getSnapshotString(quotation.client_snapshot_json, "email") || "-"} />
-                <Detail label="เลขประจำตัวผู้เสียภาษี" value={quotation.prospect_tax_id || getSnapshotString(quotation.client_snapshot_json, "tax_id") || "-"} />
-                <Detail label="ที่อยู่" value={quotation.prospect_address || getSnapshotString(quotation.client_snapshot_json, "address") || "-"} />
+                <Detail label={t("finance.quotation.form.contact")} value={quotation.prospect_contact_person || getSnapshotString(quotation.client_snapshot_json, "contact_person") || "-"} />
+                <Detail label={t("finance.quotation.form.phone")} value={quotation.prospect_phone || getSnapshotString(quotation.client_snapshot_json, "phone") || "-"} />
+                <Detail label={t("finance.quotation.detail.email")} value={quotation.prospect_email || getSnapshotString(quotation.client_snapshot_json, "email") || "-"} />
+                <Detail label={t("finance.quotation.form.taxId")} value={quotation.prospect_tax_id || getSnapshotString(quotation.client_snapshot_json, "tax_id") || "-"} />
+                <Detail label={t("finance.quotation.form.address")} value={quotation.prospect_address || getSnapshotString(quotation.client_snapshot_json, "address") || "-"} />
               </> : null}
-              <Detail label="Linked Matter" value={renderMatterLink(quotation, lookups)} />
-              {!quotation.case_id && !quotation.advisory_matter_id ? <Detail label="รายละเอียดเรื่อง / งาน" value={quotation.unlinked_matter_description || getSnapshotString(quotation.matter_snapshot_json, "description") || "-"} /> : null}
-              <Detail label="Issue Date" value={formatDate(quotation.issue_date)} />
-              <Detail label="Valid Until" value={formatDate(quotation.valid_until)} />
-              <Detail label="ยอดสุทธิที่ลูกค้าชำระ / Amount Payable" value={formatMoney(toAmount(quotation.grand_total))} />
-              <Detail label="ขอบเขตงาน / Scope of Legal Services" value={quotation.scope_of_legal_services || "-"} />
-              <Detail label="งานที่รวมอยู่ในค่าบริการ / Included Services" value={quotation.included_services || "-"} />
-              <Detail label="งานหรือค่าใช้จ่ายที่ไม่รวม / Excluded Services" value={quotation.excluded_services || "-"} />
-              <Detail label="Authorized Signer" value={renderSignerDetail(quotation)} />
+              <Detail label={t("finance.quotation.detail.matter")} value={renderMatterLink(quotation, lookups, locale)} />
+              {!quotation.case_id && !quotation.advisory_matter_id ? <Detail label={t("finance.quotation.source.matterDetails")} value={quotation.unlinked_matter_description || getSnapshotString(quotation.matter_snapshot_json, "description") || "-"} /> : null}
+              <Detail label={t("finance.quotation.form.issueDate")} value={uiDate(quotation.issue_date)} />
+              <Detail label={t("finance.quotation.form.validUntil")} value={uiDate(quotation.valid_until)} />
+              <Detail label={t("finance.quotation.totals.payable")} value={formatMoney(toAmount(quotation.grand_total))} />
+              <Detail label={t("finance.quotation.scope.label")} value={quotation.scope_of_legal_services || "-"} />
+              <Detail label={t("finance.quotation.scope.included")} value={quotation.included_services || "-"} />
+              <Detail label={t("finance.quotation.scope.excluded")} value={quotation.excluded_services || "-"} />
+              <Detail label={t("finance.quotation.detail.signer")} value={renderSignerDetail(quotation)} />
             </div>
           </div>
 
           <div style={cardStyle}>
-            <h2 style={sectionTitleStyle}>Line Items</h2>
+            <h2 style={sectionTitleStyle}>{t("finance.quotation.detail.items")}</h2>
             <div style={tableWrapStyle}>
               <table style={tableStyle}>
                 <thead>
                   <tr>
-                    <th style={thStyle}>Description</th>
-                    <th style={rightThStyle}>Qty</th>
-                    <th style={rightThStyle}>Unit Price</th>
-                    <th style={rightThStyle}>Before Tax</th>
-                    <th style={rightThStyle}>VAT</th>
-                    <th style={rightThStyle}>Line Total</th>
+                    <th style={thStyle}>{t("finance.quotation.form.description")}</th>
+                    <th style={rightThStyle}>{t("finance.quotation.form.quantity")}</th>
+                    <th style={rightThStyle}>{t("finance.quotation.form.unitPrice")}</th>
+                    <th style={rightThStyle}>{t("finance.quotation.detail.beforeTax")}</th>
+                    <th style={rightThStyle}>{t("finance.quotation.totals.vat")}</th>
+                    <th style={rightThStyle}>{t("finance.quotation.form.lineTotal")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2302,9 +2305,9 @@ export function QuotationDetail({ access, quotationId }: { access: QuotationAcce
 
           <div style={cardStyle}>
             <div style={detailGridStyle}>
-              <Detail label="Note" value={quotation.note || "-"} />
-              <Detail label="Internal Note" value={quotation.internal_note || "-"} />
-              {quotation.cancel_reason ? <Detail label="Cancel Reason" value={quotation.cancel_reason} /> : null}
+              <Detail label={t("finance.quotation.form.note")} value={quotation.note || "-"} />
+              <Detail label={t("finance.quotation.form.internalNote")} value={quotation.internal_note || "-"} />
+              {quotation.cancel_reason ? <Detail label={t("finance.quotation.detail.cancelPrompt")} value={quotation.cancel_reason} /> : null}
             </div>
           </div>
         </>
@@ -2355,38 +2358,38 @@ function getEmptyLookups(): LookupState {
 }
 
 function validateForm(form: FormState, items: QuotationItemRow[]) {
-  if (form.customer_mode === "existing_client" && !form.client_id) return "กรุณาเลือกลูกค้าในระบบ";
-  if (form.customer_mode === "prospect" && !form.prospect_name.trim()) return "กรุณาระบุชื่อบุคคลหรือบริษัทของลูกค้าใหม่";
-  if (!form.issue_date) return "Please select issue date.";
-  if (form.valid_until && form.valid_until < form.issue_date) return "Valid until cannot be before issue date.";
-  if (form.matter_mode === "case" && !form.case_id) return "กรุณาเลือก Case";
-  if (form.matter_mode === "advisory" && !form.advisory_matter_id) return "กรุณาเลือก Advisory";
-  if (form.case_id && form.advisory_matter_id) return "Select either case or advisory matter, not both.";
-  if (!form.authorized_signer_key) return "Please select authorized signer.";
-  if (items.length === 0) return "Please add at least one line item.";
+  if (form.customer_mode === "existing_client" && !form.client_id) return uiMessage("finance.quotation.validation.client");
+  if (form.customer_mode === "prospect" && !form.prospect_name.trim()) return uiMessage("finance.quotation.validation.prospect");
+  if (!form.issue_date) return uiMessage("finance.quotation.validation.issueDate");
+  if (form.valid_until && form.valid_until < form.issue_date) return uiMessage("finance.quotation.validation.validUntil");
+  if (form.matter_mode === "case" && !form.case_id) return uiMessage("finance.quotation.engagement.caseRequired");
+  if (form.matter_mode === "advisory" && !form.advisory_matter_id) return uiMessage("finance.quotation.engagement.advisoryRequired");
+  if (form.case_id && form.advisory_matter_id) return uiMessage("finance.quotation.validation.singleMatter");
+  if (!form.authorized_signer_key) return uiMessage("finance.quotation.validation.signer");
+  if (items.length === 0) return uiMessage("finance.quotation.validation.itemRequired");
   for (const item of items) {
-    if (!item.description.trim()) return "Every line item needs a description.";
-    if (!item.economic_classification) return "กรุณาระบุประเภทของยอดสำหรับทุกรายการ";
-    if (!item.unit.trim()) return "กรุณาระบุหน่วยสำหรับทุกรายการ";
-    if (toAmount(item.quantity) <= 0) return "Quantity must be greater than zero.";
-    if (toAmount(item.unit_price) < 0) return "Unit price cannot be negative.";
+    if (!item.description.trim()) return uiMessage("finance.quotation.validation.description");
+    if (!item.economic_classification) return uiMessage("finance.quotation.validation.classification");
+    if (!item.unit.trim()) return uiMessage("finance.quotation.validation.unit");
+    if (toAmount(item.quantity) <= 0) return uiMessage("finance.quotation.validation.quantity");
+    if (toAmount(item.unit_price) < 0) return uiMessage("finance.quotation.validation.unitPrice");
   }
   return "";
 }
 
 function validateDraftSavePayload(payload: Record<string, unknown>, totals: ReturnType<typeof computeTotals>) {
   const requiredStrings = ["p_quotation_id", "p_issue_date", "p_authorized_signer_key"];
-  if (requiredStrings.some((key) => typeof payload[key] !== "string" || !String(payload[key]).trim())) return "Required quotation fields are missing.";
+  if (requiredStrings.some((key) => typeof payload[key] !== "string" || !String(payload[key]).trim())) return uiMessage("finance.quotation.validation.requiredFields");
   const clientSnapshot = payload.p_client_snapshot_json && typeof payload.p_client_snapshot_json === "object"
     ? payload.p_client_snapshot_json as Record<string, unknown>
     : {};
-  if (!payload.p_client_id && (clientSnapshot.source_type !== "prospect" || !String(clientSnapshot.name || "").trim())) return "Prospect identity is missing.";
-  if (payload.p_case_id && payload.p_advisory_matter_id) return "Select either case or advisory matter, not both.";
-  if (typeof payload.p_issue_date === "string" && typeof payload.p_valid_until === "string" && payload.p_valid_until && payload.p_valid_until < payload.p_issue_date) return "Valid until cannot be before issue date.";
+  if (!payload.p_client_id && (clientSnapshot.source_type !== "prospect" || !String(clientSnapshot.name || "").trim())) return uiMessage("finance.quotation.validation.prospectIdentity");
+  if (payload.p_case_id && payload.p_advisory_matter_id) return uiMessage("finance.quotation.validation.singleMatter");
+  if (typeof payload.p_issue_date === "string" && typeof payload.p_valid_until === "string" && payload.p_valid_until && payload.p_valid_until < payload.p_issue_date) return uiMessage("finance.quotation.validation.validUntil");
   const numericKeys = ["p_subtotal_vatable", "p_subtotal_non_vatable", "p_vat_amount", "p_grand_total"];
-  if (numericKeys.some((key) => !Number.isFinite(Number(payload[key])))) return "Quotation totals contain an invalid number.";
-  if (roundMoney(Number(payload.p_grand_total)) !== totals.grandTotal) return "Quotation totals do not reconcile.";
-  if (!Array.isArray(payload.p_items) || payload.p_items.length === 0) return "Quotation requires at least one line item.";
+  if (numericKeys.some((key) => !Number.isFinite(Number(payload[key])))) return uiMessage("finance.quotation.validation.invalidTotal");
+  if (roundMoney(Number(payload.p_grand_total)) !== totals.grandTotal) return uiMessage("finance.quotation.validation.totalMismatch");
+  if (!Array.isArray(payload.p_items) || payload.p_items.length === 0) return uiMessage("finance.quotation.validation.noItems");
   const hasInvalidItem = payload.p_items.some((item) => {
     if (!item || typeof item !== "object") return true;
     const row = item as Record<string, unknown>;
@@ -2397,29 +2400,29 @@ function validateDraftSavePayload(payload: Record<string, unknown>, totals: Retu
       || !Number.isFinite(Number(row.unit_price)) || Number(row.unit_price) < 0
       || !Number.isFinite(Number(row.amount_before_tax)) || !Number.isFinite(Number(row.vat_amount)) || !Number.isFinite(Number(row.line_total));
   });
-  return hasInvalidItem ? "Quotation contains an invalid line item." : "";
+  return hasInvalidItem ? uiMessage("finance.quotation.validation.invalidItem") : "";
 }
 
 function getQuotationDraftSaveErrorMessage(error: { code?: string | null; message?: string | null }) {
   const message = error.message || "";
   if (error.code === "23503" || /already used in Payment Terms|downstream documents|Payment Terms exist/i.test(message)) {
     return /commercial amounts/i.test(message)
-      ? "ไม่สามารถแก้ไขยอดของรายการนี้ได้ เนื่องจากเงื่อนไขการชำระเงินอ้างอิงยอดเดิมอยู่ กรุณาปรับรายการและเงื่อนไขการชำระเงินให้สอดคล้องกัน"
+      ? uiMessage("finance.quotation.error.amountsReferenced")
       : /Payment Terms exist/i.test(message)
-        ? "ไม่สามารถเพิ่มหรือลบรายการได้ เนื่องจากมีเงื่อนไขการชำระเงินอยู่ กรุณาปรับเงื่อนไขการชำระเงินก่อน"
-      : "ไม่สามารถลบรายการนี้ได้ เนื่องจากถูกนำไปใช้ในเงื่อนไขการชำระเงินแล้ว กรุณาปรับเงื่อนไขการชำระเงินก่อน";
+        ? uiMessage("finance.quotation.error.itemsReferenced")
+      : uiMessage("finance.quotation.error.itemReferenced");
   }
-  return "บันทึกข้อมูลใบเสนอราคาไม่สำเร็จ";
+  return uiMessage("finance.quotation.error.saveFailed");
 }
 
 function getQuotationStatusErrorMessage(error: { message?: string | null }) {
   const message = String(error.message || "").toLowerCase();
-  if (message.includes("prospect identity")) return "ข้อมูลลูกค้าใหม่ยังไม่ครบ กรุณากลับไปแก้ไขร่างใบเสนอราคา";
-  if (message.includes("payment terms are required")) return "ยังไม่ได้กำหนดเงื่อนไขการชำระเงิน";
-  if (message.includes("percentage payment installments")) return "สัดส่วนการชำระเงินยังไม่ครบ 100%";
-  if (message.includes("payment terms totals") || message.includes("payment allocation") || message.includes("quotation totals")) return "ยอดเงื่อนไขการชำระเงินไม่ตรงกับยอดใบเสนอราคา";
-  if (message.includes("installment") || message.includes("trigger data")) return "กรุณากรอกข้อมูลแต่ละงวดให้ครบก่อนส่งใบเสนอราคา";
-  return "ไม่สามารถเปลี่ยนสถานะใบเสนอราคาได้ กรุณาตรวจสอบข้อมูลก่อนส่ง";
+  if (message.includes("prospect identity")) return uiMessage("finance.quotation.error.prospectIncomplete");
+  if (message.includes("payment terms are required")) return uiMessage("finance.quotation.error.termsRequired");
+  if (message.includes("percentage payment installments")) return uiMessage("finance.quotation.error.percentageIncomplete");
+  if (message.includes("payment terms totals") || message.includes("payment allocation") || message.includes("quotation totals")) return uiMessage("finance.quotation.error.termsMismatch");
+  if (message.includes("installment") || message.includes("trigger data")) return uiMessage("finance.quotation.error.installmentIncomplete");
+  return uiMessage("finance.quotation.error.statusFailed");
 }
 
 function buildQuotationSnapshots(
@@ -2656,7 +2659,7 @@ function getAtomicEditPaymentAllocationMappingError(
   const unresolvedNewItem = items.find((item) => !item.id && !item.client_item_key);
   if (unresolvedNewItem) {
     return {
-      message: `ไม่สามารถจับคู่รายการ ${unresolvedNewItem.description.trim() || "ค่าบริการใหม่"} กับเงื่อนไขการชำระเงินได้`,
+      message: uiMessage("finance.quotation.validation.unmappedDescription", { description: unresolvedNewItem.description.trim() || "-" }),
       issue: { message: "", itemReference: "", installmentIndex: 0 },
     };
   }
@@ -2669,7 +2672,7 @@ function getAtomicEditPaymentAllocationMappingError(
     ));
     if (staleAllocation) {
       return {
-        message: `งวดที่ ${installmentIndex + 1} มีข้อมูลจัดสรรที่ไม่ตรงกับรายการค่าบริการปัจจุบัน`,
+        message: uiMessage("finance.quotation.validation.staleInstallment", { number: installmentIndex + 1 }),
         issue: { message: "", itemReference: staleAllocation.quotation_item_id || staleAllocation.client_item_key, installmentIndex },
       };
     }
@@ -2684,14 +2687,14 @@ function getAtomicPaymentAllocationMappingError(
   const itemKeys = items.map((item) => item.client_item_key || "");
   if (itemKeys.some((key) => !key) || new Set(itemKeys).size !== itemKeys.length) {
     return {
-      message: "พบรายการค่าบริการที่ไม่สามารถจับคู่กับเงื่อนไขการชำระเงินได้",
+      message: uiMessage("finance.quotation.error.unmappedItem"),
       issue: { message: "", installmentIndex: 0, field: "title" as const },
     };
   }
   for (const [installmentIndex, installment] of installments.entries()) {
     if ((installment.items || []).some((allocation) => !allocation.client_item_key || !itemKeys.includes(allocation.client_item_key))) {
       return {
-        message: "พบรายการในเงื่อนไขการชำระเงินที่ไม่ตรงกับรายการค่าบริการ",
+        message: uiMessage("finance.quotation.error.unmappedTerm"),
         issue: { message: "", installmentIndex, field: "trigger" as const },
       };
     }
@@ -2701,24 +2704,24 @@ function getAtomicPaymentAllocationMappingError(
 
 function getAtomicDraftCreateErrorMessage(error: { message?: string | null } | null) {
   const message = String(error?.message || "").toLowerCase();
-  if (message.includes("prospect name")) return "กรุณาระบุชื่อบุคคลหรือบริษัทของลูกค้าใหม่";
-  if (message.includes("quotation client not found")) return "ไม่พบลูกค้าที่เลือกในระบบ กรุณาเลือกใหม่";
-  if (message.includes("invalid line items")) return "กรุณากรอกรายการค่าบริการให้ครบถ้วน";
-  if (message.includes("allocation item") || message.includes("client item key")) return "พบรายการในเงื่อนไขการชำระเงินที่ไม่ตรงกับรายการค่าบริการ กรุณาตรวจสอบอีกครั้ง";
-  if (message.includes("invalid installment data")) return "กรุณากรอกข้อมูลของแต่ละงวดให้ครบถ้วน";
-  if (message.includes("at least two non-recurring installments")) return "การแบ่งชำระหลายงวดต้องมีอย่างน้อยสองงวด และห้ามใช้ Trigger แบบ Recurring period";
-  if (message.includes("milestone payment terms require") || message.includes("recurring payment terms require") || message.includes("manual payment terms require")) return "วิธีการชำระเงินและเงื่อนไขการเรียกเก็บไม่สอดคล้องกัน กรุณาตรวจสอบแต่ละงวด";
-  if (message.includes("percentage") && message.includes("exceed")) return "สัดส่วนการชำระเงินรวมต้องไม่เกิน 100%";
-  return "สร้างร่างใบเสนอราคาไม่สำเร็จ ข้อมูลยังไม่ถูกบันทึก";
+  if (message.includes("prospect name")) return uiMessage("finance.quotation.validation.prospect");
+  if (message.includes("quotation client not found")) return uiMessage("finance.quotation.error.clientNotFound");
+  if (message.includes("invalid line items")) return uiMessage("finance.quotation.error.itemsIncomplete");
+  if (message.includes("allocation item") || message.includes("client item key")) return uiMessage("finance.quotation.error.termItemMismatch");
+  if (message.includes("invalid installment data")) return uiMessage("finance.quotation.error.installmentsIncomplete");
+  if (message.includes("at least two non-recurring installments")) return uiMessage("finance.quotation.error.installmentMethod");
+  if (message.includes("milestone payment terms require") || message.includes("recurring payment terms require") || message.includes("manual payment terms require")) return uiMessage("finance.quotation.error.methodTriggerMismatch");
+  if (message.includes("percentage") && message.includes("exceed")) return uiMessage("finance.quotation.error.overPercentage");
+  return uiMessage("finance.quotation.error.createFailed");
 }
 
 function getAtomicDraftEditErrorMessage(error: { code?: string | null; message?: string | null } | null) {
   const message = String(error?.message || "").toLowerCase();
-  if (message.includes("allocation item") || message.includes("could not be mapped")) return "พบรายการในเงื่อนไขการชำระเงินที่ไม่ตรงกับรายการค่าบริการ กรุณาตรวจสอบอีกครั้ง";
-  if (message.includes("invalid installment data") || message.includes("invalid payment terms")) return "กรุณาตรวจสอบข้อมูลงวดและการจัดสรรค่าบริการ";
-  if (message.includes("percentage") && (message.includes("exceed") || message.includes("invalid"))) return "กรุณาตรวจสอบสัดส่วนการจัดสรรของแต่ละรายการ";
-  if (message.includes("only draft")) return "ใบเสนอราคานี้ไม่อยู่ในสถานะร่าง จึงไม่สามารถแก้ไขได้";
-  if (message.includes("not allowed")) return "คุณไม่มีสิทธิ์บันทึกใบเสนอราคานี้";
+  if (message.includes("allocation item") || message.includes("could not be mapped")) return uiMessage("finance.quotation.error.termItemMismatch");
+  if (message.includes("invalid installment data") || message.includes("invalid payment terms")) return uiMessage("finance.quotation.error.allocationReview");
+  if (message.includes("percentage") && (message.includes("exceed") || message.includes("invalid"))) return uiMessage("finance.quotation.error.itemProportions");
+  if (message.includes("only draft")) return uiMessage("finance.quotation.error.notDraft");
+  if (message.includes("not allowed")) return uiMessage("finance.quotation.error.permission");
   return getQuotationDraftSaveErrorMessage(error || {});
 }
 
@@ -2825,13 +2828,14 @@ function computeTotals(items: QuotationItemRow[]) {
 }
 
 function QuotationFinancialSummary({ subtotalVatable, subtotalNonVatable, vatAmount, grandTotal }: { subtotalVatable: number; subtotalNonVatable: number; vatAmount: number; grandTotal: number }) {
+  const { t } = useI18n();
   const serviceValueBeforeVat = roundMoney(subtotalVatable + subtotalNonVatable);
   return <div style={totalsGridStyle}>
-    <SummaryLine label="มูลค่าบริการก่อน VAT / Service Value Before VAT" value={serviceValueBeforeVat} prominent />
-    <SummaryLine label="รายการไม่อยู่ในบังคับ VAT / Non-VAT Service Value" value={subtotalNonVatable} indented />
-    <SummaryLine label="ฐานภาษีของรายการที่มี VAT / VAT Taxable Base" value={subtotalVatable} indented />
-    <SummaryLine label="ภาษีมูลค่าเพิ่ม / VAT" value={vatAmount} tax />
-    <SummaryLine label="ยอดสุทธิที่ลูกค้าชำระ / Amount Payable" value={grandTotal} strong />
+    <SummaryLine label={t("finance.quotation.totals.serviceBeforeVat")} value={serviceValueBeforeVat} prominent />
+    <SummaryLine label={t("finance.quotation.totals.nonVat")} value={subtotalNonVatable} indented />
+    <SummaryLine label={t("finance.quotation.totals.taxableBase")} value={subtotalVatable} indented />
+    <SummaryLine label={t("finance.quotation.totals.vat")} value={vatAmount} tax />
+    <SummaryLine label={t("finance.quotation.totals.payable")} value={grandTotal} strong />
   </div>;
 }
 
@@ -2846,10 +2850,11 @@ function SummaryLine({ label, value, strong = false, prominent = false, indented
 }
 
 function LineItemVatExplanation({ item }: { item: QuotationItemRow }) {
+  const { t } = useI18n();
   const mode = item.price_tax_mode || (item.vat_applicable ? "vat_exclusive" : "non_vat");
-  if (mode === "non_vat") return <div style={lineItemTaxExplanationStyle}>ไม่อยู่ในบังคับ VAT</div>;
-  if (mode === "vat_inclusive") return <div style={lineItemTaxExplanationStyle}>ฐาน {formatMoney(toAmount(item.amount_before_tax))} + VAT {formatMoney(toAmount(item.vat_amount))} = รวม {formatMoney(toAmount(item.line_total))} (รวม VAT แล้ว)</div>;
-  return <div style={lineItemTaxExplanationStyle}>ฐาน {formatMoney(toAmount(item.amount_before_tax))} + VAT {formatMoney(toAmount(item.vat_amount))} = รวม {formatMoney(toAmount(item.line_total))}</div>;
+  if (mode === "non_vat") return <div style={lineItemTaxExplanationStyle}>{t("finance.quotation.tax.outsideScope")}</div>;
+  if (mode === "vat_inclusive") return <div style={lineItemTaxExplanationStyle}>{t("finance.quotation.tax.inclusiveExplanation", { base: formatMoney(toAmount(item.amount_before_tax)), vat: formatMoney(toAmount(item.vat_amount)), total: formatMoney(toAmount(item.line_total)) })}</div>;
+  return <div style={lineItemTaxExplanationStyle}>{t("finance.quotation.tax.exclusiveExplanation", { base: formatMoney(toAmount(item.amount_before_tax)), vat: formatMoney(toAmount(item.vat_amount)), total: formatMoney(toAmount(item.line_total)) })}</div>;
 }
 
 function Detail({ label, value }: { label: string; value: ReactNode }) {
@@ -2877,17 +2882,18 @@ function renderSignerDetail(quotation: QuotationRow) {
 }
 
 function StatusBadge({ status }: { status: string | null }) {
+  const { t } = useI18n();
   const normalized = String(status || "draft").toLowerCase();
   const style = statusStyles[normalized] || statusStyles.draft;
-  return <span style={{ ...badgeStyle, ...style }}>{normalized}</span>;
+  return <span style={{ ...badgeStyle, ...style }}>{["draft", "sent", "accepted", "cancelled"].includes(normalized) ? t(`finance.quotation.status.${normalized}`) : normalized}</span>;
 }
 
 function getReadonlyMessage(status: string | null) {
   const normalized = String(status || "").toLowerCase();
-  if (normalized === "accepted") return "ลูกค้าตอบรับใบเสนอราคานี้แล้ว เอกสารจึงเป็นแบบอ่านอย่างเดียว หากต้องเปลี่ยนเงื่อนไข ให้ยกเลิกและจัดทำใบเสนอราคาใหม่ การดูตัวอย่างและการพิมพ์จะใช้ข้อมูลที่บันทึกไว้ ณ เวลาส่งใบเสนอราคา";
-  if (normalized === "cancelled") return "ใบเสนอราคานี้ถูกยกเลิกแล้วและเป็นแบบอ่านอย่างเดียว การดูตัวอย่างและการพิมพ์จะใช้ข้อมูลที่บันทึกไว้ ณ เวลาส่งใบเสนอราคา";
-  if (normalized === "sent") return "ใบเสนอราคานี้ส่งให้ลูกค้าแล้ว จึงไม่สามารถแก้ไขรายการหรือเงื่อนไขเดิมได้ หากต้องเปลี่ยนเงื่อนไข ให้ยกเลิกและจัดทำใบเสนอราคาใหม่ การดูตัวอย่างและการพิมพ์จะใช้ข้อมูลที่บันทึกไว้ ณ เวลาส่งใบเสนอราคา";
-  return "แก้ไขข้อมูลได้เฉพาะใบเสนอราคาที่ยังเป็นร่างเท่านั้น";
+  if (normalized === "accepted") return uiMessage("finance.quotation.readOnly.accepted");
+  if (normalized === "cancelled") return uiMessage("finance.quotation.readOnly.cancelled");
+  if (normalized === "sent") return uiMessage("finance.quotation.readOnly.sent");
+  return uiMessage("finance.quotation.readOnly.draftOnly");
 }
 
 function getCanonicalQuotationMatterLink(quotation: Pick<QuotationRow, "case_id" | "advisory_matter_id">) {
@@ -2900,16 +2906,16 @@ function getCanonicalQuotationMatterLink(quotation: Pick<QuotationRow, "case_id"
   return { mode: "unlinked" as const, caseId: "", advisoryMatterId: "" };
 }
 
-function renderMatterLink(quotation: Pick<QuotationRow, "case_id" | "advisory_matter_id" | "matter_snapshot_json" | "unlinked_matter_name">, lookups: LookupState) {
+function renderMatterLink(quotation: Pick<QuotationRow, "case_id" | "advisory_matter_id" | "matter_snapshot_json" | "unlinked_matter_name">, lookups: LookupState, locale: UiLocale = "th") {
   if (quotation.case_id) {
     const caseItem = lookups.cases.find((item) => String(item.id) === String(quotation.case_id));
-    return caseItem ? `Case: ${renderCaseLabel(caseItem)}` : `Case: ${quotation.case_id}`;
+    return translate(locale, "finance.quotation.matter.case", { name: caseItem ? renderCaseLabel(caseItem) : quotation.case_id });
   }
   if (quotation.advisory_matter_id) {
     const matter = lookups.matters.find((item) => item.id === quotation.advisory_matter_id);
-    return matter ? `Advisory: ${renderMatterLabel(matter)}` : `Advisory: ${quotation.advisory_matter_id}`;
+    return translate(locale, "finance.quotation.matter.advisory", { name: matter ? renderMatterLabel(matter) : quotation.advisory_matter_id });
   }
-  return quotation.unlinked_matter_name || getSnapshotString(quotation.matter_snapshot_json, "title") || "ยังไม่ผูกเรื่องในระบบ";
+  return quotation.unlinked_matter_name || getSnapshotString(quotation.matter_snapshot_json, "title") || translate(locale, "finance.quotation.matter.unlinked");
 }
 
 function renderQuotationClientName(quotation: Pick<QuotationRow, "client_id" | "client_snapshot_json" | "prospect_name">, clients: ClientRow[]) {
@@ -2957,22 +2963,22 @@ function getBangkokDateKey() {
 }
 
 function mapAcceptedEngagementError(message: string) {
-  if (message.includes("confirmation date is required")) return "กรุณาระบุวันที่ลูกค้ายืนยันว่าจ้าง";
-  if (message.includes("future")) return "วันที่ลูกค้ายืนยันว่าจ้างต้องไม่เป็นวันที่ในอนาคต";
-  if (message.includes("channel")) return "กรุณาเลือกช่องทางการยืนยันให้ถูกต้อง";
-  if (message.includes("note must not exceed")) return "หมายเหตุการยืนยันต้องไม่เกิน 4,000 ตัวอักษร";
-  if (message.includes("Quotation not found")) return "ไม่พบใบเสนอราคานี้ กรุณากลับไปที่รายการใบเสนอราคา";
-  if (message.includes("Link this accepted prospect quotation")) return "กรุณาเชื่อมใบเสนอราคากับลูกค้าในระบบก่อนยืนยันการว่าจ้าง";
-  if (message.includes("no frozen document snapshot")) return "ไม่พบ snapshot ของใบเสนอราคาที่ตอบรับ กรุณาติดต่อผู้ดูแลระบบ";
-  if (message.includes("Linked Client not found")) return "ไม่พบลูกค้าที่เชื่อมกับใบเสนอราคานี้ กรุณาตรวจสอบข้อมูลลูกค้า";
-  if (message.includes("Linked Case not found")) return "ไม่พบ Case ที่เชื่อมกับใบเสนอราคานี้ กรุณาตรวจสอบข้อมูลเรื่อง/งาน";
-  if (message.includes("Linked Advisory matter not found")) return "ไม่พบ Advisory ที่เชื่อมกับใบเสนอราคานี้ กรุณาตรวจสอบข้อมูลเรื่อง/งาน";
-  if (message.includes("Conflicting commercial engagements")) return "พบข้อมูลการว่าจ้างมากกว่าหนึ่งรายการสำหรับใบเสนอราคานี้ กรุณาติดต่อผู้ดูแลระบบก่อนดำเนินการต่อ";
-  if (message.includes("already exists with different")) return "มีการบันทึกการว่าจ้างนี้แล้วด้วยข้อมูลยืนยันที่ต่างกัน กรุณารีเฟรชเพื่อตรวจสอบรายการเดิม";
-  if (message.includes("formal Fee Agreement") || message.includes("formal Fee Agreement already exists")) return "ใบเสนอราคานี้มีสัญญาว่าจ้างอยู่แล้ว กรุณาเปิดรายการเดิม";
-  if (message.includes("Not allowed")) return "คุณไม่มีสิทธิ์ยืนยันการว่าจ้างรายการนี้";
-  if (message.includes("Only accepted")) return "ใบเสนอราคาไม่ได้อยู่ในสถานะตอบรับแล้ว กรุณารีเฟรชหน้า";
-  return "ยืนยันการว่าจ้างไม่สำเร็จ กรุณารีเฟรชและลองอีกครั้ง";
+  if (message.includes("confirmation date is required")) return uiMessage("finance.quotation.engagement.dateRequired");
+  if (message.includes("future")) return uiMessage("finance.quotation.engagement.futureDate");
+  if (message.includes("channel")) return uiMessage("finance.quotation.engagement.invalidChannel");
+  if (message.includes("note must not exceed")) return uiMessage("finance.quotation.engagement.noteLength");
+  if (message.includes("Quotation not found")) return uiMessage("finance.quotation.engagement.notFound");
+  if (message.includes("Link this accepted prospect quotation")) return uiMessage("finance.quotation.engagement.linkClient");
+  if (message.includes("no frozen document snapshot")) return uiMessage("finance.quotation.engagement.noSnapshot");
+  if (message.includes("Linked Client not found")) return uiMessage("finance.quotation.engagement.noClient");
+  if (message.includes("Linked Case not found")) return uiMessage("finance.quotation.engagement.noCase");
+  if (message.includes("Linked Advisory matter not found")) return uiMessage("finance.quotation.engagement.noAdvisory");
+  if (message.includes("Conflicting commercial engagements")) return uiMessage("finance.quotation.engagement.conflicting");
+  if (message.includes("already exists with different")) return uiMessage("finance.quotation.engagement.differentConfirmation");
+  if (message.includes("formal Fee Agreement") || message.includes("formal Fee Agreement already exists")) return uiMessage("finance.quotation.engagement.agreementExists");
+  if (message.includes("Not allowed")) return uiMessage("finance.quotation.engagement.permission");
+  if (message.includes("Only accepted")) return uiMessage("finance.quotation.engagement.notAccepted");
+  return uiMessage("finance.quotation.engagement.failed");
 }
 
 function toAmount(value: number | string | null | undefined) {

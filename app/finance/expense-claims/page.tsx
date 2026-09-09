@@ -1,4 +1,8 @@
 "use client";
+import { useI18n, useUiAlert } from "../../../lib/i18n/provider";
+import { uiMessage, type UiMessage, type UiLocale } from "../../../lib/i18n/core";
+import { translate } from "../../../lib/i18n/catalog";
+import { legacyCategoryLabel, legacyStatusLabel, legacyOperationError } from "../../../lib/i18n/legacy-finance";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
@@ -117,6 +121,8 @@ const emptyClaimForm: ClaimForm = {
 };
 
 export default function ExpenseClaimsPage() {
+  const { t, text, locale, date } = useI18n();
+  const notify = useUiAlert();
   const [profile, setProfile] = useState<Profile>({ role: "", financial_access: false });
   const [userId, setUserId] = useState("");
   const [userEmail, setUserEmail] = useState("");
@@ -132,7 +138,7 @@ export default function ExpenseClaimsPage() {
   const [form, setForm] = useState<ClaimForm>(emptyClaimForm);
   const [paidForms, setPaidForms] = useState<Record<string, PaidForm>>({});
   const [payingClaimId, setPayingClaimId] = useState("");
-  const [errorText, setErrorText] = useState("");
+  const [errorText, setErrorText] = useState<UiMessage | string>("");
   const [openActionMenuId, setOpenActionMenuId] = useState("");
 
   const permissions: UserPermissions = useMemo(() => buildPermissions(profile), [profile]);
@@ -226,15 +232,15 @@ export default function ExpenseClaimsPage() {
       ]);
 
       if (claimsRes.error) {
-        setErrorText(claimsRes.error.message);
+        setErrorText(legacyOperationError(claimsRes.error, uiMessage("finance.legacy.error.load")));
         return;
       }
       if (bankRes.error) {
-        setErrorText(bankRes.error.message);
+        setErrorText(legacyOperationError(bankRes.error, uiMessage("finance.legacy.error.load")));
         return;
       }
       if (bankAccessRes.error) {
-        setErrorText(bankAccessRes.error.message);
+        setErrorText(legacyOperationError(bankAccessRes.error, uiMessage("finance.legacy.error.load")));
         return;
       }
 
@@ -295,10 +301,10 @@ export default function ExpenseClaimsPage() {
     const category = form.category === "Other" ? form.custom_category.trim() : form.category;
     const claimantName = getClaimantName(form, claimantUsers);
 
-    if (!form.claim_date) return alert("Claim date is required");
-    if (!claimantName) return alert("Claimant is required");
-    if (!category) return alert("Category is required");
-    if (!amount || amount <= 0) return alert("Amount must be greater than zero");
+    if (!form.claim_date) return notify(uiMessage("finance.legacy.validation.claimDate"));
+    if (!claimantName) return notify(uiMessage("finance.legacy.validation.claimant"));
+    if (!category) return notify(uiMessage("finance.legacy.validation.category"));
+    if (!amount || amount <= 0) return notify(uiMessage("finance.legacy.validation.amount"));
 
     const payload = {
       claim_date: form.claim_date,
@@ -329,7 +335,7 @@ export default function ExpenseClaimsPage() {
         .select("*")
         .single();
 
-      if (error || !data) return alert(error?.message || "Create claim failed");
+      if (error || !data) return notify(legacyOperationError(error, uiMessage("finance.legacy.error.claimCreate")));
 
       await auditFinance("create", "finance_expense_claims", data.id, null, data, "Create expense claim");
       setForm({ ...emptyClaimForm, claim_date: getDateKey(new Date()) });
@@ -351,7 +357,7 @@ export default function ExpenseClaimsPage() {
       .select("*")
       .single();
 
-    if (error || !data) return alert(error?.message || "Update claim failed");
+    if (error || !data) return notify(legacyOperationError(error, uiMessage("finance.legacy.error.claimUpdate")));
 
     await auditFinance("update", "finance_expense_claims", claim.id, claim, data, note);
     await loadClaims();
@@ -373,7 +379,7 @@ export default function ExpenseClaimsPage() {
 
   const rejectClaim = async (claim: ClaimRow) => {
     if (!permissions.canApproveExpenseClaims || !["submitted", "approved"].includes(claim.status)) return;
-    const reason = window.prompt("Reject reason");
+    const reason = window.prompt(t("finance.legacy.dialog.rejectReason"));
     if (!reason?.trim()) return;
 
     await updateClaimStatus(
@@ -391,12 +397,12 @@ export default function ExpenseClaimsPage() {
 
   const voidClaim = async (claim: ClaimRow) => {
     if (!permissions.canApproveExpenseClaims || claim.status === "paid" || claim.ledger_entry_id) {
-      alert("Paid claims cannot be voided in this phase.");
+      notify(uiMessage("finance.legacy.validation.paidClaimVoid"));
       return;
     }
 
     if (!["submitted", "approved", "rejected"].includes(claim.status)) return;
-    const reason = window.prompt("Void reason");
+    const reason = window.prompt(t("finance.legacy.dialog.voidReason"));
     if (!reason?.trim()) return;
 
     await updateClaimStatus(
@@ -413,13 +419,13 @@ export default function ExpenseClaimsPage() {
 
   const markPaid = async (claim: ClaimRow) => {
     if (!permissions.canPayExpenseClaims || claim.status !== "approved") return;
-    if (claim.ledger_entry_id) return alert("This claim is already posted to ledger.");
+    if (claim.ledger_entry_id) return notify(uiMessage("finance.legacy.validation.claimPosted"));
     if (payingClaimId === claim.id) return;
 
     const paidForm = getPaidForm(claim.id);
-    if (!paidForm.bank_account_id) return alert("Please select bank account.");
+    if (!paidForm.bank_account_id) return notify(uiMessage("finance.legacy.validation.selectBank"));
     if (!bankAccounts.some((account) => account.id === paidForm.bank_account_id)) {
-      return alert("You do not have access to this bank account.");
+      return notify(uiMessage("finance.legacy.validation.bankAccess"));
     }
 
     try {
@@ -432,19 +438,19 @@ export default function ExpenseClaimsPage() {
         .single();
 
       if (latestClaimError || !latestClaim) {
-        alert(latestClaimError?.message || "Claim not found");
+        notify(legacyOperationError(latestClaimError, uiMessage("finance.legacy.error.claimMissing")));
         return;
       }
 
       const currentClaim = latestClaim as ClaimRow;
       if (currentClaim.status !== "approved") {
-        alert("This claim is no longer approved.");
+        notify(uiMessage("finance.legacy.validation.claimApproved"));
         await loadClaims();
         return;
       }
 
       if (currentClaim.ledger_entry_id) {
-        alert("This claim is already posted to Ledger.");
+        notify(uiMessage("finance.legacy.validation.claimPosted"));
         await loadClaims();
         return;
       }
@@ -480,12 +486,12 @@ export default function ExpenseClaimsPage() {
 
       if (ledgerError || !ledgerData) {
         if (isDuplicateLedgerError(ledgerError)) {
-          alert("This claim has already been posted to Ledger.");
+          notify(uiMessage("finance.legacy.validation.claimPosted"));
           await loadClaims();
           return;
         }
 
-        alert(ledgerError?.message || "Create ledger entry failed");
+        notify(legacyOperationError(ledgerError, uiMessage("finance.legacy.error.ledgerEntryCreate")));
         return;
       }
 
@@ -509,10 +515,7 @@ export default function ExpenseClaimsPage() {
         .single();
 
       if (claimError || !claimData) {
-        alert(
-          claimError?.message ||
-            "Claim paid update failed. Ledger entry was created; please review manually."
-        );
+        notify(legacyOperationError(claimError, uiMessage("finance.legacy.error.claimPaidPartial")));
         await loadClaims();
         return;
       }
@@ -559,7 +562,7 @@ export default function ExpenseClaimsPage() {
     return (
       <AuthGuard>
         <main style={pageStyle}>
-          <div style={panelStyle}>Loading permission...</div>
+          <div style={panelStyle}>{t("finance.legacy.access.loading")}</div>
         </main>
       </AuthGuard>
     );
@@ -569,8 +572,8 @@ export default function ExpenseClaimsPage() {
     return (
       <AuthGuard>
         <main style={pageStyle}>
-          <AppTopNav title="การเงิน" activePage="finance" />
-          <div style={noAccessStyle}>No access</div>
+          <AppTopNav title={t("finance.legacy.title")} activePage="finance" />
+          <div style={noAccessStyle}>{t("finance.legacy.access.denied")}</div>
         </main>
       </AuthGuard>
     );
@@ -579,75 +582,75 @@ export default function ExpenseClaimsPage() {
   return (
     <AuthGuard>
       <main style={pageStyle}>
-        <AppTopNav title="การเงิน" activePage="finance" />
+        <AppTopNav title={t("finance.legacy.title")} activePage="finance" />
         <FinanceSubNav activePage="claims" permissions={permissions} />
-        {errorText ? <div style={errorStyle}>{errorText}</div> : null}
+        {errorText ? <div style={errorStyle}>{text(errorText)}</div> : null}
 
         <section style={summaryGridStyle}>
-          <SummaryCard label="Submitted" value={String(summary.submitted)} />
-          <SummaryCard label="Approved" value={String(summary.approved)} />
-          <SummaryCard label="Paid" value={String(summary.paid)} />
-          <SummaryCard label="Rejected" value={String(summary.rejected)} />
+          <SummaryCard label={t("finance.legacy.status.submitted")} value={String(summary.submitted)} />
+          <SummaryCard label={t("finance.legacy.status.approved")} value={String(summary.approved)} />
+          <SummaryCard label={t("finance.legacy.status.paid")} value={String(summary.paid)} />
+          <SummaryCard label={t("finance.legacy.status.rejected")} value={String(summary.rejected)} />
         </section>
 
         {permissions.canSubmitExpenseClaim ? (
         <section style={panelStyle}>
-          <h2 style={sectionTitleStyle}>Create Claim</h2>
+          <h2 style={sectionTitleStyle}>{t("finance.legacy.claim.create")}</h2>
           <div style={formGridStyle}>
-            <label style={labelStyle}>Claim Date<input type="date" value={form.claim_date} onChange={(event) => setForm({ ...form, claim_date: event.target.value })} style={inputStyle} /></label>
-            <label style={labelStyle}>Claimant<select value={form.claimant_user_id} onChange={(event) => updateClaimant(event.target.value)} style={inputStyle}><option value="">-</option>{claimantUsers.map((user) => <option key={user.id} value={user.id}>{renderUserLabel(user)}</option>)}<option value={otherValue}>Other</option></select></label>
+            <label style={labelStyle}>{t("finance.legacy.claim.date")}<input type="date" value={form.claim_date} onChange={(event) => setForm({ ...form, claim_date: event.target.value })} style={inputStyle} /></label>
+            <label style={labelStyle}>{t("finance.legacy.fields.claimant")}<select value={form.claimant_user_id} onChange={(event) => updateClaimant(event.target.value)} style={inputStyle}><option value="">-</option>{claimantUsers.map((user) => <option key={user.id} value={user.id}>{renderUserLabel(user)}</option>)}<option value={otherValue}>{t("finance.legacy.choice.other")}</option></select></label>
             {form.claimant_user_id === otherValue ? (
-              <label style={labelStyle}>Claimant Name<input value={form.claimant_name} onChange={(event) => setForm({ ...form, claimant_name: event.target.value })} style={inputStyle} placeholder="ระบุชื่อผู้เบิก" /></label>
+              <label style={labelStyle}>{t("finance.legacy.fields.claimantName")}<input value={form.claimant_name} onChange={(event) => setForm({ ...form, claimant_name: event.target.value })} style={inputStyle} placeholder={t("finance.legacy.placeholder.claimant")} /></label>
             ) : null}
-            <label style={labelStyle}>Category<select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} style={inputStyle}>{expenseCategories.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
+            <label style={labelStyle}>{t("finance.legacy.fields.category")}<select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} style={inputStyle}>{expenseCategories.map((category) => <option key={category} value={category}>{legacyCategoryLabel(category, locale)}</option>)}</select></label>
             {form.category === "Other" ? (
-              <label style={labelStyle}>Custom Category<input value={form.custom_category} onChange={(event) => setForm({ ...form, custom_category: event.target.value })} style={inputStyle} placeholder="ระบุหมวดรายการเอง" /></label>
+              <label style={labelStyle}>{t("finance.legacy.fields.customCategory")}<input value={form.custom_category} onChange={(event) => setForm({ ...form, custom_category: event.target.value })} style={inputStyle} placeholder={t("finance.legacy.placeholder.category")} /></label>
             ) : null}
-            <label style={labelStyle}>Amount<input value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} style={inputStyle} placeholder="0.00" /></label>
-            <label style={labelStyle}>Client<select value={form.client_id} onChange={(event) => setForm({ ...form, client_id: event.target.value })} style={inputStyle}><option value="">-</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name || client.id}</option>)}</select></label>
-            <label style={labelStyle}>Case<select value={form.case_id} onChange={(event) => setForm({ ...form, case_id: event.target.value })} style={inputStyle}><option value="">-</option>{cases.map((item) => <option key={item.id} value={item.id}>{renderCaseLabel(item)}</option>)}</select></label>
-            <label style={labelStyle}>Advisory Matter<select value={form.advisory_matter_id} onChange={(event) => setForm({ ...form, advisory_matter_id: event.target.value })} style={inputStyle}><option value="">-</option>{matters.map((item) => <option key={item.id} value={item.id}>{renderMatterLabel(item)}</option>)}</select></label>
-            <label style={descriptionLabelStyle}>Description<input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} style={inputStyle} /></label>
-            <label style={wideLabelStyle}>Note<textarea value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} style={textareaStyle} /></label>
+            <label style={labelStyle}>{t("finance.legacy.fields.amount")}<input value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} style={inputStyle} placeholder="0.00" /></label>
+            <label style={labelStyle}>{t("finance.legacy.fields.client")}<select value={form.client_id} onChange={(event) => setForm({ ...form, client_id: event.target.value })} style={inputStyle}><option value="">-</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name || client.id}</option>)}</select></label>
+            <label style={labelStyle}>{t("finance.legacy.fields.case")}<select value={form.case_id} onChange={(event) => setForm({ ...form, case_id: event.target.value })} style={inputStyle}><option value="">-</option>{cases.map((item) => <option key={item.id} value={item.id}>{renderCaseLabel(item)}</option>)}</select></label>
+            <label style={labelStyle}>{t("finance.legacy.fields.advisory")}<select value={form.advisory_matter_id} onChange={(event) => setForm({ ...form, advisory_matter_id: event.target.value })} style={inputStyle}><option value="">-</option>{matters.map((item) => <option key={item.id} value={item.id}>{renderMatterLabel(item)}</option>)}</select></label>
+            <label style={descriptionLabelStyle}>{t("finance.legacy.fields.description")}<input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} style={inputStyle} /></label>
+            <label style={wideLabelStyle}>{t("finance.legacy.fields.note")}<textarea value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} style={textareaStyle} /></label>
           </div>
           <div style={actionRowStyle}>
-            <button type="button" onClick={createClaim} disabled={saving} style={primaryButtonStyle}>{saving ? "Saving..." : "Create Claim"}</button>
+            <button type="button" onClick={createClaim} disabled={saving} style={primaryButtonStyle}>{saving ? t("finance.legacy.state.saving") : t("finance.legacy.claim.create")}</button>
           </div>
         </section>
         ) : null}
 
         <section style={panelStyle}>
-          <h2 style={sectionTitleStyle}>Claims</h2>
-          {loading ? <div style={emptyStyle}>Loading claims...</div> : null}
+          <h2 style={sectionTitleStyle}>{t("finance.legacy.claim.title")}</h2>
+          {loading ? <div style={emptyStyle}>{t("finance.legacy.claim.loading")}</div> : null}
           <div style={tableWrapStyle}>
             <table style={tableStyle}>
               <thead>
                 <tr>
-                  <th style={thStyle}>Date</th>
-                  <th style={thStyle}>Claimant</th>
-                  <th style={thStyle}>Category</th>
-                  <th style={thStyle}>Amount</th>
-                  <th style={thStyle}>Matter</th>
-                  <th style={thStyle}>Status</th>
-                  <th style={thStyle}>Ledger</th>
-                  <th style={thStyle}>Actions</th>
+                  <th style={thStyle}>{t("finance.legacy.fields.date")}</th>
+                  <th style={thStyle}>{t("finance.legacy.fields.claimant")}</th>
+                  <th style={thStyle}>{t("finance.legacy.fields.category")}</th>
+                  <th style={thStyle}>{t("finance.legacy.fields.amount")}</th>
+                  <th style={thStyle}>{t("finance.legacy.fields.matter")}</th>
+                  <th style={thStyle}>{t("finance.legacy.fields.status")}</th>
+                  <th style={thStyle}>{t("finance.legacy.fields.ledger")}</th>
+                  <th style={thStyle}>{t("finance.legacy.fields.actions")}</th>
                 </tr>
               </thead>
               <tbody>
                 {claims.map((claim) => (
                   <tr key={claim.id}>
-                    <td style={tdStyle}>{claim.claim_date || "-"}</td>
+                    <td style={tdStyle}>{date(claim.claim_date)}</td>
                     <td style={tdStyle}>{claim.claimant_name || "-"}</td>
-                    <td style={tdStyle}>{renderClaimDetail(claim)}</td>
+                    <td style={tdStyle}>{renderClaimDetail(claim, locale)}</td>
                     <td style={tdStyle}>{formatMoney(toAmount(claim.amount))}</td>
                     <td style={tdStyle}>{renderRelation(claim, clients, cases, matters)}</td>
-                    <td style={tdStyle}>{claim.status}</td>
-                    <td style={tdStyle}>{claim.ledger_entry_id ? `Posted: ${claim.ledger_entry_id}` : "-"}</td>
+                    <td style={tdStyle}>{legacyStatusLabel(claim.status, locale)}</td>
+                    <td style={tdStyle}>{claim.ledger_entry_id ? t("finance.compensation.history.postedReference", { id: claim.ledger_entry_id }) : "-"}</td>
                     <td style={tdStyle}>{renderActions(claim)}</td>
                   </tr>
                 ))}
                 {claims.length === 0 ? (
-                  <tr><td colSpan={8} style={tdStyle}>No expense claims.</td></tr>
+                  <tr><td colSpan={8} style={tdStyle}>{t("finance.legacy.claim.empty")}</td></tr>
                 ) : null}
               </tbody>
             </table>
@@ -661,29 +664,29 @@ export default function ExpenseClaimsPage() {
     const paidForm = getPaidForm(claim.id);
     const isPaying = payingClaimId === claim.id;
 
-    if (claim.status === "paid") return <div style={postedStyle}>Posted to Ledger</div>;
+    if (claim.status === "paid") return <div style={postedStyle}>{t("finance.legacy.ledger.posted")}</div>;
     if (claim.status === "rejected" || claim.status === "voided") return null;
 
     return (
       <div style={actionStackStyle}>
         {claim.status === "submitted" && permissions.canApproveExpenseClaims ? (
-          <button type="button" onClick={() => approveClaim(claim)} style={smallButtonStyle}>Approve</button>
+          <button type="button" onClick={() => approveClaim(claim)} style={smallButtonStyle}>{t("finance.legacy.actions.approve")}</button>
         ) : null}
         {claim.status === "approved" && !claim.ledger_entry_id && permissions.canPayExpenseClaims ? (
           <div style={paidFormStyle}>
             <input type="date" value={paidForm.paid_date} onChange={(event) => updatePaidForm(claim.id, { paid_date: event.target.value })} style={inputStyle} />
-            <select value={paidForm.bank_account_id} onChange={(event) => updatePaidForm(claim.id, { bank_account_id: event.target.value })} style={inputStyle}><option value="">Bank</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{renderBankLabel(account)}</option>)}</select>
-            {bankAccounts.length === 0 ? <div style={bankAccessHintStyle}>No bank accounts available for your permission.</div> : null}
-            <input value={paidForm.payment_reference_no} onChange={(event) => updatePaidForm(claim.id, { payment_reference_no: event.target.value })} style={inputStyle} placeholder="Reference" />
-            <input value={paidForm.payment_note} onChange={(event) => updatePaidForm(claim.id, { payment_note: event.target.value })} style={inputStyle} placeholder="Payment note" />
-            <button type="button" onClick={() => markPaid(claim)} disabled={isPaying || bankAccounts.length === 0} style={primarySmallButtonStyle}>{isPaying ? "Processing..." : "Mark as Paid"}</button>
+            <select value={paidForm.bank_account_id} onChange={(event) => updatePaidForm(claim.id, { bank_account_id: event.target.value })} style={inputStyle}><option value="">{t("finance.legacy.fields.bank")}</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{renderBankLabel(account)}</option>)}</select>
+            {bankAccounts.length === 0 ? <div style={bankAccessHintStyle}>{t("finance.legacy.bank.noAccess")}</div> : null}
+            <input value={paidForm.payment_reference_no} onChange={(event) => updatePaidForm(claim.id, { payment_reference_no: event.target.value })} style={inputStyle} placeholder={t("finance.legacy.fields.reference")} />
+            <input value={paidForm.payment_note} onChange={(event) => updatePaidForm(claim.id, { payment_note: event.target.value })} style={inputStyle} placeholder={t("finance.legacy.fields.paymentNote")} />
+            <button type="button" onClick={() => markPaid(claim)} disabled={isPaying || bankAccounts.length === 0} style={primarySmallButtonStyle}>{isPaying ? t("finance.legacy.state.processing") : t("finance.legacy.actions.markPaid")}</button>
           </div>
         ) : null}
         {["submitted", "approved", "rejected"].includes(claim.status) && permissions.canApproveExpenseClaims ? (
           <details data-action-menu-root="true" open={openActionMenuId === claim.id} style={moreMenuStyle}>
             <summary
-              aria-label="More actions"
-              title="More actions"
+              aria-label={t("finance.legacy.actions.more")}
+              title={t("finance.legacy.actions.more")}
               onClick={(event) => {
                 event.preventDefault();
                 setOpenActionMenuId((current) => current === claim.id ? "" : claim.id);
@@ -702,8 +705,7 @@ export default function ExpenseClaimsPage() {
                   }}
                   style={menuButtonStyle}
                 >
-                  Reject
-                </button>
+                  {t("finance.legacy.actions.reject")}</button>
               ) : null}
               <button
                 type="button"
@@ -713,8 +715,7 @@ export default function ExpenseClaimsPage() {
                 }}
                 style={dangerMenuButtonStyle}
               >
-                Void
-              </button>
+                {t("finance.legacy.actions.void")}</button>
             </div>
           </details>
         ) : null}
@@ -801,14 +802,14 @@ function renderRelation(row: ClaimRow, clients: ClientRow[], cases: CaseRow[], m
   return client?.name || "-";
 }
 
-function renderClaimDetail(claim: ClaimRow) {
+function renderClaimDetail(claim: ClaimRow, locale: UiLocale) {
   return (
     <div style={detailStackStyle}>
-      <div>{claim.category || "-"}</div>
-      {claim.description ? <div style={descriptionTextStyle}>Description: {claim.description}</div> : null}
-      {claim.note ? <div style={noteTextStyle}>Note: {claim.note}</div> : null}
-      {claim.reject_reason ? <div style={dangerTextStyle}>Reject reason: {claim.reject_reason}</div> : null}
-      {claim.void_reason ? <div style={dangerTextStyle}>Void reason: {claim.void_reason}</div> : null}
+      <div>{legacyCategoryLabel(claim.category, locale)}</div>
+      {claim.description ? <div style={descriptionTextStyle}>{translate(locale, "finance.legacy.detail.description")}{claim.description}</div> : null}
+      {claim.note ? <div style={noteTextStyle}>{translate(locale, "finance.legacy.detail.note")}{claim.note}</div> : null}
+      {claim.reject_reason ? <div style={dangerTextStyle}>{translate(locale, "finance.legacy.detail.rejectReason")}{claim.reject_reason}</div> : null}
+      {claim.void_reason ? <div style={dangerTextStyle}>{translate(locale, "finance.legacy.detail.voidReason")}{claim.void_reason}</div> : null}
     </div>
   );
 }

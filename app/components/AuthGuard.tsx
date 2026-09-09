@@ -3,12 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase";
+import { useI18n } from "../../lib/i18n/provider";
 
 type AuthGuardProps = {
   children: React.ReactNode;
 };
 
 export default function AuthGuard({ children }: AuthGuardProps) {
+  const { t } = useI18n();
   const router = useRouter();
 
   const [checking, setChecking] = useState(true);
@@ -28,7 +30,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
 
         if (error || !data.user) {
           if (isAbortLikeError(error)) {
-            setErrorText("ไม่สามารถตรวจสอบสถานะการเข้าสู่ระบบได้ กรุณารีเฟรชหรือลองเข้าสู่ระบบใหม่");
+            setErrorText("common.auth.failed");
             setChecking(false);
             return;
           }
@@ -55,7 +57,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
       } catch (error) {
         if (cancelled) return;
         console.warn("Auth check failed", error);
-        setErrorText("ไม่สามารถตรวจสอบสถานะการเข้าสู่ระบบได้ กรุณารีเฟรชหรือลองเข้าสู่ระบบใหม่");
+        setErrorText("common.auth.failed");
         setChecking(false);
       }
     };
@@ -71,7 +73,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     return (
       <main style={loadingPageStyle}>
         <div style={loadingCardStyle}>
-          {errorText || "Checking login..."}
+          {t(errorText || "common.auth.checking")}
         </div>
       </main>
     );

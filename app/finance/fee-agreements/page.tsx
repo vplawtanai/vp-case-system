@@ -1,4 +1,6 @@
 "use client";
+import { uiMessage, type UiMessage } from "../../../lib/i18n/core";
+import { useI18n } from "../../../lib/i18n/provider";
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import Link from "next/link";
@@ -15,7 +17,6 @@ type Agreement = {
 };
 
 const value = (input: unknown, fallback = "-") => typeof input === "string" && input.trim() ? input : fallback;
-const date = (input: string | null) => input ? input.slice(0, 10) : "-";
 const snapshotText = (snapshot: Json | null, ...keys: string[]) => keys.map((key) => value(snapshot?.[key], "")).find(Boolean) || "-";
 
 export default function FeeAgreementsPage() {
@@ -23,9 +24,10 @@ export default function FeeAgreementsPage() {
 }
 
 function FeeAgreementList({ permissions }: { permissions: Parameters<typeof FinanceSubNav>[0]["permissions"] }) {
+  const { t, locale, date, text } = useI18n();
   const [agreements, setAgreements] = useState<Agreement[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<UiMessage | string>("");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
 
@@ -34,7 +36,7 @@ function FeeAgreementList({ permissions }: { permissions: Parameters<typeof Fina
     const result = await supabase.from("finance_fee_agreements")
       .select("id,agreement_no,title,status,language_code,effective_date,updated_at,source_quotation_id,source_reference,engagement_basis,client_snapshot_json,matter_snapshot_json,source_document_snapshot_json")
       .order("updated_at", { ascending: false });
-    if (result.error) setError("ไม่สามารถโหลดรายการข้อตกลงค่าบริการได้");
+    if (result.error) setError(uiMessage("finance.feeAgreement.list.loadFailed"));
     else setAgreements((result.data || []) as Agreement[]);
     setLoading(false);
   }, []);
@@ -51,34 +53,34 @@ function FeeAgreementList({ permissions }: { permissions: Parameters<typeof Fina
     <FinanceSubNav activePage="fee-agreements" permissions={permissions} />
 
     <header style={headerStyle}>
-      <h1 style={pageTitle}>การว่าจ้าง / ข้อตกลงค่าบริการ</h1>
-      <p style={pageSubtitle}>ติดตามทั้งสัญญาว่าจ้างและการว่าจ้างที่ยืนยันจากใบเสนอราคาที่ตอบรับ</p>
+      <h1 style={pageTitle}>{t("finance.feeAgreement.list.title")}</h1>
+      <p style={pageSubtitle}>{t("finance.feeAgreement.list.help")}</p>
     </header>
 
-    <section className="fee-agreement-filter-toolbar" style={filterStyle} aria-label="ค้นหาและกรองสัญญาว่าจ้าง">
+    <section className="fee-agreement-filter-toolbar" style={filterStyle} aria-label={t("finance.feeAgreement.list.filter")}>
       <label style={filterField}>
-        <span style={filterLabel}>ค้นหา</span>
+        <span style={filterLabel}>{t("common.actions.search")}</span>
         <span style={searchControl}>
           <ListIcon name="search" />
-          <input className="fee-agreement-filter-control" aria-label="ค้นหาสัญญาว่าจ้าง" style={inputStyle} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ค้นหาเลขที่ข้อตกลง ลูกค้า หรือใบเสนอราคา" />
+          <input className="fee-agreement-filter-control" aria-label={t("finance.feeAgreement.list.search")} style={inputStyle} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("finance.feeAgreement.list.searchPlaceholder")} />
         </span>
       </label>
       <label style={filterField}>
-        <span style={filterLabel}>สถานะ</span>
+        <span style={filterLabel}>{t("finance.taxInvoice.ui.status")}</span>
         <select className="fee-agreement-filter-control" style={selectStyle} value={status} onChange={(event) => setStatus(event.target.value)}>
-          <option value="all">ทุกสถานะ</option>{["draft", "under_review", "sent", "signed", "completed", "engagement_confirmed", "cancelled", "active"].map((item) => <option key={item} value={item}>{feeAgreementStatusLabel(item)}</option>)}
+          <option value="all">{t("finance.taxInvoice.ui.allStatuses")}</option>{["draft", "under_review", "sent", "signed", "completed", "engagement_confirmed", "cancelled", "active"].map((item) => <option key={item} value={item}>{feeAgreementStatusLabel(item, locale)}</option>)}
         </select>
       </label>
     </section>
 
-    {!loading && !error ? <div style={listMeta} aria-live="polite">แสดง {filtered.length} จาก {agreements.length} รายการ</div> : null}
+    {!loading && !error ? <div style={listMeta} aria-live="polite">{t("finance.feeAgreement.list.count", { count: filtered.length, total: agreements.length })}</div> : null}
 
-    {loading ? <div style={loadingStyle}>กำลังโหลดสัญญาว่าจ้าง...</div> : error ? <div style={warning}>{error}</div> : filtered.length === 0 ? <div style={emptyStyle}>ยังไม่มีสัญญาว่าจ้างที่ตรงกับเงื่อนไข</div> : <div className="fee-agreement-list-table-wrap" style={tableWrap}><table className="fee-agreement-list-table" style={tableStyle}>
+    {loading ? <div style={loadingStyle}>{t("finance.feeAgreement.list.loading")}</div> : error ? <div style={warning}>{text(error)}</div> : filtered.length === 0 ? <div style={emptyStyle}>{t("finance.feeAgreement.list.empty")}</div> : <div className="fee-agreement-list-table-wrap" style={tableWrap}><table className="fee-agreement-list-table" style={tableStyle}>
       <colgroup>
         <col style={{ width: 190 }} /><col style={{ width: 220 }} /><col style={{ width: 155 }} /><col style={{ width: 150 }} />
         <col style={{ width: 78 }} /><col style={{ width: 110 }} /><col style={{ width: 110 }} /><col style={{ width: 86 }} />
       </colgroup>
-      <thead><tr><th>รายการการว่าจ้าง</th><th>ลูกค้า / เรื่องหรือคดี</th><th>ใบเสนอราคาต้นทาง</th><th>สถานะ</th><th>ภาษา</th><th>วันที่มีผล</th><th>แก้ไขล่าสุด</th><th>ดำเนินการ</th></tr></thead>
+      <thead><tr><th>{t("finance.feeAgreement.list.engagement")}</th><th>{t("finance.feeAgreement.list.clientMatter")}</th><th>{t("finance.invoice.sourceQuotation")}</th><th>{t("finance.taxInvoice.ui.status")}</th><th>{t("finance.invoice.ui.language")}</th><th>{t("finance.feeAgreement.effectiveDate")}</th><th>{t("finance.payment.ui.updated")}</th><th>{t("finance.feeAgreement.actions")}</th></tr></thead>
       <tbody>{filtered.map((agreement) => {
         const source = agreement.source_document_snapshot_json || {};
         const quotationNo = value(source.quotation_no, agreement.source_reference || "-");
@@ -87,14 +89,14 @@ function FeeAgreementList({ permissions }: { permissions: Parameters<typeof Fina
         const matter = snapshotText(agreement.matter_snapshot_json, "title", "file_no", "matter_no");
         const acceptedQuotationBasis = agreement.engagement_basis === "accepted_quotation";
         return <tr key={agreement.id}>
-          <td><div style={cellStack}><span style={{ ...basisBadge, ...(acceptedQuotationBasis ? acceptedBasisBadge : formalBasisBadge) }}>{acceptedQuotationBasis ? "ตามใบเสนอราคาที่ตอบรับ" : "สัญญาว่าจ้าง"}</span><strong style={agreementNumber}>{acceptedQuotationBasis ? quotationNo : agreement.agreement_no || "ยังไม่มีเลขที่สัญญา"}</strong><span style={secondaryText}>{title}</span></div></td>
+          <td><div style={cellStack}><span style={{ ...basisBadge, ...(acceptedQuotationBasis ? acceptedBasisBadge : formalBasisBadge) }}>{acceptedQuotationBasis ? t("finance.feeAgreement.acceptedQuotationBasis") : t("finance.feeAgreement.formalAgreement")}</span><strong style={agreementNumber}>{acceptedQuotationBasis ? quotationNo : agreement.agreement_no || t("finance.feeAgreement.unnumbered")}</strong><span style={secondaryText}>{title}</span></div></td>
           <td><div style={cellStack}><strong style={primaryText}>{client}</strong><span style={secondaryText}>{matter}</span></div></td>
           <td>{agreement.source_quotation_id ? <Link className="fee-agreement-source-link" style={sourceLink} href={`/finance/quotations/${agreement.source_quotation_id}`}>{quotationNo}</Link> : <span style={primaryText}>{quotationNo}</span>}</td>
           <td><StatusBadge status={agreement.status} /></td>
-          <td style={conciseCell}>{acceptedQuotationBasis ? "-" : agreement.language_code === "en" ? "English" : "ไทย"}</td>
+          <td style={conciseCell}>{acceptedQuotationBasis ? "-" : agreement.language_code === "en" ? t("finance.feeAgreement.language.en") : t("finance.feeAgreement.language.th")}</td>
           <td style={dateCell}>{acceptedQuotationBasis ? "-" : date(agreement.effective_date)}</td>
           <td style={dateCell}>{date(agreement.updated_at)}</td>
-          <td><Link className="fee-agreement-open-link" style={openLink} href={`/finance/fee-agreements/${agreement.id}`}>เปิด<ListIcon name="open" /></Link></td>
+          <td><Link className="fee-agreement-open-link" style={openLink} href={`/finance/fee-agreements/${agreement.id}`}>{t("finance.feeAgreement.open")}<ListIcon name="open" /></Link></td>
         </tr>;
       })}</tbody>
     </table></div>}
@@ -140,7 +142,8 @@ function FeeAgreementList({ permissions }: { permissions: Parameters<typeof Fina
   </main>;
 }
 
-function StatusBadge({ status }: { status: string }) { return <span style={{ ...badgeStyle, ...(badgeColors[status] || {}) }}>{feeAgreementStatusLabel(status)}</span>; }
+function StatusBadge({ status }: { status: string }) {
+  const { locale } = useI18n(); return <span style={{ ...badgeStyle, ...(badgeColors[status] || {}) }}>{feeAgreementStatusLabel(status, locale)}</span>; }
 function ListIcon({ name }: { name: "search" | "open" }) { const common = { width: 17, height: 17, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true }; if (name === "search") return <svg {...common} style={searchIcon}><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>; return <svg {...common}><path d="M5 12h14M13 6l6 6-6 6" /></svg>; }
 
 const pageStyle: CSSProperties = { width: "100%", minWidth: 0 };

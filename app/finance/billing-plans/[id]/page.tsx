@@ -1,4 +1,7 @@
 "use client";
+import { useI18n } from "../../../../lib/i18n/provider";
+import { translate } from "../../../../lib/i18n/catalog";
+import { uiMessage, uiDate, type UiMessage, type UiLocale } from "../../../../lib/i18n/core";
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
@@ -24,29 +27,33 @@ type ChargeInvoiceLink = { invoiceId: string; invoiceNo: string | null; allocati
 type DraftInstallment = { id: string; installment_no: number; sort_order: number; title: string; trigger_description: string; trigger_type: string; due_date: string; milestone_code: string; recurring_period_start: string; recurring_period_end: string };
 type DraftForm = { title: string; description: string; installments: DraftInstallment[] };
 type ReadinessForm = { eventDate: string; confirmed: boolean; note: string; reference: string };
-type ReadinessErrors = Partial<Record<"eventDate" | "confirmed", string>>;
+type ReadinessErrors = Partial<Record<"eventDate" | "confirmed", UiMessage>>;
 type AllocationColumnKey = "description" | "amount_before_tax" | "vat_amount" | "total_amount" | "allocation_percent";
 
 const numberValue = (value: number | string | null | undefined) => Number(value || 0);
 const money = (value: number | string | null | undefined, currency = "THB") => `${numberValue(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
-const date = (value: string | null | undefined) => value ? value.slice(0, 10) : "-";
-const dateTime = (value: string | null | undefined) => value ? value.replace("T", " ").slice(0, 16) : "-";
+const date = (value: string | null | undefined, locale: UiLocale = "th") => uiDate(value, locale);
+const dateTime = (value: string | null | undefined, locale: UiLocale = "th") => uiDate(value, locale, true);
 const text = (value: unknown, fallback = "-") => typeof value === "string" && value.trim() ? value : fallback;
-const planStatus: Record<string, string> = { draft: "ร่างแผนเรียกเก็บเงิน", active: "พร้อมดำเนินการเรียกเก็บเงิน", completed: "ดำเนินการครบแล้ว", cancelled: "ยกเลิก" };
-const installmentStatus: Record<string, string> = { pending: "รอดำเนินการ", ready_to_invoice: "พร้อมออกใบแจ้งหนี้", invoiced: "ออกใบแจ้งหนี้แล้ว", cancelled: "ยกเลิก" };
-const billingMethod: Record<string, string> = { single: "งวดเดียว", installments: "หลายงวด", milestone: "ตามเหตุการณ์สำคัญ", recurring: "เรียกเก็บเป็นรอบ", manual: "กำหนดเอง" };
-const triggerType: Record<string, string> = { agreement_effective: "เมื่อข้อตกลงมีผล", date: "ตามวันที่", case_milestone: "ตามเหตุการณ์สำคัญ", manual: "กำหนดด้วยตนเอง", recurring_period: "ตามรอบระยะเวลา" };
-const invoiceStatus: Record<string, string> = { draft: "ร่างใบแจ้งหนี้", issued: "ออกใบแจ้งหนี้แล้ว", cancelled: "ยกเลิกร่างแล้ว", voided: "ยกเลิกแล้ว" };
+function billingPlanUiLabels(locale: UiLocale) {
+const planStatus: Record<string, string> = { draft: translate(locale, "finance.billingPlan.status.draft"), active: translate(locale, "finance.billingPlan.status.active"), completed: translate(locale, "finance.billingPlan.status.completed"), cancelled: translate(locale, "finance.payment.ui.cancel") };
+const installmentStatus: Record<string, string> = { pending: translate(locale, "finance.invoice.installment.pending"), ready_to_invoice: translate(locale, "finance.invoice.ui.readyToInvoice"), invoiced: translate(locale, "finance.payment.ui.invoiceIssued"), cancelled: translate(locale, "finance.payment.ui.cancel") };
+const billingMethod: Record<string, string> = { single: translate(locale, "finance.billingPlan.method.single"), installments: translate(locale, "finance.billingPlan.method.installments"), milestone: translate(locale, "finance.invoice.trigger.case_milestone"), recurring: translate(locale, "finance.billingPlan.method.recurring"), manual: translate(locale, "finance.billingPlan.method.manual") };
+const triggerType: Record<string, string> = { agreement_effective: translate(locale, "finance.billingPlan.trigger.agreementEffective"), date: translate(locale, "finance.invoice.trigger.date"), case_milestone: translate(locale, "finance.invoice.trigger.case_milestone"), manual: translate(locale, "finance.invoice.trigger.manual"), recurring_period: translate(locale, "finance.invoice.trigger.recurring_period") };
+const invoiceStatus: Record<string, string> = { draft: translate(locale, "finance.invoice.ui.draftTitle"), issued: translate(locale, "finance.payment.ui.invoiceIssued"), cancelled: translate(locale, "finance.taxInvoice.ui.statusCancelled"), voided: translate(locale, "finance.payment.ui.invoiceVoided") };
 const allocationColumns: Array<{ key: AllocationColumnKey; label: string; width: string; numeric?: boolean }> = [
-  { key: "description", label: "รายการตามข้อตกลง", width: "40%" },
-  { key: "amount_before_tax", label: "ก่อน VAT", width: "17%", numeric: true },
+  { key: "description", label: translate(locale, "finance.billingPlan.allocation.item"), width: "40%" },
+  { key: "amount_before_tax", label: translate(locale, "finance.taxInvoice.ui.beforeVat"), width: "17%", numeric: true },
   { key: "vat_amount", label: "VAT", width: "13%", numeric: true },
-  { key: "total_amount", label: "ยอดรวม", width: "17%", numeric: true },
-  { key: "allocation_percent", label: "สัดส่วนในงวด", width: "13%", numeric: true },
+  { key: "total_amount", label: translate(locale, "finance.invoice.ui.total"), width: "17%", numeric: true },
+  { key: "allocation_percent", label: translate(locale, "finance.billingPlan.allocation.share"), width: "13%", numeric: true },
 ];
+return { planStatus, installmentStatus, billingMethod, triggerType, invoiceStatus, allocationColumns };
+}
 
 export default function BillingPlanDetailPage() {
-  return <Suspense fallback={<main style={page}>กำลังโหลดแผนเรียกเก็บเงิน...</main>}><QuotationGuard>{(access) => <BillingPlanDetail
+  const { t } = useI18n();
+  return <Suspense fallback={<main style={page}>{t("finance.billingPlan.loading")}</main>}><QuotationGuard>{(access) => <BillingPlanDetail
     canManage={access.permissions.canEditFinanceQuotation}
     canComposeInstallment={access.permissions.canEditFinanceQuotation && access.permissions.canManageFinanceBillableCharges && access.permissions.canApproveFinanceBillableCharges}
     canViewCharges={access.permissions.canViewFinanceBillableCharges}
@@ -55,6 +62,8 @@ export default function BillingPlanDetailPage() {
 }
 
 function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, canManageCharges }: { canManage: boolean; canComposeInstallment: boolean; canViewCharges: boolean; canManageCharges: boolean }) {
+  const { t, text: uiText, locale } = useI18n();
+  const { planStatus, installmentStatus, billingMethod, triggerType, invoiceStatus, allocationColumns } = billingPlanUiLabels(locale);
   const { id } = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const [plan, setPlan] = useState<BillingPlan | null>(null);
@@ -81,9 +90,9 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
   const [readinessInstallmentId, setReadinessInstallmentId] = useState<string | null>(null);
   const [readinessForm, setReadinessForm] = useState<ReadinessForm>({ eventDate: "", confirmed: false, note: "", reference: "" });
   const [readinessErrors, setReadinessErrors] = useState<ReadinessErrors>({});
-  const [readinessSummaryError, setReadinessSummaryError] = useState("");
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [readinessSummaryError, setReadinessSummaryError] = useState<UiMessage | string>("");
+  const [message, setMessage] = useState<UiMessage | string>("");
+  const [error, setError] = useState<UiMessage | string>("");
   const saveLock = useRef(false);
   const statusLock = useRef(false);
   const installmentActionLock = useRef(false);
@@ -103,12 +112,12 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
       .maybeSingle();
 
     if (planResult.error) {
-      setError("ไม่สามารถโหลดแผนเรียกเก็บเงินได้");
+      setError(uiMessage("finance.billingPlan.loadFailed"));
       setLoading(false);
       return;
     }
     if (!planResult.data) {
-      setError("ไม่พบแผนเรียกเก็บเงิน");
+      setError(uiMessage("finance.billingPlan.notFound"));
       setLoading(false);
       return;
     }
@@ -194,7 +203,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
       : { data: [], error: null };
 
     if (agreementResult.error || installmentsResult.error || allocationsResult.error || agreementItemsResult.error || invoicesResult.error || relatedChargesResult.error || chargeAllocationsResult.error || chargeInvoicesResult.error) {
-      setError("โหลดรายละเอียดแผนเรียกเก็บเงินบางส่วนไม่สำเร็จ กรุณารีเฟรช");
+      setError(uiMessage("finance.billingPlan.partialLoad"));
     }
     setAgreement(agreementRow);
     setInstallments(installmentRows);
@@ -269,7 +278,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
       });
       if (result.error) throw result.error;
       await load();
-      setMessage("บันทึกแผนเรียกเก็บเงินแล้ว");
+      setMessage(uiMessage("finance.billingPlan.saved"));
     } catch (saveError) {
       console.error("Failed to save Billing Plan draft", saveError);
       setError(billingPlanErrorMessage(saveError));
@@ -279,17 +288,17 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
   };
   const changePlanStatus = async (nextStatus: "active" | "cancelled") => {
     if (!plan || !canManage || statusLock.current) return;
-    if (dirty) { setError("กรุณาบันทึกการเปลี่ยนแปลงก่อนเปลี่ยนสถานะแผน"); return; }
+    if (dirty) { setError(uiMessage("finance.billingPlan.saveBeforeStatus")); return; }
     const confirmation = nextStatus === "active"
-      ? "ยืนยันให้แผนเรียกเก็บเงินนี้พร้อมดำเนินการใช่หรือไม่ ระบบจะล็อกโครงสร้างงวดและยอดจัดสรรตามข้อตกลง"
-      : "ยืนยันยกเลิกแผนเรียกเก็บเงินนี้ใช่หรือไม่";
+      ? t("finance.billingPlan.activateConfirm")
+      : t("finance.billingPlan.cancelConfirm");
     if (!window.confirm(confirmation)) return;
     statusLock.current = true; setStatusSaving(true); setError(""); setMessage("");
     try {
       const result = await supabase.rpc("set_finance_billing_plan_status", { p_billing_plan_id: plan.id, p_next_status: nextStatus });
       if (result.error) throw result.error;
       await load();
-      setMessage(nextStatus === "active" ? "แผนเรียกเก็บเงินพร้อมดำเนินการแล้ว" : "ยกเลิกแผนเรียกเก็บเงินแล้ว");
+      setMessage(nextStatus === "active" ? uiMessage("finance.billingPlan.activated") : uiMessage("finance.billingPlan.cancelled"));
     } catch (statusError) {
       console.error("Failed to update Billing Plan status", statusError);
       setError(billingPlanErrorMessage(statusError));
@@ -310,12 +319,12 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
   const confirmInstallmentReadiness = async (installment: Installment) => {
     if (!canManage || plan?.status !== "active" || installment.status !== "pending" || installmentActionLock.current) return;
     const nextErrors: ReadinessErrors = {};
-    if (!readinessForm.eventDate) nextErrors.eventDate = "กรุณาระบุวันที่ที่เงื่อนไขการเรียกเก็บเงินเกิดขึ้นจริง";
-    else if (readinessForm.eventDate > bangkokToday()) nextErrors.eventDate = "วันที่ยืนยันความพร้อมต้องไม่เป็นวันที่ในอนาคต";
-    if (!readinessForm.confirmed) nextErrors.confirmed = "กรุณายืนยันว่าเงื่อนไขการเรียกเก็บเงินของงวดนี้เกิดขึ้นแล้ว";
+    if (!readinessForm.eventDate) nextErrors.eventDate = uiMessage("finance.billingPlan.error.readinessDate");
+    else if (readinessForm.eventDate > bangkokToday()) nextErrors.eventDate = uiMessage("finance.billingPlan.error.futureDate");
+    if (!readinessForm.confirmed) nextErrors.confirmed = uiMessage("finance.billingPlan.error.readinessConfirmed");
     if (Object.keys(nextErrors).length) {
       setReadinessErrors(nextErrors);
-      setReadinessSummaryError("กรุณากรอกข้อมูลที่จำเป็นให้ครบก่อนยืนยันความพร้อมออกใบแจ้งหนี้");
+      setReadinessSummaryError(uiMessage("finance.billingPlan.error.readinessSummary"));
       requestAnimationFrame(() => (nextErrors.eventDate ? readinessDateRef.current : readinessConfirmationRef.current)?.focus());
       return;
     }
@@ -331,7 +340,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
       if (result.error) throw result.error;
       setReadinessInstallmentId(null); setReadinessErrors({});
       await load();
-      setMessage(`งวดที่ ${installment.installment_no} พร้อมสำหรับจัดทำใบแจ้งหนี้แล้ว`);
+      setMessage(uiMessage("finance.billingPlan.installmentReady", { number: installment.installment_no }));
     } catch (readinessError) {
       console.error("Failed to confirm Billing Installment readiness", readinessError);
       setReadinessSummaryError(billingReadinessErrorMessage(readinessError));
@@ -403,111 +412,111 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
     if (!requestedInstallmentId) return;
     resumeHandledRef.current = true;
     if (!isUuid(requestedInstallmentId)) {
-      setError("ลิงก์กลับมาจัดทำใบแจ้งหนี้ไม่ถูกต้อง กรุณาเลือกงวดจากแผนอีกครั้ง");
+      setError(uiMessage("finance.billingPlan.error.resumeLink"));
       return;
     }
     const installment = installments.find((row) => row.id === requestedInstallmentId);
     if (!installment || plan?.status !== "active" || installment.status !== "ready_to_invoice" || invoices.some((invoice) => invoice.primary_billing_installment_id === installment.id)) {
-      setError("งวดที่ต้องการกลับมาจัดทำใบแจ้งหนี้ไม่อยู่ในสถานะพร้อมแล้ว กรุณาตรวจสอบสถานะล่าสุด");
+      setError(uiMessage("finance.billingPlan.error.resumeStatus"));
       return;
     }
     if (!canComposeInstallment) {
-      setError("คุณไม่มีสิทธิ์จัดทำใบแจ้งหนี้จากงวดตามแผน");
+      setError(uiMessage("finance.billingPlan.error.composePermission"));
       return;
     }
     openInvoiceSelection(installment);
     setSelectedInvoiceChargeIds(requestedChargeIds.filter((chargeId) => compatibleReadyCharges.some((charge) => charge.id === chargeId)));
   }, [canComposeInstallment, compatibleReadyCharges, installments, invoices, loading, openInvoiceSelection, plan?.status, searchParams]);
-  if (loading) return <main style={page}>กำลังโหลดแผนเรียกเก็บเงิน...</main>;
-  if (!plan) return <main style={page}>{error || "ไม่พบแผนเรียกเก็บเงิน"}</main>;
+  if (loading) return <main style={page}>{t("finance.billingPlan.loading")}</main>;
+  if (!plan) return <main style={page}>{error ? uiText(error) : t("finance.billingPlan.notFound")}</main>;
 
   const client = text(agreement?.client_snapshot_json?.name, text(agreement?.client_snapshot_json?.display_name, "-"));
-  const matter = text(agreement?.matter_snapshot_json?.title, text(agreement?.matter_snapshot_json?.file_no, agreement?.case_id || agreement?.advisory_matter_id ? "-" : "ข้อตกลงระดับลูกค้า"));
+  const matter = text(agreement?.matter_snapshot_json?.title, text(agreement?.matter_snapshot_json?.file_no, agreement?.case_id || agreement?.advisory_matter_id ? "-" : t("finance.billingPlan.clientEngagement")));
   const chargeCreateInstallment = installments.find((installment) => installment.id === chargeCreateInstallmentId) || null;
   const billableChargeContext: BillableChargeContext | null = agreement ? {
     clientId: agreement.client_id,
     clientName: client,
     caseId: agreement.case_id,
     advisoryMatterId: agreement.advisory_matter_id,
-    matterLabel: agreement.case_id ? `คดี · ${matter}` : agreement.advisory_matter_id ? `งานที่ปรึกษา · ${matter}` : "ไม่ผูกกับงานเฉพาะ",
-    entryPointLabel: chargeCreateInstallment ? `เปิดจากงวดที่ ${chargeCreateInstallment.installment_no}` : undefined,
+    matterLabel: agreement.case_id ? t("finance.billingPlan.caseContext", { label: matter }) : agreement.advisory_matter_id ? t("finance.billingPlan.advisoryContext", { label: matter }) : t("finance.invoice.composer.generalContext"),
+    entryPointLabel: chargeCreateInstallment ? t("finance.billingPlan.fromInstallment", { number: chargeCreateInstallment.installment_no }) : undefined,
   } : null;
-  const quotationNo = text(agreement?.source_document_snapshot_json?.quotation_no, text(agreement?.source_reference, "ใบเสนอราคาต้นทาง"));
+  const quotationNo = text(agreement?.source_document_snapshot_json?.quotation_no, text(agreement?.source_reference, t("finance.invoice.sourceQuotation")));
   const acceptedQuotationBasis = agreement?.engagement_basis === "accepted_quotation";
-  const engagementKindLabel = acceptedQuotationBasis ? "การว่าจ้างตามใบเสนอราคา" : "ข้อตกลงค่าบริการ";
+  const engagementKindLabel = acceptedQuotationBasis ? t("finance.invoice.ui.quotationEngagement") : t("finance.invoice.ui.feeAgreement");
   const engagementReference = agreement ? acceptedQuotationBasis ? quotationNo : text(agreement.agreement_no, agreement.title) : "-";
   const allocationByInstallment = new Map<string, Allocation[]>();
   allocations.forEach((allocation) => allocationByInstallment.set(allocation.billing_installment_id, [...(allocationByInstallment.get(allocation.billing_installment_id) || []), allocation]));
   const agreementItemById = new Map(agreementItems.map((item) => [item.id, item.description]));
   return <main className="billing-plan-page" style={page}>
-    {agreement ? <nav className="billing-plan-navigation-toolbar" style={navigationToolbar} aria-label="การนำทางเอกสารที่เกี่ยวข้อง">
-      <Link className="billing-plan-navigation-link billing-plan-navigation-back" style={{ ...navigationLink, ...navigationBackLink }} href={`/finance/fee-agreements/${agreement.id}`}><NavigationIcon name="back" /><span>{acceptedQuotationBasis ? "กลับไปการว่าจ้างตามใบเสนอราคา" : "กลับไปข้อตกลงค่าบริการ"}</span></Link>
-      {agreement?.source_quotation_id ? <Link className="billing-plan-navigation-link billing-plan-navigation-source" style={{ ...navigationLink, ...navigationSourceLink }} href={`/finance/quotations/${agreement.source_quotation_id}`}><NavigationIcon name="source" /><span>เปิดใบเสนอราคาต้นทาง</span></Link> : null}
+    {agreement ? <nav className="billing-plan-navigation-toolbar" style={navigationToolbar} aria-label={t("finance.invoice.ui.relatedNavigation")}>
+      <Link className="billing-plan-navigation-link billing-plan-navigation-back" style={{ ...navigationLink, ...navigationBackLink }} href={`/finance/fee-agreements/${agreement.id}`}><NavigationIcon name="back" /><span>{acceptedQuotationBasis ? t("finance.billingPlan.backToEngagement") : t("finance.billingPlan.backToAgreement")}</span></Link>
+      {agreement?.source_quotation_id ? <Link className="billing-plan-navigation-link billing-plan-navigation-source" style={{ ...navigationLink, ...navigationSourceLink }} href={`/finance/quotations/${agreement.source_quotation_id}`}><NavigationIcon name="source" /><span>{t("finance.invoice.ui.openQuotation")}</span></Link> : null}
     </nav> : null}
-    {error ? <div style={warning}>{error}</div> : null}
-    {message ? <div style={success}>{message}</div> : null}
+    {error ? <div style={warning}>{uiText(error)}</div> : null}
+    {message ? <div style={success}>{uiText(message)}</div> : null}
 
     <section style={{ ...card, ...planHeaderCard }}>
       <div className="billing-plan-identity-header" style={planIdentityHeader}>
-        <div style={planIdentityCopy}><span style={planEyebrow}>BILLING PLAN</span><h1 style={planTitle}>{text(plan.status === "draft" ? draft.title : plan.title, "แผนเรียกเก็บเงิน")}</h1><p style={planReference}>{agreement ? `อ้างอิง${engagementKindLabel} ${engagementReference}` : "ไม่พบรายการการว่าจ้างอ้างอิง"}</p>{plan.status !== "draft" && plan.description ? <p style={description}>{plan.description}</p> : null}</div>
-        <div className="billing-plan-status-panel" style={planStatusPanel}><span style={metaLabel}>สถานะแผน</span><StatusBadge status={plan.status} label={planStatus[plan.status] || plan.status} prominent /><span style={planUpdated}>แก้ไขล่าสุด {date(plan.updated_at)}</span></div>
+        <div style={planIdentityCopy}><span style={planEyebrow}>{t("finance.billingPlan.identity")}</span><h1 style={planTitle}>{text(plan.status === "draft" ? draft.title : plan.title, t("finance.invoice.ui.billingPlan"))}</h1><p style={planReference}>{agreement ? t("finance.billingPlan.engagementReference", { kind: engagementKindLabel, reference: engagementReference }) : t("finance.billingPlan.engagementReferenceMissing")}</p>{plan.status !== "draft" && plan.description ? <p style={description}>{plan.description}</p> : null}</div>
+        <div className="billing-plan-status-panel" style={planStatusPanel}><span style={metaLabel}>{t("finance.billingPlan.planStatus")}</span><StatusBadge status={plan.status} label={planStatus[plan.status] || plan.status} prominent /><span style={planUpdated}>{t("finance.payment.ui.updated")} {date(plan.updated_at, locale)}</span></div>
       </div>
       {plan.status === "draft" && canManage ? <div className="billing-plan-header-edit-grid" style={headerEditGrid}>
-        <label style={label}>ชื่อแผน<input style={input} value={draft.title} disabled={saving || statusSaving} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label>
-        <label style={label}>หมายเหตุแผน<textarea style={{ ...input, minHeight: 72, resize: "vertical" }} value={draft.description} disabled={saving || statusSaving} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
+        <label style={label}>{t("finance.billingPlan.planTitle")}<input style={input} value={draft.title} disabled={saving || statusSaving} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label>
+        <label style={label}>{t("finance.billingPlan.planNote")}<textarea style={{ ...input, minHeight: 72, resize: "vertical" }} value={draft.description} disabled={saving || statusSaving} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
       </div> : null}
       <div className="billing-plan-metadata-grid" style={planMetadataGrid}>
-        <Field label="วิธีเรียกเก็บเงิน" value={billingMethod[plan.billing_method] || plan.billing_method} />
-        <Field label="สกุลเงิน" value={plan.currency} />
-        <Field label="จำนวนงวด" value={plan.installment_count} />
-        <Field label="สร้างเมื่อ" value={date(plan.created_at)} />
-        <Field label="แก้ไขล่าสุด" value={date(plan.updated_at)} />
+        <Field label={t("finance.billingPlan.billingMethod")} value={billingMethod[plan.billing_method] || plan.billing_method} />
+        <Field label={t("finance.payment.ui.currency")} value={plan.currency} />
+        <Field label={t("finance.billingPlan.installmentCount")} value={plan.installment_count} />
+        <Field label={t("finance.charge.ui.createdAt")} value={date(plan.created_at, locale)} />
+        <Field label={t("finance.payment.ui.updated")} value={date(plan.updated_at, locale)} />
       </div>
     </section>
 
     {canManage && plan.status === "draft" ? <section aria-live="polite" style={{ ...saveStateNotice, ...(dirty ? dirtyStateNotice : savedStateNotice) }}>
-      <strong>{dirty ? "มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก" : "ข้อมูลล่าสุดถูกบันทึกแล้ว"}</strong>
-      <span>{dirty ? "ตรวจสอบข้อมูลให้ครบ แล้วบันทึกที่ส่วนตรวจสอบท้ายแผน" : "ตรวจสอบงวดและยอดจัดสรรทั้งหมดก่อนยืนยันแผนพร้อมดำเนินการ"}</span>
+      <strong>{dirty ? t("finance.payment.ui.unsaved") : t("finance.taxInvoice.ui.latestSaved")}</strong>
+      <span>{dirty ? t("finance.billingPlan.saveAtReviewHelp") : t("finance.billingPlan.reviewBeforeActivate")}</span>
     </section> : null}
-    {canManage && plan.status === "active" ? <section style={{ ...card, ...activeNotice }}><div><strong>แผนพร้อมดำเนินการเรียกเก็บเงิน</strong><p style={actionHelp}>งวดต่าง ๆ ยังไม่ถือว่าออกใบแจ้งหนี้จนกว่าจะดำเนินการในขั้นตอน Invoice</p></div><button className="billing-plan-cancel-button" type="button" style={cancelButton} disabled={statusSaving} onClick={() => void changePlanStatus("cancelled")}>{statusSaving ? "กำลังดำเนินการ..." : "ยกเลิกแผน"}</button></section> : null}
+    {canManage && plan.status === "active" ? <section style={{ ...card, ...activeNotice }}><div><strong>{t("finance.billingPlan.activeTitle")}</strong><p style={actionHelp}>{t("finance.billingPlan.activeHelp")}</p></div><button className="billing-plan-cancel-button" type="button" style={cancelButton} disabled={statusSaving} onClick={() => void changePlanStatus("cancelled")}>{statusSaving ? t("finance.taxInvoice.ui.processing") : t("finance.billingPlan.cancelPlan")}</button></section> : null}
 
     <section style={sourceChain}>
-      <h2 style={sourceChainTitle}>เส้นทางเอกสารต้นทาง</h2>
+      <h2 style={sourceChainTitle}>{t("finance.invoice.ui.lineage")}</h2>
       <div className="billing-plan-source-chain-nodes" style={chainNodes}>
-        {agreement?.source_quotation_id ? <><ChainNode title="ใบเสนอราคา" status={text(agreement.source_document_snapshot_json?.status, "")}><Link href={`/finance/quotations/${agreement.source_quotation_id}`}>{quotationNo}</Link></ChainNode><span className="billing-plan-chain-arrow" style={chainArrow} aria-hidden="true">→</span></> : null}
-        <ChainNode title={engagementKindLabel} status={agreement?.status || null} statusText={agreement ? feeAgreementStatusLabel(agreement.status) : undefined}>{agreement ? <Link href={`/finance/fee-agreements/${agreement.id}`}>{engagementReference}</Link> : <span style={unavailable}>ไม่พบรายการการว่าจ้างที่เชื่อมไว้</span>}</ChainNode>
+        {agreement?.source_quotation_id ? <><ChainNode title={t("finance.invoice.ui.quotation")} status={text(agreement.source_document_snapshot_json?.status, "")}><Link href={`/finance/quotations/${agreement.source_quotation_id}`}>{quotationNo}</Link></ChainNode><span className="billing-plan-chain-arrow" style={chainArrow} aria-hidden="true">→</span></> : null}
+        <ChainNode title={engagementKindLabel} status={agreement?.status || null} statusText={agreement ? feeAgreementStatusLabel(agreement.status, locale) : undefined}>{agreement ? <Link href={`/finance/fee-agreements/${agreement.id}`}>{engagementReference}</Link> : <span style={unavailable}>{t("finance.billingPlan.linkedEngagementMissing")}</span>}</ChainNode>
         <span className="billing-plan-chain-arrow" style={chainArrow} aria-hidden="true">→</span>
-        <ChainNode title="แผนเรียกเก็บเงิน" status={plan.status} current>{text(plan.title, billingMethod[plan.billing_method] || plan.billing_method)}</ChainNode>
+        <ChainNode title={t("finance.invoice.ui.billingPlan")} status={plan.status} current>{text(plan.title, billingMethod[plan.billing_method] || plan.billing_method)}</ChainNode>
       </div>
     </section>
 
     <section style={card}>
-      <h2 style={sectionTitle}>{engagementKindLabel}อ้างอิง</h2>
-      {!agreement ? <div style={warning}>ไม่พบรายการการว่าจ้างที่เชื่อมกับแผนนี้</div> : <div style={grid}>
+      <h2 style={sectionTitle}>{engagementKindLabel}{t("finance.invoice.composer.reference")}</h2>
+      {!agreement ? <div style={warning}>{t("finance.billingPlan.planEngagementMissing")}</div> : <div style={grid}>
         <Field label={engagementKindLabel} value={<Link href={`/finance/fee-agreements/${agreement.id}`}>{engagementReference}</Link>} />
-        <Field label="สถานะ" value={<StatusBadge status={agreement.status} label={feeAgreementStatusLabel(agreement.status)} />} />
-        <Field label="ลูกค้า" value={client} />
-        <Field label="เรื่อง/คดี" value={agreement.case_id ? <Link href={`/cases/${agreement.case_id}`}>{matter}</Link> : agreement.advisory_matter_id ? <Link href={`/advisory/${agreement.advisory_matter_id}`}>{matter}</Link> : matter} />
+        <Field label={t("finance.taxInvoice.ui.status")} value={<StatusBadge status={agreement.status} label={feeAgreementStatusLabel(agreement.status, locale)} />} />
+        <Field label={t("finance.payment.ui.client")} value={client} />
+        <Field label={t("finance.billingPlan.matter")} value={agreement.case_id ? <Link href={`/cases/${agreement.case_id}`}>{matter}</Link> : agreement.advisory_matter_id ? <Link href={`/advisory/${agreement.advisory_matter_id}`}>{matter}</Link> : matter} />
       </div>}
     </section>
 
     <section style={card}>
-      <h2 style={sectionTitle}>ยอดรวมตามแผน</h2>
-      {totalsMismatch ? <div style={warning}>ยอดรวมของงวดไม่ตรงกับยอดรวมแผน กรุณาตรวจสอบก่อนดำเนินการ</div> : null}
+      <h2 style={sectionTitle}>{t("finance.billingPlan.planTotal")}</h2>
+      {totalsMismatch ? <div style={warning}>{t("finance.billingPlan.totalsMismatch")}</div> : null}
       <div className="billing-plan-totals-grid" style={totalsGrid}>
-        <SummaryMetric label="มูลค่าก่อน VAT" value={money(plan.amount_before_tax, plan.currency)} />
+        <SummaryMetric label={t("finance.taxInvoice.vatSummary.beforeVat")} value={money(plan.amount_before_tax, plan.currency)} />
         <SummaryMetric label="VAT" value={money(plan.vat_amount, plan.currency)} />
-        <SummaryMetric label="ยอดรวม" value={money(plan.total_amount, plan.currency)} prominent />
-        <SummaryMetric label="จำนวนงวด" value={String(plan.installment_count)} />
-        <SummaryMetric label="วิธีเรียกเก็บเงิน" value={billingMethod[plan.billing_method] || plan.billing_method} />
+        <SummaryMetric label={t("finance.invoice.ui.total")} value={money(plan.total_amount, plan.currency)} prominent />
+        <SummaryMetric label={t("finance.billingPlan.installmentCount")} value={String(plan.installment_count)} />
+        <SummaryMetric label={t("finance.billingPlan.billingMethod")} value={billingMethod[plan.billing_method] || plan.billing_method} />
       </div>
     </section>
 
     <section style={card}>
-      <h2 style={sectionTitle}>งวดเรียกเก็บเงิน</h2>
-      {installments.length === 0 ? <div style={warning}>แผนเรียกเก็บเงินยังไม่มีงวด</div> : null}
-      {installments.length !== plan.installment_count ? <div style={warning}>จำนวนงวดที่บันทึกไว้ไม่ตรงกับรายการงวดที่โหลดได้</div> : null}
-      {duplicateInstallmentNo ? <div style={warning}>พบเลขงวดซ้ำ กรุณาตรวจสอบก่อนดำเนินการ</div> : null}
+      <h2 style={sectionTitle}>{t("finance.invoice.ui.installment")}</h2>
+      {installments.length === 0 ? <div style={warning}>{t("finance.billingPlan.noInstallments")}</div> : null}
+      {installments.length !== plan.installment_count ? <div style={warning}>{t("finance.billingPlan.installmentCountMismatch")}</div> : null}
+      {duplicateInstallmentNo ? <div style={warning}>{t("finance.billingPlan.duplicateInstallments")}</div> : null}
       {installments.map((installment) => {
         const installmentAllocations = allocationByInstallment.get(installment.id) || [];
         const draftInstallment = draft.installments.find((row) => row.id === installment.id);
@@ -520,69 +529,69 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
         const canAddCharge = canAddChargeFromInstallment({ canManageCharges, planStatus: plan.status, installmentStatus: installment.status, hasActiveInvoice: Boolean(activeInvoice) });
         const showReadyChargePreview = canViewCharges && plan.status === "active" && installment.status === "ready_to_invoice" && installmentInvoices.length === 0 && compatibleReadyCharges.length > 0;
         return <article key={installment.id} style={installmentCard}>
-          <div style={installmentHeader}><div style={installmentHeadingCopy}><span style={installmentEyebrow}>งวดเรียกเก็บเงิน</span><h3 style={installmentTitle}>งวดที่ {installment.installment_no}</h3>{customInstallmentTitle ? <p style={installmentCustomTitle}>{customInstallmentTitle}</p> : null}</div><StatusBadge status={installment.status} label={installmentStatus[installment.status] || installment.status} /></div>
+          <div style={installmentHeader}><div style={installmentHeadingCopy}><span style={installmentEyebrow}>{t("finance.invoice.ui.installment")}</span><h3 style={installmentTitle}>{t("finance.invoice.composer.installmentPrefix")} {installment.installment_no}</h3>{customInstallmentTitle ? <p style={installmentCustomTitle}>{customInstallmentTitle}</p> : null}</div><StatusBadge status={installment.status} label={installmentStatus[installment.status] || installment.status} /></div>
           {plan.status === "draft" && canManage && draftInstallment ? <div className="billing-plan-installment-edit-grid" style={installmentEditGrid}>
-            <label className="billing-plan-installment-title-field" style={label}>ชื่องวด<input style={input} value={draftInstallment.title} disabled={saving || statusSaving} onChange={(event) => updateDraftInstallment(installment.id, { title: event.target.value })} /></label>
-            <label style={label}>เงื่อนไขเรียกเก็บ<select style={input} value={draftInstallment.trigger_type} disabled={saving || statusSaving} onChange={(event) => updateDraftInstallment(installment.id, { trigger_type: event.target.value })}><option value="agreement_effective">{acceptedQuotationBasis ? "เมื่อการว่าจ้างมีผล" : "เมื่อข้อตกลงมีผล"}</option><option value="date">ตามวันที่</option><option value="case_milestone">ตามเหตุการณ์สำคัญ</option><option value="manual">กำหนดด้วยตนเอง</option><option value="recurring_period">ตามรอบระยะเวลา</option></select></label>
-            <label className="billing-plan-installment-description-field" style={label}>รายละเอียดเงื่อนไข<input style={input} value={draftInstallment.trigger_description} disabled={saving || statusSaving} onChange={(event) => updateDraftInstallment(installment.id, { trigger_description: event.target.value })} /></label>
-            <label style={label}>วันที่ครบกำหนด<input style={input} type="date" value={draftInstallment.due_date} disabled={saving || statusSaving} onChange={(event) => updateDraftInstallment(installment.id, { due_date: event.target.value })} /></label>
-            {draftInstallment.trigger_type === "case_milestone" ? <label style={label}>เหตุการณ์สำคัญ (ถ้ามี)<input style={input} value={draftInstallment.milestone_code} disabled={saving || statusSaving} onChange={(event) => updateDraftInstallment(installment.id, { milestone_code: event.target.value })} /></label> : null}
-            {draftInstallment.trigger_type === "recurring_period" ? <><label style={label}>เริ่มรอบ<input style={input} type="date" value={draftInstallment.recurring_period_start} disabled={saving || statusSaving} onChange={(event) => updateDraftInstallment(installment.id, { recurring_period_start: event.target.value })} /></label><label style={label}>สิ้นสุดรอบ<input style={input} type="date" value={draftInstallment.recurring_period_end} disabled={saving || statusSaving} onChange={(event) => updateDraftInstallment(installment.id, { recurring_period_end: event.target.value })} /></label></> : null}
+            <label className="billing-plan-installment-title-field" style={label}>{t("finance.billingPlan.installmentTitle")}<input style={input} value={draftInstallment.title} disabled={saving || statusSaving} onChange={(event) => updateDraftInstallment(installment.id, { title: event.target.value })} /></label>
+            <label style={label}>{t("finance.invoice.ui.trigger")}<select style={input} value={draftInstallment.trigger_type} disabled={saving || statusSaving} onChange={(event) => updateDraftInstallment(installment.id, { trigger_type: event.target.value })}><option value="agreement_effective">{acceptedQuotationBasis ? t("finance.invoice.trigger.agreement_effective") : t("finance.billingPlan.trigger.agreementEffective")}</option><option value="date">{t("finance.invoice.trigger.date")}</option><option value="case_milestone">{t("finance.invoice.trigger.case_milestone")}</option><option value="manual">{t("finance.invoice.trigger.manual")}</option><option value="recurring_period">{t("finance.invoice.trigger.recurring_period")}</option></select></label>
+            <label className="billing-plan-installment-description-field" style={label}>{t("finance.billingPlan.conditionDetail")}<input style={input} value={draftInstallment.trigger_description} disabled={saving || statusSaving} onChange={(event) => updateDraftInstallment(installment.id, { trigger_description: event.target.value })} /></label>
+            <label style={label}>{t("finance.invoice.ui.dueDate")}<input style={input} type="date" value={draftInstallment.due_date} disabled={saving || statusSaving} onChange={(event) => updateDraftInstallment(installment.id, { due_date: event.target.value })} /></label>
+            {draftInstallment.trigger_type === "case_milestone" ? <label style={label}>{t("finance.billingPlan.milestoneOptional")}<input style={input} value={draftInstallment.milestone_code} disabled={saving || statusSaving} onChange={(event) => updateDraftInstallment(installment.id, { milestone_code: event.target.value })} /></label> : null}
+            {draftInstallment.trigger_type === "recurring_period" ? <><label style={label}>{t("finance.billingPlan.periodStart")}<input style={input} type="date" value={draftInstallment.recurring_period_start} disabled={saving || statusSaving} onChange={(event) => updateDraftInstallment(installment.id, { recurring_period_start: event.target.value })} /></label><label style={label}>{t("finance.billingPlan.periodEnd")}<input style={input} type="date" value={draftInstallment.recurring_period_end} disabled={saving || statusSaving} onChange={(event) => updateDraftInstallment(installment.id, { recurring_period_end: event.target.value })} /></label></> : null}
           </div> : null}
           <div className="billing-plan-installment-financials" style={installmentFinancials}>
-            <SummaryMetric label="มูลค่าก่อน VAT" value={money(installment.amount_before_tax, plan.currency)} compact />
+            <SummaryMetric label={t("finance.taxInvoice.vatSummary.beforeVat")} value={money(installment.amount_before_tax, plan.currency)} compact />
             <SummaryMetric label="VAT" value={money(installment.vat_amount, plan.currency)} compact />
-            <SummaryMetric label="ยอดรวมงวด" value={money(installment.total_amount, plan.currency)} prominent compact />
+            <SummaryMetric label={t("finance.billingPlan.installmentTotal")} value={money(installment.total_amount, plan.currency)} prominent compact />
           </div>
           <div className="billing-plan-installment-meta" style={installmentMetaGrid}>
-            <Field label="เงื่อนไขเรียกเก็บ" value={installment.trigger_type === "agreement_effective" && acceptedQuotationBasis ? "เมื่อการว่าจ้างมีผล" : triggerType[installment.trigger_type] || installment.trigger_type} />
-            {installment.trigger_description ? <Field label="รายละเอียดเงื่อนไข" value={installment.trigger_description} /> : null}
-            {installment.due_date ? <Field label="วันที่ครบกำหนด" value={date(installment.due_date)} /> : null}
-            {installment.milestone_code ? <Field label="เหตุการณ์สำคัญ" value={installment.milestone_code} /> : null}
-            {installment.recurring_period_start || installment.recurring_period_end ? <Field label="รอบระยะเวลา" value={`${date(installment.recurring_period_start)} / ${date(installment.recurring_period_end)}`} /> : null}
-            {installment.readiness_event_date ? <Field label="วันที่เงื่อนไขเกิดขึ้นจริง" value={date(installment.readiness_event_date)} /> : null}
-            {installment.ready_to_invoice_at ? <Field label="พร้อมออกใบแจ้งหนี้เมื่อ" value={dateTime(installment.ready_to_invoice_at)} /> : null}
-            {installment.readiness_reference ? <Field label="หลักฐานอ้างอิง" value={installment.readiness_reference} /> : null}
-            {installment.readiness_note ? <Field label="หมายเหตุความพร้อม" value={installment.readiness_note} /> : null}
-            {installment.invoiced_at ? <Field label="ออกใบแจ้งหนี้เมื่อ" value={dateTime(installment.invoiced_at)} /> : null}
-            {installment.cancelled_at ? <Field label="ยกเลิกเมื่อ" value={dateTime(installment.cancelled_at)} /> : null}
+            <Field label={t("finance.invoice.ui.trigger")} value={installment.trigger_type === "agreement_effective" && acceptedQuotationBasis ? t("finance.invoice.trigger.agreement_effective") : triggerType[installment.trigger_type] || installment.trigger_type} />
+            {installment.trigger_description ? <Field label={t("finance.billingPlan.conditionDetail")} value={installment.trigger_description} /> : null}
+            {installment.due_date ? <Field label={t("finance.invoice.ui.dueDate")} value={date(installment.due_date, locale)} /> : null}
+            {installment.milestone_code ? <Field label={t("finance.billingPlan.milestone")} value={installment.milestone_code} /> : null}
+            {installment.recurring_period_start || installment.recurring_period_end ? <Field label={t("finance.billingPlan.period")} value={`${date(installment.recurring_period_start, locale)} / ${date(installment.recurring_period_end, locale)}`} /> : null}
+            {installment.readiness_event_date ? <Field label={t("finance.invoice.ui.triggerDate")} value={date(installment.readiness_event_date, locale)} /> : null}
+            {installment.ready_to_invoice_at ? <Field label={t("finance.billingPlan.readyAt")} value={dateTime(installment.ready_to_invoice_at, locale)} /> : null}
+            {installment.readiness_reference ? <Field label={t("finance.billingPlan.readinessReference")} value={installment.readiness_reference} /> : null}
+            {installment.readiness_note ? <Field label={t("finance.billingPlan.readinessNote")} value={installment.readiness_note} /> : null}
+            {installment.invoiced_at ? <Field label={t("finance.billingPlan.invoicedAt")} value={dateTime(installment.invoiced_at, locale)} /> : null}
+            {installment.cancelled_at ? <Field label={t("finance.invoice.ui.voidedAt")} value={dateTime(installment.cancelled_at, locale)} /> : null}
           </div>
-          <div style={allocationHeading}><h4 style={allocationTitle}>รายการค่าบริการในงวดนี้</h4><span style={allocationCount}>{installmentAllocations.length} รายการ</span></div>
-          {installmentAllocations.length === 0 ? <div style={warning}>งวดนี้ไม่มีรายการค่าบริการที่จัดสรรไว้</div> : <div style={scroll}><table className="billing-plan-allocation-table" style={allocationTable}><colgroup>{allocationColumns.map((column) => <col key={column.key} style={{ width: column.width }} />)}</colgroup><thead><tr>{allocationColumns.map((column) => <th key={column.key} className={column.numeric ? "billing-plan-numeric-column" : undefined}>{column.key === "description" && acceptedQuotationBasis ? "รายการตามใบเสนอราคา" : column.label}</th>)}</tr></thead><tbody>{installmentAllocations.map((allocation) => <tr key={allocation.id}>{allocationColumns.map((column) => <td key={column.key} className={column.numeric ? "billing-plan-numeric-column" : undefined}>{allocationCell(column.key, allocation, agreementItemById.get(allocation.fee_agreement_item_id), plan.currency)}</td>)}</tr>)}</tbody></table></div>}
+          <div style={allocationHeading}><h4 style={allocationTitle}>{t("finance.billingPlan.installmentItems")}</h4><span style={allocationCount}>{installmentAllocations.length}  {t("finance.taxInvoice.vatSummary.item")}</span></div>
+          {installmentAllocations.length === 0 ? <div style={warning}>{t("finance.billingPlan.noAllocations")}</div> : <div style={scroll}><table className="billing-plan-allocation-table" style={allocationTable}><colgroup>{allocationColumns.map((column) => <col key={column.key} style={{ width: column.width }} />)}</colgroup><thead><tr>{allocationColumns.map((column) => <th key={column.key} className={column.numeric ? "billing-plan-numeric-column" : undefined}>{column.key === "description" && acceptedQuotationBasis ? t("finance.billingPlan.quotationItem") : column.label}</th>)}</tr></thead><tbody>{installmentAllocations.map((allocation) => <tr key={allocation.id}>{allocationColumns.map((column) => <td key={column.key} className={column.numeric ? "billing-plan-numeric-column" : undefined}>{allocationCell(column.key, allocation, agreementItemById.get(allocation.fee_agreement_item_id), plan.currency, locale)}</td>)}</tr>)}</tbody></table></div>}
           {canManage && plan.status === "active" && installment.status === "pending" ? <div style={installmentNextStep}>
-            <div><span style={nextStepEyebrow}>ขั้นตอนถัดไป</span><strong style={nextStepTitle}>ยืนยันว่าพร้อมออกใบแจ้งหนี้</strong><p style={nextStepHelp}>ดำเนินการเมื่อเงื่อนไขการเรียกเก็บเงินของงวดนี้เกิดขึ้นจริงแล้วเท่านั้น</p></div>
-            <div className="billing-installment-action-group" style={installmentActionGroup}>{canAddCharge ? <button type="button" style={installmentAddButton} onClick={() => openChargeCreate(installment)}><NavigationIcon name="plus" />เพิ่มรายการ</button> : null}<button className="billing-installment-primary-action" type="button" style={primaryButton} disabled={Boolean(installmentActionId)} onClick={() => openReadinessPanel(installment)}>ยืนยันว่าพร้อมออกใบแจ้งหนี้</button></div>
+            <div><span style={nextStepEyebrow}>{t("finance.billingPlan.nextStep")}</span><strong style={nextStepTitle}>{t("finance.billingPlan.confirmReady")}</strong><p style={nextStepHelp}>{t("finance.billingPlan.readinessHelp")}</p></div>
+            <div className="billing-installment-action-group" style={installmentActionGroup}>{canAddCharge ? <button type="button" style={installmentAddButton} onClick={() => openChargeCreate(installment)}><NavigationIcon name="plus" />{t("finance.charge.ui.add")}</button> : null}<button className="billing-installment-primary-action" type="button" style={primaryButton} disabled={Boolean(installmentActionId)} onClick={() => openReadinessPanel(installment)}>{t("finance.billingPlan.confirmReady")}</button></div>
           </div> : null}
           {readinessInstallmentId === installment.id ? <div ref={readinessPanelRef} style={readinessPanel}>
-            <div style={readinessHeader}><div><span style={nextStepEyebrow}>การยืนยันโดยเจ้าหน้าที่</span><h4 style={readinessTitle}>ยืนยันความพร้อมออกใบแจ้งหนี้สำหรับงวดที่ {installment.installment_no}</h4></div><button type="button" style={closeButton} disabled={installmentActionId === installment.id} aria-label="ปิดแบบยืนยัน" onClick={closeReadinessPanel}>×</button></div>
+            <div style={readinessHeader}><div><span style={nextStepEyebrow}>{t("finance.billingPlan.staffConfirmation")}</span><h4 style={readinessTitle}>{t("finance.billingPlan.readinessTitle", { number: installment.installment_no })}</h4></div><button type="button" style={closeButton} disabled={installmentActionId === installment.id} aria-label={t("finance.billingPlan.closeReadiness")} onClick={closeReadinessPanel}>×</button></div>
             <div style={readinessContext}>
-              <Field label="ชื่องวด" value={installment.title} />
-              <Field label="เงื่อนไขเรียกเก็บ" value={installment.trigger_description || triggerType[installment.trigger_type] || installment.trigger_type} />
-              <Field label="ยอดรวมงวด" value={money(installment.total_amount, plan.currency)} />
-              {installment.due_date ? <Field label="วันที่ครบกำหนด" value={date(installment.due_date)} /> : null}
+              <Field label={t("finance.billingPlan.installmentTitle")} value={installment.title} />
+              <Field label={t("finance.invoice.ui.trigger")} value={installment.trigger_description || triggerType[installment.trigger_type] || installment.trigger_type} />
+              <Field label={t("finance.billingPlan.installmentTotal")} value={money(installment.total_amount, plan.currency)} />
+              {installment.due_date ? <Field label={t("finance.invoice.ui.dueDate")} value={date(installment.due_date, locale)} /> : null}
             </div>
-            {readinessSummaryError ? <div role="alert" style={validationSummary}>{readinessSummaryError}</div> : null}
+            {readinessSummaryError ? <div role="alert" style={validationSummary}>{uiText(readinessSummaryError)}</div> : null}
             <div className="billing-readiness-form-grid" style={readinessFormGrid}>
-              <label style={label}>วันที่เงื่อนไขเกิดขึ้นจริง <span style={requiredMark}>*</span><input ref={readinessDateRef} style={{ ...input, ...(readinessErrors.eventDate ? invalidInput : {}) }} type="date" value={readinessForm.eventDate} disabled={installmentActionId === installment.id} aria-invalid={Boolean(readinessErrors.eventDate)} onChange={(event) => { setReadinessForm({ ...readinessForm, eventDate: event.target.value }); setReadinessErrors((current) => ({ ...current, eventDate: undefined })); setReadinessSummaryError(""); }} />{readinessErrors.eventDate ? <span style={fieldError}>{readinessErrors.eventDate}</span> : null}</label>
-              <label style={label}>หลักฐาน/เลขอ้างอิง (ถ้ามี)<input style={input} value={readinessForm.reference} maxLength={500} disabled={installmentActionId === installment.id} onChange={(event) => setReadinessForm({ ...readinessForm, reference: event.target.value })} /></label>
-              <label className="billing-readiness-note" style={{ ...label, gridColumn: "1 / -1" }}>หมายเหตุภายใน (ถ้ามี)<textarea style={{ ...input, minHeight: 76, resize: "vertical" }} value={readinessForm.note} maxLength={2000} disabled={installmentActionId === installment.id} onChange={(event) => setReadinessForm({ ...readinessForm, note: event.target.value })} /></label>
+              <label style={label}>{t("finance.invoice.ui.triggerDate")} <span style={requiredMark}>*</span><input ref={readinessDateRef} style={{ ...input, ...(readinessErrors.eventDate ? invalidInput : {}) }} type="date" value={readinessForm.eventDate} disabled={installmentActionId === installment.id} aria-invalid={Boolean(readinessErrors.eventDate)} onChange={(event) => { setReadinessForm({ ...readinessForm, eventDate: event.target.value }); setReadinessErrors((current) => ({ ...current, eventDate: undefined })); setReadinessSummaryError(""); }} />{readinessErrors.eventDate ? <span style={fieldError}>{uiText(readinessErrors.eventDate)}</span> : null}</label>
+              <label style={label}>{t("finance.billingPlan.referenceOptional")}<input style={input} value={readinessForm.reference} maxLength={500} disabled={installmentActionId === installment.id} onChange={(event) => setReadinessForm({ ...readinessForm, reference: event.target.value })} /></label>
+              <label className="billing-readiness-note" style={{ ...label, gridColumn: "1 / -1" }}>{t("finance.billingPlan.internalNoteOptional")}<textarea style={{ ...input, minHeight: 76, resize: "vertical" }} value={readinessForm.note} maxLength={2000} disabled={installmentActionId === installment.id} onChange={(event) => setReadinessForm({ ...readinessForm, note: event.target.value })} /></label>
             </div>
-            <label style={{ ...confirmationLabel, ...(readinessErrors.confirmed ? invalidConfirmation : {}) }}><input ref={readinessConfirmationRef} type="checkbox" checked={readinessForm.confirmed} disabled={installmentActionId === installment.id} aria-invalid={Boolean(readinessErrors.confirmed)} onChange={(event) => { setReadinessForm({ ...readinessForm, confirmed: event.target.checked }); setReadinessErrors((current) => ({ ...current, confirmed: undefined })); setReadinessSummaryError(""); }} /><span>ยืนยันว่าเงื่อนไขการเรียกเก็บเงินของงวดนี้เกิดขึ้นแล้ว และพร้อมจัดทำใบแจ้งหนี้</span></label>
-            {readinessErrors.confirmed ? <span style={fieldError}>{readinessErrors.confirmed}</span> : null}
-            <div style={readinessActions}><button type="button" style={secondaryButton} disabled={installmentActionId === installment.id} onClick={closeReadinessPanel}>ยกเลิก</button><button className="billing-installment-primary-action" type="button" style={primaryButton} disabled={Boolean(installmentActionId)} onClick={() => void confirmInstallmentReadiness(installment)}>{installmentActionId === installment.id ? "กำลังยืนยัน..." : "ยืนยันความพร้อม"}</button></div>
+            <label style={{ ...confirmationLabel, ...(readinessErrors.confirmed ? invalidConfirmation : {}) }}><input ref={readinessConfirmationRef} type="checkbox" checked={readinessForm.confirmed} disabled={installmentActionId === installment.id} aria-invalid={Boolean(readinessErrors.confirmed)} onChange={(event) => { setReadinessForm({ ...readinessForm, confirmed: event.target.checked }); setReadinessErrors((current) => ({ ...current, confirmed: undefined })); setReadinessSummaryError(""); }} /><span>{t("finance.billingPlan.readinessAcknowledgement")}</span></label>
+            {readinessErrors.confirmed ? <span style={fieldError}>{uiText(readinessErrors.confirmed)}</span> : null}
+            <div style={readinessActions}><button type="button" style={secondaryButton} disabled={installmentActionId === installment.id} onClick={closeReadinessPanel}>{t("finance.payment.ui.cancel")}</button><button className="billing-installment-primary-action" type="button" style={primaryButton} disabled={Boolean(installmentActionId)} onClick={() => void confirmInstallmentReadiness(installment)}>{installmentActionId === installment.id ? t("finance.payment.ui.confirming") : t("finance.billingPlan.confirmReadiness")}</button></div>
           </div> : null}
           {showReadyChargePreview ? <ReadyChargePreview charges={compatibleReadyCharges} installmentTotal={installment.total_amount} currency={plan.currency} onViewAll={() => setReadyChargeListInstallmentId(installment.id)} /> : null}
           {plan.status === "active" && installment.status === "ready_to_invoice" ? <div style={installmentNextStep}>
-            <div><span style={nextStepEyebrow}>ขั้นตอนถัดไป</span><strong style={nextStepTitle}>{activeInvoice ? "เปิดร่างใบแจ้งหนี้" : installmentInvoices.length ? "ตรวจสอบประวัติใบแจ้งหนี้" : "จัดทำใบแจ้งหนี้"}</strong><p style={nextStepHelp}>{activeInvoice ? `${invoiceStatus[activeInvoice.document_status] || activeInvoice.document_status} พร้อมให้ตรวจสอบ โดยยังไม่มีการออกเลขที่ใหม่` : installmentInvoices.length ? "งวดนี้มีประวัติ Invoice V1 แล้ว จึงไม่สามารถนำเข้าสู่ Invoice V2 ผ่าน Composer" : "เปิดเครื่องมือจัดทำใบแจ้งหนี้พร้อมเลือกงวดนี้ให้แล้ว โดยยังไม่สร้างหรือเปลี่ยนแปลงข้อมูล"}</p></div>
-            <div className="billing-installment-action-group" style={installmentActionGroup}>{canAddCharge ? <button type="button" style={installmentAddButton} onClick={() => openChargeCreate(installment)}><NavigationIcon name="plus" />เพิ่มรายการ</button> : null}{activeInvoice ? <Link className="billing-installment-primary-action" style={{ ...primaryButton, textDecoration: "none", display: "inline-flex", alignItems: "center" }} href={`/finance/invoices/${activeInvoice.id}`}>เปิดร่างใบแจ้งหนี้</Link> : installmentInvoices.length ? <span style={permissionNote}>ดูเอกสารเดิมได้จากประวัติด้านล่าง</span> : canComposeInstallment ? <button className="billing-installment-primary-action" type="button" style={primaryButton} onClick={() => openInvoiceSelection(installment)}>จัดทำใบแจ้งหนี้</button> : <span style={permissionNote}>สิทธิ์ของคุณไม่ครอบคลุมการรับรองงวดเพื่อจัดทำ Invoice V2</span>}</div>
+            <div><span style={nextStepEyebrow}>{t("finance.billingPlan.nextStep")}</span><strong style={nextStepTitle}>{activeInvoice ? t("finance.billingPlan.openDraftInvoice") : installmentInvoices.length ? t("finance.billingPlan.reviewInvoiceHistory") : t("finance.invoice.composer.compose")}</strong><p style={nextStepHelp}>{activeInvoice ? t("finance.billingPlan.draftStatusHelp", { status: invoiceStatus[activeInvoice.document_status] || activeInvoice.document_status }) : installmentInvoices.length ? t("finance.billingPlan.v1HistoryHelp") : t("finance.billingPlan.openComposerHelp")}</p></div>
+            <div className="billing-installment-action-group" style={installmentActionGroup}>{canAddCharge ? <button type="button" style={installmentAddButton} onClick={() => openChargeCreate(installment)}><NavigationIcon name="plus" />{t("finance.charge.ui.add")}</button> : null}{activeInvoice ? <Link className="billing-installment-primary-action" style={{ ...primaryButton, textDecoration: "none", display: "inline-flex", alignItems: "center" }} href={`/finance/invoices/${activeInvoice.id}`}>{t("finance.billingPlan.openDraftInvoice")}</Link> : installmentInvoices.length ? <span style={permissionNote}>{t("finance.billingPlan.historyHelp")}</span> : canComposeInstallment ? <button className="billing-installment-primary-action" type="button" style={primaryButton} onClick={() => openInvoiceSelection(installment)}>{t("finance.invoice.composer.compose")}</button> : <span style={permissionNote}>{t("finance.billingPlan.v2PermissionHelp")}</span>}</div>
           </div> : null}
-          {plan.status === "draft" && canAddCharge ? <div style={installmentDraftAction}><button type="button" style={installmentAddButton} onClick={() => openChargeCreate(installment)}><NavigationIcon name="plus" />เพิ่มรายการ</button></div> : null}
-          {activeInvoice && installment.status === "invoiced" ? <div style={installmentNextStep}><div><span style={nextStepEyebrow}>ใบแจ้งหนี้</span><strong style={nextStepTitle}>{activeInvoice.invoice_no || "เอกสารใบแจ้งหนี้"}</strong></div><Link style={{ ...primaryButton, textDecoration: "none", display: "inline-flex", alignItems: "center" }} href={`/finance/invoices/${activeInvoice.id}`}>เปิดใบแจ้งหนี้</Link></div> : null}
-          {historicalInvoices.length ? <section style={invoiceHistorySection} aria-label={`ประวัติใบแจ้งหนี้ของงวดที่ ${installment.installment_no}`}>
-            <div style={invoiceHistoryHeader}><div><span style={invoiceHistoryEyebrow}>ประวัติเอกสาร</span><h4 style={invoiceHistoryTitle}>ประวัติใบแจ้งหนี้</h4></div><span style={invoiceHistoryCount}>{historicalInvoices.length} รายการ</span></div>
+          {plan.status === "draft" && canAddCharge ? <div style={installmentDraftAction}><button type="button" style={installmentAddButton} onClick={() => openChargeCreate(installment)}><NavigationIcon name="plus" />{t("finance.charge.ui.add")}</button></div> : null}
+          {activeInvoice && installment.status === "invoiced" ? <div style={installmentNextStep}><div><span style={nextStepEyebrow}>{t("finance.payment.ui.invoice")}</span><strong style={nextStepTitle}>{activeInvoice.invoice_no || t("finance.billingPlan.invoiceDocument")}</strong></div><Link style={{ ...primaryButton, textDecoration: "none", display: "inline-flex", alignItems: "center" }} href={`/finance/invoices/${activeInvoice.id}`}>{t("finance.invoice.ui.open")}</Link></div> : null}
+          {historicalInvoices.length ? <section style={invoiceHistorySection} aria-label={t("finance.billingPlan.invoiceHistoryTitle", { number: installment.installment_no })}>
+            <div style={invoiceHistoryHeader}><div><span style={invoiceHistoryEyebrow}>{t("finance.taxInvoice.ui.history")}</span><h4 style={invoiceHistoryTitle}>{t("finance.invoice.ui.history")}</h4></div><span style={invoiceHistoryCount}>{historicalInvoices.length}  {t("finance.taxInvoice.vatSummary.item")}</span></div>
             <div style={invoiceHistoryList}>{historicalInvoices.map((historicalInvoice) => <div className="billing-plan-invoice-history-item" key={historicalInvoice.id} style={invoiceHistoryItem}>
-              <div style={invoiceHistoryIdentity}><strong style={invoiceHistoryNumber}>{historicalInvoice.invoice_no || "ร่างใบแจ้งหนี้ (ไม่มีเลขที่)"}</strong><div style={invoiceHistoryMeta}><StatusBadge status={historicalInvoice.document_status} label={invoiceStatus[historicalInvoice.document_status] || historicalInvoice.document_status} /><span>{invoiceHistoryTimestamp(historicalInvoice)}</span></div></div>
-              <Link className="billing-plan-invoice-history-link" style={invoiceHistoryLink} href={`/finance/invoices/${historicalInvoice.id}`}>เปิดใบแจ้งหนี้</Link>
+              <div style={invoiceHistoryIdentity}><strong style={invoiceHistoryNumber}>{historicalInvoice.invoice_no || t("finance.billingPlan.unnumberedInvoiceDraft")}</strong><div style={invoiceHistoryMeta}><StatusBadge status={historicalInvoice.document_status} label={invoiceStatus[historicalInvoice.document_status] || historicalInvoice.document_status} /><span>{invoiceHistoryTimestamp(historicalInvoice, locale)}</span></div></div>
+              <Link className="billing-plan-invoice-history-link" style={invoiceHistoryLink} href={`/finance/invoices/${historicalInvoice.id}`}>{t("finance.invoice.ui.open")}</Link>
             </div>)}</div>
           </section> : null}
         </article>;
@@ -595,73 +604,73 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
       charges={currentChargesForOverview}
       invoiceLinks={chargeInvoiceLinks}
       canManageCharges={canManageCharges}
-      title="รายการเพิ่มเติมที่กำลังดำเนินการ"
-      helper={hasReadyChargePreview ? "รายการร่างและรายการที่กำลังจัดทำใบแจ้งหนี้" : "รายการร่าง รายการพร้อมออกใบแจ้งหนี้ และรายการที่กำลังจัดทำใบแจ้งหนี้"}
+      title={t("finance.billingPlan.currentCharges")}
+      helper={hasReadyChargePreview ? t("finance.billingPlan.draftReservedCharges") : t("finance.billingPlan.currentChargesHelp")}
       onDetail={setRelatedChargeId}
     /> : null}
     {chargeWorkflow.history.length > 0 ? <ChargeOverview
       charges={chargeWorkflow.history}
       invoiceLinks={chargeInvoiceLinks}
       canManageCharges={canManageCharges}
-      title="ประวัติรายการเพิ่มเติม"
-      helper="รายการที่ออกใบแจ้งหนี้แล้วหรือยกเลิก เก็บไว้เพื่อการตรวจสอบย้อนหลัง"
+      title={t("finance.billingPlan.chargeHistory")}
+      helper={t("finance.billingPlan.chargeHistoryHelp")}
       historical
       onDetail={setRelatedChargeId}
     /> : null}
-    {relatedCharge ? <DetailModal open title={text(relatedCharge.description, "ร่างรายการเรียกเก็บ")} subtitle={<>{client} · {matter}</>} status={<StatusBadge status={relatedCharge.status} label={chargeStatusLabel(relatedCharge.status)} />} prominentValue={money(relatedCharge.total_amount, relatedCharge.currency)} onClose={() => setRelatedChargeId("")}>
+    {relatedCharge ? <DetailModal open title={text(relatedCharge.description, t("finance.charge.ui.draftCharge"))} subtitle={<>{client} · {matter}</>} status={<StatusBadge status={relatedCharge.status} label={chargeStatusLabel(relatedCharge.status, locale)} />} prominentValue={money(relatedCharge.total_amount, relatedCharge.currency)} onClose={() => setRelatedChargeId("")}>
       <dl className="billing-plan-related-charge-detail-grid" style={relatedChargeDetailGrid}>
-        <Field label="วันที่เกิดรายการ" value={date(relatedCharge.service_date || relatedCharge.created_at)} />
-        <Field label="สถานะ" value={chargeStatusLabel(relatedCharge.status)} />
-        <Field label="ลักษณะรายการ" value={billableChargeNatureLabel(relatedCharge.source_type)} />
-        {relatedCharge.source_type === "recoverable_cost" ? <Field label="การจ่าย" value={clientCostFundingModeLabel(relatedCharge.client_cost_funding_mode)} /> : null}
-        <Field label="ประเภทของยอด" value={chargeClassificationLabel(relatedCharge.economic_classification)} />
-        <Field label="การคิด VAT" value={chargeTaxLabel(relatedCharge.price_tax_mode, relatedCharge.vat_rate)} />
-        <Field label="มูลค่าก่อน VAT" value={money(relatedCharge.amount_before_vat, relatedCharge.currency)} />
+        <Field label={t("finance.charge.ui.transactionDate")} value={date(relatedCharge.service_date || relatedCharge.created_at, locale)} />
+        <Field label={t("finance.taxInvoice.ui.status")} value={chargeStatusLabel(relatedCharge.status, locale)} />
+        <Field label={t("finance.invoice.ui.chargeNature")} value={billableChargeNatureLabel(relatedCharge.source_type, locale)} />
+        {relatedCharge.source_type === "recoverable_cost" ? <Field label={t("finance.invoice.ui.funding")} value={clientCostFundingModeLabel(relatedCharge.client_cost_funding_mode, locale)} /> : null}
+        <Field label={t("finance.invoice.ui.classification")} value={chargeClassificationLabel(relatedCharge.economic_classification, locale)} />
+        <Field label={t("finance.charge.ui.vatMode")} value={chargeTaxLabel(relatedCharge.price_tax_mode, relatedCharge.vat_rate, locale)} />
+        <Field label={t("finance.taxInvoice.vatSummary.beforeVat")} value={money(relatedCharge.amount_before_vat, relatedCharge.currency)} />
         <Field label="VAT" value={money(relatedCharge.vat_amount, relatedCharge.currency)} />
-        <Field label="ยอดเรียกเก็บ" value={<strong>{money(relatedCharge.total_amount, relatedCharge.currency)}</strong>} />
-        <Field label="เลขอ้างอิง / หลักฐาน" value={text(relatedCharge.source_reference)} />
-        {relatedCharge.ready_to_invoice_at ? <Field label="พร้อมออกใบแจ้งหนี้เมื่อ" value={dateTime(relatedCharge.ready_to_invoice_at)} /> : null}
+        <Field label={t("finance.charge.ui.chargeAmount")} value={<strong>{money(relatedCharge.total_amount, relatedCharge.currency)}</strong>} />
+        <Field label={t("finance.charge.ui.referenceEvidenceNumber")} value={text(relatedCharge.source_reference)} />
+        {relatedCharge.ready_to_invoice_at ? <Field label={t("finance.billingPlan.readyAt")} value={dateTime(relatedCharge.ready_to_invoice_at, locale)} /> : null}
       </dl>
     </DetailModal> : null}
-    {readyChargeListInstallment ? <DetailModal open title="รายการเพิ่มเติมพร้อมเรียกเก็บ" subtitle={<>ใช้ได้กับงวดที่ {readyChargeListInstallment.installment_no} · ยังไม่ได้เลือกสำหรับใบแจ้งหนี้</>} prominentValue={money(summarizeReadyCharges(compatibleReadyCharges, readyChargeListInstallment.total_amount).total, plan.currency)} onClose={() => setReadyChargeListInstallmentId("")}>
+    {readyChargeListInstallment ? <DetailModal open title={t("finance.billingPlan.readyAdditionalCharges")} subtitle={<>{t("finance.billingPlan.availableForInstallment", { number: readyChargeListInstallment.installment_no })}</>} prominentValue={money(summarizeReadyCharges(compatibleReadyCharges, readyChargeListInstallment.total_amount).total, plan.currency)} onClose={() => setReadyChargeListInstallmentId("")}>
       <ReadyChargeRows charges={compatibleReadyCharges} />
-      <p style={readyChargeDisclaimer}>รายการเหล่านี้ยังไม่ได้รวมในใบแจ้งหนี้ คุณจะเลือกว่าจะรวมรายการใดในขั้นตอนจัดทำใบแจ้งหนี้</p>
+      <p style={readyChargeDisclaimer}>{t("finance.billingPlan.availableChargesHelp")}</p>
     </DetailModal> : null}
     {invoiceSelectionInstallment ? <DetailModal
       open
-      title={`จัดทำใบแจ้งหนี้สำหรับงวดที่ ${invoiceSelectionInstallment.installment_no}`}
+      title={t("finance.billingPlan.composeTitle", { number: invoiceSelectionInstallment.installment_no })}
       subtitle={<>{billingInstallmentDisplayTitle(invoiceSelectionInstallment.title, invoiceSelectionInstallment.installment_no) || engagementReference} · {matter}</>}
-      prominentValue={<>ยอดตามงวด {money(invoiceSelectionInstallment.total_amount, plan.currency)}</>}
-      closeLabel="ปิดการเลือกรายการสำหรับใบแจ้งหนี้"
+      prominentValue={<>{t("finance.billingPlan.installmentAmount")} {money(invoiceSelectionInstallment.total_amount, plan.currency)}</>}
+      closeLabel={t("finance.billingPlan.closeSelection")}
       onClose={closeInvoiceSelection}
-      footer={<div className="billing-invoice-selection-footer" style={invoiceSelectionFooter}><button type="button" style={secondaryButton} onClick={closeInvoiceSelection}>ยกเลิก</button><Link className="billing-plan-primary-button" style={{ ...primaryButton, ...invoiceSelectionContinue, textDecoration: "none" }} href={invoiceComposerHref(invoiceSelectionInstallment.id, selectedInvoiceChargeIds, agreement?.client_id || "")}>ดำเนินการต่อ</Link></div>}
+      footer={<div className="billing-invoice-selection-footer" style={invoiceSelectionFooter}><button type="button" style={secondaryButton} onClick={closeInvoiceSelection}>{t("finance.payment.ui.cancel")}</button><Link className="billing-plan-primary-button" style={{ ...primaryButton, ...invoiceSelectionContinue, textDecoration: "none" }} href={invoiceComposerHref(invoiceSelectionInstallment.id, selectedInvoiceChargeIds, agreement?.client_id || "")}>{t("finance.billingPlan.continue")}</Link></div>}
     >
       <div className="billing-invoice-selection" style={invoiceSelectionBody}>
         <section style={invoiceSelectionSection} aria-labelledby="billing-invoice-installment-source">
-          <div style={invoiceSelectionHeading}><div><span style={nextStepEyebrow}>ยอดหลัก</span><h3 id="billing-invoice-installment-source" style={invoiceSelectionTitle}>ยอดตามแผนเรียกเก็บ</h3></div><span style={lockedBadge}>เลือกไว้แล้ว</span></div>
-          <div className="billing-invoice-source-choice" style={{ ...invoiceSourceChoice, ...invoiceSourceLocked }}><span aria-hidden="true" style={selectedMark}>✓</span><div style={invoiceChoiceCopy}><strong>งวดที่ {invoiceSelectionInstallment.installment_no} {billingInstallmentDisplayTitle(invoiceSelectionInstallment.title, invoiceSelectionInstallment.installment_no) ? `— ${billingInstallmentDisplayTitle(invoiceSelectionInstallment.title, invoiceSelectionInstallment.installment_no)}` : ""}</strong><small>รายการต้นทางของงวดนี้ถูกล็อกและไม่สามารถนำออกจากใบแจ้งหนี้ฉบับนี้ได้</small></div><strong className="billing-invoice-choice-amount" style={invoiceChoiceAmount}>{money(invoiceSelectionInstallment.total_amount, plan.currency)}</strong></div>
+          <div style={invoiceSelectionHeading}><div><span style={nextStepEyebrow}>{t("finance.billingPlan.primaryAmount")}</span><h3 id="billing-invoice-installment-source" style={invoiceSelectionTitle}>{t("finance.billingPlan.plannedAmount")}</h3></div><span style={lockedBadge}>{t("finance.billingPlan.selected")}</span></div>
+          <div className="billing-invoice-source-choice" style={{ ...invoiceSourceChoice, ...invoiceSourceLocked }}><span aria-hidden="true" style={selectedMark}>✓</span><div style={invoiceChoiceCopy}><strong>{t("finance.invoice.composer.installmentPrefix")} {invoiceSelectionInstallment.installment_no} {billingInstallmentDisplayTitle(invoiceSelectionInstallment.title, invoiceSelectionInstallment.installment_no) ? `— ${billingInstallmentDisplayTitle(invoiceSelectionInstallment.title, invoiceSelectionInstallment.installment_no)}` : ""}</strong><small>{t("finance.billingPlan.sourceLockedHelp")}</small></div><strong className="billing-invoice-choice-amount" style={invoiceChoiceAmount}>{money(invoiceSelectionInstallment.total_amount, plan.currency)}</strong></div>
         </section>
         <section style={invoiceSelectionSection} aria-labelledby="billing-invoice-extra-charges">
-          <div style={invoiceSelectionHeading}><div><span style={nextStepEyebrow}>เลือกเพิ่มเติมได้</span><h3 id="billing-invoice-extra-charges" style={invoiceSelectionTitle}>รายการเพิ่มเติมที่สามารถรวมในใบแจ้งหนี้</h3><p style={invoiceSelectionHelp}>เลือกค่าใช้จ่ายหรือบริการเพิ่มเติมที่ต้องการรวมในใบแจ้งหนี้ฉบับเดียวกัน</p></div></div>
-          {!canViewCharges ? <div style={relatedChargeNotice}>สิทธิ์ของคุณไม่ครอบคลุมการดูรายการเรียกเก็บเพิ่มเติม</div> : compatibleReadyCharges.length === 0 ? <div style={invoiceSelectionEmpty}><strong>ยังไม่มีรายการเพิ่มเติมที่พร้อมนำไปรวมในใบแจ้งหนี้</strong><span>คุณสามารถดำเนินการต่อด้วยยอดตามแผนเพียงอย่างเดียว หรือเพิ่มรายการใหม่ก่อน</span>{canManageCharges && agreement ? <button className="billing-invoice-add-charge" type="button" style={invoiceAddChargeLink} onClick={() => openChargeCreate(invoiceSelectionInstallment)}><NavigationIcon name="plus" />เพิ่มรายการเรียกเก็บ</button> : null}</div> : <div style={invoiceChoiceList}>{compatibleReadyCharges.map((charge) => {
+          <div style={invoiceSelectionHeading}><div><span style={nextStepEyebrow}>{t("finance.billingPlan.optionalSelection")}</span><h3 id="billing-invoice-extra-charges" style={invoiceSelectionTitle}>{t("finance.billingPlan.availableAdditionalCharges")}</h3><p style={invoiceSelectionHelp}>{t("finance.billingPlan.selectAdditionalHelp")}</p></div></div>
+          {!canViewCharges ? <div style={relatedChargeNotice}>{t("finance.billingPlan.chargeAccessHelp")}</div> : compatibleReadyCharges.length === 0 ? <div style={invoiceSelectionEmpty}><strong>{t("finance.billingPlan.noReadyAdditional")}</strong><span>{t("finance.billingPlan.continueWithoutCharges")}</span>{canManageCharges && agreement ? <button className="billing-invoice-add-charge" type="button" style={invoiceAddChargeLink} onClick={() => openChargeCreate(invoiceSelectionInstallment)}><NavigationIcon name="plus" />{t("finance.charge.ui.addCharge")}</button> : null}</div> : <div style={invoiceChoiceList}>{compatibleReadyCharges.map((charge) => {
             const selected = selectedInvoiceChargeIds.includes(charge.id);
             const detailOpen = selectionDetailCharge?.id === charge.id;
             return <article key={charge.id} style={{ ...invoiceChargeChoice, ...(selected ? invoiceChargeChoiceSelected : {}) }}>
-              <label className="billing-invoice-charge-label" style={invoiceChargeLabel}><input type="checkbox" checked={selected} onChange={() => { setSelectedInvoiceChargeIds((current) => current.includes(charge.id) ? current.filter((id) => id !== charge.id) : [...current, charge.id]); setSelectionDetailChargeId(""); }} /><span style={invoiceChoiceCopy}><strong>{text(charge.description, "รายการรอเรียกเก็บ")}</strong><small>{date(charge.service_date || charge.created_at)} · {chargeClassificationLabel(charge.economic_classification)} · {chargeTaxLabel(charge.price_tax_mode, charge.vat_rate)}</small></span><strong className="billing-invoice-choice-amount" style={invoiceChoiceAmount}>{money(charge.total_amount, charge.currency)}</strong></label>
-              <button className="billing-invoice-detail-toggle" type="button" style={invoiceDetailToggle} aria-expanded={detailOpen} onClick={() => setSelectionDetailChargeId(detailOpen ? "" : charge.id)}>{detailOpen ? "ซ่อนรายละเอียด" : "ดูรายละเอียด"}</button>
-              {detailOpen ? <dl className="billing-invoice-charge-detail" style={invoiceInlineDetail}><Field label="วันที่เกิดรายการ" value={date(charge.service_date || charge.created_at)} /><Field label="ลักษณะรายการ" value={billableChargeNatureLabel(charge.source_type)} />{charge.source_type === "recoverable_cost" ? <Field label="การจ่าย" value={clientCostFundingModeLabel(charge.client_cost_funding_mode)} /> : null}<Field label="ประเภทของยอด" value={chargeClassificationLabel(charge.economic_classification)} /><Field label="การคิด VAT" value={chargeTaxLabel(charge.price_tax_mode, charge.vat_rate)} /><Field label="มูลค่าก่อน VAT" value={money(charge.amount_before_vat, charge.currency)} /><Field label="VAT" value={money(charge.vat_amount, charge.currency)} /><Field label="ยอดรวม" value={money(charge.total_amount, charge.currency)} /><Field label="อ้างอิง / หลักฐาน" value={text(charge.source_reference)} /></dl> : null}
+              <label className="billing-invoice-charge-label" style={invoiceChargeLabel}><input type="checkbox" checked={selected} onChange={() => { setSelectedInvoiceChargeIds((current) => current.includes(charge.id) ? current.filter((id) => id !== charge.id) : [...current, charge.id]); setSelectionDetailChargeId(""); }} /><span style={invoiceChoiceCopy}><strong>{text(charge.description, t("finance.billingPlan.unbilledCharges"))}</strong><small>{date(charge.service_date || charge.created_at, locale)} · {chargeClassificationLabel(charge.economic_classification, locale)} · {chargeTaxLabel(charge.price_tax_mode, charge.vat_rate, locale)}</small></span><strong className="billing-invoice-choice-amount" style={invoiceChoiceAmount}>{money(charge.total_amount, charge.currency)}</strong></label>
+              <button className="billing-invoice-detail-toggle" type="button" style={invoiceDetailToggle} aria-expanded={detailOpen} onClick={() => setSelectionDetailChargeId(detailOpen ? "" : charge.id)}>{detailOpen ? t("finance.billingPlan.hideDetails") : t("finance.invoice.ui.details")}</button>
+              {detailOpen ? <dl className="billing-invoice-charge-detail" style={invoiceInlineDetail}><Field label={t("finance.charge.ui.transactionDate")} value={date(charge.service_date || charge.created_at, locale)} /><Field label={t("finance.invoice.ui.chargeNature")} value={billableChargeNatureLabel(charge.source_type, locale)} />{charge.source_type === "recoverable_cost" ? <Field label={t("finance.invoice.ui.funding")} value={clientCostFundingModeLabel(charge.client_cost_funding_mode, locale)} /> : null}<Field label={t("finance.invoice.ui.classification")} value={chargeClassificationLabel(charge.economic_classification, locale)} /><Field label={t("finance.charge.ui.vatMode")} value={chargeTaxLabel(charge.price_tax_mode, charge.vat_rate, locale)} /><Field label={t("finance.taxInvoice.vatSummary.beforeVat")} value={money(charge.amount_before_vat, charge.currency)} /><Field label="VAT" value={money(charge.vat_amount, charge.currency)} /><Field label={t("finance.invoice.ui.total")} value={money(charge.total_amount, charge.currency)} /><Field label={t("finance.charge.ui.referenceEvidence")} value={text(charge.source_reference)} /></dl> : null}
             </article>;
           })}</div>}
-          {compatibleReadyCharges.length > 0 && canManageCharges && agreement ? <button className="billing-invoice-add-charge" type="button" style={invoiceSecondaryAddLink} onClick={() => openChargeCreate(invoiceSelectionInstallment)}><NavigationIcon name="plus" />เพิ่มรายการเรียกเก็บ</button> : null}
+          {compatibleReadyCharges.length > 0 && canManageCharges && agreement ? <button className="billing-invoice-add-charge" type="button" style={invoiceSecondaryAddLink} onClick={() => openChargeCreate(invoiceSelectionInstallment)}><NavigationIcon name="plus" />{t("finance.charge.ui.addCharge")}</button> : null}
         </section>
-        <section style={invoiceSelectionSummary} aria-live="polite"><div style={invoiceSelectionHeading}><div><span style={nextStepEyebrow}>สรุปรายการที่เลือก</span><h3 style={invoiceSelectionTitle}>ยอดรวมก่อนเปิด Invoice Composer</h3></div><strong style={invoiceSelectionGrandTotal}>{money(selectionTotals.total, plan.currency)}</strong></div><dl className="billing-invoice-selection-totals" style={invoiceSelectionTotals}><Field label="ยอดตามแผน" value={money(invoiceSelectionInstallment.total_amount, plan.currency)} /><Field label={`รายการเพิ่มเติม (${selectedInvoiceCharges.length})`} value={money(selectedInvoiceCharges.reduce((sum, charge) => sum + numberValue(charge.total_amount), 0), plan.currency)} /><Field label="มูลค่าก่อน VAT" value={money(selectionTotals.before, plan.currency)} /><Field label="VAT" value={money(selectionTotals.vat, plan.currency)} /></dl><p style={invoiceSelectionDisclaimer}>ขั้นตอนนี้ยังไม่สร้างร่างหรือกันรายการ ระบบจะตรวจสอบข้อมูลต้นทางและสิทธิ์อีกครั้งใน Invoice Composer</p></section>
+        <section style={invoiceSelectionSummary} aria-live="polite"><div style={invoiceSelectionHeading}><div><span style={nextStepEyebrow}>{t("finance.billingPlan.selectionSummary")}</span><h3 style={invoiceSelectionTitle}>{t("finance.billingPlan.composerTotal")}</h3></div><strong style={invoiceSelectionGrandTotal}>{money(selectionTotals.total, plan.currency)}</strong></div><dl className="billing-invoice-selection-totals" style={invoiceSelectionTotals}><Field label={t("finance.billingPlan.planAmount")} value={money(invoiceSelectionInstallment.total_amount, plan.currency)} /><Field label={t("finance.billingPlan.additionalCount", { count: selectedInvoiceCharges.length })} value={money(selectedInvoiceCharges.reduce((sum, charge) => sum + numberValue(charge.total_amount), 0), plan.currency)} /><Field label={t("finance.taxInvoice.vatSummary.beforeVat")} value={money(selectionTotals.before, plan.currency)} /><Field label="VAT" value={money(selectionTotals.vat, plan.currency)} /></dl><p style={invoiceSelectionDisclaimer}>{t("finance.billingPlan.selectionHelp")}</p></section>
       </div>
     </DetailModal> : null}
     {chargeCreateInstallment && billableChargeContext ? <DetailModal
       open
-      title="เพิ่มรายการเรียกเก็บ"
+      title={t("finance.charge.ui.addCharge")}
       subtitle={<>{billableChargeContext.clientName} · {billableChargeContext.matterLabel}</>}
-      closeLabel="ปิดแบบฟอร์มเพิ่มรายการเรียกเก็บ"
+      closeLabel={t("finance.billingPlan.closeChargeForm")}
       closeOnBackdrop={false}
       onClose={closeChargeCreate}
     ><BillableChargeCreateWorkflow
@@ -677,7 +686,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
         setSelectionDetailChargeId(completion.selectionDetailChargeId);
         setExpandCurrentCharges(completion.expandCurrentCharges);
         await load();
-        setMessage("เพิ่มรายการและยืนยันพร้อมออกใบแจ้งหนี้แล้ว");
+        setMessage(uiMessage("finance.billingPlan.chargeReadySuccess"));
         window.requestAnimationFrame(() => {
           const target = document.getElementById("billing-plan-current-charges");
           target?.focus({ preventScroll: true });
@@ -687,32 +696,32 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
     /></DetailModal> : null}
     {canManage && plan.status === "draft" ? <section className="billing-plan-final-review" style={{ ...card, ...finalReviewCard }}>
       <div style={finalReviewHeader}>
-        <span style={finalReviewEyebrow}>ขั้นตอนสุดท้าย</span>
-        <h2 style={finalReviewTitle}>ตรวจสอบแผนเรียกเก็บเงิน</h2>
-        <p style={finalReviewDescription}>ตรวจสอบงวด เงื่อนไข วันที่ครบกำหนด รายการค่าบริการ และยอดเงินทั้งหมดให้ครบถ้วนก่อนยืนยันแผนพร้อมดำเนินการ</p>
+        <span style={finalReviewEyebrow}>{t("finance.invoice.ui.finalStep")}</span>
+        <h2 style={finalReviewTitle}>{t("finance.billingPlan.reviewTitle")}</h2>
+        <p style={finalReviewDescription}>{t("finance.billingPlan.reviewHelp")}</p>
       </div>
       <div className="billing-plan-final-summary" style={finalSummaryGrid}>
-        <SummaryMetric label="จำนวนงวด" value={String(plan.installment_count)} />
-        <SummaryMetric label="มูลค่าก่อน VAT" value={money(plan.amount_before_tax, plan.currency)} />
+        <SummaryMetric label={t("finance.billingPlan.installmentCount")} value={String(plan.installment_count)} />
+        <SummaryMetric label={t("finance.taxInvoice.vatSummary.beforeVat")} value={money(plan.amount_before_tax, plan.currency)} />
         <SummaryMetric label="VAT" value={money(plan.vat_amount, plan.currency)} />
-        <SummaryMetric label="ยอดรวม" value={money(plan.total_amount, plan.currency)} prominent />
+        <SummaryMetric label={t("finance.invoice.ui.total")} value={money(plan.total_amount, plan.currency)} prominent />
       </div>
       <div style={{ ...finalReadinessNotice, ...(dirty ? finalReadinessPending : finalReadinessReady) }}>
-        <strong>{dirty ? "กรุณาบันทึกการเปลี่ยนแปลงก่อนยืนยันแผน" : "ข้อมูลล่าสุดถูกบันทึกแล้ว พร้อมสำหรับการยืนยัน"}</strong>
-        <span>{dirty ? "ปุ่มยืนยันจะพร้อมใช้งานเมื่อบันทึกข้อมูลล่าสุดสำเร็จ" : "การยืนยันจะเปลี่ยนแผนจากร่างเป็นพร้อมดำเนินการ"}</span>
+        <strong>{dirty ? t("finance.billingPlan.saveBeforeActivate") : t("finance.billingPlan.readyToActivate")}</strong>
+        <span>{dirty ? t("finance.billingPlan.activateAfterSave") : t("finance.billingPlan.activateHelp")}</span>
       </div>
       <div className="billing-plan-workflow-controls" style={workflowControls}>
         <div className="billing-plan-normal-actions" style={actionButtons}>
-          <button className="billing-plan-save-button" type="button" style={{ ...secondaryButton, ...(!dirty ? disabledSaveButton : {}) }} disabled={!dirty || saving || statusSaving} onClick={() => void saveDraft()}>{saving ? "กำลังบันทึก..." : dirty ? "บันทึกการเปลี่ยนแปลง" : "บันทึกแล้ว"}</button>
-          <button className="billing-plan-primary-button" type="button" style={primaryButton} disabled={dirty || saving || statusSaving} onClick={() => void changePlanStatus("active")}>{statusSaving ? "กำลังดำเนินการ..." : "ยืนยันแผนพร้อมดำเนินการ"}</button>
+          <button className="billing-plan-save-button" type="button" style={{ ...secondaryButton, ...(!dirty ? disabledSaveButton : {}) }} disabled={!dirty || saving || statusSaving} onClick={() => void saveDraft()}>{saving ? t("finance.payment.ui.saving") : dirty ? t("finance.payment.ui.saveChanges") : t("finance.payment.ui.savedState")}</button>
+          <button className="billing-plan-primary-button" type="button" style={primaryButton} disabled={dirty || saving || statusSaving} onClick={() => void changePlanStatus("active")}>{statusSaving ? t("finance.taxInvoice.ui.processing") : t("finance.billingPlan.activate")}</button>
         </div>
       </div>
       <div className="billing-plan-danger-actions" style={otherActions}>
         <div style={otherActionsCopy}>
-          <strong>การดำเนินการอื่น</strong>
-          <span>ใช้เมื่อไม่ต้องการดำเนินการตามแผนนี้ต่อ การยกเลิกไม่ใช่การยืนยันแผน</span>
+          <strong>{t("finance.taxInvoice.ui.otherActions")}</strong>
+          <span>{t("finance.billingPlan.cancelHelp")}</span>
         </div>
-        <button className="billing-plan-cancel-button" type="button" style={cancelButton} disabled={saving || statusSaving} onClick={() => void changePlanStatus("cancelled")}>ยกเลิกแผน</button>
+        <button className="billing-plan-cancel-button" type="button" style={cancelButton} disabled={saving || statusSaving} onClick={() => void changePlanStatus("cancelled")}>{t("finance.billingPlan.cancelPlan")}</button>
       </div>
     </section> : null}
     <style jsx global>{`
@@ -794,26 +803,28 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
 }
 
 function ReadyChargePreview({ charges, installmentTotal, currency, onViewAll }: { charges: RelatedCharge[]; installmentTotal: number | string; currency: string; onViewAll: () => void }) {
+  const { t } = useI18n();
   const summary = summarizeReadyCharges(charges, installmentTotal);
 
-  return <section className="billing-plan-ready-charge-preview" style={readyChargePreview} aria-label={`รายการเพิ่มเติมพร้อมเรียกเก็บ ${summary.count} รายการ`}>
+  return <section className="billing-plan-ready-charge-preview" style={readyChargePreview} aria-label={t("finance.billingPlan.readyChargeCount", { count: summary.count })}>
     <div style={readyChargeHeader}>
-      <div><span style={readyChargeEyebrow}>ข้อมูลก่อนจัดทำใบแจ้งหนี้</span><h4 style={readyChargeTitle}>รายการเพิ่มเติมพร้อมเรียกเก็บ</h4></div>
-      <strong style={readyChargeSummary}>{summary.count} รายการ · รวม {money(summary.total, currency)}</strong>
+      <div><span style={readyChargeEyebrow}>{t("finance.billingPlan.beforeComposition")}</span><h4 style={readyChargeTitle}>{t("finance.billingPlan.readyAdditionalCharges")}</h4></div>
+      <strong style={readyChargeSummary}>{t("finance.billingPlan.readyChargeSummary", { count: summary.count, total: money(summary.total, currency) })}</strong>
     </div>
     <ReadyChargeRows charges={summary.visibleCharges} />
-    {summary.hiddenCount > 0 ? <button className="billing-plan-ready-charge-view-all" type="button" style={readyChargeViewAllButton} onClick={onViewAll}>ดูทั้งหมด ({summary.count})</button> : null}
+    {summary.hiddenCount > 0 ? <button className="billing-plan-ready-charge-view-all" type="button" style={readyChargeViewAllButton} onClick={onViewAll}>{t("finance.billingPlan.viewAll", { count: summary.count })}</button> : null}
     <div className="billing-plan-ready-charge-totals" style={readyChargeTotals}>
-      <span>ยอดตามงวด <strong>{money(installmentTotal, currency)}</strong></span>
-      <span>หากเลือกรวมทั้งหมด: <strong>{money(summary.allInTotal, currency)}</strong></span>
+      <span>{t("finance.billingPlan.installmentAmount")} <strong>{money(installmentTotal, currency)}</strong></span>
+      <span>{t("finance.billingPlan.includeAll")} <strong>{money(summary.allInTotal, currency)}</strong></span>
     </div>
-    <p style={readyChargeDisclaimer}>รายการเหล่านี้ยังไม่ได้รวมในใบแจ้งหนี้ คุณจะเลือกว่าจะรวมรายการใดในขั้นตอนจัดทำใบแจ้งหนี้</p>
+    <p style={readyChargeDisclaimer}>{t("finance.billingPlan.availableChargesHelp")}</p>
   </section>;
 }
 
 function ReadyChargeRows({ charges }: { charges: RelatedCharge[] }) {
+  const { t } = useI18n();
   return <div style={readyChargeList}>{charges.map((charge) => <div className="billing-plan-ready-charge-row" key={charge.id} style={readyChargeRow}>
-    <span style={readyChargeDescription}>{text(charge.description, "รายการเพิ่มเติม")}</span>
+    <span style={readyChargeDescription}>{text(charge.description, t("finance.billingPlan.additionalCharges"))}</span>
     <strong style={readyChargeAmount}>{money(charge.total_amount, charge.currency)}</strong>
   </div>)}</div>;
 }
@@ -830,21 +841,22 @@ function ChargeOverview({ sectionId, open, onOpenChange, charges, invoiceLinks, 
   historical?: boolean;
   onDetail: (chargeId: string) => void;
 }) {
-  return <section id={sectionId} tabIndex={sectionId ? -1 : undefined} style={{ ...card, ...relatedChargeSection, ...(historical ? relatedChargeHistorySection : {}) }} aria-label={`${title} ${charges.length} รายการ`}>
+  const { t, locale } = useI18n();
+  return <section id={sectionId} tabIndex={sectionId ? -1 : undefined} style={{ ...card, ...relatedChargeSection, ...(historical ? relatedChargeHistorySection : {}) }} aria-label={t("finance.billingPlan.sectionCount", { title: title, count: charges.length })}>
     <details className="billing-plan-related-charge-overview" open={open} onToggle={onOpenChange ? (event) => onOpenChange(event.currentTarget.open) : undefined}>
       <summary style={relatedChargeSummary}>
         <span><strong>{title} ({charges.length})</strong><small>{helper}</small></span>
-        <span style={relatedChargeCount}>ดูรายการ</span>
+        <span style={relatedChargeCount}>{t("finance.billingPlan.viewCharge")}</span>
       </summary>
-      {!historical && !canManageCharges ? <p style={relatedChargePermission}>คุณดูรายการที่เกี่ยวข้องได้ แต่ไม่มีสิทธิ์เพิ่มหรือแก้ไขรายการเรียกเก็บ</p> : null}
+      {!historical && !canManageCharges ? <p style={relatedChargePermission}>{t("finance.billingPlan.chargeReadOnlyPermission")}</p> : null}
       <div className="billing-plan-related-charge-grid" style={relatedChargeGrid}>{charges.map((charge) => {
         const invoiceLink = invoiceLinks[charge.id];
         const showInvoiceLink = invoiceLink && (historical || ["reserved", "invoiced"].includes(invoiceLink.allocationStatus));
         return <article key={charge.id} style={relatedChargeCard}>
-          <div style={relatedChargeCardHeader}><div style={relatedChargeCardCopy}><span style={relatedChargeDate}>{date(charge.service_date || charge.created_at)}</span><h3 style={relatedChargeCardTitle}>{text(charge.description, "ร่างรายการเรียกเก็บ")}</h3></div><StatusBadge status={charge.status} label={chargeStatusLabel(charge.status)} /></div>
-          <dl style={relatedChargeMetrics}><div><dt style={relatedChargeMetricLabel}>ประเภทของยอด</dt><dd style={relatedChargeMetricValue}>{chargeClassificationLabel(charge.economic_classification)}</dd></div><div><dt style={relatedChargeMetricLabel}>VAT</dt><dd style={relatedChargeMetricValue}>{chargeTaxLabel(charge.price_tax_mode, charge.vat_rate)}</dd></div></dl>
-          {showInvoiceLink ? <div style={relatedChargeInvoice}><span>ใบแจ้งหนี้ที่เกี่ยวข้อง</span><Link className="billing-plan-related-charge-invoice" style={relatedChargeInvoiceLink} href={`/finance/invoices/${invoiceLink.invoiceId}`}>{invoiceLink.invoiceNo || "ร่างใบแจ้งหนี้ (ไม่มีเลขที่)"}</Link></div> : null}
-          <div style={relatedChargeCardFooter}><strong style={relatedChargeAmount}>{money(charge.total_amount, charge.currency)}</strong><button className="billing-plan-related-charge-detail" type="button" style={relatedChargeDetailButton} onClick={() => onDetail(charge.id)}>ดูรายละเอียด</button></div>
+          <div style={relatedChargeCardHeader}><div style={relatedChargeCardCopy}><span style={relatedChargeDate}>{date(charge.service_date || charge.created_at, locale)}</span><h3 style={relatedChargeCardTitle}>{text(charge.description, t("finance.charge.ui.draftCharge"))}</h3></div><StatusBadge status={charge.status} label={chargeStatusLabel(charge.status, locale)} /></div>
+          <dl style={relatedChargeMetrics}><div><dt style={relatedChargeMetricLabel}>{t("finance.invoice.ui.classification")}</dt><dd style={relatedChargeMetricValue}>{chargeClassificationLabel(charge.economic_classification, locale)}</dd></div><div><dt style={relatedChargeMetricLabel}>VAT</dt><dd style={relatedChargeMetricValue}>{chargeTaxLabel(charge.price_tax_mode, charge.vat_rate, locale)}</dd></div></dl>
+          {showInvoiceLink ? <div style={relatedChargeInvoice}><span>{t("finance.billingPlan.relatedInvoice")}</span><Link className="billing-plan-related-charge-invoice" style={relatedChargeInvoiceLink} href={`/finance/invoices/${invoiceLink.invoiceId}`}>{invoiceLink.invoiceNo || t("finance.billingPlan.unnumberedInvoiceDraft")}</Link></div> : null}
+          <div style={relatedChargeCardFooter}><strong style={relatedChargeAmount}>{money(charge.total_amount, charge.currency)}</strong><button className="billing-plan-related-charge-detail" type="button" style={relatedChargeDetailButton} onClick={() => onDetail(charge.id)}>{t("finance.invoice.ui.details")}</button></div>
         </article>;
       })}</div>
     </details>
@@ -854,22 +866,24 @@ function ChargeOverview({ sectionId, open, onOpenChange, charges, invoiceLinks, 
 function Field({ label, value }: { label: string; value: ReactNode }) { return <div><small style={{ color: "#64748b" }}>{label}</small><div>{value}</div></div>; }
 function StatusBadge({ status, label, prominent = false }: { status: string; label: string; prominent?: boolean }) { return <span style={{ ...statusBadge, ...statusColor[status], ...(prominent ? prominentStatusBadge : {}) }}>{label}</span>; }
 function NavigationIcon({ name }: { name: "back" | "source" | "plus" }) { const common = { width: 17, height: 17, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true }; if (name === "back") return <svg {...common}><path d="M19 12H5M12 19l-7-7 7-7" /></svg>; if (name === "plus") return <svg {...common}><path d="M12 5v14M5 12h14" /></svg>; return <svg {...common}><path d="M6 3h9l3 3v15H6zM14 3v4h4M9 12h6M9 16h4" /></svg>; }
-function ChainNode({ title, status, statusText, current = false, children }: { title: string; status: string | null; statusText?: string; current?: boolean; children: ReactNode }) { return <div style={{ ...chainNode, ...(current ? chainCurrentNode : {}) }}><small style={{ color: "#64748b" }}>{title}</small>{status ? <StatusBadge status={status} label={statusText || planStatus[status] || status} /> : null}<div style={{ marginTop: 6, overflowWrap: "anywhere" }}>{children}</div></div>; }
+function ChainNode({ title, status, statusText, current = false, children }: { title: string; status: string | null; statusText?: string; current?: boolean; children: ReactNode }) {
+  const { locale } = useI18n();
+  const { planStatus } = billingPlanUiLabels(locale); return <div style={{ ...chainNode, ...(current ? chainCurrentNode : {}) }}><small style={{ color: "#64748b" }}>{title}</small>{status ? <StatusBadge status={status} label={statusText || planStatus[status] || status} /> : null}<div style={{ marginTop: 6, overflowWrap: "anywhere" }}>{children}</div></div>; }
 function SummaryMetric({ label, value, prominent = false, compact = false }: { label: string; value: string; prominent?: boolean; compact?: boolean }) { return <div className="billing-plan-summary-metric" style={{ ...summaryMetric, ...(compact ? compactSummaryMetric : {}), ...(prominent ? prominentSummaryMetric : {}) }}><small style={{ ...summaryMetricLabel, ...(prominent ? prominentSummaryMetricLabel : {}) }}>{label}</small><strong style={{ ...summaryMetricValue, ...(prominent ? prominentSummaryMetricValue : {}) }}>{value}</strong></div>; }
 function billingPlanDraft(plan: BillingPlan, installments: Installment[]): DraftForm { return { title: plan.title || "", description: plan.description || "", installments: installments.map((installment) => ({ id: installment.id, installment_no: installment.installment_no, sort_order: installment.sort_order, title: installment.title, trigger_description: installment.trigger_description || "", trigger_type: installment.trigger_type, due_date: installment.due_date || "", milestone_code: installment.milestone_code || "", recurring_period_start: installment.recurring_period_start || "", recurring_period_end: installment.recurring_period_end || "" })) }; }
 function billingInstallmentDisplayTitle(title: string, installmentNo: number) { const value = title.trim(); const generated = new RegExp(`^(?:งวดที่\\s*${installmentNo}|Installment\\s*${installmentNo})(?:\\s*[/\\-—]\\s*(?:งวดที่\\s*${installmentNo}|Installment\\s*${installmentNo}))?$`, "i"); return generated.test(value) ? "" : value; }
-function invoiceHistoryTimestamp(invoice: InvoiceSummary) { if (invoice.document_status === "voided") return `ยกเลิกเมื่อ ${dateTime(invoice.voided_at)}`; if (invoice.document_status === "cancelled") return `ยกเลิกร่างเมื่อ ${dateTime(invoice.cancelled_at)}`; return `สร้างเมื่อ ${dateTime(invoice.created_at)}`; }
+function invoiceHistoryTimestamp(invoice: InvoiceSummary, locale: UiLocale = "th") { if (invoice.document_status === "voided") return translate(locale, "finance.billingPlan.voidedOn", { date: dateTime(invoice.voided_at, locale) }); if (invoice.document_status === "cancelled") return translate(locale, "finance.billingPlan.cancelledDraftOn", { date: dateTime(invoice.cancelled_at, locale) }); return translate(locale, "finance.billingPlan.createdOn", { date: dateTime(invoice.created_at, locale) }); }
 function invoiceComposerHref(installmentId: string, chargeIds: string[], clientId: string) { const params = new URLSearchParams({ installment: installmentId }); if (clientId) params.set("client", clientId); chargeIds.forEach((chargeId) => params.append("charge", chargeId)); return `/finance/invoices/compose?${params.toString()}`; }
 function isUuid(value: string) { return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value); }
-function chargeStatusLabel(status: string) { return ({ draft: "ร่าง", ready_to_invoice: "พร้อมออกใบแจ้งหนี้", reserved: "กำลังจัดทำใบแจ้งหนี้", invoiced: "ออกใบแจ้งหนี้แล้ว", cancelled: "ยกเลิก" } as Record<string, string>)[status] || status; }
-function chargeClassificationLabel(value: string | null) { return ({ professional_fee: "ค่าวิชาชีพ", additional_service: "ค่าบริการเพิ่มเติม", reimbursable_expense: "ค่าใช้จ่ายเรียกคืน", government_or_court_fee: "ค่าธรรมเนียมศาล / หน่วยงานรัฐ", other: "อื่น ๆ" } as Record<string, string>)[value || ""] || "ยังไม่ระบุ"; }
-function chargeTaxLabel(mode: string, vatRate: number | string) { if (mode === "non_vat") return "ไม่มี VAT"; return `${mode === "vat_inclusive" ? "ราคารวม VAT แล้ว" : "ราคายังไม่รวม VAT"} · ${numberValue(vatRate).toLocaleString("en-US", { maximumFractionDigits: 4 })}%`; }
-function allocationCell(key: AllocationColumnKey, allocation: Allocation, description: string | undefined, currency: string): ReactNode { if (key === "description") return description || <span style={unavailable}>ไม่พบรายการค่าบริการต้นทาง</span>; if (key === "amount_before_tax") return money(allocation.amount_before_tax, currency); if (key === "vat_amount") return money(allocation.vat_amount, currency); if (key === "total_amount") return <strong>{money(allocation.total_amount, currency)}</strong>; return allocation.allocation_percent === null ? <span style={mutedValue}>ตามยอดจริง</span> : `${numberValue(allocation.allocation_percent).toLocaleString("en-US", { maximumFractionDigits: 4 })}%`; }
+function chargeStatusLabel(status: string, locale: UiLocale = "th") { return ({ draft: translate(locale, "finance.feeAgreement.status.draft"), ready_to_invoice: translate(locale, "finance.invoice.ui.readyToInvoice"), reserved: translate(locale, "finance.charge.ui.reserved"), invoiced: translate(locale, "finance.payment.ui.invoiceIssued"), cancelled: translate(locale, "finance.payment.ui.cancel") } as Record<string, string>)[status] || status; }
+function chargeClassificationLabel(value: string | null, locale: UiLocale = "th") { return ({ professional_fee: translate(locale, "finance.invoice.classification.professional_fee"), additional_service: translate(locale, "finance.invoice.classification.additional_service"), reimbursable_expense: translate(locale, "finance.invoice.classification.reimbursable_expense"), government_or_court_fee: translate(locale, "finance.invoice.classification.government_or_court_fee"), other: translate(locale, "finance.invoice.classification.other") } as Record<string, string>)[value || ""] || translate(locale, "finance.taxInvoice.ui.unspecified"); }
+function chargeTaxLabel(mode: string, vatRate: number | string, locale: UiLocale = "th") { if (mode === "non_vat") return translate(locale, "finance.payment.vat.none"); return `${mode === "vat_inclusive" ? translate(locale, "finance.charge.ui.vatInclusive") : translate(locale, "finance.charge.ui.vatExclusive")} · ${numberValue(vatRate).toLocaleString("en-US", { maximumFractionDigits: 4 })}%`; }
+function allocationCell(key: AllocationColumnKey, allocation: Allocation, description: string | undefined, currency: string, locale: UiLocale = "th"): ReactNode { if (key === "description") return description || <span style={unavailable}>{translate(locale, "finance.billingPlan.sourceItemMissing")}</span>; if (key === "amount_before_tax") return money(allocation.amount_before_tax, currency); if (key === "vat_amount") return money(allocation.vat_amount, currency); if (key === "total_amount") return <strong>{money(allocation.total_amount, currency)}</strong>; return allocation.allocation_percent === null ? <span style={mutedValue}>{translate(locale, "finance.billingPlan.actualAllocation")}</span> : `${numberValue(allocation.allocation_percent).toLocaleString("en-US", { maximumFractionDigits: 4 })}%`; }
 function bangkokToday() { const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()); const value = Object.fromEntries(parts.map((part) => [part.type, part.value])); return `${value.year}-${value.month}-${value.day}`; }
-function validateBillingPlanDraft(draft: DraftForm) { for (const installment of draft.installments) { if (!installment.title.trim()) return `กรุณาระบุชื่องวดที่ ${installment.installment_no}`; if (installment.trigger_type === "date" && !installment.due_date) return `กรุณาระบุวันที่ครบกำหนดของงวดที่ ${installment.installment_no}`; if (installment.trigger_type === "case_milestone" && !installment.milestone_code.trim() && !installment.trigger_description.trim()) return `กรุณาระบุเหตุการณ์สำคัญของงวดที่ ${installment.installment_no}`; if (installment.trigger_type === "recurring_period" && (!installment.recurring_period_start || !installment.recurring_period_end || installment.recurring_period_end < installment.recurring_period_start)) return `กรุณาตรวจสอบรอบระยะเวลาของงวดที่ ${installment.installment_no}`; } return ""; }
-function billingReadinessErrorMessage(value: unknown) { const message = errorText(value); if (message.includes("Human readiness confirmation")) return "กรุณายืนยันว่าเงื่อนไขการเรียกเก็บเงินของงวดนี้เกิดขึ้นแล้ว"; if (message.includes("Actual readiness event date")) return "กรุณาระบุวันที่ที่เงื่อนไขการเรียกเก็บเงินเกิดขึ้นจริง"; if (message.includes("cannot be in the future")) return "วันที่ยืนยันความพร้อมต้องไม่เป็นวันที่ในอนาคต"; if (message.includes("active Billing Plan")) return "แผนเรียกเก็บเงินนี้ไม่ได้อยู่ในสถานะพร้อมดำเนินการ"; if (message.includes("Only a pending") || message.includes("readiness evidence is incomplete")) return "สถานะงวดเปลี่ยนไปแล้ว กรุณารีเฟรชและตรวจสอบอีกครั้ง"; if (message.includes("Not allowed")) return "คุณไม่มีสิทธิ์ยืนยันความพร้อมของงวดเรียกเก็บเงิน"; return "ยืนยันความพร้อมออกใบแจ้งหนี้ไม่สำเร็จ กรุณาตรวจสอบข้อมูลและลองอีกครั้ง"; }
+function validateBillingPlanDraft(draft: DraftForm) { for (const installment of draft.installments) { if (!installment.title.trim()) return uiMessage("finance.billingPlan.error.installmentTitle", { number: installment.installment_no }); if (installment.trigger_type === "date" && !installment.due_date) return uiMessage("finance.billingPlan.error.dueDate", { number: installment.installment_no }); if (installment.trigger_type === "case_milestone" && !installment.milestone_code.trim() && !installment.trigger_description.trim()) return uiMessage("finance.billingPlan.error.milestone", { number: installment.installment_no }); if (installment.trigger_type === "recurring_period" && (!installment.recurring_period_start || !installment.recurring_period_end || installment.recurring_period_end < installment.recurring_period_start)) return uiMessage("finance.billingPlan.error.period", { number: installment.installment_no }); } return ""; }
+function billingReadinessErrorMessage(value: unknown) { const message = errorText(value); if (message.includes("Human readiness confirmation")) return uiMessage("finance.billingPlan.error.readinessConfirmed"); if (message.includes("Actual readiness event date")) return uiMessage("finance.billingPlan.error.readinessDate"); if (message.includes("cannot be in the future")) return uiMessage("finance.billingPlan.error.futureDate"); if (message.includes("active Billing Plan")) return uiMessage("finance.billingPlan.error.planNotActive"); if (message.includes("Only a pending") || message.includes("readiness evidence is incomplete")) return uiMessage("finance.billingPlan.error.installmentChanged"); if (message.includes("Not allowed")) return uiMessage("finance.billingPlan.error.readinessPermission"); return uiMessage("finance.billingPlan.error.readinessFailed"); }
 function errorText(value: unknown) { return value && typeof value === "object" && "message" in value ? String(value.message) : String(value || ""); }
-function billingPlanErrorMessage(value: unknown) { const message = value && typeof value === "object" && "message" in value ? String(value.message) : String(value || ""); if (message.includes("eligible commercial engagement") || message.includes("signed, completed, or legacy active")) return "รายการการว่าจ้างไม่อยู่ในสถานะที่อนุญาตให้จัดการแผนเรียกเก็บเงิน"; if (message.includes("totals must match") || message.includes("allocations must exactly match") || message.includes("VAT allocations")) return "ยอดงวดหรือการจัดสรรไม่ตรงกับหลักฐานการว่าจ้าง กรุณารีเฟรชและตรวจสอบข้อมูล"; if (message.includes("Only draft billing plans")) return "แผนนี้ไม่ใช่ร่างแล้ว จึงไม่สามารถแก้ไขได้"; if (message.includes("Not allowed")) return "คุณไม่มีสิทธิ์จัดการแผนเรียกเก็บเงิน"; return "ไม่สามารถบันทึกแผนเรียกเก็บเงินได้ กรุณาตรวจสอบข้อมูลและลองอีกครั้ง"; }
+function billingPlanErrorMessage(value: unknown) { const message = value && typeof value === "object" && "message" in value ? String(value.message) : String(value || ""); if (message.includes("eligible commercial engagement") || message.includes("signed, completed, or legacy active")) return uiMessage("finance.billingPlan.error.engagementStatus"); if (message.includes("totals must match") || message.includes("allocations must exactly match") || message.includes("VAT allocations")) return uiMessage("finance.billingPlan.error.allocations"); if (message.includes("Only draft billing plans")) return uiMessage("finance.billingPlan.error.notDraft"); if (message.includes("Not allowed")) return uiMessage("finance.billingPlan.error.managePermission"); return uiMessage("finance.billingPlan.error.saveFailed"); }
 
 const page: CSSProperties = { maxWidth: 1180, margin: "0 auto", padding: 24 };
 const card: CSSProperties = { background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, padding: 18, marginBottom: 16 };

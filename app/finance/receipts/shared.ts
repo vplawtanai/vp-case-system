@@ -1,3 +1,5 @@
+import { translate } from "../../../lib/i18n/catalog";
+import { isUiMessage, type UiLocale } from "../../../lib/i18n/core";
 import type { DocumentIdentity } from "../../../lib/documentIdentity";
 import { documentLogoEvidence, type DocumentLogoEvidence } from "../../../lib/documentLogo";
 
@@ -25,11 +27,18 @@ export type FinanceReceipt = {
 
 export const receiptSelect = "id,payment_id,status,receipt_no,receipt_date,currency,cash_amount,wht_amount,settlement_amount,draft_snapshot_json,issued_snapshot_json,issued_at,voided_at,void_reason,replaces_receipt_id,created_at,updated_at,combined_document_id";
 export const receiptStatusLabels: Record<ReceiptStatus, string> = {
-  draft: "ร่างใบเสร็จรับเงิน",
-  issued: "ออกใบเสร็จรับเงินแล้ว",
-  cancelled: "ยกเลิกร่างแล้ว",
-  voided: "ยกเลิกใบเสร็จรับเงินแล้ว",
+  draft: translate("th", "finance.receipt.draft"),
+  issued: translate("th", "finance.receipt.issued"),
+  cancelled: translate("th", "finance.taxInvoice.ui.statusCancelled"),
+  voided: translate("th", "finance.receipt.voided"),
 };
+export function receiptStatusLabel(status: ReceiptStatus, locale: UiLocale = "th"): string {
+  return translate(locale, status === "cancelled" ? "finance.taxInvoice.ui.statusCancelled" : `finance.receipt.${status}`);
+}
+export function receiptMethodLabel(method: string, locale: UiLocale = "th"): string {
+  const keys: Record<string, string> = { bank_transfer: "bankTransfer", cash: "cash", cheque: "cheque", card_or_gateway: "cardGateway", other: "other" };
+  return translate(locale, `finance.payment.method.${keys[method] || "other"}`);
+}
 export const receiptMethodLabels: Record<string, string> = {
   bank_transfer: "โอนเงินผ่านธนาคาร", cash: "เงินสด", cheque: "เช็ค",
   card_or_gateway: "บัตรหรือช่องทางรับชำระ", other: "อื่น ๆ",
@@ -213,45 +222,46 @@ export function receiptRpc(command: ReceiptCommand): { name: string; args: Recor
   return { name: command.kind === "refresh" ? "refresh_finance_receipt_draft" : "issue_finance_receipt", args: { p_receipt_id: command.receiptId, ...(command.kind === "issue" ? { p_acknowledged: true, p_reviewed_snapshot_json: object(command.reviewedSnapshot) } : {}) } };
 }
 
-export function safeReceiptError(error: unknown) {
+export function safeReceiptError(error: unknown, locale: UiLocale = "th") {
+  if (isUiMessage(error)) return translate(locale, error.key, error.parameters);
   const message = error && typeof error === "object" && "message" in error ? String(error.message) : "";
   const codes: Record<string, string> = {
-    TAX_INVOICE_ACTIVE_DEPENDENCY: "มีใบกำกับภาษีหรือร่างอ้างอิงใบเสร็จนี้ กรุณาตรวจสอบเอกสารภาษีก่อนดำเนินการ",
-    RECEIPT_LOGO_EVIDENCE_REQUIRED: "ไม่พบหลักฐานโลโก้ที่พร้อมใช้งาน กรุณาตรวจสอบ Document Settings แล้วรีเฟรชร่างและตรวจสอบตัวอย่างใหม่",
-    RECEIPT_REVIEW_REQUIRED: "ร่างถูกรีเฟรชหลังการตรวจสอบ กรุณาโหลดข้อมูลและตรวจสอบตัวอย่างล่าสุดก่อนออกใบเสร็จ",
-    RECEIPT_SOURCE_CHANGED_REFRESH_REQUIRED: "ข้อมูลต้นทางเปลี่ยนแปลง กรุณารีเฟรชร่างและตรวจสอบตัวอย่างใหม่ก่อนออกใบเสร็จ",
-    RECEIPT_PERMISSION_DENIED: "คุณไม่มีสิทธิ์ดำเนินการใบเสร็จรับเงินนี้",
-    RECEIPT_EXTERNAL_COVERAGE_ACK_REQUIRED: "กรุณาตรวจสอบว่าไม่มีใบเสร็จภายนอกซ้ำสำหรับรายการรับชำระนี้",
-    RECEIPT_CONFIRMED_PAYMENT_REQUIRED: "จัดทำใบเสร็จได้เฉพาะรายการรับชำระที่ยืนยันแล้ว",
-    RECEIPT_PAYMENT_EVIDENCE_REQUIRED: "ข้อมูลวันที่ วิธีรับชำระ หรือยอดรับชำระไม่ครบถ้วน",
-    RECEIPT_SELLER_IDENTITY_REQUIRED: "ข้อมูลชื่อ ที่อยู่ หรือเลขประจำตัวผู้เสียภาษีของผู้รับเงินไม่ครบถ้วน",
-    RECEIPT_RECEIVING_ACCOUNT_REQUIRED: "ไม่พบหลักฐานบัญชีรับเงินที่ครบถ้วน",
-    RECEIPT_FROZEN_INVOICE_EVIDENCE_REQUIRED: "หลักฐานใบแจ้งหนี้ฉบับที่ออกแล้วไม่ครบถ้วน กรุณาติดต่อผู้ดูแล",
-    RECEIPT_CUSTOMER_IDENTITY_REQUIRED: "ไม่พบข้อมูลชื่อลูกค้าในหลักฐานใบแจ้งหนี้",
-    RECEIPT_CUSTOMER_EVIDENCE_CONFLICT: "ข้อมูลลูกค้าในใบแจ้งหนี้ที่อ้างอิงไม่ตรงกัน กรุณาตรวจสอบต้นทาง",
-    RECEIPT_ALLOCATION_MISMATCH: "ยอดจัดสรรใบแจ้งหนี้ไม่ตรงกับเงินที่ได้รับจริงและภาษีหัก ณ ที่จ่าย",
-    RECEIPT_NOT_FOUND: "ไม่พบใบเสร็จรับเงิน หรือไม่มีสิทธิ์เข้าถึง",
-    RECEIPT_DRAFT_REQUIRED: "ดำเนินการได้เฉพาะร่างใบเสร็จ กรุณาโหลดสถานะล่าสุด",
-    RECEIPT_ISSUED_REQUIRED: "ยกเลิกได้เฉพาะใบเสร็จที่ออกแล้ว กรุณาโหลดสถานะล่าสุด",
-    RECEIPT_ISSUE_ACK_REQUIRED: "กรุณายืนยันการตรวจสอบก่อนออกใบเสร็จรับเงิน",
-    RECEIPT_VOID_ACK_REQUIRED: "กรุณายืนยันการยกเลิกใบเสร็จรับเงิน",
-    RECEIPT_REASON_REQUIRED: "กรุณาระบุเหตุผลไม่เกิน 2,000 ตัวอักษร",
-    RECEIPT_HISTORY_IMMUTABLE: "ประวัติใบเสร็จรับเงินไม่สามารถแก้ไขได้",
-    RECEIPT_SOURCE_IMMUTABLE: "ข้อมูลต้นทางใบเสร็จไม่สามารถแก้ไขโดยตรงได้",
-    RECEIPT_DRAFT_COVERAGE_INVALID: "หลักฐานความครอบคลุมของร่างไม่ถูกต้อง กรุณาติดต่อผู้ดูแล",
-    RECEIPT_FROZEN_COVERAGE_INVALID: "หลักฐานความครอบคลุมของใบเสร็จไม่ถูกต้อง กรุณาติดต่อผู้ดูแล",
-    RECEIPT_NUMBERING_PROFILE_INVALID: "การตั้งค่าเลขที่ใบเสร็จไม่ถูกต้อง กรุณาติดต่อผู้ดูแล",
-    RECEIPT_NUMBERING_EXHAUSTED: "เลขที่ใบเสร็จในรอบนี้เต็มแล้ว กรุณาติดต่อผู้ดูแล",
-    FINANCE_ISSUED_RECEIPT_DEPENDENCY: "ต้องยกเลิกใบเสร็จที่ออกแล้วผ่านขั้นตอนใบเสร็จก่อนแก้ไขรายการรับชำระ",
+    TAX_INVOICE_ACTIVE_DEPENDENCY: "finance.receipt.error.activeDependency",
+    RECEIPT_LOGO_EVIDENCE_REQUIRED: "finance.receipt.error.logoEvidenceRequired",
+    RECEIPT_REVIEW_REQUIRED: "finance.receipt.error.reviewRequired",
+    RECEIPT_SOURCE_CHANGED_REFRESH_REQUIRED: "finance.receipt.error.sourceChangedRefreshRequired",
+    RECEIPT_PERMISSION_DENIED: "finance.receipt.error.permissionDenied",
+    RECEIPT_EXTERNAL_COVERAGE_ACK_REQUIRED: "finance.receipt.error.externalCoverageAckRequired",
+    RECEIPT_CONFIRMED_PAYMENT_REQUIRED: "finance.receipt.error.confirmedPaymentRequired",
+    RECEIPT_PAYMENT_EVIDENCE_REQUIRED: "finance.receipt.error.paymentEvidenceRequired",
+    RECEIPT_SELLER_IDENTITY_REQUIRED: "finance.receipt.error.sellerIdentityRequired",
+    RECEIPT_RECEIVING_ACCOUNT_REQUIRED: "finance.receipt.error.receivingAccountRequired",
+    RECEIPT_FROZEN_INVOICE_EVIDENCE_REQUIRED: "finance.receipt.error.frozenInvoiceEvidenceRequired",
+    RECEIPT_CUSTOMER_IDENTITY_REQUIRED: "finance.receipt.error.customerIdentityRequired",
+    RECEIPT_CUSTOMER_EVIDENCE_CONFLICT: "finance.receipt.error.customerEvidenceConflict",
+    RECEIPT_ALLOCATION_MISMATCH: "finance.receipt.error.allocationMismatch",
+    RECEIPT_NOT_FOUND: "finance.receipt.error.notFound",
+    RECEIPT_DRAFT_REQUIRED: "finance.receipt.error.draftRequired",
+    RECEIPT_ISSUED_REQUIRED: "finance.receipt.error.issuedRequired",
+    RECEIPT_ISSUE_ACK_REQUIRED: "finance.receipt.error.issueAckRequired",
+    RECEIPT_VOID_ACK_REQUIRED: "finance.receipt.error.voidAckRequired",
+    RECEIPT_REASON_REQUIRED: "finance.receipt.error.reasonRequired",
+    RECEIPT_HISTORY_IMMUTABLE: "finance.receipt.error.historyImmutable",
+    RECEIPT_SOURCE_IMMUTABLE: "finance.receipt.error.sourceImmutable",
+    RECEIPT_DRAFT_COVERAGE_INVALID: "finance.receipt.error.draftCoverageInvalid",
+    RECEIPT_FROZEN_COVERAGE_INVALID: "finance.receipt.error.frozenCoverageInvalid",
+    RECEIPT_NUMBERING_PROFILE_INVALID: "finance.receipt.error.numberingProfileInvalid",
+    RECEIPT_NUMBERING_EXHAUSTED: "finance.receipt.error.numberingExhausted",
+    FINANCE_ISSUED_RECEIPT_DEPENDENCY: "finance.receipt.error.issuedReceiptDependency",
   };
   const mapped = Object.entries(codes).find(([code]) => message.includes(code));
-  if (mapped) return mapped[1];
-  if (/stale|changed|refresh|snapshot.*mismatch/i.test(message)) return "ข้อมูลต้นทางเปลี่ยนแปลง กรุณารีเฟรชร่างและตรวจสอบตัวอย่างใหม่ก่อนออกใบเสร็จ";
-  if (/not allowed|permission|denied/i.test(message)) return "คุณไม่มีสิทธิ์ดำเนินการใบเสร็จรับเงินนี้";
-  if (/external.*receipt/i.test(message)) return "กรุณาตรวจสอบว่าไม่มีใบเสร็จภายนอกซ้ำสำหรับรายการรับชำระนี้";
-  if (/confirmed/i.test(message)) return "จัดทำใบเสร็จได้เฉพาะรายการรับชำระที่ยืนยันแล้ว";
-  if (/active|coverage|already|duplicate/i.test(message)) return "สถานะใบเสร็จเปลี่ยนแปลงหรือมีรายการที่ใช้งานอยู่ กรุณาโหลดข้อมูลล่าสุด";
-  return "ดำเนินการไม่สำเร็จ กรุณาโหลดข้อมูลล่าสุดเพื่อตรวจสอบสถานะก่อนลองอีกครั้ง";
+  if (mapped) return translate(locale, mapped[1]);
+  if (/stale|changed|refresh|snapshot.*mismatch/i.test(message)) return translate(locale, "finance.receipt.error.sourceChangedRefreshRequired");
+  if (/not allowed|permission|denied/i.test(message)) return translate(locale, "finance.receipt.error.permissionDenied");
+  if (/external.*receipt/i.test(message)) return translate(locale, "finance.receipt.error.externalCoverageAckRequired");
+  if (/confirmed/i.test(message)) return translate(locale, "finance.receipt.error.confirmedPaymentRequired");
+  if (/active|coverage|already|duplicate/i.test(message)) return translate(locale, "finance.receipt.errorActive");
+  return translate(locale, "finance.receipt.errorFailed");
 }
 
 export function receiptSearchFilter(search: string) {

@@ -1,3 +1,5 @@
+import { translate } from "../../../lib/i18n/catalog";
+import type { UiLocale } from "../../../lib/i18n/core";
 import { Fragment, type ReactNode } from "react";
 import { ThaiLegalText } from "./thai-legal-text";
 
@@ -9,8 +11,8 @@ const asText = (value: unknown, fallback = "") => typeof value === "string" && v
 const bySortOrder = (left: Json, right: Json) => Number(left.sort_order || 0) - Number(right.sort_order || 0);
 const conditionAllows = (value: unknown) => asObject(value).result !== false;
 
-export function templateDisplayName(template: Json) {
-  const code = asText(template.template_code, "Template");
+export function templateDisplayName(template: Json, locale: UiLocale = "th") {
+  const code = asText(template.template_code, translate(locale, "settings.documents.templates.template"));
   const version = Number(template.version_no || 0);
   const name = asText(template.template_name);
   return [code, version ? `v${version}` : "", name].filter(Boolean).join(" — ");
@@ -20,11 +22,13 @@ export function ResolvedTemplateSections({
   template,
   variables,
   showProvenance = false,
+  uiLocale = "th",
   afterSection,
 }: {
   template: Json;
   variables: Record<string, string>;
   showProvenance?: boolean;
+  uiLocale?: UiLocale;
   afterSection?: (section: Json) => ReactNode;
 }) {
   const languageCode = asText(template.language_code, asText(template.language, "th"));
@@ -33,7 +37,7 @@ export function ResolvedTemplateSections({
     .filter((section) => conditionAllows(section.condition_evaluation))
     .sort(bySortOrder);
 
-  if (!sections.length) return <p style={muted}>ไม่พบส่วนข้อกำหนดที่ resolve จากแม่แบบ</p>;
+  if (!sections.length) return <p style={muted}>{translate(uiLocale, "finance.feeAgreement.workspace.template.empty")}</p>;
 
   return <>{sections.map((section) => {
     const slots = asArray(section.slots).filter(slotIsRendered).sort(bySortOrder);
@@ -51,45 +55,45 @@ export function ResolvedTemplateSections({
     });
 
     return <section key={asText(section.section_id, asText(section.section_code))} style={sectionStyle} data-section-code={asText(section.section_code)}>
-      <h2 className="fee-agreement-section-title" style={sectionTitle}>{displayTitle(section)}</h2>
+      <h2 className="fee-agreement-section-title" style={sectionTitle}>{displayTitle(section, uiLocale)}</h2>
       {slots.map((slot) => <Fragment key={asText(slot.slot_id, asText(slot.slot_code))}>
-        <ResolvedClause clause={slot} variables={variables} showProvenance={showProvenance} languageCode={languageCode} />
-        {(anchored.get(asText(slot.slot_id)) || []).map((clause) => <ResolvedClause key={asText(clause.custom_clause_id)} clause={clause} variables={variables} showProvenance={showProvenance} languageCode={languageCode} />)}
+        <ResolvedClause clause={slot} variables={variables} showProvenance={showProvenance} languageCode={languageCode} uiLocale={uiLocale} />
+        {(anchored.get(asText(slot.slot_id)) || []).map((clause) => <ResolvedClause key={asText(clause.custom_clause_id)} clause={clause} variables={variables} showProvenance={showProvenance} languageCode={languageCode} uiLocale={uiLocale} />)}
       </Fragment>)}
-      {unanchored.map((clause) => <ResolvedClause key={asText(clause.custom_clause_id)} clause={clause} variables={variables} showProvenance={showProvenance} languageCode={languageCode} />)}
-      {!slots.length && !customClauses.length ? <p style={muted}>ส่วนนี้ยังไม่มีข้อความที่ใช้กับข้อตกลง</p> : null}
+      {unanchored.map((clause) => <ResolvedClause key={asText(clause.custom_clause_id)} clause={clause} variables={variables} showProvenance={showProvenance} languageCode={languageCode} uiLocale={uiLocale} />)}
+      {!slots.length && !customClauses.length ? <p style={muted}>{translate(uiLocale, "finance.feeAgreement.workspace.template.noText")}</p> : null}
       {afterSection?.(section)}
     </section>;
   })}</>;
 }
 
-export function TemplateAgreementChanges({ template }: { template: Json }) {
+export function TemplateAgreementChanges({ template, uiLocale = "th" }: { template: Json; uiLocale?: UiLocale }) {
   const changes = asArray(template.sections).flatMap((section) => {
-    const sectionTitle = displayTitle(section);
+    const sectionTitle = displayTitle(section, uiLocale);
     const slotChanges = asArray(section.slots)
       .filter((slot) => ["document_override", "suppressed_template_clause"].includes(asText(slot.origin_type)))
       .map((slot) => ({
         key: asText(slot.slot_id),
-        title: asText(slot.title, asText(slot.slot_code, "ข้อสัญญา")),
+        title: asText(slot.title, asText(slot.slot_code, translate(uiLocale, "finance.feeAgreement.workspace.template.clause"))),
         sectionTitle,
-        kind: asText(slot.origin_type) === "document_override" ? "ใช้ข้อความทดแทน" : "งดใช้ข้อความจากแม่แบบ",
+        kind: asText(slot.origin_type) === "document_override" ? translate(uiLocale, "finance.feeAgreement.workspace.template.replace") : translate(uiLocale, "finance.feeAgreement.workspace.template.suppress"),
         reason: asText(asObject(asText(slot.origin_type) === "document_override" ? slot.override_evidence : slot.suppression_evidence).reason),
       }));
     const customChanges = asArray(section.custom_clauses).map((clause) => ({
       key: asText(clause.custom_clause_id),
-      title: asText(clause.title, "ข้อความเฉพาะข้อตกลง"),
+      title: asText(clause.title, translate(uiLocale, "finance.feeAgreement.workspace.template.custom")),
       sectionTitle,
-      kind: "ข้อความเฉพาะข้อตกลง",
+      kind: translate(uiLocale, "finance.feeAgreement.workspace.template.custom"),
       reason: asText(clause.reason),
     }));
     return [...slotChanges, ...customChanges];
   });
 
-  if (!changes.length) return <p style={muted}>ไม่มีข้อยกเว้นหรือข้อความเฉพาะข้อตกลง</p>;
+  if (!changes.length) return <p style={muted}>{translate(uiLocale, "finance.feeAgreement.workspace.template.noChanges")}</p>;
   return <div style={changeList}>{changes.map((change) => <div key={`${change.kind}-${change.key}`} style={changeRow}>
     <strong>{change.title}</strong>
     <span>{change.kind} · {change.sectionTitle}</span>
-    {change.reason ? <span>เหตุผล: {change.reason}</span> : null}
+    {change.reason ? <span>{translate(uiLocale, "finance.feeAgreement.workspace.template.reason", { reason: change.reason })}</span> : null}
   </div>)}</div>;
 }
 
@@ -110,13 +114,13 @@ function slotIsRendered(slot: Json) {
   return !Object.keys(alternative).length || alternative.selected !== false;
 }
 
-function ResolvedClause({ clause, variables, showProvenance, languageCode }: { clause: Json; variables: Record<string, string>; showProvenance: boolean; languageCode: string }) {
+function ResolvedClause({ clause, variables, showProvenance, languageCode, uiLocale }: { clause: Json; variables: Record<string, string>; showProvenance: boolean; languageCode: string; uiLocale: UiLocale }) {
   const content = interpolateControlledVariables(asText(clause.content, "-"), variables);
   const origin = asText(clause.origin_type);
   return <div style={clauseStyle} data-origin-type={origin || undefined}>
-    {showProvenance ? <h3 style={clauseTitleStyle}>{clauseTitle(clause)}</h3> : null}
-    {showProvenance && origin === "document_override" ? <div style={provenance}>ข้อความทดแทนเฉพาะข้อตกลงนี้</div> : null}
-    {showProvenance && origin === "document_custom_clause" ? <div style={provenance}>ข้อความเฉพาะข้อตกลงนี้</div> : null}
+    {showProvenance ? <h3 style={clauseTitleStyle}>{clauseTitle(clause, uiLocale)}</h3> : null}
+    {showProvenance && origin === "document_override" ? <div style={provenance}>{translate(uiLocale, "finance.feeAgreement.workspace.template.overrideProvenance")}</div> : null}
+    {showProvenance && origin === "document_custom_clause" ? <div style={provenance}>{translate(uiLocale, "finance.feeAgreement.workspace.template.customProvenance")}</div> : null}
     <p style={clauseContent}><ThaiLegalText text={content} languageCode={languageCode} /></p>
   </div>;
 }
@@ -125,14 +129,14 @@ function interpolateControlledVariables(content: string, variables: Record<strin
   return content.replace(/\{\{\s*([A-Z][A-Z0-9_]*)\s*\}\}/g, (_, key: string) => variables[key] || `[${key}: ยังไม่มีข้อมูล]`);
 }
 
-function displayTitle(row: Json) {
+function displayTitle(row: Json, uiLocale: UiLocale = "th") {
   const prefix = asText(row.display_label, asText(row.display_number));
-  const title = asText(row.title, asText(row.section_code, "ข้อกำหนด"));
+  const title = asText(row.title, asText(row.section_code, translate(uiLocale, "finance.feeAgreement.workspace.template.term")));
   return prefix ? `${prefix} ${title}` : title;
 }
 
-function clauseTitle(clause: Json) {
-  const title = asText(clause.title, asText(clause.slot_code, "ข้อกำหนด"));
+function clauseTitle(clause: Json, uiLocale: UiLocale = "th") {
+  const title = asText(clause.title, asText(clause.slot_code, translate(uiLocale, "finance.feeAgreement.workspace.template.term")));
   if (asText(clause.numbering_style) === "none") return title;
   const prefix = asText(clause.display_label, asText(clause.display_number));
   return prefix ? `${prefix} ${title}` : title;

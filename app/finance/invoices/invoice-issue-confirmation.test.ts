@@ -8,6 +8,9 @@ import ts from "typescript";
 // @ts-expect-error Node's strip-types runner requires the explicit TypeScript extension.
 import { invoiceCompositionSourceLabel, invoiceInstallmentContext } from "./shared.ts";
 import type { InvoiceCompositionItem, Json } from "./shared";
+// @ts-expect-error Node's strip-types runner requires the explicit TypeScript extension.
+import { translate } from "../../../lib/i18n/catalog.ts";
+import type { UiLocale } from "../../../lib/i18n/core";
 
 const pageSource = readFileSync(new URL("./[id]/page.tsx", import.meta.url), "utf8");
 const pageAst = ts.createSourceFile("page.tsx", pageSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -21,7 +24,7 @@ function visit(node: ts.Node, inConfirmation = false) {
   if (ts.isFunctionDeclaration(node) && node.name?.text === "Field") declarations.set("Field", node.getText(pageAst));
   if (inside && ts.isJsxSelfClosingElement(node) && node.tagName.getText(pageAst) === "Field"
     && node.attributes.properties.some((attribute) => ts.isJsxAttribute(attribute)
-      && attribute.name.getText(pageAst) === "label" && attribute.initializer?.getText(pageAst).includes('"ที่มาของยอด"'))) {
+      && attribute.name.getText(pageAst) === "label" && attribute.initializer?.getText(pageAst).includes('"finance.invoice.ui.amountSource"'))) {
     confirmationField = node.getText(pageAst);
   }
   ts.forEachChild(node, (child) => visit(child, inside));
@@ -50,10 +53,11 @@ function bridge(): Json {
 function item(type = "billing_installment_item", state = "active"): InvoiceCompositionItem {
   return { source_state: state, source_snapshot_json: { ready_snapshot: { source: { source_type: type } } } };
 }
-function render(items: InvoiceCompositionItem[], v2Bridge: Json | null = bridge(), invoice = draft()) {
+function render(items: InvoiceCompositionItem[], v2Bridge: Json | null = bridge(), invoice = draft(), locale: UiLocale = "th") {
   const before = JSON.stringify({ invoice, items, v2Bridge });
   const markup = renderToStaticMarkup(runInNewContext(compiled, {
-    React, invoice, items, v2Bridge,
+    React, invoice, items, v2Bridge, locale,
+    t: (key: string) => translate(locale, key),
     isDraft: invoice.document_status === "draft", isV2: invoice.source_model === "billable_charge_v2",
     installmentLabel: "งวดที่ 1 · เดิม", engagementReference: "ข้อตกลงเดิม",
     invoiceCompositionSourceLabel, invoiceInstallmentContext,
@@ -96,6 +100,17 @@ test("missing, incomplete or inconsistent lineage cannot fabricate confirmation 
 
 test("internal confirmation remains Thai even when the customer document is English", () => {
   assert.match(render([item()], bridge(), { ...draft(), language_code: "en" }), /งวดที่ 2 จาก 3 งวด/);
+});
+
+test("English confirmation translates source and installment without changing the Thai document", () => {
+  for (const items of [[item()], [item(), item("ad_hoc_service")]]) {
+    const markup = render(items, bridge(), draft(), "en");
+    assert.match(markup, /Installment 2 of 3/);
+    assert.doesNotMatch(markup, /[\u0e00-\u0e7f]/);
+  }
+  const additional = render([item("ad_hoc_service")], null, draft(), "en");
+  assert.match(additional, /Additional Charges/);
+  assert.doesNotMatch(additional, /Installment 2 of 3/);
 });
 
 test("historical V1 confirmation keeps its existing ordinal/title without inventing a total", () => {

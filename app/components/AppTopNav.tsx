@@ -6,6 +6,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase";
 import { buildPermissions } from "../../lib/permissions";
 import type { UserPermissions, UserRole } from "../../lib/permissions";
+import { useI18n } from "../../lib/i18n/provider";
+import LanguageSelector from "./LanguageSelector";
 
 type AppTopNavProps = {
   title: string;
@@ -71,6 +73,7 @@ export default function AppTopNav({
   subtitle,
   activePage,
 }: AppTopNavProps) {
+  const { t } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -96,51 +99,51 @@ export default function AppTopNav({
   const navGroups = useMemo(
     () => [
       {
-        title: "Command",
+        title: t("common.nav.command"),
         items: [
-          { page: "dashboard" as const, label: "Dashboard", icon: "dashboard" as const, href: "/dashboard", visible: permissions.canViewDashboard },
-          { page: "calendar" as const, label: "Calendar", icon: "calendar" as const, href: "/calendar", visible: permissions.canViewDashboard },
-          { page: "cases" as const, label: "Cases", icon: "cases" as const, href: "/cases", visible: permissions.canViewCases },
-          { page: "advisory" as const, label: "Advisory", icon: "advisory" as const, href: "/advisory", visible: permissions.canViewDashboard },
+          { page: "dashboard" as const, label: t("common.nav.dashboard"), icon: "dashboard" as const, href: "/dashboard", visible: permissions.canViewDashboard },
+          { page: "calendar" as const, label: t("common.nav.calendar"), icon: "calendar" as const, href: "/calendar", visible: permissions.canViewDashboard },
+          { page: "cases" as const, label: t("common.nav.cases"), icon: "cases" as const, href: "/cases", visible: permissions.canViewCases },
+          { page: "advisory" as const, label: t("common.nav.advisory"), icon: "advisory" as const, href: "/advisory", visible: permissions.canViewDashboard },
         ],
       },
       {
-        title: "Operations",
+        title: t("common.nav.operations"),
         items: [
-          { page: "workload" as const, label: "Workload", icon: "workload" as const, href: "/reports/daily-workload", visible: permissions.canViewDashboard },
-          { page: "officeWork" as const, label: "Office Work", icon: "office" as const, href: "/workload/office-work", visible: permissions.canAccessOfficeWorkLogs },
-          { page: "workloadSummary" as const, label: "Summary", icon: "summary" as const, href: "/reports/workload-summary", visible: permissions.canViewDashboard },
+          { page: "workload" as const, label: t("common.nav.workload"), icon: "workload" as const, href: "/reports/daily-workload", visible: permissions.canViewDashboard },
+          { page: "officeWork" as const, label: t("common.nav.officeWork"), icon: "office" as const, href: "/workload/office-work", visible: permissions.canAccessOfficeWorkLogs },
+          { page: "workloadSummary" as const, label: t("common.nav.summary"), icon: "summary" as const, href: "/reports/workload-summary", visible: permissions.canViewDashboard },
         ],
       },
       {
-        title: "Finance",
+        title: t("common.nav.finance"),
         items: [
-          { page: "finance" as const, label: "Finance", icon: "finance" as const, href: financeHref, visible: permissions.canViewFinanceModule },
+          { page: "finance" as const, label: t("common.nav.finance"), icon: "finance" as const, href: financeHref, visible: permissions.canViewFinanceModule },
         ],
       },
       {
-        title: "Management",
+        title: t("common.nav.management"),
         items: [
-          { page: "clients" as const, label: "Clients", icon: "clients" as const, href: "/clients", visible: permissions.canViewDashboard },
-          { page: "users" as const, label: "Users", icon: "users" as const, href: "/admin/users", visible: permissions.canManageUsers },
+          { page: "clients" as const, label: t("common.nav.clients"), icon: "clients" as const, href: "/clients", visible: permissions.canViewDashboard },
+          { page: "users" as const, label: t("common.nav.users"), icon: "users" as const, href: "/admin/users", visible: permissions.canManageUsers },
         ],
       },
       {
-        title: "Settings",
+        title: t("common.nav.settings"),
         items: [
-          { page: "documentSettings" as const, label: "Document Settings", icon: "settings" as const, href: "/settings/document-settings", visible: permissions.role === "admin" || permissions.role === "partner" },
-          { page: "documentTemplates" as const, label: "Document Templates", icon: "templates" as const, href: "/settings/document-templates", visible: permissions.role === "admin" || permissions.role === "partner" },
-          { page: "documentClauses" as const, label: "Clause Library", icon: "clauses" as const, href: "/settings/document-clauses", visible: permissions.role === "admin" || permissions.role === "partner" },
+          { page: "documentSettings" as const, label: t("common.nav.documentSettings"), icon: "settings" as const, href: "/settings/document-settings", visible: permissions.role === "admin" || permissions.role === "partner" },
+          { page: "documentTemplates" as const, label: t("common.nav.documentTemplates"), icon: "templates" as const, href: "/settings/document-templates", visible: permissions.role === "admin" || permissions.role === "partner" },
+          { page: "documentClauses" as const, label: t("common.nav.clauseLibrary"), icon: "clauses" as const, href: "/settings/document-clauses", visible: permissions.role === "admin" || permissions.role === "partner" },
         ],
       },
       {
-        title: "Account",
+        title: t("common.nav.account"),
         items: [
-          { page: "account" as const, label: "Account", icon: "account" as const, href: "/account/security", visible: true },
+          { page: "account" as const, label: t("common.nav.account"), icon: "account" as const, href: "/account/security", visible: true },
         ],
       },
     ],
-    [financeHref, permissions]
+    [financeHref, permissions, t]
   );
 
   useEffect(() => {
@@ -260,7 +263,7 @@ export default function AppTopNav({
   };
 
   const handleLogout = async () => {
-    const confirmed = window.confirm("ต้องการออกจากระบบหรือไม่?");
+    const confirmed = window.confirm(t("common.nav.confirmLogout"));
     if (!confirmed) return;
 
     await supabase.auth.signOut();
@@ -315,7 +318,7 @@ export default function AppTopNav({
         <span style={navIconStyle}>
           <NavIcon name="logout" />
         </span>
-        {!collapsed && <span>Logout</span>}
+        {!collapsed && <span>{t("common.nav.logout")}</span>}
       </button>
     </>
   );
@@ -339,9 +342,10 @@ export default function AppTopNav({
             onClick={() => setDrawerOpen(true)}
             style={mobileMenuButtonStyle}
           >
-            Menu
+            {t("common.nav.menu")}
           </button>
           <div style={mobileTitleStyle}>{title}</div>
+          <LanguageSelector />
         </div>
       )}
 
@@ -349,7 +353,7 @@ export default function AppTopNav({
         <>
           <button
             type="button"
-            aria-label="Close menu"
+            aria-label={t("common.nav.closeMenu")}
             onClick={() => setDrawerOpen(false)}
             style={drawerOverlayStyle}
           />
@@ -359,7 +363,7 @@ export default function AppTopNav({
               onClick={() => setDrawerOpen(false)}
               style={drawerCloseButtonStyle}
             >
-              Close
+              {t("common.actions.close")}
             </button>
             {renderNavigation(false)}
           </aside>
@@ -367,6 +371,7 @@ export default function AppTopNav({
       )}
 
       <div style={pageHeaderStyle}>
+        {!isMobile ? <div style={{ float: "right", marginLeft: 12 }}><LanguageSelector /></div> : null}
         <h1 style={titleStyle}>{title}</h1>
         {subtitle ? <p style={subtitleStyle}>{subtitle}</p> : null}
       </div>

@@ -1,5 +1,9 @@
 "use client";
 
+import { useI18n } from "../../../../lib/i18n/provider";
+import { uiMessage, type UiLocale, type UiMessage } from "../../../../lib/i18n/core";
+import { translate } from "../../../../lib/i18n/catalog";
+
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -8,7 +12,7 @@ import { QuotationGuard } from "../../quotations/shared";
 import { supabase } from "../../../../lib/supabase";
 import type { UserPermissions } from "../../../../lib/permissions";
 import FinanceSubNav from "../../FinanceSubNav";
-import { displayText, eligibleInvoicePaymentBankAccount, money, safeInvoiceError, type FinanceBankAccount, type Json } from "../shared";
+import { displayText, eligibleInvoicePaymentBankAccount, money, invoiceErrorMessage, type FinanceBankAccount, type Json } from "../shared";
 import { guidedInvoiceDocumentDefaults } from "../payment-instructions";
 import InvoiceWorkspaceNav from "../InvoiceWorkspaceNav";
 import { billableChargeNatureLabel, clientCostFundingModeLabel, type ClientCostFundingMode } from "../../billable-charges/funding-semantics";
@@ -42,16 +46,15 @@ type AuditEvent = { id: string; event_type: string; actor_name: string | null; a
 type AdapterValue = HistoricalClassificationValue;
 type CreateAttempt = { fingerprint: string; requestId: string };
 
-const classifications = [
-  ["professional_fee", "ค่าวิชาชีพ"], ["additional_service", "ค่าบริการเพิ่มเติม"],
-  ["reimbursable_expense", "ค่าใช้จ่ายเรียกคืน"], ["government_or_court_fee", "ค่าธรรมเนียมศาล / หน่วยงานรัฐ"], ["other", "อื่น ๆ"],
-] as const;
+const classifications = ["professional_fee", "additional_service", "reimbursable_expense", "government_or_court_fee", "other"] as const;
 
 export default function InvoiceComposerPage() {
-  return <Suspense fallback={<div className={styles.loading}>กำลังโหลดเครื่องมือสร้างใบแจ้งหนี้...</div>}><QuotationGuard canAccess={(access) => access.permissions.canEditFinanceQuotation && access.permissions.canManageFinanceBillableCharges}>{(access) => <InvoiceComposer permissions={access.permissions} />}</QuotationGuard></Suspense>;
+  const { t } = useI18n();
+  return <Suspense fallback={<div className={styles.loading}>{t("finance.invoice.composer.loading")}</div>}><QuotationGuard canAccess={(access) => access.permissions.canEditFinanceQuotation && access.permissions.canManageFinanceBillableCharges}>{(access) => <InvoiceComposer permissions={access.permissions} />}</QuotationGuard></Suspense>;
 }
 
 function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
+  const { locale, t, text, date } = useI18n();
   const canApproveInstallment = permissions.canApproveFinanceBillableCharges;
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -86,10 +89,10 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
   const [detailAuditLoading, setDetailAuditLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
-  const [fieldError, setFieldError] = useState("");
-  const [sourceNotice, setSourceNotice] = useState("");
-  const [sourceError, setSourceError] = useState("");
+  const [error, setError] = useState<UiMessage | string>("");
+  const [fieldError, setFieldError] = useState<UiMessage | string>("");
+  const [sourceNotice, setSourceNotice] = useState<UiMessage | string>("");
+  const [sourceError, setSourceError] = useState<UiMessage | string>("");
   const requestRef = useRef<CreateAttempt | null>(null);
   const submitLock = useRef(false);
   const reviewRef = useRef<HTMLElement | null>(null);
@@ -115,7 +118,7 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
     const firstError = results.find((result) => result.error)?.error;
     if (firstError) {
       console.error("LOAD INVOICE COMPOSER FAILED", firstError);
-      setError("โหลดข้อมูลสำหรับสร้างใบแจ้งหนี้ไม่สำเร็จ กรุณารีเฟรช");
+      setError(uiMessage("finance.invoice.composer.loadFailed"));
     } else {
       setClients((clientResult.data || []) as Client[]); setCases((caseResult.data || []) as CaseRow[]); setAdvisories((advisoryResult.data || []) as Advisory[]);
       setCharges((chargeResult.data || []) as Charge[]); setPlans((planResult.data || []) as Plan[]); setAgreements((agreementResult.data || []) as Agreement[]);
@@ -162,7 +165,7 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
   const requestedInstallment = installments.find((row) => row.id === requestedInstallmentId) || null;
   const requestedPlan = requestedInstallment ? planMap.get(requestedInstallment.billing_plan_id) || null : null;
   const sourceBackHref = requestedInstallmentId ? requestedPlan ? `/finance/billing-plans/${requestedPlan.id}` : "/finance/billing-plans" : "/finance/billable-charges";
-  const sourceBackLabel = requestedInstallmentId ? "กลับไปแผนเรียกเก็บเงิน" : "กลับไปรายการเรียกเก็บเพิ่มเติม";
+  const sourceBackLabel = requestedInstallmentId ? t("finance.invoice.ui.backToPlan") : t("finance.invoice.composer.backToCharges");
   const editCompositionHref = requestedPlan && requestedInstallmentId
     ? billingPlanInvoiceSelectionResumeHref(requestedPlan.id, requestedInstallmentId, requestedChargeIds)
     : sourceBackHref;
@@ -172,10 +175,10 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
   }, [selectedCharges, selectedInstallment]);
   const sourceSummary = guidedInvoiceSourceSummary({
     client: clients.find((row) => row.id === clientId)?.name,
-    matter: selectedAgreement ? matterLabel(selectedAgreement.case_id, selectedAgreement.advisory_matter_id, cases, advisories) : "ไม่ผูกกับงานเฉพาะ",
+    matter: selectedAgreement ? matterLabel(selectedAgreement.case_id, selectedAgreement.advisory_matter_id, cases, advisories, locale) : t("finance.invoice.composer.generalContext"),
     quotationReference: selectedAgreement?.source_reference,
     installmentNo: selectedInstallment?.installment_no,
-  });
+  }, locale);
 
   useEffect(() => {
     if (loading || prefillHandled.current) return;
@@ -184,34 +187,34 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
     setSourceNotice("");
 
     if ((requestedInstallmentId && !isUuid(requestedInstallmentId)) || requestedChargeIds.some((id) => !isUuid(id))) {
-      setSourceError("ลิงก์ต้นทางมีรหัสรายการไม่ถูกต้อง กรุณากลับไปเลือกข้อมูลจากหน้าต้นทางอีกครั้ง");
+      setSourceError(uiMessage("finance.invoice.composer.invalidSourceLink"));
       return;
     }
 
     if (requestedInstallmentId) {
       const installment = eligibleInstallments.find((row) => row.id === requestedInstallmentId);
       if (!installment) {
-        setSourceError("งวดที่เลือกไม่อยู่ในสถานะพร้อมจัดทำใบแจ้งหนี้ หรือมีประวัติใบแจ้งหนี้แล้ว กรุณากลับไปตรวจสอบแผนเรียกเก็บเงิน");
+        setSourceError(uiMessage("finance.invoice.composer.installmentIneligible"));
         return;
       }
       if (!canApproveInstallment) {
-        setSourceError("คุณไม่มีสิทธิ์จัดทำใบแจ้งหนี้จากงวดตามแผนนี้");
+        setSourceError(uiMessage("finance.invoice.composer.installmentPermission"));
         return;
       }
       const plan = planMap.get(installment.billing_plan_id);
       const agreement = plan ? agreementMap.get(plan.fee_agreement_id) : null;
       if (!plan || !agreement) {
-        setSourceError("ไม่พบบริบทแผนเรียกเก็บเงินที่ยังมีผล กรุณากลับไปตรวจสอบรายการต้นทาง");
+        setSourceError(uiMessage("finance.invoice.composer.planMissing"));
         return;
       }
       if (requestedClientId && requestedClientId !== agreement.client_id) {
-        setSourceError("ลูกค้าในลิงก์ต้นทางไม่ตรงกับแผนเรียกเก็บเงิน กรุณากลับไปตรวจสอบรายการต้นทาง");
+        setSourceError(uiMessage("finance.invoice.composer.planClientMismatch"));
         return;
       }
       const requestedCharges = requestedChargeIds.map((id) => charges.find((row) => row.id === id)).filter((row): row is Charge => Boolean(row));
       const installmentContext = { clientId: agreement.client_id, currency: plan.currency, caseId: agreement.case_id, advisoryId: agreement.advisory_matter_id };
       if (requestedCharges.length !== requestedChargeIds.length || requestedCharges.some((charge) => incompatibilityReason(charge, installmentContext))) {
-        setSourceError("รายการเรียกเก็บเพิ่มเติมบางรายการไม่พร้อมใช้งานหรือมีบริบทไม่ตรงกับงวด กรุณากลับไปเลือกใหม่จากแผนเรียกเก็บเงิน");
+        setSourceError(uiMessage("finance.invoice.composer.chargeContextMismatch"));
         return;
       }
       const nextItems = historicalInstallmentClassificationItems(
@@ -229,7 +232,7 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
       });
       setDueDate(documentDefaults.dueDate);
       setPaymentTermsText(documentDefaults.paymentInstructions);
-      setSourceNotice(`เลือกงวดที่ ${installment.installment_no}${requestedCharges.length ? ` พร้อมรายการเพิ่มเติม ${requestedCharges.length} รายการ` : ""} จากแผนเรียกเก็บเงินให้แล้ว กรุณาตรวจสอบข้อมูลก่อนสร้างร่าง`);
+      setSourceNotice(uiMessage(requestedCharges.length ? "finance.invoice.composer.selectedMixed" : "finance.invoice.composer.selectedInstallment", { number: installment.installment_no, count: requestedCharges.length }));
       return;
     }
 
@@ -237,18 +240,18 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
       const requestedCharges = requestedChargeIds.map((id) => charges.find((row) => row.id === id)).filter((row): row is Charge => Boolean(row));
       const firstCharge = requestedCharges[0];
       if (requestedCharges.length !== requestedChargeIds.length || !firstCharge || requestedCharges.some((charge) => incompatibilityReason(charge, chargeContext(firstCharge)))) {
-        setSourceError("รายการต้นทางบางรายการไม่อยู่ในสถานะพร้อมหรือมีบริบทไม่ตรงกัน กรุณากลับไปตรวจสอบรายการเรียกเก็บเพิ่มเติม");
+        setSourceError(uiMessage("finance.invoice.composer.sourceUnavailable"));
         return;
       }
       if (requestedClientId && requestedClientId !== firstCharge.client_id) {
-        setSourceError("ลูกค้าในลิงก์ต้นทางไม่ตรงกับรายการเรียกเก็บเพิ่มเติม กรุณากลับไปตรวจสอบรายการต้นทาง");
+        setSourceError(uiMessage("finance.invoice.composer.chargeClientMismatch"));
         return;
       }
       setClientId(firstCharge.client_id);
       setInstallmentId("");
       setChargeIds(requestedCharges.map((charge) => charge.id));
       setAdapter({});
-      setSourceNotice(`เลือกรายการเรียกเก็บเพิ่มเติม ${requestedCharges.length} รายการให้แล้ว กรุณาตรวจสอบข้อมูลก่อนสร้างร่าง`);
+      setSourceNotice(uiMessage("finance.invoice.composer.selectedCharges", { count: requestedCharges.length }));
       return;
     }
 
@@ -280,13 +283,13 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
   const closeChargeDetail = () => { setDetailChargeId(""); setDetailAudits([]); setDetailAuditLoading(false); };
 
   const openReview = () => {
-    if (!clientId) return setFieldError("กรุณาเลือกลูกค้า");
-    if (!installmentId && chargeIds.length === 0) return setFieldError("กรุณาเลือกงวดหรือรายการเรียกเก็บเพิ่มเติมอย่างน้อยหนึ่งรายการ");
+    if (!clientId) return setFieldError(uiMessage("finance.invoice.composer.clientRequired"));
+    if (!installmentId && chargeIds.length === 0) return setFieldError(uiMessage("finance.invoice.composer.sourceRequired"));
     const firstMissingClassification = missingAdapterItems.find((item) => !adapter[item.id]?.economicClassification || !adapter[item.id]?.confirmed);
     if (firstMissingClassification) {
       setActiveAdapterItemId(firstMissingClassification.id);
       requestAnimationFrame(() => document.getElementById(`classification-${firstMissingClassification.id}`)?.focus());
-      return setFieldError("กรุณาเลือกประเภทของยอดสำหรับรายการตามแผน");
+      return setFieldError(uiMessage("finance.invoice.composer.classificationRequired"));
     }
     setFieldError(""); setReviewing(true);
     requestAnimationFrame(() => reviewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
@@ -319,74 +322,74 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
       router.push(`/finance/invoices/${String(result.data)}`);
     } catch (createError) {
       console.error("CREATE INVOICE COMPOSITION FAILED", createError);
-      setError(safeInvoiceError(createError, "สร้างร่างใบแจ้งหนี้ไม่สำเร็จ"));
+      setError(invoiceErrorMessage(createError, uiMessage("finance.invoice.composer.createFailed")));
       await load();
     } finally {
       submitLock.current = false; setSubmitting(false);
     }
   };
 
-  if (loading) return <div className={styles.loading}>กำลังโหลดเครื่องมือสร้างใบแจ้งหนี้...</div>;
+  if (loading) return <div className={styles.loading}>{t("finance.invoice.composer.loading")}</div>;
   return <div className={styles.page}>
     <FinanceSubNav activePage="invoices" permissions={permissions} />
     <InvoiceWorkspaceNav activePage={guidedMode ? undefined : "invoices"} quiet={guidedMode} showAdditionalCharges={permissions.canViewFinanceBillableCharges} />
-    {openedFromSource ? <div className={styles.contextNavigation}><Link className={styles.contextBackLink} href={sourceBackHref}>← {guidedMode ? "กลับแผนเรียกเก็บเงิน" : sourceBackLabel}</Link></div> : null}
-    <header className={styles.header}><div><span className={styles.eyebrow}>{guidedMode ? "การเรียกเก็บเงิน" : "INVOICE COMPOSER"}</span><h1>{guidedMode ? "ตรวจสอบใบแจ้งหนี้" : "จัดทำใบแจ้งหนี้"}</h1><p>{guidedMode ? "ตรวจสอบข้อมูลที่รับมาจากแผนเรียกเก็บเงินก่อนสร้างร่างใบแจ้งหนี้" : "เลือกและตรวจสอบยอดที่ต้องการเรียกเก็บ ก่อนยืนยันสร้างร่างใบแจ้งหนี้"}</p></div></header>
-    {openedFromSource ? <div className={styles.sourceSafety}><strong>ยังไม่มีการสร้างข้อมูล</strong><span>การเปิดหน้านี้เป็นการเตรียมรายการเท่านั้น ระบบจะสร้างร่างเมื่อคุณตรวจสอบและยืนยันในขั้นตอนสุดท้าย</span></div> : null}
-    {sourceError ? <div role="alert" className={styles.error}>{sourceError}</div> : null}
-    {sourceNotice && !guidedMode ? <div role="status" className={styles.notice}>{sourceNotice}</div> : null}
-    {error ? <div role="alert" className={styles.error}>{error}</div> : null}
+    {openedFromSource ? <div className={styles.contextNavigation}><Link className={styles.contextBackLink} href={sourceBackHref}>← {guidedMode ? t("finance.invoice.composer.backPlan") : sourceBackLabel}</Link></div> : null}
+    <header className={styles.header}><div><span className={styles.eyebrow}>{guidedMode ? t("finance.invoice.composer.billing") : t("finance.invoice.composer.compose")}</span><h1>{guidedMode ? t("finance.invoice.composer.review") : t("finance.invoice.composer.compose")}</h1><p>{guidedMode ? t("finance.invoice.composer.guidedReviewHelp") : t("finance.invoice.composer.reviewHelp")}</p></div></header>
+    {openedFromSource ? <div className={styles.sourceSafety}><strong>{t("finance.invoice.composer.noDataCreated")}</strong><span>{t("finance.invoice.composer.noDataCreatedHelp")}</span></div> : null}
+    {sourceError ? <div role="alert" className={styles.error}>{text(sourceError)}</div> : null}
+    {sourceNotice && !guidedMode ? <div role="status" className={styles.notice}>{text(sourceNotice)}</div> : null}
+    {error ? <div role="alert" className={styles.error}>{text(error)}</div> : null}
 
     {guidedMode ? <>
       <section className={`${styles.surface} ${styles.compactSource}`}>
-        <div className={styles.sourceSummary}><div><span className={styles.sourceLabel}>ต้นทาง</span><strong>{sourceSummary.client}</strong><span>{sourceSummary.matter}</span><span>{sourceSummary.trail}</span></div><button className={styles.detailButton} type="button" onClick={() => setSourceDetailsOpen(true)}>ดูรายละเอียดต้นทาง</button></div>
+        <div className={styles.sourceSummary}><div><span className={styles.sourceLabel}>{t("finance.invoice.composer.source")}</span><strong>{sourceSummary.client}</strong><span>{sourceSummary.matter}</span><span>{sourceSummary.trail}</span></div><button className={styles.detailButton} type="button" onClick={() => setSourceDetailsOpen(true)}>{t("finance.invoice.composer.sourceDetailsAction")}</button></div>
       </section>
-      <section className={styles.surface}><SectionHeader title="รายการเรียกเก็บ" text="องค์ประกอบนี้เลือกจากแผนเรียกเก็บเงินแล้ว หากต้องเปลี่ยนให้แก้ไขรายการในส่วนนี้" action={<Link className={styles.secondaryButton} href={editCompositionHref}>แก้ไขรายการ</Link>} />
+      <section className={styles.surface}><SectionHeader title={t("finance.invoice.composer.charges")} text={t("finance.invoice.composer.guidedCompositionHelp")} action={<Link className={styles.secondaryButton} href={editCompositionHref}>{t("finance.invoice.composer.editComposition")}</Link>} />
         <div className={styles.sourceLineList}>
-          {selectedInstallment ? selectedInstallmentItems.length ? selectedInstallmentItems.map((item) => <InstallmentSourceLine key={item.id} item={item} itemCount={selectedInstallmentItems.length} installment={selectedInstallment} agreementItem={agreementItemMap.get(item.fee_agreement_item_id)} currency={selectedPlan?.currency || "THB"} requiresClassification={missingAdapterItemIds.has(item.id)} adapterValue={adapter[item.id]} editorOpen={activeAdapterItemId === item.id} onToggleEditor={() => setActiveAdapterItemId((current) => current === item.id ? "" : item.id)} onClassificationChange={(economicClassification) => { setAdapter((current) => updateHistoricalClassification(current, item.id, economicClassification, item.unit || "")); setActiveAdapterItemId(economicClassification ? "" : item.id); requestRef.current = null; resetReview(); }} />) : <div className={styles.sourceLine}><div className={styles.sourceLineMain}><div><strong>ยอดตามแผนเรียกเก็บเงิน · งวดที่ {selectedInstallment.installment_no}</strong><small>{selectedInstallment.title}</small></div><strong>{money(selectedInstallment.total_amount, selectedPlan?.currency || "THB")}</strong></div></div> : null}
-          {selectedCharges.map((charge) => <div className={styles.sourceLine} key={charge.id}><div className={styles.sourceLineMain}><div><strong>{charge.description || "รายการเรียกเก็บเพิ่มเติม"}</strong><div className={styles.lineMetadata}><span className={styles.classificationChip}>{classificationLabel(charge.economic_classification)}</span><span>{taxLabel(charge)}</span></div></div><strong>{money(charge.total_amount, charge.currency)}</strong></div></div>)}
+          {selectedInstallment ? selectedInstallmentItems.length ? selectedInstallmentItems.map((item) => <InstallmentSourceLine key={item.id} item={item} itemCount={selectedInstallmentItems.length} installment={selectedInstallment} agreementItem={agreementItemMap.get(item.fee_agreement_item_id)} currency={selectedPlan?.currency || "THB"} requiresClassification={missingAdapterItemIds.has(item.id)} adapterValue={adapter[item.id]} editorOpen={activeAdapterItemId === item.id} onToggleEditor={() => setActiveAdapterItemId((current) => current === item.id ? "" : item.id)} onClassificationChange={(economicClassification) => { setAdapter((current) => updateHistoricalClassification(current, item.id, economicClassification, item.unit || "")); setActiveAdapterItemId(economicClassification ? "" : item.id); requestRef.current = null; resetReview(); }} />) : <div className={styles.sourceLine}><div className={styles.sourceLineMain}><div><strong>{t("finance.invoice.composer.plannedInstallmentPrefix")} {selectedInstallment.installment_no}</strong><small>{selectedInstallment.title}</small></div><strong>{money(selectedInstallment.total_amount, selectedPlan?.currency || "THB")}</strong></div></div> : null}
+          {selectedCharges.map((charge) => <div className={styles.sourceLine} key={charge.id}><div className={styles.sourceLineMain}><div><strong>{charge.description || t("finance.invoice.ui.additionalCharges")}</strong><div className={styles.lineMetadata}><span className={styles.classificationChip}>{classificationLabel(charge.economic_classification, locale)}</span><span>{taxLabel(charge, locale)}</span></div></div><strong>{money(charge.total_amount, charge.currency)}</strong></div></div>)}
         </div>
       </section>
     </> : <>
-    <section className={styles.surface}><SectionHeader title="1. ลูกค้าและบริบท" text="เลือกลูกค้าก่อน ระบบจะแสดงเฉพาะแหล่งยอดของลูกค้ารายนั้น" />
-      <div className={styles.contextGrid}><Field label="ลูกค้า"><select value={clientId} onChange={(event) => selectClient(event.target.value)}><option value="">เลือกลูกค้า</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name || "ลูกค้าไม่มีชื่อ"}</option>)}</select></Field></div>
+    <section className={styles.surface}><SectionHeader title={t("finance.invoice.composer.clientContextStep")} text={t("finance.invoice.composer.clientContextHelp")} />
+      <div className={styles.contextGrid}><Field label={t("finance.invoice.ui.customer")}><select value={clientId} onChange={(event) => selectClient(event.target.value)}><option value="">{t("finance.invoice.composer.selectClient")}</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name || t("finance.invoice.composer.unnamedClient")}</option>)}</select></Field></div>
     </section>
 
-    <section className={styles.surface}><SectionHeader title="2. ยอดตามแผนเรียกเก็บเงิน" text="เลือกได้ไม่เกินหนึ่งงวด หรือไม่เลือกหากต้องการออกใบแจ้งหนี้จากรายการเรียกเก็บเพิ่มเติมเท่านั้น" />
-      {!clientId ? <div className={styles.notice}>เลือกลูกค้าก่อนเพื่อดูงวดที่พร้อม</div> : <div className={styles.choiceList}>
-        <label className={`${styles.installmentChoice} ${!installmentId ? styles.choiceSelected : ""}`}><input type="radio" name="installment" value="" checked={!installmentId} onChange={() => selectInstallment("")} /><span className={styles.choiceBody}><strong>ไม่เลือกงวดตามแผน</strong><small>สร้างจากรายการเรียกเก็บเพิ่มเติมเท่านั้น</small></span></label>
-        {clientInstallments.map((row) => { const plan = planMap.get(row.billing_plan_id); const agreement = plan ? agreementMap.get(plan.fee_agreement_id) : null; return <label key={row.id} className={`${styles.installmentChoice} ${installmentId === row.id ? styles.choiceSelected : ""} ${!canApproveInstallment ? styles.choiceDisabled : ""}`}><input type="radio" name="installment" disabled={!canApproveInstallment} value={row.id} checked={installmentId === row.id} onChange={() => selectInstallment(row.id)} /><span className={styles.choiceBody}><strong>งวดที่ {row.installment_no} · {row.title || "งวดเรียกเก็บเงิน"}</strong><span>{agreement?.agreement_no || agreement?.title || "ข้อมูลการว่าจ้าง"} · {matterLabel(agreement?.case_id || null, agreement?.advisory_matter_id || null, cases, advisories)}</span><small>{bridgeIds.has(row.id) ? "งวดนี้มีโครงสร้างรายการที่ผ่านการรับรองแล้ว" : "ระบบจะคัดลอกยอดต้นทางตามงวดโดยไม่ให้แก้จำนวนเงิน"}</small></span><strong className={styles.choiceAmount}>{money(row.total_amount, plan?.currency || "THB")}</strong></label>; })}
-        {!clientInstallments.length ? <div className={styles.notice}>ไม่พบงวดที่ผ่านเงื่อนไขเบื้องต้นสำหรับลูกค้ารายนี้</div> : null}
-        {!canApproveInstallment && clientInstallments.length ? <p className={styles.fieldError}>สิทธิ์ของคุณสร้างใบแจ้งหนี้จากรายการเรียกเก็บเพิ่มเติมได้ แต่ไม่สามารถรับรองงวดตามแผนเรียกเก็บ</p> : null}
+    <section className={styles.surface}><SectionHeader title={t("finance.invoice.composer.planStep")} text={t("finance.invoice.composer.planSelectionHelp")} />
+      {!clientId ? <div className={styles.notice}>{t("finance.invoice.composer.selectClientForInstallments")}</div> : <div className={styles.choiceList}>
+        <label className={`${styles.installmentChoice} ${!installmentId ? styles.choiceSelected : ""}`}><input type="radio" name="installment" value="" checked={!installmentId} onChange={() => selectInstallment("")} /><span className={styles.choiceBody}><strong>{t("finance.invoice.composer.noInstallment")}</strong><small>{t("finance.invoice.composer.chargeOnly")}</small></span></label>
+        {clientInstallments.map((row) => { const plan = planMap.get(row.billing_plan_id); const agreement = plan ? agreementMap.get(plan.fee_agreement_id) : null; return <label key={row.id} className={`${styles.installmentChoice} ${installmentId === row.id ? styles.choiceSelected : ""} ${!canApproveInstallment ? styles.choiceDisabled : ""}`}><input type="radio" name="installment" disabled={!canApproveInstallment} value={row.id} checked={installmentId === row.id} onChange={() => selectInstallment(row.id)} /><span className={styles.choiceBody}><strong>{t("finance.invoice.composer.installmentPrefix")} {row.installment_no} · {row.title || t("finance.invoice.ui.installment")}</strong><span>{agreement?.agreement_no || agreement?.title || t("finance.invoice.ui.engagement")} · {matterLabel(agreement?.case_id || null, agreement?.advisory_matter_id || null, cases, advisories, locale)}</span><small>{bridgeIds.has(row.id) ? t("finance.invoice.composer.certifiedStructure") : t("finance.invoice.composer.fixedAmounts")}</small></span><strong className={styles.choiceAmount}>{money(row.total_amount, plan?.currency || "THB")}</strong></label>; })}
+        {!clientInstallments.length ? <div className={styles.notice}>{t("finance.invoice.composer.noEligibleInstallments")}</div> : null}
+        {!canApproveInstallment && clientInstallments.length ? <p className={styles.fieldError}>{t("finance.invoice.composer.chargeOnlyPermission")}</p> : null}
       </div>}
       {missingAdapterItems.length ? <AdapterFields items={missingAdapterItems} adapter={adapter} agreementItemMap={agreementItemMap} currency={selectedPlan?.currency || "THB"} onChange={(itemId, value) => { setAdapter((current) => ({ ...current, [itemId]: value })); resetReview(); }} /> : null}
     </section>
 
-    <section className={styles.surface}><SectionHeader title="3. รายการเรียกเก็บเพิ่มเติม" text="เลือกได้ทั้งรายการเดียวหรือหลายรายการ รายการที่บริบทไม่ตรงกันจะไม่สามารถเลือกได้" />
-      {!clientId ? <div className={styles.notice}>เลือกลูกค้าก่อนเพื่อดูรายการพร้อมเรียกเก็บ</div> : !visibleCharges.length ? <div className={styles.empty}>ลูกค้ารายนี้ยังไม่มีรายการพร้อมออกใบแจ้งหนี้</div> : <div className={styles.choiceList}>{visibleCharges.map((charge) => { const reason = incompatibilityReason(charge, anchor); const selected = chargeIds.includes(charge.id); return <div key={charge.id} className={`${styles.chargeChoice} ${selected ? styles.choiceSelected : ""} ${reason && !selected ? styles.choiceDisabled : ""}`}><input aria-label={`เลือก ${charge.description || "รายการ"}`} type="checkbox" disabled={Boolean(reason && !selected)} checked={selected} onChange={() => toggleCharge(charge)} /><div className={styles.choiceBody}><strong>{charge.description || "รายการเรียกเก็บเพิ่มเติม"}</strong><div className={styles.chargeMeta}><span>{thaiDate(charge.service_date)}</span><span>{classificationLabel(charge.economic_classification)}</span><span>{taxLabel(charge)}</span><span>{matterLabel(charge.case_id, charge.advisory_matter_id, cases, advisories)}</span></div><div className={styles.chargeMeta}><span>ก่อน VAT {money(charge.amount_before_vat, charge.currency)}</span><span>VAT {money(charge.vat_amount, charge.currency)}</span><span className={styles.readyText}>พร้อมออกใบแจ้งหนี้</span></div>{reason && !selected ? <small className={styles.fieldError}>{reason}</small> : null}<button className={styles.detailButton} type="button" onClick={() => void openChargeDetail(charge.id)}>ดูรายละเอียด</button></div><strong className={styles.choiceAmount}>{money(charge.total_amount, charge.currency)}</strong></div>; })}</div>}
+    <section className={styles.surface}><SectionHeader title={t("finance.invoice.composer.chargesStep")} text={t("finance.invoice.composer.chargesSelectionHelp")} />
+      {!clientId ? <div className={styles.notice}>{t("finance.invoice.composer.selectClientForCharges")}</div> : !visibleCharges.length ? <div className={styles.empty}>{t("finance.invoice.composer.noReadyCharges")}</div> : <div className={styles.choiceList}>{visibleCharges.map((charge) => { const reason = incompatibilityReason(charge, anchor); const selected = chargeIds.includes(charge.id); return <div key={charge.id} className={`${styles.chargeChoice} ${selected ? styles.choiceSelected : ""} ${reason && !selected ? styles.choiceDisabled : ""}`}><input aria-label={t("finance.invoice.composer.selectCharge", { description: charge.description || t("finance.invoice.ui.item") })} type="checkbox" disabled={Boolean(reason && !selected)} checked={selected} onChange={() => toggleCharge(charge)} /><div className={styles.choiceBody}><strong>{charge.description || t("finance.invoice.ui.additionalCharges")}</strong><div className={styles.chargeMeta}><span>{date(charge.service_date)}</span><span>{classificationLabel(charge.economic_classification, locale)}</span><span>{taxLabel(charge, locale)}</span><span>{matterLabel(charge.case_id, charge.advisory_matter_id, cases, advisories, locale)}</span></div><div className={styles.chargeMeta}><span>{t("finance.invoice.ui.beforeVatShort")} {money(charge.amount_before_vat, charge.currency)}</span><span>VAT {money(charge.vat_amount, charge.currency)}</span><span className={styles.readyText}>{t("finance.invoice.ui.readyToInvoice")}</span></div>{reason && !selected ? <small className={styles.fieldError}>{text(reason)}</small> : null}<button className={styles.detailButton} type="button" onClick={() => void openChargeDetail(charge.id)}>{t("finance.invoice.ui.details")}</button></div><strong className={styles.choiceAmount}>{money(charge.total_amount, charge.currency)}</strong></div>; })}</div>}
     </section>
     </>}
 
-    <section className={styles.surface}><SectionHeader title={guidedMode ? "ข้อมูลใบแจ้งหนี้" : "4. ข้อมูลในใบแจ้งหนี้"} text={guidedMode ? "วันที่ครบกำหนดอาจรับจากแผน ส่วนข้อมูลที่แสดงต่อลูกค้าระบุแยกต่างหาก" : "ใช้ข้อมูลบัญชีรับชำระชุดเดียวกับใบแจ้งหนี้เดิม และแก้ไขต่อได้ในร่าง"} />
-      <div className={`${styles.contextGrid} ${guidedMode ? styles.invoiceInfoGrid : ""}`}><Field label="วันที่ครบกำหนด" helper={guidedMode ? "รับจากแผนเรียกเก็บเงินเมื่อมีข้อมูล และไม่บังคับ" : "ไม่บังคับ"}><input type="date" value={dueDate} onChange={(event) => { setDueDate(event.target.value); requestRef.current = null; resetReview(); }} /></Field>{!guidedMode ? <Field label="ภาษาเอกสาร"><select value={languageCode} onChange={(event) => { setLanguageCode(event.target.value === "en" ? "en" : "th"); requestRef.current = null; resetReview(); }}><option value="th">ไทย</option><option value="en">English</option></select></Field> : null}<Field label="บัญชีสำหรับรับชำระ" helper="เลือกภายหลังในร่างได้ แต่ต้องเลือกก่อนออกใบแจ้งหนี้"><select value={bankAccountId} onChange={(event) => { setBankAccountId(event.target.value); requestRef.current = null; resetReview(); }}><option value="">ยังไม่เลือก</option>{eligibleAccounts.map((account) => <option key={account.id} value={account.id}>{displayText(account.short_name)} — {displayText(account.bank_name)} · {displayText(account.account_number)}</option>)}</select></Field><Field label="ข้อมูลการชำระเงินเพิ่มเติม" helper="แสดงในใบแจ้งหนี้สำหรับลูกค้า หากไม่ระบุจะไม่แสดงหัวข้อนี้" wide><textarea rows={3} value={paymentTermsText} onChange={(event) => { setPaymentTermsText(event.target.value); requestRef.current = null; resetReview(); }} /></Field><Field label="หมายเหตุถึงลูกค้า"><textarea rows={3} value={customerNote} onChange={(event) => { setCustomerNote(event.target.value); requestRef.current = null; resetReview(); }} /></Field><Field label="หมายเหตุภายใน"><textarea rows={3} value={internalNote} onChange={(event) => { setInternalNote(event.target.value); requestRef.current = null; resetReview(); }} /></Field></div>
+    <section className={styles.surface}><SectionHeader title={guidedMode ? t("finance.invoice.composer.information") : t("finance.invoice.composer.informationStep")} text={guidedMode ? t("finance.invoice.composer.guidedInformationHelp") : t("finance.invoice.composer.informationHelp")} />
+      <div className={`${styles.contextGrid} ${guidedMode ? styles.invoiceInfoGrid : ""}`}><Field label={t("finance.invoice.ui.dueDate")} helper={guidedMode ? t("finance.invoice.composer.dueDateHelp") : t("finance.invoice.composer.optional")}><input type="date" value={dueDate} onChange={(event) => { setDueDate(event.target.value); requestRef.current = null; resetReview(); }} /></Field>{!guidedMode ? <Field label={t("finance.invoice.ui.documentLanguage")}><select value={languageCode} onChange={(event) => { setLanguageCode(event.target.value === "en" ? "en" : "th"); requestRef.current = null; resetReview(); }}><option value="th">{t("finance.invoice.ui.thai")}</option><option value="en">{t("finance.invoice.ui.english")}</option></select></Field> : null}<Field label={t("finance.invoice.ui.bankAccount")} helper={t("finance.invoice.composer.bankHelp")}><select value={bankAccountId} onChange={(event) => { setBankAccountId(event.target.value); requestRef.current = null; resetReview(); }}><option value="">{t("finance.invoice.composer.notSelected")}</option>{eligibleAccounts.map((account) => <option key={account.id} value={account.id}>{displayText(account.short_name)} — {displayText(account.bank_name)} · {displayText(account.account_number)}</option>)}</select></Field><Field label={t("finance.invoice.ui.paymentInstructions")} helper={t("finance.invoice.ui.instructionsOptional")} wide><textarea rows={3} value={paymentTermsText} onChange={(event) => { setPaymentTermsText(event.target.value); requestRef.current = null; resetReview(); }} /></Field><Field label={t("finance.invoice.ui.customerNote")}><textarea rows={3} value={customerNote} onChange={(event) => { setCustomerNote(event.target.value); requestRef.current = null; resetReview(); }} /></Field><Field label={t("finance.invoice.ui.internalNote")}><textarea rows={3} value={internalNote} onChange={(event) => { setInternalNote(event.target.value); requestRef.current = null; resetReview(); }} /></Field></div>
     </section>
 
-    <section className={`${styles.surface} ${styles.summary}`}><SectionHeader title="สรุปยอดที่เลือก" text="ยอดนี้ใช้เพื่อช่วยตรวจสอบจากข้อมูลต้นทาง ระบบฐานข้อมูลจะตรวจสอบและบันทึกยอดจริงอีกครั้ง" />
-      {selectedInstallment ? <div className={styles.summaryLine}><span>ยอดตามแผนเรียกเก็บเงิน · งวดที่ {selectedInstallment.installment_no}</span><strong>{money(selectedInstallment.total_amount, selectedPlan?.currency || "THB")}</strong></div> : null}
-      {selectedCharges.map((charge) => <div key={charge.id} className={styles.summaryLine}><span>{charge.description || "รายการเรียกเก็บเพิ่มเติม"}</span><strong>{money(charge.total_amount, charge.currency)}</strong></div>)}
-      {!selectedInstallment && !selectedCharges.length ? <div className={styles.notice}>ยังไม่ได้เลือกยอดเรียกเก็บ</div> : <dl className={styles.summaryTotals}><div><dt>ยอดก่อน VAT</dt><dd>{money(totals.before, selectedPlan?.currency || selectedCharges[0]?.currency || "THB")}</dd></div><div><dt>VAT</dt><dd>{money(totals.vat, selectedPlan?.currency || selectedCharges[0]?.currency || "THB")}</dd></div><div className={styles.grandTotal}><dt>ยอดรวมใบแจ้งหนี้</dt><dd>{money(totals.total, selectedPlan?.currency || selectedCharges[0]?.currency || "THB")}</dd></div></dl>}
-      {fieldError ? <p role="alert" className={styles.fieldError}>{fieldError}</p> : null}{!guidedMode ? <div className={styles.reviewActions}><button className={styles.primaryButton} type="button" onClick={openReview}>ตรวจสอบก่อนสร้างร่าง</button></div> : null}
+    <section className={`${styles.surface} ${styles.summary}`}><SectionHeader title={t("finance.invoice.composer.selectionSummary")} text={t("finance.invoice.composer.summaryHelp")} />
+      {selectedInstallment ? <div className={styles.summaryLine}><span>{t("finance.invoice.composer.plannedInstallmentPrefix")} {selectedInstallment.installment_no}</span><strong>{money(selectedInstallment.total_amount, selectedPlan?.currency || "THB")}</strong></div> : null}
+      {selectedCharges.map((charge) => <div key={charge.id} className={styles.summaryLine}><span>{charge.description || t("finance.invoice.ui.additionalCharges")}</span><strong>{money(charge.total_amount, charge.currency)}</strong></div>)}
+      {!selectedInstallment && !selectedCharges.length ? <div className={styles.notice}>{t("finance.invoice.composer.emptySelection")}</div> : <dl className={styles.summaryTotals}><div><dt>{t("finance.invoice.ui.netAmount")}</dt><dd>{money(totals.before, selectedPlan?.currency || selectedCharges[0]?.currency || "THB")}</dd></div><div><dt>VAT</dt><dd>{money(totals.vat, selectedPlan?.currency || selectedCharges[0]?.currency || "THB")}</dd></div><div className={styles.grandTotal}><dt>{t("finance.invoice.composer.invoiceTotal")}</dt><dd>{money(totals.total, selectedPlan?.currency || selectedCharges[0]?.currency || "THB")}</dd></div></dl>}
+      {fieldError ? <p role="alert" className={styles.fieldError}>{text(fieldError)}</p> : null}{!guidedMode ? <div className={styles.reviewActions}><button className={styles.primaryButton} type="button" onClick={openReview}>{t("finance.invoice.composer.reviewBeforeCreate")}</button></div> : null}
     </section>
 
-    {guidedMode || reviewing ? <section ref={reviewRef} className={`${styles.surface} ${styles.reviewSection}`}><SectionHeader title="ยืนยันสร้างร่างใบแจ้งหนี้" text="ตรวจสอบข้อมูลทั้งหมดก่อนกันรายการไว้สำหรับร่างใบแจ้งหนี้นี้" />
-      <dl className={styles.reviewGrid}><Review label="ลูกค้า" value={clients.find((row) => row.id === clientId)?.name || "-"} /><Review label="คดี/งาน" value={anchor ? matterLabel(anchor.caseId, anchor.advisoryId, cases, advisories) : "ไม่ผูกกับงานเฉพาะ"} /><Review label="ยอดตามแผนเรียกเก็บเงิน" value={selectedInstallment ? `งวดที่ ${selectedInstallment.installment_no} · ${selectedInstallment.title}` : "ไม่เลือก"} /><Review label="รายการเรียกเก็บเพิ่มเติม" value={`${selectedCharges.length} รายการ`} /><Review label="VAT" value={money(totals.vat, selectedPlan?.currency || selectedCharges[0]?.currency || "THB")} /><Review label="ยอดรวม" value={money(totals.total, selectedPlan?.currency || selectedCharges[0]?.currency || "THB")} /><Review label="บัญชีรับชำระ" value={bankAccounts.find((row) => row.id === bankAccountId)?.short_name || "ยังไม่เลือก"} /><Review label="วันที่ครบกำหนด" value={dueDate || "ไม่ระบุ"} /></dl>
-      <div className={styles.reservationNote}>เมื่อสร้างร่างแล้ว รายการเหล่านี้จะถูกกันไว้สำหรับใบแจ้งหนี้ฉบับนี้ จนกว่าจะออกใบแจ้งหนี้หรือยกเลิกร่าง</div>
-      <label className={styles.checkRow}><input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} /><span>ยืนยันว่ารายการที่เลือกและยอดเรียกเก็บถูกต้อง และต้องการสร้างร่างใบแจ้งหนี้</span></label>
-      <div className={styles.reviewActions}>{!guidedMode ? <button className={styles.secondaryButton} type="button" disabled={submitting} onClick={() => setReviewing(false)}>กลับไปแก้ไข</button> : null}<button className={styles.primaryButton} type="button" disabled={!acknowledged || submitting} onClick={() => { if (missingAdapterItems.some((item) => !adapter[item.id]?.economicClassification || !adapter[item.id]?.confirmed)) { openReview(); return; } void createDraft(); }}>{submitting ? "กำลังสร้างร่าง..." : "สร้างร่างใบแจ้งหนี้"}</button></div>
+    {guidedMode || reviewing ? <section ref={reviewRef} className={`${styles.surface} ${styles.reviewSection}`}><SectionHeader title={t("finance.invoice.composer.confirmCreate")} text={t("finance.invoice.composer.confirmHelp")} />
+      <dl className={styles.reviewGrid}><Review label={t("finance.invoice.ui.customer")} value={clients.find((row) => row.id === clientId)?.name || "-"} /><Review label={t("finance.invoice.ui.caseMatter")} value={anchor ? matterLabel(anchor.caseId, anchor.advisoryId, cases, advisories, locale) : t("finance.invoice.composer.generalContext")} /><Review label={t("finance.invoice.ui.planSource")} value={selectedInstallment ? t("finance.invoice.composer.installmentTitle", { number: selectedInstallment.installment_no, title: selectedInstallment.title }) : t("finance.invoice.composer.none")} /><Review label={t("finance.invoice.ui.additionalCharges")} value={t("finance.invoice.ui.itemsCount", { count: selectedCharges.length })} /><Review label="VAT" value={money(totals.vat, selectedPlan?.currency || selectedCharges[0]?.currency || "THB")} /><Review label={t("finance.invoice.ui.total")} value={money(totals.total, selectedPlan?.currency || selectedCharges[0]?.currency || "THB")} /><Review label={t("finance.invoice.composer.receivingAccount")} value={bankAccounts.find((row) => row.id === bankAccountId)?.short_name || t("finance.invoice.composer.notSelected")} /><Review label={t("finance.invoice.ui.dueDate")} value={dueDate || t("finance.invoice.ui.unspecified")} /></dl>
+      <div className={styles.reservationNote}>{t("finance.invoice.composer.reservationHelp")}</div>
+      <label className={styles.checkRow}><input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} /><span>{t("finance.invoice.composer.createAcknowledgement")}</span></label>
+      <div className={styles.reviewActions}>{!guidedMode ? <button className={styles.secondaryButton} type="button" disabled={submitting} onClick={() => setReviewing(false)}>{t("finance.invoice.composer.backToEdit")}</button> : null}<button className={styles.primaryButton} type="button" disabled={!acknowledged || submitting} onClick={() => { if (missingAdapterItems.some((item) => !adapter[item.id]?.economicClassification || !adapter[item.id]?.confirmed)) { openReview(); return; } void createDraft(); }}>{submitting ? t("finance.invoice.composer.creating") : t("finance.invoice.composer.create")}</button></div>
     </section> : null}
 
-    {detailCharge ? <DetailModal open title={detailCharge.description || "รายการเรียกเก็บเพิ่มเติม"} subtitle={matterLabel(detailCharge.case_id, detailCharge.advisory_matter_id, cases, advisories)} prominentValue={money(detailCharge.total_amount, detailCharge.currency)} onClose={closeChargeDetail}><div className={styles.modalContent}><dl className={styles.modalGrid}><Review label="วันที่" value={thaiDate(detailCharge.service_date)} /><Review label="สถานะ" value="พร้อมออกใบแจ้งหนี้" /><Review label="ลักษณะรายการ" value={billableChargeNatureLabel(detailCharge.source_type)} />{detailCharge.source_type === "recoverable_cost" ? <Review label="การจ่าย" value={clientCostFundingModeLabel(detailCharge.client_cost_funding_mode)} /> : null}<Review label="ประเภทของยอด" value={classificationLabel(detailCharge.economic_classification)} /><Review label="VAT" value={taxLabel(detailCharge)} /><Review label="ยอดก่อน VAT" value={money(detailCharge.amount_before_vat, detailCharge.currency)} /><Review label="VAT" value={money(detailCharge.vat_amount, detailCharge.currency)} /><Review label="ยอดรวม" value={money(detailCharge.total_amount, detailCharge.currency)} /><Review label="จำนวน/หน่วย" value={`${detailCharge.quantity} ${detailCharge.unit || "หน่วย"}`} /><Review label="อ้างอิง" value={detailCharge.source_reference || "-"} /></dl><ChargeAuditHistory audits={detailAudits} loading={detailAuditLoading} /></div></DetailModal> : null}
-    {guidedMode && sourceDetailsOpen ? <DetailModal open title="รายละเอียดต้นทาง" subtitle={sourceSummary.client} onClose={() => setSourceDetailsOpen(false)}><dl className={styles.modalGrid}><Review label="ลูกค้า" value={sourceSummary.client} /><Review label="งาน/เรื่อง" value={sourceSummary.matter} /><Review label="ใบเสนอราคา" value={selectedAgreement?.source_reference || "ไม่พบเลขอ้างอิง"} /><Review label="ข้อตกลงค่าบริการ" value={selectedAgreement?.agreement_no || selectedAgreement?.title || "-"} /><Review label="แผนเรียกเก็บเงิน" value={selectedPlan?.title || "-"} /><Review label="งวดเรียกเก็บ" value={selectedInstallment ? `งวดที่ ${selectedInstallment.installment_no} · ${selectedInstallment.title}` : "-"} /><Review label="สกุลเงิน" value={selectedPlan?.currency || "THB"} /><Review label="ภาษาเอกสาร" value={languageCode === "en" ? "English" : "ไทย"} /></dl></DetailModal> : null}
+    {detailCharge ? <DetailModal open title={detailCharge.description || t("finance.invoice.ui.additionalCharges")} subtitle={matterLabel(detailCharge.case_id, detailCharge.advisory_matter_id, cases, advisories, locale)} prominentValue={money(detailCharge.total_amount, detailCharge.currency)} onClose={closeChargeDetail}><div className={styles.modalContent}><dl className={styles.modalGrid}><Review label={t("finance.invoice.ui.date")} value={date(detailCharge.service_date)} /><Review label={t("finance.invoice.ui.status")} value={t("finance.invoice.ui.readyToInvoice")} /><Review label={t("finance.invoice.ui.chargeNature")} value={billableChargeNatureLabel(detailCharge.source_type, locale)} />{detailCharge.source_type === "recoverable_cost" ? <Review label={t("finance.invoice.ui.funding")} value={clientCostFundingModeLabel(detailCharge.client_cost_funding_mode, locale)} /> : null}<Review label={t("finance.invoice.ui.classification")} value={classificationLabel(detailCharge.economic_classification, locale)} /><Review label="VAT" value={taxLabel(detailCharge, locale)} /><Review label={t("finance.invoice.ui.netAmount")} value={money(detailCharge.amount_before_vat, detailCharge.currency)} /><Review label="VAT" value={money(detailCharge.vat_amount, detailCharge.currency)} /><Review label={t("finance.invoice.ui.total")} value={money(detailCharge.total_amount, detailCharge.currency)} /><Review label={t("finance.invoice.ui.quantityUnit")} value={`${detailCharge.quantity} ${detailCharge.unit || t("finance.invoice.ui.unit")}`} /><Review label={t("finance.invoice.composer.reference")} value={detailCharge.source_reference || "-"} /></dl><ChargeAuditHistory audits={detailAudits} loading={detailAuditLoading} /></div></DetailModal> : null}
+    {guidedMode && sourceDetailsOpen ? <DetailModal open title={t("finance.invoice.composer.sourceDetails")} subtitle={sourceSummary.client} onClose={() => setSourceDetailsOpen(false)}><dl className={styles.modalGrid}><Review label={t("finance.invoice.ui.customer")} value={sourceSummary.client} /><Review label={t("finance.invoice.composer.matter")} value={sourceSummary.matter} /><Review label={t("finance.invoice.ui.quotation")} value={selectedAgreement?.source_reference || t("finance.invoice.composer.noReference")} /><Review label={t("finance.invoice.ui.feeAgreement")} value={selectedAgreement?.agreement_no || selectedAgreement?.title || "-"} /><Review label={t("finance.invoice.ui.billingPlan")} value={selectedPlan?.title || "-"} /><Review label={t("finance.invoice.composer.billingInstallment")} value={selectedInstallment ? t("finance.invoice.composer.installmentTitle", { number: selectedInstallment.installment_no, title: selectedInstallment.title }) : "-"} /><Review label={t("finance.invoice.ui.currency")} value={selectedPlan?.currency || "THB"} /><Review label={t("finance.invoice.ui.documentLanguage")} value={languageCode === "en" ? t("finance.invoice.ui.english") : t("finance.invoice.ui.thai")} /></dl></DetailModal> : null}
   </div>;
 }
 
@@ -394,37 +397,38 @@ function SectionHeader({ title, text, action }: { title: string; text: string; a
 function Field({ label, helper, wide, children }: { label: string; helper?: string; wide?: boolean; children: ReactNode }) { return <label className={`${styles.field} ${wide ? styles.wide : ""}`}><span>{label}</span>{children}{helper ? <small>{helper}</small> : null}</label>; }
 function Review({ label, value }: { label: string; value: string }) { return <div><dt>{label}</dt><dd>{value}</dd></div>; }
 function InstallmentSourceLine({ item, itemCount, installment, agreementItem, currency, requiresClassification, adapterValue, editorOpen, onToggleEditor, onClassificationChange }: { item: InstallmentItem; itemCount: number; installment: Installment; agreementItem?: AgreementItem; currency: string; requiresClassification: boolean; adapterValue?: AdapterValue; editorOpen: boolean; onToggleEditor: () => void; onClassificationChange: (value: string) => void }) {
+  const { locale, t } = useI18n();
   const selectedClassification = item.economic_classification || adapterValue?.economicClassification || "";
-  const sourceLabel = `ยอดตามแผนเรียกเก็บเงิน · งวดที่ ${installment.installment_no}`;
-  const lineDescription = agreementItem?.description || installment.title || "รายการตามงวด";
+  const sourceLabel = t("finance.invoice.composer.plannedInstallment", { number: installment.installment_no });
+  const lineDescription = agreementItem?.description || installment.title || t("finance.invoice.composer.installmentItem");
 
   return <div className={`${styles.sourceLine} ${requiresClassification && !selectedClassification ? styles.sourceLineWarning : ""}`}>
     <div className={styles.sourceLineMain}><div><strong>{itemCount === 1 ? sourceLabel : lineDescription}</strong><small>{itemCount === 1 ? lineDescription : sourceLabel}</small></div><strong>{money(item.total_amount, currency)}</strong></div>
     <div className={styles.lineMetadata}>
-      {selectedClassification ? <span className={styles.classificationChip}>{classificationLabel(selectedClassification)}</span> : requiresClassification ? <span className={styles.missingClassification}>ยังไม่ระบุประเภท</span> : <span className={styles.classificationChip}>ประเภทตามโครงสร้างที่รับรองแล้ว</span>}
+      {selectedClassification ? <span className={styles.classificationChip}>{classificationLabel(selectedClassification, locale)}</span> : requiresClassification ? <span className={styles.missingClassification}>{t("finance.invoice.composer.classificationMissing")}</span> : <span className={styles.classificationChip}>{t("finance.invoice.composer.certifiedClassification")}</span>}
       <span>VAT {money(item.vat_amount, currency)}</span>
-      {requiresClassification ? <button className={styles.lineAction} type="button" aria-expanded={editorOpen} aria-controls={`classification-editor-${item.id}`} onClick={onToggleEditor}>{selectedClassification ? "เปลี่ยนประเภท" : "ระบุประเภท"}</button> : null}
+      {requiresClassification ? <button className={styles.lineAction} type="button" aria-expanded={editorOpen} aria-controls={`classification-editor-${item.id}`} onClick={onToggleEditor}>{selectedClassification ? t("finance.invoice.composer.changeClassification") : t("finance.invoice.composer.setClassification")}</button> : null}
     </div>
-    {requiresClassification && editorOpen ? <div id={`classification-editor-${item.id}`} className={styles.lineEditor}><div><strong>ประเภทของยอด</strong><p>{lineDescription} · ยอดรวม {money(item.total_amount, currency)} · VAT {money(item.vat_amount, currency)}</p></div><select id={`classification-${item.id}`} aria-label={`ประเภทของยอด ${lineDescription}`} value={selectedClassification} onChange={(event) => onClassificationChange(event.target.value)}><option value="">เลือกประเภท</option>{classifications.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></div> : null}
+    {requiresClassification && editorOpen ? <div id={`classification-editor-${item.id}`} className={styles.lineEditor}><div><strong>{t("finance.invoice.ui.classification")}</strong><p>{lineDescription}  {t("finance.invoice.composer.totalSeparator")} {money(item.total_amount, currency)} · VAT {money(item.vat_amount, currency)}</p></div><select id={`classification-${item.id}`} aria-label={t("finance.invoice.composer.classificationFor", { description: lineDescription })} value={selectedClassification} onChange={(event) => onClassificationChange(event.target.value)}><option value="">{t("finance.invoice.composer.selectClassification")}</option>{classifications.map((id) => <option key={id} value={id}>{classificationLabel(id, locale)}</option>)}</select></div> : null}
   </div>;
 }
 function AdapterFields({ items, adapter, agreementItemMap, currency, onChange }: { items: InstallmentItem[]; adapter: Record<string, AdapterValue>; agreementItemMap: Map<string, AgreementItem>; currency: string; onChange: (id: string, value: AdapterValue) => void }) {
-  return <div className={styles.adapterPanel}><h3>เลือกประเภทรายการ</h3><p>เลือกเฉพาะประเภทของยอดสำหรับข้อมูลตามแผนเดิม ยอดเงินและ VAT ด้านล่างเป็นข้อมูลอ่านอย่างเดียวและจะไม่เปลี่ยนแปลง</p><div className={styles.adapterRows}>{items.map((item) => { const agreementItem = agreementItemMap.get(item.fee_agreement_item_id); const value = adapter[item.id] || { economicClassification: "", unit: item.unit || "", confirmed: false }; return <div key={item.id} className={styles.adapterRow}><div><strong>{agreementItem?.description || "รายการตามงวด"}</strong><div className={styles.muted}>ยอดรวม {money(item.total_amount, currency)} · VAT {money(item.vat_amount, currency)}</div></div><Field label="ประเภทของยอด"><select value={value.economicClassification} onChange={(event) => { const economicClassification = event.target.value; onChange(item.id, { ...value, economicClassification, confirmed: Boolean(economicClassification) }); }}><option value="">เลือกประเภท</option>{classifications.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></Field></div>; })}</div></div>;
+  const { locale, t } = useI18n();
+  return <div className={styles.adapterPanel}><h3>{t("finance.invoice.composer.classificationHeading")}</h3><p>{t("finance.invoice.composer.classificationHelp")}</p><div className={styles.adapterRows}>{items.map((item) => { const agreementItem = agreementItemMap.get(item.fee_agreement_item_id); const value = adapter[item.id] || { economicClassification: "", unit: item.unit || "", confirmed: false }; return <div key={item.id} className={styles.adapterRow}><div><strong>{agreementItem?.description || t("finance.invoice.composer.installmentItem")}</strong><div className={styles.muted}>{t("finance.invoice.ui.total")} {money(item.total_amount, currency)} · VAT {money(item.vat_amount, currency)}</div></div><Field label={t("finance.invoice.ui.classification")}><select value={value.economicClassification} onChange={(event) => { const economicClassification = event.target.value; onChange(item.id, { ...value, economicClassification, confirmed: Boolean(economicClassification) }); }}><option value="">{t("finance.invoice.composer.selectClassification")}</option>{classifications.map((id) => <option key={id} value={id}>{classificationLabel(id, locale)}</option>)}</select></Field></div>; })}</div></div>;
 }
-function ChargeAuditHistory({ audits, loading }: { audits: AuditEvent[]; loading: boolean }) { return <details className={styles.auditDetails}><summary>ประวัติรายการ</summary>{loading ? <p>กำลังโหลดประวัติรายการ...</p> : audits.length ? <ol>{audits.map((event) => <li key={event.id}><div><strong>{auditLabel(event.event_type)}</strong><span>{event.actor_name || event.actor_email || "ผู้ใช้งานระบบ"}</span></div><time>{thaiDateTime(event.created_at)}</time></li>)}</ol> : <p>ยังไม่พบประวัติรายการ</p>}</details>; }
+function ChargeAuditHistory({ audits, loading }: { audits: AuditEvent[]; loading: boolean }) {
+  const { locale, t, date } = useI18n(); return <details className={styles.auditDetails}><summary>{t("finance.invoice.ui.chargeHistory")}</summary>{loading ? <p>{t("finance.invoice.ui.historyLoading")}</p> : audits.length ? <ol>{audits.map((event) => <li key={event.id}><div><strong>{auditLabel(event.event_type, locale)}</strong><span>{event.actor_name || event.actor_email || t("finance.invoice.ui.systemUser")}</span></div><time>{date(event.created_at, true)}</time></li>)}</ol> : <p>{t("finance.invoice.ui.noHistory")}</p>}</details>; }
 function completeReadiness(row: Installment) { return Boolean(row.readiness_event_date && row.ready_to_invoice_at && row.readiness_confirmed_at && row.readiness_confirmed_by_user_id && row.readiness_evidence_json && Object.keys(row.readiness_evidence_json).length); }
 function chargeContext(charge: Charge) { return { clientId: charge.client_id, currency: charge.currency, caseId: charge.case_id, advisoryId: charge.advisory_matter_id }; }
 function incompatibilityReason(charge: Charge, anchor: ReturnType<typeof chargeContext> | null) {
   if (!anchor) return "";
-  if (charge.client_id !== anchor.clientId) return "รายการนี้เป็นของลูกค้าคนละราย";
-  if (charge.currency !== anchor.currency) return "รายการนี้ใช้สกุลเงินต่างกัน";
-  if (charge.case_id !== anchor.caseId || charge.advisory_matter_id !== anchor.advisoryId) return charge.case_id || charge.advisory_matter_id ? "รายการนี้เป็นของคนละคดี/งาน" : "รายการนี้ไม่ได้ผูกกับคดี/งานเดียวกัน";
+  if (charge.client_id !== anchor.clientId) return uiMessage("finance.invoice.composer.otherClient");
+  if (charge.currency !== anchor.currency) return uiMessage("finance.invoice.composer.otherCurrency");
+  if (charge.case_id !== anchor.caseId || charge.advisory_matter_id !== anchor.advisoryId) return charge.case_id || charge.advisory_matter_id ? uiMessage("finance.invoice.composer.otherMatter") : uiMessage("finance.invoice.composer.unlinkedMatterMismatch");
   return "";
 }
 function isUuid(value: string) { return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value); }
-function matterLabel(caseId: number | null, advisoryId: string | null, cases: CaseRow[], advisories: Advisory[]) { if (caseId) { const row = cases.find((item) => item.id === caseId); return row ? [row.file_no, row.title].filter(Boolean).join(" · ") : "คดีที่เชื่อมไว้"; } if (advisoryId) { const row = advisories.find((item) => item.id === advisoryId); return row ? [row.matter_no, row.title].filter(Boolean).join(" · ") : "งานที่ปรึกษาที่เชื่อมไว้"; } return "ไม่ผูกกับงานเฉพาะ"; }
-function classificationLabel(value: string | null) { return classifications.find(([id]) => id === value)?.[1] || "ยังไม่ระบุ"; }
-function taxLabel(charge: Charge) { return charge.price_tax_mode === "non_vat" ? "ไม่มี VAT" : charge.price_tax_mode === "vat_inclusive" ? `รวม VAT ${Number(charge.vat_rate)}% แล้ว` : `VAT ${Number(charge.vat_rate)}%`; }
-function thaiDate(value: string | null) { if (!value) return "-"; return new Intl.DateTimeFormat("th-TH", { dateStyle: "medium", timeZone: "Asia/Bangkok" }).format(new Date(`${value.slice(0, 10)}T12:00:00+07:00`)); }
-function thaiDateTime(value: string) { return new Intl.DateTimeFormat("th-TH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Bangkok" }).format(new Date(value)); }
-function auditLabel(value: string) { return value === "created" ? "สร้างร่างรายการ" : value === "draft_saved" ? "บันทึกร่าง" : value === "marked_ready" ? "ยืนยันพร้อมออกใบแจ้งหนี้" : value === "cancelled" ? "ยกเลิกรายการ" : value; }
+function matterLabel(caseId: number | null, advisoryId: string | null, cases: CaseRow[], advisories: Advisory[], locale: UiLocale) { const t = (key: string) => translate(locale, key); if (caseId) { const row = cases.find((item) => item.id === caseId); return row ? [row.file_no, row.title].filter(Boolean).join(" · ") : t("finance.invoice.composer.linkedCase"); } if (advisoryId) { const row = advisories.find((item) => item.id === advisoryId); return row ? [row.matter_no, row.title].filter(Boolean).join(" · ") : t("finance.invoice.composer.linkedAdvisory"); } return t("finance.invoice.composer.generalContext"); }
+function classificationLabel(value: string | null, locale: UiLocale) { return value && classifications.some(id => id === value) ? translate(locale, `finance.invoice.classification.${value}`) : translate(locale, "finance.invoice.classification.unspecified"); }
+function taxLabel(charge: Charge, locale: UiLocale) { const t = (key: string) => translate(locale, key); return charge.price_tax_mode === "non_vat" ? t("finance.invoice.ui.noVat") : charge.price_tax_mode === "vat_inclusive" ? translate(locale, "finance.invoice.ui.vatIncluded", { rate: Number(charge.vat_rate) }) : `VAT ${Number(charge.vat_rate)}%`; }
+function auditLabel(value: string, locale: UiLocale) { const t = (key: string) => translate(locale, key); return value === "created" ? t("finance.invoice.ui.audit.created") : value === "draft_saved" ? t("finance.invoice.ui.audit.draftSaved") : value === "marked_ready" ? t("finance.invoice.ui.audit.ready") : value === "cancelled" ? t("finance.invoice.ui.audit.cancelled") : value; }

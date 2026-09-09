@@ -8,6 +8,7 @@ import {
   DocumentPlatformPage,
   RiskBadge,
   StatusBadge,
+  statusLabel,
   canApproveDocumentPlatform,
   documentTypeLabel,
   formatDateTime,
@@ -17,6 +18,9 @@ import {
   useDocumentPlatformAccess,
 } from "../../document-platform-shared";
 import { supabase } from "../../../../lib/supabase";
+import { useI18n } from "@/lib/i18n/provider";
+import { uiMessage, type UiMessage, type UiLocale } from "@/lib/i18n/core";
+import { translate } from "@/lib/i18n/catalog";
 import styles from "../../document-platform.module.css";
 
 type JsonObject = Record<string, unknown>;
@@ -164,7 +168,7 @@ const vpLegalServicesClauseSequence = [
   { sectionCode: "NOTICES_GENERAL", clauseCode: "NOTICES-GENERAL-TERMS-TH", sectionNumber: 13 },
 ] as const;
 
-function certificationErrorMessage(error: unknown, fallback: string, scope: "family" | "version") {
+function certificationErrorMessage(error: unknown, fallback: UiMessage, scope: "family" | "version") {
   const message = error && typeof error === "object" && "message" in error
     ? String(error.message)
     : "";
@@ -172,44 +176,44 @@ function certificationErrorMessage(error: unknown, fallback: string, scope: "fam
   console.error(fallback, error);
 
   if (message.includes("Only draft document template families can be edited")) {
-    return "สถานะแม่แบบชุดนี้เปลี่ยนแปลงแล้ว กรุณารีเฟรชและตรวจสอบสถานะก่อนรับรองอีกครั้ง";
+    return uiMessage("settings.documents.template.certification.familyChanged");
   }
   if (message.includes("Only draft template versions can be edited")) {
-    return "เวอร์ชันนี้ไม่ใช่ฉบับร่างแล้ว กรุณารีเฟรชและตรวจสอบเวอร์ชันปัจจุบัน";
+    return uiMessage("settings.documents.template.certification.versionChanged");
   }
   if (message.includes("Not allowed to save document template")) {
-    return "บัญชีนี้ไม่มีสิทธิ์รับรองแม่แบบ กรุณาติดต่อ Admin หรือ Partner";
+    return uiMessage("settings.documents.template.certification.denied");
   }
   if (message.includes("Invalid document template version data")) {
-    return "ข้อมูลเวอร์ชันแม่แบบไม่ถูกต้อง กรุณารีเฟรชและลองรับรองอีกครั้ง";
+    return uiMessage("settings.documents.template.certification.invalid");
   }
   if (message.includes("Template effective date range is invalid")) {
-    return "ช่วงวันที่มีผลของเวอร์ชันแม่แบบไม่ถูกต้อง กรุณาตรวจสอบวันที่เริ่มต้นและสิ้นสุด";
+    return uiMessage("settings.documents.template.certification.dates");
   }
 
   const sanitizedMessage = message
     .split(/\r?\n/, 1)[0]
     .replace(/\b(?:DETAIL|HINT|CONTEXT):.*$/i, "")
-    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi, "[รหัสภายใน]")
+    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi, "[id]")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 240);
 
   if (sanitizedMessage) {
-    const prefix = scope === "family" ? "รับรองข้อมูลแม่แบบไม่สำเร็จ" : "รับรองเวอร์ชันไม่สำเร็จ";
-    return `${prefix}: ${sanitizedMessage}`;
+    return uiMessage(scope === "family" ? "settings.documents.template.certification.familyDiagnostic" : "settings.documents.template.certification.versionDiagnostic", { message: sanitizedMessage });
   }
 
   return fallback;
 }
 
 export default function DocumentTemplateDetailPage() {
+  const { t, text, locale } = useI18n();
   const params = useParams<{ id: string }>();
   const templateId = typeof params.id === "string" ? params.id : "";
   const access = useDocumentPlatformAccess();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [errorText, setErrorText] = useState("");
+  const [errorText, setErrorText] = useState<UiMessage | string>("");
   const [template, setTemplate] = useState<TemplateRow | null>(null);
   const [versions, setVersions] = useState<VersionRow[]>([]);
   const [selectedVersionId, setSelectedVersionId] = useState("");
@@ -264,7 +268,7 @@ export default function DocumentTemplateDetailPage() {
     ]);
 
     if (templateResult.error || versionsResult.error || !templateResult.data) {
-      setErrorText(friendlyError(templateResult.error || versionsResult.error, "ไม่สามารถโหลดแม่แบบเอกสารนี้ได้"));
+      setErrorText(friendlyError(templateResult.error || versionsResult.error, uiMessage("settings.documents.template.error.load")));
       setLoading(false);
       return;
     }
@@ -300,7 +304,7 @@ export default function DocumentTemplateDetailPage() {
       .limit(1000);
 
     if (sectionsResult.error) {
-      setErrorText(friendlyError(sectionsResult.error, "ไม่สามารถโหลดส่วนของเอกสารได้"));
+      setErrorText(friendlyError(sectionsResult.error, uiMessage("settings.documents.template.error.sections")));
       setLoading(false);
       return;
     }
@@ -316,7 +320,7 @@ export default function DocumentTemplateDetailPage() {
         .order("sort_order", { ascending: true })
         .limit(5000);
       if (slotsResult.error) {
-        setErrorText(friendlyError(slotsResult.error, "ไม่สามารถโหลดข้อสัญญาในแม่แบบได้"));
+        setErrorText(friendlyError(slotsResult.error, uiMessage("settings.documents.template.error.slots")));
         setLoading(false);
         return;
       }
@@ -331,7 +335,7 @@ export default function DocumentTemplateDetailPage() {
       .order("title", { ascending: true })
       .limit(1000);
     if (publishedClausesResult.error) {
-      setErrorText(friendlyError(publishedClausesResult.error, "ไม่สามารถโหลดคลังข้อสัญญาได้"));
+      setErrorText(friendlyError(publishedClausesResult.error, uiMessage("settings.documents.template.error.clauses")));
       setLoading(false);
       return;
     }
@@ -397,7 +401,7 @@ export default function DocumentTemplateDetailPage() {
       p_metadata_json: template.metadata_json || {},
     });
     if (error) {
-      setErrorText(friendlyError(error, "บันทึกข้อมูลแม่แบบไม่สำเร็จ"));
+      setErrorText(friendlyError(error, uiMessage("settings.documents.template.error.family")));
     } else {
       setEditingFamily(false);
       await loadWorkspace(selectedVersionId);
@@ -417,7 +421,7 @@ export default function DocumentTemplateDetailPage() {
       p_effective_to: effectiveTo || null,
     });
     if (error) {
-      setErrorText(friendlyError(error, "บันทึกข้อมูลเวอร์ชันไม่สำเร็จ"));
+      setErrorText(friendlyError(error, uiMessage("settings.documents.template.error.version")));
     } else {
       setEditingVersion(false);
       await loadWorkspace(selectedVersion.id);
@@ -427,7 +431,7 @@ export default function DocumentTemplateDetailPage() {
 
   const clonePublishedVersion = async () => {
     if (!selectedVersion || selectedVersion.status !== "published" || saving) return;
-    if (!window.confirm(`สร้างเวอร์ชันใหม่จากรุ่น ${selectedVersion.version_no} หรือไม่? เวอร์ชันที่เผยแพร่แล้วจะไม่ถูกแก้ไข และเวอร์ชันใหม่จะเริ่มเป็นฉบับร่างที่ต้องรับรองก่อนส่งตรวจ`)) return;
+    if (!window.confirm(t("settings.documents.template.confirmClone", { number: selectedVersion.version_no }))) return;
 
     setSaving(true);
     setErrorText("");
@@ -435,7 +439,7 @@ export default function DocumentTemplateDetailPage() {
       p_source_template_version_id: selectedVersion.id,
     });
     if (error || !data) {
-      setErrorText(friendlyError(error, "สร้างเวอร์ชันฉบับร่างใหม่ไม่สำเร็จ"));
+      setErrorText(friendlyError(error, uiMessage("settings.documents.template.error.clone")));
     } else {
       await loadWorkspace(String(data));
     }
@@ -445,15 +449,15 @@ export default function DocumentTemplateDetailPage() {
   const certifyTemplateReadiness = async () => {
     if (!template || !selectedVersion || !isDraft || !readinessPending || !canApprove || saving) return;
     if (template.status === "active" && !familyReadinessApproved) {
-      setErrorText("สถานะการรับรองของแม่แบบชุดนี้ไม่สอดคล้องกัน กรุณาให้ Admin ตรวจสอบก่อนรับรองเวอร์ชันนี้");
+      setErrorText(uiMessage("settings.documents.template.certification.inconsistent"));
       return;
     }
     if (!["draft", "active"].includes(template.status)) {
-      setErrorText("สถานะแม่แบบชุดนี้ไม่รองรับการรับรองเวอร์ชันร่าง กรุณารีเฟรชและให้ Admin ตรวจสอบ");
+      setErrorText(uiMessage("settings.documents.template.certification.unsupported"));
       return;
     }
     const confirmed = window.confirm(
-      "ยืนยันว่าได้ตรวจสอบโครงสร้างและถ้อยคำทางกฎหมายของแม่แบบนี้แล้ว และอนุมัติให้ใช้เป็นแม่แบบสำหรับการดำเนินงานจริง เมื่อรับรองแล้วจึงสามารถส่งแม่แบบเข้าสู่ขั้นตอนตรวจทานเพื่อเผยแพร่ได้",
+      t("settings.documents.template.certification.confirm"),
     );
     if (!confirmed) return;
 
@@ -476,7 +480,7 @@ export default function DocumentTemplateDetailPage() {
 
       if (familyResult.error) {
         await loadWorkspace(selectedVersion.id);
-        setErrorText(certificationErrorMessage(familyResult.error, "รับรองข้อมูลแม่แบบไม่สำเร็จ แม่แบบยังไม่พร้อมส่งตรวจ", "family"));
+        setErrorText(certificationErrorMessage(familyResult.error, uiMessage("settings.documents.template.certification.familyFallback"), "family"));
         setSaving(false);
         return;
       }
@@ -511,7 +515,7 @@ export default function DocumentTemplateDetailPage() {
 
     if (versionResult.error) {
       await loadWorkspace(selectedVersion.id);
-      setErrorText(certificationErrorMessage(versionResult.error, "รับรองเวอร์ชันไม่สำเร็จ ระบบยังไม่ถือว่าแม่แบบพร้อมใช้งาน โปรดลองอีกครั้ง", "version"));
+      setErrorText(certificationErrorMessage(versionResult.error, uiMessage("settings.documents.template.certification.versionFallback"), "version"));
       setSaving(false);
       return;
     }
@@ -542,7 +546,7 @@ export default function DocumentTemplateDetailPage() {
       p_metadata_json: sectionForm.metadata_json,
     });
     if (error) {
-      setErrorText(friendlyError(error, "บันทึกส่วนของเอกสารไม่สำเร็จ โปรดตรวจลำดับและข้อมูลอีกครั้ง"));
+      setErrorText(friendlyError(error, uiMessage("settings.documents.template.error.saveSection")));
     } else {
       setSectionForm(null);
       await loadWorkspace(selectedVersion.id);
@@ -575,7 +579,7 @@ export default function DocumentTemplateDetailPage() {
       p_metadata_json: slotForm.metadata_json,
     });
     if (error) {
-      setErrorText(friendlyError(error, "บันทึกตำแหน่งข้อสัญญาไม่สำเร็จ โปรดตรวจลำดับและข้อมูลอีกครั้ง"));
+      setErrorText(friendlyError(error, uiMessage("settings.documents.template.error.saveSlot")));
     } else {
       setSlotForm(null);
       await loadWorkspace(selectedVersion.id);
@@ -589,13 +593,13 @@ export default function DocumentTemplateDetailPage() {
     if (nextStatus === "under_review" && readinessPending) return;
     if (nextStatus === "published" && readinessPending) return;
     const label = nextStatus === "under_review"
-      ? "ส่งแม่แบบเวอร์ชันนี้ให้ตรวจ"
+      ? t("settings.documents.template.submit")
       : nextStatus === "draft"
-        ? "ส่งแม่แบบกลับเป็นร่าง"
+        ? t("settings.documents.template.return")
         : nextStatus === "published"
-          ? "เผยแพร่แม่แบบเวอร์ชันนี้"
-          : "ยกเลิกการใช้งานแม่แบบเวอร์ชันนี้";
-    if (!window.confirm(`${label} หรือไม่?`)) return;
+          ? t("settings.documents.template.publish")
+          : t("settings.documents.template.retire");
+    if (!window.confirm(t("settings.documents.clause.confirmAction", { action: label }))) return;
 
     setSaving(true);
     const { error } = await supabase.rpc("set_document_template_version_status", {
@@ -605,7 +609,7 @@ export default function DocumentTemplateDetailPage() {
       p_approval_reference: null,
     });
     if (error) {
-      setErrorText(friendlyError(error, "เปลี่ยนสถานะแม่แบบไม่สำเร็จ"));
+      setErrorText(friendlyError(error, uiMessage("settings.documents.template.error.transition")));
     } else {
       await loadWorkspace(selectedVersion.id);
     }
@@ -656,25 +660,25 @@ export default function DocumentTemplateDetailPage() {
   };
 
   return (
-    <DocumentPlatformPage title="Settings" subtitle="Document Template Workspace">
+    <DocumentPlatformPage title={t("settings.documents.title")} subtitle={t("settings.documents.template.workspace")}>
       <AccessState access={access} />
       {access.allowed ? (
         <>
           <div className={styles.toolbar}>
-            <Link href="/settings/document-templates" className={styles.linkButton}>กลับรายการแม่แบบ</Link>
-            <button type="button" className={styles.button} onClick={() => void loadWorkspace(selectedVersionId)} disabled={loading}>รีเฟรช</button>
+            <Link href="/settings/document-templates" className={styles.linkButton}>{t("settings.documents.template.back")}</Link>
+            <button type="button" className={styles.button} onClick={() => void loadWorkspace(selectedVersionId)} disabled={loading}>{t("settings.documents.actions.refresh")}</button>
           </div>
 
-          {errorText ? <div className={styles.error}>{errorText}</div> : null}
-          {loading ? <div className={styles.emptyState}>กำลังโหลดพื้นที่จัดการแม่แบบ...</div> : null}
-          {!loading && !template ? <div className={styles.emptyState}>ไม่พบแม่แบบเอกสาร</div> : null}
+          {errorText ? <div className={styles.error}>{text(errorText)}</div> : null}
+          {loading ? <div className={styles.emptyState}>{t("settings.documents.template.loading")}</div> : null}
+          {!loading && !template ? <div className={styles.emptyState}>{t("settings.documents.template.notFound")}</div> : null}
 
           {!loading && template ? (
             <>
               <header className={styles.pageHeader}>
                 <div>
                   <h1 className={styles.pageTitle}>{template.name}</h1>
-                  <p className={styles.pageDescription}>{template.template_code} · {documentTypeLabel(template.document_type)}</p>
+                  <p className={styles.pageDescription}>{template.template_code} · {documentTypeLabel(template.document_type, locale)}</p>
                 </div>
                 <div className={styles.actionRow}>
                   <StatusBadge status={selectedVersion?.status || template.status} />
@@ -684,43 +688,43 @@ export default function DocumentTemplateDetailPage() {
                       href={`/settings/document-templates/${template.id}/preview?version=${selectedVersion.id}`}
                       className={styles.buttonPrimary}
                     >
-                      ดูตัวอย่างแม่แบบ
+                      {t("settings.documents.template.preview")}
                     </Link>
                   ) : null}
                 </div>
               </header>
 
               <div className={styles.summaryGrid}>
-                <Summary label="ประเภทเอกสาร" value={documentTypeLabel(template.document_type)} />
-                <Summary label="ภาษา" value={languageLabel(selectedVersion?.language_code || template.language_code)} />
-                <Summary label="เวอร์ชัน" value={selectedVersion ? String(selectedVersion.version_no) : "-"} />
-                <Summary label="รูปแบบการแสดงผล" value={selectedVersion ? `รุ่น ${selectedVersion.renderer_schema_version}` : "-"} />
-                <Summary label="ส่วนของเอกสาร" value={`${sections.length} ส่วน`} />
-                <Summary label="ข้อสัญญา" value={`${slots.length} ข้อ`} />
-                <Summary label="ตรวจล่าสุด" value={formatDateTime(selectedVersion?.reviewed_at || selectedVersion?.updated_at || template.updated_at)} />
-                <Summary label="เผยแพร่ล่าสุด" value={formatDateTime(selectedVersion?.published_at)} />
+                <Summary label={t("settings.documents.fields.type")} value={documentTypeLabel(template.document_type, locale)} />
+                <Summary label={t("settings.documents.fields.language")} value={languageLabel(selectedVersion?.language_code || template.language_code, locale)} />
+                <Summary label={t("settings.documents.template.version")} value={selectedVersion ? String(selectedVersion.version_no) : "-"} />
+                <Summary label={t("settings.documents.template.renderer")} value={selectedVersion ? t("settings.documents.count.version", { number: selectedVersion.renderer_schema_version }) : "-"} />
+                <Summary label={t("settings.documents.template.sections")} value={t("settings.documents.count.sections", { count: sections.length })} />
+                <Summary label={t("settings.documents.clause.clause")} value={t("settings.documents.count.clauses", { count: slots.length })} />
+                <Summary label={t("settings.documents.template.lastReviewed")} value={formatDateTime(selectedVersion?.reviewed_at || selectedVersion?.updated_at || template.updated_at, locale)} />
+                <Summary label={t("settings.documents.template.lastPublished")} value={formatDateTime(selectedVersion?.published_at, locale)} />
               </div>
 
               {activeFamilyReadinessInconsistent ? (
                 <div className={styles.notice}>
-                  สถานะการรับรองของแม่แบบชุดนี้ไม่สอดคล้องกัน กรุณาให้ Admin ตรวจสอบก่อนรับรองหรือส่งตรวจเวอร์ชันนี้
+                  {t("settings.documents.template.certification.inconsistentReview")}
                 </div>
               ) : null}
 
               {!activeFamilyReadinessInconsistent && isDraft && !versionReadinessApproved ? (
                 <div className={styles.notice}>
-                  แม่แบบเวอร์ชันนี้ยังไม่ได้รับรองโครงสร้างและถ้อยคำทางกฎหมาย จึงยังไม่สามารถส่งตรวจได้
+                  {t("settings.documents.template.certification.pending")}
                 </div>
               ) : null}
 
               {isDraft && !readinessPending ? (
                 <div className={styles.notice}>
-                  แม่แบบเวอร์ชันนี้ได้รับการรับรองว่าพร้อมสำหรับการส่งตรวจ
+                  {t("settings.documents.template.certification.ready")}
                 </div>
               ) : null}
 
               {versions.length > 0 ? (
-                <div className={styles.versionTabs} aria-label="เวอร์ชันแม่แบบ">
+                <div className={styles.versionTabs} aria-label={t("settings.documents.template.versions")}>
                   {versions.map((version) => (
                     <button
                       key={version.id}
@@ -728,7 +732,7 @@ export default function DocumentTemplateDetailPage() {
                       className={version.id === selectedVersionId ? styles.versionTabActive : styles.versionTab}
                       onClick={() => void loadWorkspace(version.id)}
                     >
-                      รุ่น {version.version_no} · {languageLabel(version.language_code)} · {version.status === "under_review" ? "ส่งตรวจ" : version.status === "published" ? "เผยแพร่" : version.status === "retired" ? "ยกเลิกใช้" : "ร่าง"}
+                      {t("settings.documents.count.version", { number: version.version_no })} · {languageLabel(version.language_code, locale)} · {version.status === "under_review" ? t("settings.documents.status.under_review") : version.status === "published" ? t("settings.documents.clause.publishAction") : version.status === "retired" ? t("settings.documents.status.retired") : t("settings.documents.status.draft")}
                     </button>
                   ))}
                 </div>
@@ -737,25 +741,25 @@ export default function DocumentTemplateDetailPage() {
               <section className={styles.section}>
                 <div className={styles.sectionHeader}>
                   <div>
-                    <h2 className={styles.sectionTitle}>ข้อมูลแม่แบบและเวอร์ชัน</h2>
-                    <div className={styles.helperText}>แก้ไขได้เฉพาะแม่แบบและเวอร์ชันที่ยังเป็นร่าง</div>
+                    <h2 className={styles.sectionTitle}>{t("settings.documents.template.details")}</h2>
+                    <div className={styles.helperText}>{t("settings.documents.template.detailsHelp")}</div>
                   </div>
                   {isDraft ? (
                     <div className={styles.actionRow}>
-                      <button type="button" className={styles.button} onClick={toggleFamilyEditor}>แก้ชื่อแม่แบบ</button>
-                      <button type="button" className={styles.button} onClick={toggleVersionEditor}>แก้ช่วงวันที่</button>
+                      <button type="button" className={styles.button} onClick={toggleFamilyEditor}>{t("settings.documents.template.rename")}</button>
+                      <button type="button" className={styles.button} onClick={toggleVersionEditor}>{t("settings.documents.template.editDates")}</button>
                     </div>
                   ) : null}
                 </div>
 
                 {editingFamily ? (
                   <div ref={familyEditorRef} className={`${styles.formPanel} ${styles.editorScrollTarget}`}>
-                    <label className={styles.fieldWide}>ชื่อแม่แบบ
+                    <label className={styles.fieldWide}>{t("settings.documents.template.name")}
                       <input className={styles.input} value={familyName} onChange={(event) => setFamilyName(event.target.value)} />
                     </label>
                     <div className={styles.actionRow}>
-                      <button type="button" className={styles.buttonPrimary} onClick={() => void saveFamily()} disabled={saving || !familyName.trim()}>บันทึกชื่อแม่แบบ</button>
-                      <button type="button" className={styles.button} onClick={() => setEditingFamily(false)}>ยกเลิก</button>
+                      <button type="button" className={styles.buttonPrimary} onClick={() => void saveFamily()} disabled={saving || !familyName.trim()}>{t("settings.documents.template.saveName")}</button>
+                      <button type="button" className={styles.button} onClick={() => setEditingFamily(false)}>{t("settings.documents.actions.cancel")}</button>
                     </div>
                   </div>
                 ) : null}
@@ -763,16 +767,16 @@ export default function DocumentTemplateDetailPage() {
                 {editingVersion ? (
                   <div ref={versionEditorRef} className={`${styles.formPanel} ${styles.editorScrollTarget}`}>
                     <div className={styles.formGrid}>
-                      <label className={styles.field}>เริ่มใช้วันที่
+                      <label className={styles.field}>{t("settings.documents.template.startDate")}
                         <input type="date" className={styles.input} value={effectiveFrom} onChange={(event) => setEffectiveFrom(event.target.value)} />
                       </label>
-                      <label className={styles.field}>สิ้นสุดวันที่
+                      <label className={styles.field}>{t("settings.documents.template.endDate")}
                         <input type="date" className={styles.input} value={effectiveTo} onChange={(event) => setEffectiveTo(event.target.value)} />
                       </label>
                     </div>
                     <div className={styles.actionRow}>
-                      <button type="button" className={styles.buttonPrimary} onClick={() => void saveVersion()} disabled={saving}>บันทึกข้อมูลเวอร์ชัน</button>
-                      <button type="button" className={styles.button} onClick={() => setEditingVersion(false)}>ยกเลิก</button>
+                      <button type="button" className={styles.buttonPrimary} onClick={() => void saveVersion()} disabled={saving}>{t("settings.documents.template.saveVersion")}</button>
+                      <button type="button" className={styles.button} onClick={() => setEditingVersion(false)}>{t("settings.documents.actions.cancel")}</button>
                     </div>
                   </div>
                 ) : null}
@@ -781,10 +785,10 @@ export default function DocumentTemplateDetailPage() {
               <section className={styles.section}>
                 <div className={styles.sectionHeader}>
                   <div>
-                    <h2 className={styles.sectionTitle}>ส่วนของเอกสาร</h2>
-                    <div className={styles.helperText}>เรียงตามลำดับที่บันทึกไว้ในแม่แบบ</div>
+                    <h2 className={styles.sectionTitle}>{t("settings.documents.template.sections")}</h2>
+                    <div className={styles.helperText}>{t("settings.documents.template.sectionOrder")}</div>
                   </div>
-                  {isDraft ? <button type="button" className={styles.buttonPrimary} onClick={openNewSection}>เพิ่มส่วนของเอกสาร</button> : null}
+                  {isDraft ? <button type="button" className={styles.buttonPrimary} onClick={openNewSection}>{t("settings.documents.template.addSection")}</button> : null}
                 </div>
 
                 {sectionForm ? (
@@ -809,7 +813,7 @@ export default function DocumentTemplateDetailPage() {
                   </div>
                 ) : null}
 
-                {sections.length === 0 ? <div className={styles.emptyState}>ยังไม่มีส่วนของเอกสารในเวอร์ชันนี้</div> : (
+                {sections.length === 0 ? <div className={styles.emptyState}>{t("settings.documents.template.noSections")}</div> : (
                   <div className={styles.sectionList}>
                     {sections.map((section) => {
                       const sectionSlots = slots.filter((slot) => slot.template_section_id === section.id);
@@ -821,22 +825,22 @@ export default function DocumentTemplateDetailPage() {
                               <div className={styles.primaryText}>{section.title}</div>
                               <div className={styles.codeText}>{section.section_code}</div>
                               <div className={styles.badgeRow}>
-                                <span className={styles.badge}>{section.is_required ? "บังคับ" : "เลือกใช้"}</span>
-                                <span className={styles.badge}>{sectionKindLabel(section.section_kind)}</span>
+                                <span className={styles.badge}>{section.is_required ? t("settings.documents.template.mandatory") : t("settings.documents.template.optional")}</span>
+                                <span className={styles.badge}>{sectionKindLabel(section.section_kind, locale)}</span>
                                 <RiskBadge risk={section.risk_level} />
-                                <span className={styles.badge}>{slotCountBySection.get(section.id) || 0} ข้อสัญญา</span>
+                                <span className={styles.badge}>{slotCountBySection.get(section.id) || 0} {t("settings.documents.clause.clause")}</span>
                               </div>
                             </div>
                             {isDraft ? (
                               <div className={styles.actionRow}>
-                                <button type="button" className={styles.button} onClick={() => openSectionEditor(section)}>แก้ไขส่วน</button>
-                                <button type="button" className={styles.button} onClick={() => openNewSlot(section)}>เพิ่มข้อสัญญา</button>
+                                <button type="button" className={styles.button} onClick={() => openSectionEditor(section)}>{t("settings.documents.template.editSection")}</button>
+                                <button type="button" className={styles.button} onClick={() => openNewSlot(section)}>{t("settings.documents.template.addClause")}</button>
                               </div>
                             ) : null}
                           </div>
                           <div className={styles.sectionBody}>
                             {sectionSlots.length === 0 ? (
-                              <div className={styles.emptyState}>{emptySectionClauseMessage(section.section_kind)}</div>
+                              <div className={styles.emptyState}>{emptySectionClauseMessage(section.section_kind, locale)}</div>
                             ) : (
                               <div className={styles.slotList}>
                                 {sectionSlots.map((slot) => {
@@ -846,21 +850,21 @@ export default function DocumentTemplateDetailPage() {
                                     <div key={slot.id} className={styles.slotRow}>
                                       <div>
                                         <div className={styles.primaryText}>{slot.display_label || slot.display_number || slot.slot_code}</div>
-                                        <div>{clause?.title || "ยังไม่ได้เลือกข้อสัญญาจากคลัง"}</div>
+                                        <div>{clause?.title || t("settings.documents.template.noClause")}</div>
                                         <div className={styles.muted}>
                                           {family?.clause_code || slot.slot_code}
-                                          {clause ? ` · รุ่น ${clause.version_no} · ${languageLabel(clause.language_code)}` : ""}
+                                          {clause ? ` · ${t("settings.documents.count.version", { number: clause.version_no })} · ${languageLabel(clause.language_code, locale)}` : ""}
                                         </div>
                                         <div className={styles.badgeRow}>
-                                          <span className={styles.badge}>{slot.is_required ? "บังคับ" : "เลือกใช้"}</span>
-                                          <span className={styles.badge}>{clauseTypeLabel(slot.clause_type)}</span>
+                                          <span className={styles.badge}>{slot.is_required ? t("settings.documents.template.mandatory") : t("settings.documents.template.optional")}</span>
+                                          <span className={styles.badge}>{clauseTypeLabel(slot.clause_type, locale)}</span>
                                           <RiskBadge risk={slot.risk_level} />
-                                          {slot.allow_override ? <span className={styles.badge}>แก้เฉพาะเอกสารได้</span> : null}
-                                          {slot.allow_suppress ? <span className={styles.badge}>ซ่อนได้</span> : null}
-                                          {slot.allow_custom_after ? <span className={styles.badge}>เพิ่มข้อความต่อท้ายได้</span> : null}
+                                          {slot.allow_override ? <span className={styles.badge}>{t("settings.documents.template.override")}</span> : null}
+                                          {slot.allow_suppress ? <span className={styles.badge}>{t("settings.documents.template.suppress")}</span> : null}
+                                          {slot.allow_custom_after ? <span className={styles.badge}>{t("settings.documents.template.customAfter")}</span> : null}
                                         </div>
                                       </div>
-                                      {isDraft ? <button type="button" className={styles.button} onClick={() => openSlotEditor(slot)}>แก้ไขข้อสัญญา</button> : null}
+                                      {isDraft ? <button type="button" className={styles.button} onClick={() => openSlotEditor(slot)}>{t("settings.documents.template.editClause")}</button> : null}
                                     </div>
                                   );
                                 })}
@@ -877,13 +881,13 @@ export default function DocumentTemplateDetailPage() {
               <section className={styles.section}>
                 <div className={styles.sectionHeader}>
                   <div>
-                    <h2 className={styles.sectionTitle}>สถานะเวอร์ชัน</h2>
-                    <div className={styles.helperText}>การเผยแพร่และยกเลิกการใช้งานเป็นอำนาจของ Admin และ Partner</div>
+                    <h2 className={styles.sectionTitle}>{t("settings.documents.template.versionStatus")}</h2>
+                    <div className={styles.helperText}>{t("settings.documents.template.approvalAuthority")}</div>
                   </div>
                   <div className={styles.actionRow}>
                     {selectedVersion?.status === "draft" && readinessPending && !activeFamilyReadinessInconsistent && canApprove ? (
                       <button type="button" className={styles.buttonPrimary} onClick={() => void certifyTemplateReadiness()} disabled={saving}>
-                        รับรองแม่แบบพร้อมใช้งาน
+                        {t("settings.documents.template.certify")}
                       </button>
                     ) : null}
                     {selectedVersion?.status === "draft" ? (
@@ -892,18 +896,18 @@ export default function DocumentTemplateDetailPage() {
                         className={styles.buttonPrimary}
                         onClick={() => void transitionVersion("under_review")}
                         disabled={saving || readinessPending}
-                        title={readinessPending ? "ต้องรับรองแม่แบบพร้อมใช้งานก่อนส่งตรวจ" : undefined}
+                        title={readinessPending ? t("settings.documents.template.certifyFirst") : undefined}
                       >
-                        ส่งตรวจ
+                        {t("settings.documents.status.under_review")}
                       </button>
                     ) : null}
-                    {selectedVersion?.status === "under_review" ? <button type="button" className={styles.button} onClick={() => void transitionVersion("draft")} disabled={saving}>ส่งกลับเป็นร่าง</button> : null}
-                    {selectedVersion?.status === "under_review" && canApprove ? <button type="button" className={styles.buttonPrimary} onClick={() => void transitionVersion("published")} disabled={saving || readinessPending}>เผยแพร่</button> : null}
-                    {selectedVersion?.status === "published" && isLatestLanguageVersion ? <button type="button" className={styles.buttonPrimary} onClick={() => void clonePublishedVersion()} disabled={saving}>สร้างเวอร์ชันใหม่</button> : null}
-                    {selectedVersion?.status === "published" && canApprove ? <button type="button" className={styles.buttonDanger} onClick={() => void transitionVersion("retired")} disabled={saving}>ยกเลิกการใช้งาน</button> : null}
+                    {selectedVersion?.status === "under_review" ? <button type="button" className={styles.button} onClick={() => void transitionVersion("draft")} disabled={saving}>{t("settings.documents.clause.returnDraft")}</button> : null}
+                    {selectedVersion?.status === "under_review" && canApprove ? <button type="button" className={styles.buttonPrimary} onClick={() => void transitionVersion("published")} disabled={saving || readinessPending}>{t("settings.documents.clause.publishAction")}</button> : null}
+                    {selectedVersion?.status === "published" && isLatestLanguageVersion ? <button type="button" className={styles.buttonPrimary} onClick={() => void clonePublishedVersion()} disabled={saving}>{t("settings.documents.clause.createVersion")}</button> : null}
+                    {selectedVersion?.status === "published" && canApprove ? <button type="button" className={styles.buttonDanger} onClick={() => void transitionVersion("retired")} disabled={saving}>{t("settings.documents.status.retired")}</button> : null}
                   </div>
                 </div>
-                {selectedVersion && selectedVersion.status !== "draft" ? <div className={styles.notice}>เวอร์ชันสถานะนี้เป็นแบบอ่านอย่างเดียว โครงสร้างและข้อสัญญาไม่สามารถแก้ไขได้</div> : null}
+                {selectedVersion && selectedVersion.status !== "draft" ? <div className={styles.notice}>{t("settings.documents.template.readOnly")}</div> : null}
               </section>
             </>
           ) : null}
@@ -918,31 +922,33 @@ function Summary({ label, value }: { label: string; value: string }) {
 }
 
 function SectionEditor({ form, setForm, sections, saving, onSave }: { form: SectionForm; setForm: (form: SectionForm | null) => void; sections: SectionRow[]; saving: boolean; onSave: () => Promise<void> }) {
+  const { t, locale } = useI18n();
   return (
     <div className={styles.formPanel}>
-      <div className={styles.sectionHeader}><h3 className={styles.sectionTitle}>{form.id ? "แก้ไขส่วนของเอกสาร" : "เพิ่มส่วนของเอกสาร"}</h3><button type="button" className={styles.button} onClick={() => setForm(null)}>ปิด</button></div>
+      <div className={styles.sectionHeader}><h3 className={styles.sectionTitle}>{form.id ? t("settings.documents.template.editSectionTitle") : t("settings.documents.template.addSection")}</h3><button type="button" className={styles.button} onClick={() => setForm(null)}>{t("settings.documents.actions.close")}</button></div>
       <div className={styles.formGrid}>
-        <label className={styles.field}>รหัสส่วน<input className={styles.input} value={form.section_code} onChange={(event) => setForm({ ...form, section_code: event.target.value.toUpperCase() })} /></label>
-        <label className={styles.fieldWide}>ชื่อส่วนภาษาไทย<input className={styles.input} value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
-        <label className={styles.field}>ลำดับ<input type="number" min="1" className={styles.input} value={form.sort_order} onChange={(event) => setForm({ ...form, sort_order: Number(event.target.value || 0) })} /></label>
-        <label className={styles.field}>ส่วนหลัก<select className={styles.select} value={form.parent_section_id} onChange={(event) => setForm({ ...form, parent_section_id: event.target.value })}><option value="">ไม่มี</option>{sections.filter((section) => section.id !== form.id).map((section) => <option key={section.id} value={section.id}>{section.title}</option>)}</select></label>
-        <label className={styles.field}>เลขที่แสดง<input className={styles.input} value={form.display_number} onChange={(event) => setForm({ ...form, display_number: event.target.value })} /></label>
-        <label className={styles.field}>ป้ายกำกับ<input className={styles.input} value={form.display_label} onChange={(event) => setForm({ ...form, display_label: event.target.value })} /></label>
-        <label className={styles.field}>รูปแบบเลข<select className={styles.select} value={form.numbering_style} onChange={(event) => setForm({ ...form, numbering_style: event.target.value })}>{numberingStyles.map((value) => <option key={value} value={value}>{numberingStyleLabel(value)}</option>)}</select></label>
-        <label className={styles.field}>ระดับเลข<input type="number" min="0" max="8" className={styles.input} value={form.numbering_depth} onChange={(event) => setForm({ ...form, numbering_depth: Number(event.target.value || 0) })} /></label>
-        <label className={styles.field}>ประเภทส่วน<select className={styles.select} value={form.section_kind} onChange={(event) => setForm({ ...form, section_kind: event.target.value })}>{sectionKinds.map((value) => <option key={value} value={value}>{sectionKindLabel(value)}</option>)}</select></label>
-        <label className={styles.field}>ระดับความสำคัญ<select className={styles.select} value={form.risk_level} onChange={(event) => setForm({ ...form, risk_level: event.target.value })}>{riskLevels.map((value) => <option key={value || "none"} value={value}>{value ? riskLabel(value) : "ไม่ระบุ"}</option>)}</select></label>
+        <label className={styles.field}>{t("settings.documents.template.sectionCode")}<input className={styles.input} value={form.section_code} onChange={(event) => setForm({ ...form, section_code: event.target.value.toUpperCase() })} /></label>
+        <label className={styles.fieldWide}>{t("settings.documents.template.sectionName")}<input className={styles.input} value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
+        <label className={styles.field}>{t("settings.documents.template.order")}<input type="number" min="1" className={styles.input} value={form.sort_order} onChange={(event) => setForm({ ...form, sort_order: Number(event.target.value || 0) })} /></label>
+        <label className={styles.field}>{t("settings.documents.template.parent")}<select className={styles.select} value={form.parent_section_id} onChange={(event) => setForm({ ...form, parent_section_id: event.target.value })}><option value="">{t("settings.documents.template.none")}</option>{sections.filter((section) => section.id !== form.id).map((section) => <option key={section.id} value={section.id}>{section.title}</option>)}</select></label>
+        <label className={styles.field}>{t("settings.documents.template.displayNumber")}<input className={styles.input} value={form.display_number} onChange={(event) => setForm({ ...form, display_number: event.target.value })} /></label>
+        <label className={styles.field}>{t("settings.documents.template.displayLabel")}<input className={styles.input} value={form.display_label} onChange={(event) => setForm({ ...form, display_label: event.target.value })} /></label>
+        <label className={styles.field}>{t("settings.documents.template.numberStyle")}<select className={styles.select} value={form.numbering_style} onChange={(event) => setForm({ ...form, numbering_style: event.target.value })}>{numberingStyles.map((value) => <option key={value} value={value}>{numberingStyleLabel(value, locale)}</option>)}</select></label>
+        <label className={styles.field}>{t("settings.documents.template.numberDepth")}<input type="number" min="0" max="8" className={styles.input} value={form.numbering_depth} onChange={(event) => setForm({ ...form, numbering_depth: Number(event.target.value || 0) })} /></label>
+        <label className={styles.field}>{t("settings.documents.template.sectionKind")}<select className={styles.select} value={form.section_kind} onChange={(event) => setForm({ ...form, section_kind: event.target.value })}>{sectionKinds.map((value) => <option key={value} value={value}>{sectionKindLabel(value, locale)}</option>)}</select></label>
+        <label className={styles.field}>{t("settings.documents.template.importance")}<select className={styles.select} value={form.risk_level} onChange={(event) => setForm({ ...form, risk_level: event.target.value })}>{riskLevels.map((value) => <option key={value || "none"} value={value}>{value ? riskLabel(value, locale) : t("settings.documents.template.unspecified")}</option>)}</select></label>
       </div>
       <div className={styles.checkRow}>
-        <label><input type="checkbox" checked={form.is_required} onChange={(event) => setForm({ ...form, is_required: event.target.checked })} /> บังคับใช้</label>
-        <label><input type="checkbox" checked={form.allow_custom_after} onChange={(event) => setForm({ ...form, allow_custom_after: event.target.checked })} /> อนุญาตข้อความเพิ่มเติมต่อท้าย</label>
+        <label><input type="checkbox" checked={form.is_required} onChange={(event) => setForm({ ...form, is_required: event.target.checked })} /> {t("settings.documents.template.required")}</label>
+        <label><input type="checkbox" checked={form.allow_custom_after} onChange={(event) => setForm({ ...form, allow_custom_after: event.target.checked })} /> {t("settings.documents.template.allowAfter")}</label>
       </div>
-      <div className={styles.actionRow}><button type="button" className={styles.buttonPrimary} onClick={() => void onSave()} disabled={saving || !form.section_code.trim() || !form.title.trim() || form.sort_order < 1}>บันทึกส่วนของเอกสาร</button></div>
+      <div className={styles.actionRow}><button type="button" className={styles.buttonPrimary} onClick={() => void onSave()} disabled={saving || !form.section_code.trim() || !form.title.trim() || form.sort_order < 1}>{t("settings.documents.template.saveSection")}</button></div>
     </div>
   );
 }
 
 function SlotEditor({ form, setForm, clauseVersions, clauseFamilies, sections, slots, templateCode, saving, onSave }: { form: SlotForm; setForm: (form: SlotForm | null) => void; clauseVersions: ClauseVersionRow[]; clauseFamilies: ClauseFamilyRow[]; sections: SectionRow[]; slots: SlotRow[]; templateCode: string; saving: boolean; onSave: () => Promise<void> }) {
+  const { t, locale } = useI18n();
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [slotCodeEdited, setSlotCodeEdited] = useState(Boolean(form.id));
   const [riskEdited, setRiskEdited] = useState(Boolean(form.id));
@@ -1002,17 +1008,17 @@ function SlotEditor({ form, setForm, clauseVersions, clauseFamilies, sections, s
 
   const optionLabel = (clauseCode: string, clause: ClauseVersionRow) => {
     if (templateCode !== "VP-FA-LEGAL-SERVICES") {
-      return `${clauseCode || "ข้อสัญญา"} · ${clause.title} · รุ่น ${clause.version_no}${clause.status !== "published" ? ` (${clause.status})` : ""}`;
+      return `${clauseCode || t("settings.documents.clause.clause")} · ${clause.title} · ${t("settings.documents.count.version", { number: clause.version_no })}${clause.status !== "published" ? ` (${statusLabel(clause.status, locale)})` : ""}`;
     }
     const logicalEntry = vpLegalServicesClauseSequence.find((item) => item.clauseCode === clauseCode);
     const logicalSection = logicalEntry
       ? sections.find((section) => section.section_code === logicalEntry.sectionCode)
       : null;
     const sectionLabel = logicalEntry
-      ? logicalSection?.display_label || logicalSection?.display_number || `ข้อ ${logicalEntry.sectionNumber}`
+      ? logicalSection?.display_label || logicalSection?.display_number || t("settings.documents.template.sectionNumber", { number: logicalEntry.sectionNumber })
       : "";
     const prefix = sectionLabel ? `${sectionLabel} · ` : "";
-    return `${prefix}${clauseCode || "ข้อสัญญา"} · ${clause.title} · รุ่น ${clause.version_no}${clause.status !== "published" ? ` (${clause.status})` : ""}`;
+    return `${prefix}${clauseCode || t("settings.documents.clause.clause")} · ${clause.title} · ${t("settings.documents.count.version", { number: clause.version_no })}${clause.status !== "published" ? ` (${statusLabel(clause.status, locale)})` : ""}`;
   };
 
   const handleClauseChange = (clauseVersionId: string) => {
@@ -1038,45 +1044,45 @@ function SlotEditor({ form, setForm, clauseVersions, clauseFamilies, sections, s
   };
 
   const currentSectionLabel = currentSection
-    ? `${currentSection.display_label || currentSection.display_number || `ลำดับ ${currentSection.sort_order}`} ${currentSection.title}`
-    : "ไม่พบข้อมูล Section";
+    ? `${currentSection.display_label || currentSection.display_number || t("settings.documents.template.orderNumber", { number: currentSection.sort_order })} ${currentSection.title}`
+    : t("settings.documents.template.sectionMissing");
   const expectedSectionLabel = expectedSection
-    ? `${expectedSection.display_label || expectedSection.display_number || `ลำดับ ${expectedSection.sort_order}`} ${expectedSection.title}`
+    ? `${expectedSection.display_label || expectedSection.display_number || t("settings.documents.template.orderNumber", { number: expectedSection.sort_order })} ${expectedSection.title}`
     : "";
 
   return (
     <div className={styles.formPanel}>
-      <div className={styles.sectionHeader}><h3 className={styles.sectionTitle}>{form.id ? "แก้ไขตำแหน่งข้อสัญญา" : "เพิ่มตำแหน่งข้อสัญญา"}</h3><button type="button" className={styles.button} onClick={() => setForm(null)}>ปิด</button></div>
-      <div className={styles.targetContext}>{form.id ? "กำลังแก้ไขข้อสัญญาใน:" : "กำลังเพิ่มข้อสัญญาใน:"} <strong>{currentSectionLabel}</strong></div>
+      <div className={styles.sectionHeader}><h3 className={styles.sectionTitle}>{form.id ? t("settings.documents.template.editSlot") : t("settings.documents.template.addSlot")}</h3><button type="button" className={styles.button} onClick={() => setForm(null)}>{t("settings.documents.actions.close")}</button></div>
+      <div className={styles.targetContext}>{form.id ? t("settings.documents.template.editingIn") : t("settings.documents.template.addingIn")} <strong>{currentSectionLabel}</strong></div>
       <div className={styles.formGrid}>
-        <label className={styles.fieldWide}>ข้อสัญญาจากคลัง<select className={styles.select} value={form.clause_version_id} onChange={(event) => handleClauseChange(event.target.value)}><option value="">ยังไม่เลือกข้อสัญญา</option>{clauseOptions.map(({ clause, clauseCode }) => <option key={clause.id} value={clause.id}>{optionLabel(clauseCode, clause)}</option>)}</select></label>
-        <label className={styles.field}>ประเภทข้อ<select className={styles.select} value={form.clause_type} onChange={(event) => setForm({ ...form, clause_type: event.target.value })}>{clauseTypes.map((value) => <option key={value} value={value}>{clauseTypeLabel(value)}</option>)}</select></label>
-        <label className={styles.field}>ระดับความสำคัญ<select className={styles.select} value={form.risk_level} onChange={(event) => { setRiskEdited(true); setForm({ ...form, risk_level: event.target.value }); }}>{riskLevels.map((value) => <option key={value || "none"} value={value}>{value ? riskLabel(value) : "ไม่ระบุ"}</option>)}</select></label>
+        <label className={styles.fieldWide}>{t("settings.documents.template.libraryClause")}<select className={styles.select} value={form.clause_version_id} onChange={(event) => handleClauseChange(event.target.value)}><option value="">{t("settings.documents.template.clauseUnselected")}</option>{clauseOptions.map(({ clause, clauseCode }) => <option key={clause.id} value={clause.id}>{optionLabel(clauseCode, clause)}</option>)}</select></label>
+        <label className={styles.field}>{t("settings.documents.template.clauseType")}<select className={styles.select} value={form.clause_type} onChange={(event) => setForm({ ...form, clause_type: event.target.value })}>{clauseTypes.map((value) => <option key={value} value={value}>{clauseTypeLabel(value, locale)}</option>)}</select></label>
+        <label className={styles.field}>{t("settings.documents.template.importance")}<select className={styles.select} value={form.risk_level} onChange={(event) => { setRiskEdited(true); setForm({ ...form, risk_level: event.target.value }); }}>{riskLevels.map((value) => <option key={value || "none"} value={value}>{value ? riskLabel(value, locale) : t("settings.documents.template.unspecified")}</option>)}</select></label>
       </div>
-      {sectionMismatch ? <div className={styles.formWarning}>ข้อสัญญานี้โดยปกติใช้กับ <strong>{expectedSectionLabel}</strong> แต่ยังสามารถเลือกใช้ข้าม Section ได้</div> : null}
+      {sectionMismatch ? <div className={styles.formWarning}>{t("settings.documents.template.usualSection")} <strong>{expectedSectionLabel}</strong> {t("settings.documents.template.crossSection")}</div> : null}
       <div className={styles.checkRow}>
-        <label><input type="checkbox" checked={form.is_required} onChange={(event) => setForm({ ...form, is_required: event.target.checked, allow_suppress: event.target.checked ? false : form.allow_suppress })} /> บังคับใช้</label>
+        <label><input type="checkbox" checked={form.is_required} onChange={(event) => setForm({ ...form, is_required: event.target.checked, allow_suppress: event.target.checked ? false : form.allow_suppress })} /> {t("settings.documents.template.required")}</label>
       </div>
       <details className={styles.advancedPanel} open={advancedOpen} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}>
-        <summary className={styles.advancedSummary}>ตัวเลือกขั้นสูง</summary>
+        <summary className={styles.advancedSummary}>{t("settings.documents.template.advanced")}</summary>
         <div className={styles.advancedBody}>
           <div className={styles.formGrid}>
-            <label className={styles.field}>รหัสตำแหน่ง<input className={styles.input} value={form.slot_code} onChange={(event) => { setSlotCodeEdited(true); setForm({ ...form, slot_code: event.target.value.toUpperCase() }); }} /><span className={styles.helperText}>รหัสภายในของตำแหน่งข้อสัญญา ระบบสร้างให้อัตโนมัติจากข้อสัญญาที่เลือก โดยทั่วไปไม่ต้องแก้</span></label>
-            <label className={styles.field}>ลำดับ<input type="number" min="1" className={styles.input} value={form.sort_order} onChange={(event) => setForm({ ...form, sort_order: Number(event.target.value || 0) })} /><span className={styles.helperText}>ลำดับของข้อสัญญาภายในส่วนนี้ เช่น 1, 2, 3</span></label>
-            <label className={styles.field}>เลขที่แสดง<input className={styles.input} value={form.display_number} onChange={(event) => setForm({ ...form, display_number: event.target.value })} /></label>
-            <label className={styles.field}>ป้ายกำกับ<input className={styles.input} value={form.display_label} onChange={(event) => setForm({ ...form, display_label: event.target.value })} /><span className={styles.helperText}>ข้อความกำกับเฉพาะตำแหน่ง เช่น (ก), (ข) หรือชื่อย่อย หากไม่ต้องการให้เว้นว่าง</span></label>
-            <label className={styles.field}>รูปแบบเลข<select className={styles.select} value={form.numbering_style} onChange={(event) => setForm({ ...form, numbering_style: event.target.value })}>{numberingStyles.map((value) => <option key={value} value={value}>{numberingStyleLabel(value)}</option>)}</select>{form.numbering_style === "none" ? <span className={styles.helperText}>ใช้เมื่อ Section เป็นผู้แสดงเลขข้ออยู่แล้ว เพื่อไม่ให้เลขซ้ำ</span> : null}</label>
-            <label className={styles.field}>ระดับเลข<input type="number" min="0" max="8" className={styles.input} value={form.numbering_depth} onChange={(event) => setForm({ ...form, numbering_depth: Number(event.target.value || 0) })} /><span className={styles.helperText}>ระดับชั้นของเลขข้อ เช่น 1 → ข้อหลัก, 2 → ข้อย่อย, 3 → ข้อย่อยชั้นถัดไป</span>{form.numbering_style === "none" ? <span className={styles.helperText}>ระดับเลขนี้จะไม่แสดงในเอกสารฉบับสุดท้าย</span> : null}</label>
+            <label className={styles.field}>{t("settings.documents.template.slotCode")}<input className={styles.input} value={form.slot_code} onChange={(event) => { setSlotCodeEdited(true); setForm({ ...form, slot_code: event.target.value.toUpperCase() }); }} /><span className={styles.helperText}>{t("settings.documents.template.slotCodeHelp")}</span></label>
+            <label className={styles.field}>{t("settings.documents.template.order")}<input type="number" min="1" className={styles.input} value={form.sort_order} onChange={(event) => setForm({ ...form, sort_order: Number(event.target.value || 0) })} /><span className={styles.helperText}>{t("settings.documents.template.orderHelp")}</span></label>
+            <label className={styles.field}>{t("settings.documents.template.displayNumber")}<input className={styles.input} value={form.display_number} onChange={(event) => setForm({ ...form, display_number: event.target.value })} /></label>
+            <label className={styles.field}>{t("settings.documents.template.displayLabel")}<input className={styles.input} value={form.display_label} onChange={(event) => setForm({ ...form, display_label: event.target.value })} /><span className={styles.helperText}>{t("settings.documents.template.labelHelp")}</span></label>
+            <label className={styles.field}>{t("settings.documents.template.numberStyle")}<select className={styles.select} value={form.numbering_style} onChange={(event) => setForm({ ...form, numbering_style: event.target.value })}>{numberingStyles.map((value) => <option key={value} value={value}>{numberingStyleLabel(value, locale)}</option>)}</select>{form.numbering_style === "none" ? <span className={styles.helperText}>{t("settings.documents.template.noNumberHelp")}</span> : null}</label>
+            <label className={styles.field}>{t("settings.documents.template.numberDepth")}<input type="number" min="0" max="8" className={styles.input} value={form.numbering_depth} onChange={(event) => setForm({ ...form, numbering_depth: Number(event.target.value || 0) })} /><span className={styles.helperText}>{t("settings.documents.template.depthHelp")}</span>{form.numbering_style === "none" ? <span className={styles.helperText}>{t("settings.documents.template.noDepthHelp")}</span> : null}</label>
           </div>
           <div className={styles.checkRow}>
-            <label><input type="checkbox" checked={form.allow_override} onChange={(event) => setForm({ ...form, allow_override: event.target.checked })} /> แก้เฉพาะเอกสารได้</label>
-            <label><input type="checkbox" checked={form.allow_suppress} disabled={form.is_required} onChange={(event) => setForm({ ...form, allow_suppress: event.target.checked })} /> ซ่อนได้</label>
-            <label><input type="checkbox" checked={form.allow_custom_after} onChange={(event) => setForm({ ...form, allow_custom_after: event.target.checked })} /> เพิ่มข้อความต่อท้ายได้</label>
+            <label><input type="checkbox" checked={form.allow_override} onChange={(event) => setForm({ ...form, allow_override: event.target.checked })} /> {t("settings.documents.template.override")}</label>
+            <label><input type="checkbox" checked={form.allow_suppress} disabled={form.is_required} onChange={(event) => setForm({ ...form, allow_suppress: event.target.checked })} /> {t("settings.documents.template.suppress")}</label>
+            <label><input type="checkbox" checked={form.allow_custom_after} onChange={(event) => setForm({ ...form, allow_custom_after: event.target.checked })} /> {t("settings.documents.template.customAfter")}</label>
           </div>
         </div>
       </details>
-      {slotCodeConflict ? <div className={styles.formWarning}>รหัสตำแหน่ง <strong>{form.slot_code}</strong> มีอยู่แล้วใน Section นี้ กรุณากำหนดรหัสอื่นในตัวเลือกขั้นสูง</div> : null}
-      <div className={styles.actionRow}><button type="button" className={styles.buttonPrimary} onClick={() => void onSave()} disabled={saving || !form.slot_code.trim() || form.sort_order < 1 || slotCodeConflict}>บันทึกตำแหน่งข้อสัญญา</button></div>
+      {slotCodeConflict ? <div className={styles.formWarning}>{t("settings.documents.template.slotCode")} <strong>{form.slot_code}</strong> {t("settings.documents.template.duplicateSlot")}</div> : null}
+      <div className={styles.actionRow}><button type="button" className={styles.buttonPrimary} onClick={() => void onSave()} disabled={saving || !form.slot_code.trim() || form.sort_order < 1 || slotCodeConflict}>{t("settings.documents.template.saveSlot")}</button></div>
     </div>
   );
 }
@@ -1085,14 +1091,15 @@ function emptySectionForm(sortOrder: number): SectionForm {
   return { id: "", section_code: "", title: "", sort_order: sortOrder, parent_section_id: "", display_number: "", display_label: "", numbering_style: "explicit", numbering_depth: 1, section_kind: "normal", is_required: true, allow_custom_after: false, risk_level: "", condition_rule_json: null, metadata_json: {} };
 }
 
-function emptySectionClauseMessage(sectionKind: string) {
+function emptySectionClauseMessage(sectionKind: string, locale: UiLocale = "th") {
+  const t = (key: string) => translate(locale, key);
   if (sectionKind === "preamble") {
-    return "ส่วนนี้สร้างเนื้อหาอัตโนมัติจากข้อมูลสัญญาและคู่สัญญา ไม่ใช้ข้อสัญญาจาก Clause Library";
+    return t("settings.documents.template.emptyPreamble");
   }
   if (sectionKind === "execution") {
-    return "ส่วนนี้สร้างบทลงท้ายและส่วนลงนามอัตโนมัติตามข้อมูลผู้ลงนาม ไม่ใช้ข้อสัญญาจาก Clause Library";
+    return t("settings.documents.template.emptyExecution");
   }
-  return "ยังไม่มีข้อสัญญาในส่วนนี้";
+  return t("settings.documents.template.emptyNormal");
 }
 
 function toSectionForm(section: SectionRow): SectionForm {
@@ -1107,29 +1114,32 @@ function toSlotForm(slot: SlotRow): SlotForm {
   return { id: slot.id, template_section_id: slot.template_section_id, slot_code: slot.slot_code, clause_version_id: slot.clause_version_id || "", sort_order: slot.sort_order, parent_slot_id: slot.parent_slot_id || "", display_number: slot.display_number || "", display_label: slot.display_label || "", numbering_style: slot.numbering_style, numbering_depth: slot.numbering_depth, clause_type: slot.clause_type, alternative_group_id: slot.alternative_group_id || "", is_required: slot.is_required, allow_override: slot.allow_override, allow_suppress: slot.allow_suppress, allow_custom_after: slot.allow_custom_after, risk_level: slot.risk_level || "", condition_rule_json: slot.condition_rule_json, metadata_json: slot.metadata_json || {} };
 }
 
-function sectionKindLabel(value: string) {
-  if (value === "preamble") return "บทนำ";
-  if (value === "schedule") return "ตารางแนบท้าย";
-  if (value === "appendix") return "ภาคผนวก";
-  if (value === "execution") return "การลงนาม";
-  return "ส่วนทั่วไป";
+function sectionKindLabel(value: string, locale: UiLocale = "th") {
+  const t = (key: string) => translate(locale, key);
+  if (value === "preamble") return t("settings.documents.template.kind.preamble");
+  if (value === "schedule") return t("settings.documents.template.kind.schedule");
+  if (value === "appendix") return t("settings.documents.template.kind.appendix");
+  if (value === "execution") return t("settings.documents.template.kind.execution");
+  return t("settings.documents.template.kind.normal");
 }
 
-function clauseTypeLabel(value: string) {
-  if (value === "optional") return "ข้อเลือกใช้";
-  if (value === "placeholder") return "ตำแหน่งรอข้อสัญญา";
-  if (value === "conditional") return "ใช้ตามเงื่อนไข";
-  if (value === "alternative") return "ข้อทางเลือก";
-  return "ข้อบังคับ";
+function clauseTypeLabel(value: string, locale: UiLocale = "th") {
+  const t = (key: string) => translate(locale, key);
+  if (value === "optional") return t("settings.documents.template.type.optional");
+  if (value === "placeholder") return t("settings.documents.template.type.placeholder");
+  if (value === "conditional") return t("settings.documents.template.type.conditional");
+  if (value === "alternative") return t("settings.documents.template.type.alternative");
+  return t("settings.documents.template.type.mandatory");
 }
 
-function numberingStyleLabel(value: string) {
-  if (value === "thai_clause") return "ข้อภาษาไทย";
-  if (value === "thai_appendix") return "ภาคผนวกภาษาไทย";
-  if (value === "decimal") return "เลขทศนิยม";
-  if (value === "roman") return "เลขโรมัน";
-  if (value === "none") return "ไม่แสดงเลข";
-  return "ระบุเอง";
+function numberingStyleLabel(value: string, locale: UiLocale = "th") {
+  const t = (key: string) => translate(locale, key);
+  if (value === "thai_clause") return t("settings.documents.template.number.thai_clause");
+  if (value === "thai_appendix") return t("settings.documents.template.number.thai_appendix");
+  if (value === "decimal") return t("settings.documents.template.number.decimal");
+  if (value === "roman") return t("settings.documents.template.number.roman");
+  if (value === "none") return t("settings.documents.template.number.none");
+  return t("settings.documents.template.number.explicit");
 }
 
 function deriveSlotCode(clauseCode: string, languageCode: string) {

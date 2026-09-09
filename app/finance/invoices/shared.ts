@@ -1,3 +1,6 @@
+import { resolveUiMessage, translate } from "../../../lib/i18n/catalog";
+import { uiMessage, type UiLocale, type UiMessage } from "../../../lib/i18n/core";
+
 export type Json = Record<string, unknown>;
 
 export type FinanceInvoice = {
@@ -105,37 +108,44 @@ export type InvoicePaymentDestination = {
 };
 
 export const invoiceStatusLabels: Record<string, string> = {
-  draft: "ร่างใบแจ้งหนี้",
-  issued: "ออกใบแจ้งหนี้แล้ว",
-  cancelled: "ยกเลิกร่างแล้ว",
-  voided: "ยกเลิกแล้ว",
+  draft: translate("th", "finance.invoice.status.draft"),
+  issued: translate("th", "finance.payment.ui.invoiceIssued"),
+  cancelled: translate("th", "finance.taxInvoice.ui.statusCancelled"),
+  voided: translate("th", "status.cancelled"),
 };
 
 export const installmentStatusLabels: Record<string, string> = {
-  pending: "รอดำเนินการ",
-  ready_to_invoice: "พร้อมออกใบแจ้งหนี้",
-  invoiced: "ออกใบแจ้งหนี้แล้ว",
-  cancelled: "ยกเลิก",
+  pending: translate("th", "finance.invoice.installment.pending"),
+  ready_to_invoice: translate("th", "finance.invoice.installment.ready_to_invoice"),
+  invoiced: translate("th", "finance.payment.ui.invoiceIssued"),
+  cancelled: translate("th", "common.actions.cancel"),
 };
 
 export const triggerLabels: Record<string, string> = {
-  agreement_effective: "เมื่อการว่าจ้างมีผล",
-  date: "ตามวันที่",
-  case_milestone: "ตามเหตุการณ์สำคัญ",
-  manual: "กำหนดด้วยตนเอง",
-  recurring_period: "ตามรอบระยะเวลา",
+  agreement_effective: translate("th", "finance.invoice.trigger.agreement_effective"),
+  date: translate("th", "finance.invoice.trigger.date"),
+  case_milestone: translate("th", "finance.invoice.trigger.case_milestone"),
+  manual: translate("th", "finance.invoice.trigger.manual"),
+  recurring_period: translate("th", "finance.invoice.trigger.recurring_period"),
 };
 
 export const economicClassificationLabels: Record<string, string> = {
-  professional_fee: "ค่าวิชาชีพ",
-  additional_service: "ค่าบริการเพิ่มเติม",
-  reimbursable_expense: "ค่าใช้จ่ายเรียกคืน",
-  government_or_court_fee: "ค่าธรรมเนียมศาล / หน่วยงานรัฐ",
-  other: "อื่น ๆ",
+  professional_fee: translate("th", "finance.invoice.classification.professional_fee"),
+  additional_service: translate("th", "finance.invoice.classification.additional_service"),
+  reimbursable_expense: translate("th", "finance.invoice.classification.reimbursable_expense"),
+  government_or_court_fee: translate("th", "finance.invoice.classification.government_or_court_fee"),
+  other: translate("th", "finance.payment.method.other"),
 };
 
-export function economicClassificationLabel(value: string | null | undefined) {
-  return value ? economicClassificationLabels[value] || value : "ยังไม่ระบุ";
+export function economicClassificationLabel(value: string | null | undefined, locale: UiLocale = "th") {
+  return value ? economicClassificationLabels[value] ? translate(locale, `finance.invoice.classification.${value}`) : value : translate(locale, "finance.invoice.classification.unspecified");
+}
+
+export function invoiceUiLabels(locale: UiLocale = "th") {
+  const labels = (values: Record<string, string>, domain: string) => Object.fromEntries(
+    Object.keys(values).map(value => [value, translate(locale, `finance.invoice.${domain}.${value}`)]),
+  );
+  return { statuses: labels(invoiceStatusLabels, "status"), installments: labels(installmentStatusLabels, "installment"), triggers: labels(triggerLabels, "trigger") };
 }
 
 export function invoiceDraftForm(invoice: FinanceInvoice): InvoiceDraftForm {
@@ -246,13 +256,13 @@ export function formatDocumentDate(value: string | null | undefined, languageCod
   }).format(parsed);
 }
 
-export function sourceQuotationNo(snapshot: Json | null) {
+export function sourceQuotationNo(snapshot: Json | null, locale: UiLocale = "th") {
   const sourceDocument = snapshot?.source_document;
   return displayText(
     sourceDocument && typeof sourceDocument === "object" && !Array.isArray(sourceDocument)
       ? (sourceDocument as Json).quotation_no
       : null,
-    "ใบเสนอราคาต้นทาง",
+    translate(locale, "finance.invoice.sourceQuotation"),
   );
 }
 
@@ -277,25 +287,27 @@ export function invoiceItemSourceType(item: Pick<FinanceInvoiceItem, "source_sna
 export function invoiceCompositionSourceLabel(
   sourceModel: FinanceInvoice["source_model"],
   items: readonly InvoiceCompositionItem[],
-  legacyLabel = "ยอดตามแผนเรียกเก็บเงิน",
+  legacyLabel?: string,
+  locale: UiLocale = "th",
 ) {
-  if (sourceModel !== "billable_charge_v2") return legacyLabel;
+  if (sourceModel !== "billable_charge_v2") return legacyLabel ?? translate(locale, "finance.invoice.source.installment");
   // V2 active items represent reserved Draft or invoiced Issued allocations;
   // released composition history must not imply an additional current source.
   const sourceTypes = items.filter((item) => item.source_state === "active").map(invoiceItemSourceType);
   if (!sourceTypes.length || sourceTypes.some((type) => type !== "billing_installment_item" && type !== "ad_hoc_service" && type !== "recoverable_cost")) {
-    return "ไม่สามารถระบุที่มาของยอดเรียกเก็บ";
+    return translate(locale, "finance.invoice.source.unknown");
   }
   const hasInstallment = sourceTypes.includes("billing_installment_item");
   const hasAdditional = sourceTypes.some((type) => type === "ad_hoc_service" || type === "recoverable_cost");
-  if (hasInstallment && hasAdditional) return "ยอดตามแผน + รายการเรียกเก็บเพิ่มเติม";
-  return hasInstallment ? "ยอดตามแผนเรียกเก็บเงิน" : "รายการเรียกเก็บเพิ่มเติม";
+  if (hasInstallment && hasAdditional) return translate(locale, "finance.invoice.source.mixed");
+  return hasInstallment ? translate(locale, "finance.invoice.source.installment") : translate(locale, "finance.invoice.source.additional");
 }
 
 export function invoiceInstallmentContext(
   invoice: Pick<FinanceInvoice, "document_status" | "source_model" | "language_code" | "billing_plan_id" | "v2_bridge_id" | "source_snapshot_json" | "issued_snapshot_json">,
   draftItems: readonly InvoiceCompositionItem[],
   draftBridge: Json | null = null,
+  uiLocale?: UiLocale,
 ): InvoiceInstallmentContext | null {
   const frozen = invoice.document_status === "issued" || invoice.document_status === "voided";
   const snapshot = asJson(invoice.issued_snapshot_json);
@@ -304,7 +316,7 @@ export function invoiceInstallmentContext(
   const sourceModel = frozen
     ? snapshot.source_model || invoiceEvidence.source_model || source.invoice_source_model || (snapshot.schema_version === 1 ? "installment_v1" : null)
     : invoice.source_model;
-  const thai = (frozen ? invoiceEvidence.language_code : invoice.language_code) !== "en";
+  const thai = (uiLocale ?? (frozen ? invoiceEvidence.language_code : invoice.language_code)) !== "en";
 
   // Legacy V1 froze the ordinal/title but not the Billing Plan's installment count.
   // Preserve that label without inferring a count from a live plan or quotation.
@@ -360,44 +372,48 @@ function textValue(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-export function safeInvoiceError(error: unknown, fallback: string) {
+export function invoiceErrorMessage(error: unknown, fallback: UiMessage | string) {
   const message = error && typeof error === "object" && "message" in error
     ? String((error as { message?: unknown }).message || "")
     : error instanceof Error ? error.message : "";
-  if (message.includes("TAX_INVOICE_ACTIVE_DEPENDENCY")) return "มีใบกำกับภาษีหรือร่างที่ผูกกับใบแจ้งหนี้นี้ กรุณาตรวจสอบเอกสารภาษีก่อนดำเนินการ";
-  if (message.includes("FINANCE_ISSUED_RECEIPT_DEPENDENCY")) return "มีใบเสร็จรับเงินที่ออกแล้ว กรุณายกเลิกใบเสร็จผ่านขั้นตอนที่กำหนดก่อนดำเนินการนี้";
-  if (message.includes("due date cannot be before")) return "วันที่ครบกำหนดต้องไม่มาก่อนวันที่ออกเอกสาร";
-  if (message.includes("issue date is required")) return "กรุณาระบุวันที่ออกเอกสาร";
-  if (message.includes("issue date cannot be in the future")) return "วันที่ออกใบแจ้งหนี้ต้องไม่เป็นวันในอนาคต";
-  if (message.includes("customer name is required")) return "ข้อมูลชื่อลูกค้าไม่ครบถ้วน กรุณาตรวจสอบข้อมูลต้นทางก่อนออกใบแจ้งหนี้";
-  if (message.includes("payment destination bank account is required")) return "กรุณาเลือกบัญชีสำหรับรับชำระก่อนออกใบแจ้งหนี้";
-  if (message.includes("payment bank account is not eligible") || message.includes("payment destination bank account is not eligible")) return "บัญชีสำหรับรับชำระที่เลือกไม่พร้อมใช้งาน กรุณาเลือกบัญชีที่มีข้อมูลครบถ้วน";
-  if (message.includes("source Billing Installment to remain ready")) return "งวดต้นทางไม่ได้อยู่ในสถานะพร้อมออกใบแจ้งหนี้แล้ว กรุณารีเฟรชและตรวจสอบอีกครั้ง";
-  if (message.includes("active Billing Plan")) return "แผนเรียกเก็บเงินต้นทางไม่ได้อยู่ในสถานะใช้งานแล้ว";
-  if (message.includes("Invoice Void reason is required")) return "กรุณาระบุเหตุผลในการยกเลิกใบแจ้งหนี้";
-  if (message.includes("Invoice Void reason is too long")) return "เหตุผลในการยกเลิกใบแจ้งหนี้ต้องไม่เกิน 2,000 ตัวอักษร";
-  if (message.includes("Invoice Void acknowledgement is required")) return "กรุณายืนยันว่าคุณเข้าใจผลของการยกเลิกใบแจ้งหนี้";
-  if (message.includes("active Payment Draft")) return "ยังมีร่างการรับชำระที่ยังไม่ได้ยกเลิก กรุณายกเลิกร่างการรับชำระก่อน";
-  if (message.includes("Confirmed Payment") || message.includes("settlement must be zero")) return "ใบแจ้งหนี้นี้มีการรับชำระที่ยังมีผล กรุณาดำเนินการย้อนกลับรายการรับชำระก่อน";
-  if (message.includes("downstream document dependency")) return "ไม่สามารถยกเลิกใบแจ้งหนี้นี้ได้ เนื่องจากมีเอกสารหรือรายการทางการเงินที่เกี่ยวข้อง";
-  if (message.includes("Only an Issued Invoice") || message.includes("Issued Invoice is required")) return "ยกเลิกได้เฉพาะใบแจ้งหนี้ที่ออกแล้วเท่านั้น กรุณารีเฟรชและตรวจสอบสถานะเอกสาร";
+  if (message.includes("TAX_INVOICE_ACTIVE_DEPENDENCY")) return uiMessage("finance.invoice.error.taxDependency");
+  if (message.includes("FINANCE_ISSUED_RECEIPT_DEPENDENCY")) return uiMessage("finance.invoice.error.receiptDependency");
+  if (message.includes("due date cannot be before")) return uiMessage("finance.invoice.error.dueBeforeIssue");
+  if (message.includes("issue date is required")) return uiMessage("finance.invoice.error.issueDateRequired");
+  if (message.includes("issue date cannot be in the future")) return uiMessage("finance.invoice.error.futureIssueDate");
+  if (message.includes("customer name is required")) return uiMessage("finance.invoice.error.customerName");
+  if (message.includes("payment destination bank account is required")) return uiMessage("finance.invoice.error.bankRequired");
+  if (message.includes("payment bank account is not eligible") || message.includes("payment destination bank account is not eligible")) return uiMessage("finance.invoice.error.bankIneligible");
+  if (message.includes("source Billing Installment to remain ready")) return uiMessage("finance.invoice.error.installmentNotReady");
+  if (message.includes("active Billing Plan")) return uiMessage("finance.invoice.error.planInactive");
+  if (message.includes("Invoice Void reason is required")) return uiMessage("finance.invoice.error.voidReason");
+  if (message.includes("Invoice Void reason is too long")) return uiMessage("finance.invoice.error.voidReasonLength");
+  if (message.includes("Invoice Void acknowledgement is required")) return uiMessage("finance.invoice.error.voidAcknowledgement");
+  if (message.includes("active Payment Draft")) return uiMessage("finance.invoice.error.paymentDraft");
+  if (message.includes("Confirmed Payment") || message.includes("settlement must be zero")) return uiMessage("finance.invoice.error.confirmedPayment");
+  if (message.includes("downstream document dependency")) return uiMessage("finance.invoice.error.downstreamDependency");
+  if (message.includes("Only an Issued Invoice") || message.includes("Issued Invoice is required")) return uiMessage("finance.invoice.error.notIssued");
   if (message.includes("source Billing Plan or Installment lineage") || message.includes("source Billing Plan is not eligible") || message.includes("source Billing Installment is not invoiced") || message.includes("readiness evidence is incomplete")) {
-    return "ข้อมูลงวดหรือแผนเรียกเก็บเงินต้นทางไม่พร้อมสำหรับการยกเลิกใบแจ้งหนี้ กรุณาติดต่อผู้ดูแลระบบ";
+    return uiMessage("finance.invoice.error.voidLineage");
   }
-  if (message.includes("settlement summary is unavailable")) return "ไม่สามารถตรวจสอบสถานะการรับชำระได้ กรุณาลองใหม่หรือติดต่อผู้ดูแลระบบ";
-  if (message.includes("Only a Draft Invoice")) return "รายการนี้ไม่ได้อยู่ในสถานะร่างที่ดำเนินการได้";
-  if (message.includes("same Client, currency, and exact matter context") || message.includes("incompatible with Invoice context")) return "รายการที่เลือกต้องเป็นของลูกค้า สกุลเงิน และคดี/งานเดียวกันทั้งหมด";
-  if (message.includes("must be Ready") || message.includes("not available") || message.includes("do not exist")) return "รายการเรียกเก็บเพิ่มเติมบางรายการไม่พร้อมใช้งานแล้ว กรุณารีเฟรชและเลือกใหม่";
-  if (message.includes("requires at least one Billable Charge") || message.includes("requires at least one Charge")) return "กรุณาเลือกรายการเรียกเก็บเพิ่มเติมอย่างน้อยหนึ่งรายการ";
-  if (message.includes("Fixed-installment") && message.includes("approval authority")) return "คุณไม่มีสิทธิ์รับรองข้อมูลค่าวิชาชีพจากงวดตามแผนเรียกเก็บ";
-  if (message.includes("Human-certified installment semantic adapter") || message.includes("Missing installment semantics")) return "ข้อมูลประกอบรายการค่าวิชาชีพยังไม่ครบ กรุณาระบุประเภทของยอดและยืนยันข้อมูลทุกบรรทัด";
-  if (message.includes("V1 Invoice history") || message.includes("FINANCE_INSTALLMENT_HAS_V1_INVOICE_HISTORY")) return "งวดนี้มีประวัติใบแจ้งหนี้เดิมแล้ว จึงไม่สามารถนำมารวมในใบแจ้งหนี้แบบรวมรายการได้";
-  if (message.includes("Invoice V2 request ID was already used")) return "ข้อมูลที่เลือกเปลี่ยนไประหว่างการส่งคำขอ กรุณาตรวจสอบและเริ่มสร้างร่างใหม่";
-  if (message.includes("Not allowed to compose") || message.includes("Not allowed to change Invoice V2 composition")) return "คุณไม่มีสิทธิ์สร้างหรือแก้ไขรายการในใบแจ้งหนี้นี้";
-  if (message.includes("Not allowed")) return "คุณไม่มีสิทธิ์ดำเนินการกับใบแจ้งหนี้นี้";
+  if (message.includes("settlement summary is unavailable")) return uiMessage("finance.invoice.error.settlementUnavailable");
+  if (message.includes("Only a Draft Invoice")) return uiMessage("finance.invoice.error.notDraft");
+  if (message.includes("same Client, currency, and exact matter context") || message.includes("incompatible with Invoice context")) return uiMessage("finance.invoice.error.contextMismatch");
+  if (message.includes("must be Ready") || message.includes("not available") || message.includes("do not exist")) return uiMessage("finance.invoice.error.chargeUnavailable");
+  if (message.includes("requires at least one Billable Charge") || message.includes("requires at least one Charge")) return uiMessage("finance.invoice.error.chargeRequired");
+  if (message.includes("Fixed-installment") && message.includes("approval authority")) return uiMessage("finance.invoice.error.classificationPermission");
+  if (message.includes("Human-certified installment semantic adapter") || message.includes("Missing installment semantics")) return uiMessage("finance.invoice.error.classificationMissing");
+  if (message.includes("V1 Invoice history") || message.includes("FINANCE_INSTALLMENT_HAS_V1_INVOICE_HISTORY")) return uiMessage("finance.invoice.error.v1History");
+  if (message.includes("Invoice V2 request ID was already used")) return uiMessage("finance.invoice.error.requestChanged");
+  if (message.includes("Not allowed to compose") || message.includes("Not allowed to change Invoice V2 composition")) return uiMessage("finance.invoice.error.compositionPermission");
+  if (message.includes("Not allowed")) return uiMessage("finance.invoice.error.permission");
   if (message.includes("do not reconcile") || message.includes("exactly copy") || message.includes("exactly match") || message.includes("inconsistent")) {
-    return "รายการหรือยอดเงินไม่ตรงกับข้อมูลต้นทาง จึงยังดำเนินการไม่ได้";
+    return uiMessage("finance.invoice.error.reconciliation");
   }
   console.error(fallback, error);
   return fallback;
+}
+
+export function safeInvoiceError(error: unknown, fallback: string, locale: UiLocale = "th") {
+  return resolveUiMessage(locale, invoiceErrorMessage(error, fallback));
 }

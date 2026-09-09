@@ -15,6 +15,8 @@ import {
   useDocumentPlatformAccess,
 } from "../../document-platform-shared";
 import { supabase } from "../../../../lib/supabase";
+import { useI18n } from "@/lib/i18n/provider";
+import { uiMessage, type UiMessage } from "@/lib/i18n/core";
 import styles from "../../document-platform.module.css";
 
 type JsonObject = Record<string, unknown>;
@@ -92,13 +94,14 @@ const emptyVersionForm: VersionForm = {
 const riskLevels = ["informational", "low", "medium", "high", "critical"];
 
 export default function DocumentClauseDetailPage() {
+  const { t, text, locale } = useI18n();
   const params = useParams<{ id: string }>();
   const clauseId = typeof params.id === "string" ? params.id : "";
   const access = useDocumentPlatformAccess();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [errorText, setErrorText] = useState("");
-  const [successText, setSuccessText] = useState("");
+  const [errorText, setErrorText] = useState<UiMessage | string>("");
+  const [successText, setSuccessText] = useState<UiMessage | string>("");
   const [family, setFamily] = useState<ClauseFamilyRow | null>(null);
   const [versions, setVersions] = useState<ClauseVersionRow[]>([]);
   const [selectedVersionId, setSelectedVersionId] = useState("");
@@ -191,7 +194,7 @@ export default function DocumentClauseDetailPage() {
     ]);
     if (familyResult.error || versionsResult.error || !familyResult.data) {
       console.error("Load clause workspace failed", familyResult.error || versionsResult.error);
-      setErrorText("ไม่พบหรือไม่สามารถโหลดข้อสัญญานี้ได้");
+      setErrorText(uiMessage("settings.documents.clause.loadError"));
       setLoading(false);
       return;
     }
@@ -255,10 +258,10 @@ export default function DocumentClauseDetailPage() {
     });
     if (error) {
       console.error("Save clause family failed", error);
-      setErrorText("บันทึกข้อมูลข้อสัญญามาตรฐานไม่สำเร็จ");
+      setErrorText(uiMessage("settings.documents.clause.saveFamilyError"));
     } else {
       setEditingFamily(false);
-      setSuccessText("บันทึกข้อมูลข้อสัญญามาตรฐานแล้ว");
+      setSuccessText(uiMessage("settings.documents.clause.saveFamilySuccess"));
       await loadWorkspace(selectedVersionId);
     }
     setSaving(false);
@@ -267,11 +270,11 @@ export default function DocumentClauseDetailPage() {
   const saveVersion = async () => {
     if (!family || !isDraft || saving) return;
     if (!versionForm.title.trim() || !versionForm.content.trim()) {
-      setErrorText("กรุณาระบุชื่อและถ้อยคำข้อสัญญา");
+      setErrorText(uiMessage("settings.documents.clause.wordingRequired"));
       return;
     }
     if (versionForm.effectiveFrom && versionForm.effectiveTo && versionForm.effectiveTo < versionForm.effectiveFrom) {
-      setErrorText("วันที่สิ้นสุดต้องไม่อยู่ก่อนวันที่เริ่มใช้");
+      setErrorText(uiMessage("settings.documents.clause.dateRange"));
       return;
     }
     setSaving(true);
@@ -294,9 +297,9 @@ export default function DocumentClauseDetailPage() {
     });
     if (error || typeof data !== "string") {
       console.error("Save clause version failed", error);
-      setErrorText("บันทึกเวอร์ชันข้อสัญญาไม่สำเร็จ");
+      setErrorText(uiMessage("settings.documents.clause.saveVersionError"));
     } else {
-      setSuccessText(selectedVersion ? "บันทึกฉบับร่างแล้ว" : "สร้างเวอร์ชันฉบับร่างแล้ว");
+      setSuccessText(selectedVersion ? uiMessage("settings.documents.clause.draftSaved") : uiMessage("settings.documents.clause.draftCreated"));
       await loadWorkspace(data);
     }
     setSaving(false);
@@ -307,10 +310,10 @@ export default function DocumentClauseDetailPage() {
     const existingDraft = versions.find((version) => version.language_code === selectedVersion.language_code && version.status === "draft");
     if (existingDraft) {
       await selectVersion(existingDraft);
-      setSuccessText(`มีฉบับร่างภาษา${languageLabel(existingDraft.language_code)}อยู่แล้ว ระบบเปิดรุ่น ${existingDraft.version_no} ให้แก้ไขแทนการสร้างซ้ำ`);
+      setSuccessText(uiMessage("settings.documents.clause.existingDraft", { number: existingDraft.version_no }));
       return;
     }
-    if (!window.confirm(`สร้างเวอร์ชันใหม่จากรุ่น ${selectedVersion.version_no} หรือไม่? รุ่นเดิมจะไม่ถูกแก้ไข`)) return;
+    if (!window.confirm(t("settings.documents.clause.confirmNew", { number: selectedVersion.version_no }))) return;
     setSaving(true);
     setErrorText("");
     const { data, error } = await supabase.rpc("save_document_clause_version_draft", {
@@ -325,9 +328,9 @@ export default function DocumentClauseDetailPage() {
     });
     if (error || typeof data !== "string") {
       console.error("Create next clause version failed", error);
-      setErrorText("สร้างเวอร์ชันใหม่ไม่สำเร็จ");
+      setErrorText(uiMessage("settings.documents.clause.createError"));
     } else {
-      setSuccessText("สร้างเวอร์ชันใหม่เป็นฉบับร่างแล้ว");
+      setSuccessText(uiMessage("settings.documents.clause.created"));
       await loadWorkspace(data);
     }
     setSaving(false);
@@ -336,11 +339,11 @@ export default function DocumentClauseDetailPage() {
   const transitionVersion = async (nextStatus: string, note?: string, reference?: string) => {
     if (!selectedVersion || saving) return;
     if ((nextStatus === "published" || nextStatus === "retired") && !canApprove) return;
-    const action = nextStatus === "under_review" ? "ส่งเวอร์ชันนี้ให้ตรวจ"
-      : nextStatus === "draft" ? "ส่งเวอร์ชันนี้กลับเป็นฉบับร่าง"
-        : nextStatus === "published" ? "เผยแพร่ถ้อยคำเวอร์ชันนี้"
-          : "ยกเลิกการใช้งานเวอร์ชันนี้";
-    if (!window.confirm(`${action} หรือไม่?`)) return;
+    const action = nextStatus === "under_review" ? t("settings.documents.clause.submit")
+      : nextStatus === "draft" ? t("settings.documents.clause.return")
+        : nextStatus === "published" ? t("settings.documents.clause.publish")
+          : t("settings.documents.clause.retire");
+    if (!window.confirm(t("settings.documents.clause.confirmAction", { action }))) return;
     setSaving(true);
     setErrorText("");
     const { error } = await supabase.rpc("set_document_clause_version_status", {
@@ -351,9 +354,9 @@ export default function DocumentClauseDetailPage() {
     });
     if (error) {
       console.error("Transition clause version failed", error);
-      setErrorText("เปลี่ยนสถานะเวอร์ชันข้อสัญญาไม่สำเร็จ");
+      setErrorText(uiMessage("settings.documents.clause.transitionError"));
     } else {
-      setSuccessText("เปลี่ยนสถานะเวอร์ชันแล้ว");
+      setSuccessText(uiMessage("settings.documents.clause.transitionSuccess"));
       await loadWorkspace(selectedVersion.id);
     }
     setSaving(false);
@@ -377,17 +380,17 @@ export default function DocumentClauseDetailPage() {
     });
   };
 
-  const displayName = familyName || selectedVersion?.title || "ข้อสัญญามาตรฐาน";
+  const displayName = familyName || selectedVersion?.title || t("settings.documents.clause.defaultTitle");
 
   return (
-    <DocumentPlatformPage title="Settings" subtitle="Clause Library">
+    <DocumentPlatformPage title={t("settings.documents.title")} subtitle={t("settings.documents.nav.clauses")}>
       <AccessState access={access} />
       {access.allowed ? (
         <>
-          <div className={styles.breadcrumb}><Link href="/settings/document-clauses">คลังข้อสัญญา</Link><span>/</span><span>{displayName}</span></div>
-          {loading ? <div className={styles.emptyState}>กำลังโหลดพื้นที่ทำงานข้อสัญญา...</div> : null}
-          {errorText ? <div className={styles.error}>{errorText}</div> : null}
-          {successText ? <div className={styles.success}>{successText}</div> : null}
+          <div className={styles.breadcrumb}><Link href="/settings/document-clauses">{t("settings.documents.nav.clauses")}</Link><span>/</span><span>{displayName}</span></div>
+          {loading ? <div className={styles.emptyState}>{t("settings.documents.clause.loading")}</div> : null}
+          {errorText ? <div className={styles.error}>{text(errorText)}</div> : null}
+          {successText ? <div className={styles.success}>{text(successText)}</div> : null}
 
           {!loading && family ? (
             <>
@@ -395,95 +398,95 @@ export default function DocumentClauseDetailPage() {
                 <div>
                   <div className={styles.badgeRow}><span className={styles.codeText}>{family.clause_code}</span><StatusBadge status={family.is_active ? "active" : "inactive"} />{selectedVersion ? <StatusBadge status={selectedVersion.status} /> : null}</div>
                   <h1 className={styles.pageTitle}>{displayName}</h1>
-                  <p className={styles.pageDescription}>พื้นที่จัดทำและตรวจทานถ้อยคำกฎหมายมาตรฐาน โดยแต่ละเวอร์ชันมีประวัติแยกจากกัน</p>
+                  <p className={styles.pageDescription}>{t("settings.documents.clause.description")}</p>
                 </div>
                 <div className={styles.actionRow}>
-                  <button type="button" className={styles.button} onClick={() => setEditingFamily((current) => !current)}>ข้อมูลข้อสัญญา</button>
-                  {selectedVersion?.status === "under_review" && canApprove ? <button type="button" className={styles.buttonPrimary} onClick={openPublishReview} disabled={saving}>เผยแพร่</button> : null}
-                  {selectedVersion && ["published", "retired"].includes(selectedVersion.status) ? <button type="button" className={styles.buttonPrimary} onClick={() => void createNewVersion()} disabled={saving}>สร้างเวอร์ชันใหม่</button> : null}
+                  <button type="button" className={styles.button} onClick={() => setEditingFamily((current) => !current)}>{t("settings.documents.clause.family")}</button>
+                  {selectedVersion?.status === "under_review" && canApprove ? <button type="button" className={styles.buttonPrimary} onClick={openPublishReview} disabled={saving}>{t("settings.documents.clause.publishAction")}</button> : null}
+                  {selectedVersion && ["published", "retired"].includes(selectedVersion.status) ? <button type="button" className={styles.buttonPrimary} onClick={() => void createNewVersion()} disabled={saving}>{t("settings.documents.clause.createVersion")}</button> : null}
                 </div>
               </header>
 
               {editingFamily ? (
                 <section className={styles.formPanel}>
                   <div className={styles.formGrid}>
-                    <label className={styles.fieldWide}>ชื่อข้อสัญญาภาษาไทย<input className={styles.input} value={familyName} onChange={(event) => setFamilyName(event.target.value)} /></label>
-                    <label className={styles.field}>หมวด<input className={styles.input} value={familyCategory} onChange={(event) => setFamilyCategory(event.target.value)} /></label>
-                    <label className={styles.field}>เขตอำนาจ / ประเทศ<input className={styles.input} value={familyJurisdiction} onChange={(event) => setFamilyJurisdiction(event.target.value)} /></label>
+                    <label className={styles.fieldWide}>{t("settings.documents.clause.thaiName")}<input className={styles.input} value={familyName} onChange={(event) => setFamilyName(event.target.value)} /></label>
+                    <label className={styles.field}>{t("settings.documents.fields.category")}<input className={styles.input} value={familyCategory} onChange={(event) => setFamilyCategory(event.target.value)} /></label>
+                    <label className={styles.field}>{t("settings.documents.fields.jurisdiction")}<input className={styles.input} value={familyJurisdiction} onChange={(event) => setFamilyJurisdiction(event.target.value)} /></label>
                   </div>
-                  <div className={styles.actionRow}><button type="button" className={styles.buttonPrimary} onClick={() => void saveFamily()} disabled={saving || !familyName.trim()}>บันทึกข้อมูล</button><button type="button" className={styles.button} onClick={() => setEditingFamily(false)}>ยกเลิก</button></div>
+                  <div className={styles.actionRow}><button type="button" className={styles.buttonPrimary} onClick={() => void saveFamily()} disabled={saving || !familyName.trim()}>{t("settings.documents.clause.saveFamily")}</button><button type="button" className={styles.button} onClick={() => setEditingFamily(false)}>{t("settings.documents.actions.cancel")}</button></div>
                 </section>
               ) : null}
 
               {versions.length > 0 ? (
-                <div className={styles.versionTabs} aria-label="ประวัติเวอร์ชัน">
-                  {versions.map((version) => <button type="button" key={version.id} className={version.id === selectedVersionId ? styles.versionTabActive : styles.versionTab} onClick={() => void selectVersion(version)}>รุ่น {version.version_no} · {languageLabel(version.language_code)} · {version.status === "under_review" ? "ส่งตรวจ" : version.status === "published" ? "เผยแพร่" : version.status === "retired" ? "เลิกใช้" : "ร่าง"}</button>)}
+                <div className={styles.versionTabs} aria-label={t("settings.documents.clause.history")}>
+                  {versions.map((version) => <button type="button" key={version.id} className={version.id === selectedVersionId ? styles.versionTabActive : styles.versionTab} onClick={() => void selectVersion(version)}>{t("settings.documents.count.version", { number: version.version_no })} · {languageLabel(version.language_code, locale)} · {version.status === "under_review" ? t("settings.documents.status.under_review") : version.status === "published" ? t("settings.documents.clause.publishAction") : version.status === "retired" ? t("settings.documents.status.retired") : t("settings.documents.status.draft")}</button>)}
                 </div>
               ) : null}
 
               <section className={styles.editorGrid}>
                 <div className={styles.editorMain}>
                   <div className={styles.sectionHeader}>
-                    <div><h2 className={styles.sectionTitle}>{selectedVersion ? `ถ้อยคำเวอร์ชัน ${selectedVersion.version_no}` : "สร้างเวอร์ชันแรก"}</h2><div className={styles.helperText}>{isDraft ? "บันทึกเป็นฉบับร่างก่อนส่งให้ผู้ตรวจ" : "เวอร์ชันนี้เป็นแบบอ่านอย่างเดียว"}</div></div>
+                    <div><h2 className={styles.sectionTitle}>{selectedVersion ? t("settings.documents.clause.wordingVersion", { number: selectedVersion.version_no }) : t("settings.documents.clause.firstVersion")}</h2><div className={styles.helperText}>{isDraft ? t("settings.documents.clause.draftHelp") : t("settings.documents.clause.readOnly")}</div></div>
                     {selectedVersion ? <div className={styles.badgeRow}><StatusBadge status={selectedVersion.status} /><RiskBadge risk={versionForm.riskLevel} /></div> : null}
                   </div>
 
                   <div className={styles.formGrid}>
-                    <label className={styles.fieldWide}>ชื่อเวอร์ชัน / ชื่อข้อสัญญา<input className={styles.input} value={versionForm.title} onChange={(event) => setVersionForm({ ...versionForm, title: event.target.value })} disabled={!isDraft} /></label>
-                    <label className={styles.field}>ภาษา<select className={styles.select} value={versionForm.languageCode} onChange={(event) => setVersionForm({ ...versionForm, languageCode: event.target.value })} disabled={Boolean(selectedVersion) || !isDraft}><option value="th">ไทย</option><option value="en">อังกฤษ</option></select></label>
-                    <label className={styles.field}>ระดับความเสี่ยง<select className={styles.select} value={versionForm.riskLevel} onChange={(event) => setVersionForm({ ...versionForm, riskLevel: event.target.value })} disabled={!isDraft}>{riskLevels.map((risk) => <option key={risk} value={risk}>{riskLabel(risk)}</option>)}</select></label>
-                    <label className={styles.field}>วันที่เริ่มใช้<input type="date" className={styles.input} value={versionForm.effectiveFrom} onChange={(event) => setVersionForm({ ...versionForm, effectiveFrom: event.target.value })} disabled={!isDraft} /></label>
-                    <label className={styles.field}>วันที่สิ้นสุด<input type="date" className={styles.input} value={versionForm.effectiveTo} onChange={(event) => setVersionForm({ ...versionForm, effectiveTo: event.target.value })} disabled={!isDraft} /></label>
+                    <label className={styles.fieldWide}>{t("settings.documents.clause.versionTitle")}<input className={styles.input} value={versionForm.title} onChange={(event) => setVersionForm({ ...versionForm, title: event.target.value })} disabled={!isDraft} /></label>
+                    <label className={styles.field}>{t("settings.documents.fields.language")}<select className={styles.select} value={versionForm.languageCode} onChange={(event) => setVersionForm({ ...versionForm, languageCode: event.target.value })} disabled={Boolean(selectedVersion) || !isDraft}><option value="th">{t("settings.documents.language.th")}</option><option value="en">{t("settings.documents.language.en")}</option></select></label>
+                    <label className={styles.field}>{t("settings.documents.clause.risk")}<select className={styles.select} value={versionForm.riskLevel} onChange={(event) => setVersionForm({ ...versionForm, riskLevel: event.target.value })} disabled={!isDraft}>{riskLevels.map((risk) => <option key={risk} value={risk}>{riskLabel(risk, locale)}</option>)}</select></label>
+                    <label className={styles.field}>{t("settings.documents.clause.effectiveFrom")}<input type="date" className={styles.input} value={versionForm.effectiveFrom} onChange={(event) => setVersionForm({ ...versionForm, effectiveFrom: event.target.value })} disabled={!isDraft} /></label>
+                    <label className={styles.field}>{t("settings.documents.clause.effectiveTo")}<input type="date" className={styles.input} value={versionForm.effectiveTo} onChange={(event) => setVersionForm({ ...versionForm, effectiveTo: event.target.value })} disabled={!isDraft} /></label>
                   </div>
 
-                  <label className={styles.field}>ถ้อยคำข้อสัญญา
-                    <textarea className={styles.wordingEditor} value={versionForm.content} onChange={(event) => setVersionForm({ ...versionForm, content: event.target.value })} disabled={!isDraft} spellCheck lang={versionForm.languageCode} placeholder="พิมพ์ถ้อยคำที่ผ่านการจัดทำโดยผู้รับผิดชอบด้านกฎหมาย ระบบจะไม่สร้างถ้อยคำให้อัตโนมัติ" />
+                  <label className={styles.field}>{t("settings.documents.clause.wording")}
+                    <textarea className={styles.wordingEditor} value={versionForm.content} onChange={(event) => setVersionForm({ ...versionForm, content: event.target.value })} disabled={!isDraft} spellCheck lang={versionForm.languageCode} placeholder={t("settings.documents.clause.wordingPlaceholder")} />
                   </label>
-                  <div className={styles.metricRow}><span>{metrics.characters.toLocaleString("th-TH")} ตัวอักษร</span><span>{metrics.words.toLocaleString("th-TH")} คำ</span><span>{metrics.paragraphs.toLocaleString("th-TH")} ย่อหน้า</span></div>
+                  <div className={styles.metricRow}><span>{t("settings.documents.clause.metrics.characters", { count: metrics.characters.toLocaleString(locale === "en" ? "en-GB" : "th-TH") })}</span><span>{t("settings.documents.clause.metrics.words", { count: metrics.words.toLocaleString(locale === "en" ? "en-GB" : "th-TH") })}</span><span>{t("settings.documents.clause.metrics.paragraphs", { count: metrics.paragraphs.toLocaleString(locale === "en" ? "en-GB" : "th-TH") })}</span></div>
 
                   <div className={styles.formGrid}>
-                    <label className={styles.fieldWide}>สรุปการเปลี่ยนแปลง<textarea className={styles.textarea} value={versionForm.changeSummary} onChange={(event) => setVersionForm({ ...versionForm, changeSummary: event.target.value })} disabled={!isDraft} /></label>
-                    <label className={styles.fieldWide}>บันทึกภายใน<textarea className={styles.textarea} value={versionForm.internalNote} onChange={(event) => setVersionForm({ ...versionForm, internalNote: event.target.value })} disabled={!isDraft} /><span className={styles.helperText}>ใช้เพื่อการทำงานภายใน ไม่ใช่ส่วนหนึ่งของถ้อยคำข้อสัญญา</span></label>
+                    <label className={styles.fieldWide}>{t("settings.documents.clause.changeSummary")}<textarea className={styles.textarea} value={versionForm.changeSummary} onChange={(event) => setVersionForm({ ...versionForm, changeSummary: event.target.value })} disabled={!isDraft} /></label>
+                    <label className={styles.fieldWide}>{t("settings.documents.clause.internalNote")}<textarea className={styles.textarea} value={versionForm.internalNote} onChange={(event) => setVersionForm({ ...versionForm, internalNote: event.target.value })} disabled={!isDraft} /><span className={styles.helperText}>{t("settings.documents.clause.internalHelp")}</span></label>
                   </div>
 
                   {isDraft ? (
                     <div className={styles.actionRow}>
-                      <button type="button" className={styles.buttonPrimary} onClick={() => void saveVersion()} disabled={saving || !versionForm.title.trim() || !versionForm.content.trim()}>{saving ? "กำลังบันทึก..." : "บันทึกฉบับร่าง"}</button>
-                      {selectedVersion ? <button type="button" className={styles.button} onClick={() => void transitionVersion("under_review")} disabled={saving || dirty}>ส่งตรวจ</button> : null}
-                      {dirty && selectedVersion ? <span className={styles.helperText}>กรุณาบันทึกการแก้ไขก่อนส่งตรวจ</span> : null}
+                      <button type="button" className={styles.buttonPrimary} onClick={() => void saveVersion()} disabled={saving || !versionForm.title.trim() || !versionForm.content.trim()}>{saving ? t("settings.documents.clause.saving") : t("settings.documents.clause.saveDraft")}</button>
+                      {selectedVersion ? <button type="button" className={styles.button} onClick={() => void transitionVersion("under_review")} disabled={saving || dirty}>{t("settings.documents.status.under_review")}</button> : null}
+                      {dirty && selectedVersion ? <span className={styles.helperText}>{t("settings.documents.clause.saveFirst")}</span> : null}
                     </div>
                   ) : null}
 
                   {selectedVersion?.status === "under_review" ? (
                     <div className={styles.lifecyclePanel}>
-                      <div><strong>อยู่ระหว่างการตรวจทาน</strong><div className={styles.helperText}>ถ้อยคำถูกล็อกระหว่างตรวจ หากต้องแก้ไขให้ส่งกลับเป็นฉบับร่าง</div></div>
+                      <div><strong>{t("settings.documents.clause.review")}</strong><div className={styles.helperText}>{t("settings.documents.clause.reviewHelp")}</div></div>
                       <div className={styles.actionRow}>
-                        <button type="button" className={styles.button} onClick={() => void transitionVersion("draft")} disabled={saving}>ส่งกลับเป็นร่าง</button>
-                        {canApprove ? <button type="button" className={styles.buttonPrimary} onClick={openPublishReview} disabled={saving}>เผยแพร่</button> : null}
+                        <button type="button" className={styles.button} onClick={() => void transitionVersion("draft")} disabled={saving}>{t("settings.documents.clause.returnDraft")}</button>
+                        {canApprove ? <button type="button" className={styles.buttonPrimary} onClick={openPublishReview} disabled={saving}>{t("settings.documents.clause.publishAction")}</button> : null}
                       </div>
                     </div>
                   ) : null}
 
-                  {selectedVersion?.status === "published" && canApprove ? <div className={styles.actionRow}><button type="button" className={styles.buttonDanger} onClick={() => void transitionVersion("retired", approvalNote, approvalReference)} disabled={saving}>ยกเลิกการใช้งานเวอร์ชันนี้</button></div> : null}
+                  {selectedVersion?.status === "published" && canApprove ? <div className={styles.actionRow}><button type="button" className={styles.buttonDanger} onClick={() => void transitionVersion("retired", approvalNote, approvalReference)} disabled={saving}>{t("settings.documents.clause.retire")}</button></div> : null}
                 </div>
 
                 <aside className={styles.editorAside}>
                   <section className={styles.sectionBlock}>
-                    <div className={styles.sectionBlockHeader}><div><strong>ตัวแปรที่อนุมัติ</strong><div className={styles.helperText}>แสดงแบบอ่านอย่างเดียวในรอบนี้</div></div></div>
-                    <div className={styles.sectionBody}>{bindings.length === 0 ? <div className={styles.muted}>ยังไม่มีตัวแปรผูกกับเวอร์ชันนี้</div> : <div className={styles.variableList}>{bindings.map((binding) => {
+                    <div className={styles.sectionBlockHeader}><div><strong>{t("settings.documents.clause.variables")}</strong><div className={styles.helperText}>{t("settings.documents.clause.variablesReadOnly")}</div></div></div>
+                    <div className={styles.sectionBody}>{bindings.length === 0 ? <div className={styles.muted}>{t("settings.documents.clause.noVariables")}</div> : <div className={styles.variableList}>{bindings.map((binding) => {
                       const definition = variableDefinitions.find((item) => item.id === binding.variable_definition_id);
-                      return <div key={binding.id} className={styles.variableRow}><div><div className={styles.primaryText}>{definition?.display_name_th || "ไม่พบข้อมูลตัวแปร"}</div><div className={styles.codeText}>{definition?.variable_key || binding.variable_definition_id}</div></div><div className={styles.muted}>{binding.is_required ? "จำเป็น" : "ไม่บังคับ"}</div></div>;
+                      return <div key={binding.id} className={styles.variableRow}><div><div className={styles.primaryText}>{(locale === "en" ? definition?.display_name_en || definition?.display_name_th : definition?.display_name_th) || t("settings.documents.clause.variableMissing")}</div><div className={styles.codeText}>{definition?.variable_key || binding.variable_definition_id}</div></div><div className={styles.muted}>{binding.is_required ? t("settings.documents.clause.required") : t("settings.documents.clause.optional")}</div></div>;
                     })}</div>}</div>
                   </section>
 
                   <section className={styles.sectionBlock}>
-                    <div className={styles.sectionBlockHeader}><div><strong>ข้อมูลเวอร์ชัน</strong></div></div>
+                    <div className={styles.sectionBlockHeader}><div><strong>{t("settings.documents.clause.versionDetails")}</strong></div></div>
                     <div className={styles.sectionBody}><div className={styles.compactList}>
-                      <div><span>รูปแบบเนื้อหา</span><strong>{selectedVersion?.content_format === "plain_text" || !selectedVersion ? "ข้อความธรรมดา" : selectedVersion.content_format}</strong></div>
-                      <div><span>แก้ไขล่าสุด</span><strong>{formatDateTime(selectedVersion?.updated_at || family.updated_at)}</strong></div>
-                      <div><span>ตรวจทาน</span><strong>{formatDateTime(selectedVersion?.reviewed_at)}</strong></div>
-                      <div><span>เผยแพร่</span><strong>{formatDateTime(selectedVersion?.published_at)}</strong></div>
-                      {hasConditionMetadata(selectedVersion?.metadata_json) ? <div><span>เงื่อนไขขั้นสูง</span><strong>มีข้อมูลเดิม (อ่านอย่างเดียว)</strong></div> : null}
+                      <div><span>{t("settings.documents.clause.contentFormat")}</span><strong>{selectedVersion?.content_format === "plain_text" || !selectedVersion ? t("settings.documents.clause.plainText") : selectedVersion.content_format}</strong></div>
+                      <div><span>{t("settings.documents.clause.updated")}</span><strong>{formatDateTime(selectedVersion?.updated_at || family.updated_at, locale)}</strong></div>
+                      <div><span>{t("settings.documents.clause.reviewed")}</span><strong>{formatDateTime(selectedVersion?.reviewed_at, locale)}</strong></div>
+                      <div><span>{t("settings.documents.clause.publishAction")}</span><strong>{formatDateTime(selectedVersion?.published_at, locale)}</strong></div>
+                      {hasConditionMetadata(selectedVersion?.metadata_json) ? <div><span>{t("settings.documents.clause.conditions")}</span><strong>{t("settings.documents.clause.legacyConditions")}</strong></div> : null}
                     </div></div>
                   </section>
                 </aside>
@@ -491,25 +494,25 @@ export default function DocumentClauseDetailPage() {
 
               {showPublishReview && selectedVersion?.status === "under_review" && canApprove ? (
                 <section ref={publishReviewRef} className={styles.reviewPanel}>
-                  <div className={styles.sectionHeader}><div><h2 className={styles.sectionTitle}>ตรวจทานครั้งสุดท้ายก่อนเผยแพร่</h2><div className={styles.helperText}>การเผยแพร่จะล็อกถ้อยคำเวอร์ชันนี้อย่างถาวร หากต้องแก้ภายหลังต้องสร้างเวอร์ชันใหม่</div></div><button type="button" className={styles.button} onClick={() => setShowPublishReview(false)}>ปิด</button></div>
+                  <div className={styles.sectionHeader}><div><h2 className={styles.sectionTitle}>{t("settings.documents.clause.finalReview")}</h2><div className={styles.helperText}>{t("settings.documents.clause.publishHelp")}</div></div><button type="button" className={styles.button} onClick={() => setShowPublishReview(false)}>{t("settings.documents.actions.close")}</button></div>
                   <div className={styles.summaryGrid}>
-                    <Summary label="ข้อสัญญา" value={`${displayName} (${family.clause_code})`} />
-                    <Summary label="ภาษา / เวอร์ชัน" value={`${languageLabel(selectedVersion.language_code)} / รุ่น ${selectedVersion.version_no}`} />
-                    <Summary label="ความเสี่ยง" value={riskLabel(versionForm.riskLevel)} />
-                    <Summary label="วันที่เริ่มใช้" value={versionForm.effectiveFrom || "ไม่กำหนด"} />
+                    <Summary label={t("settings.documents.clause.clause")} value={`${displayName} (${family.clause_code})`} />
+                    <Summary label={t("settings.documents.clause.languageVersion")} value={`${languageLabel(selectedVersion.language_code, locale)} / ${t("settings.documents.count.version", { number: selectedVersion.version_no })}`} />
+                    <Summary label={t("settings.documents.clause.riskSummary")} value={riskLabel(versionForm.riskLevel, locale)} />
+                    <Summary label={t("settings.documents.clause.effectiveFrom")} value={versionForm.effectiveFrom || t("settings.documents.clause.unspecified")} />
                   </div>
                   <div className={styles.wordingPreview}>{selectedVersion.content}</div>
                   <div className={styles.formGrid}>
-                    <label className={styles.fieldWide}>บันทึกการอนุมัติ<textarea className={styles.textarea} value={approvalNote} onChange={(event) => setApprovalNote(event.target.value)} /></label>
-                    <label className={styles.fieldWide}>เอกสารอ้างอิงการอนุมัติ<input className={styles.input} value={approvalReference} onChange={(event) => setApprovalReference(event.target.value)} /></label>
+                    <label className={styles.fieldWide}>{t("settings.documents.clause.approvalNote")}<textarea className={styles.textarea} value={approvalNote} onChange={(event) => setApprovalNote(event.target.value)} /></label>
+                    <label className={styles.fieldWide}>{t("settings.documents.clause.approvalReference")}<input className={styles.input} value={approvalReference} onChange={(event) => setApprovalReference(event.target.value)} /></label>
                   </div>
-                  <button type="button" className={styles.buttonPrimary} onClick={() => void transitionVersion("published", approvalNote, approvalReference)} disabled={saving}>ยืนยันเผยแพร่เวอร์ชันนี้</button>
+                  <button type="button" className={styles.buttonPrimary} onClick={() => void transitionVersion("published", approvalNote, approvalReference)} disabled={saving}>{t("settings.documents.clause.confirmPublish")}</button>
                 </section>
               ) : null}
 
               <section className={styles.section}>
-                <div className={styles.sectionHeader}><div><h2 className={styles.sectionTitle}>ประวัติเวอร์ชัน</h2><div className={styles.helperText}>เวอร์ชันที่เผยแพร่หรือยกเลิกแล้วจะไม่ถูกแก้ไขในตำแหน่งเดิม</div></div></div>
-                {versions.length === 0 ? <div className={styles.emptyState}>ยังไม่มีเวอร์ชันถ้อยคำ</div> : <div className={styles.historyList}>{versions.map((version) => <button type="button" key={version.id} className={styles.historyRow} onClick={() => void selectVersion(version)}><div><strong>รุ่น {version.version_no} · {version.title}</strong><div className={styles.muted}>{languageLabel(version.language_code)} · แก้ไข {formatDateTime(version.updated_at)}</div></div><div className={styles.badgeRow}><RiskBadge risk={metadataText(version.metadata_json, "risk_level")} /><StatusBadge status={version.status} /></div></button>)}</div>}
+                <div className={styles.sectionHeader}><div><h2 className={styles.sectionTitle}>{t("settings.documents.clause.history")}</h2><div className={styles.helperText}>{t("settings.documents.clause.historyHelp")}</div></div></div>
+                {versions.length === 0 ? <div className={styles.emptyState}>{t("settings.documents.clause.noVersions")}</div> : <div className={styles.historyList}>{versions.map((version) => <button type="button" key={version.id} className={styles.historyRow} onClick={() => void selectVersion(version)}><div><strong>{t("settings.documents.count.version", { number: version.version_no })} · {version.title}</strong><div className={styles.muted}>{languageLabel(version.language_code, locale)} · {t("settings.documents.clause.updated")} {formatDateTime(version.updated_at, locale)}</div></div><div className={styles.badgeRow}><RiskBadge risk={metadataText(version.metadata_json, "risk_level")} /><StatusBadge status={version.status} /></div></button>)}</div>}
               </section>
             </>
           ) : null}

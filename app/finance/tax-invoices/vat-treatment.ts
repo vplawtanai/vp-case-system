@@ -1,38 +1,41 @@
+import { translate } from "../../../lib/i18n/catalog";
+import type { UiLocale } from "../../../lib/i18n/core";
+
 import { invoiceTaxFacts } from "../payments/tax";
 import { taxError, taxObject, taxText } from "./shared";
 import { resolveVatEvidence, type VatEvidence, type VatTreatment } from "../document-decision/shared";
 
 export type { VatTreatment } from "../document-decision/shared";
 export type VatTreatmentPresentation = { label: string; workflow: "applies" | "not_applicable" | "unresolved"; status: string; explanation: string };
-export const unknownVatExplanation = "ระบบยังไม่สามารถระบุได้ว่ารายการนี้เป็น VAT 0%, ยกเว้น VAT, ไม่อยู่ในบังคับ VAT หรือรายการผ่านบัญชี";
-export const unknownTaxDecision = "ยังไม่สามารถตัดสินสถานะใบกำกับภาษีได้ เนื่องจาก VAT Treatment ยังไม่ครบ";
-export const vatSummaryUnavailable = "ยังไม่สามารถอ่านหลักฐาน VAT ของใบแจ้งหนี้ได้ครบ กรุณาโหลดข้อมูลล่าสุดหรือติดต่อผู้ดูแลเพื่อตรวจสอบสิทธิ์และหลักฐานต้นทาง";
+export const unknownVatExplanation = translate("th", "finance.taxInvoice.vatSummary.unknownExplanation");
+export const unknownTaxDecision = translate("th", "finance.taxInvoice.vatSummary.unknownDecision");
+export const vatSummaryUnavailable = translate("th", "finance.taxInvoice.vatSummary.unavailable");
 
 // Display vocabulary, not a decoder of free-text tax_category or economic classification.
-export function vatTreatmentPresentation(treatment: VatTreatment, rate: number | null): VatTreatmentPresentation {
+export function vatTreatmentPresentation(treatment: VatTreatment, rate: number | null, locale: UiLocale = "th"): VatTreatmentPresentation {
   switch (treatment) {
     case "standard_rate":
       if (rate !== null && Number.isFinite(rate) && rate > 0 && rate <= 100) return {
-        label: `VAT ${rate}%`, workflow: "applies", status: "ต้องดำเนินการใบกำกับภาษี",
-        explanation: "รายการนี้อยู่ในระบบ VAT และต้องดำเนินการใบกำกับภาษีเมื่อจุดเกิดภาษีได้รับการยืนยัน",
+        label: `VAT ${rate}%`, workflow: "applies", status: translate(locale, "finance.taxInvoice.vatSummary.required"),
+        explanation: translate(locale, "finance.taxInvoice.vatSummary.standardExplanation"),
       };
       break;
     case "zero_rated": return {
-      label: "VAT 0% (อัตราศูนย์)", workflow: "applies", status: "ต้องดำเนินการใบกำกับภาษี",
-      explanation: "รายการนี้ใช้อัตรา VAT 0% แต่ยังอยู่ในระบบ VAT และยังเกี่ยวข้องกับใบกำกับภาษี",
+      label: translate(locale, "finance.taxInvoice.vatSummary.zero"), workflow: "applies", status: translate(locale, "finance.taxInvoice.vatSummary.required"),
+      explanation: translate(locale, "finance.taxInvoice.vatSummary.zeroExplanation"),
     };
     case "exempt": return {
-      label: "ยกเว้น VAT", workflow: "not_applicable", status: "ไม่เข้าสู่ขั้นตอนใบกำกับภาษี VAT",
-      explanation: "รายการนี้ได้รับยกเว้น VAT จึงไม่เข้าสู่ขั้นตอนออกใบกำกับภาษี VAT สำหรับรายการนี้",
+      label: translate(locale, "finance.taxInvoice.vatSummary.exempt"), workflow: "not_applicable", status: translate(locale, "finance.taxInvoice.vatSummary.notApplicable"),
+      explanation: translate(locale, "finance.taxInvoice.vatSummary.exemptExplanation"),
     };
     case "disbursement":
     case "pass_through":
     case "outside_scope": return {
-      label: "ไม่อยู่ในบังคับ VAT", workflow: "not_applicable", status: "ไม่เข้าสู่ขั้นตอนใบกำกับภาษี VAT",
-      explanation: "รายการนี้ไม่อยู่ในบังคับ VAT จึงไม่เข้าสู่ขั้นตอนออกใบกำกับภาษี VAT สำหรับรายการนี้",
+      label: translate(locale, "finance.taxInvoice.vatSummary.outsideScope"), workflow: "not_applicable", status: translate(locale, "finance.taxInvoice.vatSummary.notApplicable"),
+      explanation: translate(locale, "finance.taxInvoice.vatSummary.outsideExplanation"),
     };
   }
-  return { label: "ยังไม่ได้กำหนด VAT Treatment", workflow: "unresolved", status: "ยังตัดสินสถานะใบกำกับภาษีไม่ได้", explanation: unknownTaxDecision };
+  return { label: translate(locale, "finance.taxInvoice.vatSummary.unknown"), workflow: "unresolved", status: translate(locale, "finance.taxInvoice.vatSummary.unresolved"), explanation: translate(locale, "finance.taxInvoice.vatSummary.unknownDecision") };
 }
 
 export type InvoiceVatLine = {
@@ -42,13 +45,13 @@ export type InvoiceVatLine = {
 
 export const vatConfirmationBlocker = "TAX_INVOICE_VAT_TREATMENT_UNRESOLVED";
 
-export function vatEligibilityBlockerMessage(code: string, lines: InvoiceVatLine[] | null): string {
+export function vatEligibilityBlockerMessage(code: string, lines: InvoiceVatLine[] | null, locale: UiLocale = "th"): string {
   if (code === vatConfirmationBlocker && lines?.length && lines.every(line => line.treatment === "standard_rate"
     && vatTreatmentPresentation(line.treatment, line.rate).workflow === "applies")) {
     const rates = [...new Set(lines.map(line => vatTreatmentPresentation(line.treatment, line.rate).label))];
-    return `ระบบตรวจพบ ${rates.join(", ")} จากข้อมูลใบแจ้งหนี้ กรุณายืนยัน VAT Treatment สำหรับใบกำกับภาษี`;
+    return translate(locale, "finance.taxInvoice.vatSummary.confirmDetected", { rates: rates.join(", ") });
   }
-  return taxError(code);
+  return taxError(code, locale);
 }
 
 export function invoiceVatLines(snapshot: unknown, expectedInvoiceId: string): InvoiceVatLine[] {

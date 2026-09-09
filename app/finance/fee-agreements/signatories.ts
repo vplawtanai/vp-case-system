@@ -103,13 +103,14 @@ export function resequenceFeeAgreementSignatories(value: FeeAgreementSignatory[]
 export function feeAgreementSignatoryContext(
   signer: FeeAgreementSignatory,
   fallbackContractualParty = "",
+  locale: UiLocale = "th",
 ) {
   const party = text(signer.contractual_party_name, fallbackContractualParty);
   if (signer.signing_mode === "attorney_in_fact") {
-    return party ? `ผู้รับมอบอำนาจจาก ${party}` : "ผู้รับมอบอำนาจ";
+    return translate(locale, party ? "finance.feeAgreement.workspace.signatory.attorneyContext" : "finance.feeAgreement.workspace.signatory.attorney", { name: party });
   }
   if (signer.signing_mode === "authorized_representative") {
-    return party ? `ผู้แทนผู้มีอำนาจของ ${party}` : "ผู้แทนผู้มีอำนาจ";
+    return translate(locale, party ? "finance.feeAgreement.workspace.signatory.authorizedContext" : "finance.feeAgreement.workspace.signatory.authorized", { name: party });
   }
   return "";
 }
@@ -120,3 +121,5 @@ function readSigningMode(value: unknown): FeeAgreementSigningMode | "" {
     ? candidate as FeeAgreementSigningMode
     : "";
 }
+import { translate } from "../../../lib/i18n/catalog";
+import type { UiLocale } from "../../../lib/i18n/core";

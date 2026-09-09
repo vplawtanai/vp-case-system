@@ -1,4 +1,6 @@
 "use client";
+import { useI18n } from "../../../../../lib/i18n/provider";
+import { uiMessage, type UiMessage } from "../../../../../lib/i18n/core";
 
 /* eslint-disable @next/next/no-img-element -- Private signed document assets must render eagerly and reliably in Browser Print. */
 
@@ -135,6 +137,7 @@ export default function QuotationPreviewPage() {
 }
 
 function QuotationPreview({ quotationId }: { quotationId: string }) {
+  const { t, text } = useI18n();
   const searchParams = useSearchParams();
   const hasOpenedPrintDialog = useRef(false);
   const [quotation, setQuotation] = useState<QuotationRow | null>(null);
@@ -151,7 +154,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
   const [signerSignatureUrl, setSignerSignatureUrl] = useState("");
   const [showSignerSignature, setShowSignerSignature] = useState(() => searchParams.get("signature") !== "0");
   const [loading, setLoading] = useState(true);
-  const [errorText, setErrorText] = useState("");
+  const [errorText, setErrorText] = useState<UiMessage | string>("");
   const logoImageRef = useRef<HTMLImageElement | null>(null);
   const signerSignatureImageRef = useRef<HTMLImageElement | null>(null);
 
@@ -161,7 +164,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
       setErrorText("");
 
       if (!quotationId) {
-        setErrorText("Quotation not found.");
+        setErrorText(uiMessage("finance.quotation.error.notFound"));
         setLoading(false);
         return;
       }
@@ -174,7 +177,7 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
 
       if (quotationRes.error || !quotationRes.data) {
         console.error("Failed to load quotation preview", { quotationId, error: quotationRes.error });
-        setErrorText("Quotation not found.");
+        setErrorText(uiMessage("finance.quotation.error.notFound"));
         setLoading(false);
         return;
       }
@@ -343,22 +346,22 @@ function QuotationPreview({ quotationId }: { quotationId: string }) {
     <div className="quotation-preview-shell">
       <style>{printCss}</style>
       <div className="print-hidden" style={toolbarStyle}>
-        <span style={printHintStyle}>เพื่อผลลัพธ์ที่ดีที่สุด กรุณาใช้ Print → Save as PDF และปิด Headers &amp; Footers</span>
+        <span style={printHintStyle}>{t("finance.quotation.preview.hint")}</span>
         <label style={signatureToggleStyle}>
           <input type="checkbox" checked={showSignerSignature} onChange={(event) => updateSignatureOption(event.target.checked)} />
-          แสดงลายเซ็นผู้เสนอราคา / Show authorized signer signature
+          {t("finance.quotation.preview.signature")}
         </label>
         <Link href={quotationId ? `/finance/quotations/${quotationId}` : "/finance/quotations"} style={secondaryButtonStyle}>
-          Back to Quotation
+          {t("finance.quotation.preview.back")}
         </Link>
         <button type="button" onClick={() => { void printWhenReady(); }} style={primaryButtonStyle}>
-          Print
+          {t("finance.quotation.preview.print")}
         </button>
       </div>
 
-      {loading ? <div style={messageStyle}>Loading quotation preview...</div> : null}
-      {!loading && errorText ? <div style={errorStyle}>{errorText}</div> : null}
-      {!loading && quotation && isFrozenQuotation(quotation) && !frozenDocument ? <div className="print-hidden" style={errorStyle}>เอกสารที่ส่งแล้วไม่มี snapshot ที่สมบูรณ์ กรุณาตรวจสอบความถูกต้องของเอกสารก่อนใช้งาน</div> : null}
+      {loading ? <div style={messageStyle}>{t("finance.quotation.preview.loading")}</div> : null}
+      {!loading && errorText ? <div style={errorStyle}>{text(errorText)}</div> : null}
+      {!loading && quotation && isFrozenQuotation(quotation) && !frozenDocument ? <div className="print-hidden" style={errorStyle}>{t("finance.quotation.preview.noSnapshot")}</div> : null}
 
       {!loading && quotation ? (
         <article className={`quotation-print-document ${documentTheme.quotation}`} style={documentStyle}>

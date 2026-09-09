@@ -65,7 +65,8 @@ test('asset loader downloads only the snapshot path, decodes before review, and 
 test('Draft review requires a loaded schema-2 logo and Print waits for image decode',()=>{
   const detail=fs.readFileSync(`${root}/app/finance/receipts/[id]/page.tsx`,'utf8');
   assert.match(detail,/Boolean\(document\?\.logo\) && logoReady && reviewed === fingerprint/);
-  assert.match(detail,/รีเฟรชร่างจากรายการรับชำระ/);
+  assert.match(detail,/t\("finance\.receipt\.refresh"\)/);
+  assert.equal(require(root+'/lib/i18n/catalog.ts').translate('th','finance.receipt.refresh'),'รีเฟรชร่างจากรายการรับชำระ');
   const preview=fs.readFileSync(`${root}/app/finance/receipts/[id]/preview/page.tsx`,'utf8');
   assert.ok(preview.indexOf('image.decode()')<preview.indexOf('window.print()'));
 });

@@ -6,7 +6,11 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 // @ts-expect-error Node's strip-types runner requires the explicit TypeScript extension.
-import { calculateStructuredWht, invoiceTaxFacts, paymentTaxFingerprint, paymentWhtScope, savedPaymentWht, structuredWhtCopy } from "./tax.ts";
+import { calculateStructuredWht, invoiceTaxFacts, invoiceTaxVatLabel, paymentTaxFingerprint, paymentWhtScope, savedPaymentWht, structuredWhtCopy } from "./tax.ts";
+// @ts-expect-error Node's strip-types runner requires the explicit TypeScript extension.
+import { uiMessage } from "../../../lib/i18n/core.ts";
+// @ts-expect-error Node's strip-types runner requires the explicit TypeScript extension.
+import { translate } from "../../../lib/i18n/catalog.ts";
 // @ts-expect-error Node's strip-types runner requires the explicit TypeScript extension.
 import { hasValidCurrencyPrecision, normalizedAmount, paymentFingerprint, paymentForm, safePaymentError } from "./shared.ts";
 import type { FinancePayment } from "./shared";
@@ -36,7 +40,7 @@ function taxMarkup(facts: ReturnType<typeof invoiceTaxFacts>) {
   const code = ["fieldLabel", "fieldValue", "taxSummary", "reviewGroupTitle", "contextGrid", "sectionDescription"].map((name) => `const ${name}=${definitions.get(name)};`).join("\n")
     + definitions.get("Field") + definitions.get("InvoiceTaxSummary") + "\n(<InvoiceTaxSummary facts={facts} />)";
   return renderToStaticMarkup(runInNewContext(ts.transpileModule(code, { compilerOptions: { jsx: ts.JsxEmit.React } }).outputText,
-    { React, facts, money: (amount: number, currency: string) => `${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}` }));
+    { React, facts, invoiceTaxVatLabel, useI18n: () => ({ locale: "th", t: (key: string) => translate("th", key) }), money: (amount: number, currency: string) => `${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}` }));
 }
 
 test("frozen VAT summary shows gross, before VAT, tax and VAT status", () => {
@@ -105,7 +109,7 @@ test("turning WHT off zeroes credit without arbitrary monetary entry", () => {
 test("validation rejects legacy and partial WHT before save or confirmation", () => {
   for (const mode of ["legacy", "rate"]) {
     let errors: Record<string, unknown> = {};
-    const validate = handler("validate", { whtMode: mode, structuredWhtCopy, currentWhtBase: { error: structuredWhtCopy.partial }, whtCalculation: null,
+    const validate = handler("validate", { whtMode: mode, uiMessage, currentWhtBase: { error: structuredWhtCopy.partial, errorKey: "finance.payment.wht.partial" }, whtCalculation: null,
       hasValidCurrencyPrecision, normalizedAmount, settlementTarget: "5000", targetSettlement: 5000, draftAllocationEditingLimited: false, outstandingBefore: 5000,
       form: { cashAmount: "4850.00", whtAmount: "150.00", receivedOn: "2026-09-01", paymentMethod: "bank_transfer", receivingBankAccountId: "bank" },
       cash: 4850, wht: 150, paymentSettlement: 5000, bangkokToday: () => "2026-09-05", setErrors(value: Record<string, unknown>) { errors = value; }, setError() {}, requestAnimationFrame() {},
@@ -115,8 +119,8 @@ test("validation rejects legacy and partial WHT before save or confirmation", ()
 });
 test("edit/review share frozen tax summary, and confirmation retains the dedicated RPC", () => {
   assert.ok((pageSource.match(/<InvoiceTaxSummary/g) || []).length >= 3);
-  assert.match(pageSource, /<Field label="ฐาน WHT"/);
-  assert.match(pageSource, /<Field label="อัตราหัก ณ ที่จ่าย"/);
+  assert.match(pageSource, /<Field label=\{t\("finance\.payment\.ui\.whtBaseShort"\)/);
+  assert.match(pageSource, /<Field label=\{t\("finance\.payment\.ui\.whtRate"\)/);
   assert.match(pageSource, /p_wht_rate_percent: whtMode === "rate" \? selectedWhtRate : null/);
   assert.match(pageSource, /rpc\("save_finance_payment_tax_draft"/);
   assert.match(pageSource, /rpc\("confirm_finance_payment"/);

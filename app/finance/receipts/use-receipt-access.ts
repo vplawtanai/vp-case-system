@@ -1,10 +1,12 @@
 "use client";
+import { useI18n } from "../../../lib/i18n/provider";
 
 import { useCallback, useEffect, useState } from "react";
 import { buildPermissions, type UserPermissions } from "../../../lib/permissions";
 import { supabase } from "../../../lib/supabase";
 
 export function useReceiptAccess(enabled = true) {
+  const { t } = useI18n();
   const [permissions, setPermissions] = useState<UserPermissions | null>(null);
   const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState("");
@@ -20,12 +22,12 @@ export function useReceiptAccess(enabled = true) {
       if (profileError || !data?.active) throw profileError || new Error("Inactive profile");
       setPermissions(buildPermissions(data));
     } catch {
-      setError("ตรวจสอบสิทธิ์ใบเสร็จรับเงินไม่สำเร็จ");
+      setError("finance.receipt.accessFailed");
     } finally { setLoading(false); }
   }, [enabled]);
   useEffect(() => {
     const timer = window.setTimeout(() => { void reload(); }, 0);
     return () => window.clearTimeout(timer);
   }, [reload]);
-  return { permissions, loading, error, reload };
+  return { permissions, loading, error: error ? t(error) : "", reload };
 }

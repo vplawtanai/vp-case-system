@@ -1,5 +1,8 @@
 "use client";
 
+import { useI18n } from "../../../lib/i18n/provider";
+import { uiMessage, type UiMessage } from "../../../lib/i18n/core";
+
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { QuotationGuard } from "../quotations/shared";
@@ -7,7 +10,7 @@ import { supabase } from "../../../lib/supabase";
 import type { UserPermissions } from "../../../lib/permissions";
 import FinanceSubNav from "../FinanceSubNav";
 import InvoiceWorkspaceNav from "./InvoiceWorkspaceNav";
-import { formatBangkokDateTime, invoiceCompositionSourceLabel, invoiceStatusLabels, money, type InvoiceCompositionItem } from "./shared";
+import { invoiceCompositionSourceLabel, invoiceUiLabels, money, type InvoiceCompositionItem } from "./shared";
 import styles from "./invoice-workspace.module.css";
 
 type InvoiceListRow = {
@@ -27,9 +30,11 @@ export default function InvoiceListPage() {
 }
 
 function InvoiceListWorkspace({ permissions }: { permissions: UserPermissions }) {
+  const { locale, t, text, date } = useI18n();
   const [rows, setRows] = useState<InvoiceListRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<UiMessage | string>("");
+  const { statuses: invoiceStatusLabels } = invoiceUiLabels(locale);
   const canCompose = permissions.canEditFinanceQuotation && permissions.canManageFinanceBillableCharges;
 
   const load = useCallback(async () => {
@@ -37,7 +42,7 @@ function InvoiceListWorkspace({ permissions }: { permissions: UserPermissions })
     const result = await supabase.from("finance_invoices").select("id,invoice_no,document_status,source_model,customer_name,currency,total_amount,created_at,finance_invoice_items(source_state,source_snapshot_json)").order("created_at", { ascending: false });
     if (result.error) {
       console.error("LOAD INVOICE WORKSPACE FAILED", result.error);
-      setError("โหลดรายการใบแจ้งหนี้ไม่สำเร็จ");
+      setError(uiMessage("finance.invoice.ui.listLoadFailed"));
     } else {
       setRows((result.data || []) as InvoiceListRow[]);
     }
@@ -53,19 +58,19 @@ function InvoiceListWorkspace({ permissions }: { permissions: UserPermissions })
     <FinanceSubNav activePage="invoices" permissions={permissions} />
     <InvoiceWorkspaceNav activePage="invoices" showAdditionalCharges={permissions.canViewFinanceBillableCharges} />
     <header className={styles.header}>
-      <div><span className={styles.eyebrow}>FINANCE</span><h1>ใบแจ้งหนี้</h1><p>ตรวจสอบร่าง เอกสารที่ออกแล้ว สถานะการรับชำระ และใบแจ้งหนี้ที่เก็บไว้เป็นประวัติ</p></div>
-      {canCompose ? <Link className={styles.primaryButton} href="/finance/invoices/compose">สร้างใบแจ้งหนี้</Link> : null}
+      <div><span className={styles.eyebrow}>{t("finance.invoice.ui.finance")}</span><h1>{t("finance.invoice.ui.title")}</h1><p>{t("finance.invoice.ui.listDescription")}</p></div>
+      {canCompose ? <Link className={styles.primaryButton} href="/finance/invoices/compose">{t("finance.invoice.ui.create")}</Link> : null}
     </header>
-    {error ? <div className={styles.error}>{error}</div> : null}
+    {error ? <div className={styles.error}>{text(error)}</div> : null}
     <section className={styles.surface}>
-      {loading ? <div className={styles.loading}>กำลังโหลดใบแจ้งหนี้...</div> : null}
-      {!loading && !rows.length ? <div className={styles.empty}>ยังไม่มีใบแจ้งหนี้</div> : null}
+      {loading ? <div className={styles.loading}>{t("finance.invoice.ui.loading")}</div> : null}
+      {!loading && !rows.length ? <div className={styles.empty}>{t("finance.invoice.ui.empty")}</div> : null}
       {!loading && rows.length ? <div className={styles.invoiceList}>{rows.map((invoice) => <article key={invoice.id} className={styles.invoiceRow}>
-        <div className={styles.invoiceIdentity}><strong>{invoice.invoice_no || `ร่าง ${invoice.id.slice(0, 8).toUpperCase()}`}</strong><small>{formatBangkokDateTime(invoice.created_at)}</small></div>
-        <div className={styles.invoiceCell}><span>ลูกค้า</span><strong>{invoice.customer_name || "-"}</strong></div>
-        <div className={styles.invoiceCell}><span>ที่มา</span><strong>{invoiceCompositionSourceLabel(invoice.source_model, invoice.finance_invoice_items || [])}</strong></div>
-        <div className={styles.invoiceCell}><span>ยอดรวม</span><strong>{money(invoice.total_amount, invoice.currency)}</strong><span className={styles.status}>{invoiceStatusLabels[invoice.document_status] || invoice.document_status}</span></div>
-        <Link className={styles.detailButton} href={`/finance/invoices/${invoice.id}`}>เปิดใบแจ้งหนี้</Link>
+        <div className={styles.invoiceIdentity}><strong>{invoice.invoice_no || t("finance.invoice.ui.draftReferenceValue", { reference: invoice.id.slice(0, 8).toUpperCase() })}</strong><small>{date(invoice.created_at, true)}</small></div>
+        <div className={styles.invoiceCell}><span>{t("finance.invoice.ui.customer")}</span><strong>{invoice.customer_name || "-"}</strong></div>
+        <div className={styles.invoiceCell}><span>{t("finance.invoice.ui.source")}</span><strong>{invoiceCompositionSourceLabel(invoice.source_model, invoice.finance_invoice_items || [], undefined, locale)}</strong></div>
+        <div className={styles.invoiceCell}><span>{t("finance.invoice.ui.total")}</span><strong>{money(invoice.total_amount, invoice.currency)}</strong><span className={styles.status}>{invoiceStatusLabels[invoice.document_status] || invoice.document_status}</span></div>
+        <Link className={styles.detailButton} href={`/finance/invoices/${invoice.id}`}>{t("finance.invoice.ui.open")}</Link>
       </article>)}</div> : null}
     </section>
   </div>;

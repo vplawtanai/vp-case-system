@@ -57,11 +57,11 @@ test("classification is presentation-only and does not change source evidence or
 test("Draft and Issued detail surfaces and Invoice list use the same source resolver", () => {
   const detail = readFileSync(new URL("./[id]/page.tsx", import.meta.url), "utf8");
   const list = readFileSync(new URL("./page.tsx", import.meta.url), "utf8");
-  assert.match(detail, /const invoiceSourceLabel = invoiceCompositionSourceLabel\(invoice.source_model, items, engagementReference\)/);
-  assert.match(detail, /<SourceNode label="ที่มาของยอดเรียกเก็บ">\{invoiceSourceLabel\}/);
-  assert.match(detail, /<Field label="แหล่งข้อมูล" value=\{invoiceSourceLabel\}/);
-  assert.match(detail, /<Field label="รูปแบบการรวบรวมยอด" value=\{invoiceSourceLabel\}/);
+  assert.match(detail, /const invoiceSourceLabel = invoiceCompositionSourceLabel\(invoice.source_model, items, engagementReference, locale\)/);
+  assert.match(detail, /<SourceNode label=\{t\("finance.invoice.ui.billingSource"\)\}>\{invoiceSourceLabel\}/);
+  assert.match(detail, /<Field label=\{t\("finance.invoice.ui.dataSource"\)\} value=\{invoiceSourceLabel\}/);
+  assert.match(detail, /<Field label=\{t\("finance.invoice.ui.compositionType"\)\} value=\{invoiceSourceLabel\}/);
   assert.match(list, /finance_invoice_items\(source_state,source_snapshot_json\)/);
-  assert.match(list, /invoiceCompositionSourceLabel\(invoice.source_model, invoice.finance_invoice_items \|\| \[\]\)/);
+  assert.match(list, /invoiceCompositionSourceLabel\(invoice.source_model, invoice.finance_invoice_items \|\| \[\], undefined, locale\)/);
   assert.doesNotMatch(detail + list, /v2Bridge \? "ยอดตามแผน|v2_bridge_id \? "ยอดตามแผน|แบบรวมรายการ/);
 });

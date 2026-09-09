@@ -1,4 +1,6 @@
 "use client";
+import { useI18n } from "../../../lib/i18n/provider";
+import { uiMessage, type UiMessage } from "../../../lib/i18n/core";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -48,11 +50,12 @@ const initialFamily = {
 };
 
 export default function DocumentClausesPage() {
+  const { t, text, locale } = useI18n();
   const router = useRouter();
   const access = useDocumentPlatformAccess();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [errorText, setErrorText] = useState("");
+  const [errorText, setErrorText] = useState<UiMessage | string>("");
   const [families, setFamilies] = useState<ClauseFamilyRow[]>([]);
   const [versions, setVersions] = useState<ClauseVersionRow[]>([]);
   const [search, setSearch] = useState("");
@@ -74,7 +77,7 @@ export default function DocumentClausesPage() {
       .limit(1000);
     if (familiesResult.error) {
       console.error("Load clause families failed", familiesResult.error);
-      setErrorText("ไม่สามารถโหลดคลังข้อสัญญาได้");
+      setErrorText(uiMessage("settings.documents.clauses.error.load"));
       setLoading(false);
       return;
     }
@@ -91,7 +94,7 @@ export default function DocumentClausesPage() {
         .limit(5000);
       if (versionsResult.error) {
         console.error("Load clause versions failed", versionsResult.error);
-        setErrorText("ไม่สามารถโหลดเวอร์ชันข้อสัญญาได้");
+        setErrorText(uiMessage("settings.documents.clauses.error.versions"));
         setLoading(false);
         return;
       }
@@ -116,14 +119,14 @@ export default function DocumentClausesPage() {
     const latestVersion = familyVersions[0] || null;
     return {
       ...family,
-      displayName: metadataText(family.metadata_json, "display_name_th") || latestVersion?.title || "ยังไม่ได้ตั้งชื่อข้อสัญญา",
+      displayName: metadataText(family.metadata_json, "display_name_th") || latestVersion?.title || t("settings.documents.clauses.untitled"),
       latestVersion,
       versionCount: familyVersions.length,
       languages: Array.from(new Set(familyVersions.map((version) => version.language_code))).sort(),
       statuses: Array.from(new Set(familyVersions.map((version) => version.status))),
       riskLevel: metadataText(latestVersion?.metadata_json, "risk_level") || "informational",
     };
-  }), [families, versions]);
+  }), [families, versions, t]);
 
   const categories = useMemo(
     () => Array.from(new Set(families.map((family) => family.category).filter(Boolean) as string[])).sort(),
@@ -149,7 +152,7 @@ export default function DocumentClausesPage() {
     const code = newFamily.clauseCode.trim().toUpperCase();
     const displayName = newFamily.displayNameTh.trim();
     if (!code || !displayName) {
-      setErrorText("กรุณาระบุรหัสและชื่อข้อสัญญา");
+      setErrorText(uiMessage("settings.documents.clauses.validation.identity"));
       return;
     }
 
@@ -165,8 +168,8 @@ export default function DocumentClausesPage() {
     if (error || typeof data !== "string") {
       console.error("Create clause family failed", error);
       setErrorText(error?.message?.toLowerCase().includes("duplicate")
-        ? "รหัสข้อสัญญานี้มีอยู่แล้ว กรุณาใช้รหัสอื่น"
-        : "สร้างข้อสัญญามาตรฐานไม่สำเร็จ");
+        ? uiMessage("settings.documents.clauses.error.duplicate")
+        : uiMessage("settings.documents.clauses.error.create"));
       setSaving(false);
       return;
     }
@@ -178,97 +181,89 @@ export default function DocumentClausesPage() {
   };
 
   return (
-    <DocumentPlatformPage title="Settings" subtitle="Clause Library">
+    <DocumentPlatformPage title={t("settings.documents.title")} subtitle={t("settings.documents.nav.clauses")}>
       <AccessState access={access} />
       {access.allowed ? (
         <>
           <header className={styles.pageHeader}>
             <div>
-              <h1 className={styles.pageTitle}>คลังข้อสัญญา</h1>
-              <p className={styles.pageDescription}>จัดทำ ตรวจทาน และเก็บเวอร์ชันถ้อยคำกฎหมายมาตรฐานสำหรับใช้ในแม่แบบเอกสาร</p>
+              <h1 className={styles.pageTitle}>{t("settings.documents.nav.clauses")}</h1>
+              <p className={styles.pageDescription}>{t("settings.documents.clauses.description")}</p>
             </div>
             <div className={styles.actionRow}>
-              <button type="button" className={styles.button} onClick={() => void loadClauses()} disabled={loading}>รีเฟรช</button>
-              <button type="button" className={styles.buttonPrimary} onClick={() => setShowCreate((current) => !current)}>สร้างข้อสัญญามาตรฐาน</button>
+              <button type="button" className={styles.button} onClick={() => void loadClauses()} disabled={loading}>{t("settings.documents.actions.refresh")}</button>
+              <button type="button" className={styles.buttonPrimary} onClick={() => setShowCreate((current) => !current)}>{t("settings.documents.clauses.create")}</button>
             </div>
           </header>
 
-          <div className={styles.notice}>เฉพาะเวอร์ชันที่ผ่านการตรวจและเผยแพร่แล้วเท่านั้น จึงจะนำไปผูกกับตำแหน่งข้อสัญญาในแม่แบบเอกสารได้</div>
+          <div className={styles.notice}>{t("settings.documents.clauses.publishedOnly")}</div>
 
           {showCreate ? (
             <section className={styles.formPanel}>
               <div className={styles.sectionHeader}>
                 <div>
-                  <h2 className={styles.sectionTitle}>สร้างข้อสัญญามาตรฐาน</h2>
-                  <div className={styles.helperText}>สร้างเฉพาะหัวข้อในคลัง ขั้นตอนนี้ยังไม่มีการเผยแพร่ถ้อยคำกฎหมาย</div>
+                  <h2 className={styles.sectionTitle}>{t("settings.documents.clauses.create")}</h2>
+                  <div className={styles.helperText}>{t("settings.documents.clauses.createHelp")}</div>
                 </div>
-                <button type="button" className={styles.button} onClick={() => setShowCreate(false)}>ปิด</button>
+                <button type="button" className={styles.button} onClick={() => setShowCreate(false)}>{t("settings.documents.actions.close")}</button>
               </div>
               <div className={styles.formGrid}>
-                <label className={styles.field}>รหัสข้อสัญญา
-                  <input className={styles.input} value={newFamily.clauseCode} onChange={(event) => setNewFamily({ ...newFamily, clauseCode: event.target.value.toUpperCase() })} placeholder="เช่น SERVICE-SCOPE" />
+                <label className={styles.field}>{t("settings.documents.clauses.code")}<input className={styles.input} value={newFamily.clauseCode} onChange={(event) => setNewFamily({ ...newFamily, clauseCode: event.target.value.toUpperCase() })} placeholder={t("settings.documents.clauses.codePlaceholder")} />
                 </label>
-                <label className={styles.fieldWide}>ชื่อข้อสัญญาภาษาไทย
-                  <input className={styles.input} value={newFamily.displayNameTh} onChange={(event) => setNewFamily({ ...newFamily, displayNameTh: event.target.value })} />
+                <label className={styles.fieldWide}>{t("settings.documents.clauses.nameTh")}<input className={styles.input} value={newFamily.displayNameTh} onChange={(event) => setNewFamily({ ...newFamily, displayNameTh: event.target.value })} />
                 </label>
-                <label className={styles.field}>หมวด
-                  <input className={styles.input} value={newFamily.category} onChange={(event) => setNewFamily({ ...newFamily, category: event.target.value })} />
+                <label className={styles.field}>{t("settings.documents.fields.category")}<input className={styles.input} value={newFamily.category} onChange={(event) => setNewFamily({ ...newFamily, category: event.target.value })} />
                 </label>
-                <label className={styles.field}>เขตอำนาจ / ประเทศ
-                  <input className={styles.input} value={newFamily.jurisdiction} onChange={(event) => setNewFamily({ ...newFamily, jurisdiction: event.target.value })} />
+                <label className={styles.field}>{t("settings.documents.fields.jurisdiction")}<input className={styles.input} value={newFamily.jurisdiction} onChange={(event) => setNewFamily({ ...newFamily, jurisdiction: event.target.value })} />
                 </label>
               </div>
               <div className={styles.actionRow}>
-                <button type="button" className={styles.buttonPrimary} onClick={() => void createFamily()} disabled={saving || !newFamily.clauseCode.trim() || !newFamily.displayNameTh.trim()}>{saving ? "กำลังสร้าง..." : "สร้างและเปิดพื้นที่เขียน"}</button>
-                <button type="button" className={styles.button} onClick={() => { setNewFamily(initialFamily); setShowCreate(false); }}>ยกเลิก</button>
+                <button type="button" className={styles.buttonPrimary} onClick={() => void createFamily()} disabled={saving || !newFamily.clauseCode.trim() || !newFamily.displayNameTh.trim()}>{saving ? t("settings.documents.state.creating") : t("settings.documents.clauses.createOpen")}</button>
+                <button type="button" className={styles.button} onClick={() => { setNewFamily(initialFamily); setShowCreate(false); }}>{t("settings.documents.actions.cancel")}</button>
               </div>
             </section>
           ) : null}
 
           <section className={styles.section}>
             <div className={styles.filterBar}>
-              <label className={styles.fieldWide}>ค้นหา
-                <input className={styles.input} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ชื่อ รหัส หมวด หรือเขตอำนาจ" />
+              <label className={styles.fieldWide}>{t("settings.documents.filter.search")}<input className={styles.input} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("settings.documents.clauses.searchPlaceholder")} />
               </label>
-              <label className={styles.field}>สถานะ
-                <select className={styles.select} value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-                  <option value="all">ทุกสถานะ</option><option value="draft">ฉบับร่าง</option><option value="under_review">ส่งตรวจ</option><option value="published">เผยแพร่แล้ว</option><option value="retired">ยกเลิกการใช้งาน</option><option value="no_version">ยังไม่มีเวอร์ชัน</option>
+              <label className={styles.field}>{t("settings.documents.fields.status")}<select className={styles.select} value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                  <option value="all">{t("settings.documents.filter.allStatuses")}</option><option value="draft">{t("settings.documents.clauses.draft")}</option><option value="under_review">{t("settings.documents.status.under_review")}</option><option value="published">{t("settings.documents.status.published")}</option><option value="retired">{t("settings.documents.status.retired")}</option><option value="no_version">{t("settings.documents.state.noVersion")}</option>
                 </select>
               </label>
-              <label className={styles.field}>ภาษา
-                <select className={styles.select} value={languageFilter} onChange={(event) => setLanguageFilter(event.target.value)}>
-                  <option value="all">ทุกภาษา</option><option value="th">ไทย</option><option value="en">อังกฤษ</option>
+              <label className={styles.field}>{t("settings.documents.fields.language")}<select className={styles.select} value={languageFilter} onChange={(event) => setLanguageFilter(event.target.value)}>
+                  <option value="all">{t("settings.documents.filter.allLanguages")}</option><option value="th">{t("settings.documents.language.th")}</option><option value="en">{t("settings.documents.language.en")}</option>
                 </select>
               </label>
-              <label className={styles.field}>หมวด
-                <select className={styles.select} value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
-                  <option value="all">ทุกหมวด</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}
+              <label className={styles.field}>{t("settings.documents.fields.category")}<select className={styles.select} value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+                  <option value="all">{t("settings.documents.filter.allCategories")}</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}
                 </select>
               </label>
             </div>
           </section>
 
-          {errorText ? <div className={styles.error}>{errorText}</div> : null}
-          {loading ? <div className={styles.emptyState}>กำลังโหลดคลังข้อสัญญา...</div> : null}
-          {!loading && !errorText && rows.length === 0 ? <div className={styles.emptyState}>ยังไม่มีข้อสัญญามาตรฐานในคลัง</div> : null}
-          {!loading && rows.length > 0 && filteredRows.length === 0 ? <div className={styles.emptyState}>ไม่พบข้อสัญญาที่ตรงกับการค้นหา</div> : null}
+          {errorText ? <div className={styles.error}>{text(errorText)}</div> : null}
+          {loading ? <div className={styles.emptyState}>{t("settings.documents.clauses.loading")}</div> : null}
+          {!loading && !errorText && rows.length === 0 ? <div className={styles.emptyState}>{t("settings.documents.clauses.empty")}</div> : null}
+          {!loading && rows.length > 0 && filteredRows.length === 0 ? <div className={styles.emptyState}>{t("settings.documents.clauses.noMatches")}</div> : null}
 
           {!loading && filteredRows.length > 0 ? (
             <section className={styles.surface}>
               <div className={styles.tableWrap}>
                 <table className={styles.table}>
-                  <thead><tr><th>ข้อสัญญามาตรฐาน</th><th>หมวด / เขตอำนาจ</th><th>ภาษา</th><th>เวอร์ชันล่าสุด</th><th>สถานะ</th><th>ความเสี่ยง</th><th>ตรวจ/เผยแพร่ล่าสุด</th><th>ดำเนินการ</th></tr></thead>
+                  <thead><tr><th>{t("settings.documents.clauses.standardClause")}</th><th>{t("settings.documents.fields.categoryJurisdiction")}</th><th>{t("settings.documents.fields.language")}</th><th>{t("settings.documents.fields.latestVersion")}</th><th>{t("settings.documents.fields.status")}</th><th>{t("settings.documents.fields.risk")}</th><th>{t("settings.documents.fields.reviewedPublished")}</th><th>{t("settings.documents.fields.actions")}</th></tr></thead>
                   <tbody>{filteredRows.map((family) => {
                     const latest = family.latestVersion;
                     return <tr key={family.id}>
                       <td><div className={styles.primaryText}>{family.displayName}</div><div className={styles.codeText}>{family.clause_code}</div><StatusBadge status={family.is_active ? "active" : "inactive"} /></td>
                       <td>{family.category || "-"}<div className={styles.muted}>{family.jurisdiction || "-"}</div></td>
-                      <td>{family.languages.length ? family.languages.map(languageLabel).join(" / ") : "-"}</td>
-                      <td>{latest ? `รุ่น ${latest.version_no}` : "-"}<div className={styles.muted}>{family.versionCount} เวอร์ชัน</div></td>
-                      <td>{latest ? <StatusBadge status={latest.status} /> : <span className={styles.muted}>ยังไม่มีเวอร์ชัน</span>}</td>
+                      <td>{family.languages.length ? family.languages.map((language) => languageLabel(language, locale)).join(" / ") : "-"}</td>
+                      <td>{latest ? t("settings.documents.count.version", { number: latest.version_no }) : "-"}<div className={styles.muted}>{t("settings.documents.count.versions", { count: family.versionCount })}</div></td>
+                      <td>{latest ? <StatusBadge status={latest.status} /> : <span className={styles.muted}>{t("settings.documents.state.noVersion")}</span>}</td>
                       <td><RiskBadge risk={family.riskLevel} /></td>
-                      <td>{formatDateTime(latest?.reviewed_at || latest?.published_at || latest?.updated_at || family.updated_at)}</td>
-                      <td><Link href={`/settings/document-clauses/${family.id}`} className={styles.linkButton}>เปิดข้อสัญญา</Link></td>
+                      <td>{formatDateTime(latest?.reviewed_at || latest?.published_at || latest?.updated_at || family.updated_at, locale)}</td>
+                      <td><Link href={`/settings/document-clauses/${family.id}`} className={styles.linkButton}>{t("settings.documents.clauses.open")}</Link></td>
                     </tr>;
                   })}</tbody>
                 </table>

@@ -1,6 +1,8 @@
 import { documentLogoEvidence, type DocumentLogoEvidence } from "../../../lib/documentLogo";
 import { normalizeDocumentIdentity, type DocumentIdentity } from "../../../lib/documentIdentity";
 import type { DocumentLine } from "../document-decision/shared";
+import { translate } from "../../../lib/i18n/catalog";
+import { isUiMessage, type UiLocale } from "../../../lib/i18n/core";
 
 export type TaxDecisions = {
   tax_treatment?: string; treatment_reason?: string; buyer_vat_registered?: boolean | null;
@@ -16,41 +18,48 @@ export type TaxInvoice = {
 };
 export const taxInvoiceSelect = "id,payment_id,invoice_id,status,tax_invoice_no,issue_date,source_snapshot_json,decisions_json,draft_snapshot_json,issued_snapshot_json,issued_at,created_at,updated_at,cancel_reason,combined_document_id";
 export type TaxEligibility = { can_prepare: boolean; blockers: string[]; existing_id?: string; existing_status?: string; existing_number?: string | null };
-export const taxStatusLabels = { draft: "ร่าง", issued: "ออกใบกำกับภาษีแล้ว", cancelled: "ยกเลิกร่างแล้ว" };
-export const taxTreatmentLabels: Record<string, string> = { standard_rated: "อยู่ในบังคับ VAT ตามอัตราต้นทาง", zero_rated: "อัตราภาษี 0% (ต้องมีหลักฐาน)", exempt: "ยกเว้น VAT (ยังไม่รองรับ)", outside_scope: "ไม่อยู่ในบังคับ VAT (ยังไม่รองรับ)" };
+export const taxStatusLabels = { draft: translate("th", "status.draft"), issued: translate("th", "finance.taxInvoice.ui.statusIssued"), cancelled: translate("th", "finance.taxInvoice.ui.statusCancelled") };
+export function taxStatusLabel(status: TaxInvoice["status"], locale: UiLocale = "th") {
+  return translate(locale, status === "issued" ? "finance.taxInvoice.ui.statusIssued" : status === "cancelled" ? "finance.taxInvoice.ui.statusCancelled" : "status.draft");
+}
+export const taxTreatmentLabels: Record<string, string> = { standard_rated: translate("th", "finance.taxInvoice.ui.standardTreatment"), zero_rated: translate("th", "finance.taxInvoice.treatment.zeroEvidence"), exempt: translate("th", "finance.taxInvoice.treatment.exemptUnsupported"), outside_scope: translate("th", "finance.taxInvoice.treatment.outsideUnsupported") };
 export const taxBlockerMessages: Record<string, string> = {
-  TAX_INVOICE_CUSTOMER_IDENTITY_REQUIRED: "ข้อมูลผู้รับบริการไม่ครบ กรุณาระบุที่อยู่และสถานะจดทะเบียน VAT พร้อมหลักฐานภาษีที่จำเป็น",
-  TAX_INVOICE_SELLER_IDENTITY_REQUIRED: "ข้อมูลภาษีผู้ขายหรือหลักฐานสำนักงานใหญ่ไม่ครบ กรุณาติดต่อผู้ดูแล",
-  TAX_INVOICE_TAX_POINT_APPROVAL_REQUIRED: "ยังไม่ได้ยืนยันจุดเกิดภาษีและตรวจสอบว่าไม่มีเหตุเกิดภาษีก่อนวันรับชำระ",
-  TAX_INVOICE_VAT_TREATMENT_UNRESOLVED: "ยังไม่ได้ยืนยันประเภท VAT หรือประเภทที่เลือกไม่สอดคล้องกับข้อมูลต้นทาง",
-  TAX_INVOICE_EXTERNAL_COVERAGE_CHECK_REQUIRED: "ยังไม่ได้ตรวจสอบใบกำกับภาษีภายนอกและการใช้เลข VP-TI ซ้ำ",
-  TAX_INVOICE_PARTIAL_PAYMENT_UNSUPPORTED: "เป็นการรับชำระบางส่วน หรือชำระจากหลายรายการรับชำระ ยังไม่รองรับในขั้นตอนนี้",
-  TAX_INVOICE_MULTILINE_UNSUPPORTED: "รายการหลายประเภท / หลายบรรทัด ยังไม่รองรับในขั้นตอนนี้",
-  TAX_INVOICE_MULTIPLE_SOURCES_UNSUPPORTED: "รายการรับชำระอ้างอิงหลายใบแจ้งหนี้ ยังไม่รองรับในขั้นตอนนี้",
-  TAX_INVOICE_V2_ISSUED_SOURCE_REQUIRED: "ต้องเป็นใบแจ้งหนี้ V2 ที่ออกแล้ว",
-  TAX_INVOICE_CONFIRMED_PAYMENT_REQUIRED: "ต้องยืนยันรายการรับชำระก่อน",
-  TAX_INVOICE_ALREADY_COVERED: "มีใบกำกับภาษีหรือการจองยอดภาษีสำหรับต้นทางนี้แล้ว",
-  TAX_INVOICE_PERMISSION_DENIED: "ไม่มีสิทธิ์ดำเนินการใบกำกับภาษีนี้",
-  TAX_INVOICE_DRAFT_REQUIRED: "เอกสารไม่ใช่ร่างที่แก้ไขได้แล้ว กรุณาโหลดข้อมูลล่าสุด",
-  TAX_INVOICE_SOURCE_CHANGED: "ข้อมูลต้นทางเปลี่ยนแปลง กรุณารีเฟรชร่างและตรวจสอบใหม่",
-  TAX_INVOICE_STALE_REVIEW: "ข้อมูลเปลี่ยนหลังการตรวจสอบ กรุณาโหลดข้อมูลล่าสุดและตรวจสอบตัวอย่างใหม่",
-  TAX_INVOICE_DELAY_ACK_REQUIRED: "วันที่ออกเอกสารหลังวันเกิดภาษี กรุณารับทราบการออกเอกสารล่าช้าก่อนยืนยัน",
-  TAX_INVOICE_ISSUE_DATE_INVALID: "วันที่ออกต้องไม่ก่อนวันเกิดภาษีหรือเป็นวันในอนาคต",
-  TAX_INVOICE_ISSUE_ACK_REQUIRED: "กรุณาตรวจสอบตัวอย่างและยืนยันการออกเลขที่ถาวร",
-  TAX_INVOICE_FROZEN_IDENTITY_CHANGE_BLOCKED: "ข้อมูลที่ตรึงจากต้นทางแล้วเปลี่ยนในร่างนี้ไม่ได้",
-  TAX_INVOICE_ACTIVE_DEPENDENCY: "มีใบกำกับภาษีหรือร่างที่ผูกกับหลักฐานนี้อยู่ ต้องตรวจสอบเอกสารก่อน",
-  TAX_INVOICE_CONTEXT_UNSUPPORTED: "รองรับเฉพาะบริบทลูกค้าเดียวกันและสกุลเงินบาท",
-  TAX_INVOICE_REASON_REQUIRED: "กรุณาระบุเหตุผลยกเลิกร่าง",
-  TAX_INVOICE_NUMBERING_EXHAUSTED: "เลขที่ใบกำกับภาษีของรอบนี้เต็มแล้ว กรุณาติดต่อผู้ดูแล ห้ามนำเลขเดิมกลับมาใช้",
-  TAX_INVOICE_NUMBERING_PROFILE_INVALID: "รูปแบบเลขที่ใบกำกับภาษีไม่ตรงกับนโยบายที่อนุมัติ กรุณาติดต่อผู้ดูแล",
-  TAX_INVOICE_SOURCE_INVALID: "หลักฐานรายการและยอดภาษีต้นทางไม่ครบหรือไม่สอดคล้อง กรุณาติดต่อผู้ดูแล",
+  TAX_INVOICE_CUSTOMER_IDENTITY_REQUIRED: translate("th", "finance.taxInvoice.error.customerIdentityRequired"),
+  TAX_INVOICE_SELLER_IDENTITY_REQUIRED: translate("th", "finance.taxInvoice.error.sellerIdentityRequired"),
+  TAX_INVOICE_TAX_POINT_APPROVAL_REQUIRED: translate("th", "finance.taxInvoice.error.taxPointApprovalRequired"),
+  TAX_INVOICE_VAT_TREATMENT_UNRESOLVED: translate("th", "finance.taxInvoice.error.vatTreatmentUnresolved"),
+  TAX_INVOICE_EXTERNAL_COVERAGE_CHECK_REQUIRED: translate("th", "finance.taxInvoice.error.externalCoverageCheckRequired"),
+  TAX_INVOICE_PARTIAL_PAYMENT_UNSUPPORTED: translate("th", "finance.taxInvoice.error.partialPaymentUnsupported"),
+  TAX_INVOICE_MULTILINE_UNSUPPORTED: translate("th", "finance.taxInvoice.error.multilineUnsupported"),
+  TAX_INVOICE_MULTIPLE_SOURCES_UNSUPPORTED: translate("th", "finance.taxInvoice.error.multipleSourcesUnsupported"),
+  TAX_INVOICE_V2_ISSUED_SOURCE_REQUIRED: translate("th", "finance.taxInvoice.error.v2IssuedSourceRequired"),
+  TAX_INVOICE_CONFIRMED_PAYMENT_REQUIRED: translate("th", "finance.decision.paymentRequired"),
+  TAX_INVOICE_ALREADY_COVERED: translate("th", "finance.taxInvoice.error.alreadyCovered"),
+  TAX_INVOICE_PERMISSION_DENIED: translate("th", "finance.taxInvoice.error.permissionDenied"),
+  TAX_INVOICE_DRAFT_REQUIRED: translate("th", "finance.taxInvoice.error.draftRequired"),
+  TAX_INVOICE_SOURCE_CHANGED: translate("th", "finance.taxInvoice.error.sourceChanged"),
+  TAX_INVOICE_STALE_REVIEW: translate("th", "finance.taxInvoice.error.staleReview"),
+  TAX_INVOICE_DELAY_ACK_REQUIRED: translate("th", "finance.taxInvoice.error.delayAckRequired"),
+  TAX_INVOICE_ISSUE_DATE_INVALID: translate("th", "finance.taxInvoice.error.issueDateInvalid"),
+  TAX_INVOICE_ISSUE_ACK_REQUIRED: translate("th", "finance.taxInvoice.error.issueAckRequired"),
+  TAX_INVOICE_FROZEN_IDENTITY_CHANGE_BLOCKED: translate("th", "finance.taxInvoice.error.frozenIdentityChangeBlocked"),
+  TAX_INVOICE_ACTIVE_DEPENDENCY: translate("th", "finance.taxInvoice.error.activeDependency"),
+  TAX_INVOICE_CONTEXT_UNSUPPORTED: translate("th", "finance.taxInvoice.error.contextUnsupported"),
+  TAX_INVOICE_REASON_REQUIRED: translate("th", "finance.taxInvoice.error.reasonRequired"),
+  TAX_INVOICE_NUMBERING_EXHAUSTED: translate("th", "finance.taxInvoice.error.numberingExhausted"),
+  TAX_INVOICE_NUMBERING_PROFILE_INVALID: translate("th", "finance.taxInvoice.error.numberingProfileInvalid"),
+  TAX_INVOICE_SOURCE_INVALID: translate("th", "finance.taxInvoice.error.sourceInvalid"),
 };
-export function taxError(error: unknown): string {
+export function taxError(error: unknown, locale: UiLocale = "th"): string {
+  if (isUiMessage(error)) return translate(locale, error.key, error.parameters);
   const message = typeof error === "string" ? error : error && typeof error === "object" && "message" in error ? String(error.message) : "";
-  for (const [code, text] of Object.entries(taxBlockerMessages)) if (message.includes(code)) return text;
-  if (/LOGO/.test(message)) return "ไม่พบหลักฐานโลโก้ตามเอกสาร กรุณาติดต่อผู้ดูแล";
-  if (/permission denied|42501/i.test(message)) return taxBlockerMessages.TAX_INVOICE_PERMISSION_DENIED;
-  return "ดำเนินการใบกำกับภาษีไม่สำเร็จ กรุณาโหลดข้อมูลล่าสุดหรือติดต่อผู้ดูแล";
+  for (const code of Object.keys(taxBlockerMessages)) if (message.includes(code)) {
+    const key = code.replace("TAX_INVOICE_", "").toLowerCase().replace(/_([a-z0-9])/g, (_, letter: string) => letter.toUpperCase());
+    return translate(locale, `finance.taxInvoice.error.${key}`);
+  }
+  if (/LOGO/.test(message)) return translate(locale, "finance.taxInvoice.error.logo");
+  if (/permission denied|42501/i.test(message)) return translate(locale, "finance.taxInvoice.error.permissionDenied");
+  return translate(locale, "finance.taxInvoice.error.failed");
 }
 export function taxObject(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid tax evidence");
