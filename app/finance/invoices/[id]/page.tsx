@@ -14,6 +14,8 @@ import { supabase } from "../../../../lib/supabase";
 import { paymentUiLabels, paymentErrorMessage, type EffectivePaymentAllocation, type FinancePayment, type InvoiceSettlement, type PaymentAllocationReallocation } from "../../payments/shared";
 import InvoiceCompositionEditor from "../invoice-composition-editor";
 import { InvoiceDocumentReadiness } from "../../document-decision/invoice-readiness";
+import { InvoicePostPaymentDocuments } from "../../document-decision/invoice-post-payment";
+import type { UserPermissions } from "../../../../lib/permissions";
 import { invoiceDraftDatesAreValid, resolveInvoicePaymentInstructions } from "../payment-instructions";
 import {
   bangkokToday,
@@ -52,10 +54,10 @@ const invoiceSelect = "id,billing_plan_id,primary_billing_installment_id,fee_agr
 const itemSelect = "id,source_billable_charge_id,source_state,source_snapshot_json,description,source_quantity,source_unit_price,allocation_percent,vat_applicable,vat_rate,tax_category,price_tax_mode,amount_before_vat,vat_amount,line_total,sort_order";
 
 export default function InvoiceDetailPage() {
-  return <QuotationGuard>{(access) => <InvoiceWorkspace canManagePayments={access.permissions.canManageFinancePayments} canManageComposition={access.permissions.canEditFinanceQuotation && access.permissions.canManageFinanceBillableCharges} />}</QuotationGuard>;
+  return <QuotationGuard>{(access) => <InvoiceWorkspace canManagePayments={access.permissions.canManageFinancePayments} canManageComposition={access.permissions.canEditFinanceQuotation && access.permissions.canManageFinanceBillableCharges} documentPermissions={access.permissions} />}</QuotationGuard>;
 }
 
-function InvoiceWorkspace({ canManagePayments, canManageComposition }: { canManagePayments: boolean; canManageComposition: boolean }) {
+function InvoiceWorkspace({ canManagePayments, canManageComposition, documentPermissions }: { canManagePayments: boolean; canManageComposition: boolean; documentPermissions: UserPermissions }) {
   const { locale, t, text, date } = useI18n();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -517,6 +519,8 @@ function InvoiceWorkspace({ canManagePayments, canManageComposition }: { canMana
       {Number(settlement?.outstanding_amount || 0) > 0 && !canManagePayments ? <p style={nextStepNote}>{t("finance.invoice.ui.paymentReadOnly")}</p> : null}
       {Number(settlement?.outstanding_amount || 0) <= 0 ? <p style={settledNote}>{t("finance.invoice.ui.fullySettled")}</p> : null}
     </section> : null}
+
+    {invoice.document_status === "issued" ? <InvoicePostPaymentDocuments invoiceId={invoice.id} permissions={documentPermissions} /> : null}
 
     {isDraft ? <>
       <InvoiceDocumentReadiness invoiceId={invoice.id} revision={invoice.updated_at} />

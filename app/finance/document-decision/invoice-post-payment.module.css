@@ -1,0 +1,26 @@
+.panel { margin: 0 0 18px; padding: 20px; border-top: 2px solid #cbd5e1; background: #fff; color: #111827; min-width: 0; }
+.panel h2 { margin: 0 0 14px; font-size: 18px; }
+.summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 0 0 18px; }
+.summary dt, .document h4, .payment small { color: #64748b; font-size: 12px; font-weight: 600; }
+.summary dd { margin: 4px 0 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.payment { border-top: 1px solid #e2e8f0; padding: 18px 0; min-width: 0; }
+.header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.header h3 { margin: 0 0 4px; font-size: 15px; }
+.documents { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 18px; margin: 16px 0; }
+.document { min-width: 0; }
+.document h4 { margin: 0 0 8px; }
+.document p { margin: 4px 0; }
+.record { display: grid; justify-items: start; gap: 6px; padding: 8px 0; }
+.record small { display: block; }
+.next { padding-top: 12px; border-top: 1px solid #e2e8f0; }
+.next p { margin: 0 0 10px; }
+.notice { margin-bottom: 12px; padding: 10px 12px; border-left: 3px solid #b45309; background: #fffbeb; color: #92400e; font-size: 13px; line-height: 1.6; }
+.notice ul { margin: 8px 0 0; padding-left: 20px; }
+.button, .primary { display: inline-flex; align-items: center; justify-content: center; max-width: 100%; gap: 6px; min-height: 40px; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #334155; font: inherit; font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer; }
+.primary { background: #0f2743; color: #fff; border-color: #0f2743; }
+.button:hover { background: #f1f5f9; }
+.primary:hover { background: #193b60; }
+.button:focus-visible, .primary:focus-visible { outline: 2px solid #166534; outline-offset: 3px; }
+.panel p, .panel strong, .panel dd, .panel a { overflow-wrap: anywhere; }
+@media (max-width: 640px) { .panel { padding: 16px; } .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media print { .panel { display: none !important; } }
