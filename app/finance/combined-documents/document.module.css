@@ -1,0 +1,8 @@
+.paper { min-width: 0; }
+.lines { width: 100%; table-layout: fixed; }
+.lines col:nth-child(1) { width: 36%; }
+.lines col:nth-child(2) { width: 19%; }
+.lines col:nth-child(3) { width: 29%; }
+.lines col:nth-child(4) { width: 16%; }
+.lines th, .lines td { overflow-wrap: anywhere; vertical-align: top; }
+.lines th:nth-child(3), .lines td:nth-child(3) { text-align: left; }

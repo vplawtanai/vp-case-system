@@ -1,4 +1,6 @@
 "use client";
+import { VatTreatmentInput } from "../document-decision/vat-input";
+import type { VatEvidence } from "../document-decision/shared";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
@@ -112,6 +114,7 @@ export type QuotationRow = {
 };
 
 type QuotationItemRow = {
+  vat_treatment_json?: VatEvidence | null;
   id?: string;
   client_item_key?: string;
   quotation_id?: string;
@@ -316,6 +319,7 @@ function normalizedQuotationDraftSnapshot(form: FormState, items: QuotationItemR
         description: normalized.description.trim(),
         unit: normalized.unit.trim(),
         economic_classification: normalized.economic_classification,
+        vat_treatment_json: normalized.vat_treatment_json || null,
         quantity: toAmount(normalized.quantity),
         unit_price: toAmount(normalized.unit_price),
         vat_applicable: normalized.vat_applicable,
@@ -1185,6 +1189,7 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
       description: item.description,
       unit: item.unit.trim(),
       economic_classification: item.economic_classification,
+        vat_treatment_json: item.vat_treatment_json || null,
       quantity: toAmount(item.quantity),
       unit_price: toAmount(item.unit_price),
       vat_applicable: item.vat_applicable,
@@ -1476,8 +1481,9 @@ export function QuotationForm({ access, quotationId }: { access: QuotationAccess
                     <td style={rightTdStyle}><input type="number" min="0.01" step="0.01" value={item.quantity} onChange={(event) => updateItem(index, { quantity: event.target.value })} style={compactInputStyle} /></td>
                     <td style={rightTdStyle}><input type="number" min="0" step="0.01" value={item.unit_price} onChange={(event) => updateItem(index, { unit_price: event.target.value })} style={compactInputStyle} /></td>
                     <td style={tdStyle}>
-                      <select value={item.price_tax_mode || (item.vat_applicable ? "vat_exclusive" : "non_vat")} onChange={(event) => { const price_tax_mode = event.target.value as NonNullable<QuotationItemRow["price_tax_mode"]>; updateItem(index, { price_tax_mode, vat_applicable: price_tax_mode !== "non_vat", vat_rate: price_tax_mode === "non_vat" ? 0 : (item.vat_rate || 7) }); }} style={inputStyle}><option value="non_vat">Non-VAT</option><option value="vat_exclusive">VAT Exclusive</option><option value="vat_inclusive">VAT Inclusive</option></select>
-                      {(item.price_tax_mode || (item.vat_applicable ? "vat_exclusive" : "non_vat")) !== "non_vat" ? <input aria-label="VAT rate" type="number" min="0" step="0.01" value={item.vat_rate} onChange={(event) => updateItem(index, { vat_rate: event.target.value })} style={vatInputStyle} /> : null}
+                      <select value={item.price_tax_mode || (item.vat_applicable ? "vat_exclusive" : "non_vat")} onChange={(event) => { const price_tax_mode = event.target.value as NonNullable<QuotationItemRow["price_tax_mode"]>; updateItem(index, { vat_treatment_json: null, price_tax_mode, vat_applicable: price_tax_mode !== "non_vat", vat_rate: price_tax_mode === "non_vat" ? 0 : (item.vat_rate || 7) }); }} style={inputStyle}><option value="non_vat">Non-VAT</option><option value="vat_exclusive">VAT Exclusive</option><option value="vat_inclusive">VAT Inclusive</option></select>
+                      {(item.price_tax_mode || (item.vat_applicable ? "vat_exclusive" : "non_vat")) !== "non_vat" ? <input aria-label="VAT rate" type="number" min="0" step="0.01" value={item.vat_rate} onChange={(event) => updateItem(index, { vat_treatment_json: null, vat_rate: event.target.value })} style={vatInputStyle} /> : null}
+                      <VatTreatmentInput value={item.vat_treatment_json} applicable={item.price_tax_mode !== "non_vat" && item.vat_applicable} rate={toAmount(item.vat_rate)} onChange={vat_treatment_json => updateItem(index, { vat_treatment_json })} />
                     </td>
                     <td style={rightTdStyle}>
                       <strong>{formatMoney(toAmount(normalized.line_total))}</strong>
@@ -2536,6 +2542,7 @@ function buildQuotationSnapshots(
         description: item.description.trim(),
         unit: item.unit.trim(),
         economic_classification: item.economic_classification,
+        vat_treatment_json: item.vat_treatment_json || null,
         quantity: toAmount(item.quantity),
         unit_price: toAmount(item.unit_price),
         amount_before_tax: toAmount(item.amount_before_tax),
@@ -2559,6 +2566,7 @@ function buildItemPayload(quotationId: string, items: QuotationItemRow[]) {
       description: normalized.description.trim(),
       unit: normalized.unit.trim(),
       economic_classification: normalized.economic_classification,
+        vat_treatment_json: normalized.vat_treatment_json || null,
       quantity: toAmount(normalized.quantity),
       unit_price: toAmount(normalized.unit_price),
       amount_before_tax: toAmount(normalized.amount_before_tax),
@@ -2787,7 +2795,7 @@ function normalizeItem(item: QuotationItemRow, index: number): QuotationItemRow 
   const unitPrice = toAmount(item.unit_price);
   const priceTaxMode: NonNullable<QuotationItemRow["price_tax_mode"]> = item.price_tax_mode || (item.vat_applicable ? "vat_exclusive" : "non_vat");
   const vatApplicable = priceTaxMode !== "non_vat";
-  const vatRate = vatApplicable ? (toAmount(item.vat_rate) || 7) : 0;
+  const vatRate = vatApplicable ? (item.vat_rate === "" ? 7 : toAmount(item.vat_rate)) : 0;
   const amounts = calculateFinanceLineAmounts(quantity, unitPrice, priceTaxMode, vatRate);
   return {
     ...item,

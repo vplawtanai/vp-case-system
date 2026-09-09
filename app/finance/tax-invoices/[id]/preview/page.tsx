@@ -26,6 +26,7 @@ function Preview({ id }: { id: string }) {
     } catch { setPrintError("เตรียมเอกสารสำหรับพิมพ์ไม่สำเร็จ กรุณาโหลดใหม่"); }
     finally { setPrinting(false); }
   }
+  if (row?.combined_document_id) return <Link className={styles.primary} href={`/finance/combined-documents/${row.combined_document_id}/preview`}>เปิดตัวอย่างใบเสร็จรับเงิน/ใบกำกับภาษี</Link>;
   return <><header className={`${styles.header} ${styles.noPrint}`}><h1>ตัวอย่างใบกำกับภาษี</h1><div className={styles.actions}><Link className={styles.button} href={`/finance/tax-invoices/${id}`}>กลับไปใบกำกับภาษี</Link><button className={styles.primary} disabled={!printable || printing} onClick={() => void print()}>พิมพ์ / บันทึก PDF</button></div></header>
     {printError || error ? <p className={styles.error} role="alert">{printError || error} <button className={styles.button} onClick={() => void reload()}>โหลดใหม่</button></p> : loading ? <p role="status">กำลังโหลด...</p> : row ? <TaxInvoiceDocument row={row} logoUrl={logoUrl} /> : null}
   </>;

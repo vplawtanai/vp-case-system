@@ -1,4 +1,6 @@
 "use client";
+import { VatTreatmentInput } from "../document-decision/vat-input";
+import type { VatEvidence } from "../document-decision/shared";
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -43,6 +45,7 @@ type BillableCharge = {
   currency: string;
   service_date: string | null;
   economic_classification: EconomicClassification | null;
+  vat_treatment_json?: VatEvidence | null;
   vat_applicable: boolean;
   vat_rate: number | string;
   tax_category: string | null;
@@ -75,6 +78,7 @@ type ChargeInvoiceLink = { invoiceId: string; invoiceNo: string | null; document
 type BillingPlanReturnContext = { returnTo: string; returnLabel: string; clientId: string; caseId: number | null; advisoryMatterId: string | null; clientName: string; matterLabel: string };
 
 type ChargeForm = {
+  vatTreatment?: VatEvidence | null;
   sourceType: "ad_hoc_service" | "recoverable_cost";
   clientCostFundingMode: "" | ClientCostFundingMode;
   clientId: string;
@@ -518,7 +522,7 @@ function BillableChargesWorkspace() {
         p_advisory_matter_id: form.matterMode === "advisory" ? form.advisoryMatterId : null,
         p_client_cost_funding_mode: fundingModeForSource(form.sourceType, form.clientCostFundingMode),
         p_source_reference: nullable(form.sourceReference),
-        p_source_snapshot_json: {},
+        p_source_snapshot_json: { vat_treatment_json: form.vatTreatment || null },
         p_description: nullable(form.description),
         p_quantity: Number(form.quantity),
         p_unit: nullable(form.unit),
@@ -713,8 +717,9 @@ function BillableChargesWorkspace() {
               <FormField label="หน่วย" error={errors.unit}><input disabled={!permissions.canManageFinanceBillableCharges} value={form.unit} onChange={(event) => updateForm("unit", event.target.value)} placeholder="เช่น ครั้ง หน้า วัน" /></FormField>
               <FormField label="ราคาต่อหน่วย" helper={!form.unitRate.trim() ? "ยังไม่ได้ระบุราคา" : undefined} error={errors.unitRate}><input disabled={!permissions.canManageFinanceBillableCharges} inputMode="decimal" value={form.unitRate} onChange={(event) => updateForm("unitRate", event.target.value)} placeholder="0.00" /></FormField>
               <FormField label="ประเภทของยอด" error={errors.economicClassification}><select disabled={!permissions.canManageFinanceBillableCharges} value={form.economicClassification} onChange={(event) => updateForm("economicClassification", event.target.value as ChargeForm["economicClassification"])}><option value="">เลือกประเภทของยอด</option><option value="professional_fee">ค่าวิชาชีพ</option><option value="additional_service">ค่าบริการเพิ่มเติม</option><option value="reimbursable_expense">ค่าใช้จ่ายเรียกคืน</option><option value="government_or_court_fee">ค่าธรรมเนียมศาล / หน่วยงานรัฐ</option><option value="other">อื่น ๆ</option></select><small>ใช้จำแนกความหมายของยอด ไม่ได้กำหนด VAT, WHT หรือค่าตอบแทนอัตโนมัติ</small></FormField>
-              <FormField label="การคิด VAT" error={errors.priceTaxMode}><select disabled={!permissions.canManageFinanceBillableCharges} value={form.priceTaxMode} onChange={(event) => { const mode = event.target.value as FinancePriceTaxMode; setForm((current) => ({ ...current, priceTaxMode: mode, vatRate: mode === "non_vat" ? "0" : Number(current.vatRate) > 0 ? current.vatRate : "7" })); setErrors((current) => ({ ...current, priceTaxMode: "", vatRate: "" })); }}><option value="non_vat">ไม่มี VAT</option><option value="vat_exclusive">ราคายังไม่รวม VAT</option><option value="vat_inclusive">ราคารวม VAT แล้ว</option></select></FormField>
-              {form.priceTaxMode !== "non_vat" ? <FormField label="อัตรา VAT (%)" error={errors.vatRate}><input disabled={!permissions.canManageFinanceBillableCharges} inputMode="decimal" value={form.vatRate} onChange={(event) => updateForm("vatRate", event.target.value)} /></FormField> : null}
+              <FormField label="การคิด VAT" error={errors.priceTaxMode}><select disabled={!permissions.canManageFinanceBillableCharges} value={form.priceTaxMode} onChange={(event) => { const mode = event.target.value as FinancePriceTaxMode; setForm((current) => ({ ...current, vatTreatment: null, priceTaxMode: mode, vatRate: mode === "non_vat" ? "0" : Number(current.vatRate) > 0 ? current.vatRate : "7" })); setErrors((current) => ({ ...current, priceTaxMode: "", vatRate: "" })); }}><option value="non_vat">ไม่มี VAT</option><option value="vat_exclusive">ราคายังไม่รวม VAT</option><option value="vat_inclusive">ราคารวม VAT แล้ว</option></select></FormField>
+              {form.priceTaxMode !== "non_vat" ? <FormField label="อัตรา VAT (%)" error={errors.vatRate}><input disabled={!permissions.canManageFinanceBillableCharges} inputMode="decimal" value={form.vatRate} onChange={(event) => setForm(current => ({ ...current, vatTreatment: null, vatRate: event.target.value }))} /></FormField> : null}
+              <VatTreatmentInput disabled={!permissions.canManageFinanceBillableCharges} value={form.vatTreatment} applicable={form.priceTaxMode !== "non_vat"} rate={form.priceTaxMode === "non_vat" ? 0 : Number(form.vatRate)} onChange={vatTreatment => setForm(current => ({ ...current, vatTreatment }))} />
             </div>
 
             <section className={styles.additionalSection}>
@@ -819,7 +824,7 @@ function emptyForm(): ChargeForm {
 }
 
 function chargeToForm(charge: BillableCharge): ChargeForm {
-  return { sourceType: charge.source_type === "recoverable_cost" ? "recoverable_cost" : "ad_hoc_service", clientCostFundingMode: charge.client_cost_funding_mode || "", clientId: charge.client_id, matterMode: charge.case_id ? "case" : charge.advisory_matter_id ? "advisory" : "unlinked", caseId: charge.case_id ? String(charge.case_id) : "", advisoryMatterId: charge.advisory_matter_id || "", serviceDate: charge.service_date || "", description: charge.description || "", quantity: String(charge.quantity), unit: charge.unit || "", unitRate: String(charge.unit_rate), economicClassification: charge.economic_classification || "", priceTaxMode: charge.price_tax_mode, vatRate: String(charge.vat_rate), sourceReference: charge.source_reference || "", taxCategory: charge.tax_category || "" };
+  return { vatTreatment: charge.vat_treatment_json, sourceType: charge.source_type === "recoverable_cost" ? "recoverable_cost" : "ad_hoc_service", clientCostFundingMode: charge.client_cost_funding_mode || "", clientId: charge.client_id, matterMode: charge.case_id ? "case" : charge.advisory_matter_id ? "advisory" : "unlinked", caseId: charge.case_id ? String(charge.case_id) : "", advisoryMatterId: charge.advisory_matter_id || "", serviceDate: charge.service_date || "", description: charge.description || "", quantity: String(charge.quantity), unit: charge.unit || "", unitRate: String(charge.unit_rate), economicClassification: charge.economic_classification || "", priceTaxMode: charge.price_tax_mode, vatRate: String(charge.vat_rate), sourceReference: charge.source_reference || "", taxCategory: charge.tax_category || "" };
 }
 
 function validateDraft(form: ChargeForm) {

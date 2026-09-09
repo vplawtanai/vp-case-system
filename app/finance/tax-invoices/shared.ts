@@ -1,5 +1,6 @@
 import { documentLogoEvidence, type DocumentLogoEvidence } from "../../../lib/documentLogo";
 import { normalizeDocumentIdentity, type DocumentIdentity } from "../../../lib/documentIdentity";
+import type { DocumentLine } from "../document-decision/shared";
 
 export type TaxDecisions = {
   tax_treatment?: string; treatment_reason?: string; buyer_vat_registered?: boolean | null;
@@ -11,8 +12,9 @@ export type TaxInvoice = {
   tax_invoice_no: string | null; issue_date: string; source_snapshot_json: unknown; decisions_json: TaxDecisions;
   draft_snapshot_json: unknown; issued_snapshot_json: unknown; issued_at: string | null;
   created_at: string; updated_at: string; cancel_reason: string | null;
+  combined_document_id?: string | null;
 };
-export const taxInvoiceSelect = "id,payment_id,invoice_id,status,tax_invoice_no,issue_date,source_snapshot_json,decisions_json,draft_snapshot_json,issued_snapshot_json,issued_at,created_at,updated_at,cancel_reason";
+export const taxInvoiceSelect = "id,payment_id,invoice_id,status,tax_invoice_no,issue_date,source_snapshot_json,decisions_json,draft_snapshot_json,issued_snapshot_json,issued_at,created_at,updated_at,cancel_reason,combined_document_id";
 export type TaxEligibility = { can_prepare: boolean; blockers: string[]; existing_id?: string; existing_status?: string; existing_number?: string | null };
 export const taxStatusLabels = { draft: "ร่าง", issued: "ออกใบกำกับภาษีแล้ว", cancelled: "ยกเลิกร่างแล้ว" };
 export const taxTreatmentLabels: Record<string, string> = { standard_rated: "อยู่ในบังคับ VAT ตามอัตราต้นทาง", zero_rated: "อัตราภาษี 0% (ต้องมีหลักฐาน)", exempt: "ยกเว้น VAT (ยังไม่รองรับ)", outside_scope: "ไม่อยู่ในบังคับ VAT (ยังไม่รองรับ)" };
@@ -70,19 +72,32 @@ export type TaxDocument = {
   beforeVat: number; vat: number; gross: number; cash: number; wht: number; vatRate: number;
   invoiceNumber: string; paymentReference: string; receiptNumber: string; taxPointDate: string; issueDate: string;
   number: string; treatment: string; status: TaxInvoice["status"];
+  lines: DocumentLine[]; documentLines: DocumentLine[]; settlement: number; nonTax: number;
 };
 // Issued documents are decoded solely from their own immutable snapshot.
 export function taxPresentation(row: TaxInvoice): { ok: true; value: TaxDocument } | { ok: false; error: string } {
   try {
     const issued = row.status === "issued";
     const s = taxObject(issued ? row.issued_snapshot_json : row.draft_snapshot_json);
-    if (s.schema_version !== 1 || s.document_kind !== "tax_invoice" || !Object.hasOwn(taxStatusLabels, row.status)) throw new Error("schema");
+    if (![1, 2].includes(Number(s.schema_version)) || s.document_kind !== "tax_invoice" || !Object.hasOwn(taxStatusLabels, row.status)) throw new Error("schema");
     const seller = taxObject(s.seller), item = taxObject(s.invoice_item), invoice = taxObject(s.invoice), payment = taxObject(s.payment), point = taxObject(s.tax_point);
     const customer = taxObject(s.customer), logo = documentLogoEvidence(seller.logo_asset);
-    const beforeVat = moneyValue(item.amount_before_vat), vat = moneyValue(item.vat_amount), gross = moneyValue(item.line_total);
+    const items = s.schema_version === 2 ? (s.invoice_items as unknown[]).map(taxObject) : [item];
+    const documentItems = s.schema_version === 2 ? (s.document_lines as unknown[]).map(taxObject) : [item];
+    if (!items.length || !documentItems.length || new Set(items.map(i => i.id)).size !== items.length || new Set(documentItems.map(i => i.id)).size !== documentItems.length) throw new Error("items");
+    for (const line of documentItems) {
+      if (line.invoice_id !== row.invoice_id || !taxText(line.description) || moneyValue(line.amount_before_vat) + moneyValue(line.vat_amount) !== moneyValue(line.line_total)) throw new Error("line");
+    }
+    if (s.schema_version === 2) {
+      const relevant = documentItems.filter(i => ["standard_rate", "zero_rated"].includes(taxText(taxObject(i.resolved_vat_treatment).treatment)));
+      if (JSON.stringify(relevant) !== JSON.stringify(items)) throw new Error("tax coverage");
+    }
+    const sum = (lines: Record<string, unknown>[], key: string) => lines.reduce((n, i) => n + moneyValue(i[key]), 0);
+    const beforeVat = sum(items, "amount_before_vat"), vat = sum(items, "vat_amount"), gross = sum(items, "line_total");
+    const settlement = sum(documentItems, "line_total");
     const cash = moneyValue(payment.cash_amount), wht = moneyValue(payment.wht_amount);
-    if (beforeVat + vat !== gross || cash + wht !== gross || moneyValue(payment.settlement_amount) !== gross
-      || moneyValue(invoice.total_amount) !== gross || moneyValue(invoice.amount_before_vat) !== beforeVat || moneyValue(invoice.vat_amount) !== vat
+    if (beforeVat + vat !== gross || cash + wht !== settlement || moneyValue(payment.settlement_amount) !== settlement
+      || moneyValue(invoice.total_amount) !== settlement || moneyValue(invoice.amount_before_vat) !== sum(documentItems, "amount_before_vat") || moneyValue(invoice.vat_amount) !== sum(documentItems, "vat_amount")
       || invoice.id !== row.invoice_id || payment.id !== row.payment_id || item.invoice_id !== row.invoice_id
       || taxText(invoice.currency) !== "THB" || taxText(payment.currency) !== "THB" || !taxText(item.description)) throw new Error("source");
     if (!Number.isFinite(Number(item.vat_rate)) || Number(item.vat_rate) < 0 || typeof item.vat_applicable !== "boolean") throw new Error("VAT evidence");
@@ -103,7 +118,8 @@ export function taxPresentation(row: TaxInvoice): { ok: true; value: TaxDocument
     return { ok: true, value: { identity, logo, customer, description: taxText(item.description), beforeVat, vat, gross, cash, wht,
       vatRate: Number(item.vat_rate), invoiceNumber: taxText(invoice.invoice_no), paymentReference: taxText(payment.internal_reference) || row.payment_id.slice(0, 8).toUpperCase(),
       receiptNumber: s.receipt_reference ? taxText(taxObject(s.receipt_reference).receipt_no) : "", taxPointDate, issueDate,
-      number: row.tax_invoice_no || "", treatment: taxText(s.tax_treatment), status: row.status } };
+      number: row.tax_invoice_no || "", treatment: taxText(s.tax_treatment), status: row.status,
+      lines: items as DocumentLine[], documentLines: documentItems as DocumentLine[], settlement, nonTax: settlement - gross } };
   } catch { return { ok: false, error: "หลักฐานใบกำกับภาษีไม่ครบหรือไม่สอดคล้อง จึงไม่แสดงเอกสารที่อาจคลาดเคลื่อน" }; }
 }
 export const taxReviewFingerprint = (row: TaxInvoice) => JSON.stringify([row.id, row.updated_at, row.draft_snapshot_json]);

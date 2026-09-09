@@ -1,7 +1,8 @@
 import { invoiceTaxFacts } from "../payments/tax";
 import { taxError, taxObject, taxText } from "./shared";
+import { resolveVatEvidence, type VatEvidence, type VatTreatment } from "../document-decision/shared";
 
-export type VatTreatment = "standard_rate" | "zero_rated" | "exempt" | "outside_scope" | "unknown";
+export type { VatTreatment } from "../document-decision/shared";
 export type VatTreatmentPresentation = { label: string; workflow: "applies" | "not_applicable" | "unresolved"; status: string; explanation: string };
 export const unknownVatExplanation = "ระบบยังไม่สามารถระบุได้ว่ารายการนี้เป็น VAT 0%, ยกเว้น VAT, ไม่อยู่ในบังคับ VAT หรือรายการผ่านบัญชี";
 export const unknownTaxDecision = "ยังไม่สามารถตัดสินสถานะใบกำกับภาษีได้ เนื่องจาก VAT Treatment ยังไม่ครบ";
@@ -24,6 +25,8 @@ export function vatTreatmentPresentation(treatment: VatTreatment, rate: number |
       label: "ยกเว้น VAT", workflow: "not_applicable", status: "ไม่เข้าสู่ขั้นตอนใบกำกับภาษี VAT",
       explanation: "รายการนี้ได้รับยกเว้น VAT จึงไม่เข้าสู่ขั้นตอนออกใบกำกับภาษี VAT สำหรับรายการนี้",
     };
+    case "disbursement":
+    case "pass_through":
     case "outside_scope": return {
       label: "ไม่อยู่ในบังคับ VAT", workflow: "not_applicable", status: "ไม่เข้าสู่ขั้นตอนใบกำกับภาษี VAT",
       explanation: "รายการนี้ไม่อยู่ในบังคับ VAT จึงไม่เข้าสู่ขั้นตอนออกใบกำกับภาษี VAT สำหรับรายการนี้",
@@ -60,9 +63,7 @@ export function invoiceVatLines(snapshot: unknown, expectedInvoiceId: string): I
     const rateValue = item.vat_rate;
     const rate = (typeof rateValue === "number" || typeof rateValue === "string") && /^\d+(?:\.\d{1,4})?$/.test(String(rateValue))
       && Number(rateValue) <= 100 ? Number(rateValue) : null;
-    // Current Invoice snapshots have no controlled zero/exempt/outside-scope/pass-through evidence.
-    // Even vat_applicable=true + rate=0 is not an explicit zero-rating approval.
-    const treatment = factsLine.vatApplicable && rate !== null && rate > 0 ? "standard_rate" : "unknown";
+    const treatment = resolveVatEvidence(item.vat_treatment_json as VatEvidence | null, factsLine.vatApplicable, rate ?? NaN);
     return { invoiceId: facts.invoiceId, invoiceNumber, id: factsLine.id, description, currency: facts.currency,
       beforeVat: factsLine.beforeVat, vat: factsLine.vat, treatment, rate };
   });

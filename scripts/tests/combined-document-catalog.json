@@ -1,0 +1,465 @@
+[
+  {
+    "name": "finance_billable_charges",
+    "columns": [
+      {
+        "name": "vat_treatment_json",
+        "type": "jsonb",
+        "default": null,
+        "not_null": false
+      }
+    ],
+    "constraints": [
+      {
+        "name": "document_vat_evidence_object",
+        "type": "c",
+        "definition": "CHECK (((vat_treatment_json IS NULL) OR ((jsonb_typeof(vat_treatment_json) = 'object'::text) AND ((vat_treatment_json ->> 'schema_version'::text) = '1'::text))))"
+      }
+    ],
+    "indexes": null
+  },
+  {
+    "name": "finance_billing_installment_items",
+    "columns": [
+      {
+        "name": "vat_treatment_json",
+        "type": "jsonb",
+        "default": null,
+        "not_null": false
+      }
+    ],
+    "constraints": [
+      {
+        "name": "document_vat_evidence_object",
+        "type": "c",
+        "definition": "CHECK (((vat_treatment_json IS NULL) OR ((jsonb_typeof(vat_treatment_json) = 'object'::text) AND ((vat_treatment_json ->> 'schema_version'::text) = '1'::text))))"
+      }
+    ],
+    "indexes": null
+  },
+  {
+    "name": "finance_combined_document_audit_events",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "not_null": true
+      },
+      {
+        "name": "combined_document_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "event_type",
+        "type": "text",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "event_payload_json",
+        "type": "jsonb",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "actor_user_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "not_null": true
+      }
+    ],
+    "constraints": [
+      {
+        "name": "combined_integrity",
+        "type": "t",
+        "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+      },
+      {
+        "name": "finance_combined_document_audit_event_combined_document_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (combined_document_id) REFERENCES finance_combined_documents(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_combined_document_audit_events_actor_user_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (actor_user_id) REFERENCES user_profiles(id)"
+      },
+      {
+        "name": "finance_combined_document_audit_events_event_payload_json_check",
+        "type": "c",
+        "definition": "CHECK ((jsonb_typeof(event_payload_json) = 'object'::text))"
+      },
+      {
+        "name": "finance_combined_document_audit_events_event_type_check",
+        "type": "c",
+        "definition": "CHECK ((event_type = ANY (ARRAY['draft_created'::text, 'draft_saved'::text, 'draft_refreshed'::text, 'issued'::text, 'cancelled'::text])))"
+      },
+      {
+        "name": "finance_combined_document_audit_events_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (id)"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "combined_audit_history",
+        "definition": "CREATE INDEX combined_audit_history ON public.finance_combined_document_audit_events USING btree (combined_document_id, created_at)"
+      },
+      {
+        "name": "finance_combined_document_audit_events_pkey",
+        "definition": "CREATE UNIQUE INDEX finance_combined_document_audit_events_pkey ON public.finance_combined_document_audit_events USING btree (id)"
+      }
+    ]
+  },
+  {
+    "name": "finance_combined_documents",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "not_null": true
+      },
+      {
+        "name": "payment_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "receipt_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "tax_invoice_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "default": "'draft'::text",
+        "not_null": true
+      },
+      {
+        "name": "combined_no",
+        "type": "text",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "issue_date",
+        "type": "date",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "source_snapshot_json",
+        "type": "jsonb",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "draft_snapshot_json",
+        "type": "jsonb",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "issued_snapshot_json",
+        "type": "jsonb",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "decisions_json",
+        "type": "jsonb",
+        "default": "'{}'::jsonb",
+        "not_null": true
+      },
+      {
+        "name": "external_receipt_checked",
+        "type": "boolean",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "issued_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "issued_by_user_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "created_by_user_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "not_null": true
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "not_null": true
+      },
+      {
+        "name": "cancel_reason",
+        "type": "text",
+        "default": null,
+        "not_null": false
+      }
+    ],
+    "constraints": [
+      {
+        "name": "combined_cancel_reason",
+        "type": "c",
+        "definition": "CHECK (((status = 'cancelled'::text) = (NULLIF(btrim(cancel_reason), ''::text) IS NOT NULL)))"
+      },
+      {
+        "name": "combined_integrity",
+        "type": "t",
+        "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+      },
+      {
+        "name": "combined_lifecycle",
+        "type": "c",
+        "definition": "CHECK ((((status = ANY (ARRAY['draft'::text, 'cancelled'::text])) AND (combined_no IS NULL) AND (issued_at IS NULL) AND (issued_by_user_id IS NULL) AND (issued_snapshot_json IS NULL)) OR ((status = 'issued'::text) AND (combined_no IS NOT NULL) AND (combined_no ~ '^VP-RTI-[0-9]{6}-[0-9]{6}$'::text) AND (issued_at IS NOT NULL) AND (issued_by_user_id IS NOT NULL) AND (issued_snapshot_json IS NOT NULL) AND (jsonb_typeof(issued_snapshot_json) = 'object'::text))))"
+      },
+      {
+        "name": "finance_combined_documents_combined_no_key",
+        "type": "u",
+        "definition": "UNIQUE (combined_no)"
+      },
+      {
+        "name": "finance_combined_documents_created_by_user_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (created_by_user_id) REFERENCES user_profiles(id)"
+      },
+      {
+        "name": "finance_combined_documents_decisions_json_check",
+        "type": "c",
+        "definition": "CHECK ((jsonb_typeof(decisions_json) = 'object'::text))"
+      },
+      {
+        "name": "finance_combined_documents_draft_snapshot_json_check",
+        "type": "c",
+        "definition": "CHECK ((jsonb_typeof(draft_snapshot_json) = 'object'::text))"
+      },
+      {
+        "name": "finance_combined_documents_issued_by_user_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (issued_by_user_id) REFERENCES user_profiles(id)"
+      },
+      {
+        "name": "finance_combined_documents_payment_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (payment_id) REFERENCES finance_payments(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_combined_documents_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "finance_combined_documents_receipt_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (receipt_id) REFERENCES finance_receipts(id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED"
+      },
+      {
+        "name": "finance_combined_documents_receipt_id_key",
+        "type": "u",
+        "definition": "UNIQUE (receipt_id)"
+      },
+      {
+        "name": "finance_combined_documents_source_snapshot_json_check",
+        "type": "c",
+        "definition": "CHECK ((jsonb_typeof(source_snapshot_json) = 'object'::text))"
+      },
+      {
+        "name": "finance_combined_documents_status_check",
+        "type": "c",
+        "definition": "CHECK ((status = ANY (ARRAY['draft'::text, 'issued'::text, 'cancelled'::text])))"
+      },
+      {
+        "name": "finance_combined_documents_tax_invoice_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (tax_invoice_id) REFERENCES finance_tax_invoices(id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED"
+      },
+      {
+        "name": "finance_combined_documents_tax_invoice_id_key",
+        "type": "u",
+        "definition": "UNIQUE (tax_invoice_id)"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "combined_active_payment",
+        "definition": "CREATE UNIQUE INDEX combined_active_payment ON public.finance_combined_documents USING btree (payment_id) WHERE (status = ANY (ARRAY['draft'::text, 'issued'::text]))"
+      },
+      {
+        "name": "finance_combined_documents_combined_no_key",
+        "definition": "CREATE UNIQUE INDEX finance_combined_documents_combined_no_key ON public.finance_combined_documents USING btree (combined_no)"
+      },
+      {
+        "name": "finance_combined_documents_pkey",
+        "definition": "CREATE UNIQUE INDEX finance_combined_documents_pkey ON public.finance_combined_documents USING btree (id)"
+      },
+      {
+        "name": "finance_combined_documents_receipt_id_key",
+        "definition": "CREATE UNIQUE INDEX finance_combined_documents_receipt_id_key ON public.finance_combined_documents USING btree (receipt_id)"
+      },
+      {
+        "name": "finance_combined_documents_tax_invoice_id_key",
+        "definition": "CREATE UNIQUE INDEX finance_combined_documents_tax_invoice_id_key ON public.finance_combined_documents USING btree (tax_invoice_id)"
+      }
+    ]
+  },
+  {
+    "name": "finance_fee_agreement_items",
+    "columns": [
+      {
+        "name": "vat_treatment_json",
+        "type": "jsonb",
+        "default": null,
+        "not_null": false
+      }
+    ],
+    "constraints": [
+      {
+        "name": "document_vat_evidence_object",
+        "type": "c",
+        "definition": "CHECK (((vat_treatment_json IS NULL) OR ((jsonb_typeof(vat_treatment_json) = 'object'::text) AND ((vat_treatment_json ->> 'schema_version'::text) = '1'::text))))"
+      }
+    ],
+    "indexes": null
+  },
+  {
+    "name": "finance_invoice_items",
+    "columns": [
+      {
+        "name": "vat_treatment_json",
+        "type": "jsonb",
+        "default": null,
+        "not_null": false
+      }
+    ],
+    "constraints": [
+      {
+        "name": "document_vat_evidence_object",
+        "type": "c",
+        "definition": "CHECK (((vat_treatment_json IS NULL) OR ((jsonb_typeof(vat_treatment_json) = 'object'::text) AND ((vat_treatment_json ->> 'schema_version'::text) = '1'::text))))"
+      }
+    ],
+    "indexes": null
+  },
+  {
+    "name": "finance_quotation_items",
+    "columns": [
+      {
+        "name": "vat_treatment_json",
+        "type": "jsonb",
+        "default": null,
+        "not_null": false
+      }
+    ],
+    "constraints": [
+      {
+        "name": "document_vat_evidence_object",
+        "type": "c",
+        "definition": "CHECK (((vat_treatment_json IS NULL) OR ((jsonb_typeof(vat_treatment_json) = 'object'::text) AND ((vat_treatment_json ->> 'schema_version'::text) = '1'::text))))"
+      }
+    ],
+    "indexes": null
+  },
+  {
+    "name": "finance_receipts",
+    "columns": [
+      {
+        "name": "combined_document_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": false
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_receipts_combined_document_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (combined_document_id) REFERENCES finance_combined_documents(id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED"
+      },
+      {
+        "name": "finance_receipts_combined_document_id_key",
+        "type": "u",
+        "definition": "UNIQUE (combined_document_id)"
+      },
+      {
+        "name": "finance_receipts_lifecycle_check",
+        "type": "c",
+        "definition": "CHECK ((((status = ANY (ARRAY['draft'::text, 'cancelled'::text])) AND (receipt_no IS NULL) AND (issued_at IS NULL) AND (issued_by_user_id IS NULL) AND (issued_snapshot_json IS NULL)) OR ((status = ANY (ARRAY['issued'::text, 'voided'::text])) AND (receipt_no IS NOT NULL) AND (((combined_document_id IS NULL) AND (receipt_no ~ '^VP-RC-[0-9]{6}-[0-9]{6}$'::text)) OR ((combined_document_id IS NOT NULL) AND (status = 'issued'::text) AND (receipt_no ~ '^VP-RTI-[0-9]{6}-[0-9]{6}$'::text))) AND (issued_at IS NOT NULL) AND (issued_by_user_id IS NOT NULL) AND (issued_snapshot_json IS NOT NULL) AND (jsonb_typeof(issued_snapshot_json) = 'object'::text) AND (issued_snapshot_json <> '{}'::jsonb))))"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_receipts_combined_document_id_key",
+        "definition": "CREATE UNIQUE INDEX finance_receipts_combined_document_id_key ON public.finance_receipts USING btree (combined_document_id)"
+      }
+    ]
+  },
+  {
+    "name": "finance_tax_invoices",
+    "columns": [
+      {
+        "name": "combined_document_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": false
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_tax_invoices_combined_document_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (combined_document_id) REFERENCES finance_combined_documents(id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED"
+      },
+      {
+        "name": "finance_tax_invoices_combined_document_id_key",
+        "type": "u",
+        "definition": "UNIQUE (combined_document_id)"
+      },
+      {
+        "name": "tax_invoice_lifecycle",
+        "type": "c",
+        "definition": "CHECK ((((status = ANY (ARRAY['draft'::text, 'cancelled'::text])) AND (tax_invoice_no IS NULL) AND (issued_at IS NULL) AND (issued_by_user_id IS NULL) AND (issued_snapshot_json IS NULL)) OR ((status = 'issued'::text) AND (tax_invoice_no IS NOT NULL) AND (((combined_document_id IS NULL) AND (tax_invoice_no ~ '^VP-TI-[0-9]{6}-[0-9]{6}$'::text)) OR ((combined_document_id IS NOT NULL) AND (tax_invoice_no ~ '^VP-RTI-[0-9]{6}-[0-9]{6}$'::text))) AND (issued_at IS NOT NULL) AND (issued_by_user_id IS NOT NULL) AND (issued_snapshot_json IS NOT NULL) AND (jsonb_typeof(issued_snapshot_json) = 'object'::text))))"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_tax_invoices_combined_document_id_key",
+        "definition": "CREATE UNIQUE INDEX finance_tax_invoices_combined_document_id_key ON public.finance_tax_invoices USING btree (combined_document_id)"
+      }
+    ]
+  }
+]

@@ -30,6 +30,7 @@ function ReceiptPreview({ id }: { id: string }) {
     catch { setPrintError("ไม่สามารถเตรียมโลโก้สำหรับพิมพ์ได้ กรุณาโหลดข้อมูลใหม่ก่อนลองอีกครั้ง"); }
     finally { setPrinting(false); }
   }
+  if (receipt?.combined_document_id) return <Link className={styles.primary} href={`/finance/combined-documents/${receipt.combined_document_id}/preview`}>เปิดตัวอย่างใบเสร็จรับเงิน/ใบกำกับภาษี</Link>;
   return <>
     {printError ? <p role="alert" className={`${styles.error} ${styles.noPrint}`}>{printError}</p> : null}
     <header className={`${styles.heading} ${styles.noPrint}`}><div><h1>{receipt ? receiptStatusLabels[receipt.status] : "ตัวอย่างใบเสร็จรับเงิน"}</h1></div><div className={styles.actions}><Link href={`/finance/receipts/${id}`} className={styles.button}>กลับไปใบเสร็จรับเงิน</Link><button type="button" className={styles.primary} disabled={!printable || printing} onClick={() => void print()}>พิมพ์ / บันทึก PDF</button></div></header>

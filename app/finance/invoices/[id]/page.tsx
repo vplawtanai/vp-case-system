@@ -9,6 +9,7 @@ import { feeAgreementStatusLabel } from "../../fee-agreements/lifecycle";
 import { supabase } from "../../../../lib/supabase";
 import { paymentSettlementLabels, paymentStatusLabels, safePaymentError, settlementStatusLabels, type EffectivePaymentAllocation, type FinancePayment, type InvoiceSettlement, type PaymentAllocationReallocation } from "../../payments/shared";
 import InvoiceCompositionEditor from "../invoice-composition-editor";
+import { InvoiceDocumentReadiness } from "../../document-decision/invoice-readiness";
 import { invoiceDraftDatesAreValid, resolveInvoicePaymentInstructions } from "../payment-instructions";
 import {
   bangkokToday,
@@ -515,6 +516,7 @@ function InvoiceWorkspace({ canManagePayments, canManageComposition }: { canMana
     </section> : null}
 
     {isDraft ? <>
+      <InvoiceDocumentReadiness invoiceId={invoice.id} revision={invoice.updated_at} />
       <section style={finalActionZone}>
         <span style={finalEyebrow}>ขั้นตอนสุดท้าย</span><h2 style={finalTitle}>ตรวจสอบและออกใบแจ้งหนี้</h2><p style={finalDescription}>เมื่อออกใบแจ้งหนี้แล้ว ระบบจะกำหนดเลขที่ VP-IV และล็อกข้อมูลเอกสารฉบับนี้</p>
         <div className="invoice-final-summary" style={finalSummary}><Metric label="ลูกค้า" value={displayText(invoice.customer_name)} /><Metric label={isV2 ? "ที่มาของยอด" : "งวด"} value={isV2 ? invoiceSourceLabel : `งวดที่ ${installment?.installment_no || "-"}`} /><Metric label="ยอดรวม" value={money(invoice.total_amount, invoice.currency)} prominent /></div>

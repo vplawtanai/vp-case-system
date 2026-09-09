@@ -20,9 +20,10 @@ export type FinanceReceipt = {
   replaces_receipt_id: string | null;
   created_at: string;
   updated_at: string;
+  combined_document_id?: string | null;
 };
 
-export const receiptSelect = "id,payment_id,status,receipt_no,receipt_date,currency,cash_amount,wht_amount,settlement_amount,draft_snapshot_json,issued_snapshot_json,issued_at,voided_at,void_reason,replaces_receipt_id,created_at,updated_at";
+export const receiptSelect = "id,payment_id,status,receipt_no,receipt_date,currency,cash_amount,wht_amount,settlement_amount,draft_snapshot_json,issued_snapshot_json,issued_at,voided_at,void_reason,replaces_receipt_id,created_at,updated_at,combined_document_id";
 export const receiptStatusLabels: Record<ReceiptStatus, string> = {
   draft: "ร่างใบเสร็จรับเงิน",
   issued: "ออกใบเสร็จรับเงินแล้ว",

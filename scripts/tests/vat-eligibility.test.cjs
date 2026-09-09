@@ -153,16 +153,17 @@ test('Multiple current Invoice sources are all shown with frozen document refere
   const result = render({ lines: await loadPaymentVatLines(client, 'payment-fixture') });
   for (const text of ['VP-IV-FIXTURE-1', 'VP-IV-FIXTURE-2', 'ค่าเดินทาง']) assert.ok(result.includes(text));
 });
-test('Payment/Receipt use one shared panel; summary does not grant lifecycle authority or add writes', () => {
+test('Payment/Receipt use the canonical document decision panel without independent Issue actions', () => {
   for (const file of ['payments', 'receipts']) {
     const source = fs.readFileSync(`app/finance/${file}/[id]/page.tsx`, 'utf8');
-    assert.match(source, /import \{ TaxInvoiceNextAction \} from "\.\.\/\.\.\/tax-invoices\/source-next-action"/);
-    assert.match(source, file === 'payments' ? /payment.status === "confirmed" \? <TaxInvoiceNextAction/ : /receipt.status === "issued" \? <TaxInvoiceNextAction/);
+    assert.match(source, /import \{ FinanceDocumentNextAction \} from "\.\.\/\.\.\/document-decision\/next-action"/);
+    assert.match(source, file === 'payments' ? /payment.status === "confirmed" \? <FinanceDocumentNextAction/ : /<FinanceDocumentNextAction paymentId=\{receipt.payment_id\}/);
   }
-  const panel = fs.readFileSync('app/finance/tax-invoices/source-next-action.tsx', 'utf8');
-  assert.match(panel, /TaxInvoiceNextActionContent key=\{paymentId\}/);
-  assert.match(panel, /!eligibility\?\.can_prepare \|\| !permissions\?\.canManageFinanceTaxInvoices/);
+  const panel = fs.readFileSync('app/finance/document-decision/next-action.tsx', 'utf8');
+  assert.match(panel, /get_finance_document_decision/);
+  assert.match(panel, /!canManage \|\| !actionable/);
+  assert.match(panel, /permissions\?\.canManageFinanceReceipts && permissions\?\.canManageFinanceTaxInvoices/);
   assert.equal((panel.match(/create_finance_tax_invoice_draft/g) || []).length, 1);
   assert.doesNotMatch(panel, /issue_finance_tax_invoice|\.update\(|\.insert\(/);
-  assert.ok(panel.indexOf('<TaxInvoiceVatSummary') < panel.indexOf('{eligibility?.existing_id ? <Link'));
+  assert.match(panel, /kind !== "complete"/);
 });
