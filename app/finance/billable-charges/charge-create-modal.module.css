@@ -1,0 +1,17 @@
+.createBody { min-width: 0; }
+.footer { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.actions { display: flex; flex: 1; gap: 12px; align-items: center; justify-content: flex-end; flex-wrap: wrap; min-width: 0; }
+.actions > div { flex: 1; margin: 0; padding: 0; border: 0; min-width: 0; }
+.close, .discard { min-height: 40px; padding: 9px 14px; border: 1px solid #cbd5df; border-radius: 7px; background: #fff; color: #17324d; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.discard { border-color: #e6b9b5; color: #b42318; }
+.close:hover { background: #f3f6f9; }
+.discard:hover { background: #fff3f2; }
+.close:focus-visible, .discard:focus-visible { outline: 3px solid #bfdbfe; outline-offset: 2px; }
+.confirmActions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
+@media (max-width: 600px) {
+  .footer { gap: 10px; align-items: flex-end; }
+  .actions { flex-basis: 70%; }
+  .actions > div { gap: 8px; }
+  .actions > button { width: 100%; }
+  .confirmActions > button { flex: 1; }
+}

@@ -75,7 +75,7 @@ test("final Issue confirmation shows installment-only position beneath its sourc
 test("mixed confirmation uses the same short position without the customer-facing prefix", () => {
   for (const type of ["ad_hoc_service", "recoverable_cost"]) {
     const markup = render([item(), item(type)]);
-    assert.match(markup, /ยอดตามแผน \+ รายการเรียกเก็บเพิ่มเติม<small[^>]*>งวดที่ 2 จาก 3 งวด<\/small>/);
+    assert.match(markup, /ยอดตามแผน \+ รายการเรียกเก็บ<small[^>]*>งวดที่ 2 จาก 3 งวด<\/small>/);
     assert.doesNotMatch(markup, /ค่าบริการตามแผน/);
   }
 });
@@ -83,7 +83,7 @@ test("mixed confirmation uses the same short position without the customer-facin
 test("additional-only confirmation has no installment line, including released installment history", () => {
   for (const items of [[item("ad_hoc_service")], [item("recoverable_cost"), item("billing_installment_item", "released")]]) {
     const markup = render(items);
-    assert.match(markup, /รายการเรียกเก็บเพิ่มเติม/);
+    assert.match(markup, /รายการเรียกเก็บ/);
     assert.doesNotMatch(markup, /งวดที่|จาก 3 งวด/);
   }
 });
@@ -109,7 +109,7 @@ test("English confirmation translates source and installment without changing th
     assert.doesNotMatch(markup, /[\u0e00-\u0e7f]/);
   }
   const additional = render([item("ad_hoc_service")], null, draft(), "en");
-  assert.match(additional, /Additional Charges/);
+  assert.match(additional, /Billable Charges/);
   assert.doesNotMatch(additional, /Installment 2 of 3/);
 });
 

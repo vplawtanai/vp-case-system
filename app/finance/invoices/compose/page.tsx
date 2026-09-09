@@ -17,14 +17,15 @@ import { guidedInvoiceDocumentDefaults } from "../payment-instructions";
 import InvoiceWorkspaceNav from "../InvoiceWorkspaceNav";
 import { billableChargeNatureLabel, clientCostFundingModeLabel, type ClientCostFundingMode } from "../../billable-charges/funding-semantics";
 import { billingPlanInvoiceSelectionResumeHref, guidedInvoiceSourceSummary, historicalInstallmentClassificationItems, invoiceCompositionMode, updateHistoricalClassification, type HistoricalClassificationValue } from "../../billing-plans/charge-context";
+import BillableChargeCreateModal from "../../billable-charges/BillableChargeCreateModal";
 import { ChargeVatSummary } from "../../billable-charges/ChargeVatControl";
 import { savedChargeVat, validateChargeVat } from "../../billable-charges/vat-workflow";
 import type { VatEvidence } from "../../document-decision/shared";
 import styles from "../invoice-workspace.module.css";
 
-type Client = { id: string; name: string | null };
-type CaseRow = { id: number; file_no: string | null; title: string | null };
-type Advisory = { id: string; matter_no: string | null; title: string | null };
+type Client = { id: string; name: string | null; client_type: string | null };
+type CaseRow = { client_id: string | null; id: number; file_no: string | null; title: string | null };
+type Advisory = { client_id: string | null; id: string; matter_no: string | null; title: string | null };
 type Charge = {
   id: string; client_id: string; case_id: number | null; advisory_matter_id: string | null;
   source_type: string; client_cost_funding_mode: ClientCostFundingMode | null; description: string | null; quantity: number | string; unit: string | null;
@@ -80,6 +81,7 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
   const [adapter, setAdapter] = useState<Record<string, AdapterValue>>({});
   const [activeAdapterItemId, setActiveAdapterItemId] = useState("");
   const [sourceDetailsOpen, setSourceDetailsOpen] = useState(false);
+  const [createChargeOpen, setCreateChargeOpen] = useState(false);
   const [languageCode, setLanguageCode] = useState<"th" | "en">("th");
   const [dueDate, setDueDate] = useState("");
   const [paymentTermsText, setPaymentTermsText] = useState("");
@@ -102,12 +104,12 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
   const reviewRef = useRef<HTMLElement | null>(null);
   const prefillHandled = useRef(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (background = false) => {
+    if (!background) setLoading(true);
     const [clientResult, caseResult, advisoryResult, chargeResult, planResult, agreementResult, installmentResult, installmentItemResult, agreementItemResult, bridgeResult, invoiceResult, bankResult] = await Promise.all([
-      supabase.from("clients").select("id,name").order("name"),
-      supabase.from("cases").select("id,file_no,title"),
-      supabase.from("advisory_matters").select("id,matter_no,title"),
+      supabase.from("clients").select("id,name,client_type").order("name"),
+      supabase.from("cases").select("id,client_id,file_no,title"),
+      supabase.from("advisory_matters").select("id,client_id,matter_no,title"),
       supabase.from("finance_billable_charges").select("id,client_id,case_id,advisory_matter_id,source_type,client_cost_funding_mode,description,quantity,unit,currency,service_date,economic_classification,price_tax_mode,vat_rate,vat_treatment_json,amount_before_vat,vat_amount,total_amount,status,source_reference").eq("status", "ready_to_invoice").neq("source_type", "billing_installment_item").order("service_date"),
       supabase.from("finance_billing_plans").select("id,fee_agreement_id,title,status,currency").eq("status", "active"),
       supabase.from("finance_fee_agreements").select("id,client_id,case_id,advisory_matter_id,title,agreement_no,status,engagement_basis,source_reference,language_code"),
@@ -338,6 +340,15 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
 
   if (loading) return <div className={styles.loading}>{t("finance.invoice.composer.loading")}</div>;
   return <div className={styles.page}>
+    {createChargeOpen ? <BillableChargeCreateModal
+      clients={clients} cases={cases} advisories={advisories} lockClient={Boolean(clientId)}
+      initialSelection={{ clientId, matterMode: "unlinked", caseId: "", advisoryMatterId: "" }}
+      context={anchor ? { clientId: anchor.clientId, clientName: clients.find(row => row.id === anchor.clientId)?.name || t("finance.invoice.composer.unnamedClient"), caseId: anchor.caseId, advisoryMatterId: anchor.advisoryId, matterLabel: matterLabel(anchor.caseId, anchor.advisoryId, cases, advisories, locale) } : undefined}
+      canManage={permissions.canManageFinanceBillableCharges} canApprove={permissions.canApproveFinanceBillableCharges}
+      continueToReady onClose={() => setCreateChargeOpen(false)}
+      onSaved={async () => { await load(true); setSourceNotice(uiMessage("finance.charge.modal.composerDraftSaved")); }}
+      onReady={async () => { await load(true); setSourceNotice(uiMessage("finance.charge.modal.composerReady")); }}
+    /> : null}
     <FinanceSubNav activePage="invoices" permissions={permissions} />
     <InvoiceWorkspaceNav activePage={guidedMode ? undefined : "invoices"} quiet={guidedMode} showAdditionalCharges={permissions.canViewFinanceBillableCharges} />
     {openedFromSource ? <div className={styles.contextNavigation}><Link className={styles.contextBackLink} href={sourceBackHref}>← {guidedMode ? t("finance.invoice.composer.backPlan") : sourceBackLabel}</Link></div> : null}
@@ -375,7 +386,7 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
     <section className={styles.surface}><SectionHeader title={t("finance.invoice.composer.chargesStep")} text={t("finance.invoice.composer.chargesSelectionHelp")} />
       {!clientId ? <div className={styles.notice}>{t("finance.invoice.composer.selectClientForCharges")}</div> : !visibleCharges.length ? <div className={styles.empty}>
         <p>{t("finance.invoice.composer.noReadyCharges")}</p>
-        {permissions.canManageFinanceBillableCharges ? <Link className={styles.primaryButton} href={`/finance/billable-charges?new=1&client=${encodeURIComponent(clientId)}`}>{t("finance.charge.ui.create")}</Link> : null}
+        {permissions.canManageFinanceBillableCharges ? <button className={styles.primaryButton} type="button" onClick={() => setCreateChargeOpen(true)}>{t("finance.charge.ui.create")}</button> : null}
       </div> : <div className={styles.choiceList}>{visibleCharges.map((charge) => { const reason = incompatibilityReason(charge, anchor); const selected = chargeIds.includes(charge.id); return <div key={charge.id} className={`${styles.chargeChoice} ${selected ? styles.choiceSelected : ""} ${reason && !selected ? styles.choiceDisabled : ""}`}><input aria-label={t("finance.invoice.composer.selectCharge", { description: charge.description || t("finance.invoice.ui.item") })} type="checkbox" disabled={Boolean(reason && !selected)} checked={selected} onChange={() => toggleCharge(charge)} /><div className={styles.choiceBody}><strong>{charge.description || t("finance.invoice.ui.additionalCharges")}</strong><div className={styles.chargeMeta}><span>{date(charge.service_date)}</span><span>{classificationLabel(charge.economic_classification, locale)}</span><ChargeVatSummary value={savedChargeVat(charge)} /><span>{matterLabel(charge.case_id, charge.advisory_matter_id, cases, advisories, locale)}</span></div><div className={styles.chargeMeta}><span>{t("finance.invoice.ui.beforeVatShort")} {money(charge.amount_before_vat, charge.currency)}</span><span>VAT {money(charge.vat_amount, charge.currency)}</span><span className={styles.readyText}>{t("finance.invoice.ui.readyToInvoice")}</span></div>{reason && !selected ? <small className={styles.fieldError}>{text(reason)}</small> : null}<button className={styles.detailButton} type="button" onClick={() => void openChargeDetail(charge.id)}>{t("finance.invoice.ui.details")}</button></div><strong className={styles.choiceAmount}>{money(charge.total_amount, charge.currency)}</strong></div>; })}</div>}
     </section>
     </>}

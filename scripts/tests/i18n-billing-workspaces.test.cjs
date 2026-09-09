@@ -28,7 +28,7 @@ function workspace(file, names) {
   const output = {};
   const context = {
     exports: output, React, useI18n, translate, resolveUiMessage, uiMessage, uiDate,
-    useState: React.useState, useMemo: React.useMemo, useRef: React.useRef,
+    useState: React.useState, useMemo: React.useMemo, useRef: React.useRef, useImperativeHandle: React.useImperativeHandle,
     calculateFinanceLineAmounts, ...funding, ...chargeContext, VatTreatmentInput, ChargeVatControl, ChargeValidationSummary, ...vatWorkflow,
     styles: new Proxy({}, { get: (_, key) => String(key) }),
     Link: ({ children, ...props }) => React.createElement('a', props, children),

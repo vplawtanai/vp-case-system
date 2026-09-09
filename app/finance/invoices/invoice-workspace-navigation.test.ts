@@ -6,7 +6,7 @@ import { invoiceWorkspaceNavigationLinks } from "./invoice-workspace-navigation.
 test("Invoice secondary navigation keeps distinct child labels and existing routes", () => {
   assert.deepEqual(invoiceWorkspaceNavigationLinks(), [
     { href: "/finance/invoices", page: "invoices", label: "รายการใบแจ้งหนี้" },
-    { href: "/finance/billable-charges", page: "billable-charges", label: "รายการเรียกเก็บเพิ่มเติม" },
+    { href: "/finance/billable-charges", page: "billable-charges", label: "รายการเรียกเก็บ" },
   ]);
 });
 

@@ -18,7 +18,7 @@ import { supabase } from "../../../lib/supabase";
 import { calculateFinanceLineAmounts, type FinancePriceTaxMode } from "../finance-line-amounts";
 import FinanceSubNav from "../FinanceSubNav";
 import InvoiceWorkspaceNav from "../invoices/InvoiceWorkspaceNav";
-import BillableChargeCreateWorkflow from "./BillableChargeCreateWorkflow";
+import BillableChargeCreateModal from "./BillableChargeCreateModal";
 import { billableChargeNatureLabel, clientCostFundingModeLabel, clientCostFundingModeRequired, fundingModeForSource, type ClientCostFundingMode } from "./funding-semantics";
 import styles from "./billable-charges.module.css";
 
@@ -179,6 +179,7 @@ function BillableChargesWorkspace() {
   const [detailAuditLoading, setDetailAuditLoading] = useState(false);
   const [chargeInvoiceLinks, setChargeInvoiceLinks] = useState<Record<string, ChargeInvoiceLink>>({});
   const [panelOpen, setPanelOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [chargeId, setChargeId] = useState("");
   const [form, setForm] = useState<ChargeForm>(() => emptyForm());
   const [baseline, setBaseline] = useState("");
@@ -288,10 +289,10 @@ function BillableChargesWorkspace() {
     setCancelReason("");
     setMessage("");
     setError("");
-    setPanelOpen(true);
+    setPanelOpen(false);
+    setCreateOpen(true);
     setCreateSourceLocked(false);
     createAttemptRef.current = null;
-    scrollToPanel();
   }, []);
 
   useEffect(() => {
@@ -682,7 +683,7 @@ function BillableChargesWorkspace() {
         <InvoiceWorkspaceNav activePage="billable-charges" />
         <header className={styles.workspaceHeader}>
           <div><span className={styles.eyebrow}>{t("finance.invoice.ui.workspace")}</span><h1>{t("finance.invoice.ui.additionalCharges")}</h1><p>{t("finance.charge.ui.workspaceHelp")}</p></div>
-          <div className={styles.headerActions}>{canComposeInvoice ? <Link className={styles.secondaryButton} href="/finance/invoices/compose">{t("finance.invoice.composer.compose")}</Link> : null}{permissions.canManageFinanceBillableCharges ? <button className={styles.primaryButton} type="button" onClick={() => openNew()}><PlusIcon />{t("finance.charge.ui.create")}</button> : null}</div>
+          <div className={styles.headerActions}>{canComposeInvoice ? <Link className={styles.secondaryButton} href="/finance/invoices/compose">{t("finance.invoice.composer.compose")}</Link> : null}{permissions.canManageFinanceBillableCharges ? <button className={styles.primaryButton} type="button" onClick={() => { setBillingPlanContext(null); openNew(); }}><PlusIcon />{t("finance.charge.ui.create")}</button> : null}</div>
         </header>
 
         {billingPlanContext ? <section className={styles.billingPlanContext} aria-label={t("finance.charge.ui.planContext")}>
@@ -715,21 +716,20 @@ function BillableChargesWorkspace() {
           {canCancelDetail ? <section className={styles.otherActions}><div><strong>{t("finance.invoice.ui.otherActions")}</strong><p>{t("finance.charge.ui.cancelHelp")}</p></div>{cancelContext === "detail" ? <div className={styles.cancelForm}><FormField label={t("finance.charge.ui.cancelReason")} error={errors.cancelReason}><textarea rows={3} value={cancelReason} onChange={(event) => { setCancelReason(event.target.value); setErrors((current) => ({ ...current, cancelReason: "" })); }} /></FormField><div className={styles.actionRow}><button className={styles.secondaryButton} type="button" onClick={() => setCancelContext(null)}>{t("finance.charge.ui.dismissAction")}</button><button className={styles.dangerButton} type="button" disabled={saving} onClick={() => void cancelCharge(detailCharge.id, "detail")}>{t("finance.charge.ui.confirmCancel")}</button></div></div> : <button className={styles.dangerButton} type="button" onClick={() => setCancelContext("detail")}>{t("finance.charge.ui.cancel")}</button>}</section> : null}
         </DetailModal> : null}
 
+        {createOpen ? <BillableChargeCreateModal
+          clients={clients} cases={cases} advisories={advisories}
+          initialSelection={{ clientId: form.clientId, matterMode: form.matterMode, caseId: form.caseId, advisoryMatterId: form.advisoryMatterId }}
+          context={billingPlanContext ? { clientId: billingPlanContext.clientId, clientName: billingPlanContext.clientName, caseId: billingPlanContext.caseId, advisoryMatterId: billingPlanContext.advisoryMatterId, matterLabel: billingPlanContext.matterLabel } : undefined}
+          canManage={permissions.canManageFinanceBillableCharges} canApprove={permissions.canApproveFinanceBillableCharges}
+          onClose={() => setCreateOpen(false)}
+          onSaved={async () => { await loadWorkspace(); setFilter("draft"); setSearch(""); setMessage(uiMessage("finance.charge.ui.saved")); }}
+        /> : null}
+
         {panelOpen ? <section ref={panelRef} className={styles.editorSection}>
           <div className={styles.editorHeader}><div><span className={styles.eyebrow}>{chargeId ? t("finance.charge.ui.itemDetails") : t("finance.charge.ui.created")}</span><h2>{chargeId ? selectedCharge?.status === "draft" ? t("finance.charge.ui.editChargeDraft") : t("finance.charge.ui.chargeDetails") : t("finance.charge.ui.addCharge")}</h2><p>{selectedCharge?.status === "draft" || !chargeId ? t("finance.charge.ui.chargeSemantics") : statusExplanation(selectedCharge?.status, locale)}</p></div><button className={styles.iconButton} type="button" aria-label={t("finance.charge.ui.closeDetails")} onClick={() => { setPanelOpen(false); if (!chargeId) void loadWorkspace(); }}>×</button></div>
           {billingPlanContext ? <div className={`${styles.editorReturn} ${selectedCharge?.status === "ready_to_invoice" ? styles.editorReturnReady : ""}`}><div><strong>{selectedCharge?.status === "ready_to_invoice" ? t("finance.charge.ui.readyToReturn") : t("finance.charge.ui.openedFromPlan")}</strong><span>{billingPlanContext.clientName} · {billingPlanContext.matterLabel}</span></div><Link className={selectedCharge?.status === "ready_to_invoice" ? styles.primaryButton : styles.secondaryButton} href={billingPlanContext.returnTo}>{billingPlanContext.returnLabel}</Link></div> : null}
 
-          {!chargeId ? <BillableChargeCreateWorkflow
-            clients={clients}
-            cases={cases}
-            advisories={advisories}
-            initialSelection={{ clientId: form.clientId, matterMode: form.matterMode, caseId: form.caseId, advisoryMatterId: form.advisoryMatterId }}
-            context={billingPlanContext ? { clientId: billingPlanContext.clientId, clientName: billingPlanContext.clientName, caseId: billingPlanContext.caseId, advisoryMatterId: billingPlanContext.advisoryMatterId, matterLabel: billingPlanContext.matterLabel } : undefined}
-            canManage={permissions.canManageFinanceBillableCharges}
-            canApprove={permissions.canApproveFinanceBillableCharges}
-            readyActionLabel={billingPlanContext?.returnLabel}
-            onReadyAction={billingPlanContext ? () => { window.location.href = billingPlanContext.returnTo; } : undefined}
-          /> : selectedCharge && (selectedCharge.status !== "draft" || selectedCharge.source_type === "billing_installment_item") ? <ReadOnlyDetail charge={selectedCharge} clients={clients} cases={cases} advisories={advisories} /> : <>
+          {selectedCharge && (selectedCharge.status !== "draft" || selectedCharge.source_type === "billing_installment_item") ? <ReadOnlyDetail charge={selectedCharge} clients={clients} cases={cases} advisories={advisories} /> : <>
             <ChargeValidationSummary errors={errors} />
             {!permissions.canManageFinanceBillableCharges ? <div className={styles.readOnlyNotice}>{t("finance.charge.ui.draftReadOnly")}</div> : null}
             {!chargeId ? <fieldset className={styles.sourceChoices}><legend>{t("finance.charge.ui.nature")}</legend><label className={form.sourceType === "ad_hoc_service" ? styles.choiceActive : ""}><input type="radio" name="sourceType" value="ad_hoc_service" disabled={createSourceLocked || !permissions.canManageFinanceBillableCharges} checked={form.sourceType === "ad_hoc_service"} onChange={() => { updateForm("sourceType", "ad_hoc_service"); updateForm("clientCostFundingMode", ""); }} /><span><strong>{t("finance.charge.ui.additionalNature")}</strong><small>{t("finance.charge.ui.additionalNatureHelp")}</small></span></label><label className={form.sourceType === "recoverable_cost" ? styles.choiceActive : ""}><input type="radio" name="sourceType" value="recoverable_cost" disabled={createSourceLocked || !permissions.canManageFinanceBillableCharges} checked={form.sourceType === "recoverable_cost"} onChange={() => updateForm("sourceType", "recoverable_cost")} /><span><strong>{t("finance.charge.ui.recoverableNature")}</strong><small>{t("finance.charge.ui.recoverableNatureHelp")}</small></span></label></fieldset> : <div className={styles.sourceSummary}><span>{t("finance.charge.ui.nature")}</span><strong>{sourceTypeLabel(form.sourceType, locale)}</strong></div>}

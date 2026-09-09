@@ -17,22 +17,22 @@ test("installment-only V2 uses the Billing Plan label, regardless of item count"
 
 test("additional-only V2 recognizes service and recoverable-cost Charges", () => {
   for (const items of [[item("ad_hoc_service")], [item("recoverable_cost")], [item("ad_hoc_service"), item("recoverable_cost")]]) {
-    assert.equal(invoiceCompositionSourceLabel("billable_charge_v2", items), "รายการเรียกเก็บเพิ่มเติม");
+    assert.equal(invoiceCompositionSourceLabel("billable_charge_v2", items), "รายการเรียกเก็บ");
   }
 });
 
 test("mixed V2 requires both effective source types", () => {
   for (const additionalType of ["ad_hoc_service", "recoverable_cost"]) {
     const items = [item("billing_installment_item"), item(additionalType)];
-    assert.equal(invoiceCompositionSourceLabel("billable_charge_v2", items), "ยอดตามแผน + รายการเรียกเก็บเพิ่มเติม");
-    assert.equal(invoiceCompositionSourceLabel("billable_charge_v2", [...items].reverse()), "ยอดตามแผน + รายการเรียกเก็บเพิ่มเติม");
+    assert.equal(invoiceCompositionSourceLabel("billable_charge_v2", items), "ยอดตามแผน + รายการเรียกเก็บ");
+    assert.equal(invoiceCompositionSourceLabel("billable_charge_v2", [...items].reverse()), "ยอดตามแผน + รายการเรียกเก็บ");
   }
 });
 
 test("released composition history cannot make an installment-only Draft look mixed", () => {
   const items = [item("billing_installment_item"), item("ad_hoc_service", "released"), item("recoverable_cost", "released")];
   assert.equal(invoiceCompositionSourceLabel("billable_charge_v2", items), "ยอดตามแผนเรียกเก็บเงิน");
-  assert.equal(invoiceCompositionSourceLabel("billable_charge_v2", [item("billing_installment_item", "released"), item("ad_hoc_service")]), "รายการเรียกเก็บเพิ่มเติม");
+  assert.equal(invoiceCompositionSourceLabel("billable_charge_v2", [item("billing_installment_item", "released"), item("ad_hoc_service")]), "รายการเรียกเก็บ");
 });
 
 test("missing or unknown V2 source evidence is not guessed from the source model", () => {

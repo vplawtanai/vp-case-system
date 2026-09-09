@@ -6,9 +6,9 @@ const { validateChargeVat, selectChargeVat, savedChargeVat, chargeVatChoice, ref
 const { resolveVatEvidence } = require(root + '/app/finance/document-decision/shared.ts');
 const { resolveUiMessage } = require(root + '/lib/i18n/catalog.ts');
 const { calculateFinanceLineAmounts } = require(root + '/app/finance/finance-line-amounts.ts');
-const composer = workspaceFixture('app/finance/invoices/compose/page.tsx', ['InvoiceComposer'], { '../../quotations/shared': {} });
+const composer = workspaceFixture('app/finance/invoices/compose/page.tsx', ['InvoiceComposer'], { '../../quotations/shared': {}, '../../billable-charges/BillableChargeCreateModal': { default: () => null } });
 const creation = workspaceFixture('app/finance/billable-charges/BillableChargeCreateWorkflow.tsx', ['validateDraft', 'emptyForm', 'calculateAmounts']);
-const editing = workspaceFixture('app/finance/billable-charges/page.tsx', ['validateDraft', 'emptyForm', 'calculateFormAmounts'], { './BillableChargeCreateWorkflow': { default: creation.component() } });
+const editing = workspaceFixture('app/finance/billable-charges/page.tsx', ['validateDraft', 'emptyForm', 'calculateFormAmounts'], { './BillableChargeCreateModal': { default: () => null } });
 const none = { priceTaxMode: 'non_vat', vatRate: '0', vatTreatment: null };
 const standard = { priceTaxMode: 'vat_inclusive', vatRate: '7', vatTreatment: null };
 const evidence = treatment => ({ schema_version: 1, treatment, reason: 'Reviewed supporting reference' });
