@@ -2,7 +2,8 @@
 import { useI18n } from "../../../lib/i18n/provider";
 import { translate } from "../../../lib/i18n/catalog";
 import { uiMessage, type UiMessage, type UiLocale } from "../../../lib/i18n/core";
-import { VatTreatmentInput } from "../document-decision/vat-input";
+import ChargeVatControl, { ChargeValidationSummary, type ChargeVatHandle } from "./ChargeVatControl";
+import { validateChargeVat, refreshChargeVatErrors, isChargeVatBackendError } from "./vat-workflow";
 import type { VatEvidence } from "../document-decision/shared";
 
 import Link from "next/link";
@@ -193,6 +194,7 @@ function BillableChargesWorkspace() {
 
   const panelRef = useRef<HTMLElement | null>(null);
   const reviewRef = useRef<HTMLElement | null>(null);
+  const vatRef = useRef<ChargeVatHandle>(null);
   const actionLockRef = useRef(false);
   const detailAuditRequestRef = useRef(0);
   const createAttemptRef = useRef<CreateAttempt | null>(null);
@@ -400,7 +402,7 @@ function BillableChargesWorkspace() {
     return () => { active = false; };
   }, [advisories, cases, clients, loading, openNew, permissions.canViewFinanceBillableCharges, searchParams]);
 
-  const fetchAudit = async (id: string) => {
+  const fetchAudit = useCallback(async (id: string) => {
     const { data, error: auditError } = await supabase
       .from("finance_billable_charge_audit_events")
       .select("id,event_type,actor_name,actor_email,created_at")
@@ -408,7 +410,7 @@ function BillableChargesWorkspace() {
       .order("created_at", { ascending: true });
     if (auditError) console.error("LOAD BILLABLE CHARGE AUDIT FAILED", auditError);
     return (data || []) as AuditEvent[];
-  };
+  }, []);
 
   const loadAudit = async (id: string) => {
     setAudits(await fetchAudit(id));
@@ -439,6 +441,24 @@ function BillableChargesWorkspace() {
       }
     });
   };
+
+  const sourceReviewHandled = useRef(false);
+  useEffect(() => {
+    if (loading || sourceReviewHandled.current) return;
+    sourceReviewHandled.current = true;
+    const requestedId = searchParams.get("charge") || "";
+    const source = isUuid(requestedId) ? charges.find(row => row.id === requestedId) : null;
+    if (!source) return;
+    const requestId = ++detailAuditRequestRef.current;
+    setDetailChargeId(source.id);
+    setDetailAuditLoading(true);
+    void fetchAudit(source.id).then(events => {
+      if (detailAuditRequestRef.current === requestId) {
+        setDetailAudits(events);
+        setDetailAuditLoading(false);
+      }
+    });
+  }, [charges, loading, searchParams, fetchAudit]);
 
   const openCharge = (charge: BillableCharge) => {
     const next = chargeToForm(charge);
@@ -486,7 +506,10 @@ function BillableChargesWorkspace() {
   const saveDraft = async () => {
     const nextErrors = validateDraft(form);
     setErrors(nextErrors);
-    if (actionLockRef.current || Object.keys(nextErrors).length || !permissions.canManageFinanceBillableCharges) return;
+    if (actionLockRef.current || Object.keys(nextErrors).length || !permissions.canManageFinanceBillableCharges) {
+      if (!vatRef.current?.focusErrors(nextErrors)) focusFirstError(nextErrors, locale);
+      return;
+    }
     const isFirstSave = !chargeId;
     actionLockRef.current = true;
     setSaving(true);
@@ -544,6 +567,11 @@ function BillableChargesWorkspace() {
       if (isFirstSave) scrollToReview();
     } catch (caught) {
       console.error("SAVE BILLABLE CHARGE DRAFT FAILED", caught);
+      if (isChargeVatBackendError(caught)) {
+        const vatErrors = { ...validateChargeVat(form), vatTreatment: uiMessage("finance.charge.vat.conflict") };
+        setErrors(current => ({ ...current, ...vatErrors }));
+        vatRef.current?.focusErrors(vatErrors);
+      }
       setError(billableChargeError(caught, uiMessage("finance.charge.ui.saveFailed")));
     } finally {
       actionLockRef.current = false;
@@ -558,7 +586,7 @@ function BillableChargesWorkspace() {
     if (!readyAcknowledged) nextErrors.acknowledgement = uiMessage("finance.charge.ui.reviewRequired");
     setErrors(nextErrors);
     if (actionLockRef.current || Object.keys(nextErrors).length || !permissions.canApproveFinanceBillableCharges) {
-      focusFirstError(nextErrors, locale);
+      if (!vatRef.current?.focusErrors(nextErrors)) focusFirstError(nextErrors, locale);
       return;
     }
     actionLockRef.current = true;
@@ -702,6 +730,7 @@ function BillableChargesWorkspace() {
             readyActionLabel={billingPlanContext?.returnLabel}
             onReadyAction={billingPlanContext ? () => { window.location.href = billingPlanContext.returnTo; } : undefined}
           /> : selectedCharge && (selectedCharge.status !== "draft" || selectedCharge.source_type === "billing_installment_item") ? <ReadOnlyDetail charge={selectedCharge} clients={clients} cases={cases} advisories={advisories} /> : <>
+            <ChargeValidationSummary errors={errors} />
             {!permissions.canManageFinanceBillableCharges ? <div className={styles.readOnlyNotice}>{t("finance.charge.ui.draftReadOnly")}</div> : null}
             {!chargeId ? <fieldset className={styles.sourceChoices}><legend>{t("finance.charge.ui.nature")}</legend><label className={form.sourceType === "ad_hoc_service" ? styles.choiceActive : ""}><input type="radio" name="sourceType" value="ad_hoc_service" disabled={createSourceLocked || !permissions.canManageFinanceBillableCharges} checked={form.sourceType === "ad_hoc_service"} onChange={() => { updateForm("sourceType", "ad_hoc_service"); updateForm("clientCostFundingMode", ""); }} /><span><strong>{t("finance.charge.ui.additionalNature")}</strong><small>{t("finance.charge.ui.additionalNatureHelp")}</small></span></label><label className={form.sourceType === "recoverable_cost" ? styles.choiceActive : ""}><input type="radio" name="sourceType" value="recoverable_cost" disabled={createSourceLocked || !permissions.canManageFinanceBillableCharges} checked={form.sourceType === "recoverable_cost"} onChange={() => updateForm("sourceType", "recoverable_cost")} /><span><strong>{t("finance.charge.ui.recoverableNature")}</strong><small>{t("finance.charge.ui.recoverableNatureHelp")}</small></span></label></fieldset> : <div className={styles.sourceSummary}><span>{t("finance.charge.ui.nature")}</span><strong>{sourceTypeLabel(form.sourceType, locale)}</strong></div>}
 
@@ -724,9 +753,11 @@ function BillableChargesWorkspace() {
               <FormField label={t("finance.invoice.ui.unit")} error={errors.unit}><input disabled={!permissions.canManageFinanceBillableCharges} value={form.unit} onChange={(event) => updateForm("unit", event.target.value)} placeholder={t("finance.charge.ui.unitPlaceholder")} /></FormField>
               <FormField label={t("finance.charge.ui.unitRate")} helper={!form.unitRate.trim() ? t("finance.charge.ui.rateMissing") : undefined} error={errors.unitRate}><input disabled={!permissions.canManageFinanceBillableCharges} inputMode="decimal" value={form.unitRate} onChange={(event) => updateForm("unitRate", event.target.value)} placeholder="0.00" /></FormField>
               <FormField label={t("finance.invoice.ui.classification")} error={errors.economicClassification}><select disabled={!permissions.canManageFinanceBillableCharges} value={form.economicClassification} onChange={(event) => updateForm("economicClassification", event.target.value as ChargeForm["economicClassification"])}><option value="">{t("finance.charge.ui.selectClassification")}</option><option value="professional_fee">{t("finance.invoice.classification.professional_fee")}</option><option value="additional_service">{t("finance.invoice.classification.additional_service")}</option><option value="reimbursable_expense">{t("finance.invoice.classification.reimbursable_expense")}</option><option value="government_or_court_fee">{t("finance.invoice.classification.government_or_court_fee")}</option><option value="other">{t("finance.invoice.classification.other")}</option></select><small>{t("finance.charge.ui.classificationHelp")}</small></FormField>
-              <FormField label={t("finance.charge.ui.vatMode")} error={errors.priceTaxMode}><select disabled={!permissions.canManageFinanceBillableCharges} value={form.priceTaxMode} onChange={(event) => { const mode = event.target.value as FinancePriceTaxMode; setForm((current) => ({ ...current, vatTreatment: null, priceTaxMode: mode, vatRate: mode === "non_vat" ? "0" : Number(current.vatRate) > 0 ? current.vatRate : "7" })); setErrors((current) => ({ ...current, priceTaxMode: "", vatRate: "" })); }}><option value="non_vat">{t("finance.invoice.ui.noVat")}</option><option value="vat_exclusive">{t("finance.charge.ui.vatExclusive")}</option><option value="vat_inclusive">{t("finance.charge.ui.vatInclusive")}</option></select></FormField>
-              {form.priceTaxMode !== "non_vat" ? <FormField label={t("finance.charge.ui.vatRate")} error={errors.vatRate}><input disabled={!permissions.canManageFinanceBillableCharges} inputMode="decimal" value={form.vatRate} onChange={(event) => setForm(current => ({ ...current, vatTreatment: null, vatRate: event.target.value }))} /></FormField> : null}
-              <VatTreatmentInput disabled={!permissions.canManageFinanceBillableCharges} value={form.vatTreatment} applicable={form.priceTaxMode !== "non_vat"} rate={form.priceTaxMode === "non_vat" ? 0 : Number(form.vatRate)} onChange={vatTreatment => setForm(current => ({ ...current, vatTreatment }))} />
+              <ChargeVatControl ref={vatRef} value={form} disabled={!permissions.canManageFinanceBillableCharges || saving} errors={errors} onChange={value => {
+                setForm(current => ({ ...current, ...value }));
+                setErrors(current => refreshChargeVatErrors(current, value));
+                setMessage("");
+              }} />
             </div>
 
             <section className={styles.additionalSection}>
@@ -803,6 +834,7 @@ function BillableChargeModalDetail({ charge, clients, cases, advisories }: { cha
   const notice = charge.status === "ready_to_invoice" ? t("finance.charge.ui.readyReadOnly") : statusExplanation(charge.status, locale);
   return <div className={styles.modalDetailContent}>
     {notice ? <div className={styles.readOnlyNotice}>{notice}</div> : null}
+    {charge.status === "ready_to_invoice" && Object.keys(validateChargeVat(chargeToForm(charge))).length ? <><ChargeValidationSummary errors={validateChargeVat(chargeToForm(charge))} /><p>{t("finance.charge.vat.readyCorrection")}</p></> : null}
     <section className={styles.detailSection}>
       <div className={styles.detailSectionHeading}><span className={styles.eyebrow}>{t("finance.charge.ui.primaryInformation")}</span><h3>{t("finance.charge.ui.itemInformation")}</h3></div>
       <dl className={styles.detailGrid}><Detail label={t("finance.invoice.ui.item")} value={charge.description || "-"} prominent /><Detail label={t("finance.invoice.ui.customer")} value={clientLabel(charge.client_id, clients, locale)} link="/clients" /><Detail label={t("finance.charge.ui.caseAdvisory")} value={matterLabel(charge, cases, advisories, locale)} link={charge.case_id ? `/cases/${charge.case_id}` : charge.advisory_matter_id ? `/advisory/${charge.advisory_matter_id}` : undefined} /><Detail label={t("finance.invoice.ui.chargeNature")} value={sourceTypeLabel(charge.source_type, locale)} />{charge.source_type === "recoverable_cost" ? <Detail label={t("finance.invoice.ui.funding")} value={clientCostFundingModeLabel(charge.client_cost_funding_mode, locale)} /> : null}<Detail label={t("finance.charge.ui.transactionDate")} value={date(charge.service_date)} /></dl>
@@ -853,7 +885,7 @@ function validateDraft(form: ChargeForm) {
   if (!isDecimal(form.quantity, 4, false)) errors.quantity = uiMessage("finance.charge.ui.error.quantity");
   if (!isDecimal(form.unitRate || "0", 2, true)) errors.unitRate = uiMessage("finance.charge.ui.error.unitRate");
   if (form.priceTaxMode !== "non_vat" && !isDecimal(form.vatRate, 4, true)) errors.vatRate = uiMessage("finance.charge.ui.error.vatRate");
-  return errors;
+  return { ...errors, ...validateChargeVat(form) };
 }
 
 function validateReady(form: ChargeForm) {
@@ -914,6 +946,7 @@ function statusExplanation(status?: ChargeStatus, locale: UiLocale = "th") { if 
 function auditLabel(event: string, locale: UiLocale = "th") { if (event === "draft_saved") return translate(locale, "finance.charge.ui.audit.draftSaved"); if (event === "marked_ready") return translate(locale, "finance.invoice.ui.audit.ready"); if (event === "cancelled") return translate(locale, "finance.invoice.ui.audit.cancelled"); return translate(locale, "finance.charge.ui.created"); }
 
 function billableChargeError(value: unknown, fallback: UiMessage | string) {
+  if (isChargeVatBackendError(value)) return uiMessage("finance.charge.vat.conflict");
   const message = typeof value === "object" && value && "message" in value ? String((value as { message?: unknown }).message || "") : String(value || "");
   if (message.includes("Case must belong") || message.includes("Advisory matter must belong")) return uiMessage("finance.charge.ui.error.context");
   if (message.includes("Only a Draft") || message.includes("can be saved")) return uiMessage("finance.charge.ui.error.notDraft");

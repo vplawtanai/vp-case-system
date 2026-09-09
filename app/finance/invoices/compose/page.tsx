@@ -17,6 +17,9 @@ import { guidedInvoiceDocumentDefaults } from "../payment-instructions";
 import InvoiceWorkspaceNav from "../InvoiceWorkspaceNav";
 import { billableChargeNatureLabel, clientCostFundingModeLabel, type ClientCostFundingMode } from "../../billable-charges/funding-semantics";
 import { billingPlanInvoiceSelectionResumeHref, guidedInvoiceSourceSummary, historicalInstallmentClassificationItems, invoiceCompositionMode, updateHistoricalClassification, type HistoricalClassificationValue } from "../../billing-plans/charge-context";
+import { ChargeVatSummary } from "../../billable-charges/ChargeVatControl";
+import { savedChargeVat, validateChargeVat } from "../../billable-charges/vat-workflow";
+import type { VatEvidence } from "../../document-decision/shared";
 import styles from "../invoice-workspace.module.css";
 
 type Client = { id: string; name: string | null };
@@ -26,6 +29,7 @@ type Charge = {
   id: string; client_id: string; case_id: number | null; advisory_matter_id: string | null;
   source_type: string; client_cost_funding_mode: ClientCostFundingMode | null; description: string | null; quantity: number | string; unit: string | null;
   currency: string; service_date: string | null; economic_classification: string | null;
+  vat_treatment_json?: VatEvidence | null;
   price_tax_mode: string; vat_rate: number | string; amount_before_vat: number | string;
   vat_amount: number | string; total_amount: number | string; status: string; source_reference: string | null;
 };
@@ -104,7 +108,7 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
       supabase.from("clients").select("id,name").order("name"),
       supabase.from("cases").select("id,file_no,title"),
       supabase.from("advisory_matters").select("id,matter_no,title"),
-      supabase.from("finance_billable_charges").select("id,client_id,case_id,advisory_matter_id,source_type,client_cost_funding_mode,description,quantity,unit,currency,service_date,economic_classification,price_tax_mode,vat_rate,amount_before_vat,vat_amount,total_amount,status,source_reference").eq("status", "ready_to_invoice").neq("source_type", "billing_installment_item").order("service_date"),
+      supabase.from("finance_billable_charges").select("id,client_id,case_id,advisory_matter_id,source_type,client_cost_funding_mode,description,quantity,unit,currency,service_date,economic_classification,price_tax_mode,vat_rate,vat_treatment_json,amount_before_vat,vat_amount,total_amount,status,source_reference").eq("status", "ready_to_invoice").neq("source_type", "billing_installment_item").order("service_date"),
       supabase.from("finance_billing_plans").select("id,fee_agreement_id,title,status,currency").eq("status", "active"),
       supabase.from("finance_fee_agreements").select("id,client_id,case_id,advisory_matter_id,title,agreement_no,status,engagement_basis,source_reference,language_code"),
       supabase.from("finance_billing_installments").select("id,billing_plan_id,installment_no,title,status,trigger_description,due_date,readiness_event_date,ready_to_invoice_at,readiness_confirmed_at,readiness_confirmed_by_user_id,readiness_evidence_json,amount_before_tax,vat_amount,total_amount").eq("status", "ready_to_invoice"),
@@ -147,6 +151,7 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
   const selectedPlan = selectedInstallment ? planMap.get(selectedInstallment.billing_plan_id) || null : null;
   const selectedAgreement = selectedPlan ? agreementMap.get(selectedPlan.fee_agreement_id) || null : null;
   const selectedCharges = useMemo(() => charges.filter((row) => chargeIds.includes(row.id)), [chargeIds, charges]);
+  const missingVatCharges = selectedCharges.filter(row => Object.keys(validateChargeVat(savedChargeVat(row))).length);
   const anchor = selectedInstallment && selectedAgreement && selectedPlan
     ? { clientId: selectedAgreement.client_id, currency: selectedPlan.currency, caseId: selectedAgreement.case_id, advisoryId: selectedAgreement.advisory_matter_id }
     : selectedCharges[0] ? chargeContext(selectedCharges[0]) : null;
@@ -285,6 +290,7 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
   const openReview = () => {
     if (!clientId) return setFieldError(uiMessage("finance.invoice.composer.clientRequired"));
     if (!installmentId && chargeIds.length === 0) return setFieldError(uiMessage("finance.invoice.composer.sourceRequired"));
+    if (missingVatCharges.length) return setFieldError(uiMessage("finance.charge.vat.sourceBlocker", { description: missingVatCharges[0].description || t("finance.invoice.ui.item") }));
     const firstMissingClassification = missingAdapterItems.find((item) => !adapter[item.id]?.economicClassification || !adapter[item.id]?.confirmed);
     if (firstMissingClassification) {
       setActiveAdapterItemId(firstMissingClassification.id);
@@ -297,6 +303,7 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
 
   const createDraft = async () => {
     if ((!guidedMode && !reviewing) || !acknowledged || submitLock.current || submitting) return;
+    if (missingVatCharges.length) return setFieldError(uiMessage("finance.charge.vat.sourceBlocker", { description: missingVatCharges[0].description || t("finance.invoice.ui.item") }));
     const adapterPayload = missingAdapterItems.length ? {
       schema_version: "1", human_confirmed: true,
       items: Object.fromEntries(missingAdapterItems.map((item) => [item.id, { economic_classification: adapter[item.id]?.economicClassification, unit: adapter[item.id]?.unit || null, human_confirmed: true }])),
@@ -347,7 +354,7 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
       <section className={styles.surface}><SectionHeader title={t("finance.invoice.composer.charges")} text={t("finance.invoice.composer.guidedCompositionHelp")} action={<Link className={styles.secondaryButton} href={editCompositionHref}>{t("finance.invoice.composer.editComposition")}</Link>} />
         <div className={styles.sourceLineList}>
           {selectedInstallment ? selectedInstallmentItems.length ? selectedInstallmentItems.map((item) => <InstallmentSourceLine key={item.id} item={item} itemCount={selectedInstallmentItems.length} installment={selectedInstallment} agreementItem={agreementItemMap.get(item.fee_agreement_item_id)} currency={selectedPlan?.currency || "THB"} requiresClassification={missingAdapterItemIds.has(item.id)} adapterValue={adapter[item.id]} editorOpen={activeAdapterItemId === item.id} onToggleEditor={() => setActiveAdapterItemId((current) => current === item.id ? "" : item.id)} onClassificationChange={(economicClassification) => { setAdapter((current) => updateHistoricalClassification(current, item.id, economicClassification, item.unit || "")); setActiveAdapterItemId(economicClassification ? "" : item.id); requestRef.current = null; resetReview(); }} />) : <div className={styles.sourceLine}><div className={styles.sourceLineMain}><div><strong>{t("finance.invoice.composer.plannedInstallmentPrefix")} {selectedInstallment.installment_no}</strong><small>{selectedInstallment.title}</small></div><strong>{money(selectedInstallment.total_amount, selectedPlan?.currency || "THB")}</strong></div></div> : null}
-          {selectedCharges.map((charge) => <div className={styles.sourceLine} key={charge.id}><div className={styles.sourceLineMain}><div><strong>{charge.description || t("finance.invoice.ui.additionalCharges")}</strong><div className={styles.lineMetadata}><span className={styles.classificationChip}>{classificationLabel(charge.economic_classification, locale)}</span><span>{taxLabel(charge, locale)}</span></div></div><strong>{money(charge.total_amount, charge.currency)}</strong></div></div>)}
+          {selectedCharges.map((charge) => <div className={styles.sourceLine} key={charge.id}><div className={styles.sourceLineMain}><div><strong>{charge.description || t("finance.invoice.ui.additionalCharges")}</strong><div className={styles.lineMetadata}><span className={styles.classificationChip}>{classificationLabel(charge.economic_classification, locale)}</span><ChargeVatSummary value={savedChargeVat(charge)} /></div></div><strong>{money(charge.total_amount, charge.currency)}</strong></div></div>)}
         </div>
       </section>
     </> : <>
@@ -369,7 +376,7 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
       {!clientId ? <div className={styles.notice}>{t("finance.invoice.composer.selectClientForCharges")}</div> : !visibleCharges.length ? <div className={styles.empty}>
         <p>{t("finance.invoice.composer.noReadyCharges")}</p>
         {permissions.canManageFinanceBillableCharges ? <Link className={styles.primaryButton} href={`/finance/billable-charges?new=1&client=${encodeURIComponent(clientId)}`}>{t("finance.charge.ui.create")}</Link> : null}
-      </div> : <div className={styles.choiceList}>{visibleCharges.map((charge) => { const reason = incompatibilityReason(charge, anchor); const selected = chargeIds.includes(charge.id); return <div key={charge.id} className={`${styles.chargeChoice} ${selected ? styles.choiceSelected : ""} ${reason && !selected ? styles.choiceDisabled : ""}`}><input aria-label={t("finance.invoice.composer.selectCharge", { description: charge.description || t("finance.invoice.ui.item") })} type="checkbox" disabled={Boolean(reason && !selected)} checked={selected} onChange={() => toggleCharge(charge)} /><div className={styles.choiceBody}><strong>{charge.description || t("finance.invoice.ui.additionalCharges")}</strong><div className={styles.chargeMeta}><span>{date(charge.service_date)}</span><span>{classificationLabel(charge.economic_classification, locale)}</span><span>{taxLabel(charge, locale)}</span><span>{matterLabel(charge.case_id, charge.advisory_matter_id, cases, advisories, locale)}</span></div><div className={styles.chargeMeta}><span>{t("finance.invoice.ui.beforeVatShort")} {money(charge.amount_before_vat, charge.currency)}</span><span>VAT {money(charge.vat_amount, charge.currency)}</span><span className={styles.readyText}>{t("finance.invoice.ui.readyToInvoice")}</span></div>{reason && !selected ? <small className={styles.fieldError}>{text(reason)}</small> : null}<button className={styles.detailButton} type="button" onClick={() => void openChargeDetail(charge.id)}>{t("finance.invoice.ui.details")}</button></div><strong className={styles.choiceAmount}>{money(charge.total_amount, charge.currency)}</strong></div>; })}</div>}
+      </div> : <div className={styles.choiceList}>{visibleCharges.map((charge) => { const reason = incompatibilityReason(charge, anchor); const selected = chargeIds.includes(charge.id); return <div key={charge.id} className={`${styles.chargeChoice} ${selected ? styles.choiceSelected : ""} ${reason && !selected ? styles.choiceDisabled : ""}`}><input aria-label={t("finance.invoice.composer.selectCharge", { description: charge.description || t("finance.invoice.ui.item") })} type="checkbox" disabled={Boolean(reason && !selected)} checked={selected} onChange={() => toggleCharge(charge)} /><div className={styles.choiceBody}><strong>{charge.description || t("finance.invoice.ui.additionalCharges")}</strong><div className={styles.chargeMeta}><span>{date(charge.service_date)}</span><span>{classificationLabel(charge.economic_classification, locale)}</span><ChargeVatSummary value={savedChargeVat(charge)} /><span>{matterLabel(charge.case_id, charge.advisory_matter_id, cases, advisories, locale)}</span></div><div className={styles.chargeMeta}><span>{t("finance.invoice.ui.beforeVatShort")} {money(charge.amount_before_vat, charge.currency)}</span><span>VAT {money(charge.vat_amount, charge.currency)}</span><span className={styles.readyText}>{t("finance.invoice.ui.readyToInvoice")}</span></div>{reason && !selected ? <small className={styles.fieldError}>{text(reason)}</small> : null}<button className={styles.detailButton} type="button" onClick={() => void openChargeDetail(charge.id)}>{t("finance.invoice.ui.details")}</button></div><strong className={styles.choiceAmount}>{money(charge.total_amount, charge.currency)}</strong></div>; })}</div>}
     </section>
     </>}
 
@@ -379,6 +386,12 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
 
     <section className={`${styles.surface} ${styles.summary}`}><SectionHeader title={t("finance.invoice.composer.selectionSummary")} text={t("finance.invoice.composer.summaryHelp")} />
       {selectedInstallment ? <div className={styles.summaryLine}><span>{t("finance.invoice.composer.plannedInstallmentPrefix")} {selectedInstallment.installment_no}</span><strong>{money(selectedInstallment.total_amount, selectedPlan?.currency || "THB")}</strong></div> : null}
+      {missingVatCharges.map(charge => <div className={styles.notice} role="alert" key={charge.id}>
+        <strong>{t("finance.charge.vat.sourceBlocker", { description: charge.description || t("finance.invoice.ui.item") })}</strong>
+        <ul>{Object.entries(validateChargeVat(savedChargeVat(charge))).map(([key, message]) => <li key={key}>{text(message)}</li>)}</ul>
+        <p>{t("finance.charge.vat.readyCorrection")}</p>
+        <Link className={styles.secondaryButton} href={`/finance/billable-charges?charge=${encodeURIComponent(charge.id)}`}>{t("finance.charge.vat.reviewSource")}</Link>
+      </div>)}
       {selectedCharges.map((charge) => <div key={charge.id} className={styles.summaryLine}><span>{charge.description || t("finance.invoice.ui.additionalCharges")}</span><strong>{money(charge.total_amount, charge.currency)}</strong></div>)}
       {!selectedInstallment && !selectedCharges.length ? <div className={styles.notice}>{t("finance.invoice.composer.emptySelection")}</div> : <dl className={styles.summaryTotals}><div><dt>{t("finance.invoice.ui.netAmount")}</dt><dd>{money(totals.before, selectedPlan?.currency || selectedCharges[0]?.currency || "THB")}</dd></div><div><dt>VAT</dt><dd>{money(totals.vat, selectedPlan?.currency || selectedCharges[0]?.currency || "THB")}</dd></div><div className={styles.grandTotal}><dt>{t("finance.invoice.composer.invoiceTotal")}</dt><dd>{money(totals.total, selectedPlan?.currency || selectedCharges[0]?.currency || "THB")}</dd></div></dl>}
       {fieldError ? <p role="alert" className={styles.fieldError}>{text(fieldError)}</p> : null}{!guidedMode ? <div className={styles.reviewActions}><button className={styles.primaryButton} type="button" onClick={openReview}>{t("finance.invoice.composer.reviewBeforeCreate")}</button></div> : null}

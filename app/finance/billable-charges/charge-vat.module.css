@@ -1,0 +1,38 @@
+.control { grid-column: 1 / -1; min-width: 0; padding-block: 14px; border-block: 1px solid #dce2e9; display: grid; gap: 12px; }
+.choices, .treatments { border: 0; padding: 0; margin: 0; min-width: 0; }
+.choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.choices legend, .treatments legend { margin-bottom: 8px; color: #344054; font-size: 13px; font-weight: 700; }
+.choices label { display: flex; gap: 8px; align-items: center; padding: 10px 14px; border: 1px solid #cbd3dc; border-radius: 7px; background: #fff; cursor: pointer; font-size: 13px; }
+.choices .selected { background: #edf5f1; border-color: #537868; color: #234d39; }
+.summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.summaryText { display: inline-grid; gap: 3px; font-size: 13px; }
+.summaryText small, .field small, .treatments small { color: #667085; font-weight: 400; font-size: 12px; line-height: 1.6; }
+.edit, .primary, .secondary { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; border-radius: 7px; padding: 8px 14px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.edit, .secondary { border: 1px solid #b8c4d1; background: #fff; color: #17324d; }
+.primary { border: 1px solid #17324d; background: #17324d; color: #fff; }
+.edit:hover, .secondary:hover { background: #f3f7fa; }
+.primary:hover { background: #244c70; }
+.field { display: grid; gap: 6px; color: #344054; font-size: 13px; font-weight: 700; min-width: 0; }
+.control > .field { max-width: 420px; }
+.field input, .field select, .field textarea { width: 100%; min-width: 0; border: 1px solid #cbd3dc; border-radius: 7px; padding: 10px; background: #fff; color: #172033; font: inherit; font-weight: 400; box-sizing: border-box; }
+.field textarea { resize: vertical; }
+.rateDetails { max-width: 240px; font-size: 12px; color: #526274; }
+.rateDetails summary { padding: 8px 0; cursor: pointer; }
+.modalBody { display: grid; gap: 16px; }
+div[role="dialog"]:has(.modalBody) { width: min(560px, calc(100vw - 32px)); }
+.modalBody p { margin: 0; line-height: 1.6; }
+.treatments { display: grid; gap: 8px; }
+.treatments label { display: flex; gap: 10px; padding: 12px; border: 1px solid #d7dde5; border-radius: 7px; cursor: pointer; }
+.treatments label:has(input:checked) { background: #edf5f1; border-color: #537868; }
+.treatments input { align-self: start; margin-top: 3px; }
+.treatments span { min-width: 0; display: grid; gap: 4px; }
+.treatments strong { font-size: 13px; }
+.actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.errorSummary { border: 1px solid #efb4ae; border-radius: 7px; background: #fff3f2; color: #9f2d26; padding: 12px 14px; margin-block: 12px; font-size: 13px; line-height: 1.6; }
+.errorSummary ul { padding-left: 20px; margin: 6px 0 0; }
+.error { margin: 0; color: #b42318; font-size: 12px; }
+.invalid label, .field [aria-invalid="true"] { border-color: #d92d20; }
+.control :focus-visible, .modalBody :focus-visible, .actions :focus-visible { outline: 3px solid #bfdbfe; outline-offset: 2px; }
+.control :disabled, .actions :disabled { opacity: .55; cursor: not-allowed; }
+@media (max-width: 480px) { .choices label { flex: 1 0 auto; justify-content: center; padding-inline: 10px; } .actions > button { flex: 1; } }
+@media (max-width: 600px) { div[role="dialog"]:has(.modalBody) { width: 100vw; } }

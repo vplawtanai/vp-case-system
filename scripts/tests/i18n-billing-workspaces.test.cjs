@@ -14,6 +14,8 @@ const { calculateFinanceLineAmounts } = require(root + '/app/finance/finance-lin
 const funding = require(root + '/app/finance/billable-charges/funding-semantics.ts');
 const chargeContext = require(root + '/app/finance/billing-plans/charge-context.ts');
 const { VatTreatmentInput } = require(root + '/app/finance/document-decision/vat-input.tsx');
+const { default: ChargeVatControl, ChargeValidationSummary } = require(root + '/app/finance/billable-charges/ChargeVatControl.tsx');
+const vatWorkflow = require(root + '/app/finance/billable-charges/vat-workflow.ts');
 
 // Evaluate actual UI declarations only. No application auth, client or network imports.
 function workspace(file, names) {
@@ -27,7 +29,7 @@ function workspace(file, names) {
   const context = {
     exports: output, React, useI18n, translate, resolveUiMessage, uiMessage, uiDate,
     useState: React.useState, useMemo: React.useMemo, useRef: React.useRef,
-    calculateFinanceLineAmounts, ...funding, ...chargeContext, VatTreatmentInput,
+    calculateFinanceLineAmounts, ...funding, ...chargeContext, VatTreatmentInput, ChargeVatControl, ChargeValidationSummary, ...vatWorkflow,
     styles: new Proxy({}, { get: (_, key) => String(key) }),
     Link: ({ children, ...props }) => React.createElement('a', props, children),
     supabase: new Proxy({}, { get() { throw new Error('UI fixture must not access Supabase'); } }),

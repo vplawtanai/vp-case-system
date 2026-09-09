@@ -48,7 +48,7 @@ test('Validated URL client selection reaches the existing editable form without 
     const form = { ...chargePage.emptyForm(), clientId: client.id };
     const html = chargePage.render(locale, { ...state, 'BillableChargesWorkspace.form': form, 'BillableChargesWorkspace.panelOpen': true }, {}, 'BillableChargesWorkspace');
     assert.match(html, new RegExp(`<option value="${client.id}" selected="">`));
-    assert.match(html, /value="non_vat" selected=""/);
+    assert.match(html, /checked="" value="none"/);
     assert.match(html, /value="1"/);
   }
   const context = { clientId: client.id, clientName: client.name, caseId: 12, advisoryMatterId: null, matterLabel: 'Case Twelve' };
