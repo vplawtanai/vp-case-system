@@ -325,8 +325,6 @@ export const invoiceMessages = {
   "finance.invoice.ui.numberTitle": { th: "ใบแจ้งหนี้ {number}", en: "Invoice {number}" },
   "finance.invoice.ui.vatIncluded": { th: "รวม VAT {rate}% แล้ว", en: "Includes {rate}% VAT" },
   "finance.invoice.ui.voidExplanation": { th: "การยกเลิกใบแจ้งหนี้เป็นการเก็บเอกสารเดิมไว้เป็นประวัติ และเปิด{source}ให้สร้างใบแจ้งหนี้ใหม่โดยใช้เลขที่ใหม่", en: "Voiding retains the original document as history and reopens the {source} for a new Invoice with a new number." },
-  "finance.invoice.ui.navigation": { th: "เมนูย่อยใบแจ้งหนี้", en: "Invoice Navigation" },
-  "finance.invoice.ui.listNavigation": { th: "รายการใบแจ้งหนี้", en: "Invoices" },
   "finance.invoice.ui.finance": { th: "การเงิน", en: "Finance" },
   "finance.invoice.ui.english": { th: "อังกฤษ", en: "English" },
   "finance.invoice.composer.loading": { th: "กำลังโหลดเครื่องมือสร้างใบแจ้งหนี้...", en: "Loading Invoice Composer..." },

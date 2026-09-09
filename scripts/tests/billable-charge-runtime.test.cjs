@@ -14,7 +14,7 @@ const client = { id: '30000000-0000-4000-8000-000000000001', name: 'Synthetic Cl
 const state = { 'BillableChargesWorkspace.profile': { role: 'admin' }, 'BillableChargesWorkspace.loadingProfile': false, 'BillableChargesWorkspace.loading': false, 'BillableChargesWorkspace.clients': [client] };
 
 test('All literal translation references on Charges/create/Composer exist in both languages', () => {
-  for (const file of ['app/finance/billable-charges/page.tsx', 'app/finance/billable-charges/BillableChargeCreateWorkflow.tsx', 'app/finance/billable-charges/BillableChargeCreateModal.tsx', 'app/finance/invoices/compose/page.tsx', 'app/finance/invoices/InvoiceWorkspaceNav.tsx']) {
+  for (const file of ['app/finance/billable-charges/page.tsx', 'app/finance/billable-charges/BillableChargeCreateWorkflow.tsx', 'app/finance/billable-charges/BillableChargeCreateModal.tsx', 'app/finance/invoices/compose/page.tsx', 'app/finance/invoices/page.tsx']) {
     const ast = ts.createSourceFile(file, fs.readFileSync(root + '/' + file, 'utf8'), 99, true, ts.ScriptKind.TSX);
     function visit(node) {
       if (ts.isStringLiteral(node) && /^(finance|common|status)\./.test(node.text)) {

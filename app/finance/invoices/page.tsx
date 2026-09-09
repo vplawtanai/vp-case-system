@@ -9,7 +9,6 @@ import { QuotationGuard } from "../quotations/shared";
 import { supabase } from "../../../lib/supabase";
 import type { UserPermissions } from "../../../lib/permissions";
 import FinanceSubNav from "../FinanceSubNav";
-import InvoiceWorkspaceNav from "./InvoiceWorkspaceNav";
 import { invoiceCompositionSourceLabel, invoiceUiLabels, money, type InvoiceCompositionItem } from "./shared";
 import styles from "./invoice-workspace.module.css";
 
@@ -56,7 +55,6 @@ function InvoiceListWorkspace({ permissions }: { permissions: UserPermissions })
 
   return <div className={styles.page}>
     <FinanceSubNav activePage="invoices" permissions={permissions} />
-    <InvoiceWorkspaceNav activePage="invoices" showAdditionalCharges={permissions.canViewFinanceBillableCharges} />
     <header className={styles.header}>
       <div><span className={styles.eyebrow}>{t("finance.invoice.ui.finance")}</span><h1>{t("finance.invoice.ui.title")}</h1><p>{t("finance.invoice.ui.listDescription")}</p></div>
       {canCompose ? <Link className={styles.primaryButton} href="/finance/invoices/compose">{t("finance.invoice.ui.create")}</Link> : null}

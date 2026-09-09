@@ -17,7 +17,7 @@ const supabase = write('supabase.js', `
 const tables={user_profiles:[{id:'fixture-user',role:'admin'}],clients:[{id:${JSON.stringify(clientId)},name:'Synthetic Client',client_type:'individual'}],cases:[],advisory_matters:[],finance_billable_charges:[],finance_billable_charge_audit_events:[],finance_invoice_charge_allocations:[],finance_invoices:[],finance_billing_plans:[],finance_fee_agreements:[],finance_billing_installments:[],finance_billing_installment_items:[],finance_fee_agreement_items:[],finance_billing_installment_charge_bridges:[],finance_bank_accounts:[]};
 const calls=[];window.__chargeFixture={calls,tables};
 export const supabase={auth:{getUser:async()=>({data:{user:{id:'fixture-user'}}})},from(table){if(!Object.hasOwn(tables,table))throw Error('Unexpected fixture table '+table);let rows=tables[table],single=false;const q={select:()=>q,order:()=>q,eq(k,v){rows=rows.filter(r=>r[k]===v);return q;},neq(k,v){rows=rows.filter(r=>r[k]!==v);return q;},in(k,v){rows=rows.filter(r=>v.includes(r[k]));return q;},not(k,operator,v){if(operator!=='is')throw Error('Unexpected filter');rows=rows.filter(r=>r[k]!==v);return q;},single(){single=true;return q;},maybeSingle(){single=true;return q;},then(resolve,reject){return Promise.resolve({data:structuredClone(single?rows[0]||null:rows),error:null}).then(resolve,reject);}};return q;},async rpc(name,args){calls.push({name,args:structuredClone(args)});if(window.__chargeFixture.nextError && name==='save_finance_billable_charge_draft'){const error=window.__chargeFixture.nextError;window.__chargeFixture.nextError=null;return{data:null,error};}const id='40000000-0000-4000-8000-000000000001';if(name==='create_finance_billable_charge_draft'){tables.finance_billable_charges.push({id,status:'draft',client_id:args.p_client_id,case_id:args.p_case_id,advisory_matter_id:args.p_advisory_matter_id,source_type:args.p_source_type,client_cost_funding_mode:args.p_client_cost_funding_mode,total_amount:0});return{data:id,error:null};}if(name==='save_finance_billable_charge_draft'){const row=tables.finance_billable_charges.find(r=>r.id===args.p_charge_id);Object.assign(row,{description:args.p_description,quantity:args.p_quantity,unit:args.p_unit,unit_rate:args.p_unit_rate,service_date:args.p_service_date,economic_classification:args.p_economic_classification,price_tax_mode:args.p_price_tax_mode,vat_rate:args.p_vat_rate,vat_amount:args.p_vat_rate?327.10:0,amount_before_vat:args.p_vat_rate?4672.90:args.p_unit_rate,currency:args.p_currency,total_amount:args.p_unit_rate,vat_treatment_json:args.p_source_snapshot_json.vat_treatment_json});return{data:row.id,error:null};}if(name==='mark_finance_billable_charge_ready'){const row=tables.finance_billable_charges.find(r=>r.id===args.p_charge_id);row.status='ready_to_invoice';return{data:row.id,error:null};}throw Error('Unexpected fixture RPC '+name);}};`);
-const entry = `import React from 'react';import{createRoot}from'react-dom/client';import{UiLocaleProvider}from'${root}/lib/i18n/provider.tsx';import{cookieUiLocale as readLocale}from'${root}/lib/i18n/core.ts';import LanguageSelector from'${root}/app/components/LanguageSelector.tsx';import Charges from'${root}/app/finance/billable-charges/page.tsx';import Composer from'${root}/app/finance/invoices/compose/page.tsx';const h=React.createElement;createRoot(document.getElementById('root')).render(h(React.StrictMode,null,h(UiLocaleProvider,{initialLocale:readLocale(document.cookie)||'th',pathname:location.pathname},h('header',{style:{padding:16,display:'flex',justifyContent:'space-between'}},h('strong',null,'VP Office OS'),h(LanguageSelector)),h(location.pathname.includes('/compose')?Composer:Charges))));`;
+const entry = `import React from 'react';import{createRoot}from'react-dom/client';import{UiLocaleProvider}from'${root}/lib/i18n/provider.tsx';import{cookieUiLocale as readLocale}from'${root}/lib/i18n/core.ts';import LanguageSelector from'${root}/app/components/LanguageSelector.tsx';import Charges from'${root}/app/finance/billable-charges/page.tsx';import Composer from'${root}/app/finance/invoices/compose/page.tsx';import Invoices from'${root}/app/finance/invoices/page.tsx';const h=React.createElement;createRoot(document.getElementById('root')).render(h(React.StrictMode,null,h(UiLocaleProvider,{initialLocale:readLocale(document.cookie)||'th',pathname:location.pathname},h('header',{style:{padding:16,display:'flex',justifyContent:'space-between'}},h('strong',null,'VP Office OS'),h(LanguageSelector)),h(location.pathname.includes('/compose')?Composer:location.pathname==='/finance/invoices'?Invoices:Charges))));`;
 
 async function main() {
   const { webpack } = require('next/dist/compiled/webpack/webpack');
@@ -26,7 +26,7 @@ async function main() {
       [root + '/lib/supabase']: supabase, [root + '/app/components/AuthGuard']: auth, [root + '/app/components/AppTopNav']: topNav, [root + '/app/finance/quotations/shared']: guard } },
     module: { rules: [{ test: /\.(tsx?|css)$/, use: loader }] }, plugins: [new webpack.DefinePlugin({ 'process.env.NODE_ENV': JSON.stringify('development') })], devtool: false,
   }, (error, stats) => error || stats.hasErrors() ? reject(error || Error(stats.toString({ all: false, errors: true }))) : resolve()));
-  const styles = ['app/finance/billable-charges/billable-charges.module.css', 'app/finance/invoices/invoice-workspace.module.css', 'app/finance/invoices/invoice-workspace-nav.module.css', 'app/finance/finance-sub-nav.module.css', 'app/components/LanguageSelector.module.css', 'app/components/DetailModal.module.css', 'app/finance/billable-charges/charge-vat.module.css', 'app/finance/billable-charges/charge-create-modal.module.css'].map(file => {
+  const styles = ['app/finance/billable-charges/billable-charges.module.css', 'app/finance/invoices/invoice-workspace.module.css', 'app/finance/finance-sub-nav.module.css', 'app/components/LanguageSelector.module.css', 'app/components/DetailModal.module.css', 'app/finance/billable-charges/charge-vat.module.css', 'app/finance/billable-charges/charge-create-modal.module.css'].map(file => {
     const prefix = path.basename(file).replaceAll('.', '_') + '_';
     return fs.readFileSync(path.join(root, file), 'utf8').replace(/\.([A-Za-z_][A-Za-z_0-9-]*)/g, (_, key) => '.' + prefix + key);
   }).join('\n');
@@ -46,6 +46,34 @@ async function main() {
     const field = label => page.getByRole('dialog', { name: 'Create Non-Quotation Charge', exact: true }).locator('label').filter({ has: page.locator('span', { hasText: new RegExp('^' + label + '$') }) });
     const creation = () => page.getByRole('dialog', { name: 'Create Non-Quotation Charge', exact: true });
     const lang = locale => page.locator('button[lang="' + locale + '"]').last().click();
+    for (const width of [390, 768, 1024, 1440]) for (const route of ['billable-charges', 'invoices', 'invoices/compose']) for (const locale of ['th', 'en']) {
+      await page.setViewportSize({ width, height: 1100 });
+      await page.goto(base + '/finance/' + route);
+      await page.locator('h1').waitFor();
+      await lang(locale);
+      const nav = page.getByRole('navigation');
+      assert.equal(await nav.count(), 1, 'Only the Finance module navigation remains');
+      for (const modulePath of ['invoices', 'billable-charges']) assert.equal(await nav.locator(`a[href="/finance/${modulePath}"]`).count(), 1);
+      assert.equal(await nav.locator('a[aria-current="page"]').getAttribute('href'), '/finance/' + (route === 'billable-charges' ? route : 'invoices'));
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false);
+      if (route !== 'invoices/compose') {
+        assert.equal(await nav.evaluate(node => node.nextElementSibling?.tagName), 'HEADER');
+        const header = page.locator('header').filter({ has: page.locator('h1') });
+        assert.equal(await header.locator('a[href="/finance/invoices/compose"]').count(), 1, 'Create Invoice stays in the page header');
+        if (route === 'billable-charges') {
+          assert.equal(await header.getByRole('button', { name: locale === 'th' ? 'สร้างรายการเรียกเก็บนอกใบเสนอราคา' : 'Create Non-Quotation Charge', exact: true }).count(), 1);
+          assert.equal(await page.locator('[class*="billable-charges_module_css_tabs"] button').count(), 6, 'Same-module status filters remain');
+          assert.equal(await page.getByRole('textbox', { name: locale === 'th' ? 'ค้นหารายการเรียกเก็บนอกใบเสนอราคา' : 'Search Non-Quotation Charges' }).count(), 1);
+        }
+      }
+      assert.equal(await page.evaluate(() => window.__chargeFixture.calls.length), 0);
+      await page.screenshot({ path: path.join(out, `module-${route.replaceAll('/', '-')}-${locale}-${width}.png`), fullPage: true });
+    }
+    if (process.argv.includes('--navigation-only')) {
+      assert.deepEqual(failures, []); assert.deepEqual(external, []);
+      console.log(JSON.stringify({ pass: true, widths: [390, 768, 1024, 1440], locales: ['th', 'en'], routes: ['billable-charges', 'invoices', 'invoices/compose'], crossModuleTabs: false, productionAccess: false, artifacts: out }));
+      return;
+    }
     for (const width of [1440, 768, 390]) {
       await page.setViewportSize({ width, height: 1100 });
       for (const locale of ['th', 'en']) {

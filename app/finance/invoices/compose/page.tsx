@@ -14,7 +14,6 @@ import type { UserPermissions } from "../../../../lib/permissions";
 import FinanceSubNav from "../../FinanceSubNav";
 import { displayText, eligibleInvoicePaymentBankAccount, money, invoiceErrorMessage, type FinanceBankAccount, type Json } from "../shared";
 import { guidedInvoiceDocumentDefaults } from "../payment-instructions";
-import InvoiceWorkspaceNav from "../InvoiceWorkspaceNav";
 import { billableChargeNatureLabel, clientCostFundingModeLabel, type ClientCostFundingMode } from "../../billable-charges/funding-semantics";
 import { billingPlanInvoiceSelectionResumeHref, guidedInvoiceSourceSummary, historicalInstallmentClassificationItems, invoiceCompositionMode, updateHistoricalClassification, type HistoricalClassificationValue } from "../../billing-plans/charge-context";
 import BillableChargeCreateModal from "../../billable-charges/BillableChargeCreateModal";
@@ -350,7 +349,6 @@ function InvoiceComposer({ permissions }: { permissions: UserPermissions }) {
       onReady={async () => { await load(true); setSourceNotice(uiMessage("finance.charge.modal.composerReady")); }}
     /> : null}
     <FinanceSubNav activePage="invoices" permissions={permissions} />
-    <InvoiceWorkspaceNav activePage={guidedMode ? undefined : "invoices"} quiet={guidedMode} showAdditionalCharges={permissions.canViewFinanceBillableCharges} />
     {openedFromSource ? <div className={styles.contextNavigation}><Link className={styles.contextBackLink} href={sourceBackHref}>← {guidedMode ? t("finance.invoice.composer.backPlan") : sourceBackLabel}</Link></div> : null}
     <header className={styles.header}><div><span className={styles.eyebrow}>{guidedMode ? t("finance.invoice.composer.billing") : t("finance.invoice.composer.compose")}</span><h1>{guidedMode ? t("finance.invoice.composer.review") : t("finance.invoice.composer.compose")}</h1><p>{guidedMode ? t("finance.invoice.composer.guidedReviewHelp") : t("finance.invoice.composer.reviewHelp")}</p></div></header>
     {openedFromSource ? <div className={styles.sourceSafety}><strong>{t("finance.invoice.composer.noDataCreated")}</strong><span>{t("finance.invoice.composer.noDataCreatedHelp")}</span></div> : null}

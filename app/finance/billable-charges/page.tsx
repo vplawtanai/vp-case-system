@@ -17,7 +17,6 @@ import type { UserPermissionProfile } from "../../../lib/permissions";
 import { supabase } from "../../../lib/supabase";
 import { calculateFinanceLineAmounts, type FinancePriceTaxMode } from "../finance-line-amounts";
 import FinanceSubNav from "../FinanceSubNav";
-import InvoiceWorkspaceNav from "../invoices/InvoiceWorkspaceNav";
 import BillableChargeCreateModal from "./BillableChargeCreateModal";
 import { billableChargeNatureLabel, clientCostFundingModeLabel, clientCostFundingModeRequired, fundingModeForSource, type ClientCostFundingMode } from "./funding-semantics";
 import styles from "./billable-charges.module.css";
@@ -680,7 +679,6 @@ function BillableChargesWorkspace() {
       {!loadingProfile && !permissions.canViewFinanceBillableCharges ? <div className={styles.noAccess}><h1>{t("finance.charge.ui.accessDenied")}</h1><p>{t("finance.charge.ui.accessDeniedHelp")}</p></div> : null}
       {!loadingProfile && permissions.canViewFinanceBillableCharges ? <>
         <FinanceSubNav activePage="billable-charges" permissions={permissions} />
-        <InvoiceWorkspaceNav activePage="billable-charges" />
         <header className={styles.workspaceHeader}>
           <div><span className={styles.eyebrow}>{t("finance.invoice.ui.workspace")}</span><h1>{t("finance.invoice.ui.additionalCharges")}</h1><p>{t("finance.charge.ui.workspaceHelp")}</p></div>
           <div className={styles.headerActions}>{canComposeInvoice ? <Link className={styles.secondaryButton} href="/finance/invoices/compose">{t("finance.invoice.composer.compose")}</Link> : null}{permissions.canManageFinanceBillableCharges ? <button className={styles.primaryButton} type="button" onClick={() => { setBillingPlanContext(null); openNew(); }}><PlusIcon />{t("finance.charge.ui.create")}</button> : null}</div>
