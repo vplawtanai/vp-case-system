@@ -60,6 +60,7 @@ type Props = {
   cases?: BillableChargeCaseOption[];
   advisories?: BillableChargeAdvisoryOption[];
   context?: BillableChargeContext;
+  initialSelection?: Pick<ChargeForm, "clientId" | "matterMode" | "caseId" | "advisoryMatterId">;
   canManage: boolean;
   canApprove: boolean;
   onSaved?: (charge: CreatedBillableCharge) => void | Promise<void>;
@@ -73,6 +74,7 @@ export default function BillableChargeCreateWorkflow({
   cases = [],
   advisories = [],
   context,
+  initialSelection,
   canManage,
   canApprove,
   onSaved,
@@ -82,7 +84,7 @@ export default function BillableChargeCreateWorkflow({
 }: Props) {
   const { locale, t, text } = useI18n();
 
-  const initialForm = useMemo(() => emptyForm(context), [context]);
+  const initialForm = useMemo(() => ({ ...emptyForm(context), ...(!context ? initialSelection : undefined) }), [context, initialSelection]);
   const [form, setForm] = useState<ChargeForm>(initialForm);
   const [baseline, setBaseline] = useState(() => fingerprint(initialForm));
   const [charge, setCharge] = useState<CreatedBillableCharge | null>(null);

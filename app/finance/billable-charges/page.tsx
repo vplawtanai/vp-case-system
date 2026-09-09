@@ -654,7 +654,7 @@ function BillableChargesWorkspace() {
         <InvoiceWorkspaceNav activePage="billable-charges" />
         <header className={styles.workspaceHeader}>
           <div><span className={styles.eyebrow}>{t("finance.invoice.ui.workspace")}</span><h1>{t("finance.invoice.ui.additionalCharges")}</h1><p>{t("finance.charge.ui.workspaceHelp")}</p></div>
-          <div className={styles.headerActions}>{canComposeInvoice ? <Link className={styles.secondaryButton} href="/finance/invoices/compose">{t("finance.invoice.composer.compose")}</Link> : null}{permissions.canManageFinanceBillableCharges ? <button className={styles.primaryButton} type="button" onClick={() => openNew()}><PlusIcon />{t("finance.charge.ui.add")}</button> : null}</div>
+          <div className={styles.headerActions}>{canComposeInvoice ? <Link className={styles.secondaryButton} href="/finance/invoices/compose">{t("finance.invoice.composer.compose")}</Link> : null}{permissions.canManageFinanceBillableCharges ? <button className={styles.primaryButton} type="button" onClick={() => openNew()}><PlusIcon />{t("finance.charge.ui.create")}</button> : null}</div>
         </header>
 
         {billingPlanContext ? <section className={styles.billingPlanContext} aria-label={t("finance.charge.ui.planContext")}>
@@ -695,6 +695,7 @@ function BillableChargesWorkspace() {
             clients={clients}
             cases={cases}
             advisories={advisories}
+            initialSelection={{ clientId: form.clientId, matterMode: form.matterMode, caseId: form.caseId, advisoryMatterId: form.advisoryMatterId }}
             context={billingPlanContext ? { clientId: billingPlanContext.clientId, clientName: billingPlanContext.clientName, caseId: billingPlanContext.caseId, advisoryMatterId: billingPlanContext.advisoryMatterId, matterLabel: billingPlanContext.matterLabel } : undefined}
             canManage={permissions.canManageFinanceBillableCharges}
             canApprove={permissions.canApproveFinanceBillableCharges}

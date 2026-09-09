@@ -1,6 +1,7 @@
 import type { MessageCatalog } from "../core";
 
 export const billableChargeMessages = {
+  "finance.charge.ui.create": { th: "สร้างรายการเรียกเก็บเพิ่มเติม", en: "Create Billable Charge" },
   "finance.charge.ui.saveDraft": { th: "บันทึกร่าง", en: "Save Draft" },
   "finance.charge.nature.recoverable": { th: "ค่าธรรมเนียม / ค่าใช้จ่ายแทนลูกค้า", en: "Fees / Costs on Behalf of Client" },
   "finance.charge.nature.installment": { th: "รายการจากแผนเรียกเก็บเงิน", en: "Billing Plan Item" },

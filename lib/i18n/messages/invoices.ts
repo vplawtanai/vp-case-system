@@ -1,6 +1,7 @@
 import type { MessageCatalog } from "../core";
 
 export const invoiceMessages = {
+  "finance.invoice.ui.workspace": { th: "พื้นที่งานใบแจ้งหนี้", en: "Invoice Workspace" },
   "finance.invoice.status.draft": { th: "ร่างใบแจ้งหนี้", en: "Draft Invoice" },
   "finance.invoice.status.issued": { th: "ออกใบแจ้งหนี้แล้ว", en: "Issued Invoice" },
   "finance.invoice.status.cancelled": { th: "ยกเลิกร่างแล้ว", en: "Cancelled Draft" },
