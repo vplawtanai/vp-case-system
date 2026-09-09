@@ -42,7 +42,7 @@ test('Actual authorized empty/list/new-editor rendering no longer crashes in TH 
 
 test('Read-only users do not receive a create action', () => {
   const html = chargePage.render('en', { ...state, 'BillableChargesWorkspace.profile': { role: 'staff', can_view_finance_billable_charges: true } }, {}, 'BillableChargesWorkspace');
-  assert.doesNotMatch(html, />Create Billable Charge</);
+  assert.doesNotMatch(html, />Create Non-Quotation Charge</);
 });
 
 test('Validated URL client selection reaches the existing editable form without changing commercial defaults', () => {

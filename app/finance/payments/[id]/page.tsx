@@ -8,6 +8,7 @@ import { translate } from "../../../../lib/i18n/catalog";
 import { uiMessage, type UiMessage, type UiLocale } from "../../../../lib/i18n/core";
 import { useParams } from "next/navigation";
 import { QuotationGuard } from "../../quotations/shared";
+import FinanceSubNav from "../../FinanceSubNav";
 import { FinanceDocumentNextAction } from "../../document-decision/next-action";
 import { supabase } from "../../../../lib/supabase";
 import { bangkokToday, displayText, money } from "../../invoices/shared";
@@ -50,7 +51,7 @@ const effectiveAllocationSelect = "payment_id,invoice_id,effective_cash_allocate
 const reallocationSelect = "id,payment_id,source_invoice_id,target_invoice_id,cash_moved,wht_moved,settlement_moved,reason,created_at";
 
 export default function PaymentDetailPage() {
-  return <QuotationGuard canAccess={(access) => access.permissions.canManageFinancePayments || access.permissions.canConfirmFinancePayments || access.permissions.canReverseFinancePayments || access.permissions.canReallocateFinancePayments}>{(access) => <PaymentWorkspace access={{ canManage: access.permissions.canManageFinancePayments, canConfirm: access.permissions.canConfirmFinancePayments, canReverse: access.permissions.canReverseFinancePayments, canReallocate: access.permissions.canReallocateFinancePayments }} />}</QuotationGuard>;
+  return <QuotationGuard canAccess={(access) => access.permissions.canManageFinancePayments || access.permissions.canConfirmFinancePayments || access.permissions.canReverseFinancePayments || access.permissions.canReallocateFinancePayments}>{(access) => <><FinanceSubNav activePage="payments" permissions={access.permissions} /><PaymentWorkspace access={{ canManage: access.permissions.canManageFinancePayments, canConfirm: access.permissions.canConfirmFinancePayments, canReverse: access.permissions.canReverseFinancePayments, canReallocate: access.permissions.canReallocateFinancePayments }} /></>}</QuotationGuard>;
 }
 
 function PaymentWorkspace({ access }: { access: PaymentAccess }) {

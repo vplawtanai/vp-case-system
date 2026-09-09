@@ -1,6 +1,8 @@
 import type { MessageCatalog } from "../core";
 
 export const paymentMessages = {
+  "finance.payment.list.failed": { th: "โหลดรายการเงินรับไม่สำเร็จ กรุณาลองอีกครั้ง", en: "Unable to load Payments. Try again." },
+  "finance.payment.list.empty": { th: "ไม่พบรายการเงินรับตามตัวกรอง รายการจะแสดงที่นี่เมื่อสร้างผ่านขั้นตอนรับชำระจากใบแจ้งหนี้", en: "No Payments match this filter. Payments appear here when created through the Invoice payment workflow." },
   "finance.payment.ui.loadFailed": { th: "ไม่สามารถโหลดข้อมูลการรับชำระได้", en: "Unable to load the Payment." },
   "finance.payment.ui.notFound": { th: "ไม่พบข้อมูลการรับชำระ", en: "Payment not found." },
   "finance.payment.ui.allocationLoadFailed": { th: "ไม่สามารถโหลดการจัดสรรยอดรับชำระได้", en: "Unable to load Payment allocations." },

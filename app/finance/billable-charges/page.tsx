@@ -679,7 +679,7 @@ function BillableChargesWorkspace() {
       {loadingProfile || loading ? <div className={styles.loading}>{t("finance.charge.ui.loading")}</div> : null}
       {!loadingProfile && !permissions.canViewFinanceBillableCharges ? <div className={styles.noAccess}><h1>{t("finance.charge.ui.accessDenied")}</h1><p>{t("finance.charge.ui.accessDeniedHelp")}</p></div> : null}
       {!loadingProfile && permissions.canViewFinanceBillableCharges ? <>
-        <FinanceSubNav activePage="invoices" permissions={permissions} />
+        <FinanceSubNav activePage="billable-charges" permissions={permissions} />
         <InvoiceWorkspaceNav activePage="billable-charges" />
         <header className={styles.workspaceHeader}>
           <div><span className={styles.eyebrow}>{t("finance.invoice.ui.workspace")}</span><h1>{t("finance.invoice.ui.additionalCharges")}</h1><p>{t("finance.charge.ui.workspaceHelp")}</p></div>
