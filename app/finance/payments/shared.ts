@@ -11,7 +11,7 @@ export type FinancePayment = {
   status: PaymentStatus | string;
   cash_amount: number | string;
   wht_amount: number | string;
-  wht_calculation_mode?: "none" | "rate" | null;
+  wht_calculation_mode?: "none" | "rate" | "line_review" | null;
   settlement_amount: number | string;
   received_on: string | null;
   payment_method: string | null;

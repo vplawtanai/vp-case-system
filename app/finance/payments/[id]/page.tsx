@@ -13,6 +13,8 @@ import { FinanceDocumentNextAction } from "../../document-decision/next-action";
 import { supabase } from "../../../../lib/supabase";
 import { bangkokToday, displayText, money } from "../../invoices/shared";
 import { calculateStructuredWht, invoiceTaxFacts, paymentTaxFingerprint, paymentWhtScope, savedPaymentWht, invoiceTaxVatLabel, type InvoiceTaxFacts, type WhtComponent, type WhtMode } from "../tax";
+import { evaluateWhtLines, initialWhtLineChoices, restoreWhtLineChoices, whtLineFingerprint, whtLinePayload, whtLineRpcError, whtLineScope, type WhtLineChoice } from "../wht-line-review";
+import { WhtLineReview } from "../wht-line-review-panel";
 import {
   hasValidCurrencyPrecision,
   normalizedAmount,
@@ -38,7 +40,7 @@ type PaymentAccess = {
 };
 type InvoiceContext = { id: string; invoice_no: string | null; customer_name: string | null; client_id: string; case_id: number | null; advisory_matter_id: string | null; matter_snapshot_json: Record<string, unknown> | null; currency: string; amount_before_vat: number | string; vat_amount: number | string; total_amount: number | string; document_status: string; issued_snapshot_json: Record<string, unknown> | null };
 type BankAccount = { id: string; short_name: string | null; bank_name: string | null; account_name: string | null; account_number: string | null; is_active: boolean };
-type FormErrors = Partial<Record<"receivedOn" | "paymentMethod" | "bankAccount" | "settlementTarget" | "cashAmount" | "whtAmount" | "whtRate" | "allocation" | "confirmation", UiMessage>>;
+type FormErrors = Partial<Record<"receivedOn" | "paymentMethod" | "bankAccount" | "settlementTarget" | "cashAmount" | "whtAmount" | "whtRate" | "whtLines" | "allocation" | "confirmation", UiMessage>>;
 type ReallocationErrors = Partial<Record<"source" | "target" | "cash" | "wht" | "reason" | "acknowledgement", UiMessage>>;
 type ReallocationMode = "full" | "partial";
 
@@ -72,6 +74,9 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
   const [whtRateOption, setWhtRateOption] = useState<WhtRateOption>("");
   const [customWhtRate, setCustomWhtRate] = useState("");
   const [whtComponents, setWhtComponents] = useState<WhtComponent[]>([]);
+  const [whtLineChoices, setWhtLineChoices] = useState<WhtLineChoice[]>([]);
+  const [lineErrorsVisible, setLineErrorsVisible] = useState(false);
+  const [storedLineEvidenceValid, setStoredLineEvidenceValid] = useState(true);
   const [baseline, setBaseline] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
   const [loading, setLoading] = useState(true);
@@ -154,6 +159,15 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
     const invoiceRows = (invoiceResult.data || []) as InvoiceContext[];
     const components = (whtResult.data || []) as WhtComponent[];
     const savedWht = savedPaymentWht(paymentRow, components);
+    const facts = invoiceTaxFacts(invoiceRows.find(row => row.id === rawRows[0]?.invoice_id)?.issued_snapshot_json);
+    const restoredLines = savedWht.mode === "line_review" ? restoreWhtLineChoices(facts, components, paymentRow.id) : null;
+    const lineChoices = restoredLines?.choices || initialWhtLineChoices(facts);
+    const storedTotals = restoredLines ? evaluateWhtLines(facts, lineChoices).totals : null;
+    const lineEvidenceValid = !restoredLines || (restoredLines.valid && storedTotals?.cashAmount === nextForm.cashAmount && storedTotals?.whtAmount === nextForm.whtAmount);
+    setWhtLineChoices(lineChoices);
+    setStoredLineEvidenceValid(lineEvidenceValid);
+    setLineErrorsVisible(false);
+    if (!lineEvidenceValid) setError(uiMessage("finance.payment.wht.lines.evidenceChanged"));
     setPayment(paymentRow);
     setAllocations(rawRows);
     setEffectiveAllocations(effectiveRows);
@@ -169,7 +183,7 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
     const preset = whtRatePresets.some((rate) => String(rate) === savedWht.rate);
     setWhtRateOption(savedWht.rate ? preset ? savedWht.rate as WhtRateOption : "custom" : "");
     setCustomWhtRate(savedWht.rate && !preset ? savedWht.rate : "");
-    setBaseline(paymentTaxFingerprint(paymentFingerprint(nextForm), savedWht.mode, savedWht.rate));
+    setBaseline(paymentTaxFingerprint(paymentFingerprint(nextForm), savedWht.mode, savedWht.rate) + (savedWht.mode === "line_review" ? whtLineFingerprint(lineChoices) : ""));
     setErrors({});
     setLoading(false);
   }, [id]);
@@ -180,8 +194,8 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
   }, [load]);
 
   const rateText = whtRateOption === "custom" ? customWhtRate : whtRateOption;
-  const fingerprint = useMemo(() => paymentTaxFingerprint(paymentFingerprint(form), whtMode, rateText), [form, whtMode, rateText]);
-  const dirty = Boolean(baseline) && fingerprint !== baseline;
+  const fingerprint = useMemo(() => paymentTaxFingerprint(paymentFingerprint(form), whtMode, rateText) + (whtMode === "line_review" ? whtLineFingerprint(whtLineChoices) : ""), [form, whtMode, rateText, whtLineChoices]);
+  const dirty = Boolean(baseline) && (fingerprint !== baseline || (whtMode === "line_review" && !storedLineEvidenceValid));
   const isDraft = payment?.status === "draft";
   const allocation = allocations[0] || null;
   const invoice = allocation ? invoices.find((row) => row.id === allocation.invoice_id) || null : null;
@@ -201,6 +215,11 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
   const selectedWhtRate = whtRateOption === "custom" ? Number(customWhtRate || 0) : Number(whtRateOption || 0);
   const currentWhtBase = paymentWhtScope(taxFacts, settlementTarget, outstandingBefore, allocations.length);
   const whtCalculation = calculateStructuredWht(currentWhtBase.base, rateText, settlementTarget);
+  const lineReview = evaluateWhtLines(taxFacts, whtLineChoices);
+  const lineSourceMismatch = taxFacts && (taxFacts.invoiceId !== invoice?.id || taxFacts.currency !== payment?.currency
+    || taxFacts.beforeVat !== Number(invoice?.amount_before_vat) || taxFacts.vat !== Number(invoice?.vat_amount) || taxFacts.gross !== Number(invoice?.total_amount));
+  const lineScopeError = lineSourceMismatch ? uiMessage("finance.payment.wht.snapshot") : whtLineScope(taxFacts, settlementTarget, outstandingBefore, allocations.length, Number(payment?.settlement_amount));
+  const lineReviewPending = whtMode === "line_review" && Boolean(lineScopeError || !lineReview.totals);
   const currentEffectiveAllocations = effectiveAllocations.filter((row) => normalizedAmount(row.effective_settlement_total) > 0);
   const effectiveAllocationTotal = currentEffectiveAllocations.reduce((sum, row) => normalizedAmount(sum + normalizedAmount(row.effective_settlement_total)), 0);
   const selectedSourceAllocation = currentEffectiveAllocations.find((row) => row.invoice_id === reallocationSourceId) || null;
@@ -228,6 +247,13 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
 
   const setStructuredAmounts = (targetValue: string, mode: WhtMode, rateOption = whtRateOption, customRate = customWhtRate) => {
     if (mode === "legacy") return;
+    if (mode === "line_review") {
+      const result = evaluateWhtLines(taxFacts, whtLineChoices);
+      if (result.totals && !whtLineScope(taxFacts, targetValue, outstandingBefore, allocations.length, Number(payment?.settlement_amount))) setForm(current => ({ ...current, ...result.totals }));
+      setErrors(current => ({ ...current, whtLines: undefined, allocation: undefined }));
+      setMessage("");
+      return;
+    }
     const rate = rateOption === "custom" ? customRate : rateOption;
     const scope = paymentWhtScope(taxFacts, targetValue, outstandingBefore, allocations.length);
     const calculated = mode === "rate" ? calculateStructuredWht(scope.base, rate, targetValue) : null;
@@ -251,15 +277,17 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
       setStructuredAmounts(settlementTarget, "none");
       return;
     }
-    setWhtMode("rate");
-    setStructuredAmounts(settlementTarget, "rate", "", "");
+    const mode = taxFacts && taxFacts.lines.length > 1 ? "line_review" : "rate";
+    setWhtMode(mode);
+    setStructuredAmounts(settlementTarget, mode, "", "");
   };
 
   const recalculateLegacyWht = () => {
-    setWhtMode("rate");
+    const mode = taxFacts && taxFacts.lines.length > 1 ? "line_review" : "rate";
+    setWhtMode(mode);
     setWhtRateOption("");
     setCustomWhtRate("");
-    setStructuredAmounts(settlementTarget, "rate", "", "");
+    setStructuredAmounts(settlementTarget, mode, "", "");
     setErrors((current) => ({ ...current, whtRate: undefined }));
   };
 
@@ -274,6 +302,16 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
     setStructuredAmounts(settlementTarget, "rate", "custom", value);
   };
 
+  const updateWhtLine = (choice: WhtLineChoice) => {
+    const choices = whtLineChoices.map(current => current.invoiceItemId === choice.invoiceItemId ? choice : current);
+    setWhtLineChoices(choices);
+    const result = evaluateWhtLines(taxFacts, choices);
+    if (result.totals && !lineScopeError) setForm(current => ({ ...current, ...result.totals }));
+    setErrors(current => ({ ...current, whtLines: undefined, allocation: undefined }));
+    setConfirmationOpen(false);
+    setError(""); setMessage("");
+  };
+
   const validate = (forConfirmation: boolean) => {
     const next: FormErrors = {};
     if (!hasValidCurrencyPrecision(settlementTarget) || targetSettlement <= 0) next.settlementTarget = uiMessage("finance.payment.ui.targetPrecision");
@@ -282,6 +320,12 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
     if (whtMode === "rate" && currentWhtBase.error) next.whtRate = uiMessage(currentWhtBase.errorKey);
     else if (whtMode === "rate" && !whtCalculation) next.whtRate = uiMessage("finance.payment.wht.rate");
     else if (whtMode === "rate" && (form.whtAmount !== whtCalculation?.whtAmount || form.cashAmount !== whtCalculation?.cashAmount)) next.whtRate = uiMessage("finance.payment.ui.whtCalculationChanged");
+    if (whtMode === "line_review") {
+      setLineErrorsVisible(true);
+      if (lineScopeError) next.whtLines = lineScopeError;
+      else if (!lineReview.totals) next.whtLines = lineReview.issues[0]?.message || uiMessage("finance.payment.wht.lines.resolveAll");
+      else if (form.whtAmount !== lineReview.totals.whtAmount || form.cashAmount !== lineReview.totals.cashAmount) next.whtLines = uiMessage("finance.payment.ui.whtCalculationChanged");
+    }
     if (wht > targetSettlement) next.whtAmount = uiMessage("finance.payment.ui.whtExceedsTarget");
     if (!hasValidCurrencyPrecision(form.cashAmount) || cash < 0) next.cashAmount = uiMessage("finance.payment.ui.receivedPrecision");
     if (!hasValidCurrencyPrecision(form.whtAmount) || wht < 0) next.whtAmount = uiMessage("finance.payment.ui.whtPrecision");
@@ -299,8 +343,12 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
     if (forConfirmation && form.paymentMethod === "bank_transfer" && !form.receivingBankAccountId) next.bankAccount = uiMessage("finance.payment.ui.bankRequired");
     setErrors(next);
     if (Object.keys(next).length) {
-      setError(next.whtRate || uiMessage("finance.payment.ui.validationSummary"));
-      requestAnimationFrame(() => { firstInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }); firstInputRef.current?.focus(); });
+      setError(next.whtLines || next.whtRate || uiMessage("finance.payment.ui.validationSummary"));
+      requestAnimationFrame(() => {
+        const invalidLine = next.whtLines ? document.querySelector<HTMLElement>('[data-wht-editor] [aria-invalid="true"], [data-wht-editor] [role="alert"]') : null;
+        if (invalidLine) { invalidLine.scrollIntoView({ behavior: "smooth", block: "center" }); invalidLine.closest('[data-wht-line]')?.querySelector<HTMLElement>('input,select')?.focus(); }
+        else { firstInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }); firstInputRef.current?.focus(); }
+      });
     }
     return Object.keys(next).length === 0;
   };
@@ -313,7 +361,17 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
     if (!payment || !allocation || !isDraft || !access.canManage || !dirty || saving || actionLock.current || !validate(false)) return;
     actionLock.current = true; setSaving(true); setError(""); setMessage("");
     try {
-      const result = await supabase.rpc("save_finance_payment_tax_draft", {
+      const result = whtMode === "line_review" ? await supabase.rpc("save_finance_payment_wht_lines_draft", {
+        p_payment_id: payment.id,
+        p_received_on: form.receivedOn || null,
+        p_payment_method: form.paymentMethod || null,
+        p_receiving_bank_account_id: form.receivingBankAccountId || null,
+        p_receiving_account_reference: form.receivingAccountReference,
+        p_external_transaction_reference: form.externalTransactionReference,
+        p_payer_name: form.payerName,
+        p_note: form.note,
+        p_line_choices_json: whtLinePayload(whtLineChoices),
+      }) : await supabase.rpc("save_finance_payment_tax_draft", {
         p_payment_id: payment.id,
         p_received_on: form.receivedOn || null,
         p_payment_method: form.paymentMethod || null,
@@ -333,7 +391,7 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
       setMessage(uiMessage("finance.payment.ui.saved"));
     } catch (saveError) {
       console.error("Failed to save Payment Draft", saveError);
-      setError(paymentErrorMessage(saveError, uiMessage("finance.payment.ui.saveFailed")));
+      setError(whtLineRpcError(saveError, taxFacts) || paymentErrorMessage(saveError, uiMessage("finance.payment.ui.saveFailed")));
     } finally {
       actionLock.current = false; setSaving(false);
     }
@@ -358,7 +416,7 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
       setMessage(uiMessage("finance.payment.ui.confirmedSuccess"));
     } catch (confirmError) {
       console.error("Failed to confirm Payment", confirmError);
-      setError(paymentErrorMessage(confirmError, uiMessage("finance.payment.ui.confirmFailed")));
+      setError(whtLineRpcError(confirmError, taxFacts) || paymentErrorMessage(confirmError, uiMessage("finance.payment.ui.confirmFailed")));
     } finally {
       actionLock.current = false; setConfirming(false);
     }
@@ -549,25 +607,29 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
           <Field label={t("finance.payment.ui.calculatedWht")} value={whtCalculation ? money(wht, payment.currency) : t("finance.payment.ui.chooseRate")} />
           </>}
         </div> : null}
+        {whtMode === "line_review" ? <div data-wht-editor>
+          {lineScopeError ? <div role="alert" style={neutralNotice}>{text(lineScopeError)}</div> : null}
+          {taxFacts ? <WhtLineReview facts={taxFacts} choices={whtLineChoices} onChange={updateWhtLine} disabled={!access.canManage || saving || confirming || Boolean(lineScopeError)} showErrors={lineErrorsVisible} /> : null}
+        </div> : null}
         {whtMode === "legacy" ? <div style={neutralNotice}>
           <strong>{t("finance.payment.ui.legacyWht")} {money(payment.wht_amount, payment.currency)}</strong>
           <p>{t("finance.payment.wht.legacy")}</p>
           <button type="button" style={secondaryButton} disabled={!access.canManage || saving || draftAllocationEditingLimited} onClick={recalculateLegacyWht}>{t("finance.payment.ui.recalculateWht")}</button>
         </div> : null}
-        {errors.whtRate || errors.whtAmount ? <div role="alert" style={inlineError}>{text(errors.whtRate || errors.whtAmount || "")}</div> : null}
+        {errors.whtRate || errors.whtAmount || errors.whtLines ? <div role="alert" style={inlineError}>{text(errors.whtLines || errors.whtRate || errors.whtAmount || "")}</div> : null}
         <div style={assistedAmountSummary}>
           <Metric label={t("finance.payment.ui.targetSettlement")} value={money(targetSettlement, payment.currency)} prominent />
-          <Metric label={paymentSettlementLabels.whtCredit} value={money(wht, payment.currency)} />
-          <Metric label={paymentSettlementLabels.receivedFull} value={money(cash, payment.currency)} />
-          <Metric label={paymentSettlementLabels.settlementTotal} value={money(paymentSettlement, payment.currency)} />
+          <Metric label={paymentSettlementLabels.whtCredit} value={lineReviewPending ? t("finance.payment.wht.lines.pending") : money(wht, payment.currency)} />
+          <Metric label={paymentSettlementLabels.receivedFull} value={lineReviewPending ? t("finance.payment.wht.lines.pending") : money(cash, payment.currency)} />
+          <Metric label={paymentSettlementLabels.settlementTotal} value={lineReviewPending ? t("finance.payment.wht.lines.pending") : money(paymentSettlement, payment.currency)} />
         </div>
-        <div style={allocationList}>{allocations.map((row) => {
+        {!lineReviewPending ? <div style={allocationList}>{allocations.map((row) => {
           const rowInvoice = invoices.find((item) => item.id === row.invoice_id);
           const rowCash = draftAllocationEditingLimited ? row.cash_allocated : cash;
           const rowWht = draftAllocationEditingLimited ? row.wht_credit_allocated : wht;
           const rowTotal = draftAllocationEditingLimited ? row.settlement_total : paymentSettlement;
           return <AllocationSummaryCard key={row.id} invoice={rowInvoice || null} cash={rowCash} wht={rowWht} total={rowTotal} currency={payment.currency} />;
-        })}</div>
+        })}</div> : null}
         {errors.allocation ? <div role="alert" style={inlineError}>{text(errors.allocation)}</div> : null}
         {access.canManage ? <div style={saveRow}><span style={dirty ? unsavedState : savedState}>{dirty ? t("finance.payment.ui.unsaved") : t("finance.payment.ui.savedState")}</span><button type="button" style={{ ...secondaryButton, ...(!dirty ? disabledButton : {}) }} disabled={!dirty || saving} onClick={() => void saveDraft()}>{saving ? t("finance.payment.ui.saving") : dirty ? t("finance.payment.ui.saveChanges") : t("finance.payment.ui.savedState")}</button></div> : null}
       </section>
@@ -577,8 +639,14 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
         <div style={reviewGroups}>
           <div style={reviewGroup}>{allocations.map((row) => <InvoiceTaxSummary key={row.id} facts={invoiceTaxFacts(invoices.find((item) => item.id === row.invoice_id)?.issued_snapshot_json)} />)}</div>
           <div style={reviewGroup}><h3 style={reviewGroupTitle}>{t("finance.payment.ui.recordDetails")}</h3><div style={reviewGrid}><Field label={t("finance.payment.ui.invoice")} value={displayText(invoice.invoice_no)} /><Field label={t("finance.payment.ui.actualDate")} value={form.receivedOn ? date(form.receivedOn) : t("finance.payment.ui.notEntered")} /><Field label={t("finance.payment.ui.method")} value={paymentMethodLabels[form.paymentMethod] || t("finance.payment.ui.notEntered")} /><Field label={t("finance.payment.ui.actualReceivingAccount")} value={<BankAccountIdentity account={draftReceivingBankAccount} paymentMethod={form.paymentMethod} />} />{form.payerName.trim() ? <Field label={t("finance.payment.ui.payer")} value={form.payerName.trim()} /> : null}{form.externalTransactionReference.trim() ? <Field label={t("finance.payment.ui.transactionReference")} value={form.externalTransactionReference.trim()} /> : null}{form.receivingAccountReference.trim() ? <Field label={t("finance.payment.ui.channelDetails")} value={form.receivingAccountReference.trim()} /> : null}{form.note.trim() ? <Field label={t("finance.payment.ui.note")} value={form.note.trim()} /> : null}</div></div>
-          <div style={reviewGroup}><h3 style={reviewGroupTitle}>{t("finance.payment.ui.amountsWht")}</h3><div style={reviewGrid}><Field label={t("finance.payment.ui.targetSettlement")} value={<strong>{money(targetSettlement, payment.currency)}</strong>} /><Field label={t("finance.payment.ui.whtBaseShort")} value={whtMode === "rate" && currentWhtBase.base !== null ? money(currentWhtBase.base, payment.currency) : whtMode === "none" ? t("finance.payment.ui.whtNotUsed") : t("finance.payment.ui.notEntered")} /><Field label={t("finance.payment.ui.whtRate")} value={whtMode === "none" ? t("finance.payment.ui.noWht") : whtMode === "legacy" ? t("finance.payment.ui.legacyNoRate") : selectedWhtRate > 0 ? `${selectedWhtRate.toLocaleString("en-US", { maximumFractionDigits: 4 })}%` : t("finance.payment.ui.rateNotSelected")} /><Field label={paymentSettlementLabels.receivedFull} value={money(cash, payment.currency)} /><Field label={paymentSettlementLabels.whtCredit} value={money(wht, payment.currency)} /><Field label={paymentSettlementLabels.settlementTotal} value={<strong>{money(paymentSettlement, payment.currency)}</strong>} /></div></div>
-          <div style={reviewGroup}><h3 style={reviewGroupTitle}>{t("finance.payment.ui.allocations")}</h3><div style={allocationList}>{allocations.map((row) => { const rowInvoice = invoices.find((item) => item.id === row.invoice_id); return <AllocationSummaryCard key={row.id} invoice={rowInvoice || null} cash={draftAllocationEditingLimited ? row.cash_allocated : cash} wht={draftAllocationEditingLimited ? row.wht_credit_allocated : wht} total={draftAllocationEditingLimited ? row.settlement_total : paymentSettlement} currency={payment.currency} />; })}</div>{!draftAllocationEditingLimited ? <div style={{ marginTop: 12 }}><Field label={t("finance.payment.ui.expectedOutstanding")} value={<strong>{money(expectedOutstanding, payment.currency)}</strong>} /></div> : null}</div>
+          <div style={reviewGroup}><h3 style={reviewGroupTitle}>{t("finance.payment.ui.amountsWht")}</h3><div style={reviewGrid}>
+            <Field label={t("finance.payment.ui.targetSettlement")} value={<strong>{money(targetSettlement, payment.currency)}</strong>} />
+            {whtMode !== "line_review" ? <><Field label={t("finance.payment.ui.whtBaseShort")} value={whtMode === "rate" && currentWhtBase.base !== null ? money(currentWhtBase.base, payment.currency) : whtMode === "none" ? t("finance.payment.ui.whtNotUsed") : t("finance.payment.ui.notEntered")} /><Field label={t("finance.payment.ui.whtRate")} value={whtMode === "none" ? t("finance.payment.ui.noWht") : whtMode === "legacy" ? t("finance.payment.ui.legacyNoRate") : selectedWhtRate > 0 ? `${selectedWhtRate.toLocaleString("en-US", { maximumFractionDigits: 4 })}%` : t("finance.payment.ui.rateNotSelected")} /></> : null}
+            <Field label={paymentSettlementLabels.receivedFull} value={lineReviewPending ? t("finance.payment.wht.lines.pending") : money(cash, payment.currency)} />
+            <Field label={paymentSettlementLabels.whtCredit} value={lineReviewPending ? t("finance.payment.wht.lines.pending") : money(wht, payment.currency)} />
+            <Field label={paymentSettlementLabels.settlementTotal} value={<strong>{lineReviewPending ? t("finance.payment.wht.lines.pending") : money(paymentSettlement, payment.currency)}</strong>} />
+          </div>{whtMode === "line_review" && taxFacts ? <WhtLineReview facts={taxFacts} choices={whtLineChoices} readOnly /> : null}</div>
+          {!lineReviewPending ? <div style={reviewGroup}><h3 style={reviewGroupTitle}>{t("finance.payment.ui.allocations")}</h3><div style={allocationList}>{allocations.map((row) => { const rowInvoice = invoices.find((item) => item.id === row.invoice_id); return <AllocationSummaryCard key={row.id} invoice={rowInvoice || null} cash={draftAllocationEditingLimited ? row.cash_allocated : cash} wht={draftAllocationEditingLimited ? row.wht_credit_allocated : wht} total={draftAllocationEditingLimited ? row.settlement_total : paymentSettlement} currency={payment.currency} />; })}</div>{!draftAllocationEditingLimited ? <div style={{ marginTop: 12 }}><Field label={t("finance.payment.ui.expectedOutstanding")} value={<strong>{money(expectedOutstanding, payment.currency)}</strong>} /></div> : null}</div> : null}
         </div>
         {dirty ? <div style={neutralNotice}>{t("finance.payment.ui.saveBeforeConfirm")}</div> : null}
         {!access.canConfirm ? <div style={neutralNotice}>{t("finance.payment.ui.noConfirmPermission")}</div> : null}
@@ -593,7 +661,7 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
       <section style={surface}>
         <SectionHeading title={t("finance.payment.ui.details")} description={t("finance.payment.ui.confirmedReadonlyHelp")} />
         {allocations.map((row) => <InvoiceTaxSummary key={row.id} facts={invoiceTaxFacts(invoices.find((item) => item.id === row.invoice_id)?.issued_snapshot_json)} />)}
-        {whtComponents.length ? <div style={contextGrid}>{whtComponents.map((component) => <div key={component.id}><Field label={t("finance.payment.ui.storedWhtBase")} value={money(component.base_amount, payment.currency)} /><Field label={t("finance.payment.ui.storedWhtRate")} value={`${Number(component.rate_percent)}%`} /></div>)}</div> : Number(payment.wht_amount) > 0 ? <p style={sectionDescription}>{t("finance.payment.ui.legacyWht")} {money(payment.wht_amount, payment.currency)} {t("finance.payment.ui.noStoredBasis")}</p> : null}
+        {payment.wht_calculation_mode === "line_review" && taxFacts ? <WhtLineReview facts={taxFacts} choices={whtLineChoices} readOnly showErrors /> : whtComponents.length ? <div style={contextGrid}>{whtComponents.map((component) => <div key={component.id}><Field label={t("finance.payment.ui.storedWhtBase")} value={money(component.base_amount, payment.currency)} /><Field label={t("finance.payment.ui.storedWhtRate")} value={`${Number(component.rate_percent)}%`} /></div>)}</div> : Number(payment.wht_amount) > 0 ? <p style={sectionDescription}>{t("finance.payment.ui.legacyWht")} {money(payment.wht_amount, payment.currency)} {t("finance.payment.ui.noStoredBasis")}</p> : null}
         <div style={readOnlyGroups}>
           <div style={readOnlyGroup}><h3 style={readOnlyGroupTitle}>{t("finance.payment.ui.recordDetails")}</h3><div style={readOnlyGrid}><Field label={t("finance.payment.ui.status")} value={<StatusBadge status={payment.status}>{paymentStatusLabels[payment.status] || payment.status}</StatusBadge>} /><Field label={t("finance.payment.ui.actualDate")} value={payment.received_on ? date(payment.received_on) : t("finance.payment.ui.unspecified")} /><Field label={t("finance.payment.ui.method")} value={paymentMethodLabels[payment.payment_method || ""] || t("finance.payment.ui.unspecified")} /><Field label={t("finance.payment.ui.actualReceivingAccount")} value={<BankAccountIdentity account={savedReceivingBankAccount} paymentMethod={payment.payment_method || ""} />} />{payment.payer_name?.trim() ? <Field label={t("finance.payment.ui.payer")} value={payment.payer_name.trim()} /> : null}{payment.external_transaction_reference?.trim() ? <Field label={t("finance.payment.ui.transactionReference")} value={payment.external_transaction_reference.trim()} /> : null}{payment.receiving_account_reference?.trim() ? <Field label={t("finance.payment.ui.channelDetails")} value={payment.receiving_account_reference.trim()} /> : null}{payment.note?.trim() ? <Field label={t("finance.payment.ui.note")} value={payment.note.trim()} /> : null}</div></div>
           <div style={readOnlyGroup}><h3 style={readOnlyGroupTitle}>{t("finance.payment.ui.amounts")}</h3><div style={summaryGrid}><Metric label={t("finance.payment.ui.settledAmount")} value={money(payment.settlement_amount, payment.currency)} prominent /><Metric label={paymentSettlementLabels.receivedFull} value={money(payment.cash_amount, payment.currency)} /><Metric label={paymentSettlementLabels.whtCredit} value={money(payment.wht_amount, payment.currency)} /><Metric label={paymentSettlementLabels.settlementTotal} value={money(payment.settlement_amount, payment.currency)} />{payment.status === "confirmed" ? <Metric label={t("finance.payment.ui.currentlyAllocated")} value={money(effectiveAllocationTotal, payment.currency)} /> : null}</div></div>

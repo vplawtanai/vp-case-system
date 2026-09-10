@@ -1,0 +1,28 @@
+.review { min-width: 0; margin-top: 18px; }
+.heading { margin: 0 0 10px; font-size: 15px; color: #334155; }
+.line { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.3fr) minmax(130px, .6fr); gap: 16px; align-items: start; padding: 16px 0; border-top: 1px solid #e2e8f0; min-width: 0; }
+.identity, .amount, .readOnly { display: grid; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.identity { color: #334155; font-size: 14px; line-height: 1.6; }
+.identity > span, .amount > span { font-size: 12px; color: #64748b; }
+.identity b { color: #334155; font-weight: 600; font-variant-numeric: tabular-nums; }
+.controls { border: 0; padding: 0; margin: 0; min-width: 0; }
+.legend { font-size: 12px; color: #64748b; margin-bottom: 8px; }
+.choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.choice { display: flex; align-items: center; gap: 6px; min-height: 40px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; color: #475569; font-size: 13px; cursor: pointer; }
+.choice input { flex: none; margin: 0; accent-color: #2563eb; }
+.choice:hover { border-color: #94a3b8; }
+.selected { border-color: #2563eb; color: #1d4ed8; background: #eff6ff; }
+.choice:focus-within { outline: 2px solid #2563eb; outline-offset: 2px; }
+.rate { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; font-size: 13px; color: #475569; }
+.rate select, .rate input { min-height: 40px; min-width: 0; max-width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; background: white; color: #0f172a; font: inherit; }
+.rate input { width: 110px; }
+.rate select:focus-visible, .rate input:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.rate [aria-invalid="true"] { border-color: #dc2626; }
+.controls:disabled { opacity: .65; }
+.amount { font-size: 14px; color: #0f172a; text-align: right; font-variant-numeric: tabular-nums; line-height: 1.6; }
+.readOnly { color: #475569; font-size: 13px; line-height: 1.6; }
+.pending { display: block; margin: 8px 0 0; color: #64748b; font-size: 13px; line-height: 1.6; }
+.invalid { border-top-color: #fca5a5; }
+.error { grid-column: 1 / -1; margin: 0; color: #b91c1c; font-size: 13px; line-height: 1.6; }
+@media (max-width: 850px) { .line { grid-template-columns: minmax(0, 1fr) minmax(120px, auto); } .identity { grid-column: 1 / -1; } }
+@media (max-width: 480px) { .line { grid-template-columns: minmax(0, 1fr); gap: 12px; } .amount { text-align: left; } }

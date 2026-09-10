@@ -1,6 +1,20 @@
 import type { MessageCatalog } from "../core";
 
 export const paymentMessages = {
+  "finance.payment.wht.lines.title": { th: "การหัก ณ ที่จ่ายของแต่ละรายการ", en: "Withholding Tax by Line" },
+  "finance.payment.wht.lines.base": { th: "ฐานคำนวณก่อน VAT", en: "Base Before VAT" },
+  "finance.payment.wht.lines.applicability": { th: "การหัก ณ ที่จ่าย", en: "WHT Applicability" },
+  "finance.payment.wht.lines.applies": { th: "หัก ณ ที่จ่าย", en: "WHT Applies" },
+  "finance.payment.wht.lines.does_not_apply": { th: "ไม่หัก ณ ที่จ่าย", en: "No WHT" },
+  "finance.payment.wht.lines.unknown": { th: "ยังไม่ระบุ", en: "Not Yet Determined" },
+  "finance.payment.wht.lines.pending": { th: "รอตรวจสอบรายการ", en: "Pending Line Review" },
+  "finance.payment.wht.lines.lineNumber": { th: "รายการที่ {number}", en: "Line {number}" },
+  "finance.payment.wht.lines.resolveAll": { th: "กรุณาระบุว่าหัก ณ ที่จ่ายหรือไม่สำหรับทุกรายการ และเลือกอัตราสำหรับรายการที่หักก่อนบันทึก", en: "Choose whether WHT applies to every line and select a rate for each applicable line before saving." },
+  "finance.payment.wht.lines.applicabilityRequired": { th: "{line}: กรุณาระบุว่าหัก ณ ที่จ่ายหรือไม่", en: "{line}: Choose whether WHT applies." },
+  "finance.payment.wht.lines.rateRequired": { th: "{line}: กรุณาเลือกอัตรามากกว่า 0 ถึง 100% ทศนิยมไม่เกิน 4 ตำแหน่ง และคำนวณ WHT ได้มากกว่า 0", en: "{line}: Select a rate above 0 and up to 100%, with at most four decimal places and a calculated WHT greater than zero." },
+  "finance.payment.wht.lines.duplicate": { th: "{line}: พบข้อมูล WHT ซ้ำ กรุณาโหลดข้อมูลใหม่", en: "{line}: Duplicate WHT evidence. Reload the Payment." },
+  "finance.payment.wht.lines.evidenceChanged": { th: "ข้อมูล WHT ที่บันทึกไว้ไม่ตรงกับรายการในใบแจ้งหนี้ กรุณาตรวจสอบและบันทึกการเลือกแต่ละรายการใหม่ก่อนยืนยัน", en: "Stored WHT evidence does not match the Invoice lines. Review and save the line selections before confirming." },
+  "finance.payment.wht.lines.singleInvoice": { th: "การตรวจสอบ WHT รายรายการรองรับใบแจ้งหนี้หนึ่งฉบับที่ตัดชำระเต็มยอดเท่านั้น", en: "Line-level WHT review supports full settlement of one Invoice only." },
   "finance.payment.list.failed": { th: "โหลดรายการเงินรับไม่สำเร็จ กรุณาลองอีกครั้ง", en: "Unable to load Payments. Try again." },
   "finance.payment.list.empty": { th: "ไม่พบรายการเงินรับตามตัวกรอง รายการจะแสดงที่นี่เมื่อสร้างผ่านขั้นตอนรับชำระจากใบแจ้งหนี้", en: "No Payments match this filter. Payments appear here when created through the Invoice payment workflow." },
   "finance.payment.ui.loadFailed": { th: "ไม่สามารถโหลดข้อมูลการรับชำระได้", en: "Unable to load the Payment." },

@@ -1,16 +1,16 @@
 import { translate } from "../../../lib/i18n/catalog";
 import type { UiLocale } from "../../../lib/i18n/core";
 
-export type WhtMode = "none" | "rate" | "legacy";
+export type WhtMode = "none" | "rate" | "legacy" | "line_review";
 export type WhtComponent = {
   id: string; payment_id: string; invoice_id: string; invoice_item_id: string;
-  calculation_rule: string; base_amount: number | string; rate_percent: number | string;
+  calculation_rule: string; base_amount: number | string; rate_percent: number | string | null;
   calculated_wht_amount: number | string; basis_snapshot_json: Record<string, unknown>;
 };
 export type InvoiceTaxFacts = {
   invoiceId: string; currency: string; beforeVat: number; vat: number; gross: number;
   version: number; vatLabel: string;
-  lines: { id: string; beforeVat: number; vat: number; gross: number; vatApplicable: boolean }[];
+  lines: { id: string; description?: string; beforeVat: number; vat: number; gross: number; vatApplicable: boolean }[];
 };
 export const structuredWhtCopy = {
   legacy: translate("th", "finance.payment.wht.legacy"),
@@ -49,7 +49,7 @@ export function invoiceTaxFacts(snapshot: unknown): InvoiceTaxFacts | null {
       || (version === 2 && (line.source_state !== "active" || line.invoice_id !== invoice.id))
       || base === null || tax === null || total === null || base + tax !== total
       || (!line.vat_applicable && tax !== 0)) return null;
-    lines.push({ id: line.id, beforeVat: base / 100, vat: tax / 100, gross: total / 100, vatApplicable: line.vat_applicable });
+    lines.push({ id: line.id, description: typeof line.description === "string" ? line.description : undefined, beforeVat: base / 100, vat: tax / 100, gross: total / 100, vatApplicable: line.vat_applicable });
   }
   if (new Set(lines.map((line) => line.id)).size !== lines.length
     || lines.reduce((sum, line) => sum + cents(line.beforeVat)!, 0) !== beforeVat
@@ -85,6 +85,7 @@ export function calculateStructuredWht(base: number | null, rate: string, target
 }
 
 export function savedPaymentWht(payment: { cash_amount: number | string; wht_amount: number | string; wht_calculation_mode?: string | null }, components: WhtComponent[]): { mode: WhtMode; rate: string; base: number | null } {
+  if (payment.wht_calculation_mode === "line_review") return { mode: "line_review", rate: "", base: null };
   if (payment.wht_calculation_mode === "rate" && components.length === 1) {
     const c = components[0];
     const base = Number(c.base_amount), rate = String(c.rate_percent);
