@@ -23,16 +23,15 @@ export function TaxInvoiceEditor({ row, permissions, logoUrl, blockers, reload, 
   const presentation = taxPresentation(row);
   if (!presentation.ok) return <p className={styles.error} role="alert">{t("finance.taxInvoice.ui.evidenceInvalid")}</p>;
   const d = presentation.value, source = taxObject(row.source_snapshot_json), customer = taxObject(source.customer);
+  const profileSource = taxObject(source.buyer_tax_profile ?? {}), taxProfile = taxObject(profileSource.profile ?? {});
+  const profileControlled = source.buyer_tax_profile != null;
+  const buyerTax = profileControlled ? taxProfile : d.customer;
   const title = t(combined ? "finance.document.combined" : "finance.document.taxInvoice"), prefix = combined ? "VP-RTI" : "VP-TI";
   const draft = row.status === "draft", editable = draft && permissions.canManageFinanceTaxInvoices && (!combined || permissions.canManageFinanceReceipts);
   const dirty = taxDraftDirty(row, issueDate, decisions);
-  const missingAddress = !taxText(customer.address), missingTax = !taxText(customer.tax_id);
-  const headOffice = ["สำนักงานใหญ่", "head office", "00000"].includes(taxText(customer.branch).toLowerCase());
-  const branchType = headOffice ? "head_office" : decisions.buyer_branch_type || "";
   const delay = issueDate > d.taxPointDate;
   const ready = taxIssueReady({ status: row.status, canIssue: permissions.canIssueFinanceTaxInvoices && (!combined || (permissions.canIssueFinanceReceipts && receiptChecked)), busy, dirty, blockerCount: blockers.length,
     reviewed, acknowledged: ack, logoReady: Boolean(logoUrl), delayed: delay, delayAcknowledged: delayAck });
-  const needsEvidence = missingAddress || (decisions.buyer_vat_registered === true && (missingTax || !headOffice));
   function change<K extends keyof TaxDecisions>(key: K, value: TaxDecisions[K]) { setDecisions(previous => ({ ...previous, [key]: value })); setReviewed(false); setAck(false); setError(""); }
   async function run(action: "save" | "refresh" | "issue" | "cancel") {
     if (lock.current) return;
@@ -61,15 +60,15 @@ export function TaxInvoiceEditor({ row, permissions, logoUrl, blockers, reload, 
     <section className={`${styles.section} ${styles.noPrint}`}><h2>{t("finance.taxInvoice.ui.sourceTax")}</h2><dl className={styles.facts}><div><dt>{t("finance.taxInvoice.ui.beforeVat")}</dt><dd>{taxMoney(d.beforeVat)} THB</dd></div><div><dt>VAT</dt><dd>{taxMoney(d.vat)} THB</dd></div><div><dt>{combined ? t("finance.taxInvoice.ui.settlement") : t("finance.taxInvoice.ui.gross")}</dt><dd>{taxMoney(combined ? d.settlement : d.gross)} THB</dd></div><div><dt>{t("finance.taxInvoice.ui.actualReceived")}</dt><dd>{taxMoney(d.cash)} THB</dd></div><div><dt>{t("finance.taxInvoice.ui.wht")}</dt><dd>{taxMoney(d.wht)} THB</dd></div></dl></section>
     {draft ? <>
       <fieldset className={`${styles.section} ${styles.noPrint}`} disabled={!editable || busy}><legend>{t("finance.taxInvoice.ui.buyerVat")}</legend><div className={styles.grid}>
-        <div><span className={styles.small}>{t("finance.taxInvoice.ui.buyer")}</span><p>{taxText(customer.name)}</p>{!missingAddress ? <p>{taxText(customer.address)}</p> : null}{!missingTax ? <p>{t("finance.taxInvoice.ui.taxId")} {taxText(customer.tax_id)}</p> : null}</div>
-        <label className={styles.field}>{t("finance.taxInvoice.ui.buyerVatStatus")}<select className={styles.input} value={typeof decisions.buyer_vat_registered === "boolean" ? String(decisions.buyer_vat_registered) : ""} onChange={e => change("buyer_vat_registered", e.target.value === "" ? null : e.target.value === "true")}><option value="">{t("finance.taxInvoice.ui.unspecified")}</option><option value="true">{t("finance.taxInvoice.ui.registered")}</option><option value="false">{t("finance.taxInvoice.ui.notRegistered")}</option></select></label>
-        {missingAddress ? <label className={styles.field}>{t("finance.taxInvoice.ui.buyerAddress")}<textarea rows={3} maxLength={2000} className={styles.input} value={decisions.customer_address || ""} onChange={e => change("customer_address", e.target.value)} /></label> : null}
-        {decisions.buyer_vat_registered === true ? <>
-          {missingTax ? <label className={styles.field}>{t("finance.taxInvoice.ui.taxId")}<input className={styles.input} inputMode="numeric" maxLength={13} value={decisions.customer_tax_id || ""} onChange={e => change("customer_tax_id", e.target.value)} /></label> : null}
-          {headOffice ? <p>{t("finance.taxInvoice.ui.sourceHeadOffice")}</p> : <label className={styles.field}>{t("finance.taxInvoice.ui.branchType")}<select className={styles.input} value={branchType} onChange={e => change("buyer_branch_type", e.target.value)}><option value="">{t("finance.taxInvoice.ui.unspecified")}</option><option value="head_office">{t("finance.taxInvoice.ui.headOffice")}</option><option value="branch">{t("finance.taxInvoice.ui.branch")}</option></select></label>}
-          {branchType === "branch" ? <label className={styles.field}>{t("finance.taxInvoice.ui.branchCode")}<input className={styles.input} maxLength={5} inputMode="numeric" value={decisions.buyer_branch_code || ""} onChange={e => change("buyer_branch_code", e.target.value)} /></label> : null}
-        </> : null}
-        {needsEvidence ? <label className={styles.field}>{t("finance.taxInvoice.ui.identityEvidence")}<textarea className={styles.input} rows={2} maxLength={2000} value={decisions.identity_evidence || ""} onChange={e => change("identity_evidence", e.target.value)} /><span className={styles.small}>{t("finance.taxInvoice.ui.identityScope")}</span></label> : null}
+        <div><span className={styles.small}>{t("finance.taxInvoice.ui.buyer")}</span><p>{taxText(d.customer.name)}</p><p>{taxText(d.customer.address)}</p><p>{t("finance.taxInvoice.ui.taxId")} {taxText(d.customer.tax_id)}</p></div>
+        <div><strong>{t(profileControlled ? "client.tax.documentSource" : "client.tax.legacySource")}</strong>
+          {profileControlled ? <p>{t(profileSource.status === "verified" ? "client.tax.verified" : profileSource.status === "stale" ? "client.tax.stale" : "client.tax.unverified")}</p> : null}
+          <p>{t("client.tax.vat")}: {t(buyerTax.vat_registered === true ? "client.tax.registered" : buyerTax.vat_registered === false ? "client.tax.notRegistered" : "client.tax.unknown")}</p>
+          {buyerTax.vat_registered === true && (buyerTax.branch_type === "head_office" || buyerTax.branch_type === "branch") ? <p>{t(buyerTax.branch_type === "head_office" ? "client.tax.headOffice" : "client.tax.branchOffice")} {taxText(buyerTax.branch_code)}</p> : null}
+          {taxText(buyerTax.identity_evidence || buyerTax.supplemental_evidence) ? <p>{t("client.tax.evidence")}: {taxText(buyerTax.identity_evidence || buyerTax.supplemental_evidence)}</p> : null}
+          <Link className={styles.button} href={taxText(customer.id) ? `/clients/${taxText(customer.id)}/tax-identity` : "/clients"}>{t("client.tax.open")}</Link>
+          <p className={styles.small}>{t("client.tax.refresh")}</p>
+        </div>
         {source.schema_version === 1 ? <><label className={styles.field}>{t("finance.taxInvoice.ui.lineTreatment")}<select className={styles.input} value={decisions.tax_treatment || ""} onChange={e => change("tax_treatment", e.target.value)}><option value="">{t("finance.taxInvoice.ui.unconfirmed")}</option><option value="standard_rated">{t("finance.taxInvoice.ui.standardTreatment")}</option><option value="zero_rated">{t("finance.taxInvoice.ui.zeroEvidence")}</option></select></label>
         {decisions.tax_treatment === "zero_rated" ? <label className={styles.field}>{t("finance.taxInvoice.ui.zeroReason")}<textarea className={styles.input} rows={2} maxLength={2000} value={decisions.treatment_reason || ""} onChange={e => change("treatment_reason", e.target.value)} /></label> : null}</> : <p className={styles.small}>{t("finance.taxInvoice.ui.frozenTreatment")}</p>}
       </div></fieldset>

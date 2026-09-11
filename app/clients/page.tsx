@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useI18n } from "../../lib/i18n/provider";
 import AuthGuard from "../components/AuthGuard";
 import AppTopNav from "../components/AppTopNav";
 import { createAuditLog } from "../../lib/auditLog";
@@ -11,6 +13,9 @@ import type { UserPermissions, UserRole } from "../../lib/permissions";
 type CurrentProfile = {
   role?: UserRole | string | null;
   financial_access?: boolean | null;
+  can_view_finance_tax_invoices?: boolean;
+  can_manage_finance_tax_invoices?: boolean;
+  can_issue_finance_tax_invoices?: boolean;
 };
 
 type ClientRow = {
@@ -89,6 +94,7 @@ const editableStatusOptions = statusOptions.filter(
 );
 
 export default function ClientsPage() {
+  const { t } = useI18n();
   const [profile, setProfile] = useState<CurrentProfile>({
     role: "",
     financial_access: false,
@@ -144,7 +150,7 @@ export default function ClientsPage() {
 
         const { data, error } = await supabase
           .from("user_profiles")
-          .select("role, financial_access")
+          .select("role, financial_access, can_view_finance_tax_invoices, can_manage_finance_tax_invoices, can_issue_finance_tax_invoices")
           .eq("id", userData.user.id)
           .single();
 
@@ -156,6 +162,9 @@ export default function ClientsPage() {
         setProfile({
           role: data.role || "",
           financial_access: data.financial_access === true,
+          can_view_finance_tax_invoices: data.can_view_finance_tax_invoices === true,
+          can_manage_finance_tax_invoices: data.can_manage_finance_tax_invoices === true,
+          can_issue_finance_tax_invoices: data.can_issue_finance_tax_invoices === true,
         });
       } finally {
         setLoadingProfile(false);
@@ -703,7 +712,7 @@ export default function ClientsPage() {
                     <th style={thStyle}>Line ID</th>
                     <th style={thStyle}>Tax ID</th>
                     <th style={thStyle}>Status</th>
-                    {canEditClients || isAdmin ? <th style={{ ...thStyle, ...actionColumnStyle }}>Action</th> : null}
+                    {canEditClients || isAdmin || permissions.canViewFinanceTaxInvoices ? <th style={{ ...thStyle, ...actionColumnStyle }}>Action</th> : null}
                   </tr>
                 </thead>
                 <tbody>
@@ -729,9 +738,10 @@ export default function ClientsPage() {
                       <td style={tdStyle}>
                         {renderClientStatus(client.status)}
                       </td>
-                      {canEditClients || isAdmin ? (
+                      {canEditClients || isAdmin || permissions.canViewFinanceTaxInvoices ? (
                         <td style={{ ...tdStyle, ...actionColumnStyle }}>
                           <div style={actionButtonRowStyle}>
+                            {permissions.canViewFinanceTaxInvoices && !isClientDeleted(client) ? <Link href={`/clients/${client.id}/tax-identity`} style={smallButtonStyle}>{t("client.tax.title")}</Link> : null}
                             {canEditClients && !isClientDeleted(client) ? (
                               <button
                                 type="button"

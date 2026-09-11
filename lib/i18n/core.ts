@@ -41,6 +41,7 @@ export const englishCoverage = {
 export type ModuleCoverage = Readonly<Record<keyof typeof englishCoverage, boolean>>;
 
 export function uiModule(pathname: string): keyof typeof englishCoverage {
+  if (/^\/clients\/[^/]+\/tax-identity(?:\/|$)/.test(pathname)) return "finance";
   if (/^\/finance(?:\/|$)/.test(pathname)) return "finance";
   if (/^\/settings\/(?:document-settings|document-templates|document-clauses)(?:\/|$)/.test(pathname)) return "documentSettings";
   return "other";

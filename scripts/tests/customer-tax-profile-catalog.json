@@ -1,0 +1,193 @@
+[
+  {
+    "name": "finance_customer_tax_profile_audit_events",
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "not_null": true
+      },
+      {
+        "name": "client_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "event_type",
+        "type": "text",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "event_payload_json",
+        "type": "jsonb",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "actor_user_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "clock_timestamp()",
+        "not_null": true
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_customer_tax_profile_audit_eve_event_payload_json_check",
+        "type": "c",
+        "definition": "CHECK ((jsonb_typeof(event_payload_json) = 'object'::text))"
+      },
+      {
+        "name": "finance_customer_tax_profile_audit_events_actor_user_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (actor_user_id) REFERENCES user_profiles(id)"
+      },
+      {
+        "name": "finance_customer_tax_profile_audit_events_client_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (client_id) REFERENCES finance_customer_tax_profiles(client_id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_customer_tax_profile_audit_events_event_type_check",
+        "type": "c",
+        "definition": "CHECK ((event_type = 'profile_saved'::text))"
+      },
+      {
+        "name": "finance_customer_tax_profile_audit_events_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (id)"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "customer_tax_profile_audit_history",
+        "definition": "CREATE INDEX customer_tax_profile_audit_history ON public.finance_customer_tax_profile_audit_events USING btree (client_id, created_at)"
+      },
+      {
+        "name": "finance_customer_tax_profile_audit_events_pkey",
+        "definition": "CREATE UNIQUE INDEX finance_customer_tax_profile_audit_events_pkey ON public.finance_customer_tax_profile_audit_events USING btree (id)"
+      }
+    ]
+  },
+  {
+    "name": "finance_customer_tax_profiles",
+    "columns": [
+      {
+        "name": "client_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "vat_registered",
+        "type": "boolean",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "branch_type",
+        "type": "text",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "branch_code",
+        "type": "text",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "identity_evidence",
+        "type": "text",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "identity_snapshot_json",
+        "type": "jsonb",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "verified_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "verified_by_user_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "default": "clock_timestamp()",
+        "not_null": true
+      },
+      {
+        "name": "updated_by_user_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": true
+      }
+    ],
+    "constraints": [
+      {
+        "name": "customer_tax_profile_branch",
+        "type": "c",
+        "definition": "CHECK ((((vat_registered IS DISTINCT FROM true) AND (branch_type IS NULL) AND (branch_code IS NULL)) OR ((vat_registered IS TRUE) AND ((((branch_type IS NULL) AND (branch_code IS NULL)) OR ((branch_type = 'head_office'::text) AND (branch_code = '00000'::text)) OR ((branch_type = 'branch'::text) AND (branch_code ~ '^[0-9]{5}$'::text) AND (branch_code <> '00000'::text))) IS TRUE))))"
+      },
+      {
+        "name": "customer_tax_profile_verified",
+        "type": "c",
+        "definition": "CHECK ((((verified_at IS NULL) AND (verified_by_user_id IS NULL)) OR ((verified_at IS NOT NULL) AND (verified_by_user_id IS NOT NULL) AND (vat_registered IS NOT NULL) AND (NULLIF(btrim((identity_snapshot_json ->> 'name'::text)), ''::text) IS NOT NULL) AND (NULLIF(btrim((identity_snapshot_json ->> 'address'::text)), ''::text) IS NOT NULL) AND (((vat_registered = false) OR (((identity_snapshot_json ->> 'tax_id'::text) ~ '^[0-9]{13}$'::text) AND (branch_type = ANY (ARRAY['head_office'::text, 'branch'::text])) AND (branch_code IS NOT NULL))) IS TRUE))))"
+      },
+      {
+        "name": "finance_customer_tax_profiles_client_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_customer_tax_profiles_identity_evidence_check",
+        "type": "c",
+        "definition": "CHECK ((length(identity_evidence) <= 2000))"
+      },
+      {
+        "name": "finance_customer_tax_profiles_identity_snapshot_json_check",
+        "type": "c",
+        "definition": "CHECK ((jsonb_typeof(identity_snapshot_json) = 'object'::text))"
+      },
+      {
+        "name": "finance_customer_tax_profiles_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (client_id)"
+      },
+      {
+        "name": "finance_customer_tax_profiles_updated_by_user_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (updated_by_user_id) REFERENCES user_profiles(id)"
+      },
+      {
+        "name": "finance_customer_tax_profiles_verified_by_user_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (verified_by_user_id) REFERENCES user_profiles(id)"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_customer_tax_profiles_pkey",
+        "definition": "CREATE UNIQUE INDEX finance_customer_tax_profiles_pkey ON public.finance_customer_tax_profiles USING btree (client_id)"
+      }
+    ]
+  }
+]

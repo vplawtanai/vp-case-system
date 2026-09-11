@@ -1,0 +1,24 @@
+.page { max-width: 1000px; margin: 0 auto; padding: 24px; color: #1f2937; }
+.header { margin: 24px 0; }
+.header h1 { margin: 0; font-size: 24px; }
+.header p { margin: 8px 0 0; overflow-wrap: anywhere; }
+.section { border: 0; border-top: 1px solid #d1d5db; padding: 20px 0; margin: 0; min-width: 0; }
+.section h2, .section legend { font-size: 16px; font-weight: 600; }
+.facts, .grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }
+.facts dt, .help { font-size: 13px; color: #6b7280; }
+.facts dd { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.facts > div:last-child, .grid .help { grid-column: 1/-1; }
+.page label { display: grid; gap: 8px; font-size: 14px; min-width: 0; }
+.page input:not([type=checkbox]), .page select, .page textarea { width: 100%; min-width: 0; min-height: 42px; padding: 10px; border: 1px solid #9ca3af; border-radius: 6px; background: white; color: #111827; font: inherit; }
+.page [aria-invalid=true] { border-color: #dc2626 !important; }
+.page input:focus-visible, .page select:focus-visible, .page textarea:focus-visible, .button:focus-visible, .primary:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.evidence { margin-top: 20px; }
+.help { line-height: 1.6; }
+.page .check { display: flex; align-items: start; gap: 10px; margin-top: 20px; line-height: 1.6; }
+.check input { margin-top: 4px; flex-shrink: 0; }
+.actions { border-top: 1px solid #d1d5db; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; padding-top: 18px; font-size: 14px; }
+.button, .primary { display: inline-flex; align-items: center; justify-content: center; min-height: 42px; padding: 10px 14px; border: 1px solid #9ca3af; border-radius: 6px; background: white; color: #374151; font: inherit; text-decoration: none; cursor: pointer; }
+.primary { background: #166534; color: white; border-color: #166534; }
+.primary:disabled { opacity: .5; cursor: default; }
+.error { color: #b91c1c; font-size: 14px; line-height: 1.6; }
+@media(max-width:600px) { .page { padding: 16px; } .grid,.facts { grid-template-columns: minmax(0,1fr); } .actions { align-items: stretch; flex-direction: column; } }
