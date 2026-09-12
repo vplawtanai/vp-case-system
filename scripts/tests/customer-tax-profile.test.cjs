@@ -35,12 +35,14 @@ test('TH/EN coverage is limited to the new tax identity route',()=>{
  for(const key of Object.keys(customerTaxMessages))for(const locale of ['th','en'])assert.ok(customerTaxMessages[key][locale].trim());
  assert.equal(effectiveUiLocale('en','/clients/client/tax-identity'),'en');
  assert.equal(effectiveUiLocale('en','/clients'),'th');
- const source=read('app/clients/[id]/tax-identity/page.tsx');
+ const source=read('app/clients/CustomerTaxIdentityEditor.tsx');
  for(const m of source.matchAll(/t\("(client\.tax\.[^"]+)"\)/g))assert.ok(customerTaxMessages[m[1]],m[1]);
 });
-test('ordinary Client mutation logic and Invoice/Receipt renderers remain untouched; profile inputs only in Client profile',()=>{
+test('Client payload/guards and Invoice/Receipt renderers remain unchanged; profile inputs only in shared Client profile',()=>{
  const file='app/clients/page.tsx',source=read(file),before=cp.execFileSync('git',['show','HEAD:'+file],{cwd:root,encoding:'utf8'});
- assert.equal(source.slice(source.indexOf('  const loadClients ='),source.indexOf('  return (')),before.slice(before.indexOf('  const loadClients ='),before.indexOf('  return (')));
+ const payload=s=>s.slice(s.indexOf('    const payload = {'),s.indexOf('    if (!payload.name)'));
+ assert.equal(payload(source),payload(before));
+ for(const guard of ['if (!canEditClients','normalizeTaxId(client.tax_id || "") === normalizedTaxId','duplicate && isClientDeleted(duplicate)','if (currentClientId && client.id === currentClientId) return false;'])assert.ok(source.includes(guard));
  assert.match(source,/permissions\.canViewFinanceTaxInvoices && !isClientDeleted\(client\)/);
  const editor=read('app/finance/tax-invoices/editor.tsx');assert.match(editor,/profileControlled \?/);assert.match(editor,/source\.buyer_tax_profile != null/);
  assert.doesNotMatch(editor,/change\("(?:buyer_|customer_|identity_evidence)/,'No competing per-document buyer edit path');

@@ -61,6 +61,19 @@ export function AppLocaleProvider({ initialLocale, children }: { initialLocale: 
 
 export function useI18n() { return useContext(UiLanguage); }
 
+// A translated contextual form can opt in without declaring its legacy host page translated.
+export function BilingualUiScope({ children }: { children: ReactNode }) {
+  const parent = useI18n();
+  const locale = parent.preferredLocale;
+  const value = useMemo<UiLanguageContext>(() => ({
+    ...parent, locale, englishSupported: true,
+    t: (key, parameters) => translate(locale, key, parameters),
+    text: message => resolveUiMessage(locale, message),
+    date: (input, withTime) => uiDate(input, locale, withTime),
+  }), [parent, locale]);
+  return <UiLanguage.Provider value={value}>{children}</UiLanguage.Provider>;
+}
+
 // Localize existing alert-based workflows without making data-loading effects
 // depend on locale or resetting an unsaved form when the language changes.
 export function useUiAlert() {

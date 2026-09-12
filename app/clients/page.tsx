@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import ClientFormFields, { emptyForm, clientTypeOptions, statusOptions, type ClientFormValues } from "./ClientFormFields";
+import ClientEditForm from "./ClientEditForm";
+import ClientModal from "./ClientModal";
+import { CustomerTaxIdentityEditor } from "./CustomerTaxIdentityEditor";
 import { useI18n } from "../../lib/i18n/provider";
 import AuthGuard from "../components/AuthGuard";
 import AppTopNav from "../components/AppTopNav";
@@ -32,66 +35,12 @@ type ClientRow = {
   note?: string | null;
 };
 
-type ClientForm = {
-  id: string;
-  client_type: string;
-  name: string;
-  tax_id: string;
-  contact_name: string;
-  phone: string;
-  email: string;
-  line_id: string;
-  address: string;
-  status: string;
-  note: string;
-};
-
-const emptyForm: ClientForm = {
-  id: "",
-  client_type: "limited_company",
-  name: "",
-  tax_id: "",
-  contact_name: "",
-  phone: "",
-  email: "",
-  line_id: "",
-  address: "",
-  status: "active",
-  note: "",
-};
-
 const editableRoles: UserRole[] = [
   "admin",
   "partner",
   "lawyer",
   "assistant_lawyer",
 ];
-
-const clientTypeOptions = [
-  { value: "limited_company", label: "Limited Company" },
-  { value: "partnership", label: "Partnership" },
-  { value: "limited_partnership", label: "Limited Partnership" },
-  { value: "individual", label: "Individual" },
-  { value: "group_of_persons", label: "Group of Persons" },
-  { value: "government_agency", label: "Government Agency" },
-  { value: "association", label: "Association / Foundation" },
-  { value: "foreign_company", label: "Foreign Company" },
-  { value: "joint_venture", label: "Joint Venture" },
-  { value: "consortium", label: "Consortium" },
-  { value: "other", label: "Other" },
-];
-
-const statusOptions = [
-  { value: "active", label: "Active" },
-  { value: "inactive", label: "Inactive" },
-  { value: "prospect", label: "Prospect" },
-  { value: "blacklist", label: "Blacklist" },
-  { value: "deleted", label: "Deleted" },
-];
-
-const editableStatusOptions = statusOptions.filter(
-  (option) => option.value !== "deleted"
-);
 
 export default function ClientsPage() {
   const { t } = useI18n();
@@ -105,11 +54,14 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [searchText, setSearchText] = useState("");
   const [showDeleted, setShowDeleted] = useState(false);
-  const [form, setForm] = useState<ClientForm>(emptyForm);
-  const [isEditing, setIsEditing] = useState(false);
+  const [form, setForm] = useState<ClientFormValues>(emptyForm);
+  const [edit, setEdit] = useState<{ client: ClientRow; baseline: ClientFormValues; values: ClientFormValues } | null>(null);
+  const [editError, setEditError] = useState("");
+  const [taxClient, setTaxClient] = useState<ClientRow | null>(null);
+  const [taxState, setTaxState] = useState({ dirty: false, busy: false });
+  const saveLock = useRef(false);
   const [errorText, setErrorText] = useState("");
   const [openActionMenuId, setOpenActionMenuId] = useState("");
-  const formRef = useRef<HTMLElement | null>(null);
 
   const permissions: UserPermissions = useMemo(() => {
     return buildPermissions(profile);
@@ -232,13 +184,13 @@ export default function ClientsPage() {
 
   const resetForm = () => {
     setForm(emptyForm);
-    setIsEditing(false);
     setErrorText("");
   };
 
   const loadDuplicateTaxIdClient = async (
     taxId: string,
-    currentClientId?: string
+    currentClientId?: string,
+    editing = false
   ) => {
     const normalizedTaxId = normalizeTaxId(taxId);
     if (!normalizedTaxId) return null;
@@ -249,7 +201,8 @@ export default function ClientsPage() {
       .neq("tax_id", "");
 
     if (error) {
-      alert("Cannot check duplicate Tax ID. Please try again.");
+      if (editing) setEditError("client.edit.error.duplicateCheck");
+      else alert("Cannot check duplicate Tax ID. Please try again.");
       return "error";
     }
 
@@ -264,28 +217,27 @@ export default function ClientsPage() {
   const validateClientDuplicateBeforeSave = async (payload: {
     name: string;
     tax_id: string;
-  }) => {
-    const currentClientId = isEditing ? form.id : "";
+  }, values: ClientFormValues, isEditing: boolean) => {
+    const currentClientId = isEditing ? values.id : "";
     const normalizedTaxId = normalizeTaxId(payload.tax_id);
 
     if (normalizedTaxId) {
       const duplicate = await loadDuplicateTaxIdClient(
         payload.tax_id,
-        currentClientId
+        currentClientId,
+        isEditing
       );
       if (duplicate === "error") return false;
 
       if (duplicate && isClientDeleted(duplicate)) {
-        alert(
-          "ลูกความรายนี้เคยถูกลบไว้ กรุณา Restore แทนการสร้างใหม่"
-        );
+        if (isEditing) setEditError("client.edit.error.deletedDuplicate");
+        else alert("ลูกความรายนี้เคยถูกลบไว้ กรุณา Restore แทนการสร้างใหม่");
         return false;
       }
 
       if (duplicate) {
-        alert(
-          "มีลูกความที่ใช้ Tax ID นี้อยู่แล้ว กรุณาตรวจสอบก่อนสร้างใหม่"
-        );
+        if (isEditing) setEditError("client.edit.error.duplicate");
+        else alert("มีลูกความที่ใช้ Tax ID นี้อยู่แล้ว กรุณาตรวจสอบก่อนสร้างใหม่");
         return false;
       }
 
@@ -311,7 +263,7 @@ export default function ClientsPage() {
 
   const startEdit = (client: ClientRow) => {
     setOpenActionMenuId("");
-    setForm({
+    const values = {
       id: client.id,
       client_type: normalizeOptionValue(client.client_type, clientTypeOptions),
       name: client.name || "",
@@ -323,14 +275,14 @@ export default function ClientsPage() {
       address: client.address || "",
       status: normalizeOptionValue(client.status, statusOptions),
       note: client.note || "",
-    });
-    setIsEditing(true);
-    setErrorText("");
-    setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+    };
+    setTaxClient(null);
+    setEdit({ client, baseline: values, values });
+    setEditError("");
   };
 
-  const saveClient = async () => {
-    if (!canEditClients) return;
+  const saveClient = async (form: ClientFormValues, isEditing: boolean) => {
+    if (!canEditClients || saveLock.current) return;
 
     const payload = {
       client_type: form.client_type.trim() || "limited_company",
@@ -346,23 +298,24 @@ export default function ClientsPage() {
     };
 
     if (!payload.name) {
-      alert("Client name is required");
+      if (isEditing) setEditError("client.edit.error.name");
+      else alert("Client name is required");
       return;
     }
 
-    const canSave = await validateClientDuplicateBeforeSave(payload);
-    if (!canSave) return;
-
+    saveLock.current = true;
+    setSaving(true);
     try {
-      setSaving(true);
       setErrorText("");
+      setEditError("");
+      const canSave = await validateClientDuplicateBeforeSave(payload, form, isEditing);
+      if (!canSave) return;
 
       if (isEditing) {
         const editingClient = { id: form.id };
-        console.log("Updating client id:", editingClient.id);
 
         if (!editingClient.id) {
-          alert("Missing client id");
+          setEditError("client.edit.error.missingId");
           return;
         }
 
@@ -378,12 +331,12 @@ export default function ClientsPage() {
           .maybeSingle();
 
         if (error) {
-          alert(renderClientSaveErrorMessage(error, "Update client failed."));
+          setEditError(renderClientSaveErrorMessage(error, "") ? "client.edit.error.duplicate" : "client.edit.error.save");
           return;
         }
 
         if (!data) {
-          alert("No client was updated. Please check client id or RLS policy.");
+          setEditError("client.edit.error.noUpdate");
           return;
         }
 
@@ -401,7 +354,9 @@ export default function ClientsPage() {
           console.error("CREATE CLIENT AUDIT LOG FAILED:", auditError);
         }
 
-        alert("Updated client successfully");
+        setClients(previous => previous.map(client => client.id === data.id ? data as ClientRow : client));
+        setEdit(null);
+        return;
       } else {
         const { data, error } = await supabase
           .from("clients")
@@ -431,7 +386,11 @@ export default function ClientsPage() {
 
       resetForm();
       await loadClients();
+    } catch {
+      if (isEditing) setEditError("client.edit.error.save");
+      else alert("Create client failed.");
     } finally {
+      saveLock.current = false;
       setSaving(false);
     }
   };
@@ -616,68 +575,13 @@ export default function ClientsPage() {
         </section>
 
         {canEditClients ? (
-          <section ref={formRef} style={panelStyle}>
-            <div style={formTitleStyle}>
-              {isEditing ? "Edit client" : "Create client"}
-            </div>
-            <div style={formGridStyle}>
-              <Field
-                label="Client type"
-                value={form.client_type}
-                onChange={(value) => setForm({ ...form, client_type: value })}
-                options={clientTypeOptions}
-              />
-              <Field
-                label="Name"
-                value={form.name}
-                onChange={(value) => setForm({ ...form, name: value })}
-              />
-              <Field
-                label="Tax ID"
-                value={form.tax_id}
-                onChange={(value) => setForm({ ...form, tax_id: value })}
-              />
-              <Field
-                label="Contact name"
-                value={form.contact_name}
-                onChange={(value) => setForm({ ...form, contact_name: value })}
-              />
-              <Field
-                label="Phone"
-                value={form.phone}
-                onChange={(value) => setForm({ ...form, phone: value })}
-              />
-              <Field
-                label="Email"
-                value={form.email}
-                onChange={(value) => setForm({ ...form, email: value })}
-              />
-              <Field
-                label="Line ID"
-                value={form.line_id}
-                onChange={(value) => setForm({ ...form, line_id: value })}
-              />
-              <Field
-                label="Status"
-                value={form.status}
-                onChange={(value) => setForm({ ...form, status: value })}
-                options={editableStatusOptions}
-              />
-              <Field
-                label="Address"
-                value={form.address}
-                onChange={(value) => setForm({ ...form, address: value })}
-              />
-              <Field
-                label="Note"
-                value={form.note}
-                onChange={(value) => setForm({ ...form, note: value })}
-              />
-            </div>
+          <section style={panelStyle}>
+            <div style={formTitleStyle}>Create client</div>
+            <ClientFormFields value={form} onChange={setForm} />
             <div style={buttonRowStyle}>
               <button
                 type="button"
-                onClick={saveClient}
+                onClick={() => void saveClient(form, false)}
                 disabled={saving}
                 style={primaryButtonStyle}
               >
@@ -741,7 +645,7 @@ export default function ClientsPage() {
                       {canEditClients || isAdmin || permissions.canViewFinanceTaxInvoices ? (
                         <td style={{ ...tdStyle, ...actionColumnStyle }}>
                           <div style={actionButtonRowStyle}>
-                            {permissions.canViewFinanceTaxInvoices && !isClientDeleted(client) ? <Link href={`/clients/${client.id}/tax-identity`} style={smallButtonStyle}>{t("client.tax.title")}</Link> : null}
+                            {permissions.canViewFinanceTaxInvoices && !isClientDeleted(client) ? <button type="button" onClick={() => { setOpenActionMenuId(""); setTaxState({ dirty: false, busy: false }); setTaxClient(client); }} style={smallButtonStyle}>{t("client.tax.title")}</button> : null}
                             {canEditClients && !isClientDeleted(client) ? (
                               <button
                                 type="button"
@@ -808,44 +712,18 @@ export default function ClientsPage() {
           )}
         </section>
       </main>
+      {edit ? <ClientModal titleKey="client.edit.title" clientName={edit.client.name || "-"}
+        dirty={JSON.stringify(edit.values) !== JSON.stringify(edit.baseline)} busy={saving} onClose={() => setEdit(null)}>
+        {requestLeave => <ClientEditForm value={edit.values} onChange={values => { setEdit({ ...edit, values }); setEditError(""); }}
+          onSave={() => void saveClient(edit.values, true)} onCancel={() => requestLeave(() => setEdit(null))}
+          busy={saving} dirty={JSON.stringify(edit.values) !== JSON.stringify(edit.baseline)} error={editError} />}
+      </ClientModal> : null}
+      {taxClient ? <ClientModal titleKey="client.tax.title" clientName={taxClient.name || "-"}
+        dirty={taxState.dirty} busy={taxState.busy} onClose={() => setTaxClient(null)}>
+        {requestLeave => <CustomerTaxIdentityEditor key={taxClient.id} clientId={taxClient.id} embedded onStateChange={setTaxState}
+          onEditClient={canEditClients ? () => requestLeave(() => startEdit(taxClient)) : undefined} />}
+      </ClientModal> : null}
     </AuthGuard>
-  );
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options?: { value: string; label: string }[];
-}) {
-  return (
-    <label style={labelStyle}>
-      {label}
-      {options ? (
-        <select
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          style={inputStyle}
-        >
-          {options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      ) : (
-        <input
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          style={inputStyle}
-        />
-      )}
-    </label>
   );
 }
 
@@ -926,20 +804,6 @@ const toolbarStyle: React.CSSProperties = {
 const formTitleStyle: React.CSSProperties = {
   padding: "16px 16px 0 16px",
   fontWeight: 900,
-};
-
-const formGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
-  gap: 12,
-  padding: 16,
-};
-
-const labelStyle: React.CSSProperties = {
-  display: "grid",
-  gap: 6,
-  fontSize: 13,
-  fontWeight: 800,
 };
 
 const inputStyle: React.CSSProperties = {
