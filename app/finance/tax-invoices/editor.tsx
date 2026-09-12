@@ -7,7 +7,7 @@ import type { UserPermissions } from "../../../lib/permissions";
 import { supabase } from "../../../lib/supabase";
 import { TaxInvoiceDocument } from "./tax-document";
 import { taxDraftDirty, taxIssueReady } from "./review";
-import { taxError, taxMoney, taxObject, taxPresentation,  taxText, type TaxDecisions, type TaxInvoice } from "./shared";
+import { taxMoney, taxObject, taxPresentation,  taxText, type TaxDecisions, type TaxInvoice } from "./shared";
 import styles from "./tax-invoices.module.css";
 import { CombinedReceiptTaxDocument } from "../combined-documents/document";
 import type { CombinedDocument } from "../combined-documents/shared";
@@ -81,10 +81,10 @@ export function TaxInvoiceEditor({ row, permissions, logoUrl, blockers, reload, 
       <section className={`${styles.section} ${styles.noPrint}`}><p role="status" className={dirty ? styles.warning : styles.small}>{dirty ? t("common.state.unsaved") : t("finance.taxInvoice.ui.latestSaved")}</p>{editable ? <button className={styles.button} disabled={busy || !dirty} onClick={() => void run("save")}>{t("common.actions.saveChanges")}</button> : null}</section>
     </> : <section className={`${styles.section} ${styles.noPrint}`}><h2>{t("finance.taxInvoice.ui.history")}</h2><p>{t(`status.${row.status}`)}{row.issued_at ? ` · ${date(row.issued_at, true)}` : ""}</p>{row.cancel_reason ? <p>{t("finance.taxInvoice.ui.reason")} {row.cancel_reason}</p> : null}{row.issue_date > d.taxPointDate ? <p className={styles.warning}>{t("finance.taxInvoice.ui.delayHistory")}</p> : null}</section>}
     <div className={styles.preview}>{combined ? <CombinedReceiptTaxDocument combined={combined} row={row} logoUrl={logoUrl} /> : <TaxInvoiceDocument row={row} logoUrl={logoUrl} />}</div>
-    <div ref={alert} tabIndex={-1} className={styles.noPrint}>{error ? <p className={styles.error} role="alert">{documentError(error, locale)}</p> : null}</div>
+    <div ref={alert} tabIndex={-1} className={styles.noPrint}>{error ? <p className={styles.error} role="alert">{documentError(error, locale, Boolean(combined))}</p> : null}</div>
     {draft ? <>
       <section className={`${styles.section} ${styles.noPrint}`}><h2>{t("finance.taxInvoice.ui.confirmIssue", { title })}</h2>
-        {blockers.length ? <div className={styles.notice}><strong>{t("finance.taxInvoice.ui.notReady")}</strong><ul>{blockers.map(code => <li key={code}>{taxError(code, locale)}</li>)}</ul></div> : null}
+        {blockers.length ? <div className={styles.notice}><strong>{t("finance.taxInvoice.ui.notReady")}</strong><ul>{blockers.map(code => <li key={code}>{documentError(code, locale, Boolean(combined))}</li>)}</ul></div> : null}
         {dirty ? <p className={styles.warning}>{t("finance.taxInvoice.ui.saveBeforeReview")}</p> : null}
         {permissions.canIssueFinanceTaxInvoices && (!combined || permissions.canIssueFinanceReceipts) ? <>
           <label className={styles.check}><input type="checkbox" disabled={busy || dirty || !logoUrl} checked={reviewed} onChange={e => { setReviewed(e.target.checked); setAck(false); }} />{t("finance.taxInvoice.ui.reviewAck")}</label>

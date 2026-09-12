@@ -45,8 +45,11 @@ const decisionMessageKeys: Record<string, string> = {
 export function documentDecisionLabel(decision: string, locale: UiLocale = "th") {
   return decisionMessageKeys[decision] ? translate(locale, `finance.decision.${decisionMessageKeys[decision]}`) : translate(locale, "finance.document.reviewSource");
 }
-export function documentError(error: unknown, locale: UiLocale = "th"): string {
+export function documentError(error: unknown, locale: UiLocale = "th", combined = false): string {
   const message = typeof error === "string" ? error : error && typeof error === "object" && "message" in error ? String(error.message) : "";
+  if (combined && message.includes("TAX_INVOICE_EXTERNAL_COVERAGE_CHECK_REQUIRED")) {
+    return translate(locale, "finance.document.error.externalTaxCombined");
+  }
   for (const key of Object.keys(documentDecisionLabels)) if (message.includes("DOCUMENT_ROUTE_" + key.toUpperCase())) return documentDecisionLabel(key, locale);
   const known: Record<string,string> = {
     DOCUMENT_PERMISSION_DENIED: translate("th", "finance.document.error.permission"), DOCUMENT_EXTERNAL_CHECK_REQUIRED: translate("th", "finance.document.error.external"),

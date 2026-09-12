@@ -75,7 +75,7 @@ function PaymentDocuments({ entry, permissions }: { entry: PostPaymentEntry; per
       {kind === "receipt_only" ? <p>{t("finance.document.noTaxExplanation")}</p> : null}
       {blocked || !!decision.blockers?.length ? <div className={styles.notice} role="note">
         {blocked ? documentDecisionLabel(kind, locale) : t("finance.document.postPayment.issueBlocked")}
-        {!!decision.blockers?.length ? <ul>{decision.blockers.map(code => <li key={code}>{documentError(code, locale)}</li>)}</ul> : null}
+        {!!decision.blockers?.length ? <ul>{decision.blockers.map(code => <li key={code}>{documentError(code, locale, decision.decision === "combined_receipt_tax_invoice")}</li>)}</ul> : null}
       </div> : null}
       {!blocked && kind !== "complete" && canManage ? <Link className={styles.primary} href={paymentPath}>
         {t(decision.blockers?.length ? "finance.document.postPayment.reviewPayment" : "finance.document.postPayment.continuePayment")}

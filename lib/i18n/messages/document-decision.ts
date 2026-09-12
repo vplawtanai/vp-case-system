@@ -45,6 +45,7 @@ export const documentDecisionMessages = {
   "finance.document.checkExternalReceipt": { th: "ตรวจสอบแล้วว่าไม่มีใบเสร็จภายนอกหรือเลขที่จองไว้นอกระบบซ้ำสำหรับยอดนี้", en: "I verified that no external Receipt or external number reservation duplicates this amount." },
   "finance.document.checkCompletion": { th: "ตรวจสอบแล้วว่าใบเสร็จเดิมยังถูกต้อง และไม่มีใบกำกับภาษีภายนอกซ้ำสำหรับยอดนี้", en: "I verified that the existing Receipt is valid and no external Tax Invoice duplicates this amount." },
   "finance.document.checkExternalTax": { th: "ตรวจสอบแล้วว่าไม่มีใบกำกับภาษีภายนอก และไม่มีเลข VP-RTI ที่ออกหรือจองไว้นอกระบบซ้ำ", en: "I verified that no external Tax Invoice or issued/reserved external VP-RTI number duplicates this document." },
+  "finance.document.error.externalTaxCombined": { th: "ยังไม่ได้ตรวจสอบใบกำกับภาษีภายนอกและการใช้เลข VP-RTI ซ้ำ", en: "Check for external Tax Invoices and duplicate VP-RTI numbers." },
   "finance.document.confirmDraft": { th: "ยืนยันจัดทำร่าง", en: "Confirm Draft Creation" },
   "finance.document.checkingVat": { th: "กำลังตรวจสอบประเภท VAT...", en: "Checking VAT treatment..." },
   "finance.document.undetermined": { th: "ยังตัดสินประเภทเอกสารไม่ได้", en: "Document Type Not Determined" },

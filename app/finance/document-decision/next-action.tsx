@@ -45,11 +45,11 @@ function NextAction({ paymentId }: { paymentId: string }) {
     finally { lock.current = false; setBusy(false); }
   }
   return <section className={`${styles.nextAction} ${styles.noPrint}`} aria-label={t("finance.document.afterPayment")}><h2>{t("finance.document.afterPayment")}</h2>
-    {error ? <p role="alert" className={styles.error}>{documentError(error, locale)}</p> : !decision ? <p role="status">{t("finance.document.checkingDecision")}</p> : <>
+    {error ? <p role="alert" className={styles.error}>{documentError(error, locale, paired)}</p> : !decision ? <p role="status">{t("finance.document.checkingDecision")}</p> : <>
       <p><strong>{documentDecisionLabel(decision.decision, locale)}</strong></p>
       {decision.decision === "receipt_only" ? <p>{t("finance.document.noTaxExplanation")}</p> : null}
       <ul>{decision.lines.map(line => <li key={line.id}>{line.description}: {vatTreatmentLabel(line.resolved_vat_treatment.treatment, locale, line.vat_rate)}</li>)}</ul>
-      {decision.blockers?.length ? <ul className={styles.notice}>{decision.blockers.map(code => <li key={code}>{documentError(code, locale)}</li>)}</ul> : null}
+      {decision.blockers?.length ? <ul className={styles.notice}>{decision.blockers.map(code => <li key={code}>{documentError(code, locale, paired)}</li>)}</ul> : null}
       {existingId ? <Link className={styles.primary} href={`/finance/${existingPath}/${existingId}`}>{t("finance.document.openExisting")}</Link> : actionable && canManage ? <button className={styles.primary} disabled={busy} onClick={() => setOpen(true)}>{documentDecisionLabel(decision.decision, locale)}</button> : null}
       {decision.receipt_id && existingPath !== "receipts" ? <p><Link className={styles.button} href={`/finance/receipts/${decision.receipt_id}`}>{t("finance.document.openIssuedReceipt")}</Link></p> : null}
       {open && actionable && !existingId ? <div className={styles.section}>
