@@ -15,6 +15,7 @@ import { bangkokToday, displayText, money } from "../../invoices/shared";
 import { calculateStructuredWht, invoiceTaxFacts, paymentTaxFingerprint, paymentWhtScope, savedPaymentWht, invoiceTaxVatLabel, type InvoiceTaxFacts, type WhtComponent, type WhtMode } from "../tax";
 import { evaluateWhtLines, initialWhtLineChoices, restoreWhtLineChoices, whtLineFingerprint, whtLinePayload, whtLineRpcError, whtLineScope, type WhtLineChoice } from "../wht-line-review";
 import { WhtLineReview } from "../wht-line-review-panel";
+import { MoneyAllocationPanel } from "../money-allocation-panel";
 import {
   hasValidCurrencyPrecision,
   normalizedAmount,
@@ -53,7 +54,7 @@ const effectiveAllocationSelect = "payment_id,invoice_id,effective_cash_allocate
 const reallocationSelect = "id,payment_id,source_invoice_id,target_invoice_id,cash_moved,wht_moved,settlement_moved,reason,created_at";
 
 export default function PaymentDetailPage() {
-  return <QuotationGuard canAccess={(access) => access.permissions.canManageFinancePayments || access.permissions.canConfirmFinancePayments || access.permissions.canReverseFinancePayments || access.permissions.canReallocateFinancePayments}>{(access) => <><FinanceSubNav activePage="payments" permissions={access.permissions} /><PaymentWorkspace access={{ canManage: access.permissions.canManageFinancePayments, canConfirm: access.permissions.canConfirmFinancePayments, canReverse: access.permissions.canReverseFinancePayments, canReallocate: access.permissions.canReallocateFinancePayments }} /></>}</QuotationGuard>;
+  return <QuotationGuard canAccess={(access) => access.profile?.role === "partner" || access.permissions.canManageFinancePayments || access.permissions.canConfirmFinancePayments || access.permissions.canReverseFinancePayments || access.permissions.canReallocateFinancePayments}>{(access) => <><FinanceSubNav activePage="payments" permissions={access.permissions} /><PaymentWorkspace access={{ canManage: access.permissions.canManageFinancePayments, canConfirm: access.permissions.canConfirmFinancePayments, canReverse: access.permissions.canReverseFinancePayments, canReallocate: access.permissions.canReallocateFinancePayments }} /></>}</QuotationGuard>;
 }
 
 function PaymentWorkspace({ access }: { access: PaymentAccess }) {
@@ -667,6 +668,7 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
           <div style={readOnlyGroup}><h3 style={readOnlyGroupTitle}>{t("finance.payment.ui.amounts")}</h3><div style={summaryGrid}><Metric label={t("finance.payment.ui.settledAmount")} value={money(payment.settlement_amount, payment.currency)} prominent /><Metric label={paymentSettlementLabels.receivedFull} value={money(payment.cash_amount, payment.currency)} /><Metric label={paymentSettlementLabels.whtCredit} value={money(payment.wht_amount, payment.currency)} /><Metric label={paymentSettlementLabels.settlementTotal} value={money(payment.settlement_amount, payment.currency)} />{payment.status === "confirmed" ? <Metric label={t("finance.payment.ui.currentlyAllocated")} value={money(effectiveAllocationTotal, payment.currency)} /> : null}</div></div>
         </div>
         {payment.status === "confirmed" ? <FinanceDocumentNextAction key={payment.id} paymentId={payment.id} /> : null}
+        {payment.status === "confirmed" || payment.status === "reversed" ? <MoneyAllocationPanel key={`money-${payment.id}-${payment.status}`} paymentId={payment.id} /> : null}
       </section>
 
       {payment.status === "confirmed" ? <section id="current-payment-allocations" style={{ ...surface, scrollMarginTop: 84 }}>

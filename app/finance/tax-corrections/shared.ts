@@ -20,6 +20,7 @@ export type CorrectionContext = {
 };
 export function correctionError(error: unknown, locale: UiLocale) {
   const message = error && typeof error === "object" && "message" in error ? String(error.message) : String(error);
+  if (message.includes("MONEY_ALLOCATION_SUPERSEDE_REQUIRED")) return translate(locale, "moneyAllocation.error.SUPERSEDE_REQUIRED");
   const kind = /PERMISSION|permission denied/.test(message) ? "permission" : /COVERAGE|AMOUNT|VAT_INVALID/.test(message) ? "coverage"
     : /OPEN_CASE|evidence_once|IDEMPOTENCY/.test(message) ? "duplicate" : /BUYER/.test(message) ? "buyer"
       : /REVIEW|ACK|APPROVAL|SUPERSEDED/.test(message) ? "review" : /REQUIRED|INVALID|INCOMPATIBLE/.test(message) ? "required" : "failed";

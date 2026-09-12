@@ -30,6 +30,7 @@ function check(fixture,state,props,component) {
 }
 const correctionInitiation=workspaceFixture("app/finance/tax-corrections/initiation.tsx",["TaxCorrectionInitiation"]);
 const correctionNotice=workspaceFixture("app/finance/tax-corrections/history-notice.tsx",["TaxCorrectionHistoryNotice"]);
+const moneyAllocation=workspaceFixture("app/finance/payments/money-allocation-panel.tsx",["MoneyAllocationPanel"]);
 const taxEditor=workspaceFixture("app/finance/tax-invoices/editor.tsx",["TaxInvoiceEditor"],{
   "../tax-corrections/initiation":{TaxCorrectionInitiation:correctionInitiation.component("TaxCorrectionInitiation")},
   "../tax-corrections/history-notice":{TaxCorrectionHistoryNotice:correctionNotice.component("TaxCorrectionHistoryNotice")},
@@ -57,6 +58,7 @@ test("Payment workspace renders all Draft and confirmed correction controls in o
   const fixture=workspaceFixture("app/finance/payments/[id]/page.tsx",["PaymentWorkspace"],{
     "../../quotations/shared":{QuotationGuard:()=>null},
     "../../document-decision/next-action":{FinanceDocumentNextAction:()=>null},
+    "../money-allocation-panel":{MoneyAllocationPanel:moneyAllocation.component("MoneyAllocationPanel")},
   });
   for(const status of ["draft","confirmed","cancelled","reversed"]){
     const payment={id:"payment",status,client_id:"client",currency:"THB",cash_amount:"4859.81",wht_amount:"140.19",settlement_amount:"5000.00",received_on:"2026-09-05",payment_method:"bank_transfer",receiving_bank_account_id:"bank",wht_calculation_mode:"legacy_manual"};
@@ -67,7 +69,10 @@ test("Payment workspace renders all Draft and confirmed correction controls in o
       "PaymentWorkspace.effectiveAllocations":[{payment_id:"payment",invoice_id:"invoice",effective_cash_allocated:4859.81,effective_wht_credit_allocated:140.19,effective_settlement_total:5000}],
       "PaymentWorkspace.invoices":[invoice],"PaymentWorkspace.candidateInvoices":[invoice],"PaymentWorkspace.bankAccounts":[{id:"bank",short_name:"KBANK",bank_name:"Original bank",is_active:true}],
       "PaymentWorkspace.settlements":[{invoice_id:"invoice",invoice_total_amount:5000,confirmed_cash_amount:4859.81,confirmed_wht_credit:140.19,economically_settled_amount:5000,outstanding_amount:0,payment_status:"settled"}]};
-    check(fixture,state,{access:{canManage:true,canConfirm:true,canReverse:true,canReallocate:true}},"PaymentWorkspace");
+    const rendered=check(fixture,state,{access:{canManage:true,canConfirm:true,canReverse:true,canReallocate:true}},"PaymentWorkspace");
+    if(status==="confirmed"||status==="reversed"){
+      assert.match(rendered.en,/Money Allocation/);assert.match(rendered.th,/การจัดสรรเงิน/);
+    }else assert.doesNotMatch(rendered.en,/Money Allocation/);
   }
 });
 test("Every document decision, including completion-only and blocked routes, translates in the actual Next Action",()=>{

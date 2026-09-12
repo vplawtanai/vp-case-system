@@ -1,0 +1,372 @@
+[
+  {
+    "name": "finance_payment_money_allocation_audit",
+    "rls": true,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "not_null": true
+      },
+      {
+        "name": "allocation_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "event_type",
+        "type": "text",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "actor_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "not_null": true
+      },
+      {
+        "name": "evidence_json",
+        "type": "jsonb",
+        "default": null,
+        "not_null": true
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_payment_money_allocation_audit_actor_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (actor_id) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_payment_money_allocation_audit_allocation_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (allocation_id) REFERENCES finance_payment_money_allocations(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_payment_money_allocation_audit_event_type_check",
+        "type": "c",
+        "definition": "CHECK ((event_type = ANY (ARRAY['created'::text, 'saved'::text, 'reviewed'::text, 'finalized'::text, 'superseded'::text])))"
+      },
+      {
+        "name": "finance_payment_money_allocation_audit_evidence_json_check",
+        "type": "c",
+        "definition": "CHECK ((jsonb_typeof(evidence_json) = 'object'::text))"
+      },
+      {
+        "name": "finance_payment_money_allocation_audit_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (id)"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_payment_money_allocation_audit_pkey",
+        "definition": "CREATE UNIQUE INDEX finance_payment_money_allocation_audit_pkey ON public.finance_payment_money_allocation_audit USING btree (id)"
+      },
+      {
+        "name": "money_allocation_audit_parent",
+        "definition": "CREATE INDEX money_allocation_audit_parent ON public.finance_payment_money_allocation_audit USING btree (allocation_id, created_at, id)"
+      }
+    ],
+    "policies": [
+      {
+        "name": "money_allocation_audit_read",
+        "check": null,
+        "roles": [
+          "authenticated"
+        ],
+        "using": "current_user_can_view_finance_payments()",
+        "command": "SELECT"
+      }
+    ],
+    "triggers": [
+      {
+        "name": "money_allocation_audit_immutable",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER money_allocation_audit_immutable BEFORE DELETE OR UPDATE ON public.finance_payment_money_allocation_audit FOR EACH ROW EXECUTE FUNCTION money_allocation_immutable()"
+      }
+    ]
+  },
+  {
+    "name": "finance_payment_money_allocations",
+    "rls": true,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "not_null": true
+      },
+      {
+        "name": "payment_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "revision",
+        "type": "integer",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "previous_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "default": "'draft'::text",
+        "not_null": true
+      },
+      {
+        "name": "version",
+        "type": "integer",
+        "default": "1",
+        "not_null": true
+      },
+      {
+        "name": "source_snapshot_json",
+        "type": "jsonb",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "decisions_json",
+        "type": "jsonb",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "note",
+        "type": "text",
+        "default": "''::text",
+        "not_null": true
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "not_null": true
+      },
+      {
+        "name": "created_by",
+        "type": "uuid",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "not_null": true
+      },
+      {
+        "name": "reviewed_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "reviewed_by",
+        "type": "uuid",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "finalized_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "finalized_by",
+        "type": "uuid",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "superseded_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "superseded_by",
+        "type": "uuid",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "supersede_reason",
+        "type": "text",
+        "default": null,
+        "not_null": false
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_payment_money_allocations_check",
+        "type": "c",
+        "definition": "CHECK (((reviewed_at IS NULL) = (reviewed_by IS NULL)))"
+      },
+      {
+        "name": "finance_payment_money_allocations_check1",
+        "type": "c",
+        "definition": "CHECK (((finalized_at IS NULL) = (finalized_by IS NULL)))"
+      },
+      {
+        "name": "finance_payment_money_allocations_check2",
+        "type": "c",
+        "definition": "CHECK (((status <> ALL (ARRAY['reviewed'::text, 'finalized'::text])) OR (reviewed_at IS NOT NULL)))"
+      },
+      {
+        "name": "finance_payment_money_allocations_check3",
+        "type": "c",
+        "definition": "CHECK ((((status = 'finalized'::text) OR ((status = 'superseded'::text) AND (finalized_at IS NOT NULL))) = (finalized_at IS NOT NULL)))"
+      },
+      {
+        "name": "finance_payment_money_allocations_check4",
+        "type": "c",
+        "definition": "CHECK (((status = 'superseded'::text) = ((superseded_at IS NOT NULL) AND (superseded_by IS NOT NULL) AND (NULLIF(btrim(supersede_reason), ''::text) IS NOT NULL))))"
+      },
+      {
+        "name": "finance_payment_money_allocations_created_by_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_payment_money_allocations_decisions_json_check",
+        "type": "c",
+        "definition": "CHECK ((jsonb_typeof(decisions_json) = 'array'::text))"
+      },
+      {
+        "name": "finance_payment_money_allocations_finalized_by_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (finalized_by) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_payment_money_allocations_note_check",
+        "type": "c",
+        "definition": "CHECK ((length(note) <= 2000))"
+      },
+      {
+        "name": "finance_payment_money_allocations_payment_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (payment_id) REFERENCES finance_payments(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_payment_money_allocations_payment_id_revision_key",
+        "type": "u",
+        "definition": "UNIQUE (payment_id, revision)"
+      },
+      {
+        "name": "finance_payment_money_allocations_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "finance_payment_money_allocations_previous_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (previous_id) REFERENCES finance_payment_money_allocations(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_payment_money_allocations_previous_id_key",
+        "type": "u",
+        "definition": "UNIQUE (previous_id)"
+      },
+      {
+        "name": "finance_payment_money_allocations_reviewed_by_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (reviewed_by) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_payment_money_allocations_revision_check",
+        "type": "c",
+        "definition": "CHECK ((revision > 0))"
+      },
+      {
+        "name": "finance_payment_money_allocations_source_snapshot_json_check",
+        "type": "c",
+        "definition": "CHECK ((jsonb_typeof(source_snapshot_json) = 'object'::text))"
+      },
+      {
+        "name": "finance_payment_money_allocations_status_check",
+        "type": "c",
+        "definition": "CHECK ((status = ANY (ARRAY['draft'::text, 'reviewed'::text, 'finalized'::text, 'superseded'::text])))"
+      },
+      {
+        "name": "finance_payment_money_allocations_supersede_reason_check",
+        "type": "c",
+        "definition": "CHECK ((length(supersede_reason) <= 2000))"
+      },
+      {
+        "name": "finance_payment_money_allocations_superseded_by_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (superseded_by) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_payment_money_allocations_version_check",
+        "type": "c",
+        "definition": "CHECK ((version > 0))"
+      },
+      {
+        "name": "money_allocation_integrity",
+        "type": "t",
+        "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_payment_money_allocations_payment_id_revision_key",
+        "definition": "CREATE UNIQUE INDEX finance_payment_money_allocations_payment_id_revision_key ON public.finance_payment_money_allocations USING btree (payment_id, revision)"
+      },
+      {
+        "name": "finance_payment_money_allocations_pkey",
+        "definition": "CREATE UNIQUE INDEX finance_payment_money_allocations_pkey ON public.finance_payment_money_allocations USING btree (id)"
+      },
+      {
+        "name": "finance_payment_money_allocations_previous_id_key",
+        "definition": "CREATE UNIQUE INDEX finance_payment_money_allocations_previous_id_key ON public.finance_payment_money_allocations USING btree (previous_id)"
+      },
+      {
+        "name": "money_allocation_current_payment",
+        "definition": "CREATE UNIQUE INDEX money_allocation_current_payment ON public.finance_payment_money_allocations USING btree (payment_id) WHERE (status <> 'superseded'::text)"
+      }
+    ],
+    "policies": [
+      {
+        "name": "money_allocation_read",
+        "check": null,
+        "roles": [
+          "authenticated"
+        ],
+        "using": "current_user_can_view_finance_payments()",
+        "command": "SELECT"
+      }
+    ],
+    "triggers": [
+      {
+        "name": "money_allocation_immutable",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER money_allocation_immutable BEFORE DELETE OR UPDATE ON public.finance_payment_money_allocations FOR EACH ROW EXECUTE FUNCTION money_allocation_immutable()"
+      },
+      {
+        "name": "money_allocation_integrity",
+        "enabled": "O",
+        "definition": "CREATE CONSTRAINT TRIGGER money_allocation_integrity AFTER INSERT OR UPDATE ON public.finance_payment_money_allocations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION validate_money_allocation()"
+      }
+    ]
+  }
+]
