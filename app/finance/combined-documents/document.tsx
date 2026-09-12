@@ -9,12 +9,13 @@ import styles from "../tax-invoices/tax-invoices.module.css";
 import theme from "../../components/DocumentTheme.module.css";
 import layout from "./document.module.css";
 
-export function CombinedReceiptTaxDocument({ combined, row, logoUrl }: { combined: CombinedDocument; row: TaxInvoice; logoUrl: string }) {
+export function CombinedReceiptTaxDocument({ combined, row, logoUrl, documentNotice, documentNoOverride }: { combined: CombinedDocument; row: TaxInvoice; logoUrl: string; documentNotice?: React.ReactNode; documentNoOverride?: string }) {
   const frozen = combinedTaxRow(combined, row), result = frozen && taxPresentation(frozen);
   if (!result?.ok || !logoUrl) return <p role="alert" className={styles.error}>หลักฐานเอกสารรวมหรือโลโก้ยังไม่พร้อม จึงยังแสดงเอกสารไม่ได้</p>;
   const d = result.value, address = formatThaiSellerAddress(taxText(d.customer.address));
   return <LegalDocumentLayout className={`${styles.paper} ${theme.taxInvoice} ${layout.paper}`} languageCode="th">
-    <DocumentIdentityHeader identity={d.identity} logoUrl={logoUrl} title="ใบเสร็จรับเงิน/ใบกำกับภาษี" subtitle="Receipt / Tax Invoice" documentNo={d.number || "ร่าง / DRAFT"} />
+    <DocumentIdentityHeader identity={d.identity} logoUrl={logoUrl} title="ใบเสร็จรับเงิน/ใบกำกับภาษี" subtitle="Receipt / Tax Invoice" documentNo={documentNoOverride || d.number || "ร่าง / DRAFT"} />
+    {documentNotice}
     {combined.status !== "issued" ? <p className={styles.watermark}>{combined.status === "cancelled" ? "ยกเลิกร่าง / CANCELLED" : "ร่าง / DRAFT"}</p> : null}
     <section className={styles.parties}><div><h2>ผู้รับบริการ</h2><strong>{taxText(d.customer.name)}</strong><p className={styles.address}>{address.body}</p><p>{address.localityLine}</p>
       {taxText(d.customer.tax_id) ? <p>เลขประจำตัวผู้เสียภาษี {taxText(d.customer.tax_id)}</p> : null}

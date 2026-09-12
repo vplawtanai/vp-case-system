@@ -6,12 +6,13 @@ import { taxDate, taxMoney, taxPresentation, taxText, type TaxInvoice } from "./
 import theme from "../../components/DocumentTheme.module.css";
 import styles from "./tax-invoices.module.css";
 
-export function TaxInvoiceDocument({ row, logoUrl }: { row: TaxInvoice; logoUrl: string }) {
+export function TaxInvoiceDocument({ row, logoUrl, documentNotice, documentNoOverride }: { row: TaxInvoice; logoUrl: string; documentNotice?: React.ReactNode; documentNoOverride?: string }) {
   const presentation = taxPresentation(row);
   if (!presentation.ok || !logoUrl) return <p role="alert" className={styles.error}>{presentation.ok ? "ยังโหลดหลักฐานโลโก้ไม่สำเร็จ จึงยังพิมพ์ไม่ได้" : presentation.error}</p>;
   const d = presentation.value, address = formatThaiSellerAddress(taxText(d.customer.address));
   return <LegalDocumentLayout className={`${styles.paper} ${theme.taxInvoice}`} languageCode="th">
-    <DocumentIdentityHeader identity={d.identity} logoUrl={logoUrl} title="ใบกำกับภาษี" subtitle="Tax Invoice" documentNo={d.number || "ร่าง / DRAFT"} />
+    <DocumentIdentityHeader identity={d.identity} logoUrl={logoUrl} title="ใบกำกับภาษี" subtitle="Tax Invoice" documentNo={documentNoOverride || d.number || "ร่าง / DRAFT"} />
+    {documentNotice}
     {row.status !== "issued" ? <p className={styles.watermark}>{row.status === "cancelled" ? "ยกเลิกร่าง / CANCELLED DRAFT" : "ร่าง / DRAFT - ยังไม่ได้ออกใบกำกับภาษี"}</p> : null}
     <section className={styles.parties}><div><h2>ผู้รับบริการ</h2><strong>{taxText(d.customer.name)}</strong>
       {address.body ? <p className={styles.address}>{address.body}</p> : <p className={styles.error}>ยังไม่มีที่อยู่ผู้รับบริการ</p>}

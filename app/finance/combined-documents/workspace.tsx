@@ -9,6 +9,7 @@ import { TaxInvoiceEditor } from "../tax-invoices/editor";
 import type { UserPermissions } from "../../../lib/permissions";
 import { documentError } from "../document-decision/shared";
 import { CombinedReceiptTaxDocument } from "./document";
+import { TaxCorrectionHistoryNotice } from "../tax-corrections/history-notice";
 import { combinedTaxRow, type CombinedDocument } from "./shared";
 import styles from "../tax-invoices/tax-invoices.module.css";
 
@@ -41,7 +42,7 @@ function Content({ combined, permissions, reloadCombined, previewOnly }: { combi
   }
   return <><header className={`${styles.header} ${styles.noPrint}`}><div><Link className={styles.button} href={`/finance/payments/${combined.payment_id}`}>{t("finance.combined.backPayment")}</Link><h1>{combined.combined_no || t("finance.combined.draftTitle")}</h1><span className={styles.status}>{t(combined.status === "cancelled" ? "finance.taxInvoice.ui.statusCancelled" : `status.${combined.status}`)}</span></div>
     <div className={styles.actions}>{previewOnly ? <Link className={styles.button} href={`/finance/combined-documents/${combined.id}`}>{t("finance.combined.backDocument")}</Link> : <Link className={styles.button} href={`/finance/combined-documents/${combined.id}/preview`}>{t("common.actions.previewPrint")}</Link>}<button className={styles.primary} disabled={!valid || !state.logoUrl || printing} onClick={() => void print()}>{t("common.actions.printPdf")}</button></div></header>
-    {printError || state.error ? <p role="alert" className={styles.error}>{printError ? t(printError) : state.error}</p> : state.loading ? <p role="status">{t("finance.combined.loadingEvidence")}</p> : !valid ? <p role="alert">{t("finance.combined.linkInvalid")}</p> : previewOnly ? <CombinedReceiptTaxDocument combined={combined} row={valid} logoUrl={state.logoUrl} /> : <TaxInvoiceEditor key={combined.updated_at + valid.updated_at} row={valid} combined={combined} permissions={permissions} logoUrl={state.logoUrl} blockers={state.blockers} reload={reload} />}
+    {printError || state.error ? <p role="alert" className={styles.error}>{printError ? t(printError) : state.error}</p> : state.loading ? <p role="status">{t("finance.combined.loadingEvidence")}</p> : !valid ? <p role="alert">{t("finance.combined.linkInvalid")}</p> : previewOnly ? <CombinedReceiptTaxDocument combined={combined} row={valid} logoUrl={state.logoUrl} documentNotice={combined.status === "issued" ? <TaxCorrectionHistoryNotice taxId={valid.id} combinedId={combined.id} /> : undefined} /> : <TaxInvoiceEditor key={combined.updated_at + valid.updated_at} row={valid} combined={combined} permissions={permissions} logoUrl={state.logoUrl} blockers={state.blockers} reload={reload} />}
     {combined.status === "issued" ? <p className={`${styles.notice} ${styles.noPrint}`}>{t("finance.combined.issuedReadonly")}</p> : null}
   </>;
 }

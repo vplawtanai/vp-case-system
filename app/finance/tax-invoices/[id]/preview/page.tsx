@@ -7,6 +7,7 @@ import { TaxInvoiceGuard } from "../../access";
 import { TaxInvoiceDocument } from "../../tax-document";
 import { useTaxInvoice } from "../../use-tax-invoice";
 import { taxPresentation } from "../../shared";
+import { TaxCorrectionHistoryNotice } from "../../../tax-corrections/history-notice";
 import styles from "../../tax-invoices.module.css";
 
 export default function TaxPreviewPage() {
@@ -30,6 +31,6 @@ function Preview({ id }: { id: string }) {
   }
   if (row?.combined_document_id) return <Link className={styles.primary} href={`/finance/combined-documents/${row.combined_document_id}/preview`}>{t("finance.taxInvoice.ui.previewCombined")}</Link>;
   return <><header className={`${styles.header} ${styles.noPrint}`}><h1>{t("finance.taxInvoice.ui.previewTitle")}</h1><div className={styles.actions}><Link className={styles.button} href={`/finance/tax-invoices/${id}`}>{t("finance.taxInvoice.ui.back")}</Link><button className={styles.primary} disabled={!printable || printing} onClick={() => void print()}>{t("common.actions.printPdf")}</button></div></header>
-    {printError || error ? <p className={styles.error} role="alert">{printError ? t(printError) : error} <button className={styles.button} onClick={() => void reload()}>{t("finance.taxInvoice.ui.reload")}</button></p> : loading ? <p role="status">{t("common.state.loading")}</p> : row ? <TaxInvoiceDocument row={row} logoUrl={logoUrl} /> : null}
+    {printError || error ? <p className={styles.error} role="alert">{printError ? t(printError) : error} <button className={styles.button} onClick={() => void reload()}>{t("finance.taxInvoice.ui.reload")}</button></p> : loading ? <p role="status">{t("common.state.loading")}</p> : row ? <TaxInvoiceDocument row={row} logoUrl={logoUrl} documentNotice={row.status === "issued" ? <TaxCorrectionHistoryNotice taxId={row.id} /> : undefined} /> : null}
   </>;
 }

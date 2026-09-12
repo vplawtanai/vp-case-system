@@ -1,0 +1,5 @@
+.form { display: grid; gap: 16px; }
+.source { color: #566174; font-size: 13px; line-height: 1.6; }
+.history { list-style: none; padding: 0; display: grid; gap: 12px; }
+.historyHeading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.historyHeading a { max-width: 100%; overflow-wrap: anywhere; }

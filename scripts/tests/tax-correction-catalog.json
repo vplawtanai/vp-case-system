@@ -1,0 +1,718 @@
+[
+  {
+    "name": "finance_tax_correction_audit_events",
+    "rls": true,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "not_null": true
+      },
+      {
+        "name": "correction_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "event_type",
+        "type": "text",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "event_payload_json",
+        "type": "jsonb",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "actor_user_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "not_null": true
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_tax_correction_audit_events_actor_user_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (actor_user_id) REFERENCES user_profiles(id)"
+      },
+      {
+        "name": "finance_tax_correction_audit_events_correction_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (correction_id) REFERENCES finance_tax_document_corrections(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_tax_correction_audit_events_event_type_check",
+        "type": "c",
+        "definition": "CHECK ((event_type = ANY (ARRAY['draft_created'::text, 'approved'::text, 'issued'::text, 'cancelled'::text, 'replacement_linked'::text, 'copy_issued'::text])))"
+      },
+      {
+        "name": "finance_tax_correction_audit_events_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (id)"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_tax_correction_audit_events_pkey",
+        "definition": "CREATE UNIQUE INDEX finance_tax_correction_audit_events_pkey ON public.finance_tax_correction_audit_events USING btree (id)"
+      },
+      {
+        "name": "tax_correction_audit_history",
+        "definition": "CREATE INDEX tax_correction_audit_history ON public.finance_tax_correction_audit_events USING btree (correction_id, created_at)"
+      }
+    ],
+    "policies": [
+      {
+        "name": "tax_correction_audit_read",
+        "check": null,
+        "roles": [
+          "authenticated"
+        ],
+        "using": "(EXISTS ( SELECT 1\n   FROM finance_tax_document_corrections c\n  WHERE (c.id = finance_tax_correction_audit_events.correction_id)))",
+        "command": "SELECT"
+      }
+    ],
+    "triggers": [
+      {
+        "name": "tax_correction_history",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER tax_correction_history BEFORE DELETE OR UPDATE ON public.finance_tax_correction_audit_events FOR EACH ROW EXECUTE FUNCTION tax_correction_immutable()"
+      }
+    ]
+  },
+  {
+    "name": "finance_tax_correction_documents",
+    "rls": true,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "document_type",
+        "type": "text",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "document_no",
+        "type": "text",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "document_date",
+        "type": "date",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "issued_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "issued_by_user_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "copy_sequence",
+        "type": "integer",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "issued_snapshot_json",
+        "type": "jsonb",
+        "default": null,
+        "not_null": true
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_tax_correction_documents_check",
+        "type": "c",
+        "definition": "CHECK (((document_type = 'replacement_copy'::text) = ((copy_sequence IS NOT NULL) AND (copy_sequence > 0))))"
+      },
+      {
+        "name": "finance_tax_correction_documents_document_type_check",
+        "type": "c",
+        "definition": "CHECK ((document_type = ANY (ARRAY['credit_note'::text, 'debit_note'::text, 'tax_invoice'::text, 'receipt_tax_invoice'::text, 'replacement_copy'::text])))"
+      },
+      {
+        "name": "finance_tax_correction_documents_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (id) REFERENCES finance_tax_document_corrections(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_tax_correction_documents_issued_by_user_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (issued_by_user_id) REFERENCES user_profiles(id)"
+      },
+      {
+        "name": "finance_tax_correction_documents_issued_snapshot_json_check",
+        "type": "c",
+        "definition": "CHECK ((jsonb_typeof(issued_snapshot_json) = 'object'::text))"
+      },
+      {
+        "name": "finance_tax_correction_documents_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "tax_correction_integrity",
+        "type": "t",
+        "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_tax_correction_documents_pkey",
+        "definition": "CREATE UNIQUE INDEX finance_tax_correction_documents_pkey ON public.finance_tax_correction_documents USING btree (id)"
+      },
+      {
+        "name": "tax_correction_copy_sequence",
+        "definition": "CREATE UNIQUE INDEX tax_correction_copy_sequence ON public.finance_tax_correction_documents USING btree (document_no, copy_sequence) WHERE (document_type = 'replacement_copy'::text)"
+      },
+      {
+        "name": "tax_correction_permanent_number",
+        "definition": "CREATE UNIQUE INDEX tax_correction_permanent_number ON public.finance_tax_correction_documents USING btree (document_no) WHERE (document_type <> 'replacement_copy'::text)"
+      }
+    ],
+    "policies": [
+      {
+        "name": "tax_correction_document_read",
+        "check": null,
+        "roles": [
+          "authenticated"
+        ],
+        "using": "(EXISTS ( SELECT 1\n   FROM finance_tax_document_corrections c\n  WHERE (c.id = finance_tax_correction_documents.id)))",
+        "command": "SELECT"
+      }
+    ],
+    "triggers": [
+      {
+        "name": "tax_correction_history",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER tax_correction_history BEFORE DELETE OR UPDATE ON public.finance_tax_correction_documents FOR EACH ROW EXECUTE FUNCTION tax_correction_immutable()"
+      },
+      {
+        "name": "tax_correction_integrity",
+        "enabled": "O",
+        "definition": "CREATE CONSTRAINT TRIGGER tax_correction_integrity AFTER INSERT ON public.finance_tax_correction_documents DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION validate_tax_correction_document()"
+      }
+    ]
+  },
+  {
+    "name": "finance_tax_correction_lines",
+    "rls": true,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "not_null": true
+      },
+      {
+        "name": "correction_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "original_tax_invoice_item_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "base_change",
+        "type": "numeric(14,2)",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "vat_change",
+        "type": "numeric(14,2)",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "previous_base",
+        "type": "numeric(14,2)",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "previous_vat",
+        "type": "numeric(14,2)",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "resulting_base",
+        "type": "numeric(14,2)",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "resulting_vat",
+        "type": "numeric(14,2)",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "source_snapshot_json",
+        "type": "jsonb",
+        "default": null,
+        "not_null": true
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_tax_correction_lines_base_change_check",
+        "type": "c",
+        "definition": "CHECK ((base_change > (0)::numeric))"
+      },
+      {
+        "name": "finance_tax_correction_lines_correction_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (correction_id) REFERENCES finance_tax_document_corrections(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_tax_correction_lines_correction_id_original_tax_inv_key",
+        "type": "u",
+        "definition": "UNIQUE (correction_id, original_tax_invoice_item_id)"
+      },
+      {
+        "name": "finance_tax_correction_lines_original_tax_invoice_item_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (original_tax_invoice_item_id) REFERENCES finance_tax_invoice_items(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_tax_correction_lines_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "finance_tax_correction_lines_previous_base_check",
+        "type": "c",
+        "definition": "CHECK ((previous_base >= (0)::numeric))"
+      },
+      {
+        "name": "finance_tax_correction_lines_previous_vat_check",
+        "type": "c",
+        "definition": "CHECK ((previous_vat >= (0)::numeric))"
+      },
+      {
+        "name": "finance_tax_correction_lines_resulting_base_check",
+        "type": "c",
+        "definition": "CHECK ((resulting_base >= (0)::numeric))"
+      },
+      {
+        "name": "finance_tax_correction_lines_resulting_vat_check",
+        "type": "c",
+        "definition": "CHECK ((resulting_vat >= (0)::numeric))"
+      },
+      {
+        "name": "finance_tax_correction_lines_vat_change_check",
+        "type": "c",
+        "definition": "CHECK ((vat_change >= (0)::numeric))"
+      },
+      {
+        "name": "tax_correction_integrity",
+        "type": "t",
+        "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_tax_correction_lines_correction_id_original_tax_inv_key",
+        "definition": "CREATE UNIQUE INDEX finance_tax_correction_lines_correction_id_original_tax_inv_key ON public.finance_tax_correction_lines USING btree (correction_id, original_tax_invoice_item_id)"
+      },
+      {
+        "name": "finance_tax_correction_lines_pkey",
+        "definition": "CREATE UNIQUE INDEX finance_tax_correction_lines_pkey ON public.finance_tax_correction_lines USING btree (id)"
+      }
+    ],
+    "policies": [
+      {
+        "name": "tax_correction_line_read",
+        "check": null,
+        "roles": [
+          "authenticated"
+        ],
+        "using": "(EXISTS ( SELECT 1\n   FROM finance_tax_document_corrections c\n  WHERE (c.id = finance_tax_correction_lines.correction_id)))",
+        "command": "SELECT"
+      }
+    ],
+    "triggers": [
+      {
+        "name": "tax_correction_history",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER tax_correction_history BEFORE DELETE OR UPDATE ON public.finance_tax_correction_lines FOR EACH ROW EXECUTE FUNCTION tax_correction_immutable()"
+      },
+      {
+        "name": "tax_correction_integrity",
+        "enabled": "O",
+        "definition": "CREATE CONSTRAINT TRIGGER tax_correction_integrity AFTER INSERT ON public.finance_tax_correction_lines DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION validate_tax_correction_document()"
+      }
+    ]
+  },
+  {
+    "name": "finance_tax_document_corrections",
+    "rls": true,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "not_null": true
+      },
+      {
+        "name": "request_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "original_tax_invoice_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "original_combined_document_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "original_receipt_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "invoice_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "payment_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "source_correction_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "correction_mode",
+        "type": "text",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "reason",
+        "type": "text",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "legal_basis",
+        "type": "text",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "evidence_reference",
+        "type": "text",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "issue_date",
+        "type": "date",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "adjustment_date",
+        "type": "date",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "source_snapshot_json",
+        "type": "jsonb",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "draft_snapshot_json",
+        "type": "jsonb",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "request_json",
+        "type": "jsonb",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "default": "'draft'::text",
+        "not_null": true
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "not_null": true
+      },
+      {
+        "name": "created_by_user_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": true
+      },
+      {
+        "name": "approved_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "approved_by_user_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "approval_evidence",
+        "type": "text",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "issued_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "issued_by_user_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "cancelled_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "cancelled_by_user_id",
+        "type": "uuid",
+        "default": null,
+        "not_null": false
+      },
+      {
+        "name": "cancel_reason",
+        "type": "text",
+        "default": null,
+        "not_null": false
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_tax_document_correcti_original_combined_document_i_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (original_combined_document_id) REFERENCES finance_combined_documents(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_tax_document_corrections_approved_by_user_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (approved_by_user_id) REFERENCES user_profiles(id)"
+      },
+      {
+        "name": "finance_tax_document_corrections_cancelled_by_user_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (cancelled_by_user_id) REFERENCES user_profiles(id)"
+      },
+      {
+        "name": "finance_tax_document_corrections_check",
+        "type": "c",
+        "definition": "CHECK (((original_combined_document_id IS NULL) = (original_receipt_id IS NULL)))"
+      },
+      {
+        "name": "finance_tax_document_corrections_check1",
+        "type": "c",
+        "definition": "CHECK (((status = ANY (ARRAY['approved'::text, 'issued'::text])) = ((approved_at IS NOT NULL) AND (approved_by_user_id IS NOT NULL) AND (NULLIF(btrim(approval_evidence), ''::text) IS NOT NULL))))"
+      },
+      {
+        "name": "finance_tax_document_corrections_check2",
+        "type": "c",
+        "definition": "CHECK (((status = 'issued'::text) = ((issued_at IS NOT NULL) AND (issued_by_user_id IS NOT NULL))))"
+      },
+      {
+        "name": "finance_tax_document_corrections_check3",
+        "type": "c",
+        "definition": "CHECK (((status = 'cancelled'::text) = ((cancelled_at IS NOT NULL) AND (cancelled_by_user_id IS NOT NULL) AND (NULLIF(btrim(cancel_reason), ''::text) IS NOT NULL))))"
+      },
+      {
+        "name": "finance_tax_document_corrections_correction_mode_check",
+        "type": "c",
+        "definition": "CHECK ((correction_mode = ANY (ARRAY['credit_note'::text, 'debit_note'::text, 'cancel_and_reissue'::text, 'replacement_copy'::text])))"
+      },
+      {
+        "name": "finance_tax_document_corrections_created_by_user_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (created_by_user_id) REFERENCES user_profiles(id)"
+      },
+      {
+        "name": "finance_tax_document_corrections_draft_snapshot_json_check",
+        "type": "c",
+        "definition": "CHECK ((jsonb_typeof(draft_snapshot_json) = 'object'::text))"
+      },
+      {
+        "name": "finance_tax_document_corrections_evidence_reference_check",
+        "type": "c",
+        "definition": "CHECK (((length(btrim(evidence_reference)) >= 5) AND (length(btrim(evidence_reference)) <= 2000)))"
+      },
+      {
+        "name": "finance_tax_document_corrections_invoice_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (invoice_id) REFERENCES finance_invoices(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_tax_document_corrections_issued_by_user_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (issued_by_user_id) REFERENCES user_profiles(id)"
+      },
+      {
+        "name": "finance_tax_document_corrections_original_receipt_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (original_receipt_id) REFERENCES finance_receipts(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_tax_document_corrections_original_tax_invoice_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (original_tax_invoice_id) REFERENCES finance_tax_invoices(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_tax_document_corrections_payment_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (payment_id) REFERENCES finance_payments(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_tax_document_corrections_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "finance_tax_document_corrections_reason_check",
+        "type": "c",
+        "definition": "CHECK (((length(btrim(reason)) >= 5) AND (length(btrim(reason)) <= 2000)))"
+      },
+      {
+        "name": "finance_tax_document_corrections_request_id_key",
+        "type": "u",
+        "definition": "UNIQUE (request_id)"
+      },
+      {
+        "name": "finance_tax_document_corrections_source_correction_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (source_correction_id) REFERENCES finance_tax_document_corrections(id) ON DELETE RESTRICT"
+      },
+      {
+        "name": "finance_tax_document_corrections_source_snapshot_json_check",
+        "type": "c",
+        "definition": "CHECK ((jsonb_typeof(source_snapshot_json) = 'object'::text))"
+      },
+      {
+        "name": "finance_tax_document_corrections_status_check",
+        "type": "c",
+        "definition": "CHECK ((status = ANY (ARRAY['draft'::text, 'approved'::text, 'issued'::text, 'cancelled'::text])))"
+      },
+      {
+        "name": "tax_correction_integrity",
+        "type": "t",
+        "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_tax_document_corrections_pkey",
+        "definition": "CREATE UNIQUE INDEX finance_tax_document_corrections_pkey ON public.finance_tax_document_corrections USING btree (id)"
+      },
+      {
+        "name": "finance_tax_document_corrections_request_id_key",
+        "definition": "CREATE UNIQUE INDEX finance_tax_document_corrections_request_id_key ON public.finance_tax_document_corrections USING btree (request_id)"
+      },
+      {
+        "name": "tax_correction_evidence_once",
+        "definition": "CREATE UNIQUE INDEX tax_correction_evidence_once ON public.finance_tax_document_corrections USING btree (original_tax_invoice_id, lower(btrim(evidence_reference))) WHERE (status <> 'cancelled'::text)"
+      },
+      {
+        "name": "tax_correction_open_case",
+        "definition": "CREATE UNIQUE INDEX tax_correction_open_case ON public.finance_tax_document_corrections USING btree (original_tax_invoice_id) WHERE (status = ANY (ARRAY['draft'::text, 'approved'::text]))"
+      },
+      {
+        "name": "tax_correction_replacement_successor",
+        "definition": "CREATE UNIQUE INDEX tax_correction_replacement_successor ON public.finance_tax_document_corrections USING btree (original_tax_invoice_id, COALESCE(source_correction_id, original_tax_invoice_id)) WHERE ((correction_mode = 'cancel_and_reissue'::text) AND (status = 'issued'::text))"
+      },
+      {
+        "name": "tax_correction_source_history",
+        "definition": "CREATE INDEX tax_correction_source_history ON public.finance_tax_document_corrections USING btree (original_tax_invoice_id, created_at)"
+      }
+    ],
+    "policies": [
+      {
+        "name": "tax_correction_read",
+        "check": null,
+        "roles": [
+          "authenticated"
+        ],
+        "using": "tax_correction_authorized((original_combined_document_id IS NOT NULL), 'view'::text)",
+        "command": "SELECT"
+      }
+    ],
+    "triggers": [
+      {
+        "name": "tax_correction_history",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER tax_correction_history BEFORE DELETE OR UPDATE ON public.finance_tax_document_corrections FOR EACH ROW EXECUTE FUNCTION tax_correction_immutable()"
+      },
+      {
+        "name": "tax_correction_integrity",
+        "enabled": "O",
+        "definition": "CREATE CONSTRAINT TRIGGER tax_correction_integrity AFTER INSERT OR UPDATE ON public.finance_tax_document_corrections DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION validate_tax_correction_document()"
+      }
+    ]
+  }
+]

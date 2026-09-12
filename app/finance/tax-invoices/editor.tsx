@@ -11,6 +11,8 @@ import { taxMoney, taxObject, taxPresentation,  taxText, type TaxDecisions, type
 import styles from "./tax-invoices.module.css";
 import { CombinedReceiptTaxDocument } from "../combined-documents/document";
 import type { CombinedDocument } from "../combined-documents/shared";
+import { TaxCorrectionInitiation } from "../tax-corrections/initiation";
+import { TaxCorrectionHistoryNotice } from "../tax-corrections/history-notice";
 import { documentError } from "../document-decision/shared";
 export function TaxInvoiceEditor({ row, permissions, logoUrl, blockers, reload, combined }: { row: TaxInvoice; permissions: UserPermissions; logoUrl: string; blockers: string[]; reload: () => Promise<void>; combined?: CombinedDocument }) {
   const { locale, t, date } = useI18n();
@@ -80,7 +82,8 @@ export function TaxInvoiceEditor({ row, permissions, logoUrl, blockers, reload, 
       </fieldset>
       <section className={`${styles.section} ${styles.noPrint}`}><p role="status" className={dirty ? styles.warning : styles.small}>{dirty ? t("common.state.unsaved") : t("finance.taxInvoice.ui.latestSaved")}</p>{editable ? <button className={styles.button} disabled={busy || !dirty} onClick={() => void run("save")}>{t("common.actions.saveChanges")}</button> : null}</section>
     </> : <section className={`${styles.section} ${styles.noPrint}`}><h2>{t("finance.taxInvoice.ui.history")}</h2><p>{t(`status.${row.status}`)}{row.issued_at ? ` · ${date(row.issued_at, true)}` : ""}</p>{row.cancel_reason ? <p>{t("finance.taxInvoice.ui.reason")} {row.cancel_reason}</p> : null}{row.issue_date > d.taxPointDate ? <p className={styles.warning}>{t("finance.taxInvoice.ui.delayHistory")}</p> : null}</section>}
-    <div className={styles.preview}>{combined ? <CombinedReceiptTaxDocument combined={combined} row={row} logoUrl={logoUrl} /> : <TaxInvoiceDocument row={row} logoUrl={logoUrl} />}</div>
+    {row.status === "issued" ? <TaxCorrectionInitiation taxId={row.id} combinedId={combined?.id} permissions={permissions} /> : null}
+    <div className={styles.preview}>{combined ? <CombinedReceiptTaxDocument combined={combined} row={row} logoUrl={logoUrl} documentNotice={row.status === "issued" ? <TaxCorrectionHistoryNotice taxId={row.id} combinedId={combined.id} /> : undefined} /> : <TaxInvoiceDocument row={row} logoUrl={logoUrl} documentNotice={row.status === "issued" ? <TaxCorrectionHistoryNotice taxId={row.id} /> : undefined} />}</div>
     <div ref={alert} tabIndex={-1} className={styles.noPrint}>{error ? <p className={styles.error} role="alert">{documentError(error, locale, Boolean(combined))}</p> : null}</div>
     {draft ? <>
       <section className={`${styles.section} ${styles.noPrint}`}><h2>{t("finance.taxInvoice.ui.confirmIssue", { title })}</h2>

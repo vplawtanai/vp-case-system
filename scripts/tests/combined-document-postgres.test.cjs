@@ -22,7 +22,7 @@ async function setup(applyCandidate=true) {
   try { if(applyCandidate)await db.exec(migration('40')); }
   catch(e) { throw new Error(`${e.message}; position=${e.position}; internal=${e.internalQuery}; context=${e.where}`,{cause:e}); }
 }
-async function source(lineSpecs=[{base:10000,vat:700,rate:7,applicable:true}], partial=null, wht=0) {
+async function source(lineSpecs=[{base:10000,vat:700,rate:7,applicable:true}], partial=null, wht=0, confirmed=true) {
   const id=randomUUID(), number='VP-IV-LOCAL-'+id.slice(0,8);
   const items=lineSpecs.map((s,index)=>({id:randomUUID(),invoice_id:id,description:'Synthetic line '+(index+1),source_state:'active',
     amount_before_vat:s.base,vat_amount:s.vat,line_total:s.base+s.vat,vat_applicable:s.applicable,vat_rate:s.rate,
@@ -33,7 +33,7 @@ async function source(lineSpecs=[{base:10000,vat:700,rate:7,applicable:true}], p
   await query('insert into finance_invoices(id,invoice_no,client_id,total_amount,amount_before_vat,vat_amount,issued_snapshot_json) values($1,$2,$3,$4,$5,$6,$7)',[id,number,ids.client,total,before,vat,snapshot]);
   for(const item of items) await query("insert into finance_invoice_items(id,invoice_id,source_state) values($1,$2,'active')",[item.id,id]);
   const settled=partial??total, cash=settled-wht;
-  const p=await payment({cash,wht,allocations:[{invoice:{id,snapshot},cash,wht}]});
+  const p=await payment({cash,wht,confirmed,allocations:[{invoice:{id,snapshot},cash,wht}]});
   return {id,p,items,total,snapshot};
 }
 const create=p=>rpc('create_finance_combined_document_draft',[p,true,true]);

@@ -3,7 +3,7 @@
 const fs = require("node:fs"), path = require("node:path"), ts = require("typescript");
 const roots = ["app/finance", "app/settings/document-clauses", "app/settings/document-templates", "app/settings/document-settings"];
 const common = ["app/settings/document-platform-shared.tsx", "app/components/AppTopNav.tsx", "app/components/AuthGuard.tsx", "app/components/DetailModal.tsx", "app/components/FinanceQuotationsSection.tsx", "app/components/LanguageSelector.tsx"];
-const documentFiles = /(?:invoice-document|receipt-document|tax-document|combined-documents\/document|fee-agreements\/(?:preamble|execution|thai-legal-text))\.tsx?$/;
+const documentFiles = /(?:invoice-document|receipt-document|tax-document|combined-documents\/document|tax-corrections\/document|fee-agreements\/(?:preamble|execution|thai-legal-text))\.tsx?$/;
 const documentOwners = {
   "app/finance/fee-agreements/[id]/preview/page.tsx": ["FEE_COLUMNS","documentTitle","dueDescription","PreambleRenderer","PaymentTerms","ExecutionRenderer","LegacySignatoryGroup","SectionTitle","FeeTable","CommercialTermsContent","ClauseList","SignatoryList","Signature","legalLabel","partyLabel","feeCellValue"],
   "app/finance/quotations/[id]/preview/page.tsx": ["engagementSections","PaymentTermsPreview","paymentTriggerText","paymentDueText","formatInstallmentTitle","PreviewLineItemVatExplanation","SignatureBlock","getDocumentStatusLabel","thaiMonths","getMatterLabel","LogoMark"],

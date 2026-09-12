@@ -28,7 +28,12 @@ function check(fixture,state,props,component) {
   }
   return {en,th};
 }
-const taxEditor=workspaceFixture("app/finance/tax-invoices/editor.tsx",["TaxInvoiceEditor"]);
+const correctionInitiation=workspaceFixture("app/finance/tax-corrections/initiation.tsx",["TaxCorrectionInitiation"]);
+const correctionNotice=workspaceFixture("app/finance/tax-corrections/history-notice.tsx",["TaxCorrectionHistoryNotice"]);
+const taxEditor=workspaceFixture("app/finance/tax-invoices/editor.tsx",["TaxInvoiceEditor"],{
+  "../tax-corrections/initiation":{TaxCorrectionInitiation:correctionInitiation.component("TaxCorrectionInitiation")},
+  "../tax-corrections/history-notice":{TaxCorrectionHistoryNotice:correctionNotice.component("TaxCorrectionHistoryNotice")},
+});
 test("Tax Invoice and Combined editors translate all blockers, required fields and lifecycle panels",()=>{
   for(const status of ["draft","issued","cancelled"])for(const isCombined of [false,true]){
     const f=source(isCombined?combinedFixture(status):{row:taxFixture(status)});
