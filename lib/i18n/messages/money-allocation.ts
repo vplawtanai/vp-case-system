@@ -1,17 +1,18 @@
 import type { MessageCatalog } from "../core";
 
 export const moneyAllocationMessages: MessageCatalog = {
-  "moneyAllocation.title": { th: "การจัดสรรเงิน", en: "Money Allocation" },
+  "moneyAllocation.coverage": { th: "ยอดตัดชำระจากเงินรับนี้ / ยอดใบแจ้งหนี้", en: "This Payment's effective coverage / Invoice gross" },
+  "moneyAllocation.title": { th: "องค์ประกอบเงินรับ", en: "Payment Composition" },
   "moneyAllocation.unallocated": { th: "ยังไม่ได้จัดสรร", en: "Not allocated" },
   "moneyAllocation.reviewRequired": { th: "รอตรวจสอบ", en: "Awaiting review" },
   "moneyAllocation.finalized": { th: "จัดสรรแล้ว", en: "Allocated" },
   "moneyAllocation.draft": { th: "ร่างการจัดสรร", en: "Allocation draft" },
   "moneyAllocation.reviewed": { th: "ตรวจสอบแล้ว รอยืนยัน", en: "Reviewed, awaiting finalization" },
   "moneyAllocation.superseded": { th: "ยุติการใช้หลักฐานเดิมแล้ว", en: "Superseded" },
-  "moneyAllocation.open": { th: "ตรวจสอบการจัดสรร", en: "Review allocation" },
-  "moneyAllocation.loading": { th: "กำลังโหลดการจัดสรร", en: "Loading allocation" },
+  "moneyAllocation.open": { th: "ดูองค์ประกอบเงินรับ", en: "View payment composition" },
+  "moneyAllocation.loading": { th: "กำลังโหลดองค์ประกอบเงินรับ", en: "Loading payment composition" },
   "moneyAllocation.retry": { th: "โหลดอีกครั้ง", en: "Reload" },
-  "moneyAllocation.boundary": { th: "VAT ไม่ใช่รายได้บริษัท และ WHT เป็นเครดิตภาษี ไม่ใช่เงินสด การจัดสรรนี้ยังไม่ลงบัญชีหรือคำนวณค่าตอบแทน", en: "VAT is not company revenue. WHT is a tax credit, not cash. This allocation does not post money or calculate compensation." },
+  "moneyAllocation.boundary": { th: "หลักฐานองค์ประกอบเงินรับจากต้นทาง อ่านอย่างเดียว VAT ไม่ใช่รายได้บริษัท และ WHT เป็นเครดิตภาษี ไม่ใช่เงินสด", en: "Read-only source evidence. VAT is not company revenue; WHT is tax credit, not cash." },
   "moneyAllocation.cash": { th: "เงินเข้าจริง", en: "Actual money received" },
   "moneyAllocation.wht": { th: "เครดิต WHT", en: "WHT credit" },
   "moneyAllocation.settlement": { th: "ยอดตัดชำระ", en: "Settlement" },

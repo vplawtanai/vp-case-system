@@ -108,11 +108,19 @@ test('045 localized render separates economic base, cash, VAT, WHT and professio
     const html = component.render(locale, {}, { source: c.source, choices, editable: true }, 'VpDistributionEvidence');
     for (const value of ['19,280.00', '19,160.00', '120.00', '607.10', '18,672.90', '8,672.90', '8,552.90', '10,000.00', '4,160.00', '5,000.00']) assert.ok(html.includes(value), value);
     assert.ok(html.includes(translate(locale, 'vpDistribution.settlement')));
-    assert.equal((html.match(/<input/g) || []).length, 3); assert.doesNotMatch(html, /<select|type="range"|%/);
+    assert.equal((html.match(/<input/g) || []).length, 0);
+    assert.equal((html.match(/<select/g) || []).length, 1); assert.doesNotMatch(html, /type="range"/);
     c.can_manage = false;
     const readonly = component.render(locale, { 'VpDistributionPanel.context': c, 'VpDistributionPanel.open': true, 'VpDistributionPanel.choices': choices }, { paymentId: 'synthetic-payment' }, 'VpDistributionPanel');
     for (const action of ['save', 'review', 'finalize', 'supersede']) assert.ok(!readonly.includes(translate(locale, 'vpDistribution.' + action)));
     assert.doesNotMatch(readonly, /<input/);
+    const input = require('../../app/finance/compensation/formula-calculation.ts').initialFormula('pao_line', 10000);
+    const preset = component.render(locale, {}, { source: c.source, choices, editable: true,
+      formulas: { 'synthetic-line-1': input }, people: [] }, 'VpDistributionEvidence');
+    assert.match(preset, /value="Company" selected=""/);
+    assert.match(preset, /value="Lawyer" selected=""/);
+    assert.ok(!preset.includes(translate(locale, 'vpFormula.customRole')));
+    assert.equal(input.rows[0].custom_role, 'Company');
   }
 });
 test('045 catalog and narrow upstream errors do not leak backend diagnostics', () => {
@@ -136,7 +144,7 @@ test('045 catalog and narrow upstream errors do not leak backend diagnostics', (
   assert.equal(paymentReallocationErrorMessage(error).key, 'vpDistribution.error.SUPERSEDE_REQUIRED');
   const ui = fs.readFileSync('app/finance/payments/vp-distribution-panel.tsx', 'utf8');
   assert.match(ui, /<DetailModal/);
-  assert.deepEqual([...ui.matchAll(/supabase\.rpc\("([^"]+)"/g)].map(match => match[1]).sort(), ['get_finance_vp_distribution', 'save_finance_vp_distribution', 'transition_finance_vp_distribution']);
+  assert.deepEqual([...ui.matchAll(/supabase\.rpc\("([^"]+)"/g)].map(match => match[1]).sort(), ['get_finance_vp_formula_context', 'save_finance_vp_distribution', 'transition_finance_vp_distribution']);
   assert.doesNotMatch(ui, /\.from\(|confirm_finance_payment|issue_finance_|post_confirmed|window\.alert/);
   assert.equal(fields.length, 3);
 });

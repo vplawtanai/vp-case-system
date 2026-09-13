@@ -74,9 +74,9 @@ test("Payment workspace renders all Draft and confirmed correction controls in o
       "PaymentWorkspace.settlements":[{invoice_id:"invoice",invoice_total_amount:5000,confirmed_cash_amount:4859.81,confirmed_wht_credit:140.19,economically_settled_amount:5000,outstanding_amount:0,payment_status:"settled"}]};
     const rendered=check(fixture,state,{access:{canManage:true,canConfirm:true,canReverse:true,canReallocate:true}},"PaymentWorkspace");
     if(status==="confirmed"||status==="reversed"){
-      assert.match(rendered.en,/Money Allocation/);assert.match(rendered.th,/การจัดสรรเงิน/);
+      assert.match(rendered.en,/Payment Composition/);assert.match(rendered.th,/องค์ประกอบเงินรับ/);
       assert.match(rendered.en,/VP Revenue Distribution/);assert.match(rendered.th,/การจัดสรรรายได้ VP/);
-    }else assert.doesNotMatch(rendered.en,/Money Allocation|VP Revenue Distribution/);
+    }else assert.doesNotMatch(rendered.en,/Payment Composition|VP Revenue Distribution/);
   }
 });
 test("Every document decision, including completion-only and blocked routes, translates in the actual Next Action",()=>{

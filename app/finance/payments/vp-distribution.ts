@@ -3,6 +3,7 @@ import { vpDistributionMessages } from "../../../lib/i18n/messages/vp-distributi
 import { moneyAllocationMessages } from "../../../lib/i18n/messages/money-allocation";
 import type { UiLocale } from "../../../lib/i18n/core";
 import type { MoneyAllocation, MoneyLine, MoneySource } from "./money-allocation";
+import type { FormulaResult } from "../compensation/formula-calculation";
 
 export const distributionFields = ["referral_amount", "company_share_amount", "work_compensation_amount"] as const;
 export const directCompanyClassifications = ["additional_service", "reimbursable_expense", "government_or_court_fee"] as const;
@@ -10,8 +11,8 @@ export function isDirectCompanyClassification(classification: string | null): bo
   return directCompanyClassifications.some(value => value === classification);
 }
 export type DistributionField = typeof distributionFields[number];
-export type DistributionChoice = { invoice_item_id: string } & Record<DistributionField, string>;
-export type DistributionDecision = { invoice_item_id: string } & Record<DistributionField, string | number>;
+export type DistributionChoice = { invoice_item_id: string; formula_result?: FormulaResult } & Record<DistributionField, string>;
+export type DistributionDecision = { invoice_item_id: string; formula_result?: FormulaResult } & Record<DistributionField, string | number>;
 export type DistributionLine = MoneyLine & {
   classification: string | null;
   professional_pool: number; company_economic: number; company_cash: number;
@@ -61,7 +62,8 @@ export function initialDistributionChoices(context: DistributionContext): Distri
       const value = decision?.[field] ?? "0.00", cents = distributionCents(value);
       return cents === null ? String(value) : `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, "0")}`;
     };
-    return { invoice_item_id: line.invoice_item_id, referral_amount: amount("referral_amount"), company_share_amount: amount("company_share_amount"), work_compensation_amount: amount("work_compensation_amount") };
+    return { invoice_item_id: line.invoice_item_id, referral_amount: amount("referral_amount"), company_share_amount: amount("company_share_amount"), work_compensation_amount: amount("work_compensation_amount"),
+      ...(decision?.formula_result ? { formula_result: decision.formula_result } : {}) };
   });
 }
 
@@ -110,6 +112,7 @@ export function distributionPayload(source: DistributionSource, choices: Distrib
     referral_amount: distributionCents(choice.referral_amount)! / 100,
     company_share_amount: distributionCents(choice.company_share_amount)! / 100,
     work_compensation_amount: distributionCents(choice.work_compensation_amount)! / 100,
+    ...(choice.formula_result ? { formula_result: choice.formula_result } : {}),
   }));
 }
 
@@ -120,6 +123,15 @@ export function distributionExpected(context: DistributionContext): { p_expected
 
 export function distributionError(error: unknown, locale: UiLocale): string {
   const message = error && typeof error === "object" && "message" in error ? String(error.message) : "";
+  if (message.includes("VP_FORMULA_")) {
+    if (message.includes("RECIPIENT_STALE")) return translate(locale, "vpFormula.recipientStale");
+    if (message.includes("STALE")) return translate(locale, "vpFormula.catalogStale");
+    const formulaErrors: Record<string, string> = { REQUIRED: "formulaRequired", INVALID: "formulaRequired",
+      PARAMETER: "parameterInvalid", RECONCILE: "reconcile", CONTRACT: "formulaContract", ROLE: "roleRequired",
+      RECIPIENT: "recipientRequired", DUPLICATE_RECIPIENT: "duplicateRecipient", EVIDENCE_INVALID: "formulaContract" };
+    const code = Object.keys(formulaErrors).find(key => message.includes("VP_FORMULA_" + key));
+    return translate(locale, "vpFormula.error." + (code ? formulaErrors[code] : "formulaContract"));
+  }
   const codes = ["PERMISSION_DENIED", "STALE", "SOURCE_CHANGED", "SOURCE_UNPROVEN", "REVIEW_REQUIRED", "AMOUNT_INVALID", "CHOICES_INVALID", "POOL_EXCEEDED", "ACK_REQUIRED", "REASON_REQUIRED", "SUPERSEDE_REQUIRED", "HISTORY_IMMUTABLE"];
   const code = codes.find(value => message.includes(`VP_DISTRIBUTION_${value}`));
   return translate(locale, `vpDistribution.error.${code || "unknown"}`);

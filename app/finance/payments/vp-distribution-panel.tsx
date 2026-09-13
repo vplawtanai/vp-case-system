@@ -6,11 +6,14 @@ import DetailModal from "../../components/DetailModal";
 import { supabase } from "../../../lib/supabase";
 import { useI18n } from "../../../lib/i18n/provider";
 import {
-  distributionAuditEvent, distributionBlocker, distributionCents, distributionDraftValid, distributionError, distributionExpected, distributionFields,
+  distributionAuditEvent, distributionBlocker, distributionCents, distributionError, distributionExpected, distributionFields,
   distributionLineComplete, distributionPayload, distributionReviewComplete, distributionSource, distributionSourceProven,
   distributionSplitCents, initialDistributionChoices, isDirectCompanyClassification,
-  type DistributionChoice, type DistributionContext, type DistributionDecision, type DistributionField, type DistributionSource,
+  type DistributionChoice, type DistributionDecision, type DistributionSource,
 } from "./vp-distribution";
+import { VpFormulaEditor, FormulaResultEvidence } from "./vp-formula-editor";
+import { formulaCatalogCurrent, initialLineFormulas, lineFormulaChoices, type FormulaContext, type LineFormulaInputs } from "./vp-formula";
+import type { FormulaInput, FormulaPerson } from "../compensation/formula-calculation";
 import styles from "./money-allocation.module.css";
 import vpStyles from "./vp-distribution.module.css";
 
@@ -22,9 +25,10 @@ function DistributionAmounts({ values, currency }: { values: Record<string, numb
   </div>)}</dl>;
 }
 
-export function VpDistributionEvidence({ source, choices, editable = false, busy = false, invalid = false, onChange }: {
+export function VpDistributionEvidence({ source, choices, editable = false, busy = false, invalid = false, formulas = {}, people = [], onChange }: {
   source: DistributionSource; choices: DistributionDecision[]; editable?: boolean; busy?: boolean; invalid?: boolean;
-  onChange?: (id: string, field: DistributionField, value: string) => void;
+  formulas?: LineFormulaInputs; people?: FormulaPerson[];
+  onChange?: (id: string, input: FormulaInput) => void;
 }) {
   const { t, locale } = useI18n(), id = useId();
   const currency = source.money_source?.payment?.currency || "-";
@@ -53,13 +57,12 @@ export function VpDistributionEvidence({ source, choices, editable = false, busy
         <DistributionAmounts values={{ base: line.base, vat: line.vat, wht: line.wht, cash: line.cash }} currency={currency} />
         {direct ? <DistributionAmounts values={{ company_economic: line.company_economic, company_cash: line.company_cash }} currency={currency} /> : null}
         {professional ? <>
-          <DistributionAmounts values={{ professional_pool: line.professional_pool, remaining: sum !== null && pool !== null ? (pool - sum) / 100 : null }} currency={currency} />
+          <DistributionAmounts values={{ professional_pool: line.professional_pool, allocated: sum !== null ? sum / 100 : null, remaining: sum !== null && pool !== null ? (pool - sum) / 100 : null }} currency={currency} />
           <p className={styles.muted}>{t("vpDistribution.poolFormula")}</p>
-          {editable ? <div className={vpStyles.splits}>{distributionFields.map(field => <label key={field}>{t(`vpDistribution.${field}`)}
-            <input type="text" inputMode="decimal" maxLength={24} value={choice?.[field] ?? ""} disabled={busy}
-              aria-invalid={lineInvalid} aria-describedby={lineInvalid ? errorId : undefined}
-              onChange={event => onChange?.(line.invoice_item_id, field, event.target.value)} />
-          </label>)}</div> : <DistributionAmounts values={Object.fromEntries(distributionFields.map(field => [field, saved?.[field] ?? null]))} currency={currency} />}
+          {editable ? <VpFormulaEditor pool={line.professional_pool} input={formulas[line.invoice_item_id]} people={people}
+            currency={currency} disabled={busy} invalid={invalid} onChange={input => onChange?.(line.invoice_item_id, input)} />
+            : saved?.formula_result ? <FormulaResultEvidence result={saved.formula_result} currency={currency} />
+            : <><p className={styles.warning}>{t("vpFormula.legacy")}</p><DistributionAmounts values={Object.fromEntries(distributionFields.map(field => [field, saved?.[field] ?? null]))} currency={currency} /></>}
           {lineInvalid ? <p id={errorId} className={styles.error}>{t("vpDistribution.splitInvalid")}</p> : null}
         </> : null}
       </section>;
@@ -69,20 +72,20 @@ export function VpDistributionEvidence({ source, choices, editable = false, busy
 
 export function VpDistributionPanel({ paymentId }: { paymentId: string }) {
   const { t, locale, date } = useI18n();
-  const [context, setContext] = useState<DistributionContext | null>(null), [open, setOpen] = useState(false);
+  const [context, setContext] = useState<FormulaContext | null>(null), [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false), [loadFailed, setLoadFailed] = useState(false);
-  const [choices, setChoices] = useState<DistributionChoice[]>([]), [note, setNote] = useState("");
+  const [formulas, setFormulas] = useState<LineFormulaInputs>({}), [note, setNote] = useState("");
   const [ack, setAck] = useState(false), [reason, setReason] = useState(""), [invalid, setInvalid] = useState(false);
   const [error, setError] = useState<unknown>(null), [success, setSuccess] = useState(false), [refreshRequired, setRefreshRequired] = useState(false);
   const lock = useRef(false), formRef = useRef<HTMLDivElement>(null);
-  const install = useCallback((value: DistributionContext) => {
-    setContext(value); setChoices(initialDistributionChoices(value)); setNote(value.current?.note || "");
+  const install = useCallback((value: FormulaContext) => {
+    setContext(value); setFormulas(initialLineFormulas(value)); setNote(value.current?.note || "");
     setAck(false); setReason(""); setInvalid(false); setRefreshRequired(false); setLoadFailed(false);
   }, []);
   const fetchContext = useCallback(async () => {
-    const result = await supabase.rpc("get_finance_vp_distribution", { p_payment_id: paymentId });
+    const result = await supabase.rpc("get_finance_vp_formula_context", { p_payment_id: paymentId });
     if (result.error || !result.data?.source || result.data.posting_enabled !== false) throw result.error || new Error("response");
-    return result.data as DistributionContext;
+    return result.data as FormulaContext;
   }, [paymentId]);
   useEffect(() => {
     let cancelled = false;
@@ -93,9 +96,12 @@ export function VpDistributionPanel({ paymentId }: { paymentId: string }) {
   }, [fetchContext, install]);
 
   const current = context?.current, source = context ? distributionSource(context) : null;
+  const calculated = context ? lineFormulaChoices(context, formulas) : null;
+  const choices = current && current.status !== "draft" ? initialDistributionChoices(context!) : calculated?.choices || [];
+  const catalogCurrent = !!context && formulaCatalogCurrent(context);
   const confirmed = context?.source.money_source?.payment?.status === "confirmed";
   const editable = !!context?.can_manage && confirmed && (!current || current.status === "draft");
-  const dirty = !!context && (JSON.stringify(choices) !== JSON.stringify(initialDistributionChoices(context)) || note !== (current?.note || ""));
+  const dirty = !!context && (JSON.stringify(formulas) !== JSON.stringify(initialLineFormulas(context)) || note !== (current?.note || ""));
   const hasLocalInput = dirty || reason !== "" || ack;
   const needsSave = !current || dirty || !context?.source_current;
   const proven = !!context && distributionSourceProven(context.source);
@@ -121,8 +127,8 @@ export function VpDistributionPanel({ paymentId }: { paymentId: string }) {
     setError(null); setSuccess(false);
     if (action !== "save" && !ack) return invalidForm("ACK_REQUIRED");
     if (action === "supersede" && (!reason.trim() || reason.length > 2000)) return invalidForm("REASON_REQUIRED");
-    if (action === "save" && !distributionDraftValid(context.source, choices)) return invalidForm(proven ? "AMOUNT_INVALID" : "SOURCE_UNPROVEN");
-    if ((action === "review" || action === "finalize") && (needsSave || !distributionReviewComplete(context.source, choices))) return invalidForm("REVIEW_REQUIRED");
+    if (action === "save" && (!calculated?.valid || !catalogCurrent)) return invalidForm(proven ? "AMOUNT_INVALID" : "SOURCE_UNPROVEN");
+    if ((action === "review" || action === "finalize") && (needsSave || !calculated?.valid || !distributionReviewComplete(context.source, choices))) return invalidForm("REVIEW_REQUIRED");
     lock.current = true; setBusy(true);
     try {
       const result = action === "save"
@@ -135,8 +141,8 @@ export function VpDistributionPanel({ paymentId }: { paymentId: string }) {
       setError(failure); setRefreshRequired(true);
     } finally { lock.current = false; setBusy(false); }
   }
-  function change(id: string, field: DistributionField, value: string) {
-    setChoices(previous => previous.map(choice => choice.invoice_item_id === id ? { ...choice, [field]: value } : choice));
+  function change(id: string, input: FormulaInput) {
+    setFormulas(previous => ({ ...previous, [id]: input }));
     setSuccess(false); setError(null); setAck(false);
   }
   const reloadButton = <button className={styles.button} disabled={busy} onClick={() => void refresh()}>{t(`vpDistribution.${hasLocalInput ? "discardReload" : "retry"}`)}</button>;
@@ -150,24 +156,25 @@ export function VpDistributionPanel({ paymentId }: { paymentId: string }) {
     <DetailModal open={open} title={t("vpDistribution.title")} status={t(`vpDistribution.${current?.status || "unallocated"}`)}
       onClose={() => { if (!busy) setOpen(false); }} closeOnBackdrop={!busy && !hasLocalInput}
       footer={context?.can_manage ? <div className={styles.actions}>
-        {editable ? <button className={styles.button} disabled={busy || refreshRequired || !needsSave || !proven} onClick={() => void act("save")}>{t("vpDistribution.save")}</button> : null}
+        {editable ? <button className={styles.button} disabled={busy || refreshRequired || !needsSave || !proven || !catalogCurrent} onClick={() => void act("save")}>{t("vpDistribution.save")}</button> : null}
         {current?.status === "draft" ? <button className={styles.primary} disabled={busy || refreshRequired || needsSave || !proven} onClick={() => void act("review")}>{t("vpDistribution.review")}</button> : null}
         {current?.status === "reviewed" ? <button className={styles.primary} disabled={busy || refreshRequired || !context.source_current || !proven} onClick={() => void act("finalize")}>{t("vpDistribution.finalize")}</button> : null}
       </div> : undefined}>
       {context && source ? <div className={styles.body} ref={formRef} aria-busy={busy}>
         {error || refreshRequired ? <div className={styles.error} role="alert">{distributionError(error, locale)} {reloadButton}</div> : null}
         {success ? <p className={styles.success} role="status">{t("vpDistribution.saved")}</p> : null}
+        {!catalogCurrent ? <p className={styles.warning}>{t("vpFormula.catalogStale")}</p> : null}
         {dirty ? <p className={styles.warning} role="status">{t("vpDistribution.unsaved")}</p> : null}
         {!context.can_manage ? <p className={styles.muted}>{t("vpDistribution.readonly")}</p> : null}
         {current && !context.source_current ? <p className={styles.warning}>{t("vpDistribution.stale")}</p> : null}
         {!confirmed ? <p className={styles.warning}>{t("vpDistribution.reversed")}</p> : null}
         {current && current.status !== "draft" ? <p className={styles.muted}>{t("vpDistribution.snapshot")}</p> : null}
         {source !== context.source ? context.source.blockers.map((blocker, index) => <p className={styles.warning} key={index}>{distributionBlocker(blocker, locale)}</p>) : null}
-        <VpDistributionEvidence source={source} choices={choices} editable={editable} busy={busy || refreshRequired} invalid={invalid} onChange={change} />
-        <label>{t("vpDistribution.note")}<textarea rows={2} maxLength={2000} readOnly={!editable} disabled={busy || refreshRequired} value={note} onChange={event => { setNote(event.target.value); setAck(false); setSuccess(false); }} /></label>
+        <VpDistributionEvidence source={source} choices={choices} editable={editable} busy={busy || refreshRequired || !catalogCurrent} invalid={invalid} formulas={formulas} people={context.formula_people} onChange={change} />
+        <label>{t("vpDistribution.note")}<textarea aria-label={t("vpDistribution.note")} rows={2} maxLength={2000} readOnly={!editable} disabled={busy || refreshRequired} value={note} onChange={event => { setNote(event.target.value); setAck(false); setSuccess(false); }} /></label>
         {context.can_manage && active ? <label className={styles.check}><input type="checkbox" checked={ack} disabled={busy || refreshRequired} aria-invalid={invalid && !ack} onChange={event => { setAck(event.target.checked); setError(null); }} />{t("vpDistribution.ack")}</label> : null}
         {context.can_manage && active ? <details className={styles.other}><summary>{t("vpDistribution.otherActions")}</summary>
-          <p>{t("vpDistribution.supersedeHelp")}</p><label>{t("vpDistribution.reason")}<textarea rows={2} maxLength={2000} value={reason} disabled={busy || refreshRequired} aria-invalid={invalid && !reason.trim()} onChange={event => { setReason(event.target.value); setError(null); }} /></label>
+          <p>{t("vpDistribution.supersedeHelp")}</p><label>{t("vpDistribution.reason")}<textarea aria-label={t("vpDistribution.reason")} rows={2} maxLength={2000} value={reason} disabled={busy || refreshRequired} aria-invalid={invalid && !reason.trim()} onChange={event => { setReason(event.target.value); setError(null); }} /></label>
           <button className={styles.danger} disabled={busy || refreshRequired} onClick={() => void act("supersede")}>{t("vpDistribution.supersede")}</button>
         </details> : null}
         {context.history.length ? <details className={styles.history}><summary>{t("vpDistribution.history")}</summary>{context.history.map(record => <details className={styles.line} key={record.id}>

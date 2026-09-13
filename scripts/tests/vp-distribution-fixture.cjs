@@ -9,7 +9,9 @@ function fixture() {
     company_economic: index === 1 ? 0 : line.base,
     company_cash: index === 1 ? 0 : Number((line.base - line.wht).toFixed(2)),
   }));
-  return { can_manage: true, current: null, source_current: false, posting_enabled: false, history: [], audit: [],
+  return { formula_schema_version:1, formula_catalog:require('../../app/finance/compensation/formula-definitions.json'),
+    formula_people:[{id:'10000000-0000-4000-8000-000000000001',name:'Fixture Admin'},{id:'10000000-0000-4000-8000-000000000002',name:'Fixture Staff'}],
+    can_manage: true, current: null, source_current: false, posting_enabled: false, history: [], audit: [],
     source: { schema_version: 1, policy_version: 'vp_distribution_v1', money_source: money.source, money_allocation: null, lines,
       totals: { cash: 19160, wht: 120, vat: 607.10, base: 18672.90, professional_pool: 10000, company_economic: 8672.90, company_cash: 8552.90 }, blockers: [] },
   };

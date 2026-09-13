@@ -2,4 +2,13 @@
 .splits input { box-sizing: border-box; width: 100%; min-width: 0; min-height: 40px; border: 1px solid #bcc6ce; border-radius: 6px; background: white; color: #27333d; padding: 8px; font: inherit; font-variant-numeric: tabular-nums; }
 .evidence { display: grid; gap: 16px; min-width: 0; }
 .evidence p { overflow-wrap: anywhere; }
+.editor, .result { display: grid; gap: 12px; min-width: 0; }
+.recipient { border: 0; border-top: 1px solid #dce2e8; padding: 12px 0; margin: 0; min-width: 0; }
+.recipient legend { font-size: 13px; color: #606b75; }
+.recipientFields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; align-items: end; }
+.recipientFields input { box-sizing: border-box; width: 100%; min-width: 0; min-height: 40px; border: 1px solid #bcc6ce; border-radius: 6px; background: white; padding: 8px; color: #27333d; font: inherit; }
+.resultRow { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 18px; font-size: 13px; border-bottom: 1px solid #e5e9ec; padding: 8px 0; }
+.resultRow > * { min-width: 0; overflow-wrap: anywhere; }
+.resultRow p { margin: 4px 0 0; }
+@media (max-width: 600px) { .recipientFields { grid-template-columns: minmax(0,1fr); } }
 @media (max-width: 600px) { .splits { grid-template-columns: minmax(0, 1fr); } }

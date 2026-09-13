@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "formulas": [
+    { "code": "pao_line", "label_key": "finance.compensation.formula.pao_line", "mode": "percent", "defaults": [
+      { "type": "company", "name": "Company", "percent": 20, "company": true, "role": "Company" },
+      { "type": "lawyer", "name": "ทนายเป้า", "percent": 55, "company": false, "role": "Lawyer" },
+      { "type": "lawyer", "name": "ทนายตุลย์", "percent": 25, "company": false, "role": "Lawyer" }
+    ] },
+    { "code": "tun_line", "label_key": "finance.compensation.formula.tun_line", "mode": "percent", "defaults": [
+      { "type": "company", "name": "Company", "percent": 20, "company": true, "role": "Company" },
+      { "type": "lawyer", "name": "ทนายเป้า", "percent": 40, "company": false, "role": "Lawyer" },
+      { "type": "lawyer", "name": "ทนายตุลย์", "percent": 40, "company": false, "role": "Lawyer" }
+    ] },
+    { "code": "source_worker_qc", "label_key": "finance.compensation.formula.source_worker_qc", "mode": "work_pool", "source_percent": 20, "company_percent": 40, "work_percent": 40, "defaults": [
+      { "type": "source", "name": "", "percent": 20, "company": false, "role": "Client Source / Broker" },
+      { "type": "company", "name": "Company", "percent": 40, "company": true, "role": "Company Share" },
+      { "type": "worker", "name": "", "percent": 40, "company": false, "role": "Lead Lawyer / Case Owner" }
+    ] },
+    { "code": "travel_fee", "label_key": "finance.compensation.revenue.travel_fee", "mode": "company_only", "defaults": [
+      { "type": "company", "name": "Company", "percent": 100, "company": true, "role": "Company" }
+    ] },
+    { "code": "custom", "label_key": "finance.compensation.formula.custom", "mode": "fixed", "defaults": [] }
+  ],
+  "recipient_buckets": { "company": "company_share_amount", "source": "referral_amount", "lawyer": "work_compensation_amount", "lead_lawyer": "work_compensation_amount", "worker": "work_compensation_amount", "assistant": "work_compensation_amount", "qc": "work_compensation_amount", "other": "work_compensation_amount" },
+  "distribution_calculation": "exact_cents_largest_remainder_v1"
+}

@@ -13,6 +13,7 @@ export type MoneySource = {
   schema_version: 1;
   payment: { id: string; currency: string; status: string; cash: number; wht: number; settlement: number };
   lines: MoneyLine[]; proven_base: number; proven_vat: number; unallocated_settlement: number; blockers: string[];
+  invoices?: { invoice_id: string; invoice_no: string; status: string; cash: number; wht: number; settlement: number; gross: number }[];
 };
 export type MoneyAllocation = {
   id: string; payment_id: string; revision: number; version: number;

@@ -21,7 +21,7 @@ if(mode?.startsWith('stale-')||mode?.startsWith('unavailable-')||mode==='superse
  if(status==='superseded')c.current=null;
 }
 export const supabase={async rpc(name,p){
- if(name==='get_finance_vp_distribution'){window.reads++;if(window.readFailure||(mode==='load-failed'&&window.reads===1)){window.readFailure=false;return{error:{message:'synthetic unavailable'}};}return{data:structuredClone(c)};}
+ if(name==='get_finance_vp_formula_context'){window.reads++;if(window.readFailure||(mode==='load-failed'&&window.reads===1)){window.readFailure=false;return{error:{message:'synthetic unavailable'}};}return{data:structuredClone(c)};}
  if(!['save_finance_vp_distribution','transition_finance_vp_distribution'].includes(name))throw Error('Unexpected RPC '+name);
  window.calls.push({name,p:structuredClone(p)});await new Promise(r=>setTimeout(r,40));
  if(window.failure){const failure=window.failure;window.failure=null;return{error:{message:failure}};}
@@ -101,46 +101,51 @@ async function main() {
       }).map(node => node.outerHTML));
       assert.deepEqual(violations, []);
     }
+    const formulaText = key => translate(locale, 'vpFormula.' + key);
+    async function chooseFormula(code = 'pao_line') {
+      await dialog.getByLabel(formulaText('select'), {exact:true}).selectOption(code);
+      const recipients = dialog.getByLabel(formulaText('recipient'), {exact:true});
+      for (let index=0;index<await recipients.count();index++) await recipients.nth(index).selectOption('10000000-0000-4000-8000-'+String(index%2+1).padStart(12,'0'));
+    }
     for (const width of [390, 768, 1024, 1440]) for (locale of ['th', 'en']) {
       await page.setViewportSize({ width, height: 950 }); await open();
-      assert.equal(await dialog.locator('select').count(), 0);
-      assert.equal(await dialog.locator('input[inputmode=decimal]').count(), 3);
-      assert.equal(await calls(), 0); await geometry();
-      await page.screenshot({ path: path.join(out, `vp-top-${width}-${locale}.png`), fullPage: true });
-      const referral = dialog.getByLabel(text('referral_amount'), { exact: true });
-      const company = dialog.getByLabel(text('company_share_amount'), { exact: true });
-      const work = dialog.getByLabel(text('work_compensation_amount'), { exact: true });
-      for (const invalid of ['1.001', '-1', '10000.01']) {
-        await referral.fill(invalid); await action('save').click(); await dialog.getByRole('alert').waitFor(); assert.equal(await calls(), 0);
+      assert.equal(await dialog.locator('select').count(), 1);
+      assert.equal(await calls(), 0);
+      await action('save').click(); await dialog.getByRole('alert').first().waitFor(); assert.equal(await calls(), 0);
+      await dialog.getByLabel(formulaText('select'), {exact:true}).selectOption('pao_line');
+      await action('save').click(); assert.equal(await calls(), 0);
+      assert.ok((await dialog.innerText()).includes(formulaText('error.recipientRequired')));
+      await chooseFormula();
+      const percent = dialog.getByLabel(formulaText('percent'), {exact:true}).first();
+      for (const value of ['-1','101','33.33333']) {
+        await percent.fill(value); await action('save').click(); assert.equal(await calls(),0);
       }
-      await referral.fill('100.0'); await company.fill('200'); await work.fill('0.00');
-      await action('save').dblclick();
-      await action('review').waitFor(); await settled(); assert.equal(await calls(), 1);
-      assert.equal(await page.evaluate(() => typeof window.calls[0].p.p_choices[0].referral_amount), 'number');
-      await action('review').click(); assert.equal(await calls(), 1);
-      await dialog.locator('input[type=checkbox]').check(); await action('review').click(); assert.equal(await calls(), 1);
-      assert.equal(await dialog.locator('input[inputmode=decimal][aria-invalid=true]').count(), 3);
-      await work.fill('9700'); await dialog.getByLabel(text('note'), { exact: true }).fill('Synthetic unsaved note');
-      assert.equal(await action('review').isDisabled(), true);
+      await percent.fill('20'); await dialog.getByLabel(text('note'),{exact:true}).fill('Synthetic unsaved note');
+      await geometry();
+      await page.screenshot({ path:path.join(out,`vp-formula-${width}-${locale}.png`),fullPage:true });
+      await dialog.getByLabel(formulaText('select'),{exact:true}).scrollIntoViewIfNeeded();
+      await page.screenshot({path:path.join(out,`vp-editor-${width}-${locale}.png`),fullPage:true});
       for (const language of [locale === 'th' ? 'en' : 'th', locale]) {
         await page.locator('button[lang=' + language + ']').evaluate(button => button.click());
-        assert.equal(await dialog.isVisible(), true); assert.equal(await dialog.locator('input[inputmode=decimal]').nth(2).inputValue(), '9700');
+        assert.equal(await dialog.isVisible(),true);
+        assert.equal(await dialog.getByLabel(translate(language,'vpFormula.percent'),{exact:true}).first().inputValue(),'20');
       }
-      for (const language of [locale === 'th' ? 'en' : 'th', locale]) {
-        await page.keyboard.press('Escape'); await dialog.waitFor({ state: 'hidden' });
-        await page.locator('button[lang=' + language + ']').click();
-        await page.getByRole('button', { name: translate(language, 'vpDistribution.open'), exact: true }).click(); await dialog.waitFor();
-        assert.equal(await dialog.locator('input[inputmode=decimal]').nth(2).inputValue(), '9700');
-        assert.equal(await dialog.locator('textarea').first().inputValue(), 'Synthetic unsaved note');
-      }
-      assert.equal(await calls(), 1); await action('save').click(); await settled(); assert.equal(await calls(), 2);
-      await dialog.locator('input[type=checkbox]').check(); await action('review').click(); await action('finalize').waitFor(); await settled(); assert.equal(await calls(), 3);
-      assert.equal(await dialog.locator('input[inputmode=decimal]').count(), 0);
+      await page.keyboard.press('Escape'); await dialog.waitFor({state:'hidden'});
+      await page.getByRole('button',{name:text('open'),exact:true}).click(); await dialog.waitFor();
+      assert.equal(await percent.inputValue(),'20');
+      assert.equal(await dialog.getByLabel(text('note'),{exact:true}).inputValue(),'Synthetic unsaved note');
+      await action('save').dblclick(); await action('review').waitFor(); await settled(); assert.equal(await calls(),1);
+      assert.equal(await page.evaluate(()=>window.calls[0].p.p_choices[0].formula_result.recipients.length),3);
+      await action('review').click(); assert.equal(await calls(),1);
+      await dialog.locator('input[type=checkbox]').check(); await action('review').click();
+      await action('finalize').waitFor(); await settled(); assert.equal(await calls(),2);
+      assert.equal(await dialog.locator('input[inputmode=decimal]').count(),0);
       await dialog.locator('input[type=checkbox]').check(); await action('finalize').click();
-      await page.waitForFunction(() => window.context.current.status === 'finalized'); await settled(); assert.equal(await calls(), 4);
-      await geometry(); await page.screenshot({ path: path.join(out, `vp-final-${width}-${locale}.png`), fullPage: true });
-      await page.keyboard.press('Escape'); await dialog.waitFor({ state: 'hidden' });
-      assert.equal(await page.getByRole('button', { name: text('open'), exact: true }).evaluate(button => button === document.activeElement), true);
+      await page.waitForFunction(()=>window.context.current.status==='finalized'); await settled(); assert.equal(await calls(),3);
+      assert.ok((await dialog.innerText()).includes('Fixture Admin'));
+      await geometry(); await page.screenshot({path:path.join(out,`vp-final-${width}-${locale}.png`),fullPage:true});
+      await page.keyboard.press('Escape'); await dialog.waitFor({state:'hidden'});
+      assert.equal(await page.getByRole('button',{name:text('open'),exact:true}).evaluate(button=>button===document.activeElement),true);
     }
     for (locale of ['th', 'en']) for (const mode of ['readonly', 'unknown', 'reversed', 'stale-reviewed', 'stale-finalized', 'superseded', 'unavailable-history', 'unavailable-reviewed']) {
       await open(mode); assert.equal(await calls(), 0);
@@ -184,18 +189,18 @@ async function main() {
     await page.evaluate(() => { window.context.source = structuredClone(window.context.history[0].source_snapshot_json); });
     await page.keyboard.press('Escape'); await dialog.waitFor({ state: 'hidden' });
     await page.getByRole('button', { name: text('open'), exact: true }).click(); await settled();
-    await action('save').click(); await settled(); assert.equal(await calls(), 2);
+    await chooseFormula(); await action('save').click(); await settled(); assert.equal(await calls(), 2);
     assert.deepEqual(await page.evaluate(() => ({ id: window.calls[1].p.p_expected_id, version: window.calls[1].p.p_expected_version })), predecessor);
     assert.equal(await page.evaluate(() => window.context.current.previous_id), predecessor.id);
     for (const failure of ['VP_DISTRIBUTION_STALE', 'VP_DISTRIBUTION_SOURCE_CHANGED', 'VP_DISTRIBUTION_CHOICES_INVALID']) {
-      await open(); await page.evaluate(code => { window.failure = code; }, failure); await action('save').click(); await settled();
+      await open(); await chooseFormula(); await page.evaluate(code => { window.failure = code; }, failure); await action('save').click(); await settled();
       assert.equal(await action('save').isDisabled(), true); assert.equal(await calls(), 1);
-      await action('retry').click(); await settled(); assert.equal(await calls(), 1);
+      await dialog.getByRole('button',{name:text('discardReload'),exact:true}).click(); await settled(); assert.equal(await calls(), 1);
       assert.equal(await action('save').isEnabled(), true);
     }
-    await open(); await page.evaluate(() => { window.failReadAfterWrite = true; }); await action('save').click(); await settled();
+    await open(); await chooseFormula(); await page.evaluate(() => { window.failReadAfterWrite = true; }); await action('save').click(); await settled();
     assert.equal(await action('save').isDisabled(), true); assert.equal(await calls(), 1);
-    await action('retry').click(); await settled(); assert.equal(await calls(), 1);
+    await dialog.getByRole('button',{name:text('discardReload'),exact:true}).click(); await settled(); assert.equal(await calls(), 1);
     assert.equal(await action('review').count(), 1);
     await page.goto(url + '?mode=load-failed'); await page.locator('button[lang=en]').click();
     await page.getByRole('alert').waitFor(); await page.getByRole('button', { name: text('retry'), exact: true }).click();

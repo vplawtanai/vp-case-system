@@ -275,7 +275,7 @@ function workflow() {
   };
 }
 
-module.exports = { workflow, catalogSql, migrationPath, filenames };
+module.exports = { workflow, catalogSql, migrationPath, filenames, contractFacts, functionCtes, functionPrivileges };
 if (require.main === module) {
   const artifacts = workflow();
   for (const [file, content] of Object.entries(artifacts)) {

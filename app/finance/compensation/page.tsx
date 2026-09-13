@@ -1,4 +1,12 @@
 "use client";
+import {
+  generateAllocations, createAllocation, validateAllocations, getRecipientName, getRoleLabelForSave,
+  getWorkPoolRecipientType, normalizeAllocationsForSave, validateNormalizedRowsForSave, isSourcePoolRow,
+  isSourcePoolOwnerRow, isFixedSourceWorkerRow, getPoolPercent, getDisplayPercent,
+  rebalanceOwnerWorkPool, normalizeAllocationForState, prepareAllocationForEdit, normalizeFormula,
+  renderFormula, renderUserLabel, parseMoney, roundMoney, formatPercent, formatMoney, roleLabels,
+  recipientTypes, otherValue, formulaCodes, type FormulaCode, type AllocationRow, type UserProfileRow
+} from "./formula-engine";
 import { useI18n, useUiAlert } from "../../../lib/i18n/provider";
 import { uiMessage, type UiMessage, type UiLocale } from "../../../lib/i18n/core";
 import { translate } from "../../../lib/i18n/catalog";
@@ -38,9 +46,7 @@ type Profile = {
 type ClientRow = { id: string; name: string | null };
 type CaseRow = { id: number; file_no: string | null; title: string | null; client_name: string | null };
 type MatterRow = { id: string; matter_no: string | null; title: string | null };
-type UserProfileRow = { id: string; full_name: string | null; staff_name: string | null; email: string | null };
 type BankAccountRow = { id: string; short_name: string | null; bank_name: string | null };
-type FormulaCode = "pao_line" | "tun_line" | "source_worker_qc" | "travel_fee" | "custom";
 
 type BatchRow = {
   id: string;
@@ -58,22 +64,6 @@ type BatchRow = {
   ledger_entry_id?: string | null;
 };
 
-type AllocationRow = {
-  id?: string;
-  batch_id?: string;
-  recipient_type: string;
-  recipient_user_id: string;
-  recipient_name: string;
-  role_label: string;
-  custom_role?: string;
-  percent: string;
-  amount: string;
-  is_company_share: boolean;
-  payment_status?: string | null;
-  paid_at?: string | null;
-  note: string;
-};
-
 type BatchForm = {
   received_date: string;
   received_amount: string;
@@ -86,7 +76,6 @@ type BatchForm = {
   note: string;
 };
 
-const otherValue = "__other__";
 const emptyForm: BatchForm = {
   received_date: getDateKey(new Date()),
   received_amount: "",
@@ -98,17 +87,6 @@ const emptyForm: BatchForm = {
   description: "",
   note: "",
 };
-
-const roleLabels = [
-  "Client Source / Broker",
-  "Company Share",
-  "Lead Lawyer / Case Owner",
-  "Co-Lawyer / Co-Worker",
-  "Assistant",
-  "Quality Controller",
-  "Other",
-];
-const recipientTypes = ["company", "source", "lawyer", "lead_lawyer", "worker", "assistant", "qc", "other"];
 
 export default function CompensationPage() {
   const { t, text, locale, date } = useI18n();
@@ -760,7 +738,7 @@ export default function CompensationPage() {
             <label style={labelStyle}>{t("finance.compensation.fields.receivedDate")}<input type="date" value={form.received_date} onChange={(event) => setForm({ ...form, received_date: event.target.value })} style={inputStyle} /></label>
             <label style={labelStyle}>{t("finance.compensation.fields.receivedAmount")}<input value={form.received_amount} onChange={(event) => updateReceivedAmount(event.target.value)} style={inputStyle} /></label>
             <label style={labelStyle}>{t("finance.compensation.fields.revenueType")}<select value={form.revenue_type} onChange={(event) => setForm({ ...form, revenue_type: event.target.value })} style={inputStyle}><option value="professional_fee">{t("finance.compensation.revenue.professional_fee")}</option><option value="service_fee">{t("finance.compensation.revenue.service_fee")}</option><option value="travel_fee">{t("finance.compensation.revenue.travel_fee")}</option><option value="other">{t("finance.compensation.type.other")}</option></select></label>
-            <label style={labelStyle}>{t("finance.compensation.fields.formula")}<select value={form.formula_code} onChange={(event) => setForm({ ...form, formula_code: event.target.value as FormulaCode })} style={inputStyle}><option value="pao_line">{t("finance.compensation.formula.pao_line")}</option><option value="tun_line">{t("finance.compensation.formula.tun_line")}</option><option value="source_worker_qc">{t("finance.compensation.formula.source_worker_qc")}</option><option value="travel_fee">{t("finance.compensation.revenue.travel_fee")}</option><option value="custom">{t("finance.compensation.formula.custom")}</option></select></label>
+            <label style={labelStyle}>{t("finance.compensation.fields.formula")}<select value={form.formula_code} onChange={(event) => setForm({ ...form, formula_code: event.target.value as FormulaCode })} style={inputStyle}>{formulaCodes.map(code => <option key={code} value={code}>{renderFormula(code, locale)}</option>)}</select></label>
             <label style={labelStyle}>{t("finance.legacy.fields.client")}<select value={form.client_id} onChange={(event) => setForm({ ...form, client_id: event.target.value })} style={inputStyle}><option value="">-</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name || client.id}</option>)}</select></label>
             <label style={labelStyle}>{t("finance.legacy.fields.case")}<select value={form.case_id} onChange={(event) => setForm({ ...form, case_id: event.target.value })} style={inputStyle}><option value="">-</option>{cases.map((item) => <option key={item.id} value={item.id}>{renderCaseLabel(item)}</option>)}</select></label>
             <label style={labelStyle}>{t("finance.legacy.fields.advisory")}<select value={form.advisory_matter_id} onChange={(event) => setForm({ ...form, advisory_matter_id: event.target.value })} style={inputStyle}><option value="">-</option>{matters.map((item) => <option key={item.id} value={item.id}>{renderMatterLabel(item)}</option>)}</select></label>
@@ -913,246 +891,6 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
   return <div style={summaryCardStyle}><div style={summaryLabelStyle}>{label}</div><div style={summaryValueStyle}>{value}</div></div>;
 }
 
-function generateAllocations(formula: FormulaCode, total: number) {
-  if (!total || total <= 0) return [];
-  if (formula === "pao_line") return [
-    createAllocation("company", "Company", 20, true, "Company", total),
-    createAllocation("lawyer", "ทนายเป้า", 55, false, "Lawyer", total),
-    createAllocation("lawyer", "ทนายตุลย์", 25, false, "Lawyer", total),
-  ];
-  if (formula === "tun_line") return [
-    createAllocation("company", "Company", 20, true, "Company", total),
-    createAllocation("lawyer", "ทนายเป้า", 40, false, "Lawyer", total),
-    createAllocation("lawyer", "ทนายตุลย์", 40, false, "Lawyer", total),
-  ];
-  if (formula === "source_worker_qc") return [
-    createAllocation("source", "", 20, false, "Client Source / Broker", total),
-    createAllocation("company", "Company", 40, true, "Company Share", total),
-    createAllocation("worker", "", 40, false, "Lead Lawyer / Case Owner", total),
-  ];
-  if (formula === "travel_fee") return [createAllocation("company", "Company", 100, true, "Company", total)];
-  return [];
-}
-
-function createAllocation(type: string, name: string, percent: number | string, isCompany: boolean, roleLabel = "", total = 0): AllocationRow {
-  const percentNumber = Number(percent) || 0;
-  return {
-    recipient_type: type,
-    recipient_user_id: "",
-    recipient_name: name,
-    role_label: roleLabel,
-    percent: String(percent),
-    amount: total ? String(roundMoney((total * percentNumber) / 100)) : "",
-    is_company_share: isCompany,
-    payment_status: "unpaid",
-    paid_at: null,
-    note: "",
-  };
-}
-
-function validateAllocations(form: BatchForm, rows: AllocationRow[]) {
-  const total = parseMoney(form.received_amount);
-  if (total <= 0) return uiMessage("finance.compensation.validation.received");
-  if (rows.length === 0) return uiMessage("finance.compensation.validation.allocationsRequired");
-  const allocationTotal = rows.reduce((sum, item) => sum + parseMoney(item.amount), 0);
-  if (Math.abs(allocationTotal - total) > 0.01) return uiMessage("finance.compensation.validation.total");
-  if (rows.some((item) => parseMoney(item.amount) <= 0)) return uiMessage("finance.compensation.validation.rowPositive");
-  if (form.formula_code === "custom") {
-    const percentTotal = rows.reduce((sum, item) => sum + parseMoney(item.percent), 0);
-    if (Math.abs(percentTotal - 100) > 0.01) return uiMessage("finance.compensation.validation.customTotal");
-  }
-  if (form.formula_code !== "custom" && !rows.some((item) => item.is_company_share)) return uiMessage("finance.compensation.validation.companyRequired");
-  if (rows.some((item) => item.is_company_share && item.recipient_type !== "company")) return uiMessage("finance.compensation.validation.companyType");
-  if (rows.some((item) => !item.payment_status)) return uiMessage("finance.compensation.validation.paymentStatus");
-  if (rows.some((item) => item.recipient_type === "source" && !item.role_label)) return uiMessage("finance.compensation.validation.sourceRole");
-  if (rows.some((item) => item.role_label === "Other" && !item.custom_role?.trim())) return uiMessage("finance.compensation.validation.customRole");
-  if (rows.some((item) => !getRecipientName(item, []))) return uiMessage("finance.compensation.validation.recipient");
-  if (form.formula_code === "travel_fee" && (rows.length !== 1 || !rows[0].is_company_share || parseMoney(rows[0].amount) !== total)) return uiMessage("finance.compensation.validation.travel");
-  if (form.formula_code === "source_worker_qc") {
-    const source = rows.filter((item) => item.recipient_type === "source").reduce((sum, item) => sum + parseMoney(item.amount), 0);
-    const company = rows.filter((item) => item.is_company_share).reduce((sum, item) => sum + parseMoney(item.amount), 0);
-    const pool = allocationTotal - source - company;
-    const sourceRows = rows.filter((item) => item.recipient_type === "source");
-    const companyRows = rows.filter((item) => item.is_company_share);
-    const ownerRows = rows.filter((item) => isSourcePoolOwnerRow(item, form.formula_code));
-    const poolPercent = rows
-      .filter((item) => isSourcePoolRow(item, form.formula_code))
-      .reduce((sum, item) => sum + getPoolPercent(item), 0);
-    if (sourceRows.length !== 1) return uiMessage("finance.compensation.validation.sourceCount");
-    if (companyRows.length !== 1) return uiMessage("finance.compensation.validation.companyCount");
-    if (ownerRows.length !== 1) return uiMessage("finance.compensation.validation.ownerCount");
-    if (getPoolPercent(ownerRows[0]) < 0) return uiMessage("finance.compensation.validation.ownerPercent");
-    if (Math.abs(source - total * 0.2) > 0.01) return uiMessage("finance.compensation.validation.sourcePercent");
-    if (Math.abs(company - total * 0.4) > 0.01) return uiMessage("finance.compensation.validation.companyPercent");
-    if (Math.abs(pool - total * 0.4) > 0.01) return uiMessage("finance.compensation.validation.poolAmount");
-    if (Math.abs(poolPercent - 100) > 0.01) return uiMessage("finance.compensation.validation.poolPercent");
-  }
-  return "";
-}
-
-function getRecipientName(row: AllocationRow, users: UserProfileRow[]) {
-  if (row.recipient_type === "company") return row.recipient_name.trim() || "Company";
-  if (row.recipient_user_id && row.recipient_user_id !== otherValue) {
-    const user = users.find((item) => item.id === row.recipient_user_id);
-    return user ? renderUserLabel(user) : row.recipient_name.trim();
-  }
-  return row.recipient_name.trim();
-}
-
-function getRoleLabelForSave(row: AllocationRow) {
-  if (row.role_label === "Other" && row.custom_role?.trim()) return row.custom_role.trim();
-  return row.role_label || null;
-}
-
-function getWorkPoolRecipientType(roleLabel: string) {
-  if (roleLabel === "Lead Lawyer / Case Owner") return "lead_lawyer";
-  if (roleLabel === "Co-Lawyer / Co-Worker") return "worker";
-  if (roleLabel === "Assistant") return "assistant";
-  if (roleLabel === "Quality Controller") return "qc";
-  return "other";
-}
-
-function dedupeAllocationRows(rows: AllocationRow[]) {
-  const seen = new Set<string>();
-  return rows.map(normalizeAllocationForState).filter((row) => {
-    const key = [
-      row.recipient_type,
-      row.recipient_user_id && row.recipient_user_id !== otherValue ? row.recipient_user_id : "",
-      getRecipientName(row, []),
-      getRoleLabelForSave(row) || "",
-      formatPercent(parseMoney(row.percent)),
-      String(roundMoney(parseMoney(row.amount))),
-      row.is_company_share ? "company" : "recipient",
-    ].join("|").toLowerCase();
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-function normalizeAllocationsForSave(receivedAmount: number, formula: FormulaCode, rows: AllocationRow[]) {
-  if (formula === "custom") {
-    return dedupeAllocationRows(
-      rows.map((item) => ({
-        ...normalizeAllocationForState(item),
-        payment_status: item.payment_status || "unpaid",
-        paid_at: item.payment_status === "paid" ? item.paid_at || null : null,
-      }))
-    );
-  }
-  const normalized = rows.map((item) => normalizeAllocationForState(item));
-  if (formula !== "source_worker_qc") {
-    return dedupeAllocationRows(normalized.map((item) => ({
-      ...item,
-      amount: String(roundMoney((receivedAmount * parseMoney(item.percent)) / 100)),
-      payment_status: item.payment_status || "unpaid",
-    })));
-  }
-
-  const sourceRow = normalized.find((item) => item.recipient_type === "source") || createAllocation("source", "", 20, false, "Client Source / Broker");
-  const companyRow = normalized.find((item) => item.is_company_share) || createAllocation("company", "Company", 40, true, "Company Share");
-  const poolRows = normalized.filter((item) => isSourcePoolRow(item, formula));
-  return dedupeAllocationRows([
-    {
-      ...sourceRow,
-      percent: "20",
-      amount: String(roundMoney(receivedAmount * 0.2)),
-      role_label: sourceRow.role_label || "Client Source / Broker",
-      payment_status: sourceRow.payment_status || "unpaid",
-    },
-    {
-      ...companyRow,
-      recipient_type: "company",
-      recipient_name: "Company",
-      role_label: "Company Share",
-      percent: "40",
-      amount: String(roundMoney(receivedAmount * 0.4)),
-      is_company_share: true,
-      payment_status: companyRow.payment_status || "unpaid",
-    },
-    ...poolRows.map((item) => {
-      const poolPercent = getPoolPercent(item);
-      const actualPercent = (poolPercent * 40) / 100;
-      return {
-        ...item,
-        percent: formatPercent(actualPercent),
-        amount: String(roundMoney((receivedAmount * actualPercent) / 100)),
-        is_company_share: false,
-        payment_status: item.payment_status || "unpaid",
-      };
-    }),
-  ]);
-}
-
-function validateNormalizedRowsForSave(receivedAmount: number, formula: FormulaCode, rows: AllocationRow[]) {
-  if (formula !== "source_worker_qc") return "";
-  const companyAmount = rows
-    .filter((item) => item.is_company_share)
-    .reduce((sum, item) => sum + parseMoney(item.amount), 0);
-  const expectedCompanyAmount = roundMoney(receivedAmount * 0.4);
-  if (Math.abs(companyAmount - expectedCompanyAmount) > 0.01) {
-    return uiMessage("finance.compensation.validation.expectedCompany", { expected: formatMoney(expectedCompanyAmount), received: formatMoney(receivedAmount) });
-  }
-  return "";
-}
-
-function isSourcePoolRow(row: AllocationRow, formula: FormulaCode) {
-  return formula === "source_worker_qc" && row.recipient_type !== "source" && !row.is_company_share;
-}
-
-function isSourcePoolOwnerRow(row: AllocationRow, formula: FormulaCode) {
-  return isSourcePoolRow(row, formula) && row.role_label === "Lead Lawyer / Case Owner";
-}
-
-function isFixedSourceWorkerRow(row: AllocationRow, formula: FormulaCode) {
-  return formula === "source_worker_qc" && (row.recipient_type === "source" || row.is_company_share || isSourcePoolOwnerRow(row, formula));
-}
-
-function getPoolPercent(row: AllocationRow) {
-  return (parseMoney(row.percent) / 40) * 100;
-}
-
-function getDisplayPercent(row: AllocationRow, formula: FormulaCode) {
-  return isSourcePoolRow(row, formula) ? formatPercent(getPoolPercent(row)) : row.percent;
-}
-
-function rebalanceOwnerWorkPool(rows: AllocationRow[], receivedAmount: number, formula: FormulaCode) {
-  if (formula !== "source_worker_qc") return rows;
-  const nonOwnerPoolPercent = rows
-    .filter((item) => isSourcePoolRow(item, formula) && !isSourcePoolOwnerRow(item, formula))
-    .reduce((sum, item) => sum + getPoolPercent(item), 0);
-  const ownerPoolPercent = 100 - nonOwnerPoolPercent;
-  const ownerActualPercent = (ownerPoolPercent * 40) / 100;
-  return rows.map((item) => {
-    if (!isSourcePoolOwnerRow(item, formula)) return item;
-    return normalizeAllocationForState({
-      ...item,
-      percent: formatPercent(ownerActualPercent),
-      amount: String(roundMoney((receivedAmount * ownerActualPercent) / 100)),
-    });
-  });
-}
-
-function normalizeAllocationForState(row: AllocationRow): AllocationRow {
-  const isPresetRole = !row.role_label || roleLabels.includes(row.role_label);
-  return {
-    ...row,
-    recipient_user_id: row.recipient_user_id || "",
-    recipient_name: row.recipient_name || (row.recipient_type === "company" ? "Company" : ""),
-    role_label: isPresetRole ? row.role_label || "" : "Other",
-    custom_role: isPresetRole ? row.custom_role || "" : row.role_label,
-    percent: String(row.percent || ""),
-    amount: String(row.amount || ""),
-    payment_status: row.payment_status || "unpaid",
-    paid_at: row.paid_at || null,
-    note: row.note || "",
-  };
-}
-
-function prepareAllocationForEdit(row: AllocationRow): AllocationRow {
-  return { ...normalizeAllocationForState(row), recipient_user_id: row.recipient_user_id || (row.recipient_name ? otherValue : "") };
-}
-
 function getCompanyShare(batchId: string, rows: AllocationRow[]) {
   return rows.filter((item) => item.batch_id === batchId && item.is_company_share).reduce((sum, item) => sum + parseMoney(item.amount), 0);
 }
@@ -1293,20 +1031,6 @@ function isDuplicatePostError(error: { code?: string; message?: string } | null)
   return error?.code === "23505" || message.includes("duplicate") || message.includes("source_compensation_batch_id");
 }
 
-function normalizeFormula(value?: string | null): FormulaCode {
-  if (value === "tun_line" || value === "source_worker_qc" || value === "travel_fee" || value === "custom") return value;
-  return "pao_line";
-}
-
-function renderFormula(value: string | null | undefined, locale: UiLocale) {
-  if (value === "pao_line") return translate(locale, "finance.compensation.formula.pao_line");
-  if (value === "tun_line") return translate(locale, "finance.compensation.formula.tun_line");
-  if (value === "source_worker_qc") return translate(locale, "finance.compensation.formula.source_worker_qc");
-  if (value === "travel_fee") return translate(locale, "finance.compensation.revenue.travel_fee");
-  if (value === "custom") return translate(locale, "finance.compensation.formula.custom");
-  return value || "-";
-}
-
 function isRealUserProfile(user: UserProfileRow) {
   const email = (user.email || "").trim().toLowerCase();
   const fullName = (user.full_name || "").trim().toLowerCase();
@@ -1316,14 +1040,9 @@ function isRealUserProfile(user: UserProfileRow) {
   return true;
 }
 
-function renderUserLabel(user: UserProfileRow) { return user.staff_name || user.full_name || user.email || user.id; }
 function renderCaseLabel(item: CaseRow) { return [item.file_no, item.title || item.client_name].filter(Boolean).join(" - ") || String(item.id); }
 function renderMatterLabel(item: MatterRow) { return [item.matter_no, item.title].filter(Boolean).join(" - ") || item.id; }
-function parseMoney(value: number | string | null | undefined) { const amount = Number(String(value || "").replace(/,/g, "").trim()); return Number.isFinite(amount) ? amount : 0; }
 function toAmount(value: number | string | null) { return parseMoney(value); }
-function roundMoney(value: number) { return Math.round(value * 100) / 100; }
-function formatPercent(value: number) { return String(Math.round(value * 10000) / 10000); }
-function formatMoney(value: number) { return value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function getDateKey(value: Date) { return value.toISOString().slice(0, 10); }
 function getMonthKey(value: Date) { return value.toISOString().slice(0, 7); }
 function isBatchInSelectedMonth(batch: BatchRow, selectedMonth: string) {

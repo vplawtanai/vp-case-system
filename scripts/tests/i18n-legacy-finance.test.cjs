@@ -57,7 +57,8 @@ test("Cash timestamps, balances and legacy calculation/category contracts are un
     "cash-transactions": ["emptyCashForm","openingFingerprint","cashFingerprint","isValidMoney","bangkokCompletedDayEnd","bangkokCashTimestamp","bangkokToday","bangkokDateKey"],
     ledger: ["emptyForm","incomeCategories","expenseCategories","transferCategories","claimantRequiredCategories","getBankSignedAmount","normalizeEntryType","getCategoryOptions","resolveEditCategory","getCategoryForSave","isClaimantRequired"],
     "expense-claims": ["emptyClaimForm","expenseCategories","toAmount"],
-    compensation: ["emptyForm","roleLabels","recipientTypes","generateAllocations","getWorkPoolRecipientType","normalizeAllocationsForSave","isSourcePoolOwnerRow","getLedgerCategory","isSourcePoolRow","getCompanyShare"],
+    // Preset generation is differentially covered against the pre-extraction implementation in vp-formula.test.cjs.
+    compensation: ["emptyForm","roleLabels","recipientTypes","getWorkPoolRecipientType","normalizeAllocationsForSave","isSourcePoolOwnerRow","getLedgerCategory","isSourcePoolRow","getCompanyShare"],
   };
   const declaration = (tree, name) => { for (const node of tree.statements) {
     if(ts.isFunctionDeclaration(node) && node.name?.text===name) return node.getText(tree);
@@ -65,9 +66,11 @@ test("Cash timestamps, balances and legacy calculation/category contracts are un
   } return null; };
   for (const [name, names] of Object.entries(contracts)) {
     const file = "app/finance/" + name + "/page.tsx";
-    const old = ts.createSourceFile(file,cp.execFileSync("git",["show","HEAD:"+file],{cwd:root,encoding:"utf8"}),99,true,ts.ScriptKind.TSX);
+    const baseline = name === "compensation" ? "a5a56f63617791a5f03f6cb18af8d6756bb2ff58" : "HEAD";
+    const old = ts.createSourceFile(file,cp.execFileSync("git",["show",baseline+":"+file],{cwd:root,encoding:"utf8"}),99,true,ts.ScriptKind.TSX);
     const current = ts.createSourceFile(file,fs.readFileSync(root+"/"+file,"utf8"),99,true,ts.ScriptKind.TSX);
-    for(const id of names) { assert.ok(declaration(old,id), name+"."+id); assert.equal(declaration(current,id),declaration(old,id),name+"."+id); }
+    const shared=name==="compensation"?ts.createSourceFile("formula-engine.ts",fs.readFileSync(root+"/app/finance/compensation/formula-engine.ts","utf8"),99,true):null;
+    for(const id of names) { assert.ok(declaration(old,id), name+"."+id); assert.equal((declaration(current,id)|| (shared&&declaration(shared,id)))?.replace(/^export /,''),declaration(old,id).replace(/^export /,''),name+"."+id); }
     const calls=tree=>{const result=[];function visit(n){if(ts.isCallExpression(n)&&n.expression.getText(tree)==="supabase.rpc")result.push(n.getText(tree));ts.forEachChild(n,visit);}visit(tree);return result;};
     assert.deepEqual(calls(current),calls(old),name+" RPCs");
   }
