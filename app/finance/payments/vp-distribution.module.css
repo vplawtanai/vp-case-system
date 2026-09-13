@@ -1,0 +1,5 @@
+.splits { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.splits input { box-sizing: border-box; width: 100%; min-width: 0; min-height: 40px; border: 1px solid #bcc6ce; border-radius: 6px; background: white; color: #27333d; padding: 8px; font: inherit; font-variant-numeric: tabular-nums; }
+.evidence { display: grid; gap: 16px; min-width: 0; }
+.evidence p { overflow-wrap: anywhere; }
+@media (max-width: 600px) { .splits { grid-template-columns: minmax(0, 1fr); } }

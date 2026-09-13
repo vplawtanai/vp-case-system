@@ -31,6 +31,8 @@ function check(fixture,state,props,component) {
 const correctionInitiation=workspaceFixture("app/finance/tax-corrections/initiation.tsx",["TaxCorrectionInitiation"]);
 const correctionNotice=workspaceFixture("app/finance/tax-corrections/history-notice.tsx",["TaxCorrectionHistoryNotice"]);
 const moneyAllocation=workspaceFixture("app/finance/payments/money-allocation-panel.tsx",["MoneyAllocationPanel"]);
+const vpDistribution=workspaceFixture("app/finance/payments/vp-distribution-panel.tsx",["VpDistributionPanel"]);
+const vpDistributionContext={...require("./vp-distribution-fixture.cjs").fixture(),can_manage:false};
 const taxEditor=workspaceFixture("app/finance/tax-invoices/editor.tsx",["TaxInvoiceEditor"],{
   "../tax-corrections/initiation":{TaxCorrectionInitiation:correctionInitiation.component("TaxCorrectionInitiation")},
   "../tax-corrections/history-notice":{TaxCorrectionHistoryNotice:correctionNotice.component("TaxCorrectionHistoryNotice")},
@@ -59,6 +61,7 @@ test("Payment workspace renders all Draft and confirmed correction controls in o
     "../../quotations/shared":{QuotationGuard:()=>null},
     "../../document-decision/next-action":{FinanceDocumentNextAction:()=>null},
     "../money-allocation-panel":{MoneyAllocationPanel:moneyAllocation.component("MoneyAllocationPanel")},
+    "../vp-distribution-panel":{VpDistributionPanel:vpDistribution.component("VpDistributionPanel",{"VpDistributionPanel.context":vpDistributionContext,"VpDistributionPanel.loading":false})},
   });
   for(const status of ["draft","confirmed","cancelled","reversed"]){
     const payment={id:"payment",status,client_id:"client",currency:"THB",cash_amount:"4859.81",wht_amount:"140.19",settlement_amount:"5000.00",received_on:"2026-09-05",payment_method:"bank_transfer",receiving_bank_account_id:"bank",wht_calculation_mode:"legacy_manual"};
@@ -72,7 +75,8 @@ test("Payment workspace renders all Draft and confirmed correction controls in o
     const rendered=check(fixture,state,{access:{canManage:true,canConfirm:true,canReverse:true,canReallocate:true}},"PaymentWorkspace");
     if(status==="confirmed"||status==="reversed"){
       assert.match(rendered.en,/Money Allocation/);assert.match(rendered.th,/การจัดสรรเงิน/);
-    }else assert.doesNotMatch(rendered.en,/Money Allocation/);
+      assert.match(rendered.en,/VP Revenue Distribution/);assert.match(rendered.th,/การจัดสรรรายได้ VP/);
+    }else assert.doesNotMatch(rendered.en,/Money Allocation|VP Revenue Distribution/);
   }
 });
 test("Every document decision, including completion-only and blocked routes, translates in the actual Next Action",()=>{

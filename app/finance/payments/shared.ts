@@ -179,6 +179,7 @@ export function paymentErrorMessage(error: unknown, fallback: UiMessage | string
     ? String((error as { message?: unknown }).message || "")
     : "";
   const mappings: Array<[string, string]> = [
+    ["VP_DISTRIBUTION_SUPERSEDE_REQUIRED", "vpDistribution.error.SUPERSEDE_REQUIRED"],
     ["MONEY_ALLOCATION_SUPERSEDE_REQUIRED", "moneyAllocation.error.SUPERSEDE_REQUIRED"],
     ["TAX_INVOICE_ACTIVE_DEPENDENCY", "finance.payment.error.taxDependency"],
     ["FINANCE_ISSUED_RECEIPT_DEPENDENCY", "finance.payment.error.receiptDependency"],
@@ -209,6 +210,7 @@ export function paymentReallocationErrorMessage(error: unknown): UiMessage {
     ? String((error as { message?: unknown }).message || "")
     : "";
   const mappings: Array<[string, string]> = [
+    ["VP_DISTRIBUTION_SUPERSEDE_REQUIRED", "vpDistribution.error.SUPERSEDE_REQUIRED"],
     ["MONEY_ALLOCATION_SUPERSEDE_REQUIRED", "moneyAllocation.error.SUPERSEDE_REQUIRED"],
     ["TAX_INVOICE_ACTIVE_DEPENDENCY", "finance.payment.error.taxDependency"],
     ["FINANCE_ISSUED_RECEIPT_DEPENDENCY", "finance.payment.error.receiptDependency"],

@@ -43,6 +43,7 @@ export function moneyStatus(context: MoneyContext) {
 }
 export function moneyAllocationError(error: unknown, locale: UiLocale) {
   const message = error && typeof error === "object" && "message" in error ? String(error.message) : "";
+  if (message.includes("VP_DISTRIBUTION_SUPERSEDE_REQUIRED")) return translate(locale, "vpDistribution.error.SUPERSEDE_REQUIRED");
   const known = ["PERMISSION_DENIED", "STALE", "SOURCE_CHANGED", "SOURCE_UNPROVEN", "REVIEW_REQUIRED", "ACK_REQUIRED", "REASON_REQUIRED", "SUPERSEDE_REQUIRED", "HISTORY_IMMUTABLE"];
   const code = known.find(k => message.includes(`MONEY_ALLOCATION_${k}`));
   return translate(locale, `moneyAllocation.error.${code || "unknown"}`);

@@ -16,6 +16,7 @@ import { calculateStructuredWht, invoiceTaxFacts, paymentTaxFingerprint, payment
 import { evaluateWhtLines, initialWhtLineChoices, restoreWhtLineChoices, whtLineFingerprint, whtLinePayload, whtLineRpcError, whtLineScope, type WhtLineChoice } from "../wht-line-review";
 import { WhtLineReview } from "../wht-line-review-panel";
 import { MoneyAllocationPanel } from "../money-allocation-panel";
+import { VpDistributionPanel } from "../vp-distribution-panel";
 import {
   hasValidCurrencyPrecision,
   normalizedAmount,
@@ -669,6 +670,7 @@ function PaymentWorkspace({ access }: { access: PaymentAccess }) {
         </div>
         {payment.status === "confirmed" ? <FinanceDocumentNextAction key={payment.id} paymentId={payment.id} /> : null}
         {payment.status === "confirmed" || payment.status === "reversed" ? <MoneyAllocationPanel key={`money-${payment.id}-${payment.status}`} paymentId={payment.id} /> : null}
+        {payment.status === "confirmed" || payment.status === "reversed" ? <VpDistributionPanel key={`vp-${payment.id}-${payment.status}`} paymentId={payment.id} /> : null}
       </section>
 
       {payment.status === "confirmed" ? <section id="current-payment-allocations" style={{ ...surface, scrollMarginTop: 84 }}>
