@@ -1,11 +1,12 @@
 "use client";
+import { formulasForContext } from "./formula-presentation";
 import {
   generateAllocations, createAllocation, validateAllocations, getRecipientName, getRoleLabelForSave,
   getWorkPoolRecipientType, normalizeAllocationsForSave, validateNormalizedRowsForSave, isSourcePoolRow,
   isSourcePoolOwnerRow, isFixedSourceWorkerRow, getPoolPercent, getDisplayPercent,
   rebalanceOwnerWorkPool, normalizeAllocationForState, prepareAllocationForEdit, normalizeFormula,
   renderFormula, renderUserLabel, parseMoney, roundMoney, formatPercent, formatMoney, roleLabels,
-  recipientTypes, otherValue, formulaCodes, type FormulaCode, type AllocationRow, type UserProfileRow
+  recipientTypes, otherValue, type FormulaCode, type AllocationRow, type UserProfileRow
 } from "./formula-engine";
 import { useI18n, useUiAlert } from "../../../lib/i18n/provider";
 import { uiMessage, type UiMessage, type UiLocale } from "../../../lib/i18n/core";
@@ -738,7 +739,7 @@ export default function CompensationPage() {
             <label style={labelStyle}>{t("finance.compensation.fields.receivedDate")}<input type="date" value={form.received_date} onChange={(event) => setForm({ ...form, received_date: event.target.value })} style={inputStyle} /></label>
             <label style={labelStyle}>{t("finance.compensation.fields.receivedAmount")}<input value={form.received_amount} onChange={(event) => updateReceivedAmount(event.target.value)} style={inputStyle} /></label>
             <label style={labelStyle}>{t("finance.compensation.fields.revenueType")}<select value={form.revenue_type} onChange={(event) => setForm({ ...form, revenue_type: event.target.value })} style={inputStyle}><option value="professional_fee">{t("finance.compensation.revenue.professional_fee")}</option><option value="service_fee">{t("finance.compensation.revenue.service_fee")}</option><option value="travel_fee">{t("finance.compensation.revenue.travel_fee")}</option><option value="other">{t("finance.compensation.type.other")}</option></select></label>
-            <label style={labelStyle}>{t("finance.compensation.fields.formula")}<select value={form.formula_code} onChange={(event) => setForm({ ...form, formula_code: event.target.value as FormulaCode })} style={inputStyle}>{formulaCodes.map(code => <option key={code} value={code}>{renderFormula(code, locale)}</option>)}</select></label>
+            <label style={labelStyle}>{t("finance.compensation.fields.formula")}<select value={form.formula_code} onChange={(event) => setForm({ ...form, formula_code: event.target.value as FormulaCode })} style={inputStyle}>{formulasForContext("compensation").map(code => <option key={code} value={code}>{renderFormula(code, locale)}</option>)}</select></label>
             <label style={labelStyle}>{t("finance.legacy.fields.client")}<select value={form.client_id} onChange={(event) => setForm({ ...form, client_id: event.target.value })} style={inputStyle}><option value="">-</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name || client.id}</option>)}</select></label>
             <label style={labelStyle}>{t("finance.legacy.fields.case")}<select value={form.case_id} onChange={(event) => setForm({ ...form, case_id: event.target.value })} style={inputStyle}><option value="">-</option>{cases.map((item) => <option key={item.id} value={item.id}>{renderCaseLabel(item)}</option>)}</select></label>
             <label style={labelStyle}>{t("finance.legacy.fields.advisory")}<select value={form.advisory_matter_id} onChange={(event) => setForm({ ...form, advisory_matter_id: event.target.value })} style={inputStyle}><option value="">-</option>{matters.map((item) => <option key={item.id} value={item.id}>{renderMatterLabel(item)}</option>)}</select></label>

@@ -59,6 +59,20 @@ test('046 multiple professional pools exclude their own WHT/VAT and allow distin
  await prior.save(s.p.id,c,d);await prior.transition(s.p.id,'review');await prior.transition(s.p.id,'finalize');
  assert.deepEqual((await context(s.p.id)).current.decisions_json,d);
 });
+test('046 controlled multi-role workers preserve distinct components for one person through finalization, with no downstream writes',async()=>{
+ await setup();const s=await prior.source(),c=await context(s.p.id),before=await prior.financialState(),d=decisions(c,['source_worker_qc']);
+ const input=resolved('source_worker_qc',10000);input.rows[2].recipient_user_id=people[0].id;
+ for(const [role,type] of [['Co-Lawyer / Co-Worker','worker'],['Assistant','assistant'],['Quality Controller','qc']])
+  input.rows.push({...engine.createAllocation(type,'',10,false,role),recipient_user_id:people[0].id});
+ input.rows=engine.rebalanceOwnerWorkPool(input.rows,10000,input.code);
+ const computed=formula.calculateFormula(10000,input,people);assert.deepEqual(computed.errors,[]);
+ d[0].formula_result=computed.result;
+ assert.deepEqual(await scalar('select vp_formula_calculate($1,$2,$3,$4,$5)',[10000,input.code,1,computed.result.formula_snapshot,computed.result.recipients]),computed.result);
+ await prior.save(s.p.id,c,d);await prior.transition(s.p.id,'review');await prior.transition(s.p.id,'finalize');
+ const saved=(await context(s.p.id)).current;assert.deepEqual(saved.decisions_json,d);
+ assert.deepEqual(saved.decisions_json[0].formula_result.recipients.slice(2).map(row=>row.component_no),[3,4,5,6]);
+ assert.deepEqual(await prior.financialState(),before);
+});
 test('046 aggregate bypass, forged recipient/evidence and under/over allocation blocked atomically',async()=>{
  await setup();const s=await prior.source(),c=await context(s.p.id),d=decisions(c),before=await prior.financialState();
  const bad=[prior.choices(c)];

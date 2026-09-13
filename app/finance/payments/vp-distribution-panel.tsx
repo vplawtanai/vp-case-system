@@ -13,7 +13,7 @@ import {
 } from "./vp-distribution";
 import { VpFormulaEditor, FormulaResultEvidence } from "./vp-formula-editor";
 import { formulaCatalogCurrent, initialLineFormulas, lineFormulaChoices, type FormulaContext, type LineFormulaInputs } from "./vp-formula";
-import type { FormulaInput, FormulaPerson } from "../compensation/formula-calculation";
+import { calculateFormula, type FormulaInput, type FormulaPerson } from "../compensation/formula-calculation";
 import styles from "./money-allocation.module.css";
 import vpStyles from "./vp-distribution.module.css";
 
@@ -48,7 +48,9 @@ export function VpDistributionEvidence({ source, choices, editable = false, busy
       const professional = line.classification === "professional_fee", direct = isDirectCompanyClassification(line.classification);
       const saved = choices.find(choice => choice.invoice_item_id === line.invoice_item_id);
       const choice = saved ? { ...saved, ...Object.fromEntries(distributionFields.map(field => [field, String(saved[field])])) } as DistributionChoice : undefined;
-      const sum = distributionSplitCents(choice), pool = distributionCents(line.professional_pool);
+      const preview = editable && formulas[line.invoice_item_id] ? calculateFormula(line.professional_pool, formulas[line.invoice_item_id], people).result : null;
+      const sum = editable ? (preview ? preview.recipients.reduce((total, row) => total + (distributionCents(row.amount) ?? 0), 0) : null) : distributionSplitCents(choice);
+      const pool = distributionCents(line.professional_pool);
       const lineInvalid = invalid && professional && !distributionLineComplete(line, choice);
       const errorId = `${id}-split-${index}`;
       return <section className={styles.line} key={line.invoice_item_id} aria-label={line.description}>
@@ -155,10 +157,16 @@ export function VpDistributionPanel({ paymentId }: { paymentId: string }) {
     {context ? <button className={styles.button} disabled={busy} onClick={() => { setOpen(true); setSuccess(false); if (!hasLocalInput) void refresh(); }}>{t("vpDistribution.open")}</button> : !loading ? reloadButton : null}
     <DetailModal open={open} title={t("vpDistribution.title")} status={t(`vpDistribution.${current?.status || "unallocated"}`)}
       onClose={() => { if (!busy) setOpen(false); }} closeOnBackdrop={!busy && !hasLocalInput}
-      footer={context?.can_manage ? <div className={styles.actions}>
+      footer={context?.can_manage ? <div className={vpStyles.footer}>
+        {calculated && source ? <div className={vpStyles.reconciliation} aria-live="polite" aria-atomic="true">
+          <DistributionAmounts values={calculated.progress} currency={source.money_source?.payment?.currency || "-"} />
+          <p className={calculated.valid && proven ? vpStyles.complete : vpStyles.unresolved}>{t(calculated.valid && proven ? "vpFormula.complete" : "vpFormula.unresolved")}</p>
+        </div> : null}
+        <div className={styles.actions}>
         {editable ? <button className={styles.button} disabled={busy || refreshRequired || !needsSave || !proven || !catalogCurrent} onClick={() => void act("save")}>{t("vpDistribution.save")}</button> : null}
         {current?.status === "draft" ? <button className={styles.primary} disabled={busy || refreshRequired || needsSave || !proven} onClick={() => void act("review")}>{t("vpDistribution.review")}</button> : null}
         {current?.status === "reviewed" ? <button className={styles.primary} disabled={busy || refreshRequired || !context.source_current || !proven} onClick={() => void act("finalize")}>{t("vpDistribution.finalize")}</button> : null}
+        </div>
       </div> : undefined}>
       {context && source ? <div className={styles.body} ref={formRef} aria-busy={busy}>
         {error || refreshRequired ? <div className={styles.error} role="alert">{distributionError(error, locale)} {reloadButton}</div> : null}

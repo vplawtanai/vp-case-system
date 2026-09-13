@@ -1,5 +1,6 @@
-import { calculateFormula, restoreFormula, type FormulaInput, type FormulaPerson } from "../compensation/formula-calculation";
+import { calculateFormula, decimalUnits, restoreFormula, type FormulaInput, type FormulaPerson } from "../compensation/formula-calculation";
 import { compensationFormulaDefinitions } from "../compensation/formula-engine";
+import { distributionRoleIssues, formulasForContext } from "../compensation/formula-presentation";
 import { distributionSource, initialDistributionChoices, type DistributionChoice, type DistributionContext } from "./vp-distribution";
 
 export type FormulaContext = DistributionContext & {
@@ -23,15 +24,23 @@ export function initialLineFormulas(context: FormulaContext): LineFormulaInputs 
 }
 export function lineFormulaChoices(context: FormulaContext, inputs: LineFormulaInputs) {
   const errors: Record<string, string[]> = {}, saved = initialDistributionChoices(context);
+  let poolCents = BigInt(0), allocatedCents: bigint | null = BigInt(0);
   const choices: DistributionChoice[] = distributionSource(context).lines.filter(line => line.classification === "professional_fee").map(line => {
     const input = inputs[line.invoice_item_id];
     const calculated = input ? calculateFormula(line.professional_pool, input, context.formula_people) : { result: null, errors: ["formulaRequired"] };
-    errors[line.invoice_item_id] = calculated.errors;
+    const editing = !context.current || context.current.status === "draft";
+    errors[line.invoice_item_id] = [...calculated.errors, ...(editing && input ? distributionRoleIssues(input, context.formula_people) : []),
+      ...(editing && input && !formulasForContext("vp_revenue_distribution").includes(input.code) ? ["formulaRequired"] : [])];
     const result = calculated.result;
+    poolCents += decimalUnits(line.professional_pool, 2) ?? BigInt(0);
+    if (!result) allocatedCents = null;
+    else if (allocatedCents !== null) for (const row of result.recipients) allocatedCents += decimalUnits(row.amount, 2) ?? BigInt(0);
     if (!result) return saved.find(choice => choice.invoice_item_id === line.invoice_item_id)!;
     return { invoice_item_id: line.invoice_item_id, referral_amount: String(result.referral_amount),
       company_share_amount: String(result.company_share_amount), work_compensation_amount: String(result.work_compensation_amount),
       formula_result: result };
   });
-  return { choices, errors, valid: formulaCatalogCurrent(context) && Object.values(errors).every(values => !values.length) };
+  return { choices, errors, valid: formulaCatalogCurrent(context) && Object.values(errors).every(values => !values.length),
+    progress: { professional_pool: Number(poolCents) / 100, allocated: allocatedCents === null ? null : Number(allocatedCents) / 100,
+      remaining: allocatedCents === null ? null : Number(poolCents - allocatedCents) / 100 } };
 }

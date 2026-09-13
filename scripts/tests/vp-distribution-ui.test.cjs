@@ -117,7 +117,8 @@ test('045 localized render separates economic base, cash, VAT, WHT and professio
     const input = require('../../app/finance/compensation/formula-calculation.ts').initialFormula('pao_line', 10000);
     const preset = component.render(locale, {}, { source: c.source, choices, editable: true,
       formulas: { 'synthetic-line-1': input }, people: [] }, 'VpDistributionEvidence');
-    assert.match(preset, /value="Company" selected=""/);
+    assert.ok(preset.includes(translate(locale, 'vpFormula.companyName')));
+    assert.doesNotMatch(preset, /value="Company" selected=""/);
     assert.match(preset, /value="Lawyer" selected=""/);
     assert.ok(!preset.includes(translate(locale, 'vpFormula.customRole')));
     assert.equal(input.rows[0].custom_role, 'Company');

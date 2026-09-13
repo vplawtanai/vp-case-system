@@ -147,6 +147,50 @@ async function main() {
       await page.keyboard.press('Escape'); await dialog.waitFor({state:'hidden'});
       assert.equal(await page.getByRole('button',{name:text('open'),exact:true}).evaluate(button=>button===document.activeElement),true);
     }
+    for (const width of [390,768,1024,1440]) for (locale of ['th','en']) {
+      await page.setViewportSize({width,height:950});await open();await chooseFormula('source_worker_qc');
+      const selector=dialog.getByLabel(formulaText('select'),{exact:true});
+      assert.equal(await selector.locator('option[value=travel_fee]').count(),0);
+      assert.equal(await dialog.getByLabel(formulaText('type'),{exact:true}).count(),0);
+      assert.equal(await dialog.locator('select:disabled').count(),0);
+      const person='10000000-0000-4000-8000-000000000001';
+      const lead=dialog.locator('[data-component="2"]');
+      await lead.getByLabel(formulaText('recipient'),{exact:true}).selectOption('');
+      await action('save').click();assert.equal(await calls(),0);
+      assert.ok((await lead.innerText()).includes(formulaText('error.leadRecipient')));
+      await page.waitForFunction(()=>document.querySelector('[data-component="2"] select')===document.activeElement);
+      await lead.getByLabel(formulaText('recipient'),{exact:true}).selectOption(person);
+      for (const [index,role] of ['Co-Lawyer / Co-Worker','Assistant','Quality Controller'].entries()) {
+        await dialog.getByRole('button',{name:formulaText('addWorker'),exact:true}).click();
+        const row=dialog.locator('[data-component="'+(index+3)+'"]');
+        await page.waitForFunction(n=>document.querySelector('[data-component="'+n+'"] select')===document.activeElement,index+3);
+        await row.getByLabel(formulaText('recipient'),{exact:true}).selectOption(person);
+        await row.getByLabel(formulaText('role'),{exact:true}).selectOption(role);
+        await row.getByLabel(formulaText('workPercent'),{exact:true}).fill('25');
+        assert.ok((await row.innerText()).includes('1,000.00 THB'));
+      }
+      assert.ok((await lead.innerText()).includes('1,000.00 THB'));
+      assert.ok((await dialog.innerText()).includes(formulaText('complete')));
+      await page.keyboard.press('Tab');
+      assert.equal(await dialog.evaluate(el=>el.contains(document.activeElement)),true);
+      for (const language of [locale==='th'?'en':'th',locale]) {
+        await page.locator('button[lang='+language+']').evaluate(button=>button.click());
+        assert.equal(await dialog.getByLabel(translate(language,'vpFormula.select'),{exact:true}).inputValue(),'source_worker_qc');
+        assert.equal(await dialog.locator('[data-component="5"]').getByLabel(translate(language,'vpFormula.role'),{exact:true}).inputValue(),'Quality Controller');
+        assert.equal(await dialog.locator('[data-component="5"]').getByLabel(translate(language,'vpFormula.recipient'),{exact:true}).inputValue(),person);
+        assert.equal(await dialog.getByLabel(translate(language,'vpFormula.workPercent'),{exact:true}).last().inputValue(),'25');
+      }
+      await geometry();
+      await dialog.getByRole('region',{name:formulaText('work'),exact:true}).scrollIntoViewIfNeeded();
+      await page.screenshot({path:path.join(out,'vp-workers-'+width+'-'+locale+'.png'),fullPage:true});
+      await dialog.locator('[data-component="5"]').getByRole('button',{name:translate(locale,'common.actions.remove'),exact:true}).click();
+      await page.waitForFunction(()=>document.querySelector('[data-add=work_compensation_amount]')===document.activeElement);
+      assert.ok((await lead.innerText()).includes('2,000.00 THB'));
+      assert.equal(await calls(),0);
+      await action('save').click();await settled();assert.equal(await calls(),1);
+      const stored=await page.evaluate(()=>window.calls[0].p.p_choices[0].formula_result);
+      assert.deepEqual(stored.recipients.map(r=>r.amount),[2000,4000,2000,1000,1000]);
+    }
     for (locale of ['th', 'en']) for (const mode of ['readonly', 'unknown', 'reversed', 'stale-reviewed', 'stale-finalized', 'superseded', 'unavailable-history', 'unavailable-reviewed']) {
       await open(mode); assert.equal(await calls(), 0);
       if (mode === 'readonly') {

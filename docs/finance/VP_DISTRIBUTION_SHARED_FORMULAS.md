@@ -29,7 +29,7 @@ a5a56f63617791a5f03f6cb18af8d6756bb2ff58. Audit preceded behavioral edits.
 | Formula identity | Five coded form-time presets; no reusable database formula catalog, editor, or versioned formula-management page. |
 | Pao / Tun | Company/Pao/Tul defaults 20/55/25 or 20/40/40. Rows and parameters are editable; these are not immutable personnel assignments. |
 | Source/worker/QC | Source 20%, company 40%, work pool 40%; one lead owner receives the remaining work percentage. Multiple co-workers, assistants, QC and other work roles are supported. |
-| Travel | One 100% company component. Selecting this preset for a professional line is an explicit human choice, never description-based classification. |
+| Travel | One 100% company component. Retained in legacy Compensation; no longer offered for new professional Distribution choices. Historical formula evidence remains readable. |
 | Custom | Entered recipient amounts are retained by save normalization. The old editor synchronizes displayed percentage/amount inputs; it does not implement a separately declared mixed fixed-plus-variable rule. |
 | Income type | Manual legacy revenue_type is independent of formula_code. It is not authoritative Invoice classification, VAT or WHT evidence. |
 | Stored legacy result | Batch formula_code and received amount; allocation recipient_type, user ID/name, role_label, percent, amount, is_company_share, paid status. No independently versioned reusable rule snapshot. |
@@ -125,7 +125,7 @@ Explicit economic map, frozen with each formula:
 | lawyer, lead_lawyer, worker, assistant, qc, other | work_compensation_amount |
 
 Type is the declared economic classification; role_label describes that component.
-The UI displays both. Custom role text is never parsed to infer another bucket.
+The UI groups types by bucket and displays controlled work roles. Historical custom role text is never parsed to infer another bucket.
 Other means explicitly declared other work, not a generic pass-through category.
 Duplicate recipient identity/role/bucket pairs within a line are rejected.
 One person may receive distinct explicitly recorded roles; separate lines remain separate.
@@ -135,7 +135,7 @@ Translation/travel remain company economic base 8,672.90 and company cash base
 8,552.90. Cash 19,160 + WHT 120 = settlement 19,280; VAT remains 607.10.
 These are user-supplied facts and synthetic test expectations, not a new Production read.
 
-## Why a migration is required
+## Why the original integration required Migration 046
 
 YES. Applied 045 vp_distribution_choices rejects any key other than invoice_item_id
 and three aggregate amounts. It cannot safely accept recipient/formula evidence
@@ -160,6 +160,46 @@ idempotency, immutable history, stale sources and upstream guards are retained.
 
 The human apply/verification gate for the formula UI has passed. Catalog mismatch
 still fails closed. No auto-Save or auto-Finalize exists.
+
+## Post-046 three-bucket presentation refinement
+
+No further migration is required. Applied 046 already preserves multiple recipient
+components and distinct roles for one person, with uniqueness on identity/role/bucket.
+The five canonical formulas, formula snapshots, calculation engine, exact-cent
+rounding and applied migrations remain unchanged.
+
+Shared formula-presentation.ts adds context applicability and display labels outside
+the frozen economic JSON. Both selectors use this accessor; Travel remains available
+to Compensation only. Source/worker/QC displays as Referral / Company / Work in VP
+Distribution without renaming its code or changing its 20/40/40 economics.
+
+The editor uses three accent-bordered bands with textual headings and live amounts.
+Company identity is fixed VP Partners; type, fixed percentages and calculated owner
+remainder are text, not disabled selects. Controlled work options reuse existing
+role_label values: Lead Lawyer / Case Owner, Co-Lawyer / Co-Worker, Assistant,
+Quality Controller and historical Lawyer. No preset person is inferred to be lead.
+Old free-text roles stay visible but require an explicit supported choice when
+editing; reviewed/finalized evidence remains untouched and readable.
+
+| Formula | Role and parameter policy |
+| --- | --- |
+| Pao / Tun | Original company/lawyer defaults; adjustable whole-professional-pool percentages. Additional referral/work components allowed. No automatic remainder recipient. |
+| Source/worker/QC | One required referral recipient at 20%, company at 40%, one required lead receiving the Work-pool remainder. Optional co-worker/assistant/QC components use explicitly labeled internal Work percentages. Positive-pool zero components remain invalid. |
+| Custom | Explicit fixed amounts, multiple referral/work components, no automatic remainder. |
+| Travel | Compensation only; existing frozen Distribution results still rendered historically. |
+
+The same person can occupy distinct role components without consolidation. Shared
+exact-cent results drive row amounts, bucket totals and the compact action-area
+pool/allocated/remaining summary. Zero remaining with unresolved recipients or
+roles is still incomplete. Invalid numeric input clears the live monetary preview
+instead of reporting stale saved totals as current. Draft Save and Review/Finalize
+retain their existing guards. Only current editable drafts gain the controlled-role
+presentation validation; historical evidence is never reinterpreted.
+
+Per-line inputs remain independent, TH/EN changes preserve unsaved rows and choices,
+and supported nonprofessional lines still route directly to company with no formula
+controls. Payment Composition remains read-only. No downstream consumer/write path
+or Production action is introduced. Future component keys remain unchanged.
 
 ## Frozen evidence and historical compatibility
 
@@ -247,11 +287,15 @@ unchanged. Unrelated pre-existing untracked diagnostics/migrations remain untouc
 
 ## Validation
 
-- Full isolated backend/shared suite: 136 passing tests, including 121 prior regressions.
-- Focused UI/static/shared/i18n regression suite: 42 passing tests.
+- Full isolated backend/shared suite: 137 passing tests, including 121 prior regressions.
+- Focused UI/static/shared/i18n regression suite: 49 passing tests.
 - TH/EN browser workflows at 390/768/1024/1440: read-only composition, formula selection,
   required recipients, invalid parameters, exact result, Save/Review/Finalize, supersession,
   preserved local inputs, failed-write/read recovery, focus/Escape, blocked/legacy history.
+- Three-bucket refinement: all four controlled work roles, same-person distinct roles,
+  exact residual calculations, context-only Travel filtering, immutable role evidence,
+  fixed-text controls, live completion, add/remove focus, and language preservation of
+  worker/role/recipient/parameter state. Browser checks cover all four widths and TH/EN.
 - All browser traffic is loopback-only synthetic data; external requests blocked.
 - Targeted ESLint, TypeScript, production build, SQL artifact checks and whitespace checks.
 - Applied migration bytes through 045 compared to HEAD; 044/045 also checked against

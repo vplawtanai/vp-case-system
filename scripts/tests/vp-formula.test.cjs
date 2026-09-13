@@ -30,7 +30,7 @@ test('shared extraction preserves legacy presets/calculations/recipient normaliz
  const shared=fs.readFileSync('app/finance/compensation/formula-engine.ts','utf8');
  assert.doesNotMatch(shared,/supabase|finance_compensation_batches|finance_company_ledger/);
  const page=fs.readFileSync('app/finance/compensation/page.tsx','utf8');
- assert.match(page,/formulaCodes.map/);assert.match(page,/finance_compensation_batches/);assert.match(page,/finance_company_ledger/);
+ assert.match(page,/formulasForContext\("compensation"\).map/);assert.match(page,/finance_compensation_batches/);assert.match(page,/finance_company_ledger/);
 });
 test('existing five formulas resolve identities and reconcile exact amounts including multiple work recipients',()=>{
  for(const code of engine.formulaCodes){
