@@ -70,63 +70,83 @@ async function main(){
   }
   for(const width of [390,768,1024,1440])for(const locale of ['th','en']){
    const t=key=>translate(locale,'directMoney.'+key),field=key=>page.getByLabel(t(key),{exact:true});
+   const vat=page.getByRole('radiogroup',{name:t('vatQuick'),exact:true}),wht=page.getByRole('radiogroup',{name:t('whtQuick'),exact:true});
+   const chooseVat=name=>vat.getByRole('radio',{name,exact:true}).check(),chooseWht=name=>wht.getByRole('radio',{name,exact:true}).check();
+   const matches=()=>page.getByText(t('receiptMatched'),{exact:true}).isVisible();
    await page.setViewportSize({width,height:1000});await visit('empty',locale);
-   assert.equal(await field('nature').inputValue(),'unclassified');assert.equal(await field('vatTreatment').inputValue(),'unknown');
-   assert.equal(await field('wht').inputValue(),'unknown');assert.equal(await field('method').inputValue(),'bank_transfer');
-   assert.equal(await page.locator('form input[type=checkbox]').count(),0);
+   assert.equal(await field('nature').inputValue(),'unclassified');assert.equal(await page.locator('input[type=radio]:checked').count(),0);
+   assert.equal(await field('method').inputValue(),'bank_transfer');
    assert.equal(await page.getByRole('button',{name:t('removeLine')+' 1',exact:true}).isDisabled(),true);
    assert.equal(await field('note').isVisible(),false);assert.equal(await field('reference').isVisible(),false);
-   assert.equal(await page.getByText(t('matched'),{exact:true}).count(),0);
+   assert.equal(await page.getByText(t('receiptMatched'),{exact:true}).count(),0);
    assert.equal(await page.getByText(t('classificationWarning'),{exact:true}).isVisible(),true);
-   await field('nature').selectOption('business_revenue');assert.equal(await field('classification').isVisible(),true);assert.equal(await field('classification').inputValue(),'');
-   await field('nature').selectOption('unclassified');assert.equal(await field('classification').count(),0);
    assert.doesNotMatch(await page.locator('form').innerText(),/Actual cash|อยู่ในระบบ VAT|ก่อนออกเอกสาร|before issuing a document/);
    assert.equal(await page.locator('dt').filter({hasText:/^(Cash|เงินสด)$/}).count(),0);
-   const optional=page.locator('form details summary');await optional.focus();await page.keyboard.press('Enter');assert.equal(await field('note').isVisible(),true);
+   const optional=page.getByText(t('optional'),{exact:true});await optional.focus();await page.keyboard.press('Enter');assert.equal(await field('note').isVisible(),true);
    assert.ok(await optional.evaluate(n=>getComputedStyle(n).outlineStyle!=='none'));await page.keyboard.press('Enter');assert.equal(await field('note').isVisible(),false);
    await geometry();await page.screenshot({path:path.join(out,`create-empty-${locale}-${width}.png`),fullPage:true});
-
-   await visit('form',locale);assert.equal(await field('vatTreatment').inputValue(),'standard_rate');assert.equal(await field('vatRate').inputValue(),'7');
-   assert.equal(await page.getByText(t('matched'),{exact:true}).count(),2);
-   for(const treatment of ['zero_rated','exempt','outside_scope','disbursement','pass_through']){
-    await field('vatTreatment').selectOption(treatment);assert.equal(await field('vatRate').count(),0);assert.equal(await field('vatReason').isVisible(),true);
-    assert.equal(await field('vatReason').inputValue(),'');await field('vatReason').fill('Synthetic reviewed evidence');
-    assert.equal(await field('nature').inputValue(),'business_revenue');assert.equal(await field('classification').inputValue(),'professional_fee');
-    assert.equal(await field('whtRate').inputValue(),'3');await geometry();
+   // The UAT example needs only one line amount and two explicit percentage clicks.
+   await field('amountBeforeTax').fill('10000');await chooseVat('7%');await chooseWht('3%');await field('actualCash').fill('10400');
+   assert.equal(await matches(),true);assert.equal(await field('nature').inputValue(),'unclassified');
+   assert.equal(await field('vatRate').count(),0);assert.equal(await field('whtRate').count(),0);assert.equal(await field('whtBase').count(),0);
+   assert.equal(await page.locator('form input[type=number]').count(),2);
+   const calculation=page.locator('dl[class$="_calculation"]');for(const value of ['10,000.00','700.00','10,700.00','300.00','10,400.00'])assert.ok((await calculation.innerText()).includes(value));
+   await field('nature').selectOption('business_revenue');assert.equal(await field('classification').inputValue(),'');await field('classification').selectOption('professional_fee');
+   assert.equal(await matches(),true);assert.equal(await vat.getByRole('radio',{name:'7%',exact:true}).isChecked(),true);
+   await geometry();await page.screenshot({path:path.join(out,`one-amount-7-3-${locale}-${width}.png`),fullPage:true});
+   await vat.getByRole('radio',{name:'7%',exact:true}).focus();await page.keyboard.press('ArrowRight');
+   assert.equal(await vat.getByRole('radio',{name:'0%',exact:true}).isChecked(),true);
+   assert.ok(await page.locator('input[type=radio]:focus').evaluate(n=>getComputedStyle(n.parentElement).outlineStyle!=='none'));
+   assert.equal(await field('vatReason').isVisible(),true);await field('vatReason').fill('Explicit zero-rate evidence');
+   await chooseWht(t('noWht'));await field('actualCash').fill('10000');assert.equal(await matches(),true);
+   await chooseVat(t('noVat'));assert.equal(await field('vatTreatment').inputValue(),'unknown');
+   for(const treatment of ['exempt','outside_scope','disbursement','pass_through']){
+    await field('vatTreatment').selectOption(treatment);await field('vatReason').fill('Explicit non-VAT evidence');assert.equal(await matches(),true);await geometry();
    }
-   await field('vatTreatment').selectOption('unknown');assert.equal(await field('vatReason').count(),0);assert.equal(await field('vatRate').count(),0);
-   await field('vatTreatment').selectOption('standard_rate');assert.equal(await field('vatRate').inputValue(),'');
-   await field('vatRate').fill('7');assert.equal(await page.getByText(t('matched'),{exact:true}).count(),2);
-   await field('actualCash').fill('10399.99');assert.equal(await page.getByText(t('notMatched'),{exact:true}).count(),1);
+   await chooseWht('3%');await field('actualCash').fill('9700');assert.equal(await matches(),true);
+   await chooseVat('7%');await chooseWht(t('noWht'));await field('actualCash').fill('10700');assert.equal(await matches(),true);
+   for(const rate of [1,2,3,5]){await chooseWht(rate+'%');await field('actualCash').fill(String(10700-100*rate));assert.equal(await matches(),true);}
+   await chooseWht(t('taxOther'));await field('whtRate').fill('1.25');await chooseVat(t('taxOther'));
+   await field('vatRate').fill('10');await field('actualCash').fill('10875');assert.equal(await matches(),true);
+   await geometry();await page.screenshot({path:path.join(out,`custom-tax-${locale}-${width}.png`),fullPage:true});
+   await chooseVat('7%');await chooseWht('3%');await field('actualCash').fill('10399.99');assert.equal(await page.getByText(t('receiptNotMatched'),{exact:true}).isVisible(),true);
    assert.ok((await page.locator('[aria-live=polite]').innerText()).includes('0.01 THB'));
+   await field('actualCash').fill('10400');assert.equal(await matches(),true);
+   await field('date').fill('2026-01-01');await field('account').selectOption('synthetic-bank');await field('payer').fill('Synthetic payer');await field('description').fill('Synthetic legal fee');
+   assert.equal(await field('lineReasonRequired').isVisible(),false);
    await page.getByRole('button',{name:t('save'),exact:true}).click();assert.equal(await page.evaluate(()=>window.calls.length),0);
-   await field('actualCash').fill('10400');assert.equal(await page.getByText(t('matched'),{exact:true}).count(),2);
-   await field('wht').selectOption('does_not_apply');assert.equal(await field('whtBase').count(),0);assert.equal(await field('whtRate').count(),0);
-   assert.ok((await page.locator('[aria-live=polite]').innerText()).includes('300.00 THB'));
-   await field('wht').selectOption('applies');assert.equal(await field('whtBase').inputValue(),'');
-   await field('whtBase').fill('10000');await field('whtRate').fill('3');assert.equal(await page.getByText(t('matched'),{exact:true}).count(),2);
+   await field('lineReasonRequired').waitFor({state:'visible'});assert.equal(await field('lineReasonRequired').evaluate(n=>n===document.activeElement),true);
+   assert.equal(await field('lineReasonRequired').inputValue(),'');await field('lineReasonRequired').fill('Explicit business source');
    await page.getByRole('button',{name:t('addLine'),exact:true}).click();
    const deletes=page.getByRole('button',{name:new RegExp(t('removeLine'))});assert.equal(await deletes.count(),2);assert.equal(await deletes.nth(0).isEnabled(),true);
-   assert.equal(await field('nature').nth(1).inputValue(),'unclassified');await deletes.nth(1).click();assert.equal(await deletes.count(),1);assert.equal(await deletes.isDisabled(),true);
-   await field('client').selectOption('synthetic-client');await page.locator('form details summary').click();await field('matter').selectOption('case:47');
+   assert.equal(await field('nature').nth(1).inputValue(),'unclassified');await field('amountBeforeTax').nth(1).fill('2000');await field('nature').nth(1).selectOption('client_money');assert.equal(await field('classification').count(),1);
+   await vat.nth(1).getByRole('radio',{name:t('noVat'),exact:true}).check();await field('vatTreatment').selectOption('outside_scope');await field('vatReason').fill('Explicit client-money evidence');
+   await wht.nth(1).getByRole('radio',{name:t('noWht'),exact:true}).check();await field('actualCash').fill('12400');assert.equal(await matches(),true);
+   await geometry();await page.screenshot({path:path.join(out,`multi-line-${locale}-${width}.png`),fullPage:true});
+   await deletes.nth(1).click();assert.equal(await deletes.count(),1);assert.equal(await deletes.isDisabled(),true);await field('actualCash').fill('10400');assert.equal(await matches(),true);
+   await field('client').selectOption('synthetic-client');await optional.click();await field('matter').selectOption('case:47');
    await field('reference').fill('LOCAL-OPTIONAL');await field('evidence').fill('local-slip-reference');await field('note').fill('Synthetic optional note');
-   await geometry();await page.screenshot({path:path.join(out,`create-optional-${locale}-${width}.png`),fullPage:true});
-   await page.locator('form details summary').click();assert.equal(await field('note').isVisible(),false);
+   await optional.click();assert.equal(await field('note').isVisible(),false);
+   await page.getByText(t('accountingEvidence'),{exact:true}).click();assert.equal(await page.getByText(t('matched'),{exact:true}).count(),2);
+   await geometry();await page.getByText(t('accountingEvidence'),{exact:true}).click();
    await page.screenshot({path:path.join(out,`create-reviewed-${locale}-${width}.png`),fullPage:true});
    await page.getByRole('button',{name:t('save'),exact:true}).click();await page.waitForFunction(()=>window.navigated);
    const calls=await page.evaluate(()=>window.calls);assert.equal(calls.length,1);const p=calls[0].p.p_input;
    assert.equal(calls[0].name,'save_finance_direct_money_receipt');assert.equal(p.reference_no,'LOCAL-OPTIONAL');assert.equal(p.evidence_reference,'local-slip-reference');assert.equal(p.note,'Synthetic optional note');
    assert.equal(p.client_id,'synthetic-client');assert.equal(p.case_id,47);assert.equal(p.cash_amount,10400);assert.equal(p.lines[0].base,10000);
-   assert.equal(p.lines[0].vat_rate,7);assert.equal(p.lines[0].wht_rate,3);assert.equal(p.lines[0].money_nature,'business_revenue');
+   assert.equal(p.lines[0].vat_rate,7);assert.equal(p.lines[0].wht_rate,3);assert.equal(p.lines[0].wht_base,10000);assert.equal(p.lines[0].money_nature,'business_revenue');
   }
   // An explicit incomplete VAT choice cannot reach the backend, including unclassified money.
   await visit('form');await page.getByLabel(translate('en','directMoney.nature'),{exact:true}).selectOption('unclassified');
+  await page.getByRole('radiogroup',{name:'VAT',exact:true}).getByRole('radio',{name:'Other',exact:true}).check();
   await page.getByLabel(translate('en','directMoney.vatRate'),{exact:true}).fill('0');
   await page.getByLabel(translate('en','directMoney.actualCash'),{exact:true}).fill('9700');
   await page.getByRole('button',{name:translate('en','directMoney.save'),exact:true}).click();
   assert.equal(await page.evaluate(()=>window.calls.length),0);assert.equal(await page.getByLabel(translate('en','directMoney.vatRate'),{exact:true}).getAttribute('aria-invalid'),'true');
   assert.equal(await page.getByText(translate('en','directMoney.error.vatPositiveRate'),{exact:true}).isVisible(),true);
   assert.equal(await page.getByLabel(translate('en','directMoney.vatReason'),{exact:true}).count(),0);
+  await page.getByRole('radiogroup',{name:'VAT',exact:true}).getByRole('radio',{name:'No VAT',exact:true}).check();
+  await page.getByRole('button',{name:translate('en','directMoney.save'),exact:true}).click();assert.equal(await page.evaluate(()=>window.calls.length),0);
   await page.getByLabel(translate('en','directMoney.vatTreatment'),{exact:true}).selectOption('exempt');
   await page.getByLabel(translate('en','directMoney.actualCash'),{exact:true}).fill('9700');
   await page.getByRole('button',{name:translate('en','directMoney.save'),exact:true}).click();
@@ -140,7 +160,17 @@ async function main(){
   await page.waitForFunction(()=>document.activeElement?.getAttribute('type')==='date');
   assert.equal(await page.locator(':focus').getAttribute('type'),'date');assert.ok(await page.locator('[aria-invalid=true]').count()>=5);
   await visit('form');const save=page.getByRole('button',{name:translate('en','directMoney.save'),exact:true});await save.click();await page.waitForFunction(()=>window.navigated);
-  assert.equal(await page.evaluate(()=>window.calls.length),1);const payload=await page.evaluate(()=>window.calls[0]);assert.equal(payload.name,'save_finance_direct_money_receipt');assert.equal(payload.p.p_input.cash_amount,10400);assert.equal(payload.p.p_input.lines[0].wht_rate,3);
+  assert.equal(await page.evaluate(()=>window.calls.length),1);const payload=await page.evaluate(()=>window.calls[0]);assert.equal(payload.name,'save_finance_direct_money_receipt');assert.deepEqual(payload.p.p_input,input);
+  // Explicit custom bases remain authoritative when the amount or rate changes.
+  await visit('form');await page.getByText(translate('en','directMoney.lineEvidence'),{exact:true}).click();
+  await page.getByLabel(translate('en','directMoney.customWhtBase'),{exact:true}).check();
+  const customBase=page.getByLabel(translate('en','directMoney.whtBase'),{exact:true});await customBase.fill('5000');
+  await page.getByLabel(translate('en','directMoney.amountBeforeTax'),{exact:true}).fill('12000');assert.equal(await customBase.inputValue(),'5000');
+  await page.getByRole('radiogroup',{name:'WHT',exact:true}).getByRole('radio',{name:'5%',exact:true}).check();assert.equal(await customBase.inputValue(),'5000');
+  await page.getByLabel(translate('en','directMoney.actualCash'),{exact:true}).fill('12590');
+  assert.equal(await page.getByText(translate('en','directMoney.receiptMatched'),{exact:true}).isVisible(),true);
+  await page.getByRole('button',{name:translate('en','directMoney.save'),exact:true}).click();await page.waitForFunction(()=>window.navigated);
+  const customInput=await page.evaluate(()=>window.calls[0].p.p_input);assert.equal(customInput.lines[0].wht_base,5000);assert.equal(customInput.lines[0].wht_rate,5);
   await visit('detail');await page.getByRole('button',{name:translate('en','directMoney.edit'),exact:true}).click();await page.getByRole('dialog').waitFor();await geometry();
   assert.equal(await page.getByRole('dialog').getByLabel(translate('en','directMoney.payer'),{exact:true}).inputValue(),'Synthetic Payer');
   await page.evaluate(()=>window.slow=true);await page.getByRole('dialog').getByRole('button',{name:translate('en','directMoney.save'),exact:true}).click();await page.keyboard.press('Escape');assert.equal(await page.getByRole('dialog').isVisible(),true);

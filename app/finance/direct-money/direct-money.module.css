@@ -55,5 +55,29 @@
 .matched { color: #216345; background: #eaf5ef; }
 .unresolved { color: #785513; background: #fff4db; }
 .matched svg, .unresolved svg { flex-shrink: 0; }
+.primaryAmount { width: 320px; max-width: 100%; margin: 20px 0; }
+.primaryAmount input { font-size: 20px !important; font-variant-numeric: tabular-nums; }
+.taxGrid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 20px 24px; }
+.taxChoices { min-width: 0; border: 0; padding: 0; margin: 0; }
+.taxChoices legend { padding: 0; margin-bottom: 8px; font-size: 14px; font-weight: 500; }
+.taxChoices > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.taxChoices label { position: relative; display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 7px 11px; border: 1px solid #bec8d0; border-radius: 6px; cursor: pointer; font-size: 14px; }
+.form .taxChoices input[type=radio] { position: absolute; width: 1px; height: 1px; opacity: 0; padding: 0; border: 0; }
+.taxChoices label:hover { background: #f1f5f3; }
+.taxChoices label:has(input:checked) { background: #eaf5ef; color: #185f43; border-color: #17664b; box-shadow: inset 0 0 0 1px #17664b; font-weight: 600; }
+.taxChoices label:has(input:focus-visible) { outline: 2px solid #2869a5; outline-offset: 3px; }
+.taxChoices label:has(input:disabled) { opacity: .55; cursor: not-allowed; }
+.taxChoices[aria-invalid=true] label { border-color: #b42318; }
+.taxDetail { display: grid; gap: 12px; margin-top: 14px; }
+.taxDetail p { margin: 0; }
+.calculation { width: 100%; max-width: 620px; margin: 24px 0 16px; border-top: 1px solid #dce1e5; font-size: 14px; line-height: 1.6; }
+.calculation > div { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 12px; padding: 7px 0; }
+.calculation dt { color: #4e606d; }
+.calculation dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.calculation > div:last-child { border-top: 1px solid #dce1e5; margin-top: 3px; padding-top: 10px; font-weight: 600; }
+.calculation > div:last-child dt { color: #20272f; }
+.review > .facts { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.form .review > .actions { margin-top: 22px; }
+@media(max-width: 767px) { .taxGrid { grid-template-columns: 1fr; } }
 @media(max-width: 767px) { .reconciliation { flex-direction: column; gap: 8px; } .reconciliation > div { justify-items: start; } }
 @media(max-width: 767px) { .workspace { padding: 16px; } .grid { grid-template-columns: 1fr; } .facts { grid-template-columns: repeat(2,minmax(0,1fr)); } .actions { align-items: stretch; } .actions > button { flex: 1 1 100%; } .header h1 { font-size: 21px; } }
