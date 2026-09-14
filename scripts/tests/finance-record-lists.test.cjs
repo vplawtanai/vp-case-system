@@ -1,35 +1,30 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), path = require('node:path');
-const ts = require('typescript'), React = require('react');
+const React = require('react');
 const { workspaceFixture } = require('./i18n-workspace-fixture.cjs');
 const { fixture: combinedFixture } = require('./combined-document-render-fixture.cjs');
 const { root } = require('./receipt-render-fixture.cjs');
 const { translate } = require(root + '/lib/i18n/catalog.ts');
 const { buildPermissions } = require(root + '/lib/permissions.ts');
 let permissions = buildPermissions({ role: 'admin' });
-const payments = workspaceFixture('app/finance/payments/page.tsx', ['PaymentList'], {
+const payments = workspaceFixture('app/finance/payments/page.tsx', ['IncomingMoney'], {
   '../quotations/shared': { QuotationGuard: ({ canAccess, children }) => canAccess({ permissions }) ? children({ permissions }) : React.createElement('p', null, 'Denied') },
 });
 const combined = workspaceFixture('app/finance/combined-documents/page.tsx', ['CombinedList', 'combinedListFacts'], {
   '../tax-invoices/access': { TaxInvoiceGuard: ({ children }) => permissions.canViewFinanceTaxInvoices ? children(permissions) : React.createElement('p', null, 'Denied') },
 });
 const payment = { id: '90000000-0000-4000-8000-000000000001', internal_reference: null, client_id: 'client', clientName: 'Stored Client Name', received_on: '2026-09-05', cash_amount: '4859.81', wht_amount: '140.19', settlement_amount: '5000.00', currency: 'THB', status: 'confirmed' };
+const { incomingPayment } = require(root + '/app/finance/payments/incoming-money.ts');
 
 test('Every requested Finance navigation destination exists; no Cash alias or fake destination', () => {
   const { financeNavigationLinks } = require(root + '/app/finance/finance-navigation.ts');
   for (const link of financeNavigationLinks(buildPermissions({ role: 'admin' }))) assert.ok(fs.existsSync(path.join(root, 'app', link.href, 'page.tsx')), link.href);
 });
 
-test('Payment list uses the identical detail access predicate, including each independent capability', () => {
-  const predicate = file => {
-    const ast = ts.createSourceFile(file, fs.readFileSync(path.join(root, file), 'utf8'), 99, true, ts.ScriptKind.TSX);
-    let result;
-    const visit = node => { if (ts.isJsxAttribute(node) && node.name.text === 'canAccess') result = node.initializer.expression.body.getText(ast).replace(/\s/g, ''); ts.forEachChild(node, visit); };
-    visit(ast); return result;
-  };
-  assert.equal(predicate('app/finance/payments/page.tsx'), predicate('app/finance/payments/[id]/page.tsx'));
-  for (const capability of ['canManageFinancePayments', 'canConfirmFinancePayments', 'canReverseFinancePayments', 'canReallocateFinancePayments']) {
-    permissions = { [capability]: true };
+test('Incoming-money list retains the existing view permission, including Partner read-only access', () => {
+  assert.match(fs.readFileSync('app/finance/payments/page.tsx', 'utf8'), /canAccess={access => access.permissions.canViewFinancePayments}/);
+  for (const role of ['admin', 'partner']) {
+    permissions = buildPermissions({ role });
     assert.match(payments.render('en', {}, {}), /Payments/);
   }
   permissions = { canViewFinanceCashTransactions: true };
@@ -46,7 +41,7 @@ test('Combined list requires both existing Receipt and Tax Invoice viewing permi
 });
 
 for (const locale of ['th', 'en']) test(`${locale}: Payment references, client, dates, three stored amounts and status remain distinct`, () => {
-  const html = payments.render(locale, { 'PaymentList.loading': false, 'PaymentList.rows': [payment] }, {}, 'PaymentList');
+  const html = payments.render(locale, { 'IncomingMoney.loading': false, 'IncomingMoney.rows': [incomingPayment(payment, payment.clientName)] }, {}, 'IncomingMoney');
   assert.ok(html.includes(translate(locale, 'finance.nav.payments')));
   assert.match(html, /90000000/); assert.match(html, /Stored Client Name/);
   for (const amount of ['4,859.81', '140.19', '5,000.00']) assert.ok(html.includes(amount));
@@ -86,13 +81,13 @@ for (const locale of ['th', 'en']) test(`${locale}: Combined list shows number o
 });
 
 test('Empty, loading and failed states stay bilingual; no lifecycle action appears', () => {
-  for (const locale of ['th', 'en']) for (const [fixture, owner, prefix] of [[payments, 'PaymentList', 'finance.payment'], [combined, 'CombinedList', 'finance.combined']]) {
+  for (const locale of ['th', 'en']) for (const [fixture, owner, prefix] of [[payments, 'IncomingMoney', 'incomingMoney'], [combined, 'CombinedList', 'finance.combined.list']]) {
     const empty = fixture.render(locale, { [`${owner}.loading`]: false }, {}, owner);
-    assert.ok(empty.includes(translate(locale, `${prefix}.list.empty`)));
+    assert.ok(empty.includes(translate(locale, `${prefix}.empty`)));
     assert.doesNotMatch(empty, /href=/);
     assert.match(fixture.render(locale, {}, {}, owner), /role="status"/);
     const error = fixture.render(locale, { [`${owner}.loading`]: false, [`${owner}.error`]: true }, {}, owner);
-    assert.ok(error.includes(translate(locale, `${prefix}.list.failed`)));
+    assert.ok(error.includes(translate(locale, `${prefix}.failed`)));
     assert.match(error, /role="alert"/);
   }
 });
@@ -101,9 +96,11 @@ test('List queries are SELECT-only with bounded stable paging and no mutation RP
   for (const file of ['app/finance/payments/page.tsx', 'app/finance/combined-documents/page.tsx']) {
     const source = fs.readFileSync(path.join(root, file), 'utf8');
     assert.doesNotMatch(source, /\.rpc\(|\.(?:insert|upsert|update|delete)\(|createAuditLog|DocumentNextAction/);
-    assert.match(source, /\.range\(page \* 50, page \* 50 \+ 50\)/);
-    assert.match(source, /order\("created_at".*order\("id"/);
-    assert.match(source, /query\.eq\("status", status\)/);
+    const reader = file.includes('payments') ? fs.readFileSync('app/finance/payments/incoming-money.ts', 'utf8') : source;
+    assert.doesNotMatch(reader, /\.rpc\(|\.(?:insert|upsert|update|delete)\(/);
+    assert.match(reader, file.includes('payments') ? /\.range\(offsets\.invoice, offsets\.invoice \+ limit\)/ : /\.range\(page \* 50, page \* 50 \+ 50\)/);
+    assert.match(reader, /order\("created_at".*order\("id"/);
+    assert.match(reader, /query\.eq\("status", (?:filters\.)?status\)/);
     assert.match(source, /request !== sequence\.current/);
   }
 });

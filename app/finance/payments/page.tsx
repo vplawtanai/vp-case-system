@@ -2,19 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { ArrowRight, Plus } from "lucide-react";
 import { supabase } from "../../../lib/supabase";
 import { useI18n } from "../../../lib/i18n/provider";
 import { QuotationGuard } from "../quotations/shared";
 import FinanceSubNav from "../FinanceSubNav";
-import { displayText, money } from "../invoices/shared";
-import { paymentUiLabels, type FinancePayment } from "./shared";
+import { money } from "../invoices/shared";
+import { incomingStatuses, initialMoneyFilters, initialMoneyOffsets, readIncomingMoneyPage, type IncomingMoneyRow, type MoneyFilters, type MoneyOffsets, type MoneySource, type MoneyClassification } from "./incoming-money";
 import styles from "../finance-record-list.module.css";
-import { DirectMoneyList } from "../direct-money/list";
+import listStyles from "./incoming-money.module.css";
 import directStyles from "../direct-money/direct-money.module.css";
-import { Plus } from "lucide-react";
-
-type PaymentListRow = Pick<FinancePayment, "id" | "internal_reference" | "client_id" | "received_on" | "cash_amount" | "wht_amount" | "settlement_amount" | "currency" | "status"> & { clientName: string | null };
-const paymentListSelect = "id,internal_reference,client_id,received_on,cash_amount,wht_amount,settlement_amount,currency,status";
 
 export default function PaymentsPage() {
   return <QuotationGuard canAccess={access => access.permissions.canViewFinancePayments}>
@@ -22,63 +19,59 @@ export default function PaymentsPage() {
   </QuotationGuard>;
 }
 
-export function IncomingMoney({ canManage }: { canManage: boolean }) {
-  const { t } = useI18n();
-  const [source, setSource] = useState("invoice");
-  return <section className={styles.workspace}><header className={styles.header}><h1>{t("finance.nav.payments")}</h1>{canManage ? <Link className={directStyles.primary} href="/finance/direct-money/new"><Plus size={16} />{t("directMoney.create")}</Link> : null}</header>
-    <label className={styles.filter}>{t("finance.invoice.ui.source")}<select value={source} onChange={e => setSource(e.target.value)}><option value="invoice">{t("directMoney.invoiceBacked")}</option><option value="direct">{t("directMoney.title")}</option><option value="unclassified">{t("directMoney.unclassified")}</option></select></label>
-    {source === "invoice" ? <PaymentList /> : <DirectMoneyList key={source} unclassified={source === "unclassified"} />}
-  </section>;
-}
-
-function PaymentList() {
-  const { locale, t, date } = useI18n();
-  const [rows, setRows] = useState<PaymentListRow[]>([]);
-  const [status, setStatus] = useState("");
-  const [page, setPage] = useState(0);
-  const [hasNext, setHasNext] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-  const sequence = useRef(0);
+export function IncomingMoney({ canManage = false }: { canManage?: boolean }) {
+  const { t, date } = useI18n();
+  const [filters, setFilters] = useState<MoneyFilters>(initialMoneyFilters);
+  const [pages, setPages] = useState<MoneyOffsets[]>([initialMoneyOffsets]);
+  const [rows, setRows] = useState<IncomingMoneyRow[]>([]);
+  const [nextOffsets, setNextOffsets] = useState<MoneyOffsets | null>(null);
+  const [loading, setLoading] = useState(true), [error, setError] = useState(false);
+  const sequence = useRef(0), offsets = pages[pages.length - 1];
   const invalidate = useCallback(() => { sequence.current++; }, []);
-  const { statuses } = paymentUiLabels(locale);
+  const statuses = Object.fromEntries(incomingStatuses("all").map(status => [status, t(`incomingMoney.status.${status}`)]));
   const load = useCallback(async () => {
     const request = ++sequence.current;
-    setLoading(true); setRows([]); setError(false);
+    setLoading(true); setRows([]); setError(false); setNextOffsets(null);
     try {
-      let query = supabase.from("finance_payments").select(paymentListSelect).order("created_at", { ascending: false }).order("id", { ascending: false });
-      if (status) query = query.eq("status", status);
-      const result = await query.range(page * 50, page * 50 + 50);
-      if (result.error) throw result.error;
-      const payments = (result.data || []).slice(0, 50) as Omit<PaymentListRow, "clientName">[];
-      const clientIds = [...new Set(payments.map(row => row.client_id))];
-      const clients = clientIds.length ? await supabase.from("clients").select("id,name").in("id", clientIds) : { data: [], error: null };
-      if (clients.error) throw clients.error;
+      const result = await readIncomingMoneyPage(supabase, filters, offsets);
       if (request !== sequence.current) return;
-      const names = new Map((clients.data || []).map(client => [client.id, client.name]));
-      setRows(payments.map(row => ({ ...row, clientName: names.get(row.client_id) || null })));
-      setHasNext((result.data?.length || 0) > 50);
+      setRows(result.rows); setNextOffsets(result.hasNext ? result.nextOffsets : null);
     } catch { if (request === sequence.current) setError(true); }
     finally { if (request === sequence.current) setLoading(false); }
-  }, [page, status]);
+  }, [filters, offsets]);
   useEffect(() => {
     const timer = setTimeout(() => { void load(); }, 0);
     return () => { clearTimeout(timer); invalidate(); };
   }, [load, invalidate]);
-  const headings = [t("finance.payment.ui.reference"), t("finance.payment.ui.client"), t("finance.receipt.receivedOn"), t("finance.payment.settlement.receivedCompact"), "WHT", t("finance.receipt.settlement"), t("finance.payment.ui.status"), t("finance.list.open")];
-  return <section>
-    <header className={styles.header}><label className={styles.filter}>{t("finance.payment.ui.status")}<select value={status} onChange={event => { setStatus(event.target.value); setPage(0); }}><option value="">{t("finance.receipt.all")}</option>{Object.entries(statuses).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></header>
-    {loading ? <p role="status">{t("common.state.loading")}</p> : error ? <p role="alert" className={styles.error}>{t("finance.payment.list.failed")} <button className={styles.button} type="button" onClick={() => void load()}>{t("common.actions.retry")}</button></p> : !rows.length ? <p className={styles.empty}>{t("finance.payment.list.empty")}</p> :
-      <table className={styles.table}><thead><tr>{headings.map((label, index) => <th key={index} scope="col" className={index >= 3 && index <= 5 ? styles.numeric : undefined}>{label}</th>)}</tr></thead><tbody>{rows.map(row => <tr key={row.id}>
-        <td data-label={headings[0]}><strong>{displayText(row.internal_reference, row.id.slice(0, 8).toUpperCase())}</strong></td>
-        <td data-label={headings[1]}>{row.clientName || t("finance.list.customerUnavailable")}</td>
-        <td data-label={headings[2]}>{date(row.received_on)}</td>
-        <td data-label={headings[3]} className={styles.numeric}>{money(row.cash_amount, row.currency)}</td>
-        <td data-label={headings[4]} className={styles.numeric}>{money(row.wht_amount, row.currency)}</td>
-        <td data-label={headings[5]} className={styles.numeric}>{money(row.settlement_amount, row.currency)}</td>
-        <td data-label={headings[6]}><span className={styles.status}>{statuses[row.status] || t("finance.receipt.invalidStatus")}</span></td>
-        <td data-label={headings[7]}><Link className={styles.button} href={`/finance/payments/${row.id}`}>{t("finance.list.open")}</Link></td>
+  function changeFilters(patch: Partial<MoneyFilters>) {
+    sequence.current++; setLoading(true); setRows([]); setNextOffsets(null);
+    setFilters(previous => ({ ...previous, ...patch })); setPages([initialMoneyOffsets]);
+  }
+  function changePage(next: MoneyOffsets[]) { sequence.current++; setLoading(true); setRows([]); setNextOffsets(null); setPages(next); }
+  const filtered = filters.source !== "all" || !!filters.status || filters.classification !== "all";
+  const headings = ["reference", "payer", "date", "cash", "wht", "gross", "status", "open"].map(key => t(`incomingMoney.${key}`));
+  return <section className={`${styles.workspace} ${listStyles.workspace}`}>
+    <header className={`${styles.header} ${listStyles.header}`}><h1>{t("finance.nav.payments")}</h1>{canManage ? <Link className={directStyles.primary} href="/finance/direct-money/new"><Plus size={16} aria-hidden="true" />{t("directMoney.create")}</Link> : null}</header>
+    <div className={listStyles.toolbar} role="group" aria-label={t("incomingMoney.filters")}>
+      <label className={styles.filter}>{t("incomingMoney.source")}<select value={filters.source} onChange={event => {
+        const source = event.target.value as MoneySource;
+        changeFilters({ source, classification: "all", status: incomingStatuses(source).includes(filters.status) ? filters.status : "" });
+      }}>{["all", "invoice", "direct"].map(source => <option value={source} key={source}>{t(`incomingMoney.source.${source}`)}</option>)}</select></label>
+      <label className={styles.filter}>{t("incomingMoney.status")}<select value={filters.status} onChange={event => changeFilters({ status: event.target.value })}><option value="">{t("incomingMoney.all")}</option>{incomingStatuses(filters.source).map(status => <option value={status} key={status}>{statuses[status]}</option>)}</select></label>
+      {filters.source === "direct" ? <label className={styles.filter}>{t("incomingMoney.classification")}<select value={filters.classification} onChange={event => changeFilters({ classification: event.target.value as MoneyClassification })}>{["all", "classified", "unclassified"].map(value => <option key={value} value={value}>{t(`incomingMoney.classification.${value}`)}</option>)}</select></label> : null}
+    </div>
+    {loading ? <p role="status">{t("common.state.loading")}</p> : error ? <p role="alert" className={styles.error}>{t("incomingMoney.failed")} <button className={styles.button} type="button" onClick={() => void load()}>{t("common.actions.retry")}</button></p> : !rows.length ?
+      <p className={styles.empty} role="status">{t(filtered ? "incomingMoney.filteredEmpty" : "incomingMoney.empty")}</p> :
+      <table className={`${styles.table} ${listStyles.table}`}><caption className={listStyles.srOnly}>{t("finance.nav.payments")}</caption><colgroup>{["reference", "payer", "date", "amount", "amount", "amount", "status", "open"].map((key, i) => <col key={i} className={listStyles[`col${key}`]} />)}</colgroup><thead><tr>{headings.map((label, index) => <th key={index} scope="col" className={index >= 3 && index <= 5 ? styles.numeric : undefined}>{label}</th>)}</tr></thead><tbody>{rows.map(row => <tr key={`${row.source}:${row.id}`}>
+        <td data-label={headings[0]}><strong>{row.reference}</strong><div className={listStyles.badges}><span className={`${listStyles.badge} ${listStyles.source}`}>{t(`incomingMoney.source.${row.source}`)}</span>{row.unclassified === true ? <span className={`${listStyles.badge} ${listStyles.unclassified}`}>{t("incomingMoney.classification.unclassified")}</span> : null}</div></td>
+        <td data-label={headings[1]}>{row.payer || t("finance.list.customerUnavailable")}</td>
+        <td data-label={headings[2]}>{date(row.receivedOn)}</td>
+        <td data-label={headings[3]} className={styles.numeric}><strong>{money(row.cash, row.currency)}</strong></td>
+        <td data-label={headings[4]} className={styles.numeric}>{money(row.wht, row.currency)}</td>
+        <td data-label={headings[5]} className={styles.numeric}>{money(row.gross, row.currency)}</td>
+        <td data-label={headings[6]}><span className={`${listStyles.badge} ${listStyles[row.status] || listStyles.draft}`}>{statuses[row.status] || t("finance.receipt.invalidStatus")}</span></td>
+        <td data-label={headings[7]}><Link className={`${styles.button} ${listStyles.open}`} href={row.href} aria-label={`${headings[7]} ${row.reference}`}>{headings[7]}<ArrowRight size={14} aria-hidden="true" /></Link></td>
       </tr>)}</tbody></table>}
-    <div className={styles.pagination}><button type="button" className={styles.button} disabled={loading || page === 0} onClick={() => setPage(value => value - 1)}>{t("finance.receipt.previous")}</button><span>{t("finance.receipt.page", { page: page + 1 })}</span><button type="button" className={styles.button} disabled={loading || error || !hasNext} onClick={() => setPage(value => value + 1)}>{t("finance.receipt.next")}</button></div>
+    <div className={styles.pagination}><button type="button" className={styles.button} disabled={loading || pages.length === 1} onClick={() => changePage(pages.slice(0, -1))}>{t("finance.receipt.previous")}</button><span>{t("finance.receipt.page", { page: pages.length })}</span><button type="button" className={styles.button} disabled={loading || error || !nextOffsets} onClick={() => nextOffsets && changePage([...pages, nextOffsets])}>{t("finance.receipt.next")}</button></div>
   </section>;
 }

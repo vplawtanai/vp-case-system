@@ -9,10 +9,11 @@ const link = write('link.js', `import React from ${JSON.stringify(require.resolv
 const { fixture: combinedFixture } = require('./combined-document-render-fixture.cjs');
 const synthetic = {
   clients: [{ id: 'synthetic-client', name: 'ลูกค้าตัวอย่าง / Synthetic Client' }],
-  finance_payments: ['confirmed', 'draft', 'cancelled', 'reversed'].map((status, i) => ({ id: `9000000${i}-0000-4000-8000-000000000001`, client_id: 'synthetic-client', internal_reference: null, received_on: '2026-09-05', cash_amount: '4859.81', wht_amount: '140.19', settlement_amount: '5000.00', currency: 'THB', status })),
-  finance_combined_documents: ['issued', 'draft', 'cancelled'].map((status, i) => ({ ...combinedFixture(status).combined, id: `8000000${i}-0000-4000-8000-000000000001` })),
+  finance_payments: ['confirmed', 'draft', 'cancelled', 'reversed'].map((status, i) => ({ id: `9000000${i}-0000-4000-8000-000000000001`, client_id: 'synthetic-client', internal_reference: null, received_on: '2026-09-05', created_at: '2026-09-05T10:00:00Z', cash_amount: '4859.81', wht_amount: '140.19', settlement_amount: '5000.00', currency: 'THB', status })),
+  finance_direct_money_receipts: ['draft', 'confirmed', 'reversed'].map((status, i) => ({ id: `7000000${i}-0000-4000-8000-000000000001`, payer_name: 'ผู้จ่ายเงินโดยตรง / Direct payer', received_on: '2026-09-05', created_at: '2026-09-05T10:00:00Z', cash_amount: '10400.00', wht_amount: '300.00', gross_amount: '10700.00', currency: 'THB', status, unclassified: i === 1 })),
+  finance_combined_documents: ['issued', 'draft', 'cancelled'].map((status, i) => ({ ...combinedFixture(status).combined, id: `8000000${i}-0000-4000-8000-000000000001`, created_at: new Date(Date.UTC(2026, 6, 3 - i)).toISOString() })),
 };
-const supabase = write('supabase.js', `const tables=${JSON.stringify(synthetic)};window.__listFixture={tables,reads:[],failNext:false};export const supabase={from(table){if(!Object.hasOwn(tables,table))throw Error('Unexpected table '+table);const record={table,filters:[]};window.__listFixture.reads.push(record);let rows=tables[table];const q={select(columns){record.columns=columns;return q;},order(){return q;},eq(key,value){record.filters.push([key,value]);rows=rows.filter(row=>row[key]===value);return q;},in(key,values){rows=rows.filter(row=>values.includes(row[key]));return q;},range(start,end){record.range=[start,end];rows=rows.slice(start,end+1);return q;},then(resolve,reject){const fail=window.__listFixture.failNext;window.__listFixture.failNext=false;return Promise.resolve(fail?{data:null,error:{message:'Private fixture database detail'}}:{data:structuredClone(rows),error:null}).then(resolve,reject);}};return q;}};`);
+const supabase = write('supabase.js', `const tables=${JSON.stringify(synthetic)};window.__listFixture={tables,reads:[],failNext:false,delays:{}};export const supabase={from(table){if(!Object.hasOwn(tables,table))throw Error('Unexpected table '+table);const record={table,filters:[]};window.__listFixture.reads.push(record);let rows=tables[table];const orders=[];const q={select(columns){record.columns=columns;return q;},order(key){orders.push(key);return q;},eq(key,value){record.filters.push([key,value]);rows=rows.filter(row=>row[key]===value);return q;},in(key,values){rows=rows.filter(row=>values.includes(row[key]));return q;},range(start,end){record.range=[start,end];rows=[...rows].sort((a,b)=>{for(const key of orders){if(a[key]<b[key])return 1;if(a[key]>b[key])return -1;}return 0;}).slice(start,end+1);return q;},then(resolve,reject){const fail=window.__listFixture.failNext;window.__listFixture.failNext=false;const result=fail?{data:null,error:{message:'Private fixture database detail'}}:{data:structuredClone(rows),error:null};return new Promise(r=>setTimeout(()=>r(result),window.__listFixture.delays[table]||0)).then(resolve,reject);}};return q;}};`);
 const quotationGuard = write('quotation-guard.js', `import React from ${JSON.stringify(require.resolve('react'))};import{buildPermissions}from'${root}/lib/permissions.ts';export function QuotationGuard({canAccess,children}){const access={profile:{role:'admin'},permissions:buildPermissions({role:'admin'})};return React.createElement('main',null,canAccess(access)?children(access):'Denied');}`);
 const taxGuard = write('tax-guard.js', `import React from ${JSON.stringify(require.resolve('react'))};import{buildPermissions}from'${root}/lib/permissions.ts';import FinanceSubNav from'${root}/app/finance/FinanceSubNav.tsx';export function TaxInvoiceGuard({children}){const permissions=buildPermissions({role:'admin'});return React.createElement('main',null,React.createElement(FinanceSubNav,{activePage:'tax-invoices',permissions}),children(permissions));}`);
 const entry = `import React from 'react';import{createRoot}from'react-dom/client';import{UiLocaleProvider}from'${root}/lib/i18n/provider.tsx';import LanguageSelector from'${root}/app/components/LanguageSelector.tsx';import FinanceSubNav from'${root}/app/finance/FinanceSubNav.tsx';import{buildPermissions}from'${root}/lib/permissions.ts';
@@ -25,7 +26,7 @@ async function main() {
     resolve: { extensions: ['.tsx', '.ts', '.js'], modules: [path.join(root, 'node_modules')], alias: { 'next/navigation': navigation, 'next/link': link, [root + '/lib/supabase']: supabase, [root + '/app/finance/quotations/shared']: quotationGuard, [root + '/app/finance/tax-invoices/access']: taxGuard } },
     module: { rules: [{ test: /\.(tsx?|css)$/, use: loader }] }, plugins: [new webpack.DefinePlugin({ 'process.env.NODE_ENV': JSON.stringify('development') })], devtool: false,
   }, (error, stats) => error || stats.hasErrors() ? reject(error || Error(stats.toString({ all: false, errors: true }))) : resolve()));
-  const styles = ['app/finance/finance-sub-nav.module.css', 'app/components/LanguageSelector.module.css', 'app/finance/finance-record-list.module.css', 'app/finance/direct-money/direct-money.module.css'].map(file => {
+  const styles = ['app/finance/finance-sub-nav.module.css', 'app/components/LanguageSelector.module.css', 'app/finance/finance-record-list.module.css', 'app/finance/direct-money/direct-money.module.css', 'app/finance/payments/incoming-money.module.css'].map(file => {
     const prefix = path.basename(file).replaceAll('.', '_') + '_';
     return fs.readFileSync(path.join(root, file), 'utf8').replace(/\.([A-Za-z_][A-Za-z_0-9-]*)/g, (_, key) => '.' + prefix + key);
   }).join('\n');
@@ -120,6 +121,7 @@ async function main() {
         if(route==='payments')assert.equal(await list.locator('a[href="/finance/direct-money/new"]').count(),1);
         await page.screenshot({ path: path.join(out, `${route}-${locale}-${width}.png`) });
       }
+      if (route === 'payments') await page.getByRole('combobox', {name:'Source',exact:true}).selectOption('invoice');
       const filter = page.getByRole('combobox', {name:/^(Status|สถานะ)$/});
       await filter.selectOption('draft');
       await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 1);
@@ -131,6 +133,51 @@ async function main() {
       await page.locator('tbody a').first().click();
       assert.match(page.url(), new RegExp(`/finance/${route}/[a-f0-9-]+$`));
     }
+    for (const width of [390, 768, 1024, 1440]) for (const locale of ['th', 'en']) {
+      await page.setViewportSize({ width, height: 1000 }); await page.goto(base + '/finance/payments');
+      await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 7);
+      await page.locator(`button[lang="${locale}"]`).click();
+      const source = page.getByRole('combobox', { name: locale === 'th' ? 'ที่มา' : 'Source', exact: true });
+      const status = page.getByRole('combobox', { name: locale === 'th' ? 'สถานะ' : 'Status', exact: true });
+      const classification = page.getByRole('combobox', { name: locale === 'th' ? 'การจำแนก' : 'Classification', exact: true });
+      assert.equal(await source.inputValue(), 'all');
+      assert.deepEqual(await source.locator('option').evaluateAll(nodes => nodes.map(n => n.value)), ['all', 'invoice', 'direct']);
+      assert.equal(await classification.count(), 0);
+      assert.equal(await page.locator('tbody span[class*="badge"][class*="source"]').count(), 7);
+      assert.equal(await page.locator('tbody span[class*="unclassified"]').count(), 1);
+      for (const state of ['confirmed', 'draft', 'reversed']) assert.ok(await page.locator(`tbody span[class*="badge"][class*="_${state}"]`).count());
+      await source.focus(); await page.keyboard.press('Tab'); assert.equal(await status.evaluate(n => n === document.activeElement), true);
+      assert.notEqual(await status.evaluate(n => getComputedStyle(n).outlineStyle), 'none');
+      await source.selectOption('invoice'); await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 4);
+      assert.equal(await page.locator('tbody a[href^="/finance/direct-money/"]').count(), 0);
+      await source.selectOption('direct'); await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 3);
+      assert.equal(await page.locator('tbody a[href^="/finance/payments/"]').count(), 0);
+      await classification.selectOption('unclassified'); await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 1);
+      assert.ok((await page.locator('tbody').textContent()).includes('10,400.00'));
+      await page.screenshot({ path: path.join(out, `incoming-unclassified-${locale}-${width}.png`), fullPage: true });
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false);
+      await classification.selectOption('classified'); await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 2);
+      await status.selectOption('confirmed');
+      await page.getByText(locale === 'th' ? 'ไม่พบรายการที่ตรงกับตัวกรอง' : 'No records match these filters', { exact: true }).waitFor();
+      await source.selectOption('invoice'); await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 1);
+      assert.equal(await classification.count(), 0); assert.equal(await status.inputValue(), 'confirmed');
+      await status.selectOption(''); await source.selectOption('all'); await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 7);
+      const open = page.locator('tbody a').first(); await open.focus();
+      assert.notEqual(await open.evaluate(n => getComputedStyle(n).outlineStyle), 'none');
+      await page.screenshot({ path: path.join(out, `incoming-all-${locale}-${width}.png`), fullPage: true });
+      for (const rect of await page.locator('main select').evaluateAll(nodes => nodes.map(n => n.getBoundingClientRect().toJSON()))) assert.ok(rect.width <= 321 && rect.right <= width);
+    }
+    await page.goto(base + '/finance/payments'); await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 7);
+    await page.locator('button[lang="en"]').click();
+    await page.evaluate(() => { window.__listFixture.delays.finance_direct_money_receipts = 250; });
+    await page.getByRole('combobox', {name:'Source',exact:true}).selectOption('direct');
+    await page.getByRole('combobox', {name:'Source',exact:true}).selectOption('invoice');
+    await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 4); await page.waitForTimeout(350);
+    assert.equal(await page.locator('tbody tr').count(), 4); assert.equal(await page.locator('tbody a[href^="/finance/direct-money/"]').count(), 0);
+    await page.evaluate(() => { window.__listFixture.tables.finance_direct_money_receipts = []; });
+    await page.getByRole('combobox', {name:'Source',exact:true}).selectOption('direct');
+    await page.getByText('No records match these filters', {exact:true}).waitFor();
+    await page.getByRole('combobox', {name:'Source',exact:true}).selectOption('all'); await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 4);
     for (const route of ['payments', 'combined-documents']) {
       await page.goto(base + `/finance/${route}`);
       await page.locator('tbody tr').first().waitFor();
@@ -143,9 +190,10 @@ async function main() {
       await page.getByRole('button', { name: 'Try Again' }).click();
       await page.locator('tbody tr').first().waitFor();
       await page.evaluate(table => { window.__listFixture.tables[table] = []; }, route === 'payments' ? 'finance_payments' : 'finance_combined_documents');
+      if (route === 'payments') await page.evaluate(() => { window.__listFixture.tables.finance_direct_money_receipts = []; });
       await filter.selectOption('');
-      await page.locator('main > section').getByText(/appear here when created/).waitFor();
-      assert.ok((await page.evaluate(() => window.__listFixture.reads)).every(read => ['clients', 'finance_payments', 'finance_combined_documents'].includes(read.table)));
+      await page.locator('main > section').getByText(route === 'payments' ? 'No incoming money records yet' : /appear here when created/).waitFor();
+      assert.ok((await page.evaluate(() => window.__listFixture.reads)).every(read => ['clients', 'finance_payments', 'finance_direct_money_receipts', 'finance_combined_documents'].includes(read.table)));
     }
     assert.deepEqual(errors, []); assert.deepEqual(external, []);
     console.log(JSON.stringify({ pass: true, widths: [390, 768, 1024, 1440], locales: ['th', 'en'], artifacts: out }));

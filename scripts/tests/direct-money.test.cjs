@@ -32,7 +32,7 @@ test('shared distribution identities never masquerade as Invoice items and prese
 test('new incoming-money routes and all Direct labels support TH/EN',()=>{
  for(const locale of ['th','en'])for(const key of Object.keys(messages).filter(k=>k.startsWith('directMoney.')))assert.ok(translate(locale,key)&&translate(locale,key)!==key,key);
  for(const path of ['/finance/direct-money/new','/finance/direct-money/synthetic'])assert.equal(activeFinancePage(path,'invoices'),'payments');
- const page=fs.readFileSync('app/finance/payments/page.tsx','utf8');assert.match(page,/direct-money\/new/);assert.match(page,/DirectMoneyList/);
+ const page=fs.readFileSync('app/finance/payments/page.tsx','utf8');assert.match(page,/direct-money\/new/);assert.match(page,/readIncomingMoneyPage/);
  for(const file of ['app/finance/direct-money/form.tsx','app/finance/direct-money/classification.tsx']){const s=fs.readFileSync(file,'utf8');assert.doesNotMatch(s,/window.alert|confirm_finance_payment|issue_finance|create_finance_invoice/);}
 });
 module.exports={sample};
