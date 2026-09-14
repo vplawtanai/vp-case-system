@@ -7,6 +7,7 @@
 .grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
 .field { display: grid; align-content: start; gap: 6px; min-width: 0; font-size: 14px; }
 .field > span { font-weight: 500; }
+.form .field > label { font-weight: 500; }
 .form input:not([type=checkbox]), .form select, .form textarea, .section textarea { box-sizing: border-box; width: 100%; min-width: 0; border: 1px solid #bec8d0; border-radius: 6px; padding: 9px 10px; font: inherit; background: white; color: inherit; }
 .form input[aria-invalid=true], .form select[aria-invalid=true], .form textarea[aria-invalid=true] { border-color: #b42318; }
 .check { display: flex; gap: 9px; align-items: flex-start; margin: 12px 0; }
@@ -35,4 +36,24 @@
 .review { border-top: 2px solid #17664b; padding-top: 20px; }
 .review p { margin: 8px 0; }
 .readonly { white-space: pre-wrap; overflow-wrap: anywhere; }
+.optional { margin-top: 22px; border-top: 1px solid #e2e7e9; }
+.optional summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; list-style: none; cursor: pointer; padding: 14px 0; color: #4e606d; font-size: 14px; }
+.optional summary::-webkit-details-marker { display: none; }
+.optional summary:hover { color: #17664b; }
+.optional summary svg { flex-shrink: 0; }
+.optional[open] summary svg { transform: rotate(180deg); }
+.optional > div { padding: 4px 0 8px; }
+.form .lineHeader > button { flex: 0 0 42px; width: 42px; height: 42px; padding: 10px; }
+.form .taxHelp { grid-column: 1 / -1; margin: 0; }
+.form .review { margin-top: 8px; padding-bottom: 12px; }
+.form .review h2 { font-size: 18px; margin: 0 0 16px; }
+.reconciliations { margin: 20px 0 24px; border-top: 1px solid #dce1e5; }
+.reconciliation { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px 24px; padding: 14px 0; border-bottom: 1px solid #e2e7e9; font-size: 14px; line-height: 1.6; }
+.reconciliation > div { display: grid; justify-items: end; gap: 6px; flex-shrink: 0; max-width: 100%; }
+.reconciliation small { color: #755119; font-size: 13px; }
+.matched, .unresolved { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: 500; }
+.matched { color: #216345; background: #eaf5ef; }
+.unresolved { color: #785513; background: #fff4db; }
+.matched svg, .unresolved svg { flex-shrink: 0; }
+@media(max-width: 767px) { .reconciliation { flex-direction: column; gap: 8px; } .reconciliation > div { justify-items: start; } }
 @media(max-width: 767px) { .workspace { padding: 16px; } .grid { grid-template-columns: 1fr; } .facts { grid-template-columns: repeat(2,minmax(0,1fr)); } .actions { align-items: stretch; } .actions > button { flex: 1 1 100%; } .header h1 { font-size: 21px; } }

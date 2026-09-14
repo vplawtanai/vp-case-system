@@ -1,19 +1,29 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { Plus, Trash2, Save } from "lucide-react";
+import { cloneElement, useEffect, useId, useRef, useState, type ReactElement } from "react";
+import { Plus, Trash2, Save, ChevronDown, CheckCircle2, CircleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
 import { useI18n } from "../../../lib/i18n/provider";
-import { VatTreatmentInput } from "../document-decision/vat-input";
+import { vatTreatmentLabel, type VatTreatment } from "../document-decision/shared";
 import { directLineAmounts, directMoneyError, directTotals, economicClasses, moneyNatures, newDirectInput, newDirectLine, validateDirectInput, type DirectInput, type DirectLine } from "./shared";
+import { directVatChoiceIncomplete, directVatPatch, directVatSelection, directVatTreatments, reconciliationResult } from "./form-presentation";
 import styles from "./direct-money.module.css";
 
 type Option = { id: string; name: string };
 type Matter = { id: string | number; client_id: string; title: string; file_no?: string; matter_no?: string };
 export function DirectAmounts({ values }: { values: Record<string, number | null> }) {
   const { t, locale } = useI18n();
-  return <dl className={styles.facts}>{Object.entries(values).map(([key, value]) => <div key={key}><dt>{key === "vat" || key === "wht" ? key.toUpperCase() : t(`directMoney.${key}`)}</dt><dd>{value !== null && Number.isFinite(value) ? value.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " THB" : "-"}</dd></div>)}</dl>;
+  return <dl className={styles.facts}>{Object.entries(values).map(([key, value]) => <div key={key}><dt>{key === "vat" || key === "wht" ? key.toUpperCase() : t(`directMoney.${key === "cash" ? "actualCash" : key}`)}</dt><dd>{value !== null && Number.isFinite(value) ? value.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " THB" : "-"}</dd></div>)}</dl>;
+}
+export function DirectReconciliation({ label, parts, gross }: { label: string; parts: (number | null)[]; gross: number | null }) {
+  const { t, locale } = useI18n(), result = reconciliationResult(parts, gross);
+  return <div className={styles.reconciliation}>
+    <span>{label}</span><div><strong className={result.matches ? styles.matched : styles.unresolved}>
+      {result.matches ? <CheckCircle2 size={16} aria-hidden="true" /> : <CircleAlert size={16} aria-hidden="true" />}
+      {t(result.matches ? "directMoney.matched" : "directMoney.notMatched")}
+    </strong>{!result.matches ? <small>{result.difference === null ? t("directMoney.reconcileIncomplete") : t("directMoney.difference", { amount: result.difference.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) })}</small> : null}</div>
+  </div>;
 }
 export function DirectMoneyForm({ initial, id: existingId, version = 0, onSaved, onBusy }: { initial?: DirectInput; id?: string; version?: number; onSaved?: () => void; onBusy?: (busy: boolean) => void }) {
   const { t, locale } = useI18n(), router = useRouter(), formId = useId();
@@ -39,13 +49,22 @@ export function DirectMoneyForm({ initial, id: existingId, version = 0, onSaved,
   function update(patch: Partial<DirectInput>) { setForm(value => ({ ...value, ...patch })); setErrors({}); setFailure(null); }
   function lineUpdate(index: number, patch: Partial<DirectLine>) { update({ lines: form.lines.map((line, i) => i === index ? { ...line, ...patch } : line) }); }
   const error = (key: string) => errors[key] ? <small id={`${formId}-${key}-error`} className={styles.error}>{t(`directMoney.error.${errors[key]}`)}</small> : null;
-  const field = (key: string, label: string, child: ReactNode) => <label className={styles.field}><span>{label}</span>{child}{error(key)}</label>;
+  const field = (key: string, label: string, child: ReactElement<{ id?: string }>) => <div className={styles.field}><label htmlFor={`${formId}-${key}`}>{label}</label>{cloneElement(child, { id: `${formId}-${key}` })}{error(key)}</div>;
   const attrs = (key: string) => ({ "aria-invalid": !!errors[key], "aria-describedby": errors[key] ? `${formId}-${key}-error` : undefined });
   const numeric = (value: number | null, change: (value: number) => void, key: string, scale = "0.01") => <input type="number" inputMode="decimal" min="0" step={scale} value={value || ""} onChange={e => change(e.target.value === "" ? 0 : Number(e.target.value))} {...attrs(key)} />;
   async function submit(event: React.FormEvent) {
     event.preventDefault(); if (lock.current || loading || lookupFailed) return;
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-    const issues = validateDirectInput(form, today); setErrors(issues); setFailure(null);
+    const issues = validateDirectInput(form, today);
+    form.lines.forEach((line, i) => {
+      if (!directVatChoiceIncomplete(line)) return;
+      if (directVatSelection(line) === "standard_rate" && line.vat_rate <= 0) {
+        delete issues[`line.${i}.vat`];
+        issues[`line.${i}.vat_rate`] = "vatPositiveRate";
+      }
+      else issues[`line.${i}.vat`] = "vatRequired";
+    });
+    setErrors(issues); setFailure(null);
     if (Object.keys(issues).length) { requestAnimationFrame(() => root.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()); return; }
     lock.current = true; setBusy(true); onBusy?.(true); id.current ||= crypto.randomUUID();
     try {
@@ -67,26 +86,31 @@ export function DirectMoneyForm({ initial, id: existingId, version = 0, onSaved,
         {field("cash_amount", tKey("actualCash"), numeric(form.cash_amount, cash_amount => update({ cash_amount }), "cash_amount"))}
         {field("client_id", tKey("client"), <select value={form.client_id || ""} onChange={e => update({ client_id: e.target.value || null, payer_name: clients.find(c => c.id === e.target.value)?.name || form.payer_name, case_id: null, advisory_matter_id: null })}><option value="">{tKey("unlinked")}</option>{clients.map(client => <option value={client.id} key={client.id}>{client.name}</option>)}</select>)}
         {field("payer_name", tKey("payer"), <input value={form.payer_name} maxLength={500} onChange={e => update({ payer_name: e.target.value })} {...attrs("payer_name")} />)}
+      </div><details className={styles.optional}>
+        <summary>{tKey("optional")}<ChevronDown size={16} aria-hidden="true" /></summary><div className={styles.grid}>
         {field("matter", tKey("matter"), <select disabled={!form.client_id} value={form.case_id ? `case:${form.case_id}` : form.advisory_matter_id ? `advisory:${form.advisory_matter_id}` : ""} onChange={e => { const [type, value] = e.target.value.split(":"); update({ case_id: type === "case" ? Number(value) : null, advisory_matter_id: type === "advisory" ? value : null }); }}><option value="">{tKey("unlinked")}</option>{cases.filter(c => c.client_id === form.client_id).map(c => <option key={c.id} value={`case:${c.id}`}>{c.file_no} · {c.title}</option>)}{advisories.filter(c => c.client_id === form.client_id).map(c => <option key={c.id} value={`advisory:${c.id}`}>{c.matter_no} · {c.title}</option>)}</select>)}
         {field("reference", tKey("reference"), <input maxLength={200} value={form.reference_no || ""} onChange={e => update({ reference_no: e.target.value || null })} />)}
         {field("evidence", tKey("evidence"), <input maxLength={1000} value={form.evidence_reference || ""} onChange={e => update({ evidence_reference: e.target.value || null })} />)}
         {field("note", tKey("note"), <textarea rows={2} maxLength={2000} value={form.note} onChange={e => update({ note: e.target.value })} />)}
-      </div></section>
+      </div></details></section>
       <section className={styles.section}><h2>{tKey("lines")}</h2>{error("lines")}{form.lines.map((line, index) => {
-        const key = `line.${index}.`, amount = directLineAmounts(line);
-        return <div className={styles.line} key={line.source_line_id}><div className={styles.lineHeader}><h3>{index + 1}. {line.description || tKey("description")}</h3><button type="button" className={styles.button} title={tKey("removeLine")} aria-label={`${tKey("removeLine")} ${index + 1}`} disabled={form.lines.length === 1} onClick={() => update({ lines: form.lines.filter((_, i) => i !== index) })}><Trash2 size={16} /></button></div><div className={styles.grid}>
+        const key = `line.${index}.`, amount = directLineAmounts(line), treatment = directVatSelection(line);
+        const needsVatReason = treatment !== "unknown" && treatment !== "standard_rate";
+        return <div className={styles.line} key={line.source_line_id}><div className={styles.lineHeader}><h3>{index + 1}. {line.description || tKey("description")}</h3><button type="button" className={styles.button} title={tKey(form.lines.length === 1 ? "lastLine" : "removeLine")} aria-label={`${tKey("removeLine")} ${index + 1}`} disabled={form.lines.length === 1} onClick={() => update({ lines: form.lines.filter((_, i) => i !== index) })}><Trash2 size={16} aria-hidden="true" /></button></div><div className={styles.grid}>
           {field(key + "description", tKey("description"), <input maxLength={1000} value={line.description} onChange={e => lineUpdate(index, { description: e.target.value })} {...attrs(key + "description")} />)}
-          {field(key + "reason", tKey("reason"), <input maxLength={2000} value={line.reason} onChange={e => lineUpdate(index, { reason: e.target.value })} {...attrs(key + "reason")} />)}
+          {field(key + "reason", tKey("lineReason"), <input maxLength={2000} value={line.reason} onChange={e => lineUpdate(index, { reason: e.target.value })} {...attrs(key + "reason")} />)}
           {field(key + "nature", tKey("nature"), <select value={line.money_nature} onChange={e => lineUpdate(index, { money_nature: e.target.value as DirectLine["money_nature"], classification: null })}>{moneyNatures.map(value => <option key={value} value={value}>{tKey(`nature.${value}`)}</option>)}</select>)}
           {line.money_nature === "business_revenue" ? field(key + "classification", tKey("classification"), <select value={line.classification || ""} onChange={e => lineUpdate(index, { classification: e.target.value || null })} {...attrs(key + "classification")}><option value="">{tKey("choose")}</option>{economicClasses.map(value => <option key={value} value={value}>{t(`finance.invoice.classification.${value}`)}</option>)}</select>) : null}
           {field(key + "base", tKey("base"), numeric(line.base, base => lineUpdate(index, { base }), key + "base"))}
-          <div><label className={styles.check}><input type="checkbox" checked={line.vat_applicable} onChange={e => lineUpdate(index, { vat_applicable: e.target.checked, vat_rate: 0, vat_treatment_json: null })} />{tKey("vatApplies")}</label>{line.vat_applicable ? field(key + "vat_rate", tKey("vatRate"), numeric(line.vat_rate, vat_rate => lineUpdate(index, { vat_rate, vat_treatment_json: null }), key + "vat_rate", "0.0001")) : null}</div>
-          <div className={styles.field}>{line.vat_applicable && line.vat_rate > 0 ? <p>VAT {line.vat_rate}%</p> : <VatTreatmentInput value={line.vat_treatment_json} applicable={line.vat_applicable} rate={line.vat_rate} onChange={vat_treatment_json => lineUpdate(index, { vat_treatment_json })} />}{error(key + "vat")}</div>
+          {field(key + "vat", tKey("vatTreatment"), <select value={treatment} onChange={e => lineUpdate(index, directVatPatch(line, e.target.value as VatTreatment))} {...attrs(key + "vat")}>{directVatTreatments.map(value => <option key={value} value={value}>{value === "standard_rate" ? tKey("vatStandard") : vatTreatmentLabel(value, locale)}</option>)}</select>)}
+          {treatment === "standard_rate" ? field(key + "vat_rate", tKey("vatRate"), numeric(line.vat_rate, vat_rate => lineUpdate(index, { vat_rate, vat_treatment_json: { ...line.vat_treatment_json, schema_version: 1, treatment: "standard_rate" } }), key + "vat_rate", "0.0001")) : null}
+          {needsVatReason ? field(key + "vat_reason", tKey("vatReason"), <textarea rows={2} maxLength={2000} value={line.vat_treatment_json?.reason || ""} onChange={e => lineUpdate(index, { vat_treatment_json: { ...line.vat_treatment_json, schema_version: 1, treatment, reason: e.target.value } })} {...attrs(key + "vat")} />) : null}
+          <p className={`${styles.muted} ${styles.taxHelp}`}>{tKey("vatHelp")}</p>
           {field(key + "wht", tKey("wht"), <select value={line.wht_applicability} onChange={e => lineUpdate(index, { wht_applicability: e.target.value as DirectLine["wht_applicability"], wht_base: null, wht_rate: null })} {...attrs(key + "wht")}><option value="unknown">{tKey("choose")}</option>{["applies", "does_not_apply"].map(value => <option key={value} value={value}>{tKey(value)}</option>)}</select>)}
           {line.wht_applicability === "applies" ? <>{field(key + "wht_base", tKey("whtBase"), numeric(line.wht_base, wht_base => lineUpdate(index, { wht_base }), key + "wht"))}{field(key + "wht_rate", tKey("whtRate"), numeric(line.wht_rate, wht_rate => lineUpdate(index, { wht_rate }), key + "wht", "0.0001"))}</> : null}
         </div><DirectAmounts values={amount} />{line.money_nature === "unclassified" ? <p className={styles.warning}>{tKey("classificationWarning")}</p> : null}</div>;
       })}<button className={styles.button} type="button" disabled={form.lines.length >= 100} onClick={() => update({ lines: [...form.lines, newDirectLine()] })}><Plus size={16} />{tKey("addLine")}</button></section>
-      <section className={styles.review}><h2>{tKey("review")}</h2><DirectAmounts values={{ actualCash: form.cash_amount, wht: totals.wht, gross: totals.gross, base: totals.base, vat: totals.vat }} /><p>{tKey("reconcileCash")}</p><p>{tKey("reconcileVat")}</p>{error("reconcile")}<div className={styles.actions}><button className={styles.primary} type="submit"><Save size={16} />{tKey("save")}</button></div></section>
+      <section className={styles.review}><h2>{tKey("review")}</h2><DirectAmounts values={{ actualCash: form.cash_amount, wht: totals.wht, gross: totals.gross, base: totals.base, vat: totals.vat }} /><div className={styles.reconciliations} aria-live="polite" aria-atomic="true"><DirectReconciliation label={tKey("reconcileCash")} parts={[form.cash_amount, totals.wht]} gross={totals.gross} /><DirectReconciliation label={tKey("reconcileVat")} parts={[totals.base, totals.vat]} gross={totals.gross} /></div>{error("reconcile")}<div className={styles.actions}><button className={styles.primary} type="submit"><Save size={16} aria-hidden="true" />{tKey("save")}</button></div></section>
     </fieldset>
   </form>;
 }
