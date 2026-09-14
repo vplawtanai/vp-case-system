@@ -80,10 +80,10 @@ for (const locale of ['th', 'en']) test(`${locale}: one amount, tax quick choice
   assert.ok(!html.includes(translate(locale, 'directMoney.vatRate')));
   assert.ok(!html.includes(translate(locale, 'directMoney.whtRate')));
   assert.ok(!html.includes(translate(locale, 'directMoney.vatReason')));
-  assert.equal((html.match(/type="number"/g)||[]).length,2,'only actual received and line amount are editable in the common path');
+  assert.equal((html.match(/type="number"/g)||[]).length,1,'actual received is the only editable money amount in the common single-line path');
+  assert.doesNotMatch(html,new RegExp(`<label[^>]*>${translate(locale,'directMoney.amountBeforeTax')}</label>`));
   assert.equal((html.match(/role="radiogroup"/g)||[]).length,2);
-  assert.ok(html.includes(translate(locale,'directMoney.receiptMatched')));
-  assert.equal((html.match(new RegExp(translate(locale, 'directMoney.matched'), 'g')) || []).length, 2);
+  assert.equal((html.match(new RegExp(translate(locale, 'directMoney.matched'), 'g')) || []).length, 3);
   assert.match(html, /title="[^"]+" aria-label="[^"]+ 1" disabled=""/);
   const failed = form.render(locale, {}, { label: 'Before VAT + VAT', parts: [10000, 650], gross: 10700 }, 'DirectReconciliation');
   assert.ok(failed.includes(translate(locale, 'directMoney.notMatched'))); assert.ok(failed.includes('50.00 THB'));
@@ -125,8 +125,9 @@ test('multi-line receipts sum expected money once and keep non-revenue classific
 });
 test('existing save RPC/version/idempotency and validator remain authoritative; no new lifecycle entry', () => {
   const source = fs.readFileSync('app/finance/direct-money/form.tsx', 'utf8');
-  assert.match(source, /validateDirectInput\(form, today\)/);
-  assert.match(source, /save_finance_direct_money_receipt", \{ p_id: id.current, p_expected_version: version, p_input: form \}/);
+  assert.match(source, /validateDirectInput\(input, today\)/);
+  assert.match(source, /save_finance_direct_money_receipt", \{ p_id: id.current, p_expected_version: version, p_input: input \}/);
+  assert.match(source, /const input = prepared.input/);
   assert.match(source, /lock.current \|\| loading \|\| lookupFailed/);
   assert.doesNotMatch(source, /\.from\([^)]*\)\.(insert|update|delete)|transition_finance|issue_finance/);
 });

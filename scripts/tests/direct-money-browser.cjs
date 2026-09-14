@@ -48,7 +48,7 @@ export const supabase={from(table){let single=false;const q={select(){return q},
 fs.writeFileSync(navigation,"export const usePathname=()=>'/finance/direct-money/local';export const useRouter=()=>({push:p=>window.navigated=p});export const useParams=()=>({id:'local'});");
 fs.writeFileSync(link,`import React from '${require.resolve('react')}';export default function Link({children,...props}){return React.createElement('a',props,children)}`);
 fs.writeFileSync(loader,`module.exports=function(source){if(this.resourcePath.endsWith('.css')){const prefix=require('node:path').basename(this.resourcePath).replaceAll('.','_')+'_';return 'module.exports={__esModule:true,default:new Proxy({}, {get:(_,k)=>'+JSON.stringify(prefix)+'+k})};'}return require(${JSON.stringify(require.resolve('typescript'))}).transpileModule(source,{compilerOptions:{module:99,target:9,jsx:4,esModuleInterop:true}}).outputText};`);
-fs.writeFileSync(entry,`import React from'react';import{createRoot}from'react-dom/client';import{UiLocaleProvider}from'${root}/lib/i18n/provider.tsx';import{DirectMoneyForm}from'${root}/app/finance/direct-money/form.tsx';import{DirectMoneyDetail}from'${root}/app/finance/direct-money/[id]/page.tsx';import{DirectMoneyList}from'${root}/app/finance/direct-money/list.tsx';const query=new URLSearchParams(location.search),mode=query.get('mode');createRoot(document.getElementById('root')).render(<UiLocaleProvider initialLocale={query.get('locale')||'en'} pathname="/finance/direct-money/local">{mode==='list'?<DirectMoneyList/>:mode==='detail'||mode==='confirmed'||mode==='partner'?<DirectMoneyDetail id="${id}" canManage={mode!=='partner'}/>:<main><DirectMoneyForm initial={mode==='empty'?undefined:${JSON.stringify(input)}}/></main>}</UiLocaleProvider>);`);
+fs.writeFileSync(entry,`import React from'react';import{createRoot}from'react-dom/client';import{UiLocaleProvider}from'${root}/lib/i18n/provider.tsx';import{DirectMoneyForm}from'${root}/app/finance/direct-money/form.tsx';import{DirectMoneyDetail}from'${root}/app/finance/direct-money/[id]/page.tsx';import{DirectMoneyList}from'${root}/app/finance/direct-money/list.tsx';const query=new URLSearchParams(location.search),mode=query.get('mode'),initial=${JSON.stringify(input)};if(mode==='custom'){initial.cash_amount=10550;initial.lines[0].wht_base=5000;}createRoot(document.getElementById('root')).render(<UiLocaleProvider initialLocale={query.get('locale')||'en'} pathname="/finance/direct-money/local">{mode==='list'?<DirectMoneyList/>:mode==='detail'||mode==='confirmed'||mode==='partner'?<DirectMoneyDetail id="${id}" canManage={mode!=='partner'}/>:<main><DirectMoneyForm initial={mode==='empty'?undefined:initial}/></main>}</UiLocaleProvider>);`);
 async function main(){
  await new Promise((resolve,reject)=>webpack({mode:'development',context:root,entry,output:{path:out,filename:'bundle.js'},resolve:{extensions:['.tsx','.ts','.js'],modules:[path.join(root,'node_modules')],alias:{'next/navigation':navigation,'next/link':link,[path.join(root,'lib/supabase')]:adapter}},module:{rules:[{test:/\.(tsx?|css)$/,use:loader}]},devtool:false},(error,stats)=>error||stats.hasErrors()?reject(error||Error(stats.toString({all:false,errors:true}))):resolve()));
  const css=['app/finance/direct-money/direct-money.module.css','app/finance/finance-record-list.module.css','app/finance/payments/money-allocation.module.css','app/finance/payments/vp-distribution.module.css','app/components/DetailModal.module.css'].map(file=>{const prefix=path.basename(file).replaceAll('.','_')+'_';return fs.readFileSync(path.join(root,file),'utf8').replace(/\.([A-Za-z_][A-Za-z_0-9-]*)/g,(_,key)=>'.'+prefix+key);}).join('\n');
@@ -72,34 +72,36 @@ async function main(){
    const t=key=>translate(locale,'directMoney.'+key),field=key=>page.getByLabel(t(key),{exact:true});
    const vat=page.getByRole('radiogroup',{name:t('vatQuick'),exact:true}),wht=page.getByRole('radiogroup',{name:t('whtQuick'),exact:true});
    const chooseVat=name=>vat.getByRole('radio',{name,exact:true}).check(),chooseWht=name=>wht.getByRole('radio',{name,exact:true}).check();
-   const matches=()=>page.getByText(t('receiptMatched'),{exact:true}).isVisible();
+   const matches=()=>page.locator('[aria-live=polite]').getByText(t('matched'),{exact:true}).isVisible();
    await page.setViewportSize({width,height:1000});await visit('empty',locale);
    assert.equal(await field('nature').inputValue(),'unclassified');assert.equal(await page.locator('input[type=radio]:checked').count(),0);
    assert.equal(await field('method').inputValue(),'bank_transfer');
    assert.equal(await page.getByRole('button',{name:t('removeLine')+' 1',exact:true}).isDisabled(),true);
    assert.equal(await field('note').isVisible(),false);assert.equal(await field('reference').isVisible(),false);
-   assert.equal(await page.getByText(t('receiptMatched'),{exact:true}).count(),0);
+   assert.equal(await page.getByText(t('matched'),{exact:true}).count(),0);
    assert.equal(await page.getByText(t('classificationWarning'),{exact:true}).isVisible(),true);
    assert.doesNotMatch(await page.locator('form').innerText(),/Actual cash|อยู่ในระบบ VAT|ก่อนออกเอกสาร|before issuing a document/);
    assert.equal(await page.locator('dt').filter({hasText:/^(Cash|เงินสด)$/}).count(),0);
    const optional=page.getByText(t('optional'),{exact:true});await optional.focus();await page.keyboard.press('Enter');assert.equal(await field('note').isVisible(),true);
    assert.ok(await optional.evaluate(n=>getComputedStyle(n).outlineStyle!=='none'));await page.keyboard.press('Enter');assert.equal(await field('note').isVisible(),false);
    await geometry();await page.screenshot({path:path.join(out,`create-empty-${locale}-${width}.png`),fullPage:true});
-   // The UAT example needs only one line amount and two explicit percentage clicks.
-   await field('amountBeforeTax').fill('10000');await chooseVat('7%');await chooseWht('3%');await field('actualCash').fill('10400');
+   // A real user types only the money that arrived. No backwards arithmetic input.
+   await field('actualCash').fill('10400');await chooseVat('7%');await chooseWht('3%');
    assert.equal(await matches(),true);assert.equal(await field('nature').inputValue(),'unclassified');
    assert.equal(await field('vatRate').count(),0);assert.equal(await field('whtRate').count(),0);assert.equal(await field('whtBase').count(),0);
-   assert.equal(await page.locator('form input[type=number]').count(),2);
+   assert.equal(await field('amountBeforeTax').count(),0);assert.equal(await field('base').count(),0);
+   assert.equal(await page.locator('form input[type=number]').count(),1);
    const calculation=page.locator('dl[class$="_calculation"]');for(const value of ['10,000.00','700.00','10,700.00','300.00','10,400.00'])assert.ok((await calculation.innerText()).includes(value));
    await field('nature').selectOption('business_revenue');assert.equal(await field('classification').inputValue(),'');await field('classification').selectOption('professional_fee');
    assert.equal(await matches(),true);assert.equal(await vat.getByRole('radio',{name:'7%',exact:true}).isChecked(),true);
-   await geometry();await page.screenshot({path:path.join(out,`one-amount-7-3-${locale}-${width}.png`),fullPage:true});
+   await geometry();await page.screenshot({path:path.join(out,`actual-only-7-3-${locale}-${width}.png`),fullPage:true});
    await vat.getByRole('radio',{name:'7%',exact:true}).focus();await page.keyboard.press('ArrowRight');
    assert.equal(await vat.getByRole('radio',{name:'0%',exact:true}).isChecked(),true);
    assert.ok(await page.locator('input[type=radio]:focus').evaluate(n=>getComputedStyle(n.parentElement).outlineStyle!=='none'));
    assert.equal(await field('vatReason').isVisible(),true);await field('vatReason').fill('Explicit zero-rate evidence');
    await chooseWht(t('noWht'));await field('actualCash').fill('10000');assert.equal(await matches(),true);
    await chooseVat(t('noVat'));assert.equal(await field('vatTreatment').inputValue(),'unknown');
+   assert.equal(await matches(),false);
    for(const treatment of ['exempt','outside_scope','disbursement','pass_through']){
     await field('vatTreatment').selectOption(treatment);await field('vatReason').fill('Explicit non-VAT evidence');assert.equal(await matches(),true);await geometry();
    }
@@ -109,9 +111,7 @@ async function main(){
    await chooseWht(t('taxOther'));await field('whtRate').fill('1.25');await chooseVat(t('taxOther'));
    await field('vatRate').fill('10');await field('actualCash').fill('10875');assert.equal(await matches(),true);
    await geometry();await page.screenshot({path:path.join(out,`custom-tax-${locale}-${width}.png`),fullPage:true});
-   await chooseVat('7%');await chooseWht('3%');await field('actualCash').fill('10399.99');assert.equal(await page.getByText(t('receiptNotMatched'),{exact:true}).isVisible(),true);
-   assert.ok((await page.locator('[aria-live=polite]').innerText()).includes('0.01 THB'));
-   await field('actualCash').fill('10400');assert.equal(await matches(),true);
+   await chooseVat('7%');await chooseWht('3%');await field('actualCash').fill('10400');assert.equal(await matches(),true);
    await field('date').fill('2026-01-01');await field('account').selectOption('synthetic-bank');await field('payer').fill('Synthetic payer');await field('description').fill('Synthetic legal fee');
    assert.equal(await field('lineReasonRequired').isVisible(),false);
    await page.getByRole('button',{name:t('save'),exact:true}).click();assert.equal(await page.evaluate(()=>window.calls.length),0);
@@ -119,15 +119,22 @@ async function main(){
    assert.equal(await field('lineReasonRequired').inputValue(),'');await field('lineReasonRequired').fill('Explicit business source');
    await page.getByRole('button',{name:t('addLine'),exact:true}).click();
    const deletes=page.getByRole('button',{name:new RegExp(t('removeLine'))});assert.equal(await deletes.count(),2);assert.equal(await deletes.nth(0).isEnabled(),true);
-   assert.equal(await field('nature').nth(1).inputValue(),'unclassified');await field('amountBeforeTax').nth(1).fill('2000');await field('nature').nth(1).selectOption('client_money');assert.equal(await field('classification').count(),1);
+   assert.equal(await field('nature').nth(1).inputValue(),'unclassified');await field('nature').nth(1).selectOption('client_money');assert.equal(await field('classification').count(),1);
+   await field('actualCash').fill('12400');assert.equal(await field('lineActual').count(),1);assert.equal(await field('lineActual').inputValue(),'10400');
    await vat.nth(1).getByRole('radio',{name:t('noVat'),exact:true}).check();await field('vatTreatment').selectOption('outside_scope');await field('vatReason').fill('Explicit client-money evidence');
-   await wht.nth(1).getByRole('radio',{name:t('noWht'),exact:true}).check();await field('actualCash').fill('12400');assert.equal(await matches(),true);
+   await wht.nth(1).getByRole('radio',{name:t('noWht'),exact:true}).check();assert.equal(await matches(),true);
+   assert.equal(await page.locator('form input[type=number]').count(),2,'total and first-line cash only; last line is derived');
+   assert.ok((await calculation.nth(1).innerText()).includes('2,000.00'));
    await geometry();await page.screenshot({path:path.join(out,`multi-line-${locale}-${width}.png`),fullPage:true});
+   await field('lineActual').fill('13000');assert.equal(await matches(),false);
+   await page.getByRole('button',{name:t('save'),exact:true}).click();assert.equal(await page.evaluate(()=>window.calls.length),0);
+   assert.equal(await page.getByText(t('error.allocationInvalid'),{exact:true}).isVisible(),true);
+   await field('lineActual').fill('10400');assert.equal(await matches(),true);
    await deletes.nth(1).click();assert.equal(await deletes.count(),1);assert.equal(await deletes.isDisabled(),true);await field('actualCash').fill('10400');assert.equal(await matches(),true);
    await field('client').selectOption('synthetic-client');await optional.click();await field('matter').selectOption('case:47');
    await field('reference').fill('LOCAL-OPTIONAL');await field('evidence').fill('local-slip-reference');await field('note').fill('Synthetic optional note');
    await optional.click();assert.equal(await field('note').isVisible(),false);
-   await page.getByText(t('accountingEvidence'),{exact:true}).click();assert.equal(await page.getByText(t('matched'),{exact:true}).count(),2);
+   await page.getByText(t('accountingEvidence'),{exact:true}).click();assert.equal(await page.getByText(t('matched'),{exact:true}).count(),3);
    await geometry();await page.getByText(t('accountingEvidence'),{exact:true}).click();
    await page.screenshot({path:path.join(out,`create-reviewed-${locale}-${width}.png`),fullPage:true});
    await page.getByRole('button',{name:t('save'),exact:true}).click();await page.waitForFunction(()=>window.navigated);
@@ -161,16 +168,33 @@ async function main(){
   assert.equal(await page.locator(':focus').getAttribute('type'),'date');assert.ok(await page.locator('[aria-invalid=true]').count()>=5);
   await visit('form');const save=page.getByRole('button',{name:translate('en','directMoney.save'),exact:true});await save.click();await page.waitForFunction(()=>window.navigated);
   assert.equal(await page.evaluate(()=>window.calls.length),1);const payload=await page.evaluate(()=>window.calls[0]);assert.equal(payload.name,'save_finance_direct_money_receipt');assert.deepEqual(payload.p.p_input,input);
+  await visit('custom');assert.equal(await page.getByLabel(translate('en','directMoney.whtBase'),{exact:true}).inputValue(),'5000');
+  assert.equal(await page.getByLabel(translate('en','directMoney.whtBase'),{exact:true}).isVisible(),true);
+  assert.equal(await page.evaluate(()=>window.calls.length),0);
+  await page.getByRole('button',{name:translate('en','directMoney.save'),exact:true}).click();await page.waitForFunction(()=>window.navigated);
+  assert.deepEqual(await page.evaluate(()=>window.calls[0].p.p_input),{...input,cash_amount:10550,lines:[{...input.lines[0],wht_base:5000}]});
   // Explicit custom bases remain authoritative when the amount or rate changes.
-  await visit('form');await page.getByText(translate('en','directMoney.lineEvidence'),{exact:true}).click();
+  await visit('form');await page.getByText(translate('en','directMoney.advancedTax'),{exact:true}).click();
   await page.getByLabel(translate('en','directMoney.customWhtBase'),{exact:true}).check();
   const customBase=page.getByLabel(translate('en','directMoney.whtBase'),{exact:true});await customBase.fill('5000');
-  await page.getByLabel(translate('en','directMoney.amountBeforeTax'),{exact:true}).fill('12000');assert.equal(await customBase.inputValue(),'5000');
+  await page.getByLabel(translate('en','directMoney.actualCash'),{exact:true}).fill('12690');assert.equal(await customBase.inputValue(),'5000');
   await page.getByRole('radiogroup',{name:'WHT',exact:true}).getByRole('radio',{name:'5%',exact:true}).check();assert.equal(await customBase.inputValue(),'5000');
   await page.getByLabel(translate('en','directMoney.actualCash'),{exact:true}).fill('12590');
-  assert.equal(await page.getByText(translate('en','directMoney.receiptMatched'),{exact:true}).isVisible(),true);
+  assert.equal(await page.locator('[aria-live=polite]').getByText(translate('en','directMoney.matched'),{exact:true}).isVisible(),true);
   await page.getByRole('button',{name:translate('en','directMoney.save'),exact:true}).click();await page.waitForFunction(()=>window.navigated);
   const customInput=await page.evaluate(()=>window.calls[0].p.p_input);assert.equal(customInput.lines[0].wht_base,5000);assert.equal(customInput.lines[0].wht_rate,5);
+  assert.equal(customInput.lines[0].base,12000);
+  // Advanced evidence never changes the actual money or bypasses reconciliation.
+  await visit('form');await page.getByText(translate('en','directMoney.advancedTax'),{exact:true}).click();
+  await page.getByLabel(translate('en','directMoney.manualTaxEvidence'),{exact:true}).check();
+  await page.getByLabel(translate('en','directMoney.base'),{exact:true}).fill('10001');
+  await page.getByRole('button',{name:translate('en','directMoney.save'),exact:true}).click();assert.equal(await page.evaluate(()=>window.calls.length),0);
+  assert.equal(await page.getByLabel(translate('en','directMoney.actualCash'),{exact:true}).inputValue(),'10400');
+  assert.equal(await page.getByText(translate('en','directMoney.error.reverseUnresolved'),{exact:true}).isVisible(),true);
+  await visit('form');await page.getByRole('radiogroup',{name:'WHT',exact:true}).getByRole('radio',{name:'None',exact:true}).check();
+  await page.getByLabel(translate('en','directMoney.actualCash'),{exact:true}).fill('0.08');
+  await page.getByRole('button',{name:translate('en','directMoney.save'),exact:true}).click();assert.equal(await page.evaluate(()=>window.calls.length),0);
+  assert.equal(await page.getByText(translate('en','directMoney.error.reverseUnresolved'),{exact:true}).isVisible(),true);
   await visit('detail');await page.getByRole('button',{name:translate('en','directMoney.edit'),exact:true}).click();await page.getByRole('dialog').waitFor();await geometry();
   assert.equal(await page.getByRole('dialog').getByLabel(translate('en','directMoney.payer'),{exact:true}).inputValue(),'Synthetic Payer');
   await page.evaluate(()=>window.slow=true);await page.getByRole('dialog').getByRole('button',{name:translate('en','directMoney.save'),exact:true}).click();await page.keyboard.press('Escape');assert.equal(await page.getByRole('dialog').isVisible(),true);
@@ -216,7 +240,7 @@ async function main(){
    for(const action of ['review','finalize']){await dialog.getByLabel(translate(locale,'vpDistribution.ack'),{exact:true}).check();await dialog.getByRole('button',{name:translate(locale,'vpDistribution.'+action),exact:true}).click();await page.waitForFunction(status=>window.vpContext.current.status===status,action==='review'?'reviewed':'finalized');}
    const requests=await page.evaluate(()=>window.calls);assert.equal(requests.length,3);assert.equal(requests[0].p.p_choices[0].source_line_id,record.lines_json[0].source_line_id);assert.equal(requests[0].p.p_choices[0].invoice_item_id,undefined);
   }
-  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log('Direct money TH/EN at 390/768/1024/1440: create form VAT switching, WHT, live reconciliation, optional metadata, last-line protection, keyboard focus; existing create/retry payload, busy edit modal, classification, shared distribution, confirm/reversal guards and Partner read-only passed. '+out);
+  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log('Direct money TH/EN at 390/768/1024/1440: actual-money-only input, reverse VAT/WHT, automatic last-line remainder, over-allocation/rounding/manual-evidence blocking, saved custom-base preservation, keyboard focus; existing create/retry payload, busy edit modal, classification, shared distribution, confirm/reversal guards and Partner read-only passed. '+out);
  }finally{if(browser)await browser.close();await new Promise(r=>server.close(r));}
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

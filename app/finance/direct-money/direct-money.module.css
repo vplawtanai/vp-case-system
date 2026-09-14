@@ -55,9 +55,10 @@
 .matched { color: #216345; background: #eaf5ef; }
 .unresolved { color: #785513; background: #fff4db; }
 .matched svg, .unresolved svg { flex-shrink: 0; }
-.primaryAmount { width: 320px; max-width: 100%; margin: 20px 0; }
-.primaryAmount input { font-size: 20px !important; font-variant-numeric: tabular-nums; }
-.taxGrid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 20px 24px; }
+.form input.actualAmount { font-size: 20px; font-variant-numeric: tabular-nums; }
+.lineAllocation { max-width: 420px; margin: 18px 0; }
+.lineAllocation .facts { grid-template-columns: 1fr; }
+.taxGrid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 20px 24px; margin-top: 20px; }
 .taxChoices { min-width: 0; border: 0; padding: 0; margin: 0; }
 .taxChoices legend { padding: 0; margin-bottom: 8px; font-size: 14px; font-weight: 500; }
 .taxChoices > div { display: flex; flex-wrap: wrap; gap: 6px; }
