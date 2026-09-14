@@ -1,0 +1,1411 @@
+[
+  {
+    "name": "finance_direct_money_receipt_audit",
+    "kind": "r",
+    "rls": true,
+    "force_rls": false,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "receipt_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "event_type",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "version",
+        "type": "integer",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "actor_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "evidence_json",
+        "type": "jsonb",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      }
+    ],
+    "constraints": [
+      {
+        "name": "direct_money_audit_integrity",
+        "type": "t",
+        "validated": true,
+        "deferrable": true,
+        "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED",
+        "initially_deferred": true
+      },
+      {
+        "name": "finance_direct_money_receipt_audit_actor_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (actor_id) REFERENCES user_profiles(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipt_audit_event_type_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((event_type = ANY (ARRAY['created'::text, 'saved'::text, 'classified'::text, 'confirmed'::text, 'reversed'::text])))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipt_audit_evidence_json_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((jsonb_typeof(evidence_json) = 'object'::text))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipt_audit_pkey",
+        "type": "p",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipt_audit_receipt_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (receipt_id) REFERENCES finance_direct_money_receipts(id) ON DELETE RESTRICT",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipt_audit_receipt_id_version_key",
+        "type": "u",
+        "validated": true,
+        "deferrable": false,
+        "definition": "UNIQUE (receipt_id, version)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipt_audit_version_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((version > 0))",
+        "initially_deferred": false
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_direct_money_receipt_audit_pkey",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_direct_money_receipt_audit_pkey ON public.finance_direct_money_receipt_audit USING btree (id)"
+      },
+      {
+        "name": "finance_direct_money_receipt_audit_receipt_id_version_key",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_direct_money_receipt_audit_receipt_id_version_key ON public.finance_direct_money_receipt_audit USING btree (receipt_id, version)"
+      }
+    ],
+    "policies": [
+      {
+        "name": "direct_money_audit_read",
+        "check": null,
+        "roles": [
+          "authenticated"
+        ],
+        "using": "current_user_can_view_finance_payments()",
+        "command": "SELECT",
+        "permissive": "PERMISSIVE"
+      }
+    ],
+    "triggers": [
+      {
+        "name": "direct_money_audit_immutable",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER direct_money_audit_immutable BEFORE DELETE OR UPDATE ON public.finance_direct_money_receipt_audit FOR EACH ROW EXECUTE FUNCTION direct_money_guard()"
+      },
+      {
+        "name": "direct_money_audit_integrity",
+        "enabled": "O",
+        "definition": "CREATE CONSTRAINT TRIGGER direct_money_audit_integrity AFTER INSERT ON public.finance_direct_money_receipt_audit DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION direct_money_integrity()"
+      },
+      {
+        "name": "direct_money_audit_no_truncate",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER direct_money_audit_no_truncate BEFORE TRUNCATE ON public.finance_direct_money_receipt_audit FOR EACH STATEMENT EXECUTE FUNCTION direct_money_guard()"
+      }
+    ]
+  },
+  {
+    "name": "finance_direct_money_receipts",
+    "kind": "r",
+    "rls": true,
+    "force_rls": false,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "default": "'draft'::text",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "version",
+        "type": "integer",
+        "default": "1",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "client_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "payer_name",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "case_id",
+        "type": "bigint",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "advisory_matter_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "received_on",
+        "type": "date",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "method",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "receiving_bank_account_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "cash_location",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "currency",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "cash_amount",
+        "type": "numeric",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "wht_amount",
+        "type": "numeric",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "amount_before_vat",
+        "type": "numeric",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "vat_amount",
+        "type": "numeric",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "gross_amount",
+        "type": "numeric",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "reference_no",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "evidence_reference",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "note",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "lines_json",
+        "type": "jsonb",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "unclassified",
+        "type": "boolean",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "input_json",
+        "type": "jsonb",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "confirmed_snapshot_json",
+        "type": "jsonb",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "classification_json",
+        "type": "jsonb",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "created_by",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "confirmed_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "confirmed_by",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "reversed_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "reversed_by",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "reversal_reason",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      }
+    ],
+    "constraints": [
+      {
+        "name": "direct_money_integrity",
+        "type": "t",
+        "validated": true,
+        "deferrable": true,
+        "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED",
+        "initially_deferred": true
+      },
+      {
+        "name": "finance_direct_money_receipts_advisory_matter_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (advisory_matter_id) REFERENCES advisory_matters(id) ON DELETE RESTRICT",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipts_amount_before_vat_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((amount_before_vat > (0)::numeric))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipts_case_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE RESTRICT",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipts_cash_amount_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((cash_amount > (0)::numeric) AND (cash_amount = round(cash_amount, 2))))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipts_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((gross_amount = (cash_amount + wht_amount)) AND (gross_amount = (amount_before_vat + vat_amount))))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipts_check1",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((case_id IS NULL) OR (advisory_matter_id IS NULL)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipts_check2",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((((case_id IS NULL) AND (advisory_matter_id IS NULL)) OR (client_id IS NOT NULL)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipts_check3",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((((method = 'bank_transfer'::text) AND (receiving_bank_account_id IS NOT NULL) AND (cash_location IS NULL)) OR ((method <> 'bank_transfer'::text) AND (receiving_bank_account_id IS NULL) AND ((length(btrim(cash_location)) >= 1) AND (length(btrim(cash_location)) <= 300)))))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipts_check4",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((((status = 'draft'::text) AND (confirmed_at IS NULL) AND (confirmed_by IS NULL) AND (confirmed_snapshot_json IS NULL) AND (reversed_at IS NULL) AND (reversed_by IS NULL) AND (reversal_reason IS NULL)) OR ((status = 'confirmed'::text) AND (confirmed_at IS NOT NULL) AND (confirmed_by IS NOT NULL) AND (confirmed_snapshot_json IS NOT NULL) AND (reversed_at IS NULL) AND (reversed_by IS NULL) AND (reversal_reason IS NULL)) OR ((status = 'reversed'::text) AND (confirmed_at IS NOT NULL) AND (confirmed_by IS NOT NULL) AND (confirmed_snapshot_json IS NOT NULL) AND (reversed_at IS NOT NULL) AND (reversed_by IS NOT NULL) AND ((length(btrim(reversal_reason)) >= 1) AND (length(btrim(reversal_reason)) <= 2000)))))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipts_classification_json_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((classification_json IS NULL) OR (jsonb_typeof(classification_json) = 'object'::text)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipts_client_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE RESTRICT",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipts_confirmed_by_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (confirmed_by) REFERENCES user_profiles(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipts_created_by_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipts_currency_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((currency = 'THB'::text))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipts_evidence_reference_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((length(evidence_reference) >= 1) AND (length(evidence_reference) <= 1000)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipts_input_json_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((jsonb_typeof(input_json) = 'object'::text))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipts_lines_json_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((jsonb_typeof(lines_json) = 'array'::text) AND ((jsonb_array_length(lines_json) >= 1) AND (jsonb_array_length(lines_json) <= 100))))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipts_method_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((method = ANY (ARRAY['bank_transfer'::text, 'cash'::text, 'other'::text])))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipts_note_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((length(note) <= 2000))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipts_payer_name_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((length(btrim(payer_name)) >= 1) AND (length(btrim(payer_name)) <= 500)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipts_pkey",
+        "type": "p",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipts_receiving_bank_account_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (receiving_bank_account_id) REFERENCES finance_bank_accounts(id) ON DELETE RESTRICT",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipts_reference_no_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((length(reference_no) >= 1) AND (length(reference_no) <= 200)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipts_reversed_by_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (reversed_by) REFERENCES user_profiles(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipts_status_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((status = ANY (ARRAY['draft'::text, 'confirmed'::text, 'reversed'::text])))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipts_vat_amount_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((vat_amount >= (0)::numeric))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipts_version_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((version > 0))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_direct_money_receipts_wht_amount_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((wht_amount >= (0)::numeric) AND (wht_amount = round(wht_amount, 2))))",
+        "initially_deferred": false
+      }
+    ],
+    "indexes": [
+      {
+        "name": "direct_money_active_evidence",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX direct_money_active_evidence ON public.finance_direct_money_receipts USING btree (lower(btrim(evidence_reference))) WHERE ((status <> 'reversed'::text) AND (evidence_reference IS NOT NULL))"
+      },
+      {
+        "name": "direct_money_active_reference",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX direct_money_active_reference ON public.finance_direct_money_receipts USING btree (method, COALESCE((receiving_bank_account_id)::text, cash_location), currency, received_on, lower(btrim(reference_no))) WHERE ((status <> 'reversed'::text) AND (reference_no IS NOT NULL))"
+      },
+      {
+        "name": "direct_money_list",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE INDEX direct_money_list ON public.finance_direct_money_receipts USING btree (created_at DESC, id)"
+      },
+      {
+        "name": "finance_direct_money_receipts_pkey",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_direct_money_receipts_pkey ON public.finance_direct_money_receipts USING btree (id)"
+      }
+    ],
+    "policies": [
+      {
+        "name": "direct_money_read",
+        "check": null,
+        "roles": [
+          "authenticated"
+        ],
+        "using": "current_user_can_view_finance_payments()",
+        "command": "SELECT",
+        "permissive": "PERMISSIVE"
+      }
+    ],
+    "triggers": [
+      {
+        "name": "direct_money_immutable",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER direct_money_immutable BEFORE INSERT OR DELETE OR UPDATE ON public.finance_direct_money_receipts FOR EACH ROW EXECUTE FUNCTION direct_money_guard()"
+      },
+      {
+        "name": "direct_money_integrity",
+        "enabled": "O",
+        "definition": "CREATE CONSTRAINT TRIGGER direct_money_integrity AFTER INSERT OR UPDATE ON public.finance_direct_money_receipts DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION direct_money_integrity()"
+      },
+      {
+        "name": "direct_money_no_truncate",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER direct_money_no_truncate BEFORE TRUNCATE ON public.finance_direct_money_receipts FOR EACH STATEMENT EXECUTE FUNCTION direct_money_guard()"
+      }
+    ]
+  },
+  {
+    "name": "finance_vp_revenue_distribution_audit",
+    "kind": "r",
+    "rls": true,
+    "force_rls": false,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "distribution_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "event_type",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "actor_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "evidence_json",
+        "type": "jsonb",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_vp_revenue_distribution_audit_actor_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (actor_id) REFERENCES user_profiles(id) ON DELETE RESTRICT",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distribution_audit_distribution_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (distribution_id) REFERENCES finance_vp_revenue_distributions(id) ON DELETE RESTRICT",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distribution_audit_event_type_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((event_type = ANY (ARRAY['created'::text, 'saved'::text, 'reviewed'::text, 'finalized'::text, 'superseded'::text])))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distribution_audit_evidence_json_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((jsonb_typeof(evidence_json) = 'object'::text))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distribution_audit_evidence_json_check1",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (COALESCE(((jsonb_typeof((evidence_json -> 'version'::text)) = 'number'::text) AND (((evidence_json ->> 'version'::text))::numeric >= (1)::numeric) AND (((evidence_json ->> 'version'::text))::numeric = trunc(((evidence_json ->> 'version'::text))::numeric))), false))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distribution_audit_pkey",
+        "type": "p",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "vp_distribution_audit_integrity",
+        "type": "t",
+        "validated": true,
+        "deferrable": true,
+        "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED",
+        "initially_deferred": true
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_vp_revenue_distribution_audit_pkey",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_vp_revenue_distribution_audit_pkey ON public.finance_vp_revenue_distribution_audit USING btree (id)"
+      },
+      {
+        "name": "vp_distribution_audit_parent",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE INDEX vp_distribution_audit_parent ON public.finance_vp_revenue_distribution_audit USING btree (distribution_id, created_at, id)"
+      },
+      {
+        "name": "vp_distribution_audit_version",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX vp_distribution_audit_version ON public.finance_vp_revenue_distribution_audit USING btree (distribution_id, (((evidence_json ->> 'version'::text))::integer))"
+      }
+    ],
+    "policies": [
+      {
+        "name": "vp_distribution_audit_read",
+        "check": null,
+        "roles": [
+          "authenticated"
+        ],
+        "using": "current_user_can_view_finance_payments()",
+        "command": "SELECT",
+        "permissive": "PERMISSIVE"
+      }
+    ],
+    "triggers": [
+      {
+        "name": "vp_distribution_audit_immutable",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER vp_distribution_audit_immutable BEFORE DELETE OR UPDATE ON public.finance_vp_revenue_distribution_audit FOR EACH ROW EXECUTE FUNCTION vp_distribution_immutable()"
+      },
+      {
+        "name": "vp_distribution_audit_integrity",
+        "enabled": "O",
+        "definition": "CREATE CONSTRAINT TRIGGER vp_distribution_audit_integrity AFTER INSERT ON public.finance_vp_revenue_distribution_audit DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION vp_distribution_validate()"
+      },
+      {
+        "name": "vp_distribution_audit_no_truncate",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER vp_distribution_audit_no_truncate BEFORE TRUNCATE ON public.finance_vp_revenue_distribution_audit FOR EACH STATEMENT EXECUTE FUNCTION vp_distribution_immutable()"
+      }
+    ]
+  },
+  {
+    "name": "finance_vp_revenue_distributions",
+    "kind": "r",
+    "rls": true,
+    "force_rls": false,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "payment_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "money_allocation_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "revision",
+        "type": "integer",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "previous_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "default": "'draft'::text",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "version",
+        "type": "integer",
+        "default": "1",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "source_snapshot_json",
+        "type": "jsonb",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "decisions_json",
+        "type": "jsonb",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "note",
+        "type": "text",
+        "default": "''::text",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "created_by",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "reviewed_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "reviewed_by",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "finalized_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "finalized_by",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "superseded_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "superseded_by",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "supersede_reason",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "direct_money_receipt_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_vp_revenue_distributions_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((revision = 1) = (previous_id IS NULL)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_check1",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((updated_at >= created_at))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_check10",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((finalized_at IS NULL) OR ((finalized_at >= reviewed_at) AND (finalized_at <= updated_at))))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_check11",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((((status = 'superseded'::text) AND (superseded_at IS NOT NULL) AND (superseded_by IS NOT NULL) AND (COALESCE(NULLIF(btrim(supersede_reason), ''::text), ''::text) <> ''::text) AND (supersede_reason = btrim(supersede_reason)) AND (superseded_at >= COALESCE(finalized_at, reviewed_at, created_at)) AND (superseded_at <= updated_at)) OR ((status <> 'superseded'::text) AND (superseded_at IS NULL) AND (superseded_by IS NULL) AND (supersede_reason IS NULL))))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_check2",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((reviewed_at IS NULL) = (reviewed_by IS NULL)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_check3",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((finalized_at IS NULL) = (finalized_by IS NULL)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_check4",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((status <> 'draft'::text) OR ((reviewed_at IS NULL) AND (finalized_at IS NULL))))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_check5",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((status <> ALL (ARRAY['reviewed'::text, 'finalized'::text])) OR (reviewed_at IS NOT NULL)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_check6",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((status <> 'reviewed'::text) OR (finalized_at IS NULL)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_check7",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((status <> 'finalized'::text) OR (finalized_at IS NOT NULL)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_check8",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((finalized_at IS NULL) OR ((reviewed_at IS NOT NULL) AND (status = ANY (ARRAY['finalized'::text, 'superseded'::text])))))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_check9",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((reviewed_at IS NULL) OR ((reviewed_at >= created_at) AND (reviewed_at <= updated_at))))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_created_by_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id) ON DELETE RESTRICT",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_decisions_json_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((jsonb_typeof(decisions_json) = 'array'::text))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_direct_money_receipt_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (direct_money_receipt_id) REFERENCES finance_direct_money_receipts(id) ON DELETE RESTRICT",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_finalized_by_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (finalized_by) REFERENCES user_profiles(id) ON DELETE RESTRICT",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_money_allocation_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (money_allocation_id) REFERENCES finance_payment_money_allocations(id) ON DELETE RESTRICT",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_note_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((length(note) <= 2000) AND (note = btrim(note))))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_payment_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (payment_id) REFERENCES finance_payments(id) ON DELETE RESTRICT",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_payment_id_revision_key",
+        "type": "u",
+        "validated": true,
+        "deferrable": false,
+        "definition": "UNIQUE (payment_id, revision)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_pkey",
+        "type": "p",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_previous_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (previous_id) REFERENCES finance_vp_revenue_distributions(id) ON DELETE RESTRICT",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_previous_id_key",
+        "type": "u",
+        "validated": true,
+        "deferrable": false,
+        "definition": "UNIQUE (previous_id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_reviewed_by_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (reviewed_by) REFERENCES user_profiles(id) ON DELETE RESTRICT",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_revision_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((revision > 0))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_source_snapshot_json_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((jsonb_typeof(source_snapshot_json) = 'object'::text))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_status_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((status = ANY (ARRAY['draft'::text, 'reviewed'::text, 'finalized'::text, 'superseded'::text])))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_supersede_reason_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((length(supersede_reason) <= 2000))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_superseded_by_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (superseded_by) REFERENCES user_profiles(id) ON DELETE RESTRICT",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_vp_revenue_distributions_version_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((version > 0))",
+        "initially_deferred": false
+      },
+      {
+        "name": "vp_distribution_integrity",
+        "type": "t",
+        "validated": true,
+        "deferrable": true,
+        "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED",
+        "initially_deferred": true
+      },
+      {
+        "name": "vp_distribution_source_identity",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((((payment_id IS NOT NULL) AND (direct_money_receipt_id IS NULL)) OR ((payment_id IS NULL) AND (direct_money_receipt_id IS NOT NULL) AND (money_allocation_id IS NULL))))",
+        "initially_deferred": false
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_vp_revenue_distributions_payment_id_revision_key",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_vp_revenue_distributions_payment_id_revision_key ON public.finance_vp_revenue_distributions USING btree (payment_id, revision)"
+      },
+      {
+        "name": "finance_vp_revenue_distributions_pkey",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_vp_revenue_distributions_pkey ON public.finance_vp_revenue_distributions USING btree (id)"
+      },
+      {
+        "name": "finance_vp_revenue_distributions_previous_id_key",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_vp_revenue_distributions_previous_id_key ON public.finance_vp_revenue_distributions USING btree (previous_id)"
+      },
+      {
+        "name": "vp_distribution_current_direct",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX vp_distribution_current_direct ON public.finance_vp_revenue_distributions USING btree (direct_money_receipt_id) WHERE (status <> 'superseded'::text)"
+      },
+      {
+        "name": "vp_distribution_current_payment",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX vp_distribution_current_payment ON public.finance_vp_revenue_distributions USING btree (payment_id) WHERE (status <> 'superseded'::text)"
+      },
+      {
+        "name": "vp_distribution_direct_revision",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX vp_distribution_direct_revision ON public.finance_vp_revenue_distributions USING btree (direct_money_receipt_id, revision)"
+      },
+      {
+        "name": "vp_distribution_money_allocation",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE INDEX vp_distribution_money_allocation ON public.finance_vp_revenue_distributions USING btree (money_allocation_id) WHERE (money_allocation_id IS NOT NULL)"
+      }
+    ],
+    "policies": [
+      {
+        "name": "vp_distribution_read",
+        "check": null,
+        "roles": [
+          "authenticated"
+        ],
+        "using": "current_user_can_view_finance_payments()",
+        "command": "SELECT",
+        "permissive": "PERMISSIVE"
+      }
+    ],
+    "triggers": [
+      {
+        "name": "vp_distribution_immutable",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER vp_distribution_immutable BEFORE INSERT OR DELETE OR UPDATE ON public.finance_vp_revenue_distributions FOR EACH ROW EXECUTE FUNCTION vp_distribution_immutable()"
+      },
+      {
+        "name": "vp_distribution_integrity",
+        "enabled": "O",
+        "definition": "CREATE CONSTRAINT TRIGGER vp_distribution_integrity AFTER INSERT OR UPDATE ON public.finance_vp_revenue_distributions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION vp_distribution_validate()"
+      },
+      {
+        "name": "vp_distribution_no_truncate",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER vp_distribution_no_truncate BEFORE TRUNCATE ON public.finance_vp_revenue_distributions FOR EACH STATEMENT EXECUTE FUNCTION vp_distribution_immutable()"
+      },
+      {
+        "name": "vp_formula_result_guard",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER vp_formula_result_guard BEFORE INSERT OR UPDATE ON public.finance_vp_revenue_distributions FOR EACH ROW EXECUTE FUNCTION vp_formula_result_guard()"
+      }
+    ]
+  }
+]

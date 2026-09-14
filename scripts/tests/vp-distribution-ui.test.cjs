@@ -145,7 +145,8 @@ test('045 catalog and narrow upstream errors do not leak backend diagnostics', (
   assert.equal(paymentReallocationErrorMessage(error).key, 'vpDistribution.error.SUPERSEDE_REQUIRED');
   const ui = fs.readFileSync('app/finance/payments/vp-distribution-panel.tsx', 'utf8');
   assert.match(ui, /<DetailModal/);
-  assert.deepEqual([...ui.matchAll(/supabase\.rpc\("([^"]+)"/g)].map(match => match[1]).sort(), ['get_finance_vp_formula_context', 'save_finance_vp_distribution', 'transition_finance_vp_distribution']);
+  assert.deepEqual([...new Set([...ui.matchAll(/"((?:get|save|transition)_finance_[^"]+)"/g)].map(match => match[1]))].sort(),
+    ['get_finance_direct_vp_formula_context', 'get_finance_vp_formula_context', 'save_finance_direct_vp_distribution', 'save_finance_vp_distribution', 'transition_finance_vp_distribution']);
   assert.doesNotMatch(ui, /\.from\(|confirm_finance_payment|issue_finance_|post_confirmed|window\.alert/);
   assert.equal(fields.length, 3);
 });

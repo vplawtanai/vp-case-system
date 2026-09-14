@@ -1,5 +1,6 @@
 import { translate } from "../../../lib/i18n/catalog";
 import { vpDistributionMessages } from "../../../lib/i18n/messages/vp-distribution";
+import { directMoneyMessages } from "../../../lib/i18n/messages/direct-money";
 import { moneyAllocationMessages } from "../../../lib/i18n/messages/money-allocation";
 import type { UiLocale } from "../../../lib/i18n/core";
 import type { MoneyAllocation, MoneyLine, MoneySource } from "./money-allocation";
@@ -11,21 +12,31 @@ export function isDirectCompanyClassification(classification: string | null): bo
   return directCompanyClassifications.some(value => value === classification);
 }
 export type DistributionField = typeof distributionFields[number];
-export type DistributionChoice = { invoice_item_id: string; formula_result?: FormulaResult } & Record<DistributionField, string>;
-export type DistributionDecision = { invoice_item_id: string; formula_result?: FormulaResult } & Record<DistributionField, string | number>;
-export type DistributionLine = MoneyLine & {
+export type DistributionIdentity = { invoice_item_id: string; source_line_id?: never } | { source_line_id: string; invoice_item_id?: never };
+export function distributionLineId(value: { invoice_item_id?: string; source_line_id?: string }): string {
+  if (Boolean(value.invoice_item_id) === Boolean(value.source_line_id)) throw new Error("VP_DISTRIBUTION_SOURCE_UNPROVEN");
+  return value.source_line_id || value.invoice_item_id!;
+}
+export function distributionIdentity(value: { invoice_item_id?: string; source_line_id?: string }): DistributionIdentity {
+  const id = distributionLineId(value);
+  return value.source_line_id ? { source_line_id: id } : { invoice_item_id: id };
+}
+export type DistributionChoice = DistributionIdentity & { formula_result?: FormulaResult } & Record<DistributionField, string>;
+export type DistributionDecision = DistributionIdentity & { formula_result?: FormulaResult } & Record<DistributionField, string | number>;
+export type DistributionLine = (MoneyLine | (DistributionIdentity & Pick<MoneyLine, "description" | "base" | "vat" | "cash" | "wht"> & { invoice_id?: never; invoice_no?: never; gross: number })) & {
   classification: string | null;
   professional_pool: number; company_economic: number; company_cash: number;
 };
 export type DistributionSource = {
   schema_version: 1; policy_version: "vp_distribution_v1";
   money_source: MoneySource | null; money_allocation: MoneyAllocation | null;
+  received_money_source?: { source_type: "direct_money_receipt"; source_id: string; source_version: number; source_fingerprint: string; status: string; currency: string; actual_cash: number; wht_credit: number; gross_received: number };
   lines: DistributionLine[];
   totals: Record<"cash" | "wht" | "vat" | "base" | "professional_pool" | "company_economic" | "company_cash", number | null>;
   blockers: string[];
 };
 export type DistributionRecord = {
-  id: string; payment_id: string; money_allocation_id: string | null;
+  id: string; payment_id: string | null; direct_money_receipt_id?: string | null; money_allocation_id: string | null;
   revision: number; previous_id: string | null; version: number;
   status: "draft" | "reviewed" | "finalized" | "superseded";
   source_snapshot_json: DistributionSource; decisions_json: DistributionDecision[]; note: string | null;
@@ -57,12 +68,12 @@ export function initialDistributionChoices(context: DistributionContext): Distri
   const saved = context.source_current || (context.current && context.current.status !== "draft")
     ? context.current?.decisions_json : undefined;
   return distributionSource(context).lines.filter(line => line.classification === "professional_fee").map(line => {
-    const decision = saved?.find(choice => choice.invoice_item_id === line.invoice_item_id);
+    const decision = saved?.find(choice => distributionLineId(choice) === distributionLineId(line));
     const amount = (field: DistributionField) => {
       const value = decision?.[field] ?? "0.00", cents = distributionCents(value);
       return cents === null ? String(value) : `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, "0")}`;
     };
-    return { invoice_item_id: line.invoice_item_id, referral_amount: amount("referral_amount"), company_share_amount: amount("company_share_amount"), work_compensation_amount: amount("work_compensation_amount"),
+    return { ...distributionIdentity(line), referral_amount: amount("referral_amount"), company_share_amount: amount("company_share_amount"), work_compensation_amount: amount("work_compensation_amount"),
       ...(decision?.formula_result ? { formula_result: decision.formula_result } : {}) };
   });
 }
@@ -76,13 +87,17 @@ export function distributionSplitCents(choice?: DistributionChoice): number | nu
 
 export function distributionLineComplete(line: DistributionLine, choice?: DistributionChoice): boolean {
   const pool = distributionCents(line.professional_pool);
-  return choice?.invoice_item_id === line.invoice_item_id && pool !== null && distributionSplitCents(choice) === pool;
+  return !!choice && distributionLineId(choice) === distributionLineId(line) && pool !== null && distributionSplitCents(choice) === pool;
 }
+
+export function distributionCurrency(source: DistributionSource): string { return source.received_money_source?.currency || source.money_source?.payment?.currency || "-"; }
+export function distributionConfirmed(source: DistributionSource): boolean { return (source.received_money_source?.status || source.money_source?.payment?.status) === "confirmed"; }
 
 export function distributionSourceProven(source: DistributionSource): boolean {
   if (source.schema_version !== 1 || source.policy_version !== "vp_distribution_v1"
-    || source.money_source?.payment?.status !== "confirmed" || source.blockers.length || source.money_source.blockers.length
-    || !source.lines.length || new Set(source.lines.map(line => line.invoice_item_id)).size !== source.lines.length) return false;
+    || !distributionConfirmed(source) || source.blockers.length || source.money_source?.blockers.length
+    || !source.lines.length || source.lines.some(line => Boolean(line.invoice_item_id) === Boolean("source_line_id" in line && line.source_line_id))
+    || new Set(source.lines.map(distributionLineId)).size !== source.lines.length) return false;
   return source.lines.every(line => {
     if (isDirectCompanyClassification(line.classification)) return true;
     if (line.classification !== "professional_fee") return false;
@@ -94,7 +109,7 @@ export function distributionSourceProven(source: DistributionSource): boolean {
 export function distributionDraftValid(source: DistributionSource, choices: DistributionChoice[]): boolean {
   const lines = source.lines.filter(line => line.classification === "professional_fee");
   return distributionSourceProven(source) && choices.length === lines.length && lines.every(line => {
-    const matches = choices.filter(choice => choice.invoice_item_id === line.invoice_item_id);
+    const matches = choices.filter(choice => distributionLineId(choice) === distributionLineId(line));
     const sum = distributionSplitCents(matches[0]), pool = distributionCents(line.professional_pool);
     return matches.length === 1 && sum !== null && pool !== null && sum <= pool;
   });
@@ -102,13 +117,13 @@ export function distributionDraftValid(source: DistributionSource, choices: Dist
 
 export function distributionReviewComplete(source: DistributionSource, choices: DistributionChoice[]): boolean {
   return distributionDraftValid(source, choices) && source.lines.filter(line => line.classification === "professional_fee")
-    .every(line => distributionLineComplete(line, choices.find(choice => choice.invoice_item_id === line.invoice_item_id)));
+    .every(line => distributionLineComplete(line, choices.find(choice => distributionLineId(choice) === distributionLineId(line))));
 }
 
 export function distributionPayload(source: DistributionSource, choices: DistributionChoice[]): DistributionDecision[] {
   if (!distributionDraftValid(source, choices)) throw new Error("VP_DISTRIBUTION_CHOICES_INVALID");
   return choices.map(choice => ({
-    invoice_item_id: choice.invoice_item_id,
+    ...distributionIdentity(choice),
     referral_amount: distributionCents(choice.referral_amount)! / 100,
     company_share_amount: distributionCents(choice.company_share_amount)! / 100,
     work_compensation_amount: distributionCents(choice.work_compensation_amount)! / 100,
@@ -139,7 +154,7 @@ export function distributionError(error: unknown, locale: UiLocale): string {
 
 export function distributionBlocker(blocker: string, locale: UiLocale): string {
   const key = `vpDistribution.block.${blocker}`, upstreamKey = `moneyAllocation.block.${blocker}`;
-  return translate(locale, Object.hasOwn(vpDistributionMessages, key) ? key
+  return translate(locale, Object.hasOwn(vpDistributionMessages, key) || Object.hasOwn(directMoneyMessages, key) ? key
     : Object.hasOwn(moneyAllocationMessages, upstreamKey) ? upstreamKey : "vpDistribution.error.SOURCE_UNPROVEN");
 }
 

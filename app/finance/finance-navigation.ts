@@ -45,7 +45,7 @@ export function financeNavigationLinks(permissions: UserPermissions, locale: UiL
     permissions.canViewFinanceQuotations
       ? { href: "/finance/invoices", page: "invoices" as const, label: t("finance.nav.invoices") }
       : null,
-    permissions.canManageFinancePayments || permissions.canConfirmFinancePayments || permissions.canReverseFinancePayments || permissions.canReallocateFinancePayments
+    permissions.canViewFinancePayments || permissions.canManageFinancePayments || permissions.canConfirmFinancePayments || permissions.canReverseFinancePayments || permissions.canReallocateFinancePayments
       ? { href: "/finance/payments", page: "payments" as const, label: t("finance.nav.payments") }
       : null,
     permissions.canViewFinanceReceipts
@@ -86,7 +86,7 @@ export function financeNavigationItems(permissions: UserPermissions, locale: UiL
 export function activeFinancePage(pathname: string | null, fallback: FinanceSubNavPage): FinanceSubNavPage {
   const routes: [string, FinanceSubNavPage][] = [
     ["quotations", "quotations"], ["fee-agreements", "fee-agreements"], ["billing-plans", "fee-agreements"],
-    ["billable-charges", "billable-charges"], ["invoices", "invoices"], ["payments", "payments"],
+    ["billable-charges", "billable-charges"], ["invoices", "invoices"], ["payments", "payments"], ["direct-money", "payments"],
     ["receipts", "receipts"], ["combined-documents", "combined-documents"], ["tax-invoices", "tax-invoices"],
     ["expense-claims", "claims"], ["compensation", "compensation"], ["ledger", "ledger"], ["cash-transactions", "cash-transactions"],
   ];

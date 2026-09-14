@@ -13,7 +13,7 @@ const synthetic = {
   finance_combined_documents: ['issued', 'draft', 'cancelled'].map((status, i) => ({ ...combinedFixture(status).combined, id: `8000000${i}-0000-4000-8000-000000000001` })),
 };
 const supabase = write('supabase.js', `const tables=${JSON.stringify(synthetic)};window.__listFixture={tables,reads:[],failNext:false};export const supabase={from(table){if(!Object.hasOwn(tables,table))throw Error('Unexpected table '+table);const record={table,filters:[]};window.__listFixture.reads.push(record);let rows=tables[table];const q={select(columns){record.columns=columns;return q;},order(){return q;},eq(key,value){record.filters.push([key,value]);rows=rows.filter(row=>row[key]===value);return q;},in(key,values){rows=rows.filter(row=>values.includes(row[key]));return q;},range(start,end){record.range=[start,end];rows=rows.slice(start,end+1);return q;},then(resolve,reject){const fail=window.__listFixture.failNext;window.__listFixture.failNext=false;return Promise.resolve(fail?{data:null,error:{message:'Private fixture database detail'}}:{data:structuredClone(rows),error:null}).then(resolve,reject);}};return q;}};`);
-const quotationGuard = write('quotation-guard.js', `import React from ${JSON.stringify(require.resolve('react'))};import{buildPermissions}from'${root}/lib/permissions.ts';export function QuotationGuard({canAccess,children}){const access={permissions:buildPermissions({role:'admin'})};return React.createElement('main',null,canAccess(access)?children(access):'Denied');}`);
+const quotationGuard = write('quotation-guard.js', `import React from ${JSON.stringify(require.resolve('react'))};import{buildPermissions}from'${root}/lib/permissions.ts';export function QuotationGuard({canAccess,children}){const access={profile:{role:'admin'},permissions:buildPermissions({role:'admin'})};return React.createElement('main',null,canAccess(access)?children(access):'Denied');}`);
 const taxGuard = write('tax-guard.js', `import React from ${JSON.stringify(require.resolve('react'))};import{buildPermissions}from'${root}/lib/permissions.ts';import FinanceSubNav from'${root}/app/finance/FinanceSubNav.tsx';export function TaxInvoiceGuard({children}){const permissions=buildPermissions({role:'admin'});return React.createElement('main',null,React.createElement(FinanceSubNav,{activePage:'tax-invoices',permissions}),children(permissions));}`);
 const entry = `import React from 'react';import{createRoot}from'react-dom/client';import{UiLocaleProvider}from'${root}/lib/i18n/provider.tsx';import LanguageSelector from'${root}/app/components/LanguageSelector.tsx';import FinanceSubNav from'${root}/app/finance/FinanceSubNav.tsx';import{buildPermissions}from'${root}/lib/permissions.ts';
 import Payments from'${root}/app/finance/payments/page.tsx';import Combined from'${root}/app/finance/combined-documents/page.tsx';
@@ -25,7 +25,7 @@ async function main() {
     resolve: { extensions: ['.tsx', '.ts', '.js'], modules: [path.join(root, 'node_modules')], alias: { 'next/navigation': navigation, 'next/link': link, [root + '/lib/supabase']: supabase, [root + '/app/finance/quotations/shared']: quotationGuard, [root + '/app/finance/tax-invoices/access']: taxGuard } },
     module: { rules: [{ test: /\.(tsx?|css)$/, use: loader }] }, plugins: [new webpack.DefinePlugin({ 'process.env.NODE_ENV': JSON.stringify('development') })], devtool: false,
   }, (error, stats) => error || stats.hasErrors() ? reject(error || Error(stats.toString({ all: false, errors: true }))) : resolve()));
-  const styles = ['app/finance/finance-sub-nav.module.css', 'app/components/LanguageSelector.module.css', 'app/finance/finance-record-list.module.css'].map(file => {
+  const styles = ['app/finance/finance-sub-nav.module.css', 'app/components/LanguageSelector.module.css', 'app/finance/finance-record-list.module.css', 'app/finance/direct-money/direct-money.module.css'].map(file => {
     const prefix = path.basename(file).replaceAll('.', '_') + '_';
     return fs.readFileSync(path.join(root, file), 'utf8').replace(/\.([A-Za-z_][A-Za-z_0-9-]*)/g, (_, key) => '.' + prefix + key);
   }).join('\n');
@@ -117,9 +117,10 @@ async function main() {
         for (const value of route === 'payments' ? ['4,859.81', '140.19', '5,000.00'] : ['VP-RTI-', '7,000.00']) assert.ok(rowText.includes(value), rowText);
         for (const box of await first.locator('td').evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return { left: r.left, right: r.right, fits: node.scrollWidth <= node.clientWidth + 1 }; }))) assert.ok(box.left >= 0 && box.right <= width && box.fits, JSON.stringify(box));
         assert.equal(await list.getByRole('button', { name: /Create|Issue|Confirm|Reverse|สร้าง|ยืนยัน|ออกเอกสาร/ }).count(), 0);
+        if(route==='payments')assert.equal(await list.locator('a[href="/finance/direct-money/new"]').count(),1);
         await page.screenshot({ path: path.join(out, `${route}-${locale}-${width}.png`) });
       }
-      const filter = page.getByRole('combobox');
+      const filter = page.getByRole('combobox', {name:/^(Status|สถานะ)$/});
       await filter.selectOption('draft');
       await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 1);
       const chosen = await page.locator('tbody').textContent();
@@ -134,7 +135,7 @@ async function main() {
       await page.goto(base + `/finance/${route}`);
       await page.locator('tbody tr').first().waitFor();
       await page.locator('button[lang="en"]').click();
-      const filter = page.getByRole('combobox');
+      const filter = page.getByRole('combobox', {name:/^(Status|สถานะ)$/});
       await page.evaluate(() => { window.__listFixture.failNext = true; });
       await filter.selectOption('draft');
       await page.getByRole('alert').waitFor();

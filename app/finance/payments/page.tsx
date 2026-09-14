@@ -9,14 +9,26 @@ import FinanceSubNav from "../FinanceSubNav";
 import { displayText, money } from "../invoices/shared";
 import { paymentUiLabels, type FinancePayment } from "./shared";
 import styles from "../finance-record-list.module.css";
+import { DirectMoneyList } from "../direct-money/list";
+import directStyles from "../direct-money/direct-money.module.css";
+import { Plus } from "lucide-react";
 
 type PaymentListRow = Pick<FinancePayment, "id" | "internal_reference" | "client_id" | "received_on" | "cash_amount" | "wht_amount" | "settlement_amount" | "currency" | "status"> & { clientName: string | null };
 const paymentListSelect = "id,internal_reference,client_id,received_on,cash_amount,wht_amount,settlement_amount,currency,status";
 
 export default function PaymentsPage() {
-  return <QuotationGuard canAccess={access => access.permissions.canManageFinancePayments || access.permissions.canConfirmFinancePayments || access.permissions.canReverseFinancePayments || access.permissions.canReallocateFinancePayments}>
-    {access => <><FinanceSubNav activePage="payments" permissions={access.permissions} /><PaymentList /></>}
+  return <QuotationGuard canAccess={access => access.permissions.canViewFinancePayments}>
+    {access => <><FinanceSubNav activePage="payments" permissions={access.permissions} /><IncomingMoney canManage={access.profile?.role === "admin"} /></>}
   </QuotationGuard>;
+}
+
+export function IncomingMoney({ canManage }: { canManage: boolean }) {
+  const { t } = useI18n();
+  const [source, setSource] = useState("invoice");
+  return <section className={styles.workspace}><header className={styles.header}><h1>{t("finance.nav.payments")}</h1>{canManage ? <Link className={directStyles.primary} href="/finance/direct-money/new"><Plus size={16} />{t("directMoney.create")}</Link> : null}</header>
+    <label className={styles.filter}>{t("finance.invoice.ui.source")}<select value={source} onChange={e => setSource(e.target.value)}><option value="invoice">{t("directMoney.invoiceBacked")}</option><option value="direct">{t("directMoney.title")}</option><option value="unclassified">{t("directMoney.unclassified")}</option></select></label>
+    {source === "invoice" ? <PaymentList /> : <DirectMoneyList key={source} unclassified={source === "unclassified"} />}
+  </section>;
 }
 
 function PaymentList() {
@@ -54,8 +66,8 @@ function PaymentList() {
     return () => { clearTimeout(timer); invalidate(); };
   }, [load, invalidate]);
   const headings = [t("finance.payment.ui.reference"), t("finance.payment.ui.client"), t("finance.receipt.receivedOn"), t("finance.payment.settlement.receivedCompact"), "WHT", t("finance.receipt.settlement"), t("finance.payment.ui.status"), t("finance.list.open")];
-  return <section className={styles.workspace}>
-    <header className={styles.header}><h1>{t("finance.nav.payments")}</h1><label className={styles.filter}>{t("finance.payment.ui.status")}<select value={status} onChange={event => { setStatus(event.target.value); setPage(0); }}><option value="">{t("finance.receipt.all")}</option>{Object.entries(statuses).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></header>
+  return <section>
+    <header className={styles.header}><label className={styles.filter}>{t("finance.payment.ui.status")}<select value={status} onChange={event => { setStatus(event.target.value); setPage(0); }}><option value="">{t("finance.receipt.all")}</option>{Object.entries(statuses).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></header>
     {loading ? <p role="status">{t("common.state.loading")}</p> : error ? <p role="alert" className={styles.error}>{t("finance.payment.list.failed")} <button className={styles.button} type="button" onClick={() => void load()}>{t("common.actions.retry")}</button></p> : !rows.length ? <p className={styles.empty}>{t("finance.payment.list.empty")}</p> :
       <table className={styles.table}><thead><tr>{headings.map((label, index) => <th key={index} scope="col" className={index >= 3 && index <= 5 ? styles.numeric : undefined}>{label}</th>)}</tr></thead><tbody>{rows.map(row => <tr key={row.id}>
         <td data-label={headings[0]}><strong>{displayText(row.internal_reference, row.id.slice(0, 8).toUpperCase())}</strong></td>

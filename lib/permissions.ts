@@ -417,6 +417,7 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
     canConfirmFinancePayments,
     canReverseFinancePayments,
     canReallocateFinancePayments,
+    canViewFinancePayments: isPartnerUp(role) || canManageFinancePayments || canConfirmFinancePayments || canReverseFinancePayments || canReallocateFinancePayments,
     canViewFinanceReceipts,
     canManageFinanceReceipts,
     canIssueFinanceReceipts,

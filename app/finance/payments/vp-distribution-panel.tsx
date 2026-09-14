@@ -10,6 +10,7 @@ import {
   distributionLineComplete, distributionPayload, distributionReviewComplete, distributionSource, distributionSourceProven,
   distributionSplitCents, initialDistributionChoices, isDirectCompanyClassification,
   type DistributionChoice, type DistributionDecision, type DistributionSource,
+  distributionLineId, distributionCurrency, distributionConfirmed,
 } from "./vp-distribution";
 import { VpFormulaEditor, FormulaResultEvidence } from "./vp-formula-editor";
 import { formulaCatalogCurrent, initialLineFormulas, lineFormulaChoices, type FormulaContext, type LineFormulaInputs } from "./vp-formula";
@@ -31,38 +32,38 @@ export function VpDistributionEvidence({ source, choices, editable = false, busy
   onChange?: (id: string, input: FormulaInput) => void;
 }) {
   const { t, locale } = useI18n(), id = useId();
-  const currency = source.money_source?.payment?.currency || "-";
+  const currency = distributionCurrency(source);
   const totals = Object.fromEntries(distributionFields.map(field => {
     const values = choices.map(choice => distributionCents(choice[field]));
     const sum = values.reduce<number>((total, value) => total + (value ?? 0), 0);
     return [field, values.every(value => value !== null) && Number.isSafeInteger(sum) ? sum / 100 : null];
   }));
   return <div className={vpStyles.evidence}>
-    <DistributionAmounts values={{ settlement: source.money_source?.payment?.settlement ?? null, ...source.totals }} currency={currency} />
+    <DistributionAmounts values={{ [source.received_money_source ? "grossReceived" : "settlement"]: source.received_money_source?.gross_received ?? source.money_source?.payment?.settlement ?? null, ...source.totals }} currency={currency} />
     <DistributionAmounts values={totals} currency={currency} />
     <p className={styles.muted}>{t("vpDistribution.taxBoundary")}</p>
-    <p className={styles.muted}>{source.money_allocation ? t("vpDistribution.moneyRevision", { revision: source.money_allocation.revision }) : t("vpDistribution.noMoneyRecord")}</p>
+    <p className={styles.muted}>{source.received_money_source ? t("directMoney.source") : source.money_allocation ? t("vpDistribution.moneyRevision", { revision: source.money_allocation.revision }) : t("vpDistribution.noMoneyRecord")}</p>
     {source.blockers.map((blocker, index) => <p className={styles.warning} key={`${blocker}-${index}`}>{distributionBlocker(blocker, locale)}</p>)}
     <h3>{t("vpDistribution.lines")}</h3>
     {source.lines.map((line, index) => {
       const professional = line.classification === "professional_fee", direct = isDirectCompanyClassification(line.classification);
-      const saved = choices.find(choice => choice.invoice_item_id === line.invoice_item_id);
+      const lineId = distributionLineId(line), saved = choices.find(choice => distributionLineId(choice) === lineId);
       const choice = saved ? { ...saved, ...Object.fromEntries(distributionFields.map(field => [field, String(saved[field])])) } as DistributionChoice : undefined;
-      const preview = editable && formulas[line.invoice_item_id] ? calculateFormula(line.professional_pool, formulas[line.invoice_item_id], people).result : null;
+      const preview = editable && formulas[lineId] ? calculateFormula(line.professional_pool, formulas[lineId], people).result : null;
       const sum = editable ? (preview ? preview.recipients.reduce((total, row) => total + (distributionCents(row.amount) ?? 0), 0) : null) : distributionSplitCents(choice);
       const pool = distributionCents(line.professional_pool);
       const lineInvalid = invalid && professional && !distributionLineComplete(line, choice);
       const errorId = `${id}-split-${index}`;
-      return <section className={styles.line} key={line.invoice_item_id} aria-label={line.description}>
-        <div><Link href={`/finance/invoices/${line.invoice_id}`}>{line.invoice_no}</Link><h4>{line.description}</h4></div>
+      return <section className={styles.line} key={lineId} aria-label={line.description}>
+        <div>{line.invoice_id ? <Link href={`/finance/invoices/${line.invoice_id}`}>{line.invoice_no}</Link> : null}<h4>{line.description}</h4></div>
         <p className={professional || direct ? styles.muted : styles.warning}>{t(`vpDistribution.${professional ? "split" : direct ? "direct" : "unknownClassification"}`)}</p>
         <DistributionAmounts values={{ base: line.base, vat: line.vat, wht: line.wht, cash: line.cash }} currency={currency} />
         {direct ? <DistributionAmounts values={{ company_economic: line.company_economic, company_cash: line.company_cash }} currency={currency} /> : null}
         {professional ? <>
           <DistributionAmounts values={{ professional_pool: line.professional_pool, allocated: sum !== null ? sum / 100 : null, remaining: sum !== null && pool !== null ? (pool - sum) / 100 : null }} currency={currency} />
           <p className={styles.muted}>{t("vpDistribution.poolFormula")}</p>
-          {editable ? <VpFormulaEditor pool={line.professional_pool} input={formulas[line.invoice_item_id]} people={people}
-            currency={currency} disabled={busy} invalid={invalid} onChange={input => onChange?.(line.invoice_item_id, input)} />
+          {editable ? <VpFormulaEditor pool={line.professional_pool} input={formulas[lineId]} people={people}
+            currency={currency} disabled={busy} invalid={invalid} onChange={input => onChange?.(lineId, input)} />
             : saved?.formula_result ? <FormulaResultEvidence result={saved.formula_result} currency={currency} />
             : <><p className={styles.warning}>{t("vpFormula.legacy")}</p><DistributionAmounts values={Object.fromEntries(distributionFields.map(field => [field, saved?.[field] ?? null]))} currency={currency} /></>}
           {lineInvalid ? <p id={errorId} className={styles.error}>{t("vpDistribution.splitInvalid")}</p> : null}
@@ -72,7 +73,7 @@ export function VpDistributionEvidence({ source, choices, editable = false, busy
   </div>;
 }
 
-export function VpDistributionPanel({ paymentId }: { paymentId: string }) {
+export function VpDistributionPanel({ paymentId, directMoneyReceiptId }: { paymentId: string; directMoneyReceiptId?: never } | { paymentId?: never; directMoneyReceiptId: string }) {
   const { t, locale, date } = useI18n();
   const [context, setContext] = useState<FormulaContext | null>(null), [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false), [loadFailed, setLoadFailed] = useState(false);
@@ -85,10 +86,12 @@ export function VpDistributionPanel({ paymentId }: { paymentId: string }) {
     setAck(false); setReason(""); setInvalid(false); setRefreshRequired(false); setLoadFailed(false);
   }, []);
   const fetchContext = useCallback(async () => {
-    const result = await supabase.rpc("get_finance_vp_formula_context", { p_payment_id: paymentId });
+    const result = directMoneyReceiptId
+      ? await supabase.rpc("get_finance_direct_vp_formula_context", { p_direct_id: directMoneyReceiptId })
+      : await supabase.rpc("get_finance_vp_formula_context", { p_payment_id: paymentId });
     if (result.error || !result.data?.source || result.data.posting_enabled !== false) throw result.error || new Error("response");
     return result.data as FormulaContext;
-  }, [paymentId]);
+  }, [paymentId, directMoneyReceiptId]);
   useEffect(() => {
     let cancelled = false;
     void fetchContext().then(value => { if (!cancelled) install(value); })
@@ -101,7 +104,7 @@ export function VpDistributionPanel({ paymentId }: { paymentId: string }) {
   const calculated = context ? lineFormulaChoices(context, formulas) : null;
   const choices = current && current.status !== "draft" ? initialDistributionChoices(context!) : calculated?.choices || [];
   const catalogCurrent = !!context && formulaCatalogCurrent(context);
-  const confirmed = context?.source.money_source?.payment?.status === "confirmed";
+  const confirmed = !!context && distributionConfirmed(context.source);
   const editable = !!context?.can_manage && confirmed && (!current || current.status === "draft");
   const dirty = !!context && (JSON.stringify(formulas) !== JSON.stringify(initialLineFormulas(context)) || note !== (current?.note || ""));
   const hasLocalInput = dirty || reason !== "" || ack;
@@ -134,7 +137,7 @@ export function VpDistributionPanel({ paymentId }: { paymentId: string }) {
     lock.current = true; setBusy(true);
     try {
       const result = action === "save"
-        ? await supabase.rpc("save_finance_vp_distribution", { p_payment_id: paymentId, ...distributionExpected(context), p_source: context.source, p_choices: distributionPayload(context.source, choices), p_note: note })
+        ? await supabase.rpc(directMoneyReceiptId ? "save_finance_direct_vp_distribution" : "save_finance_vp_distribution", { ...(directMoneyReceiptId ? { p_direct_id: directMoneyReceiptId } : { p_payment_id: paymentId }), ...distributionExpected(context), p_source: context.source, p_choices: distributionPayload(context.source, choices), p_note: note })
         : await supabase.rpc("transition_finance_vp_distribution", { p_id: current?.id, p_expected_version: current?.version, p_source: context.source, p_action: action, p_acknowledged: ack, p_reason: reason });
       if (result.error || typeof result.data !== "string") throw result.error || new Error("response");
       install(await fetchContext()); setSuccess(true);
@@ -159,7 +162,7 @@ export function VpDistributionPanel({ paymentId }: { paymentId: string }) {
       onClose={() => { if (!busy) setOpen(false); }} closeOnBackdrop={!busy && !hasLocalInput}
       footer={context?.can_manage ? <div className={vpStyles.footer}>
         {calculated && source ? <div className={vpStyles.reconciliation} aria-live="polite" aria-atomic="true">
-          <DistributionAmounts values={calculated.progress} currency={source.money_source?.payment?.currency || "-"} />
+          <DistributionAmounts values={calculated.progress} currency={distributionCurrency(source)} />
           <p className={calculated.valid && proven ? vpStyles.complete : vpStyles.unresolved}>{t(calculated.valid && proven ? "vpFormula.complete" : "vpFormula.unresolved")}</p>
         </div> : null}
         <div className={styles.actions}>
