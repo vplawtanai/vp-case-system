@@ -9,7 +9,7 @@ window.calls=[];window.rights=false;window.failRead=false;window.failAfterWrite=
 const data=${JSON.stringify(fixture())};
 export const supabase={
  async rpc(name,p){window.calls.push({name,p});await new Promise(r=>setTimeout(r,60));
-  if(name==='get_finance_payable_entitlements')return {data:p.p_search==='no-results'?{groups:[],has_next:false}:data};
+  if(name==='get_finance_payable_entitlements')return {data:p.p_search==='no-results'?{groups:[],has_next:false}:p.p_search==='multi-page'?{...data,has_next:p.p_offset===0}:data};
   if(name!=='ensure_finance_payable_entitlements'||p.p_distribution_id!==${JSON.stringify(distributionId)}||p.p_expected_version!==3||p.p_acknowledged!==true)throw Error('Forbidden fixture call');
   if(window.failure){const m=window.failure;window.failure=null;return {error:{message:m}};}
   window.rights=true;if(window.failAfterWrite){window.failAfterWrite=false;window.failRead=true;}return {data:p.p_distribution_id};
@@ -45,6 +45,9 @@ async function main(){
   for(const locale of ['th','en'])for(const width of [390,768,1024,1440]){
    await page.setViewportSize({width,height:1000});await page.goto(url);await page.locator('button[lang='+locale+']').click();await page.locator('[data-recipient]').first().waitFor();
    assert.equal(await page.locator('[data-recipient]').count(),3);assert.equal(await writes(),0);
+   assert.deepEqual(await page.evaluate(()=>window.calls.find(c=>c.name==='get_finance_payable_entitlements').p),{p_search:'',p_source_type:'all',p_bucket:'all',p_status:'open',p_offset:0});
+   for(const [key,value] of [['source','all'],['bucket','all'],['status','open']])assert.equal(await page.getByLabel(translate(locale,'payables.'+key),{exact:true}).inputValue(),value);
+   assert.equal(await page.getByRole('button',{name:translate(locale,'finance.receipt.next'),exact:true}).count(),0);
    assert.equal(await page.locator('a[href="/finance/payables"][aria-current="page"]').count(),1);
    const pam=page.locator('[data-recipient]').first();assert.ok((await pam.innerText()).includes('3,104.00 THB'));
    const summary=pam.locator('summary').first();await summary.focus();await page.keyboard.press('Enter');
@@ -54,6 +57,17 @@ async function main(){
    await page.getByLabel(translate(locale,'payables.bucket'),{exact:true}).selectOption('referral');
    await page.waitForFunction(()=>window.calls.at(-1)?.p?.p_bucket==='referral');
    await page.getByLabel(translate(locale,'payables.search'),{exact:true}).fill('no-results');await page.getByText(translate(locale,'payables.empty'),{exact:true}).waitFor();assert.equal(await writes(),0);
+   assert.equal(await page.getByRole('button',{name:translate(locale,'finance.receipt.previous'),exact:true}).count(),0);
+   assert.equal(await page.getByRole('button',{name:translate(locale,'finance.receipt.next'),exact:true}).count(),0);
+   await geometry();await page.screenshot({path:out+`/payables-empty-${locale}-${width}.png`,fullPage:true});
+   await page.getByLabel(translate(locale,'payables.search'),{exact:true}).fill('multi-page');
+   const next=page.getByRole('button',{name:translate(locale,'finance.receipt.next'),exact:true}),previous=page.getByRole('button',{name:translate(locale,'finance.receipt.previous'),exact:true});
+   await next.waitFor();assert.equal(await previous.isEnabled(),false);await next.click();
+   await page.getByText(translate(locale,'finance.receipt.page',{page:2}),{exact:true}).waitFor();await page.locator('[data-recipient]').first().waitFor();
+   assert.equal(await next.isEnabled(),false);assert.equal(await previous.isEnabled(),true);
+   assert.equal(await page.evaluate(()=>window.calls.at(-1).p.p_offset),25);
+   await previous.click();await page.getByText(translate(locale,'finance.receipt.page',{page:1}),{exact:true}).waitFor();await page.locator('[data-recipient]').first().waitFor();
+   assert.equal(await page.evaluate(()=>window.calls.at(-1).p.p_offset),0);assert.equal(await writes(),0);
   }
   for(const locale of ['th','en']){
    await page.goto(url+'?mode=materialize');await page.locator('button[lang='+locale+']').click();

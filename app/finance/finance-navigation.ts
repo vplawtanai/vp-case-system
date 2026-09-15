@@ -58,11 +58,11 @@ export function financeNavigationLinks(permissions: UserPermissions, locale: UiL
     permissions.canViewFinanceTaxInvoices
       ? { href: "/finance/tax-invoices", page: "tax-invoices" as const, label: t("finance.nav.taxInvoices") }
       : null,
-    permissions.canSubmitExpenseClaim || permissions.canViewOwnExpenseClaims || permissions.canViewAllExpenseClaims
-      ? { href: "/finance/expense-claims", page: "claims" as const, label: t("finance.nav.expenseClaims") }
-      : null,
     permissions.canViewFinancePayments
       ? { href: "/finance/payables", page: "payables" as const, label: t("payables.title") }
+      : null,
+    permissions.canSubmitExpenseClaim || permissions.canViewOwnExpenseClaims || permissions.canViewAllExpenseClaims
+      ? { href: "/finance/expense-claims", page: "claims" as const, label: t("finance.nav.expenseClaims") }
       : null,
     permissions.canViewLawyerCompensation
       ? { href: "/finance/compensation", page: "compensation" as const, label: t("finance.nav.compensation") }
@@ -78,7 +78,7 @@ export function financeNavigationItems(permissions: UserPermissions, locale: UiL
   const items: FinanceNavigationItem[] = [];
   for (const link of financeNavigationLinks(permissions, locale)) {
     const group = ["receipts", "combined-documents", "tax-invoices"].includes(link.page)
-      ? "payment-documents" : link.page === "ledger" ? "legacy" : null;
+      ? "payment-documents" : ["ledger", "compensation"].includes(link.page) ? "legacy" : null;
     if (!group) { items.push(link); continue; }
     const existing = items.find((item): item is FinanceNavigationGroup => "group" in item && item.group === group);
     if (existing) existing.children.push(link);

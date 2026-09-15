@@ -17,6 +17,8 @@
 .component a:focus-visible { outline: 3px solid var(--vp-focus); outline-offset: 3px; }
 .technical { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; margin: 0; padding: 12px; }
 .pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 20px 0; }
+.emptyTitle { display: block; color: var(--vp-text); font-weight: 600; }
+.emptyHelp { display: block; margin-top: 4px; font-size: 13px; }
 .materialize { border-top: 1px solid var(--vp-divider); padding-top: 16px; margin-top: 16px; }
 .materialize h3 { margin: 0 0 8px; font-size: 18px; }
 .materialize p { color: var(--vp-muted); line-height: 1.6; }

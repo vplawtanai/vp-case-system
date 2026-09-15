@@ -59,7 +59,7 @@ export const commonMessages = {
   "finance.nav.legacy": { th: "เดิม", en: "Legacy" },
   "finance.nav.legacyLedger": { th: "เงินรับ–จ่ายเดิม", en: "Legacy Ledger" },
   "finance.nav.expenseClaims": { th: "เบิกค่าใช้จ่าย", en: "Expense Claims" },
-  "finance.nav.compensation": { th: "ค่าตอบแทนทนาย", en: "Lawyer Compensation" },
+  "finance.nav.compensation": { th: "ค่าตอบแทนทนาย (เดิม)", en: "Lawyer Compensation (Legacy)" },
   "finance.list.open": { th: "เปิดดู", en: "Open" },
   "finance.list.customerUnavailable": { th: "ไม่พบชื่อลูกค้า", en: "Client name unavailable" },
   "finance.list.documentNumber": { th: "เลขที่เอกสาร", en: "Document Number" },

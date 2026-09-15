@@ -44,8 +44,8 @@ async function main() {
     await page.route('**/*', route => { if (new URL(route.request().url()).hostname === '127.0.0.1') return route.continue(); external.push(route.request().url()); return route.abort(); });
     const base = 'http://127.0.0.1:' + server.address().port;
     const expected = {
-      th: ['ใบเสนอราคา', 'ข้อตกลงค่าบริการ', 'รายการเรียกเก็บนอกใบเสนอราคา', 'ใบแจ้งหนี้', 'เงินรับ', 'เอกสารรับเงิน', 'เบิกค่าใช้จ่าย', 'ค่าตอบแทนทนาย', 'เดิม'],
-      en: ['Quotations', 'Fee Agreements', 'Non-Quotation Charges', 'Invoices', 'Payments', 'Payment Documents', 'Expense Claims', 'Lawyer Compensation', 'Legacy'],
+      th: ['ใบเสนอราคา', 'ข้อตกลงค่าบริการ', 'รายการเรียกเก็บนอกใบเสนอราคา', 'ใบแจ้งหนี้', 'เงินรับ', 'เอกสารรับเงิน', 'รายการรอจ่าย', 'เบิกค่าใช้จ่าย', 'เดิม'],
+      en: ['Quotations', 'Fee Agreements', 'Non-Quotation Charges', 'Invoices', 'Payments', 'Payment Documents', 'Payables', 'Expense Claims', 'Legacy'],
     };
     for (const width of [390, 768, 1024, 1440]) for (const locale of ['th', 'en']) {
       await page.setViewportSize({ width, height: 900 });
@@ -81,7 +81,11 @@ async function main() {
       await page.keyboard.press('Tab'); await page.keyboard.press('Tab'); await page.keyboard.press('Tab'); await page.keyboard.press('Tab');
       assert.equal(await documents.getAttribute('aria-expanded'), 'false', 'Tab leaves disclosure without trapping focus');
       const legacy = nav.getByRole('button', { name: expected[locale][8], exact: true });
-      await legacy.click();
+      await legacy.focus(); await page.keyboard.press('ArrowDown');
+      await page.waitForFunction(() => document.activeElement?.getAttribute('href') === '/finance/compensation');
+      assert.equal(await nav.locator('a[href="/finance/compensation"]').textContent(), locale === 'th' ? 'ค่าตอบแทนทนาย (เดิม)' : 'Lawyer Compensation (Legacy)');
+      await page.keyboard.press('ArrowDown');
+      assert.equal(await page.evaluate(() => document.activeElement.getAttribute('href')), '/finance/ledger');
       const legacyLink = nav.locator('a[href="/finance/ledger"]');
       assert.equal(await legacyLink.isVisible(), true);
       const box = await legacyLink.boundingBox(); assert.ok(box.x >= 0 && box.x + box.width <= width);
@@ -92,7 +96,7 @@ async function main() {
       assert.equal(await page.getByRole('textbox').inputValue(), 'Retained local edit');
       assert.equal(page.url(), base + '/finance/invoices/compose');
     }
-    for (const [route, groupName] of [['receipts', 'Payment Documents'], ['combined-documents', 'Payment Documents'], ['tax-invoices', 'Payment Documents'], ['ledger', 'Legacy']]) {
+    for (const [route, groupName] of [['receipts', 'Payment Documents'], ['combined-documents', 'Payment Documents'], ['tax-invoices', 'Payment Documents'], ['compensation', 'Legacy'], ['ledger', 'Legacy']]) {
       await page.goto(base + `/finance/${route}/synthetic-id`);
       await page.locator('button[lang="en"]').click();
       const group = page.getByRole('button', { name: groupName, exact: true });
@@ -101,6 +105,11 @@ async function main() {
       assert.equal(await page.getByRole('navigation').locator('a[aria-current="page"]').getAttribute('href'), `/finance/${route}`);
       await page.getByRole('navigation').locator('a[aria-current="page"]').click();
       assert.equal(page.url(), base + `/finance/${route}`);
+    }
+    if (process.argv.includes('--navigation-only')) {
+      assert.deepEqual(errors, []); assert.deepEqual(external, []);
+      console.log(JSON.stringify({ pass: true, scope: 'navigation', widths: [390, 768, 1024, 1440], locales: ['th', 'en'], keyboard: true, externalRequests: 0, artifacts: out }));
+      return;
     }
     for (const width of [390, 768, 1024, 1440]) for (const route of ['payments', 'combined-documents']) {
       await page.setViewportSize({ width, height: 1000 });

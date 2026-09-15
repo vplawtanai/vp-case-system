@@ -3,19 +3,43 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),fs=requir
 const {workspaceFixture}=require('./i18n-workspace-fixture.cjs');
 const {fixture,distributionId}=require('./payable-fixture.cjs');
 const {buildPermissions}=require('../../lib/permissions.ts');
-const {financeNavigationLinks,activeFinancePage}=require('../../app/finance/finance-navigation.ts');
+const {financeNavigationLinks,financeNavigationItems,activeFinancePage}=require('../../app/finance/finance-navigation.ts');
 const {translate}=require('../../lib/i18n/catalog.ts');
 const {payableMessages}=require('../../lib/i18n/messages/payables.ts');
-const {payableError,payableGroupKey,payableRoleLabel}=require('../../app/finance/payables/shared.ts');
+const {initialPayableFilters,payableError,payableGroupKey,payableRoleLabel}=require('../../app/finance/payables/shared.ts');
 const page=workspaceFixture('app/finance/payables/page.tsx',['PayablesWorkspace','PayableGroups'],{'../quotations/shared':{QuotationGuard:()=>null},'../FinanceSubNav':{default:()=>null}});
 const materialize=workspaceFixture('app/finance/payables/materialize-action.tsx',['MaterializeEntitlements']);
 for(const locale of ['th','en'])test(`Payables ${locale}: initial zero-state is neutral and offers no payout or materialization action`,()=>{
  const html=page.render(locale,{'PayablesWorkspace.loading':false,'PayablesWorkspace.data':{groups:[],has_next:false}},{},'PayablesWorkspace');
  assert.ok(html.includes(translate(locale,'payables.empty')));
+ assert.ok(html.includes(translate(locale,'payables.emptyHelp')));
  assert.doesNotMatch(html,/role="alert"|data-recipient=|type="checkbox"/);
  assert.ok(!html.includes(translate(locale,'payables.materialize')));
  assert.equal(translate(locale,'payables.superseded'),locale==='th'?'ถูกแทนที่':'Superseded');
  assert.equal(translate(locale,'payables.open'),locale==='th'?'รอจ่าย':'Open');
+});
+test('Payables source and entitlement type default to All; status remains Open',()=>{
+ assert.deepEqual(initialPayableFilters,{search:'',source:'all',bucket:'all',status:'open'});
+});
+for(const locale of ['th','en'])test(`Payables ${locale}: hide pagination for zero/one page; keep real next/previous navigation`,()=>{
+ for(const [data,offset,visible] of [[{groups:[],has_next:false},0,false],[fixture(),0,false],[{...fixture(),has_next:true},0,true],[fixture(),25,true],[{groups:[],has_next:false},25,true]]){
+  const html=page.render(locale,{'PayablesWorkspace.loading':false,'PayablesWorkspace.data':data,'PayablesWorkspace.offset':offset},{},'PayablesWorkspace');
+  for(const key of ['previous','next'])assert.equal(html.includes(`aria-label="${translate(locale,'finance.receipt.'+key)}"`),visible);
+ }
+});
+for(const locale of ['th','en'])test(`Finance ${locale}: Payables precedes Expense Claims; Compensation stays permission-gated inside Legacy`,()=>{
+ const p=buildPermissions({role:'admin'}),items=financeNavigationItems(p,locale);
+ assert.deepEqual(items.map(i=>i.group||i.page),['quotations','fee-agreements','billable-charges','invoices','payments','payment-documents','payables','claims','legacy']);
+ assert.ok(!items.some(i=>i.page==='compensation'));
+ const legacy=items.find(i=>i.group==='legacy');
+ assert.deepEqual(legacy.children.map(i=>i.href),['/finance/compensation','/finance/ledger']);
+ assert.equal(legacy.children[0].label,locale==='th'?'ค่าตอบแทนทนาย (เดิม)':'Lawyer Compensation (Legacy)');
+ for(const allowed of [true,false]){
+  const children=financeNavigationItems({...p,canViewLawyerCompensation:allowed},locale).filter(i=>i.group==='legacy').flatMap(i=>i.children);
+  assert.equal(children.some(i=>i.page==='compensation'),allowed);
+  assert.ok(children.some(i=>i.page==='ledger'));
+ }
+ assert.equal(activeFinancePage('/finance/compensation','payables'),'compensation');
 });
 for(const locale of ['th','en'])test(`Payables ${locale}: recipient/currency groups retain role components, frozen facts and closed technical evidence`,()=>{
  const data=fixture(),before=JSON.stringify(data);
