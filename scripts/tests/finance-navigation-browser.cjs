@@ -44,8 +44,8 @@ async function main() {
     await page.route('**/*', route => { if (new URL(route.request().url()).hostname === '127.0.0.1') return route.continue(); external.push(route.request().url()); return route.abort(); });
     const base = 'http://127.0.0.1:' + server.address().port;
     const expected = {
-      th: ['ใบเสนอราคา', 'ข้อตกลงค่าบริการ', 'รายการเรียกเก็บนอกใบเสนอราคา', 'ใบแจ้งหนี้', 'เงินรับ', 'เอกสารรับเงิน', 'เงินสดและบัญชี', 'รายการรอจ่าย', 'เบิกค่าใช้จ่าย', 'เดิม'],
-      en: ['Quotations', 'Fee Agreements', 'Non-Quotation Charges', 'Invoices', 'Payments', 'Payment Documents', 'Treasury', 'Payables', 'Expense Claims', 'Legacy'],
+      th: ['ใบเสนอราคา', 'ข้อตกลงค่าบริการ', 'รายการเรียกเก็บนอกใบเสนอราคา', 'ใบแจ้งหนี้', 'เงินรับ', 'เอกสารรับเงิน', 'รายการรอจ่าย', 'เงินสดและบัญชี', 'เบิกค่าใช้จ่าย', 'เดิม'],
+      en: ['Quotations', 'Fee Agreements', 'Non-Quotation Charges', 'Invoices', 'Payments', 'Payment Documents', 'Payables', 'Treasury', 'Expense Claims', 'Legacy'],
     };
     for (const width of [390, 768, 1024, 1440]) for (const locale of ['th', 'en']) {
       await page.setViewportSize({ width, height: 900 });

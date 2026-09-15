@@ -8,8 +8,8 @@ import { buildPermissions } from "../../lib/permissions.ts";
 
 const fullPermissions = buildPermissions({ role: "admin" });
 const expected = {
-  th: ["ใบเสนอราคา", "ข้อตกลงค่าบริการ", "รายการเรียกเก็บนอกใบเสนอราคา", "ใบแจ้งหนี้", "เงินรับ", "เอกสารรับเงิน", "เงินสดและบัญชี", "รายการรอจ่าย", "เบิกค่าใช้จ่าย", "เดิม"],
-  en: ["Quotations", "Fee Agreements", "Non-Quotation Charges", "Invoices", "Payments", "Payment Documents", "Treasury", "Payables", "Expense Claims", "Legacy"],
+  th: ["ใบเสนอราคา", "ข้อตกลงค่าบริการ", "รายการเรียกเก็บนอกใบเสนอราคา", "ใบแจ้งหนี้", "เงินรับ", "เอกสารรับเงิน", "รายการรอจ่าย", "เงินสดและบัญชี", "เบิกค่าใช้จ่าย", "เดิม"],
+  en: ["Quotations", "Fee Agreements", "Non-Quotation Charges", "Invoices", "Payments", "Payment Documents", "Payables", "Treasury", "Expense Claims", "Legacy"],
 };
 
 for (const locale of ["th", "en"] as const) test(`${locale}: Finance navigation follows the business workflow with parallel document destinations`, () => {

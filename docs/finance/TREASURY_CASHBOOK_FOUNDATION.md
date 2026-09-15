@@ -85,6 +85,18 @@ inside cash creates no second leg. Direct client money, loans, partner funding,
 other non-revenue money and business revenue all preserve their original source
 classification metadata without Cashbook deciding revenue treatment.
 
+Pending cash means a confirmed real-money receipt with no original Cashbook
+inflow yet. It is independent of whether revenue distribution exists or is
+finalized, and includes both Invoice-backed Payments and Direct Money, including
+non-revenue money. The pending list is not a distribution-workflow queue.
+
+For Direct Money 028430C3, the 10,400 actually received corresponds to one
+10,400 inflow to KBANK, subject to the existing opening/cutover controls. Later
+distribution divides economic rights into recipient payables, company share and
+tax buckets; it does not receive the money again. Company share is not a second
+Cash Transaction, VAT is not a separate inflow, and incoming WHT is not cash.
+This example does not authorize materializing the Production source.
+
 Future Payment confirmation uses its existing private cash hook. Future Direct
 Money confirmation invokes a transactional status trigger. Failure rolls back
 the original confirmation, its audit/snapshot and any cash insertion together.
@@ -141,7 +153,7 @@ controlled opening modals, TH/EN, focused acknowledgements and closed technical
 evidence. It shows "System balance", not actual bank reconciliation. Account rows
 include authoritative bank names/numbers, currency and opening status. Following
 human backend PASS, the permission-gated Treasury link is exposed immediately
-after Payment Documents and before Payables, without moving Legacy modules.
+after Payables and before Expense Claims, without moving Legacy modules.
 
 Operator artifacts:
 

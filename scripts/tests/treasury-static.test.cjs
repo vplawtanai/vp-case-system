@@ -54,3 +54,15 @@ test('049 TH/EN, source error guidance and permission-gated Treasury navigation'
  assert.equal(translate('en','treasury.unknown'),'Opening balance not set');
  const form=fs.readFileSync('app/finance/direct-money/form.tsx','utf8');assert.match(form,/receiving_cash_location_id: location\?\.id/);assert.match(form,/cashLocations\.find\(c => c\.id === e\.target\.value\)/);
 });
+test('Pending cash copy distinguishes confirmed money from distribution without adding a distribution dependency',()=>{
+ const expected={
+  th:{pending:'เงินรับที่รอบันทึกเข้าความเคลื่อนไหวเงินจริง',pendingHelp:'รายการที่ยืนยันว่ารับเงินจริงแล้ว แต่ยังไม่ได้สร้างรายการเงินเข้าในเงินสดและบัญชี การแบ่งรายได้ไม่เกี่ยวกับขั้นตอนนี้',materialize:'บันทึกเงินเข้าจากรายการนี้'},
+  en:{pending:'Receipts awaiting cashbook entry',pendingHelp:'Confirmed real-money receipts that have not yet been recorded as Treasury inflows. Revenue distribution is separate from this step.',materialize:'Record cash inflow'},
+ };
+ for(const [locale,copy] of Object.entries(expected))for(const [key,value] of Object.entries(copy))assert.equal(translate(locale,'treasury.'+key),value);
+ const ui=fs.readFileSync('app/finance/treasury/page.tsx','utf8');
+ assert.match(ui,/data\.pending_sources\.map\(s =>/);
+ assert.doesNotMatch(ui,/vp_revenue_distribution|vp-distribution|money_nature|business_revenue|ensure_finance_payable/);
+ assert.match(ui,/supabase\.rpc\("materialize_finance_treasury_source", \{ p_source_type: selected\.source_type, p_source_id: selected\.source_id,/);
+ assert.match(ui,/p_expected_source: selected, p_acknowledged: ack/);
+});

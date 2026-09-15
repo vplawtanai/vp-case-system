@@ -59,11 +59,11 @@ export function financeNavigationLinks(permissions: UserPermissions, locale: UiL
     permissions.canViewFinanceTaxInvoices
       ? { href: "/finance/tax-invoices", page: "tax-invoices" as const, label: t("finance.nav.taxInvoices") }
       : null,
-    permissions.canViewFinanceCashTransactions
-      ? { href: "/finance/treasury", page: "treasury" as const, label: t("treasury.title") }
-      : null,
     permissions.canViewFinancePayments
       ? { href: "/finance/payables", page: "payables" as const, label: t("payables.title") }
+      : null,
+    permissions.canViewFinanceCashTransactions
+      ? { href: "/finance/treasury", page: "treasury" as const, label: t("treasury.title") }
       : null,
     permissions.canSubmitExpenseClaim || permissions.canViewOwnExpenseClaims || permissions.canViewAllExpenseClaims
       ? { href: "/finance/expense-claims", page: "claims" as const, label: t("finance.nav.expenseClaims") }

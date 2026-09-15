@@ -54,6 +54,9 @@ async function main(){
   for(const locale of ['th','en'])for(const width of [390,768,1024,1440])for(const sourceType of ['direct_money_receipt','payment']){
    const t=k=>translate(locale,'treasury.'+k);await page.setViewportSize({width,height:1000});await page.goto(url+(sourceType==='payment'?'?payment':''));await page.locator('button[lang='+locale+']').click();
    const opening=page.getByRole('button',{name:t('opening'),exact:true}).first();await opening.waitFor();await geometry();
+   await page.getByRole('heading',{name:t('pending'),exact:true}).waitFor();await page.getByText(t('pendingHelp'),{exact:true}).waitFor();
+   assert.equal(await page.getByRole('button',{name:t('materialize'),exact:true}).count(),1);
+   assert.equal(await page.evaluate(()=>window.calls.some(c=>c.name!=='get_finance_treasury')),false);
    assert.equal(await page.getByText(t('unknown'),{exact:true}).count(),2);await page.getByText(t('empty'),{exact:true}).waitFor();
    await page.getByText('Synthetic Bank · 000-0-00000-0',{exact:true}).waitFor();await page.getByRole('heading',{name:locale==='th'?'เงินสดสำนักงาน':'Office Cash',exact:true}).waitFor();
    assert.equal(await page.locator('li strong').filter({hasText:'0.00'}).count(),0);assert.equal(await page.getByText(t('currency')+': THB',{exact:true}).count(),2);
