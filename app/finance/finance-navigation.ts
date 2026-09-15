@@ -14,6 +14,7 @@ export type FinanceSubNavPage =
   | "cash-transactions"
   | "ledger"
   | "claims"
+  | "payables"
   | "compensation";
 
 export type FinanceNavigationLink = {
@@ -60,6 +61,9 @@ export function financeNavigationLinks(permissions: UserPermissions, locale: UiL
     permissions.canSubmitExpenseClaim || permissions.canViewOwnExpenseClaims || permissions.canViewAllExpenseClaims
       ? { href: "/finance/expense-claims", page: "claims" as const, label: t("finance.nav.expenseClaims") }
       : null,
+    permissions.canViewFinancePayments
+      ? { href: "/finance/payables", page: "payables" as const, label: t("payables.title") }
+      : null,
     permissions.canViewLawyerCompensation
       ? { href: "/finance/compensation", page: "compensation" as const, label: t("finance.nav.compensation") }
       : null,
@@ -88,7 +92,7 @@ export function activeFinancePage(pathname: string | null, fallback: FinanceSubN
     ["quotations", "quotations"], ["fee-agreements", "fee-agreements"], ["billing-plans", "fee-agreements"],
     ["billable-charges", "billable-charges"], ["invoices", "invoices"], ["payments", "payments"], ["direct-money", "payments"],
     ["receipts", "receipts"], ["combined-documents", "combined-documents"], ["tax-invoices", "tax-invoices"],
-    ["expense-claims", "claims"], ["compensation", "compensation"], ["ledger", "ledger"], ["cash-transactions", "cash-transactions"],
+    ["expense-claims", "claims"], ["payables", "payables"], ["compensation", "compensation"], ["ledger", "ledger"], ["cash-transactions", "cash-transactions"],
   ];
   return routes.find(([route]) => pathname === `/finance/${route}` || pathname?.startsWith(`/finance/${route}/`))?.[1] || fallback;
 }

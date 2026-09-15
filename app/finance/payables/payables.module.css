@@ -1,0 +1,32 @@
+.groups { display: grid; gap: 16px; margin: 20px 0; }
+.group { border: 1px solid var(--vp-border); border-radius: var(--vp-radius); background: var(--vp-surface); min-width: 0; }
+.groupHeading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; flex-wrap: wrap; }
+.groupHeading > div { min-width: 0; }
+.total { grid-template-columns: minmax(0, 1fr); margin: 0; }
+.group > details { margin-top: 0; }
+.group > details > summary { padding: 14px 16px; }
+.filter { flex: 1 1 180px; max-width: 280px; }
+.filter input, .filter select { width: 100%; min-width: 0; min-height: 40px; padding: 8px 10px; border: 1px solid var(--vp-border); border-radius: var(--vp-radius); background: var(--vp-surface); color: var(--vp-text); font: inherit; }
+.group h2 { font-size: 18px; margin: 0 0 4px; overflow-wrap: anywhere; }
+.muted { color: var(--vp-muted); font-size: 13px; }
+.sources { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.component { padding: 16px; border-top: 1px solid var(--vp-divider); min-width: 0; }
+.componentHeading { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.component h3 { margin: 0; font-size: 15px; overflow-wrap: anywhere; }
+.component a { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; color: var(--vp-info); }
+.component a:focus-visible { outline: 3px solid var(--vp-focus); outline-offset: 3px; }
+.technical { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; margin: 0; padding: 12px; }
+.pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 20px 0; }
+.materialize { border-top: 1px solid var(--vp-divider); padding-top: 16px; margin-top: 16px; }
+.materialize h3 { margin: 0 0 8px; font-size: 18px; }
+.materialize p { color: var(--vp-muted); line-height: 1.6; }
+.actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 12px 0; }
+.check { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; }
+.check input { flex-shrink: 0; margin-top: 4px; }
+@media (max-width: 600px) {
+  .filter { flex-basis: auto; max-width: none; }
+  .groupHeading { align-items: flex-start; }
+  .groupHeading > div, .groupHeading > dl { flex-basis: 100%; }
+  .component, .groupHeading { padding: 12px; }
+  .actions > button, .actions > a { width: 100%; }
+}

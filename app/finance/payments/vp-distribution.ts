@@ -1,6 +1,7 @@
 import { translate } from "../../../lib/i18n/catalog";
 import { vpDistributionMessages } from "../../../lib/i18n/messages/vp-distribution";
 import { directMoneyMessages } from "../../../lib/i18n/messages/direct-money";
+import { payableError } from "../payables/shared";
 import { moneyAllocationMessages } from "../../../lib/i18n/messages/money-allocation";
 import type { UiLocale } from "../../../lib/i18n/core";
 import type { MoneyAllocation, MoneyLine, MoneySource } from "./money-allocation";
@@ -138,6 +139,7 @@ export function distributionExpected(context: DistributionContext): { p_expected
 
 export function distributionError(error: unknown, locale: UiLocale): string {
   const message = error && typeof error === "object" && "message" in error ? String(error.message) : "";
+  if (message.includes("PAYABLE_")) return payableError(error, locale);
   if (message.includes("VP_FORMULA_")) {
     if (message.includes("RECIPIENT_STALE")) return translate(locale, "vpFormula.recipientStale");
     if (message.includes("STALE")) return translate(locale, "vpFormula.catalogStale");

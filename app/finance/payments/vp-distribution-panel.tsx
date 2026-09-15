@@ -18,6 +18,7 @@ import { formulaCatalogCurrent, initialLineFormulas, lineFormulaChoices, type Fo
 import { calculateFormula, type FormulaInput, type FormulaPerson } from "../compensation/formula-calculation";
 import styles from "./money-allocation.module.css";
 import vpStyles from "./vp-distribution.module.css";
+import { MaterializeEntitlements } from "../payables/materialize-action";
 
 function DistributionAmounts({ values, currency }: { values: Record<string, number | string | null>; currency: string }) {
   const { t, locale } = useI18n();
@@ -183,6 +184,7 @@ export function VpDistributionPanel({ paymentId, directMoneyReceiptId }: { payme
         {current && current.status !== "draft" ? <p className={styles.muted}>{t("vpDistribution.snapshot")}</p> : null}
         {source !== context.source ? context.source.blockers.map((blocker, index) => <p className={styles.warning} key={index}>{distributionBlocker(blocker, locale)}</p>) : null}
         <VpDistributionEvidence source={source} choices={choices} editable={editable} busy={busy || refreshRequired || !catalogCurrent} invalid={invalid} formulas={formulas} people={context.formula_people} onChange={change} />
+        {current?.status === "finalized" ? <MaterializeEntitlements key={`${current.id}:${current.version}`} distributionId={current.id} version={current.version} canManage={context.can_manage} /> : null}
         <label>{t("vpDistribution.note")}<textarea aria-label={t("vpDistribution.note")} rows={2} maxLength={2000} readOnly={!editable} disabled={busy || refreshRequired} value={note} onChange={event => { setNote(event.target.value); setAck(false); setSuccess(false); }} /></label>
         {context.can_manage && active ? <label className={styles.check}><input type="checkbox" checked={ack} disabled={busy || refreshRequired} aria-invalid={invalid && !ack} onChange={event => { setAck(event.target.checked); setError(null); }} />{t("vpDistribution.ack")}</label> : null}
         {context.can_manage && active ? <details className={styles.other}><summary>{t("vpDistribution.otherActions")}</summary>

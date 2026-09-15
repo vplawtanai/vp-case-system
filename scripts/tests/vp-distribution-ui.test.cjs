@@ -6,8 +6,10 @@ const helper = require('../../app/finance/payments/vp-distribution.ts');
 const { vpDistributionMessages } = require('../../lib/i18n/messages/vp-distribution.ts');
 const { translate } = require('../../lib/i18n/catalog.ts');
 const { workspaceFixture } = require('./i18n-workspace-fixture.cjs');
+const materialize = workspaceFixture('app/finance/payables/materialize-action.tsx', ['MaterializeEntitlements']);
 const component = workspaceFixture('app/finance/payments/vp-distribution-panel.tsx', ['VpDistributionEvidence', 'VpDistributionPanel'], {
   '../../components/DetailModal': { default: ({ open, title, children, footer }) => open ? React.createElement('div', { role: 'dialog' }, title, children, footer) : null },
+  '../payables/materialize-action': { MaterializeEntitlements: materialize.component('MaterializeEntitlements') },
 });
 const fields = helper.distributionFields;
 test('045 fixed amounts accept 0-2 decimals, reject overprecision/negative/exponents without rounding', () => {
