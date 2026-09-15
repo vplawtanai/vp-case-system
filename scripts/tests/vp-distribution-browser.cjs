@@ -20,6 +20,9 @@ if(mode?.startsWith('stale-')||mode?.startsWith('unavailable-')||mode==='superse
  if(mode?.startsWith('unavailable-')){c.source.money_source=null;c.source.lines=[];c.source.totals=Object.fromEntries(Object.keys(c.source.totals).map(k=>[k,null]));c.source.blockers=['money_source_unavailable'];}
  if(status==='superseded')c.current=null;
 }
+if(mode==='finalized'||mode==='reviewed'){
+ c.current={...structuredClone(initialRecord),status:mode};c.history=[structuredClone(c.current)];c.source_current=true;
+}
 export const supabase={async rpc(name,p){
  if(name==='get_finance_vp_formula_context'){window.reads++;if(window.readFailure||(mode==='load-failed'&&window.reads===1)){window.readFailure=false;return{error:{message:'synthetic unavailable'}};}return{data:structuredClone(c)};}
  if(!['save_finance_vp_distribution','transition_finance_vp_distribution'].includes(name))throw Error('Unexpected RPC '+name);
@@ -46,6 +49,12 @@ export const supabase={async rpc(name,p){
  if(c.current.status==='superseded'){c.current=null;c.source_current=false;}
  if(window.failReadAfterWrite){window.failReadAfterWrite=false;window.readFailure=true;}
  return{data:id};
+},from(table){
+ if(table!=='finance_payable_entitlement_sources')throw Error('Unexpected table '+table);
+ return{select(columns){if(columns!=='status')throw Error('Unexpected columns');return{eq(key,id){
+  if(key!=='distribution_id'||id!==c.current?.id)throw Error('Unexpected distribution');
+  return{async maybeSingle(){return{data:null};}};
+ }}}};
 }};
 `);
 fs.writeFileSync(navigation, "export const usePathname=()=>'/finance/payments/local';");
@@ -58,7 +67,7 @@ async function main() {
     resolve: { extensions: ['.tsx', '.ts', '.js'], modules: [path.join(root, 'node_modules')], alias: { 'next/navigation': navigation, 'next/link': link, [path.join(root, 'lib/supabase')]: adapter } },
     module: { rules: [{ test: /\.(tsx?|css)$/, use: loader }] }, devtool: false,
   }, (error, stats) => error || stats.hasErrors() ? reject(error || Error(stats.toString({ all: false, errors: true }))) : resolve()));
-  const css = ['app/components/ui/vp-ui.module.css', 'app/finance/payments/money-allocation.module.css', 'app/finance/payments/vp-distribution.module.css', 'app/components/DetailModal.module.css', 'app/components/LanguageSelector.module.css'].map(file => {
+  const css = ['app/components/ui/vp-ui.module.css', 'app/finance/payables/payables.module.css', 'app/finance/payments/money-allocation.module.css', 'app/finance/payments/vp-distribution.module.css', 'app/components/DetailModal.module.css', 'app/components/LanguageSelector.module.css'].map(file => {
     const prefix = path.basename(file).replaceAll('.', '_') + '_';
     return fs.readFileSync(path.join(root, file), 'utf8').replace(/\.([A-Za-z_][A-Za-z_0-9-]*)/g, (_, key) => '.' + prefix + key);
   }).join('\n');
@@ -111,6 +120,44 @@ async function main() {
       await dialog.getByLabel(formulaText('select'), {exact:true}).selectOption(code);
       const recipients = dialog.getByLabel(formulaText('recipient'), {exact:true});
       for (let index=0;index<await recipients.count();index++) await recipients.nth(index).selectOption('10000000-0000-4000-8000-'+String(index%2+1).padStart(12,'0'));
+    }
+    for (const width of [390,768,1024,1440]) for (locale of ['th','en']) for (const mode of ['finalized','reviewed']) {
+      await page.setViewportSize({width,height:950});await open(mode);
+      const labelText=mode==='finalized'?translate(locale,'payables.ack'):text('ack');
+      const checkbox=dialog.getByRole('checkbox',{name:labelText,exact:true});
+      await checkbox.waitFor();await checkbox.scrollIntoViewIfNeeded();
+      const layout=await checkbox.evaluate(input=>{
+        const label=input.closest('label'),box=input.getBoundingClientRect();
+        const text=[...label.childNodes].find(node=>node.nodeType===Node.TEXT_NODE&&node.textContent.trim());
+        const range=document.createRange();range.selectNodeContents(text);
+        const firstLine=range.getClientRects()[0];
+        return{display:getComputedStyle(label).display,gap:firstLine.left-box.right,
+          topOffset:box.top-firstLine.top,checkboxWidth:box.width,
+          labelOverflow:label.scrollWidth>label.clientWidth+1};
+      });
+      assert.equal(layout.display,'flex',`${mode} ${locale} ${width}: checkbox must remain beside text`);
+      assert.ok(layout.gap>=6&&layout.gap<=16,JSON.stringify(layout));
+      assert.ok(Math.abs(layout.topOffset)<=6,JSON.stringify(layout));
+      assert.ok(layout.checkboxWidth>=12&&layout.checkboxWidth<=20);
+      assert.equal(layout.labelOverflow,false);
+      // The generic stacked field layout must survive the lower-specificity rule.
+      assert.equal(await dialog.getByLabel(text('note'),{exact:true}).evaluate(input=>getComputedStyle(input.closest('label')).display),'grid');
+      await checkbox.locator('..').click({position:{x:45,y:10}});
+      assert.equal(await checkbox.isChecked(),true);
+      await checkbox.focus();await page.keyboard.press('Space');assert.equal(await checkbox.isChecked(),false);
+      assert.equal(await checkbox.evaluate(input=>getComputedStyle(input).outlineStyle!=='none'),true);
+      await checkbox.evaluate(input=>{input.disabled=true;});
+      const disabledLabel=await checkbox.locator('..').boundingBox();
+      await page.mouse.click(disabledLabel.x+45,disabledLabel.y+10);assert.equal(await checkbox.isChecked(),false);
+      await checkbox.evaluate(input=>{input.disabled=false;});
+      await geometry();assert.equal(await calls(),0);
+      await page.screenshot({path:path.join(out,`acknowledgement-${mode}-${width}-${locale}.png`),fullPage:true});
+      await page.keyboard.press('Escape');await dialog.waitFor({state:'hidden'});
+      assert.equal(await page.getByRole('button',{name:text('open'),exact:true}).evaluate(button=>button===document.activeElement),true);
+    }
+    if(process.argv.includes('--acknowledgements-only')){
+      assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
+      console.log(JSON.stringify({pass:true,acknowledgementScenarios:16,widths:[390,768,1024,1440],locales:['th','en'],mutationCalls:0,externalRequests:0,artifacts:out}));return;
     }
     for (const width of [390, 768, 1024, 1440]) for (locale of ['th', 'en']) {
       await page.setViewportSize({ width, height: 950 }); await open();
