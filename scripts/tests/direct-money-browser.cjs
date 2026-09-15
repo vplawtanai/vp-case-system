@@ -6,20 +6,24 @@ const webpack=require('next/dist/compiled/webpack/webpack').webpack;
 require('./receipt-render-fixture.cjs');
 const {sample}=require('./direct-money.test.cjs'),{directTotals,directLineAmounts}=require('../../app/finance/direct-money/shared.ts');
 const {translate}=require('../../lib/i18n/catalog.ts');
+const {prepareDirectSourceEvidence}=require('../../app/finance/direct-money/source-evidence.ts');
 const input=sample(),totals=directTotals(input.lines),id='10000000-0000-4000-8000-000000000047';
 input.received_on='2026-01-01';
 const record={...input,id,status:'draft',version:1,input_json:input,unclassified:false,lines_json:input.lines.map(l=>({...l,...directLineAmounts(l)})),wht_amount:totals.wht,vat_amount:totals.vat,amount_before_vat:totals.base,gross_amount:totals.gross,classification_json:null,confirmed_snapshot_json:null};
+const evidenceInput=prepareDirectSourceEvidence({...input,client_id:'synthetic-client',case_id:47,lines:input.lines.map(l=>({...l,reason:''}))}).input;
+const evidenceRecord={...record,...evidenceInput,input_json:evidenceInput,lines_json:evidenceInput.lines.map(l=>({...l,...directLineAmounts(l)}))};
 const vpContext=require('./vp-distribution-fixture.cjs').fixture();
 vpContext.source={schema_version:1,policy_version:'vp_distribution_v1',money_source:null,money_allocation:null,
  received_money_source:{schema_version:1,source_type:'direct_money_receipt',source_id:id,source_version:2,status:'confirmed',currency:'THB',actual_cash:10400,wht_credit:300,gross_received:10700},
  lines:record.lines_json.map(l=>({...l,professional_pool:9700,company_economic:0,company_cash:0})),totals:{cash:10400,wht:300,vat:700,base:10000,professional_pool:9700,company_economic:0,company_cash:0},blockers:[]};
 const adapter=path.join(out,'adapter.js'),navigation=path.join(out,'navigation.js'),link=path.join(out,'link.js'),loader=path.join(out,'loader.cjs'),entry=path.join(out,'entry.tsx');
 fs.writeFileSync(adapter,`
-window.calls=[];window.record=${JSON.stringify(record)};window.fail=false;
+window.calls=[];window.reads=[];window.record=new URLSearchParams(location.search).has('provenance')?${JSON.stringify(evidenceRecord)}:${JSON.stringify(record)};window.fail=false;
 window.vpContext=${JSON.stringify(vpContext)};
 const mode=new URLSearchParams(location.search).get('mode');if(mode==='confirmed'||mode==='partner')window.record.status='confirmed';
+if(new URLSearchParams(location.search).has('provenance')&&window.record.status==='confirmed')window.record.confirmed_snapshot_json={client:{id:'synthetic-client',name:'Frozen client name'}};
 if(mode==='partner'){window.vpContext.can_manage=false;window.vpContext.formula_people=[];}
-export const supabase={from(table){let single=false;const q={select(){return q},eq(){return q},neq(){return q},order(){return q},range(){return q},single(){single=true;return q},then(resolve){
+export const supabase={from(table){window.reads.push(table);let single=false;const q={select(){return q},eq(){return q},neq(){return q},order(){return q},range(){return q},single(){single=true;return q},then(resolve){
  let data;if(table==='clients')data=[{id:'synthetic-client',name:'Synthetic payer'}];
  else if(table==='finance_bank_accounts')data=[{id:'synthetic-bank',short_name:'SYN',bank_name:'Synthetic Bank'}];
  else if(table==='cases')data=[{id:47,client_id:'synthetic-client',title:'Synthetic matter',file_no:'LOCAL-47'}];
@@ -61,12 +65,27 @@ async function main(){
   const page=await browser.newPage(),errors=[],external=[];page.on('pageerror',e=>errors.push(e.message));
   await page.route('**/*',route=>{if(new URL(route.request().url()).hostname==='127.0.0.1')return route.continue();external.push(route.request().url());return route.abort();});
   const url='http://127.0.0.1:'+server.address().port;
-  const visit=async(mode,locale='en')=>{await page.goto(url+'?mode='+mode+'&locale='+locale);await page.waitForFunction(()=>window.record&&document.querySelector('input,table,dl'));await page.waitForTimeout(100);};
+  const visit=async(mode,locale='en',extra='')=>{await page.goto(url+'?mode='+mode+'&locale='+locale+extra);await page.waitForFunction(()=>window.record&&document.querySelector('input,table,dl'));await page.waitForTimeout(100);};
   async function geometry(){assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
    const overflow=await page.locator('input,select,textarea,button').evaluateAll(nodes=>nodes.filter(n=>n.getClientRects().length&&n.getBoundingClientRect().right>innerWidth+1).map(n=>n.outerHTML));assert.deepEqual(overflow,[]);}
   for(const width of [390,768,1024,1440])for(const locale of ['th','en'])for(const mode of ['form','detail','list']){
    await page.setViewportSize({width,height:1000});await visit(mode,locale);await geometry();
    await page.screenshot({path:path.join(out,`${mode}-${locale}-${width}.png`),fullPage:true});
+  }
+  for(const width of [390,768,1024,1440])for(const locale of ['th','en'])for(const mode of ['detail','confirmed']){
+   await page.setViewportSize({width,height:1000});await visit(mode,locale,'&provenance=1');
+   const evidence=page.locator('div[class$="_provenance"]'),technical=evidence.locator('details'),raw=technical.locator('pre');
+   const before=await page.evaluate(()=>JSON.stringify(window.record));
+   assert.ok((await evidence.innerText()).includes(translate(locale,'directMoney.systemSource')));
+   assert.ok((await evidence.innerText()).includes(mode==='detail'?'Synthetic payer':'Frozen client name'));
+   assert.doesNotMatch(await evidence.innerText(),/System-derived direct-money provenance|source_line_id|synthetic-client/);
+   assert.equal(await raw.isVisible(),false);assert.equal(await technical.getAttribute('open'),null);
+   assert.equal(await raw.textContent(),evidenceInput.lines[0].reason);await geometry();
+   await page.screenshot({path:path.join(out,`provenance-${mode}-${locale}-${width}.png`),fullPage:true});
+   await technical.locator('summary').focus();await page.keyboard.press('Enter');assert.equal(await raw.isVisible(),true);await geometry();
+   assert.equal(await raw.textContent(),evidenceInput.lines[0].reason);await page.keyboard.press('Enter');assert.equal(await raw.isVisible(),false);
+   assert.equal(await page.evaluate(()=>JSON.stringify(window.record)),before);assert.deepEqual(await page.evaluate(()=>window.calls),[]);
+   if(mode==='confirmed')assert.equal(await page.evaluate(()=>window.reads.includes('clients')),false,'confirmed names never load mutable Client master');
   }
   for(const width of [390,768,1024,1440])for(const locale of ['th','en']){
    const t=key=>translate(locale,'directMoney.'+key),field=key=>page.getByLabel(t(key),{exact:true});

@@ -21,7 +21,7 @@ export type DirectRecord = Omit<DirectInput, "lines"> & {
   input_json: DirectInput; lines_json: (DirectLine & { cash: number; wht: number; vat: number; gross: number })[];
   wht_amount: number; vat_amount: number; amount_before_vat: number; gross_amount: number;
   created_at: string; confirmed_at: string | null; reversed_at: string | null; reversal_reason: string | null;
-  confirmed_snapshot_json: { bank?: { short_name: string; bank_name: string } } | null;
+  confirmed_snapshot_json: { bank?: { short_name: string; bank_name: string }; client?: { id: string; name: string } | null } | null;
   classification_json: { lines: DirectRecord["lines_json"]; reason: string; actor_id: string; created_at: string } | null;
 };
 export function newDirectLine(): DirectLine {

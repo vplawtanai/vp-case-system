@@ -3,12 +3,16 @@ import type { DirectInput, DirectLine } from "./shared";
 
 const prefix = "System-derived direct-money provenance v1: ";
 
-export function isDerivedDirectEvidence(reason: string): boolean {
-  if (!reason.startsWith(prefix)) return false;
+export function readDerivedDirectEvidence(reason: string): Record<string, unknown> | null {
+  if (!reason.startsWith(prefix)) return null;
   try {
     const value = JSON.parse(reason.slice(prefix.length));
-    return value?.origin === "structured_direct_money_input" && value.schema_version === 1;
-  } catch { return false; }
+    return value?.origin === "structured_direct_money_input" && value.schema_version === 1 ? value : null;
+  } catch { return null; }
+}
+
+export function isDerivedDirectEvidence(reason: string): boolean {
+  return readDerivedDirectEvidence(reason) !== null;
 }
 
 function additionalEvidenceRequirement(input: DirectInput, line: DirectLine, customBase: boolean, manualBase: boolean) {
