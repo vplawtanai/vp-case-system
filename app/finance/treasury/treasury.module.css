@@ -1,0 +1,25 @@
+.rows { margin: 20px 0; padding: 0; list-style: none; }
+.row { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(150px, 1fr) auto; align-items: start; gap: 12px 24px; border-bottom: 1px solid var(--vp-divider); padding: 16px 0; min-width: 0; }
+.row > * { min-width: 0; overflow-wrap: anywhere; }
+.row h2, .row h3 { margin: 0 0 6px; font-size: 16px; }
+.row p { margin: 4px 0 0; }
+.muted { color: var(--vp-muted); font-size: 13px; line-height: 1.6; }
+.amount { display: block; font-size: 18px; font-variant-numeric: tabular-nums; margin: 4px 0; }
+.section { border-top: 1px solid var(--vp-divider); padding-top: 20px; margin-top: 24px; min-width: 0; }
+.section h2 { font-size: 18px; }
+.actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.form { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 16px; min-width: 0; }
+.form input, .form select, .form textarea { width: 100%; min-width: 0; min-height: 42px; border: 1px solid var(--vp-border); border-radius: var(--vp-radius); padding: 8px; font: inherit; background: var(--vp-surface); color: var(--vp-text); box-sizing: border-box; }
+.form [aria-invalid=true] { border-color: var(--vp-danger); }
+.full { grid-column: 1 / -1; }
+.check { display: flex; gap: 10px; align-items: flex-start; line-height: 1.6; margin: 16px 0; font-size: 14px; }
+.check input { flex: 0 0 auto; width: 17px; height: 17px; margin-top: 3px; }
+.facts { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px 16px; margin: 10px 0; }
+.facts div { min-width: 0; overflow-wrap: anywhere; }
+.facts dt { font-size: 12px; color: var(--vp-muted); }
+.facts dd { margin: 4px 0 0; font-size: 14px; font-variant-numeric: tabular-nums; }
+.history { border-bottom: 1px solid var(--vp-divider); padding: 14px 0; min-width: 0; }
+.history > p { margin: 8px 0; overflow-wrap: anywhere; }
+.technical { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+@media(max-width:767px) { .row { grid-template-columns: minmax(0,1fr) minmax(0,1fr); } .row > :last-child { grid-column: 1 / -1; } .facts { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media(max-width:599px) { .form, .rows .row { grid-template-columns: minmax(0,1fr); } .actions > button { flex: 1 1 100%; } }

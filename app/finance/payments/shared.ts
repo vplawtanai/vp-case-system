@@ -179,6 +179,10 @@ export function paymentErrorMessage(error: unknown, fallback: UiMessage | string
     ? String((error as { message?: unknown }).message || "")
     : "";
   const mappings: Array<[string, string]> = [
+    ["TREASURY_CASH_CORRECTION_WORKFLOW_REQUIRED", "treasury.error.correction"],
+    ["TREASURY_LOCATION_REQUIRED", "treasury.error.location"],
+    ["TREASURY_SOURCE_CHANGED", "treasury.error.changed"],
+    ["TREASURY_OPENING_LINEAGE", "treasury.error.changed"],
     ["VP_DISTRIBUTION_SUPERSEDE_REQUIRED", "vpDistribution.error.SUPERSEDE_REQUIRED"],
     ["MONEY_ALLOCATION_SUPERSEDE_REQUIRED", "moneyAllocation.error.SUPERSEDE_REQUIRED"],
     ["TAX_INVOICE_ACTIVE_DEPENDENCY", "finance.payment.error.taxDependency"],

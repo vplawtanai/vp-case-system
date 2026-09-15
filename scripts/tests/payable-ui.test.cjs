@@ -29,7 +29,7 @@ for(const locale of ['th','en'])test(`Payables ${locale}: hide pagination for ze
 });
 for(const locale of ['th','en'])test(`Finance ${locale}: Payables precedes Expense Claims; Compensation stays permission-gated inside Legacy`,()=>{
  const p=buildPermissions({role:'admin'}),items=financeNavigationItems(p,locale);
- assert.deepEqual(items.map(i=>i.group||i.page),['quotations','fee-agreements','billable-charges','invoices','payments','payment-documents','payables','claims','legacy']);
+ assert.deepEqual(items.map(i=>i.group||i.page),['quotations','fee-agreements','billable-charges','invoices','payments','payment-documents','treasury','payables','claims','legacy']);
  assert.ok(!items.some(i=>i.page==='compensation'));
  const legacy=items.find(i=>i.group==='legacy');
  assert.deepEqual(legacy.children.map(i=>i.href),['/finance/compensation','/finance/ledger']);

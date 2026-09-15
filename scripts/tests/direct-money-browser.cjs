@@ -26,6 +26,7 @@ if(mode==='partner'){window.vpContext.can_manage=false;window.vpContext.formula_
 export const supabase={from(table){window.reads.push(table);let single=false;const q={select(){return q},eq(){return q},neq(){return q},order(){return q},range(){return q},single(){single=true;return q},then(resolve){
  let data;if(table==='clients')data=[{id:'synthetic-client',name:'Synthetic payer'}];
  else if(table==='finance_bank_accounts')data=[{id:'synthetic-bank',short_name:'SYN',bank_name:'Synthetic Bank'}];
+ else if(table==='finance_cash_locations')data=[{id:'synthetic-office',name_th:'เงินสดสำนักงาน',name_en:'Office Cash'}];
  else if(table==='cases')data=[{id:47,client_id:'synthetic-client',title:'Synthetic matter',file_no:'LOCAL-47'}];
  else if(table==='advisory_matters'||table==='finance_payments')data=[];
  else if(table==='finance_direct_money_receipts')data=[structuredClone(window.record)];
@@ -280,7 +281,15 @@ async function main(){
    for(const action of ['review','finalize']){await dialog.getByLabel(translate(locale,'vpDistribution.ack'),{exact:true}).check();await dialog.getByRole('button',{name:translate(locale,'vpDistribution.'+action),exact:true}).click();await page.waitForFunction(status=>window.vpContext.current.status===status,action==='review'?'reviewed':'finalized');}
    const requests=await page.evaluate(()=>window.calls);assert.equal(requests.length,3);assert.equal(requests[0].p.p_choices[0].source_line_id,record.lines_json[0].source_line_id);assert.equal(requests[0].p.p_choices[0].invoice_item_id,undefined);
   }
-  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log('Direct money TH/EN at 390/768/1024/1440: actual-money-only input, reverse VAT/WHT, automatic last-line remainder, over-allocation/rounding/manual-evidence blocking, saved custom-base preservation, keyboard focus; existing create/retry payload, busy edit modal, classification, shared distribution, confirm/reversal guards and Partner read-only passed. '+out);
+  for(const locale of ['th','en']){
+   await visit('form',locale);const t=k=>translate(locale,'directMoney.'+k);
+   await page.getByLabel(t('method'),{exact:true}).selectOption('cash');
+   const location=page.getByLabel(t('location'),{exact:true});assert.equal(await location.inputValue(),'');
+   await page.getByRole('button',{name:t('save'),exact:true}).click();assert.equal(await page.evaluate(()=>window.calls.length),0);
+   await location.selectOption('synthetic-office');await page.getByRole('button',{name:t('save'),exact:true}).click();await page.waitForFunction(()=>window.navigated);
+   const saved=await page.evaluate(()=>window.calls[0].p.p_input);assert.equal(saved.receiving_cash_location_id,'synthetic-office');assert.equal(saved.receiving_bank_account_id,null);assert.equal(saved.cash_location,'เงินสดสำนักงาน');assert.equal(saved.cash_amount,10400);
+  }
+  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log('Direct money TH/EN at 390/768/1024/1440: stable physical cash selection, actual-money-only input, reverse VAT/WHT, automatic last-line remainder, over-allocation/rounding/manual-evidence blocking, saved custom-base preservation, keyboard focus; existing create/retry payload, busy edit modal, classification, shared distribution, confirm/reversal guards and Partner read-only passed. '+out);
  }finally{if(browser)await browser.close();await new Promise(r=>server.close(r));}
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

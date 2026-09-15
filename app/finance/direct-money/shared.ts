@@ -3,6 +3,7 @@ import { calculateStructuredWht } from "../payments/tax";
 import { resolveVatEvidence, type VatEvidence } from "../document-decision/shared";
 import { translate } from "../../../lib/i18n/catalog";
 import type { UiLocale } from "../../../lib/i18n/core";
+import { treasuryError } from "../treasury/shared";
 
 export const moneyNatures = ["business_revenue", "client_money", "owner_or_partner_funding", "loan_or_deposit", "reimbursement_or_pass_through", "other_non_revenue", "unclassified"] as const;
 export const economicClasses = ["professional_fee", "additional_service", "reimbursable_expense", "government_or_court_fee"] as const;
@@ -14,6 +15,7 @@ export type DirectLine = {
 export type DirectInput = {
   client_id: string | null; payer_name: string; case_id: number | null; advisory_matter_id: string | null;
   received_on: string; method: "bank_transfer" | "cash" | "other"; receiving_bank_account_id: string | null; cash_location: string | null;
+  receiving_cash_location_id?: string | null;
   currency: "THB"; cash_amount: number; reference_no: string | null; evidence_reference: string | null; note: string; lines: DirectLine[];
 };
 export type DirectRecord = Omit<DirectInput, "lines"> & {
@@ -72,6 +74,7 @@ export function validateDirectInput(input: DirectInput, today: string): Record<s
 export function directMoneyError(error: unknown, locale: UiLocale): string {
   const message = error && typeof error === "object" && "message" in error ? String(error.message) : "";
   const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
+  if (message.includes("TREASURY_") || message.includes("FINANCE_CASH_")) return treasuryError(error, locale);
   if (code === "23505") return translate(locale, "directMoney.error.duplicate");
   if (message.includes("SUPERSEDE_REQUIRED")) return translate(locale, "vpDistribution.error.SUPERSEDE_REQUIRED");
   if (message.includes("STALE")) return translate(locale, "directMoney.error.stale");

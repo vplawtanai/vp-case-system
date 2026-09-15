@@ -12,6 +12,7 @@ export type FinanceSubNavPage =
   | "combined-documents"
   | "tax-invoices"
   | "cash-transactions"
+  | "treasury"
   | "ledger"
   | "claims"
   | "payables"
@@ -58,6 +59,9 @@ export function financeNavigationLinks(permissions: UserPermissions, locale: UiL
     permissions.canViewFinanceTaxInvoices
       ? { href: "/finance/tax-invoices", page: "tax-invoices" as const, label: t("finance.nav.taxInvoices") }
       : null,
+    permissions.canViewFinanceCashTransactions
+      ? { href: "/finance/treasury", page: "treasury" as const, label: t("treasury.title") }
+      : null,
     permissions.canViewFinancePayments
       ? { href: "/finance/payables", page: "payables" as const, label: t("payables.title") }
       : null,
@@ -92,7 +96,7 @@ export function activeFinancePage(pathname: string | null, fallback: FinanceSubN
     ["quotations", "quotations"], ["fee-agreements", "fee-agreements"], ["billing-plans", "fee-agreements"],
     ["billable-charges", "billable-charges"], ["invoices", "invoices"], ["payments", "payments"], ["direct-money", "payments"],
     ["receipts", "receipts"], ["combined-documents", "combined-documents"], ["tax-invoices", "tax-invoices"],
-    ["expense-claims", "claims"], ["payables", "payables"], ["compensation", "compensation"], ["ledger", "ledger"], ["cash-transactions", "cash-transactions"],
+    ["expense-claims", "claims"], ["payables", "payables"], ["compensation", "compensation"], ["ledger", "ledger"], ["cash-transactions", "cash-transactions"], ["treasury", "treasury"],
   ];
   return routes.find(([route]) => pathname === `/finance/${route}` || pathname?.startsWith(`/finance/${route}/`))?.[1] || fallback;
 }

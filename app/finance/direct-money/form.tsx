@@ -52,6 +52,7 @@ export function DirectMoneyForm({ initial, id: existingId, version = 0, onSaved,
   const [busy, setBusy] = useState(false), [errors, setErrors] = useState<Record<string, string>>({}), [failure, setFailure] = useState<unknown>(null);
   const [clients, setClients] = useState<Option[]>([]), [banks, setBanks] = useState<Option[]>([]), [cases, setCases] = useState<Matter[]>([]), [advisories, setAdvisories] = useState<Matter[]>([]);
   const [lookupFailed, setLookupFailed] = useState(false), [loading, setLoading] = useState(true);
+  const [cashLocations, setCashLocations] = useState<{ id: string; name_th: string; name_en: string }[]>([]);
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -60,7 +61,9 @@ export function DirectMoneyForm({ initial, id: existingId, version = 0, onSaved,
         const b = await supabase.from("finance_bank_accounts").select("id,short_name,bank_name").eq("is_active", true).order("short_name");
         const cs = await supabase.from("cases").select("id,client_id,title,file_no").order("created_at", { ascending: false });
         const ad = await supabase.from("advisory_matters").select("id,client_id,title,matter_no").order("created_at", { ascending: false });
-        if (c.error || b.error || cs.error || ad.error) throw new Error("lookup");
+        const cash = await supabase.from("finance_cash_locations").select("id,name_th,name_en").eq("is_active", true).order("code");
+        if (c.error || b.error || cs.error || ad.error || cash.error) throw new Error("lookup");
+        if (!cancelled) setCashLocations(cash.data || []);
         if (!cancelled) { setClients(c.data || []); setBanks((b.data || []).map(row => ({ id: row.id, name: `${row.short_name} · ${row.bank_name}` }))); setCases(cs.data || []); setAdvisories(ad.data || []); }
       } catch { if (!cancelled) setLookupFailed(true); } finally { if (!cancelled) setLoading(false); }
     }
@@ -76,6 +79,7 @@ export function DirectMoneyForm({ initial, id: existingId, version = 0, onSaved,
     event.preventDefault(); if (lock.current || loading || lookupFailed) return;
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
     const input = sourceEvidence.input, issues = validateDirectInput(input, today);
+    if (input.method !== "bank_transfer" && !input.receiving_cash_location_id) issues.account = "required";
     if (!prepared.allocation.valid) issues.allocations = "allocationInvalid";
     prepared.results.forEach((result, i) => {
       if (result.error) issues[`line.${i}.calculation`] = result.error;
@@ -113,8 +117,8 @@ export function DirectMoneyForm({ initial, id: existingId, version = 0, onSaved,
     <fieldset disabled={busy || loading || lookupFailed} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
       <section className={styles.section}><h2>{tKey("facts")}</h2><div className={styles.grid}>
         {field("received_on", tKey("date"), <input type="date" value={form.received_on} onChange={e => update({ received_on: e.target.value })} {...attrs("received_on")} />)}
-        {field("method", tKey("method"), <select value={form.method} onChange={e => update({ method: e.target.value as DirectInput["method"], receiving_bank_account_id: null, cash_location: null })}>{["bank_transfer", "cash", "other"].map(value => <option key={value} value={value}>{tKey(value)}</option>)}</select>)}
-        {field("account", tKey(form.method === "bank_transfer" ? "account" : "location"), form.method === "bank_transfer" ? <select value={form.receiving_bank_account_id || ""} onChange={e => update({ receiving_bank_account_id: e.target.value || null })} {...attrs("account")}><option value="">{tKey("choose")}</option>{banks.map(bank => <option value={bank.id} key={bank.id}>{bank.name}</option>)}</select> : <input value={form.cash_location || ""} maxLength={300} onChange={e => update({ cash_location: e.target.value })} {...attrs("account")} />)}
+        {field("method", tKey("method"), <select value={form.method} onChange={e => update({ method: e.target.value as DirectInput["method"], receiving_bank_account_id: null, receiving_cash_location_id: null, cash_location: null })}>{["bank_transfer", "cash", "other"].map(value => <option key={value} value={value}>{tKey(value)}</option>)}</select>)}
+        {field("account", tKey(form.method === "bank_transfer" ? "account" : "location"), form.method === "bank_transfer" ? <select value={form.receiving_bank_account_id || ""} onChange={e => update({ receiving_bank_account_id: e.target.value || null })} {...attrs("account")}><option value="">{tKey("choose")}</option>{banks.map(bank => <option value={bank.id} key={bank.id}>{bank.name}</option>)}</select> : <select value={form.receiving_cash_location_id || ""} onChange={e => { const location = cashLocations.find(c => c.id === e.target.value); update({ receiving_cash_location_id: location?.id || null, cash_location: location?.name_th || null }); }} {...attrs("account")}><option value="">{tKey("choose")}{!form.receiving_cash_location_id && form.cash_location ? ` (${form.cash_location})` : ""}</option>{cashLocations.map(c => <option key={c.id} value={c.id}>{locale === "th" ? c.name_th : c.name_en}</option>)}</select>)}
         {field("cash_amount", tKey("actualCash"), cloneElement(numeric(form.cash_amount, cash_amount => update({ cash_amount }), "cash_amount"), { className: styles.actualAmount }))}
         {field("client_id", tKey("client"), <select value={form.client_id || ""} onChange={e => update({ client_id: e.target.value || null, payer_name: clients.find(c => c.id === e.target.value)?.name || form.payer_name, case_id: null, advisory_matter_id: null })}><option value="">{tKey("unlinked")}</option>{clients.map(client => <option value={client.id} key={client.id}>{client.name}</option>)}</select>)}
         {field("payer_name", tKey("payer"), <input value={form.payer_name} maxLength={500} onChange={e => update({ payer_name: e.target.value })} {...attrs("payer_name")} />)}
