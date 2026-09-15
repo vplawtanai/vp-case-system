@@ -1,8 +1,8 @@
-.workspace { max-width: 1160px; margin: 0 auto; padding: 24px; color: #20272f; min-width: 0; }
+.workspace { max-width: var(--vp-content-width, 1160px); margin: 0 auto; padding: 24px; color: var(--vp-text, #20272f); min-width: 0; }
 .header, .actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .header h1 { font-size: 24px; margin: 12px 0 4px; }
-.section { border-top: 1px solid #dce1e5; padding: 24px 0; min-width: 0; }
-.section h2, .section h3 { font-size: 18px; margin: 0 0 16px; }
+.section { border-top: 1px solid var(--vp-divider, #dce1e5); padding: var(--vp-space-5, 24px) 0; min-width: 0; }
+.section h2, .section h3 { font-size: var(--vp-section-size, 18px); margin: 0 0 16px; }
 .form { min-width: 0; }
 .grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
 .field { display: grid; align-content: start; gap: 6px; min-width: 0; font-size: 14px; }
@@ -13,7 +13,7 @@
 .check { display: flex; gap: 9px; align-items: flex-start; margin: 12px 0; }
 .check input { width: 18px; height: 18px; flex: 0 0 18px; margin-top: 2px; accent-color: #17664b; }
 .button, .primary, .danger { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 14px; min-height: 42px; border: 1px solid #bac5cc; border-radius: 6px; background: white; color: #273c4a; text-decoration: none; font: inherit; cursor: pointer; text-align: center; }
-.primary { background: #17664b; color: white; border-color: #17664b; font-weight: 600; }
+.primary { background: var(--vp-primary, #17664b); color: white; border-color: var(--vp-primary, #17664b); font-weight: 600; }
 .danger { color: #b42318; border-color: #e2b9b5; }
 .button:hover { background: #f1f4f6; }
 .primary:hover { background: #11553d; }

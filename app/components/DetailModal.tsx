@@ -2,7 +2,9 @@
 
 import { useEffect, useId, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { X } from "lucide-react";
 import styles from "./DetailModal.module.css";
+import ui from "./ui/vp-ui.module.css";
 import { useI18n } from "../../lib/i18n/provider";
 
 type DetailModalProps = {
@@ -16,6 +18,7 @@ type DetailModalProps = {
   onClose: () => void;
   closeLabel?: string;
   closeOnBackdrop?: boolean;
+  size?: "detail" | "edit" | "workflow";
 };
 
 const focusableSelector = [
@@ -24,6 +27,7 @@ const focusableSelector = [
   "input:not([disabled])",
   "select:not([disabled])",
   "textarea:not([disabled])",
+  "summary",
   "[tabindex]:not([tabindex='-1'])",
 ].join(",");
 const subscribeToClient = () => () => undefined;
@@ -44,6 +48,7 @@ export default function DetailModal({
   onClose,
   closeLabel,
   closeOnBackdrop = true,
+  size = "detail",
 }: DetailModalProps) {
   const { t } = useI18n();
   const resolvedCloseLabel = closeLabel || t("common.actions.closeDetails");
@@ -126,10 +131,10 @@ export default function DetailModal({
   if (!mounted || !open) return null;
 
   return createPortal(
-    <div className={styles.backdrop} onMouseDown={(event) => {
+    <div className={`${ui.scope} ${styles.backdrop}`} onMouseDown={(event) => {
       if (closeOnBackdrop && event.target === event.currentTarget) onClose();
     }}>
-      <div ref={panelRef} className={styles.modal} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
+      <div ref={panelRef} className={styles.modal} data-size={size} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
         <header className={styles.header}>
           <div className={styles.identity}>
             <div className={styles.titleGroup}>
@@ -138,7 +143,7 @@ export default function DetailModal({
             </div>
             {status || prominentValue ? <div className={styles.summary}>{status}{prominentValue ? <strong>{prominentValue}</strong> : null}</div> : null}
           </div>
-          <button ref={closeButtonRef} className={styles.closeButton} type="button" aria-label={resolvedCloseLabel} title={resolvedCloseLabel} onClick={onClose}>×</button>
+          <button ref={closeButtonRef} className={styles.closeButton} type="button" aria-label={resolvedCloseLabel} title={resolvedCloseLabel} onClick={onClose}><X size={20} aria-hidden="true" /></button>
         </header>
         <div className={styles.body}>{children}</div>
         {footer ? <footer className={styles.footer}>{footer}</footer> : null}

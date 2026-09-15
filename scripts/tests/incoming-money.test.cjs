@@ -80,7 +80,7 @@ for (const locale of ['th', 'en']) test(`${locale}: combined rows, badges, share
   const html = page.render(locale, state, {}, 'IncomingMoney');
   for (const key of ['reference', 'payer', 'date', 'cash', 'gross', 'source.invoice', 'source.direct', 'classification.unclassified']) assert.ok(html.includes(translate(locale, 'incomingMoney.' + key)), key);
   for (const row of rows) assert.ok(html.includes('href="' + row.href + '"'));
-  assert.equal((html.match(/class="[^"]*badge [^"]*unclassified"/g) || []).length, 1);
+  assert.equal((html.match(/data-status="unclassified"/g) || []).length, 1);
   assert.doesNotMatch(html, /option value="unclassified"|Confirm money received|Reverse money record/);
   assert.doesNotMatch(html, /Payment Draft|Payment Confirmed|ร่างการรับชำระ|ยืนยันรับชำระแล้ว/);
   const directHtml = page.render(locale, { ...state, 'IncomingMoney.filters': { source: 'direct', status: '', classification: 'unclassified' } }, {}, 'IncomingMoney');

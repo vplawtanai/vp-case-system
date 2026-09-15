@@ -30,7 +30,7 @@ function ClientModalContent({ titleKey, clientName, dirty, busy, onClose, childr
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty, busy]);
   return <>
-    <DetailModal open title={t(titleKey)} subtitle={clientName} onClose={() => requestLeave(onClose)}>
+    <DetailModal open size="edit" title={t(titleKey)} subtitle={clientName} onClose={() => requestLeave(onClose)}>
       <div lang={locale} aria-busy={busy} className={styles.content}>
         <div className={styles.language}><LanguageSelector /></div>
         {children(requestLeave)}

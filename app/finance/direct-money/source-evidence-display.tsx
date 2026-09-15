@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown } from "lucide-react";
+import { Disclosure } from "../../components/ui/patterns";
 import { useI18n } from "../../../lib/i18n/provider";
 import { vatTreatmentLabel, type VatTreatment } from "../document-decision/shared";
 import { directVatTreatments } from "./form-presentation";
@@ -35,6 +35,6 @@ export function DirectSourceEvidence({ reason, client }: { reason: string; clien
         {caseId ? <Link href={`/cases/${caseId}`}>{t("directMoney.evidenceCase")}</Link> : <Link href={`/advisory/${advisoryId}`}>{t("directMoney.evidenceAdvisory")}</Link>}
       </dd></div> : null}
     </dl>
-    <details className={styles.optional}><summary>{t("directMoney.technicalEvidence")}<ChevronDown size={16} aria-hidden="true" /></summary><pre className={styles.technicalEvidence}>{reason}</pre></details>
+    <Disclosure title={t("directMoney.technicalEvidence")}><pre className={styles.technicalEvidence}>{reason}</pre></Disclosure>
   </div>;
 }

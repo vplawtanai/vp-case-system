@@ -10,6 +10,8 @@ import { QuotationGuard } from "../../quotations/shared";
 import FinanceSubNav from "../../FinanceSubNav";
 import { VpDistributionPanel } from "../../payments/vp-distribution-panel";
 import { DirectAmounts, DirectMoneyForm } from "../form";
+import { PageHeader, ReadOnlyGrid, StatusBadge } from "../../../components/ui/patterns";
+import ui from "../../../components/ui/vp-ui.module.css";
 import { directMoneyError, type DirectRecord } from "../shared";
 import { DirectMoneyClassification } from "../classification";
 import { DirectSourceEvidence, type DirectEvidenceClient } from "../source-evidence-display";
@@ -64,9 +66,9 @@ export function DirectMoneyDetail({ id, canManage }: { id: string; canManage: bo
       setSuccess(await load());
     } catch (e) { setError(e); setRefreshRequired(true); } finally { lock.current = false; setBusy(false); }
   }
-  return <main className={styles.workspace} ref={root}>
+  return <main className={`${ui.scope} ${styles.workspace}`} ref={root}>
     <Link className={styles.button} href="/finance/payments"><ArrowLeft size={16} />{t("finance.nav.payments")}</Link>
-    <header className={styles.header}><div><h1>{t("directMoney.title")} · {id.slice(0, 8).toUpperCase()}</h1><p className={styles.muted}>{t("directMoney.source")}</p></div>{row ? <span className={styles.status}>{t(`directMoney.${row.status}`)}</span> : null}</header>
+    <PageHeader title={<>{t("directMoney.title")} · {id.slice(0, 8).toUpperCase()}</>} description={t("directMoney.source")} actions={row ? <StatusBadge status={row.status} label={t(`directMoney.${row.status}`)} /> : null} />
     {loading ? <p role="status">{t("common.state.loading")}</p> : null}
     {error ? <p className={styles.summaryError} role="alert">{directMoneyError(error, locale)} <button className={styles.button} disabled={busy} onClick={() => void load()}>{t("common.actions.retry")}</button></p> : null}
     {success ? <p className={styles.success} role="status">{t("directMoney.saved")}</p> : null}
@@ -74,7 +76,7 @@ export function DirectMoneyDetail({ id, canManage }: { id: string; canManage: bo
       {row.unclassified ? <p className={styles.warning}>{t("directMoney.classificationWarning")}</p> : null}
       {canManage && row.status === "confirmed" ? <button className={styles.button} disabled={busy || loading} onClick={() => setClassifyOpen(true)}>{t("directMoney.classify")}</button> : null}
       <section className={styles.section}><div className={styles.header}><h2>{t("directMoney.facts")}</h2>{canManage && row.status === "draft" ? <button className={styles.button} disabled={busy || loading} onClick={() => setOpen(true)}><Pencil size={16} />{t("directMoney.edit")}</button> : null}</div>
-        <dl className={styles.facts}>{[["payer", row.payer_name], ["date", date(row.received_on)], ["method", t(`directMoney.${row.method}`)], ["account", bankName || row.cash_location || "-"], ["reference", row.reference_no || "-"], ["evidence", row.evidence_reference || "-"]].map(([key, value]) => <div key={key}><dt>{t(`directMoney.${key}`)}</dt><dd>{value}</dd></div>)}</dl>
+        <ReadOnlyGrid className={styles.facts} items={[["payer", row.payer_name], ["date", date(row.received_on)], ["method", t(`directMoney.${row.method}`)], ["account", bankName || row.cash_location || "-"], ["reference", row.reference_no || "-"], ["evidence", row.evidence_reference || "-"]].map(([key, value]) => ({ key, label: t(`directMoney.${key}`), value }))} />
         <DirectAmounts values={{ actualCash: Number(row.cash_amount), wht: Number(row.wht_amount), gross: Number(row.gross_amount), base: Number(row.amount_before_vat), vat: Number(row.vat_amount) }} />
         {row.note ? <p className={styles.readonly}>{row.note}</p> : null}
       </section>

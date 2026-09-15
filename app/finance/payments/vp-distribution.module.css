@@ -5,9 +5,9 @@
 .bucketHeading { display: flex; flex-wrap: wrap; gap: 6px 16px; justify-content: space-between; align-items: baseline; background: var(--tint); color: var(--accent); margin: 0 -12px 8px; padding: 10px 12px; }
 .bucketHeading h5 { font-size: 14px; margin: 0; }
 .bucketHeading strong { font-size: 14px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.referral { --accent: #775421; --tint: #fbf6e9; }
-.company { --accent: #28664b; --tint: #edf6f0; }
-.work { --accent: #285b80; --tint: #edf4fa; }
+.referral { --accent: var(--vp-referral, #775421); --tint: var(--vp-referral-bg, #fbf6e9); }
+.company { --accent: var(--vp-company, #28664b); --tint: var(--vp-company-bg, #edf6f0); }
+.work { --accent: var(--vp-work, #285b80); --tint: var(--vp-work-bg, #edf4fa); }
 .recipient { border: 0; border-bottom: 1px solid #dce2e8; padding: 12px 0; margin: 0 0 12px; min-width: 0; }
 .recipient legend { font-size: 13px; color: #606b75; }
 .recipientFields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; align-items: end; }

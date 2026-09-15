@@ -11,22 +11,25 @@
 .modal {
   display: flex;
   flex-direction: column;
-  width: min(920px, 88vw);
+  width: min(var(--modal-width, 920px), 88vw);
   max-height: 85vh;
   overflow: hidden;
   border: 1px solid #cbd5df;
   border-radius: 8px;
   background: #fff;
-  color: #172033;
+  color: var(--vp-text);
   box-shadow: 0 24px 64px rgba(15, 23, 42, .28);
   outline: none;
 }
+
+.modal[data-size="edit"] { --modal-width: 720px; }
+.modal[data-size="workflow"] { --modal-width: 1040px; }
 
 .header {
   position: relative;
   flex: 0 0 auto;
   padding: 20px 62px 18px 22px;
-  border-bottom: 1px solid #dce2e9;
+  border-bottom: 1px solid var(--vp-divider);
   background: #fff;
 }
 
@@ -52,8 +55,8 @@
 
 .subtitle {
   margin-top: 5px;
-  color: #667085;
-  font-size: 13px;
+  color: var(--vp-muted);
+  font-size: var(--vp-helper-size);
   line-height: 1.55;
   overflow-wrap: anywhere;
 }
@@ -62,13 +65,13 @@
   display: grid;
   justify-items: end;
   gap: 8px;
-  flex: 0 0 auto;
+  min-width: 0;
 }
 
 .summary > strong {
   color: #17324d;
   font-size: 18px;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .closeButton {
@@ -80,7 +83,7 @@
   width: 40px;
   height: 40px;
   border: 1px solid #d7dde5;
-  border-radius: 7px;
+  border-radius: var(--vp-radius);
   background: #fff;
   color: #526274;
   font: inherit;
@@ -95,7 +98,7 @@
 }
 
 .closeButton:focus-visible {
-  outline: 3px solid rgba(37, 99, 235, .22);
+  outline: 2px solid var(--vp-focus);
   outline-offset: 2px;
 }
 

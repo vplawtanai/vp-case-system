@@ -58,7 +58,7 @@ async function main() {
     resolve: { extensions: ['.tsx', '.ts', '.js'], modules: [path.join(root, 'node_modules')], alias: { 'next/navigation': navigation, 'next/link': link, [path.join(root, 'lib/supabase')]: adapter } },
     module: { rules: [{ test: /\.(tsx?|css)$/, use: loader }] }, devtool: false,
   }, (error, stats) => error || stats.hasErrors() ? reject(error || Error(stats.toString({ all: false, errors: true }))) : resolve()));
-  const css = ['app/finance/payments/money-allocation.module.css', 'app/finance/payments/vp-distribution.module.css', 'app/components/DetailModal.module.css', 'app/components/LanguageSelector.module.css'].map(file => {
+  const css = ['app/components/ui/vp-ui.module.css', 'app/finance/payments/money-allocation.module.css', 'app/finance/payments/vp-distribution.module.css', 'app/components/DetailModal.module.css', 'app/components/LanguageSelector.module.css'].map(file => {
     const prefix = path.basename(file).replaceAll('.', '_') + '_';
     return fs.readFileSync(path.join(root, file), 'utf8').replace(/\.([A-Za-z_][A-Za-z_0-9-]*)/g, (_, key) => '.' + prefix + key);
   }).join('\n');
@@ -95,6 +95,11 @@ async function main() {
     async function geometry() {
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false);
       assert.equal(await dialog.evaluate(el => el.scrollWidth > el.clientWidth + 1), false);
+      assert.equal(await dialog.getAttribute('data-size'), 'workflow');
+      assert.equal(await dialog.evaluate(el => {
+        const body=el.querySelector(':scope > div'), footer=el.querySelector(':scope > footer');
+        return body.clientHeight>0 && body.getBoundingClientRect().bottom<=footer.getBoundingClientRect().top+1;
+      }),true,'scrolling body must remain above the action footer');
       const violations = await dialog.evaluate(el => Array.from(el.querySelectorAll('input[inputmode=decimal], label, button')).filter(node => node.getClientRects().length).filter(node => {
         const box = node.getBoundingClientRect(), parent = node.parentElement.getBoundingClientRect();
         return box.width < 1 || box.left < parent.left - 1 || box.right > parent.right + 1;
@@ -144,6 +149,10 @@ async function main() {
       await page.waitForFunction(()=>window.context.current.status==='finalized'); await settled(); assert.equal(await calls(),3);
       assert.ok((await dialog.innerText()).includes('Fixture Admin'));
       await geometry(); await page.screenshot({path:path.join(out,`vp-final-${width}-${locale}.png`),fullPage:true});
+      const close=dialog.getByRole('button',{name:translate(locale,'common.actions.closeDetails'),exact:true});
+      await close.focus();await page.keyboard.press('Shift+Tab');
+      assert.equal(await dialog.locator('summary').last().evaluate(el=>el===document.activeElement),true,'closed audit disclosure is the last keyboard target');
+      await page.keyboard.press('Tab');assert.equal(await close.evaluate(el=>el===document.activeElement),true);
       await page.keyboard.press('Escape'); await dialog.waitFor({state:'hidden'});
       assert.equal(await page.getByRole('button',{name:text('open'),exact:true}).evaluate(button=>button===document.activeElement),true);
     }

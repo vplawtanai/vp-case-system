@@ -1,6 +1,8 @@
 "use client";
 
 import { cloneElement, useEffect, useId, useRef, useState, type ReactElement } from "react";
+import { FieldGroup, MoneySummary } from "../../components/ui/patterns";
+import ui from "../../components/ui/vp-ui.module.css";
 import { Plus, Trash2, Save, ChevronDown, CheckCircle2, CircleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
@@ -16,7 +18,7 @@ type Option = { id: string; name: string };
 type Matter = { id: string | number; client_id: string; title: string; file_no?: string; matter_no?: string };
 export function DirectAmounts({ values }: { values: Record<string, number | null> }) {
   const { t, locale } = useI18n();
-  return <dl className={styles.facts}>{Object.entries(values).map(([key, value]) => <div key={key}><dt>{key === "vat" || key === "wht" ? key.toUpperCase() : t(`directMoney.${key === "cash" ? "actualCash" : key}`)}</dt><dd>{value !== null && Number.isFinite(value) ? value.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " THB" : "-"}</dd></div>)}</dl>;
+  return <MoneySummary className={styles.facts} locale={locale} currency="THB" items={Object.entries(values).map(([key, amount]) => ({ key, amount, label: key === "vat" || key === "wht" ? key.toUpperCase() : t(`directMoney.${key === "cash" ? "actualCash" : key}`) }))} />;
 }
 export function DirectReconciliation({ label, parts, gross, receipt = false }: { label: string; parts: (number | null)[]; gross: number | null; receipt?: boolean }) {
   const { t, locale } = useI18n(), result = reconciliationResult(parts, gross);
@@ -67,7 +69,7 @@ export function DirectMoneyForm({ initial, id: existingId, version = 0, onSaved,
   function update(patch: Partial<DirectInput>) { setForm(value => ({ ...value, ...patch })); setErrors({}); setFailure(null); }
   function lineUpdate(index: number, patch: Partial<DirectLine>) { update({ lines: prepared.input.lines.map((line, i) => i === index ? { ...line, ...patch } : line) }); }
   const error = (key: string) => errors[key] ? <small id={`${formId}-${key}-error`} className={styles.error}>{t(`directMoney.error.${errors[key]}`)}</small> : null;
-  const field = (key: string, label: string, child: ReactElement<{ id?: string }>) => <div className={styles.field}><label htmlFor={`${formId}-${key}`}>{label}</label>{cloneElement(child, { id: `${formId}-${key}` })}{error(key)}</div>;
+  const field = (key: string, label: string, child: ReactElement<{ id?: string }>) => <FieldGroup id={`${formId}-${key}`} label={label} className={styles.field} error={errors[key] ? t(`directMoney.error.${errors[key]}`) : undefined}>{child}</FieldGroup>;
   const attrs = (key: string) => ({ "aria-invalid": !!errors[key], "aria-describedby": errors[key] ? `${formId}-${key}-error` : undefined });
   const numeric = (value: number | null, change: (value: number) => void, key: string, scale = "0.01") => <input type="number" inputMode="decimal" min="0" step={scale} value={value || ""} onChange={e => change(e.target.value === "" ? 0 : Number(e.target.value))} {...attrs(key)} />;
   async function submit(event: React.FormEvent) {
@@ -104,7 +106,7 @@ export function DirectMoneyForm({ initial, id: existingId, version = 0, onSaved,
     } catch (e) { setFailure(e); } finally { lock.current = false; setBusy(false); onBusy?.(false); }
   }
   const totals = prepared.valid ? directTotals(prepared.input.lines) : { base: null, vat: null, gross: null, wht: null, cash: null }, tKey = (key: string) => t(`directMoney.${key}`);
-  return <form className={styles.form} ref={root} onSubmit={submit} noValidate aria-busy={busy}>
+  return <form className={`${ui.scope} ${styles.form}`} ref={root} onSubmit={submit} noValidate aria-busy={busy}>
     {Object.keys(errors).length ? <p className={styles.summaryError} role="alert">{tKey("error.summary")}</p> : null}
     {failure || lookupFailed ? <p className={styles.summaryError} role="alert">{directMoneyError(failure, locale)}</p> : null}
     {loading ? <p role="status">{t("common.state.loading")}</p> : null}
