@@ -9,6 +9,7 @@ import { vatTreatmentLabel, type VatTreatment } from "../document-decision/share
 import { directLineAmounts, directMoneyError, directTotals, economicClasses, moneyNatures, newDirectInput, newDirectLine, validateDirectInput, type DirectInput, type DirectLine } from "./shared";
 import { directAmountPatch, directVatChoiceIncomplete, directVatMode, directVatPatch, directVatQuickPatch, directVatSelection, directVatTreatments, directWhtMode, directWhtQuickPatch, hasCustomWhtBase, nonVatTreatments, reconciliationResult, type DirectVatMode, type DirectWhtMode } from "./form-presentation";
 import { initialCashAllocations, prepareCashEntry } from "./cash-entry";
+import { prepareDirectSourceEvidence } from "./source-evidence";
 import styles from "./direct-money.module.css";
 
 type Option = { id: string; name: string };
@@ -44,6 +45,7 @@ export function DirectMoneyForm({ initial, id: existingId, version = 0, onSaved,
   const [manualBases, setManualBases] = useState<Record<string, boolean>>({});
   const [allocations, setAllocations] = useState<Record<string, number | null>>(() => initialCashAllocations(form));
   const prepared = prepareCashEntry(form, allocations, whtBases, manualBases);
+  const sourceEvidence = prepareDirectSourceEvidence(prepared.input, whtBases, manualBases);
   const id = useRef<string>(existingId || ""), lock = useRef(false), root = useRef<HTMLFormElement>(null);
   const [busy, setBusy] = useState(false), [errors, setErrors] = useState<Record<string, string>>({}), [failure, setFailure] = useState<unknown>(null);
   const [clients, setClients] = useState<Option[]>([]), [banks, setBanks] = useState<Option[]>([]), [cases, setCases] = useState<Matter[]>([]), [advisories, setAdvisories] = useState<Matter[]>([]);
@@ -71,7 +73,7 @@ export function DirectMoneyForm({ initial, id: existingId, version = 0, onSaved,
   async function submit(event: React.FormEvent) {
     event.preventDefault(); if (lock.current || loading || lookupFailed) return;
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-    const input = prepared.input, issues = validateDirectInput(input, today);
+    const input = sourceEvidence.input, issues = validateDirectInput(input, today);
     if (!prepared.allocation.valid) issues.allocations = "allocationInvalid";
     prepared.results.forEach((result, i) => {
       if (result.error) issues[`line.${i}.calculation`] = result.error;
@@ -126,6 +128,8 @@ export function DirectMoneyForm({ initial, id: existingId, version = 0, onSaved,
         const customBase = !!whtBases[line.source_line_id], manualBase = !!manualBases[line.source_line_id];
         const calculationError = prepared.results[index].error;
         const needsVatReason = treatment !== "unknown" && treatment !== "standard_rate";
+        const evidence = sourceEvidence.evidence[index];
+        const showExplanation = evidence.requirement && (line.description.trim() || line.money_nature !== "unclassified" || evidence.manualReason || errors[key + "reason"]);
         return <div className={styles.line} key={line.source_line_id}><div className={styles.lineHeader}><h3>{index + 1}. {line.description || tKey("description")}</h3><button type="button" className={styles.button} title={tKey(form.lines.length === 1 ? "lastLine" : "removeLine")} aria-label={`${tKey("removeLine")} ${index + 1}`} disabled={form.lines.length === 1} onClick={() => update({ lines: form.lines.filter((_, i) => i !== index) })}><Trash2 size={16} aria-hidden="true" /></button></div><div className={styles.grid}>
           {field(key + "description", tKey("description"), <input maxLength={1000} value={line.description} onChange={e => lineUpdate(index, { description: e.target.value })} {...attrs(key + "description")} />)}
           {field(key + "nature", tKey("nature"), <select value={line.money_nature} onChange={e => lineUpdate(index, { money_nature: e.target.value as DirectLine["money_nature"], classification: null })}>{moneyNatures.map(value => <option key={value} value={value}>{tKey(`nature.${value}`)}</option>)}</select>)}
@@ -158,9 +162,14 @@ export function DirectMoneyForm({ initial, id: existingId, version = 0, onSaved,
           {line.wht_applicability === "applies" ? <div><DirectAmounts values={{ whtBaseEvidence: calculationError ? null : line.wht_base }} /><label className={styles.check}><input type="checkbox" checked={customBase} onChange={e => { setWhtBases(previous => ({ ...previous, [line.source_line_id]: e.target.checked })); lineUpdate(index, e.target.checked ? {} : { wht_base: line.base }); }} />{tKey("customWhtBase")}</label>
             {customBase ? field(key + "wht_base", tKey("whtBase"), numeric(line.wht_base, wht_base => lineUpdate(index, { wht_base }), key + "wht")) : null}</div> : null}
           <p className={`${styles.muted} ${styles.taxHelp}`}>{tKey("vatHelp")}</p>
-        </div></details><details className={styles.optional}><summary>{tKey("lineEvidence")}<ChevronDown size={16} aria-hidden="true" /></summary>
-          {field(key + "reason", tKey("lineReasonRequired"), <input maxLength={2000} value={line.reason} onChange={e => lineUpdate(index, { reason: e.target.value })} {...attrs(key + "reason")} />)}
-        </details>{line.money_nature === "unclassified" ? <p className={styles.warning}>{tKey("classificationWarning")}</p> : null}</div>;
+        </div></details>
+        {showExplanation ? <div className={styles.taxDetail}>
+          <p className={styles.muted} id={`${formId}-${key}source-help`}>{tKey(evidence.requirement!)}</p>
+          {field(key + "reason", tKey("additionalSource"), <textarea rows={2} maxLength={2000} value={evidence.manualReason} onChange={e => lineUpdate(index, { reason: e.target.value })} {...attrs(key + "reason")} aria-describedby={[`${formId}-${key}source-help`, attrs(key + "reason")["aria-describedby"]].filter(Boolean).join(" ")} />)}
+        </div> : evidence.manualReason.trim() ? <details className={styles.optional}><summary>{tKey("lineEvidence")}<ChevronDown size={16} aria-hidden="true" /></summary>
+          {field(key + "reason", tKey("additionalSource"), <textarea rows={2} maxLength={2000} value={evidence.manualReason} onChange={e => lineUpdate(index, { reason: e.target.value })} {...attrs(key + "reason")} />)}
+        </details> : evidence.derived ? <p className={styles.muted}>{tKey("derivedSource")}</p> : null}
+        {line.money_nature === "unclassified" ? <p className={styles.warning}>{tKey("classificationWarning")}</p> : null}</div>;
       })}<button className={styles.button} type="button" disabled={form.lines.length >= 100} onClick={() => {
         setAllocations(previous => ({ ...previous, ...Object.fromEntries(form.lines.map((line, i) => [line.source_line_id, prepared.allocation.amounts[i]])) }));
         update({ lines: [...prepared.input.lines, newDirectLine()] });

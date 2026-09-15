@@ -26,6 +26,21 @@ At preparation, 046 was the last numbered migration and 047 was unused. Applied 
 
 Every line has a stable `source_line_id`, description and business reason. Money nature is independent of economic classification, VAT and WHT:
 
+The Draft UI treats `lines[].reason` as source evidence, not a signed human declaration.
+For a linked Client, a meaningful description, professional/additional-service revenue,
+standard 7% VAT and ordinary explicit WHT choices, it fills the existing string with
+versioned, explicitly system-derived provenance. It includes actual Client/matter/line
+IDs, classification and tax facts. Payer and description references resolve to the
+facts frozen alongside it, avoiding duplication or truncation of long source text.
+Existing human reasons are preserved. On Draft edits, generated provenance is
+recomputed and never reused as human justification if the context becomes exceptional.
+Missing Client linkage or meaningful description, unknown/exceptional classification,
+non-revenue nature, exceptional/unresolved VAT or WHT, and advanced base overrides
+require an additional human source explanation. No legal meaning is guessed from prose.
+Reversal and reclassification reasons/acknowledgements remain separate and unchanged.
+Migration 047's nonempty reason, normalization, audit and confirmation-freeze contracts
+are unchanged; this preparation does not modify confirmed records or tax calculations.
+
 `business_revenue`, `client_money`, `owner_or_partner_funding`, `loan_or_deposit`, `reimbursement_or_pass_through`, `other_non_revenue`, `unclassified`.
 
 Business revenue must use an existing supported classification: `professional_fee`, `additional_service`, `reimbursable_expense` or `government_or_court_fee`. Non-business lines cannot carry a revenue classification. VAT=0, WHT=0, cash payment and absent source documents never infer nature.

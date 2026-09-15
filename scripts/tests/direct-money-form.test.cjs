@@ -74,7 +74,7 @@ for (const locale of ['th', 'en']) test(`${locale}: one amount, tax quick choice
   const optional = html.match(/<details[^>]*>([\s\S]*?)<\/details>/)[1];
   for (const key of ['optional', 'matter', 'reference', 'evidence', 'note']) assert.ok(optional.includes(translate(locale, 'directMoney.' + key)), key);
   for (const key of ['date', 'method', 'account', 'actualCash', 'client', 'payer']) assert.ok(html.split('<details')[0].includes(translate(locale, 'directMoney.' + key)), key);
-  assert.ok(html.includes(translate(locale, 'directMoney.lineReasonRequired')));
+  assert.ok(html.includes(translate(locale, 'directMoney.additionalSource')));
   assert.ok(html.includes(translate(locale, 'directMoney.vatQuick')));
   assert.ok(html.includes(translate(locale, 'directMoney.whtQuick')));
   assert.ok(!html.includes(translate(locale, 'directMoney.vatRate')));
@@ -127,7 +127,7 @@ test('existing save RPC/version/idempotency and validator remain authoritative; 
   const source = fs.readFileSync('app/finance/direct-money/form.tsx', 'utf8');
   assert.match(source, /validateDirectInput\(input, today\)/);
   assert.match(source, /save_finance_direct_money_receipt", \{ p_id: id.current, p_expected_version: version, p_input: input \}/);
-  assert.match(source, /const input = prepared.input/);
+  assert.match(source, /const input = sourceEvidence.input/);
   assert.match(source, /lock.current \|\| loading \|\| lookupFailed/);
   assert.doesNotMatch(source, /\.from\([^)]*\)\.(insert|update|delete)|transition_finance|issue_finance/);
 });

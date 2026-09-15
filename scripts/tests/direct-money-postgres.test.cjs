@@ -5,6 +5,7 @@ const {db,scalar,rpc,rejects,query,asActor,ids,migration}=require('./receipt-fou
 const {resolved,people}=require('./vp-formula.test.cjs');
 const {calculateFormula}=require('../../app/finance/compensation/formula-calculation.ts');
 const {definition}=require('./tax-invoice-sql-artifacts.cjs');
+const {prepareDirectSourceEvidence}=require('../../app/finance/direct-money/source-evidence.ts');
 async function prerequisites(){
  await db.exec('create table cases(id bigint primary key,client_id uuid references clients(id));create table advisory_matters(id uuid primary key,client_id uuid references clients(id));');
  await db.exec(definition(migration('30'),'assert_finance_billable_charge_context')+'\n'+definition(migration('30'),'calculate_finance_billable_charge_amounts'));
@@ -15,6 +16,21 @@ function input(lines=[line()],cash=10400){return {client_id:ids.client,payer_nam
 const save=(id,payload,version=0)=>rpc('save_finance_direct_money_receipt',[id,version,payload]);
 const transition=(id,version,action,reason='')=>rpc('transition_finance_direct_money_receipt',[id,version,action,true,reason]);
 const context=id=>scalar('select get_finance_direct_vp_formula_context($1)',[id]);
+test('047 accepts system-labelled structured provenance and freezes it with unchanged financial facts',async()=>{
+ await setup();const before=await prior.financialState(),id=randomUUID();
+ const payload=prepareDirectSourceEvidence(input([line({reason:''})])).input,reason=payload.lines[0].reason;
+ assert.match(reason,/^System-derived direct-money provenance v1:/);
+ await save(id,payload);assert.equal(await save(id,payload),id);
+ let row=await scalar('select to_jsonb(r) from finance_direct_money_receipts r where id=$1',[id]);
+ assert.equal(row.input_json.lines[0].reason,reason);assert.equal(row.lines_json[0].reason,reason);
+ await transition(id,1,'confirm');row=await scalar('select to_jsonb(r) from finance_direct_money_receipts r where id=$1',[id]);
+ const frozen=row.confirmed_snapshot_json;
+ assert.equal(frozen.lines[0].reason,reason);assert.equal(frozen.facts.payer_name,payload.payer_name);assert.equal(frozen.lines[0].description,payload.lines[0].description);
+ assert.equal(frozen.client.id,payload.client_id);assert.equal(frozen.actual_cash,10400);assert.equal(frozen.wht_credit,300);
+ assert.deepEqual(await scalar("select evidence_json->'confirmed_snapshot_json' from finance_direct_money_receipt_audit where receipt_id=$1 and event_type='confirmed'",[id]),frozen);
+ await rejects('select save_finance_direct_money_receipt($1,2,$2)',[id,payload],/IMMUTABLE/);
+ assert.deepEqual(await prior.financialState(),before);
+});
 test('047 candidate creates no financial rows; direct professional receipt has no fake Payment/Invoice and uses shared formula',async()=>{
  await setup();const before=await prior.financialState(),id=randomUUID(),payload=input();
  await save(id,payload);assert.equal(await save(id,payload),id);await transition(id,1,'confirm');assert.equal(await transition(id,1,'confirm'),id);

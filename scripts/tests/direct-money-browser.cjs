@@ -78,6 +78,7 @@ async function main(){
    assert.equal(await field('method').inputValue(),'bank_transfer');
    assert.equal(await page.getByRole('button',{name:t('removeLine')+' 1',exact:true}).isDisabled(),true);
    assert.equal(await field('note').isVisible(),false);assert.equal(await field('reference').isVisible(),false);
+   assert.equal(await field('additionalSource').count(),0);
    assert.equal(await page.getByText(t('matched'),{exact:true}).count(),0);
    assert.equal(await page.getByText(t('classificationWarning'),{exact:true}).isVisible(),true);
    assert.doesNotMatch(await page.locator('form').innerText(),/Actual cash|อยู่ในระบบ VAT|ก่อนออกเอกสาร|before issuing a document/);
@@ -93,6 +94,8 @@ async function main(){
    assert.equal(await page.locator('form input[type=number]').count(),1);
    const calculation=page.locator('dl[class$="_calculation"]');for(const value of ['10,000.00','700.00','10,700.00','300.00','10,400.00'])assert.ok((await calculation.innerText()).includes(value));
    await field('nature').selectOption('business_revenue');assert.equal(await field('classification').inputValue(),'');await field('classification').selectOption('professional_fee');
+   await field('client').selectOption('synthetic-client');await field('description').fill('ค่าบังคับคดี');
+   assert.equal(await field('additionalSource').count(),0);assert.equal(await page.getByText(t('derivedSource'),{exact:true}).isVisible(),true);
    assert.equal(await matches(),true);assert.equal(await vat.getByRole('radio',{name:'7%',exact:true}).isChecked(),true);
    await geometry();await page.screenshot({path:path.join(out,`actual-only-7-3-${locale}-${width}.png`),fullPage:true});
    await vat.getByRole('radio',{name:'7%',exact:true}).focus();await page.keyboard.press('ArrowRight');
@@ -110,16 +113,26 @@ async function main(){
    for(const rate of [1,2,3,5]){await chooseWht(rate+'%');await field('actualCash').fill(String(10700-100*rate));assert.equal(await matches(),true);}
    await chooseWht(t('taxOther'));await field('whtRate').fill('1.25');await chooseVat(t('taxOther'));
    await field('vatRate').fill('10');await field('actualCash').fill('10875');assert.equal(await matches(),true);
+   assert.equal(await field('additionalSource').isVisible(),true);assert.equal(await page.getByText(t('evidenceTax'),{exact:true}).isVisible(),true);
    await geometry();await page.screenshot({path:path.join(out,`custom-tax-${locale}-${width}.png`),fullPage:true});
    await chooseVat('7%');await chooseWht('3%');await field('actualCash').fill('10400');assert.equal(await matches(),true);
-   await field('date').fill('2026-01-01');await field('account').selectOption('synthetic-bank');await field('payer').fill('Synthetic payer');await field('description').fill('Synthetic legal fee');
-   assert.equal(await field('lineReasonRequired').isVisible(),false);
+   await field('date').fill('2026-01-01');await field('account').selectOption('synthetic-bank');
+   assert.equal(await field('additionalSource').count(),0);
+   await page.getByRole('button',{name:t('save'),exact:true}).click();await page.waitForFunction(()=>window.navigated);
+   const normal=await page.evaluate(()=>window.calls[0].p.p_input);assert.equal(normal.lines[0].description,'ค่าบังคับคดี');assert.match(normal.lines[0].reason,/^System-derived direct-money provenance v1:/);
+   assert.equal(normal.lines[0].base,10000);assert.equal(normal.cash_amount,10400);assert.equal(normal.lines[0].wht_base,10000);assert.equal(normal.lines[0].wht_rate,3);
+   await page.evaluate(()=>{window.calls=[];window.navigated=null;});
+   await field('client').selectOption('');await field('description').fill('');
+   assert.equal(await field('additionalSource').isVisible(),true);assert.equal(await page.getByText(t('evidenceContext'),{exact:true}).isVisible(),true);
+   await field('description').fill('ค่าบังคับคดี');
    await page.getByRole('button',{name:t('save'),exact:true}).click();assert.equal(await page.evaluate(()=>window.calls.length),0);
-   await field('lineReasonRequired').waitFor({state:'visible'});assert.equal(await field('lineReasonRequired').evaluate(n=>n===document.activeElement),true);
-   assert.equal(await field('lineReasonRequired').inputValue(),'');await field('lineReasonRequired').fill('Explicit business source');
+   await page.waitForFunction(()=>document.activeElement?.tagName==='TEXTAREA');assert.equal(await field('additionalSource').evaluate(n=>n===document.activeElement),true);
+   assert.equal(await field('additionalSource').inputValue(),'');await field('additionalSource').fill('Explicit business source');assert.equal(await field('additionalSource').getAttribute('aria-invalid'),'false');
+   await field('additionalSource').fill('');await field('client').selectOption('synthetic-client');assert.equal(await field('additionalSource').count(),0);
    await page.getByRole('button',{name:t('addLine'),exact:true}).click();
    const deletes=page.getByRole('button',{name:new RegExp(t('removeLine'))});assert.equal(await deletes.count(),2);assert.equal(await deletes.nth(0).isEnabled(),true);
    assert.equal(await field('nature').nth(1).inputValue(),'unclassified');await field('nature').nth(1).selectOption('client_money');assert.equal(await field('classification').count(),1);
+   assert.equal(await field('additionalSource').isVisible(),true);assert.equal(await page.getByText(t('evidenceNonRevenue'),{exact:true}).isVisible(),true);
    await field('actualCash').fill('12400');assert.equal(await field('lineActual').count(),1);assert.equal(await field('lineActual').inputValue(),'10400');
    await vat.nth(1).getByRole('radio',{name:t('noVat'),exact:true}).check();await field('vatTreatment').selectOption('outside_scope');await field('vatReason').fill('Explicit client-money evidence');
    await wht.nth(1).getByRole('radio',{name:t('noWht'),exact:true}).check();assert.equal(await matches(),true);
@@ -142,6 +155,7 @@ async function main(){
    assert.equal(calls[0].name,'save_finance_direct_money_receipt');assert.equal(p.reference_no,'LOCAL-OPTIONAL');assert.equal(p.evidence_reference,'local-slip-reference');assert.equal(p.note,'Synthetic optional note');
    assert.equal(p.client_id,'synthetic-client');assert.equal(p.case_id,47);assert.equal(p.cash_amount,10400);assert.equal(p.lines[0].base,10000);
    assert.equal(p.lines[0].vat_rate,7);assert.equal(p.lines[0].wht_rate,3);assert.equal(p.lines[0].wht_base,10000);assert.equal(p.lines[0].money_nature,'business_revenue');
+   assert.match(p.lines[0].reason,/^System-derived direct-money provenance v1:/);assert.match(p.lines[0].reason,/"case_id":47/);
   }
   // An explicit incomplete VAT choice cannot reach the backend, including unclassified money.
   await visit('form');await page.getByLabel(translate('en','directMoney.nature'),{exact:true}).selectOption('unclassified');
