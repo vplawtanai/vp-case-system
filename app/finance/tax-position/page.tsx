@@ -9,13 +9,14 @@ import { supabase } from "../../../lib/supabase";
 import { useI18n } from "../../../lib/i18n/provider";
 import { QuotationGuard } from "../quotations/shared";
 import FinanceSubNav from "../FinanceSubNav";
+import TaxDashboard from "./dashboard";
 import { sourceLabel, taxErrorKey, type TaxFact, type TaxPeriod, type TaxPositionData, type TaxSource } from "./shared";
 import styles from "./tax-position.module.css";
 
 type Action = { kind: "source"; row: TaxSource } | { kind: "period"; row: TaxPeriod } | { kind: "evidence"; row: TaxFact };
 export default function TaxPositionPage() {
  return <QuotationGuard canAccess={a => a.permissions.canViewFinanceTaxInvoices || a.profile?.role === "partner"}>
-  {a => <><FinanceSubNav activePage="tax-position" permissions={a.permissions} /><TaxPositionWorkspace /></>}
+  {a => <><FinanceSubNav activePage="tax-position" permissions={a.permissions} /><TaxDashboard permissions={a.permissions} taxDetails={<TaxPositionWorkspace />} /></>}
  </QuotationGuard>;
 }
 export function TaxPositionWorkspace() {

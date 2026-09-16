@@ -126,7 +126,7 @@ private helper execution are revoked, frozen rows cannot be rewritten/truncated.
 outgoing WHT, secondary source import/audit. Explicit acknowledgement/reference,
 stale-source errors, busy lock, focus management, readable narrow layout and TH/EN.
 Following human Production verification, the Finance navigation exposes
-Treasury -> Tax Position -> Expense Claims to existing tax viewers and Partners.
+Treasury -> Tax Position -> Payables -> Expense Claims to existing viewers.
 Action visibility still comes from the authoritative backend permission response.
 The empty register also identifies incomplete input VAT and undetermined net VAT;
 external filing remains explicitly separate from remittance.
@@ -150,3 +150,66 @@ The preflight and verifier each return one row from one SELECT-only statement.
 Focused validation: tax-position PostgreSQL/static/browser fixtures; targeted
 ESLint, TypeScript, build and whitespace checks. Browser fixture blocks all
 non-loopback requests. No Production credentials, SQL or application actions.
+
+## Monthly business dashboard (read-only presentation)
+
+The default page is now a monthly business dashboard, not the tax register.
+Five summaries precede the activity/month-end split and current account/payable
+position. The original register, its controlled actions and raw audit evidence
+remain behind a collapsed Tax details disclosure. Opening the normal dashboard
+never materializes historical facts. Its adapter calls SELECT and existing read
+RPCs only. No migration or backend authority change is required.
+
+| Figure | Authoritative read / ownership | Time scope |
+| --- | --- | --- |
+| Cash received | Confirmed `finance_payments.cash_amount` plus confirmed `finance_direct_money_receipts.cash_amount`, not settlement/gross | `received_on` selected month |
+| Treasury | Existing `get_finance_treasury` account `system_balance`, active THB accounts visible under existing access rules | Current, not selected-month closing balance |
+| Direct VAT | Classification overlay lines when present, otherwise frozen confirmed snapshot lines; explicit accepted treatment, stored VAT | Direct `received_on`, same evidence basis as 050 |
+| Document VAT | Issued Tax Invoice item VAT with approved tax point, once per tax child/item; Combined parent excluded | Approved tax point `occurred_on`, not issue date |
+| VAT adjustments | Issued Credit/Debit Note lines, signed stored VAT change; copies/reissues contribute nothing | `adjustment_date` |
+| Incoming WHT | Confirmed Payment/Direct stored WHT totals; structured components supply stored base/rate only when they reconcile | `received_on` selected month |
+| Payables | Open referral/work entitlement components from all pages of existing Payables read RPC; exclude superseded rights and company/tax buckets | Current obligations, not month-filtered |
+
+Cash and WHT ownership keys are source type plus source UUID. VAT ownership keys
+are Direct source/line or Tax Invoice child/item and correction/line. The 050
+register is used only for matching evidence-review status and filing state,
+never added to source amounts. Receipt and Combined parent are not queried for
+amounts. A tax child represented on a Payment activity row is not a second cash
+receipt. Tax documents without a visible same-month receipt are documentary
+activity with no cash effect. Multiple partial Payments never repeat Invoice VAT:
+VAT comes from approved issued tax coverage, not Invoice total or allocation.
+
+Amounts are summed in integer satang. Table reads request exact counts and page
+through all rows, including server-shortened pages. Payable groups page until
+`has_next=false`; overlapping component IDs cannot double-count. Failed/truncated
+reads are unavailable, not zero. Refresh/month changes ignore stale responses.
+This is a refreshed operational view, not a transactionally locked filing report.
+
+THB scope is explicit; other currencies are not converted. Accounts without a
+confirmed opening remain unknown, are not included in the known-balance subtotal,
+and are listed as missing openings. Treasury is neither a bank reconciliation nor
+available profit. Payable rights are not subtracted to invent available cash.
+
+Monthly cash/WHT require existing Payment view; document VAT requires both Tax
+Invoice and Receipt view because Combined correction RLS requires both. Without
+all source-domain permissions, the relevant total is unavailable rather than a
+misleading permission-filtered zero. Treasury account access remains scoped by
+the existing RPC. Partner remains read-only and may see unavailable tax-document
+totals without explicit tax permissions. No permissions are extended.
+
+Legacy WHT keeps its known credit and unknown base/rate. Stored certificates mean
+received, not verified or claimed; 050 review status applies only to matching
+source/line/date/amount/base/rate evidence. Input VAT and net VAT stay incomplete
+and undetermined. Outgoing WHT stays unavailable, not zero. Coverage warnings
+explicitly describe all source periods, not a selected-month liability. A filed
+register status is external filing evidence, never tax payment or remittance.
+
+Activity contains the latest ten recognized receipts and tax adjustments, with
+an optional expanded list and focused read-only details. No unimplemented Payout
+or Expense Claim cash event is fabricated. A Direct receipt with gross 10,700,
+cash 10,400 and WHT 300 displays those distinct values even where a design mockup
+used cash as gross. Mockup numbers and its numeric net-VAT liability are not copied.
+
+Focused QA: dashboard amount/source tests, permission/unknown/pagination cases,
+TH/EN browser checks at 390/768/1024/1440, month controls, no-write adapter,
+keyboard/modal focus, and existing register-action/navigation regression fixtures.
