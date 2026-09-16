@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, UserRound } from "lucide-react";
+import { ChevronDown, Menu, UserRound } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { buildPermissions } from "../../lib/permissions";
 import type { UserPermissions, UserRole } from "../../lib/permissions";
@@ -85,10 +85,13 @@ export default function AppTopNav({
     financial_access: false,
   });
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [sidebarFocused, setSidebarFocused] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const financePage = pathname.startsWith("/finance");
-  const expanded = financePage || sidebarExpanded;
+  const [financePreference, setFinancePreference] = useState<{ pathname: string; expanded: boolean } | null>(null);
+  const financeExpanded = financePreference?.pathname === pathname ? financePreference.expanded : financePage;
+  const expanded = sidebarExpanded || sidebarFocused;
   const drawerRef = useRef<HTMLElement>(null), menuRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -98,7 +101,7 @@ export default function AppTopNav({
     const keyboard = (event: KeyboardEvent) => {
       if (event.key === "Escape") { event.preventDefault(); setDrawerOpen(false); }
       if (event.key !== "Tab") return;
-      const items = Array.from(drawerRef.current?.querySelectorAll<HTMLElement>("a,button:not(:disabled)") || []);
+      const items = Array.from(drawerRef.current?.querySelectorAll<HTMLElement>("a,button:not(:disabled)") || []).filter(item => item.getClientRects().length > 0);
       const first = items[0], last = items.at(-1);
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
@@ -170,7 +173,7 @@ export default function AppTopNav({
 
   useEffect(() => {
     const updateViewport = () => {
-      setIsMobile(window.innerWidth < 760);
+      setIsMobile(window.innerWidth < 760 || window.matchMedia("(hover: none), (pointer: coarse)").matches);
     };
 
     updateViewport();
@@ -184,11 +187,11 @@ export default function AppTopNav({
       return;
     }
 
-    document.body.style.paddingLeft = financePage ? "256px" : "88px";
+    document.body.style.paddingLeft = "88px";
     return () => {
       document.body.style.paddingLeft = "";
     };
-  }, [isMobile, financePage]);
+  }, [isMobile]);
 
   useEffect(() => {
     const loadCurrentUserProfile = async () => {
@@ -314,8 +317,16 @@ export default function AppTopNav({
 
           return (
             <div key={group.title} style={navGroupBlockStyle}>
-              {!collapsed && <div style={groupHeadingStyle}>{group.title}</div>}
-              {visibleItems.map((item) => (
+              {!collapsed && !visibleItems.some(item => item.page === "finance") && <div style={groupHeadingStyle}>{group.title}</div>}
+              {visibleItems.map((item) => item.page === "finance" ? (
+                <button key={item.href} type="button" aria-label={item.label} title={item.label}
+                  aria-expanded={financeExpanded} aria-controls="finance-sidebar-links"
+                  onClick={() => setFinancePreference({ pathname, expanded: !financeExpanded })}
+                  style={{ ...getLinkStyle(item.page, collapsed), width: collapsed ? 48 : "100%", font: "inherit", fontWeight: 650, cursor: "pointer", textAlign: "left" }}>
+                  <span style={navIconStyle}><NavIcon name={item.icon} /></span>
+                  {!collapsed && <><span style={{ flex: 1 }}>{item.label}</span><ChevronDown size={16} style={{ transform: financeExpanded ? "rotate(180deg)" : undefined }} aria-hidden="true" /></>}
+                </button>
+              ) : (
                 <Link
                   key={item.href}
                   href={item.href}
@@ -325,6 +336,7 @@ export default function AppTopNav({
                   }}
                   style={getLinkStyle(item.page, collapsed)}
                   title={item.label}
+                  aria-label={item.label}
                 >
                   <span style={navIconStyle}>
                     <NavIcon name={item.icon} />
@@ -332,7 +344,7 @@ export default function AppTopNav({
                   {!collapsed && <span>{item.label}</span>}
                 </Link>
               ))}
-              {!collapsed && visibleItems.some(item => item.page === "finance") ? <FinanceSidebar permissions={permissions} pathname={pathname} onNavigate={() => setDrawerOpen(false)} /> : null}
+              {visibleItems.some(item => item.page === "finance") ? <div id="finance-sidebar-links" hidden={collapsed || !financeExpanded}><FinanceSidebar permissions={permissions} pathname={pathname} onNavigate={() => setDrawerOpen(false)} /></div> : null}
             </div>
           );
         })}
@@ -351,8 +363,12 @@ export default function AppTopNav({
     <>
       {!isMobile && (
         <aside
+          data-app-sidebar
+          data-expanded={expanded}
           style={expanded ? sidebarStyle : collapsedSidebarStyle}
-          onFocus={() => setSidebarExpanded(true)}
+          onFocus={event => setSidebarFocused(event.target.matches(":focus-visible"))}
+          onKeyDown={event => { if (event.key === "Tab") setSidebarFocused(true); }}
+          onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setSidebarFocused(false); }}
           onMouseEnter={() => setSidebarExpanded(true)}
           onMouseLeave={() => setSidebarExpanded(false)}
         >
@@ -404,7 +420,7 @@ export default function AppTopNav({
         <LanguageSelector />
         <Link href="/account/security" title={t("common.nav.account")} aria-label={t("common.nav.account")} style={utilityLinkStyle}><UserRound size={20} /></Link>
       </header> : null}
-      {!pathname.startsWith("/finance/payouts/") ? <div style={pageHeaderStyle}>
+      {!pathname.startsWith("/finance/payouts/") && pathname !== "/finance/payables" ? <div style={pageHeaderStyle}>
         {!isMobile && !financePage ? <div style={{ float: "right", marginLeft: 12 }}><LanguageSelector /></div> : null}
         <h1 style={titleStyle}>{title}</h1>
         {subtitle ? <p style={subtitleStyle}>{subtitle}</p> : null}
@@ -656,6 +672,7 @@ const sidebarNavStyle: React.CSSProperties = {
   display: "grid",
   gap: 14,
   flex: 1,
+  alignContent: "start",
 };
 
 const navGroupBlockStyle: React.CSSProperties = {
@@ -668,7 +685,7 @@ const groupHeadingStyle: React.CSSProperties = {
   fontSize: 10,
   fontWeight: 950,
   textTransform: "uppercase",
-  letterSpacing: "0.08em",
+  letterSpacing: 0,
   padding: "2px 4px",
 };
 

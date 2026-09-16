@@ -17,6 +17,16 @@ export type PayablePage = { groups: PayableGroup[]; has_next: boolean };
 export const initialPayableFilters = { search: "", source: "all", bucket: "all", status: "open" };
 export const payableGroupKey = (group: PayableGroup) => `${group.recipient_id}:${group.currency}`;
 export const payableSourceHref = (row: PayableComponent) => `/finance/${row.source_type === "payment" ? "payments" : "direct-money"}/${row.received_money_id}`;
+export function payableQueueSummary(groups: PayableGroup[]) {
+  const recipients = new Set<string>(), components = new Set<string>(), amounts = new Map<string, number>();
+  for (const group of groups) for (const row of group.components) {
+    if (row.status !== "open" || components.has(row.id)) continue;
+    components.add(row.id);
+    recipients.add(row.recipient_id);
+    amounts.set(row.currency, (amounts.get(row.currency) || 0) + Math.round(row.gross_amount * 100));
+  }
+  return { recipients: recipients.size, components: components.size, amounts: [...amounts].map(([currency, cents]) => ({ currency, amount: cents / 100 })) };
+}
 export function payableRoleLabel(role: string, locale: UiLocale): string {
   const known = workRoles.find(item => item.value === role);
   return known ? translate(locale, known.label) : compensationRoleLabel(role, locale);

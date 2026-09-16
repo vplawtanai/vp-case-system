@@ -70,7 +70,7 @@ export function financeNavigationLinks(permissions: UserPermissions, locale: UiL
       ? { href: "/finance/payables", page: "payables" as const, label: t("payables.title") }
       : null,
     permissions.canSubmitExpenseClaim || permissions.canViewOwnExpenseClaims || permissions.canViewAllExpenseClaims
-      ? { href: "/finance/expense-claims", page: "claims" as const, label: t("finance.nav.expenseClaims") }
+      ? { href: "/finance/expense-claims", page: "claims" as const, label: t("payables.legacyClaims") }
       : null,
     permissions.canViewLawyerCompensation
       ? { href: "/finance/compensation", page: "compensation" as const, label: t("finance.nav.compensation") }
@@ -86,7 +86,7 @@ export function financeNavigationItems(permissions: UserPermissions, locale: UiL
   const items: FinanceNavigationItem[] = [];
   for (const link of financeNavigationLinks(permissions, locale)) {
     const group = ["receipts", "combined-documents", "tax-invoices"].includes(link.page)
-      ? "payment-documents" : ["ledger", "compensation"].includes(link.page) ? "legacy" : null;
+      ? "payment-documents" : ["claims", "ledger", "compensation"].includes(link.page) ? "legacy" : null;
     if (!group) { items.push(link); continue; }
     const existing = items.find((item): item is FinanceNavigationGroup => "group" in item && item.group === group);
     if (existing) existing.children.push(link);

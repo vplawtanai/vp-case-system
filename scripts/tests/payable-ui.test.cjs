@@ -1,12 +1,12 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
 const {workspaceFixture}=require('./i18n-workspace-fixture.cjs');
-const {fixture,distributionId}=require('./payable-fixture.cjs');
+const {fixture,multiPageFixture,distributionId}=require('./payable-fixture.cjs');
 const {buildPermissions}=require('../../lib/permissions.ts');
 const {financeNavigationLinks,financeNavigationItems,activeFinancePage}=require('../../app/finance/finance-navigation.ts');
 const {translate}=require('../../lib/i18n/catalog.ts');
 const {payableMessages}=require('../../lib/i18n/messages/payables.ts');
-const {initialPayableFilters,payableError,payableGroupKey,payableRoleLabel}=require('../../app/finance/payables/shared.ts');
+const {initialPayableFilters,payableError,payableGroupKey,payableRoleLabel,payableQueueSummary}=require('../../app/finance/payables/shared.ts');
 const page=workspaceFixture('app/finance/payables/page.tsx',['PayablesWorkspace','PayableGroups'],{'../quotations/shared':{QuotationGuard:()=>null},'../FinanceSubNav':{default:()=>null}});
 const materialize=workspaceFixture('app/finance/payables/materialize-action.tsx',['MaterializeEntitlements']);
 for(const locale of ['th','en'])test(`Payables ${locale}: initial zero-state is neutral and offers no payout or materialization action`,()=>{
@@ -22,18 +22,19 @@ test('Payables source and entitlement type default to All; status remains Open',
  assert.deepEqual(initialPayableFilters,{search:'',source:'all',bucket:'all',status:'open'});
 });
 for(const locale of ['th','en'])test(`Payables ${locale}: hide pagination for zero/one page; keep real next/previous navigation`,()=>{
- for(const [data,offset,visible] of [[{groups:[],has_next:false},0,false],[fixture(),0,false],[{...fixture(),has_next:true},0,true],[fixture(),25,true],[{groups:[],has_next:false},25,true]]){
+ for(const [data,offset,visible] of [[{groups:[],has_next:false},0,false],[fixture(),0,false],[multiPageFixture(),0,true],[multiPageFixture(),25,true],[{groups:[],has_next:false},25,true]]){
   const html=page.render(locale,{'PayablesWorkspace.loading':false,'PayablesWorkspace.data':data,'PayablesWorkspace.offset':offset},{},'PayablesWorkspace');
   for(const key of ['previous','next'])assert.equal(html.includes(`aria-label="${translate(locale,'finance.receipt.'+key)}"`),visible);
  }
 });
-for(const locale of ['th','en'])test(`Finance ${locale}: Payables precedes Expense Claims; Compensation stays permission-gated inside Legacy`,()=>{
+for(const locale of ['th','en'])test(`Finance ${locale}: Expense Claims and Compensation stay permission-gated inside Legacy`,()=>{
  const p=buildPermissions({role:'admin'}),items=financeNavigationItems(p,locale);
- assert.deepEqual(items.map(i=>i.group||i.page),['quotations','fee-agreements','billable-charges','invoices','payments','payment-documents','treasury','tax-position','payables','claims','legacy']);
+ assert.deepEqual(items.map(i=>i.group||i.page),['quotations','fee-agreements','billable-charges','invoices','payments','payment-documents','treasury','tax-position','payables','legacy']);
  assert.ok(!items.some(i=>i.page==='compensation'));
  const legacy=items.find(i=>i.group==='legacy');
- assert.deepEqual(legacy.children.map(i=>i.href),['/finance/compensation','/finance/ledger']);
- assert.equal(legacy.children[0].label,locale==='th'?'ค่าตอบแทนทนาย (เดิม)':'Lawyer Compensation (Legacy)');
+ assert.deepEqual(legacy.children.map(i=>i.href),['/finance/expense-claims','/finance/compensation','/finance/ledger']);
+ assert.equal(legacy.children[0].label,locale==='th'?'เบิกค่าใช้จ่าย (เดิม)':'Expense Claims (Legacy)');
+ assert.equal(legacy.children[1].label,locale==='th'?'ค่าตอบแทนทนาย (เดิม)':'Lawyer Compensation (Legacy)');
  for(const allowed of [true,false]){
   const children=financeNavigationItems({...p,canViewLawyerCompensation:allowed},locale).filter(i=>i.group==='legacy').flatMap(i=>i.children);
   assert.equal(children.some(i=>i.page==='compensation'),allowed);
@@ -45,12 +46,25 @@ for(const locale of ['th','en'])test(`Payables ${locale}: recipient/currency gro
  const data=fixture(),before=JSON.stringify(data);
  const html=page.render(locale,{'PayablesWorkspace.loading':false,'PayablesWorkspace.data':data},{},'PayablesWorkspace');
  assert.equal((html.match(/data-recipient=/g)||[]).length,3);assert.equal((html.match(/<h2>Pam<\/h2>/g)||[]).length,1);
- for(const amount of ['3,104.00 THB','1,940.00 THB','776.00 THB','1,164.00 THB'])assert.ok(html.includes(amount));
+ for(const amount of ['5,820.00 THB','3,104.00 THB','1,940.00 THB','776.00 THB','1,164.00 THB'])assert.ok(html.includes(amount));
  for(const key of ['title','referral','work','open','technical'])assert.ok(html.includes(translate(locale,'payables.'+key)));
  assert.doesNotMatch(html,/<details[^>]*\bopen|\/finance\/compensation|<button[^>]*>Pay<\/button>/);
  assert.equal(JSON.stringify(data),before);
+ assert.equal((html.match(/aria-expanded="false"/g)||[]).length,3);
+ assert.equal((html.match(/id="payable-details-[^"]+" hidden=""/g)||[]).length,3);
+ for(const group of data.groups)assert.ok(html.includes('/finance/payouts/new?payee='+group.recipient_id));
+ assert.ok(!html.includes('••••1234'));assert.ok(!html.includes('CASE-001'));
  const superseded=structuredClone(data);superseded.groups.forEach(g=>{g.open_amount=0;g.components.forEach(r=>r.status='superseded');});
  assert.ok(page.render(locale,{},superseded,'PayableGroups').includes(translate(locale,'payables.superseded')));
+});
+test('Queue summary counts unique unpaid people/rights across pages, keeps currencies separate and excludes settled/superseded',()=>{
+ assert.deepEqual(payableQueueSummary(fixture().groups),{recipients:3,components:4,amounts:[{currency:'THB',amount:5820}]});
+ assert.equal(payableQueueSummary(multiPageFixture().groups).recipients,26);
+ assert.equal(payableQueueSummary(multiPageFixture().groups).components,52);
+ const data=fixture(),usd=structuredClone(data.groups[0]);usd.currency='USD';usd.components.forEach(r=>{r.currency='USD';r.id+='usd';});
+ data.groups[1].components[0].status='settled';data.groups[2].components[0].status='superseded';
+ assert.deepEqual(payableQueueSummary([...data.groups,usd]),{recipients:1,components:4,amounts:[{currency:'THB',amount:3104},{currency:'USD',amount:3104}]});
+ assert.deepEqual(payableQueueSummary([...data.groups,...data.groups]),payableQueueSummary(data.groups));
 });
 test('Canonical identity plus currency, never a display-name grouping; immutable custom role is not translated into a different fact',()=>{
  const g=fixture().groups[0];assert.equal(payableGroupKey(g),g.recipient_id+':THB');

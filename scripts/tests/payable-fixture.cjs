@@ -8,4 +8,8 @@ function fixture(){
   evidence_json:{schema_version:1,line:{description:'Synthetic professional work',vat:700,wht:300},formula:{company_share_amount:3880}} }));
  return {groups:people.map(id=>{const rows=components.filter(r=>r.recipient_id===id);return {recipient_id:id,recipient_name:rows[0].recipient_name,currency:'THB',open_amount:rows.reduce((n,r)=>n+r.gross_amount,0),components:rows};}),has_next:false};
 }
-module.exports={fixture,distributionId};
+function multiPageFixture(){
+ const first=fixture().groups[0];
+ return {groups:Array.from({length:26},(_,i)=>{const id='30000000-0000-4000-9000-'+String(i+1).padStart(12,'0');return {...structuredClone(first),recipient_id:id,components:first.components.map((row,j)=>({...structuredClone(row),id:id+'-'+j,recipient_id:id}))};}),has_next:false};
+}
+module.exports={fixture,multiPageFixture,distributionId};

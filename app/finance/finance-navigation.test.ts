@@ -8,8 +8,8 @@ import { buildPermissions } from "../../lib/permissions.ts";
 
 const fullPermissions = buildPermissions({ role: "admin" });
 const expected = {
-  th: ["ใบเสนอราคา", "ข้อตกลงค่าบริการ", "รายการเรียกเก็บนอกใบเสนอราคา", "ใบแจ้งหนี้", "เงินรับ", "เอกสารรับเงิน", "เงินสดและบัญชี", "ภาษีและเครดิตภาษี", "รายการรอจ่าย", "เบิกค่าใช้จ่าย", "เดิม"],
-  en: ["Quotations", "Fee Agreements", "Non-Quotation Charges", "Invoices", "Payments", "Payment Documents", "Treasury", "Tax Position", "Payables", "Expense Claims", "Legacy"],
+  th: ["ใบเสนอราคา", "ข้อตกลงค่าบริการ", "รายการเรียกเก็บนอกใบเสนอราคา", "ใบแจ้งหนี้", "เงินรับ", "เอกสารรับเงิน", "เงินสดและบัญชี", "ภาษีและเครดิตภาษี", "รายการรอจ่าย", "เดิม"],
+  en: ["Quotations", "Fee Agreements", "Non-Quotation Charges", "Invoices", "Payments", "Payment Documents", "Treasury", "Tax Position", "Payables", "Legacy"],
 };
 
 for (const locale of ["th", "en"] as const) test(`${locale}: Finance navigation follows the business workflow with parallel document destinations`, () => {
@@ -21,7 +21,7 @@ for (const locale of ["th", "en"] as const) test(`${locale}: Finance navigation 
   assert.deepEqual(documents.children.map(link => link.label), locale === "th" ? ["ใบเสร็จรับเงิน", "ใบเสร็จรับเงิน/ใบกำกับภาษี", "ใบกำกับภาษี"] : ["Receipts", "Receipt / Tax Invoice", "Tax Invoices"]);
   const legacy = items.at(-1);
   assert.ok(legacy && "children" in legacy);
-  assert.deepEqual(legacy.children.map(link => link.href), ["/finance/compensation", "/finance/ledger"]);
+  assert.deepEqual(legacy.children.map(link => link.href), ["/finance/expense-claims", "/finance/compensation", "/finance/ledger"]);
 });
 
 test("Locale changes preserve destination URLs; Cash is never mislabeled as Payments", () => {

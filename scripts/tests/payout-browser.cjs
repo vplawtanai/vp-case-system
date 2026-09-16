@@ -53,7 +53,7 @@ async function main(){
    await page.getByText(t('readOnly'),{exact:false}).waitFor();assert.equal(await page.getByRole('button',{name:t('save'),exact:true}).count(),0);assert.equal(await page.evaluate(()=>window.calls.filter(c=>c.name==='confirm_finance_payout').length),1);
    assert.equal(await page.getByText('1234567890',{exact:true}).count(),0);await geometry();
    if(width===390){const menu=page.getByRole('button',{name:translate(locale,'common.nav.menu'),exact:true});await menu.click();const drawer=page.getByRole('dialog');await drawer.waitFor();await drawer.getByRole('link',{name:translate(locale,'finance.nav.legacyLedger'),exact:true}).waitFor();await page.keyboard.press('Tab');assert.equal(await drawer.locator(':focus').count(),1);await page.keyboard.press('Escape');await drawer.waitFor({state:'hidden'});assert.equal(await menu.evaluate(e=>e===document.activeElement),true);}
-   else {await page.getByRole('link',{name:translate(locale,'finance.nav.legacyLedger'),exact:true}).waitFor();assert.equal(await page.locator('a[aria-current="page"][href="/finance/payables"]').count(),1);}
+   else {await page.locator('[data-app-sidebar]').hover();await page.getByRole('link',{name:translate(locale,'finance.nav.legacyLedger'),exact:true}).waitFor();assert.equal(await page.locator('a[aria-current="page"][href="/finance/payables"]').count(),1);}
   }
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,widths:[390,768,1024,1440],locales:['th','en'],actualUi:true,keyboard:true,externalRequests:0,artifacts:out}));
  }finally{if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));}
