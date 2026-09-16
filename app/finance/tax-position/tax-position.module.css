@@ -1,0 +1,13 @@
+.section { padding: 24px 0; border-top: 1px solid #d9e2df; min-width: 0; }
+.section h2 { font-size: 20px; margin: 0 0 16px; }
+.period { padding: 16px 0; }
+.heading { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; min-width: 0; }
+.heading h3 { font-size: 18px; margin: 0; }
+.row { padding: 16px 0; border-bottom: 1px solid #e3e9e6; overflow-wrap: anywhere; min-width: 0; }
+.muted { color: #596a65; font-size: 14px; line-height: 1.6; }
+.form { display: grid; gap: 16px; min-width: 0; }
+.form :is(input,select,textarea) { max-width: 100%; min-width: 0; }
+.check { display: flex; align-items: flex-start; gap: 10px; line-height: 1.6; }
+.check input { flex: 0 0 18px; width: 18px; height: 18px; margin: 4px 0 0; }
+.technical { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; font-size: 12px; }
+@media(max-width: 600px) { .heading { align-items: flex-start; } .section button { max-width: 100%; white-space: normal; } }

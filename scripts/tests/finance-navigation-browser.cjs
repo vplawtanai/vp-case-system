@@ -44,8 +44,8 @@ async function main() {
     await page.route('**/*', route => { if (new URL(route.request().url()).hostname === '127.0.0.1') return route.continue(); external.push(route.request().url()); return route.abort(); });
     const base = 'http://127.0.0.1:' + server.address().port;
     const expected = {
-      th: ['ใบเสนอราคา', 'ข้อตกลงค่าบริการ', 'รายการเรียกเก็บนอกใบเสนอราคา', 'ใบแจ้งหนี้', 'เงินรับ', 'เอกสารรับเงิน', 'รายการรอจ่าย', 'เงินสดและบัญชี', 'เบิกค่าใช้จ่าย', 'เดิม'],
-      en: ['Quotations', 'Fee Agreements', 'Non-Quotation Charges', 'Invoices', 'Payments', 'Payment Documents', 'Payables', 'Treasury', 'Expense Claims', 'Legacy'],
+      th: ['ใบเสนอราคา', 'ข้อตกลงค่าบริการ', 'รายการเรียกเก็บนอกใบเสนอราคา', 'ใบแจ้งหนี้', 'เงินรับ', 'เอกสารรับเงิน', 'รายการรอจ่าย', 'เงินสดและบัญชี', 'ภาษีและเครดิตภาษี', 'เบิกค่าใช้จ่าย', 'เดิม'],
+      en: ['Quotations', 'Fee Agreements', 'Non-Quotation Charges', 'Invoices', 'Payments', 'Payment Documents', 'Payables', 'Treasury', 'Tax Position', 'Expense Claims', 'Legacy'],
     };
     for (const width of [390, 768, 1024, 1440]) for (const locale of ['th', 'en']) {
       await page.setViewportSize({ width, height: 900 });
@@ -96,9 +96,9 @@ async function main() {
       assert.equal(await page.getByRole('textbox').inputValue(), 'Retained local edit');
       assert.equal(page.url(), base + '/finance/invoices/compose');
     }
-    for (const route of ['/finance/treasury','/finance/treasury/example']) {
+    for (const route of ['/finance/treasury','/finance/treasury/example','/finance/tax-position','/finance/tax-position/example']) {
       await page.goto(base + route);await page.locator('button[lang="en"]').click();
-      assert.equal(await page.getByRole('navigation').locator('a[aria-current="page"]').getAttribute('href'),'/finance/treasury');
+      assert.equal(await page.getByRole('navigation').locator('a[aria-current="page"]').getAttribute('href'),route.replace(/\/example$/, ''));
     }
     for (const [route, groupName] of [['receipts', 'Payment Documents'], ['combined-documents', 'Payment Documents'], ['tax-invoices', 'Payment Documents'], ['compensation', 'Legacy'], ['ledger', 'Legacy']]) {
       await page.goto(base + `/finance/${route}/synthetic-id`);

@@ -8,8 +8,8 @@ import { buildPermissions } from "../../lib/permissions.ts";
 
 const fullPermissions = buildPermissions({ role: "admin" });
 const expected = {
-  th: ["ใบเสนอราคา", "ข้อตกลงค่าบริการ", "รายการเรียกเก็บนอกใบเสนอราคา", "ใบแจ้งหนี้", "เงินรับ", "เอกสารรับเงิน", "รายการรอจ่าย", "เงินสดและบัญชี", "เบิกค่าใช้จ่าย", "เดิม"],
-  en: ["Quotations", "Fee Agreements", "Non-Quotation Charges", "Invoices", "Payments", "Payment Documents", "Payables", "Treasury", "Expense Claims", "Legacy"],
+  th: ["ใบเสนอราคา", "ข้อตกลงค่าบริการ", "รายการเรียกเก็บนอกใบเสนอราคา", "ใบแจ้งหนี้", "เงินรับ", "เอกสารรับเงิน", "รายการรอจ่าย", "เงินสดและบัญชี", "ภาษีและเครดิตภาษี", "เบิกค่าใช้จ่าย", "เดิม"],
+  en: ["Quotations", "Fee Agreements", "Non-Quotation Charges", "Invoices", "Payments", "Payment Documents", "Payables", "Treasury", "Tax Position", "Expense Claims", "Legacy"],
 };
 
 for (const locale of ["th", "en"] as const) test(`${locale}: Finance navigation follows the business workflow with parallel document destinations`, () => {
@@ -36,10 +36,19 @@ test("Locale changes preserve destination URLs; Cash is never mislabeled as Paym
 test("Navigation preserves independent permissions and omits empty groups", () => {
   assert.deepEqual(financeNavigationItems({} as never), []);
   assert.deepEqual(financeNavigationLinks({ canViewFinanceReceipts: true } as never).map(link => link.page), ["receipts"]);
-  assert.deepEqual(financeNavigationLinks({ canViewFinanceTaxInvoices: true } as never).map(link => link.page), ["tax-invoices"]);
+  assert.deepEqual(financeNavigationLinks({ canViewFinanceTaxInvoices: true } as never).map(link => link.page), ["tax-invoices", "tax-position"]);
   assert.deepEqual(financeNavigationLinks({ canConfirmFinancePayments: true } as never).map(link => link.page), ["payments"]);
   assert.deepEqual(financeNavigationLinks({ canViewFinanceCashTransactions: true } as never).map(link => link.page), ["treasury"]);
   assert.deepEqual(financeNavigationLinks({ canViewFinanceBillableCharges: true } as never).map(link => link.page), ["billable-charges"]);
+});
+
+test("Tax Position navigation mirrors existing tax-view and Partner read access", () => {
+  for (const permissions of [buildPermissions({ role: "admin" }), buildPermissions({ role: "partner" }), { canViewFinanceTaxInvoices: true }]) {
+    assert.equal(financeNavigationLinks(permissions as never).filter(link => link.page === "tax-position").length, 1);
+  }
+  for (const permissions of [{ role: "finance" }, { canViewFinancePayments: true }, { canViewFinanceCashTransactions: true }]) {
+    assert.ok(!financeNavigationLinks(permissions as never).some(link => link.page === "tax-position"));
+  }
 });
 
 test("Exact route families activate the correct leaf, including document children and legacy", () => {

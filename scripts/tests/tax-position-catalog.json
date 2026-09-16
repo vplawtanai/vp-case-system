@@ -1,0 +1,1124 @@
+[
+  {
+    "name": "finance_outgoing_wht_obligations",
+    "kind": "r",
+    "rls": true,
+    "force_rls": false,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "payout_source_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "source_line_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "source_fingerprint",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "payee_json",
+        "type": "jsonb",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "gross_base",
+        "type": "numeric(14,2)",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "explicit_treatment",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "explicit_rate",
+        "type": "numeric(7,4)",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "withheld_amount",
+        "type": "numeric(14,2)",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "withheld_on",
+        "type": "date",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "period_month",
+        "type": "date",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "currency",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "evidence_json",
+        "type": "jsonb",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "filing_status",
+        "type": "text",
+        "default": "'unfiled'::text",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "remittance_status",
+        "type": "text",
+        "default": "'not_remitted'::text",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "remitted_amount",
+        "type": "numeric(14,2)",
+        "default": "0",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_outgoing_wht_obligati_payout_source_id_source_line__key",
+        "type": "u",
+        "validated": true,
+        "deferrable": false,
+        "definition": "UNIQUE (payout_source_id, source_line_id, source_fingerprint)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_outgoing_wht_obligations_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((withheld_amount = round(((gross_base * explicit_rate) / (100)::numeric), 2)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_outgoing_wht_obligations_check1",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((period_month = (date_trunc('month'::text, (withheld_on)::timestamp with time zone))::date))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_outgoing_wht_obligations_check2",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((remitted_amount >= (0)::numeric) AND (remitted_amount <= withheld_amount)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_outgoing_wht_obligations_currency_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((currency = 'THB'::text))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_outgoing_wht_obligations_evidence_json_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((jsonb_typeof(evidence_json) = 'object'::text))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_outgoing_wht_obligations_explicit_rate_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((explicit_rate > (0)::numeric) AND (explicit_rate <= (100)::numeric)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_outgoing_wht_obligations_filing_status_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((filing_status = ANY (ARRAY['unfiled'::text, 'filed'::text])))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_outgoing_wht_obligations_gross_base_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((gross_base > (0)::numeric))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_outgoing_wht_obligations_payee_json_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((jsonb_typeof(payee_json) = 'object'::text))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_outgoing_wht_obligations_pkey",
+        "type": "p",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_outgoing_wht_obligations_remittance_status_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((remittance_status = ANY (ARRAY['not_remitted'::text, 'partially_remitted'::text, 'remitted'::text])))",
+        "initially_deferred": false
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_outgoing_wht_obligati_payout_source_id_source_line__key",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_outgoing_wht_obligati_payout_source_id_source_line__key ON public.finance_outgoing_wht_obligations USING btree (payout_source_id, source_line_id, source_fingerprint)"
+      },
+      {
+        "name": "finance_outgoing_wht_obligations_pkey",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_outgoing_wht_obligations_pkey ON public.finance_outgoing_wht_obligations USING btree (id)"
+      }
+    ],
+    "policies": [
+      {
+        "name": "tax_position_read",
+        "check": null,
+        "roles": [
+          "authenticated"
+        ],
+        "using": "tax_position_can_view()",
+        "command": "SELECT",
+        "permissive": "PERMISSIVE"
+      }
+    ],
+    "triggers": [
+      {
+        "name": "tax_position_no_outgoing",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER tax_position_no_outgoing BEFORE INSERT ON public.finance_outgoing_wht_obligations FOR EACH ROW EXECUTE FUNCTION tax_position_outgoing_unavailable()"
+      },
+      {
+        "name": "tax_position_no_rewrite",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER tax_position_no_rewrite BEFORE DELETE OR UPDATE ON public.finance_outgoing_wht_obligations FOR EACH ROW EXECUTE FUNCTION tax_position_immutable()"
+      },
+      {
+        "name": "tax_position_no_truncate",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER tax_position_no_truncate BEFORE TRUNCATE ON public.finance_outgoing_wht_obligations FOR EACH STATEMENT EXECUTE FUNCTION tax_position_immutable()"
+      }
+    ]
+  },
+  {
+    "name": "finance_tax_periods",
+    "kind": "r",
+    "rls": true,
+    "force_rls": false,
+    "columns": [
+      {
+        "name": "period_month",
+        "type": "date",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "default": "'open'::text",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "version",
+        "type": "integer",
+        "default": "1",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "input_vat_status",
+        "type": "text",
+        "default": "'incomplete'::text",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "input_vat_amount",
+        "type": "numeric(14,2)",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "net_vat_amount",
+        "type": "numeric(14,2)",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "filing_reference",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "filed_on",
+        "type": "date",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_tax_periods_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((status = 'filed'::text) = ((filing_reference IS NOT NULL) AND (filed_on IS NOT NULL))))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_periods_input_vat_amount_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((input_vat_amount IS NULL))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_periods_input_vat_status_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((input_vat_status = 'incomplete'::text))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_periods_net_vat_amount_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((net_vat_amount IS NULL))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_periods_period_month_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((EXTRACT(day FROM period_month) = (1)::numeric))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_periods_pkey",
+        "type": "p",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (period_month)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_periods_status_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((status = ANY (ARRAY['open'::text, 'ready_for_review'::text, 'filed'::text])))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_periods_version_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((version > 0))",
+        "initially_deferred": false
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_tax_periods_pkey",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_periods_pkey ON public.finance_tax_periods USING btree (period_month)"
+      }
+    ],
+    "policies": [
+      {
+        "name": "tax_position_read",
+        "check": null,
+        "roles": [
+          "authenticated"
+        ],
+        "using": "tax_position_can_view()",
+        "command": "SELECT",
+        "permissive": "PERMISSIVE"
+      }
+    ],
+    "triggers": [
+      {
+        "name": "tax_position_no_truncate",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER tax_position_no_truncate BEFORE TRUNCATE ON public.finance_tax_periods FOR EACH STATEMENT EXECUTE FUNCTION tax_position_immutable()"
+      }
+    ]
+  },
+  {
+    "name": "finance_tax_position_audit",
+    "kind": "r",
+    "rls": true,
+    "force_rls": false,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "sequence",
+        "type": "bigint",
+        "default": null,
+        "identity": "a",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "revision_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "fact_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "period_month",
+        "type": "date",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "event_type",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "evidence_json",
+        "type": "jsonb",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "actor_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_tax_position_audit_actor_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (actor_id) REFERENCES user_profiles(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_position_audit_event_type_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((event_type = ANY (ARRAY['materialized'::text, 'period_transition'::text, 'source_changed'::text, 'wht_evidence'::text])))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_position_audit_evidence_json_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((jsonb_typeof(evidence_json) = 'object'::text))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_position_audit_fact_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (fact_id) REFERENCES finance_tax_position_facts(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_position_audit_period_month_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (period_month) REFERENCES finance_tax_periods(period_month)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_position_audit_pkey",
+        "type": "p",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_position_audit_revision_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (revision_id) REFERENCES finance_tax_source_revisions(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_position_audit_sequence_key",
+        "type": "u",
+        "validated": true,
+        "deferrable": false,
+        "definition": "UNIQUE (sequence)",
+        "initially_deferred": false
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_tax_position_audit_pkey",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_position_audit_pkey ON public.finance_tax_position_audit USING btree (id)"
+      },
+      {
+        "name": "finance_tax_position_audit_sequence_key",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_position_audit_sequence_key ON public.finance_tax_position_audit USING btree (sequence)"
+      },
+      {
+        "name": "tax_position_evidence_history",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE INDEX tax_position_evidence_history ON public.finance_tax_position_audit USING btree (fact_id, created_at, id)"
+      }
+    ],
+    "policies": [
+      {
+        "name": "tax_position_read",
+        "check": null,
+        "roles": [
+          "authenticated"
+        ],
+        "using": "tax_position_can_view()",
+        "command": "SELECT",
+        "permissive": "PERMISSIVE"
+      }
+    ],
+    "triggers": [
+      {
+        "name": "tax_position_no_rewrite",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER tax_position_no_rewrite BEFORE DELETE OR UPDATE ON public.finance_tax_position_audit FOR EACH ROW EXECUTE FUNCTION tax_position_immutable()"
+      },
+      {
+        "name": "tax_position_no_truncate",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER tax_position_no_truncate BEFORE TRUNCATE ON public.finance_tax_position_audit FOR EACH STATEMENT EXECUTE FUNCTION tax_position_immutable()"
+      }
+    ]
+  },
+  {
+    "name": "finance_tax_position_facts",
+    "kind": "r",
+    "rls": true,
+    "force_rls": false,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "revision_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "source_line_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "tax_kind",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "effective_on",
+        "type": "date",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "period_month",
+        "type": "date",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "currency",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "base_amount",
+        "type": "numeric(14,2)",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "rate_percent",
+        "type": "numeric(7,4)",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "tax_amount",
+        "type": "numeric(14,2)",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "treatment",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "date_basis",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "document_reference",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "payer_json",
+        "type": "jsonb",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "evidence_json",
+        "type": "jsonb",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_tax_position_facts_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((period_month = (date_trunc('month'::text, (effective_on)::timestamp with time zone))::date))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_position_facts_check1",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((tax_kind = 'output_vat'::text) OR ((tax_amount > (0)::numeric) AND ((base_amount IS NULL) OR (base_amount > (0)::numeric)))))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_position_facts_currency_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((currency = 'THB'::text))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_position_facts_date_basis_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((date_basis = ANY (ARRAY['confirmed_receipt'::text, 'approved_tax_point'::text, 'document_adjustment'::text])))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_position_facts_evidence_json_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((jsonb_typeof(evidence_json) = 'object'::text))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_position_facts_period_month_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((EXTRACT(day FROM period_month) = (1)::numeric))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_position_facts_pkey",
+        "type": "p",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_position_facts_rate_percent_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((rate_percent >= (0)::numeric) AND (rate_percent <= (100)::numeric)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_position_facts_revision_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (revision_id) REFERENCES finance_tax_source_revisions(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_position_facts_revision_id_source_line_id_tax_k_key",
+        "type": "u",
+        "validated": true,
+        "deferrable": false,
+        "definition": "UNIQUE (revision_id, source_line_id, tax_kind)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_position_facts_tax_kind_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((tax_kind = ANY (ARRAY['output_vat'::text, 'incoming_wht'::text])))",
+        "initially_deferred": false
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_tax_position_facts_pkey",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_position_facts_pkey ON public.finance_tax_position_facts USING btree (id)"
+      },
+      {
+        "name": "finance_tax_position_facts_revision_id_source_line_id_tax_k_key",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_position_facts_revision_id_source_line_id_tax_k_key ON public.finance_tax_position_facts USING btree (revision_id, source_line_id, tax_kind)"
+      },
+      {
+        "name": "tax_position_period",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE INDEX tax_position_period ON public.finance_tax_position_facts USING btree (period_month, tax_kind)"
+      }
+    ],
+    "policies": [
+      {
+        "name": "tax_position_read",
+        "check": null,
+        "roles": [
+          "authenticated"
+        ],
+        "using": "tax_position_can_view()",
+        "command": "SELECT",
+        "permissive": "PERMISSIVE"
+      }
+    ],
+    "triggers": [
+      {
+        "name": "tax_position_no_rewrite",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER tax_position_no_rewrite BEFORE DELETE OR UPDATE ON public.finance_tax_position_facts FOR EACH ROW EXECUTE FUNCTION tax_position_immutable()"
+      },
+      {
+        "name": "tax_position_no_truncate",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER tax_position_no_truncate BEFORE TRUNCATE ON public.finance_tax_position_facts FOR EACH STATEMENT EXECUTE FUNCTION tax_position_immutable()"
+      }
+    ]
+  },
+  {
+    "name": "finance_tax_source_revisions",
+    "kind": "r",
+    "rls": true,
+    "force_rls": false,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "source_type",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "source_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "revision",
+        "type": "integer",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "fingerprint",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "supersedes_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "evidence_json",
+        "type": "jsonb",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "reason",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "actor_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_tax_source_revisions_actor_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (actor_id) REFERENCES user_profiles(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_source_revisions_evidence_json_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((jsonb_typeof(evidence_json) = 'object'::text))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_source_revisions_fingerprint_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((length(fingerprint) = 32))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_source_revisions_pkey",
+        "type": "p",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_source_revisions_reason_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((length(btrim(reason)) >= 1) AND (length(btrim(reason)) <= 2000)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_source_revisions_revision_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((revision > 0))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_source_revisions_source_type_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((source_type = ANY (ARRAY['direct_money_receipt'::text, 'payment'::text, 'tax_invoice'::text, 'tax_correction'::text])))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_source_revisions_source_type_source_id_fingerpr_key",
+        "type": "u",
+        "validated": true,
+        "deferrable": false,
+        "definition": "UNIQUE (source_type, source_id, fingerprint)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_source_revisions_source_type_source_id_revision_key",
+        "type": "u",
+        "validated": true,
+        "deferrable": false,
+        "definition": "UNIQUE (source_type, source_id, revision)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_source_revisions_supersedes_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (supersedes_id) REFERENCES finance_tax_source_revisions(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_source_revisions_supersedes_id_key",
+        "type": "u",
+        "validated": true,
+        "deferrable": false,
+        "definition": "UNIQUE (supersedes_id)",
+        "initially_deferred": false
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_tax_source_revisions_pkey",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_source_revisions_pkey ON public.finance_tax_source_revisions USING btree (id)"
+      },
+      {
+        "name": "finance_tax_source_revisions_source_type_source_id_fingerpr_key",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_source_revisions_source_type_source_id_fingerpr_key ON public.finance_tax_source_revisions USING btree (source_type, source_id, fingerprint)"
+      },
+      {
+        "name": "finance_tax_source_revisions_source_type_source_id_revision_key",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_source_revisions_source_type_source_id_revision_key ON public.finance_tax_source_revisions USING btree (source_type, source_id, revision)"
+      },
+      {
+        "name": "finance_tax_source_revisions_supersedes_id_key",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_source_revisions_supersedes_id_key ON public.finance_tax_source_revisions USING btree (supersedes_id)"
+      }
+    ],
+    "policies": [
+      {
+        "name": "tax_position_read",
+        "check": null,
+        "roles": [
+          "authenticated"
+        ],
+        "using": "tax_position_can_view()",
+        "command": "SELECT",
+        "permissive": "PERMISSIVE"
+      }
+    ],
+    "triggers": [
+      {
+        "name": "tax_position_no_rewrite",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER tax_position_no_rewrite BEFORE DELETE OR UPDATE ON public.finance_tax_source_revisions FOR EACH ROW EXECUTE FUNCTION tax_position_immutable()"
+      },
+      {
+        "name": "tax_position_no_truncate",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER tax_position_no_truncate BEFORE TRUNCATE ON public.finance_tax_source_revisions FOR EACH STATEMENT EXECUTE FUNCTION tax_position_immutable()"
+      }
+    ]
+  }
+]
