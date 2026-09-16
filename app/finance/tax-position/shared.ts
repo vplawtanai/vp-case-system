@@ -14,7 +14,8 @@ export type TaxFact = {
 export type TaxPeriod = { period_month: string; status: "open" | "ready_for_review" | "filed"; version: number;
  known_output_vat: number; input_vat_status: "incomplete"; input_vat_amount: null; net_vat_amount: null; filing_reference: string | null; filed_on: string | null };
 export type TaxPositionData = { can_manage: boolean; can_materialize: boolean; periods: TaxPeriod[]; facts: TaxFact[]; pending_sources: TaxSource[];
- incoming_wht_total: number; input_vat_complete: false; outgoing_workflow_available: false;
+ incoming_wht_total: number; input_vat_complete: false; outgoing_workflow_available: boolean;
+ outgoing?: { id: string; payout_id: string; payee_name: string; gross_base: number; rate: number; withheld_amount: number; withheld_on: string; filing_status: string; remittance_status: string; remitted_amount: number }[];
  coverage: { invoice_items_without_approved_tax_point: number; unresolved_direct_sources: number }; history: unknown[] };
 export function taxErrorKey(error: unknown) {
  const message = typeof error === "object" && error && "message" in error ? String(error.message) : "";

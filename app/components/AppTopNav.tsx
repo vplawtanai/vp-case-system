@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { Menu, UserRound } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { buildPermissions } from "../../lib/permissions";
 import type { UserPermissions, UserRole } from "../../lib/permissions";
 import { useI18n } from "../../lib/i18n/provider";
 import LanguageSelector from "./LanguageSelector";
+import { FinanceSidebar } from "../finance/FinanceSidebar";
+import type { UserPermissionProfile } from "../../lib/permissions";
 
 type AppTopNavProps = {
   title: string;
@@ -77,13 +80,32 @@ export default function AppTopNav({
   const router = useRouter();
   const pathname = usePathname();
 
-  const [profile, setProfile] = useState<UserProfile>({
+  const [profile, setProfile] = useState<UserProfile & UserPermissionProfile>({
     role: "",
     financial_access: false,
   });
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const financePage = pathname.startsWith("/finance");
+  const expanded = financePage || sidebarExpanded;
+  const drawerRef = useRef<HTMLElement>(null), menuRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const previous = document.activeElement as HTMLElement | null, menu = menuRef.current;
+    drawerRef.current?.querySelector<HTMLElement>("button,a")?.focus();
+    const keyboard = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.preventDefault(); setDrawerOpen(false); }
+      if (event.key !== "Tab") return;
+      const items = Array.from(drawerRef.current?.querySelectorAll<HTMLElement>("a,button:not(:disabled)") || []);
+      const first = items[0], last = items.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    document.addEventListener("keydown", keyboard);
+    return () => { document.removeEventListener("keydown", keyboard); (previous || menu)?.focus(); };
+  }, [drawerOpen]);
 
   const permissions: UserPermissions = useMemo(() => {
     return buildPermissions(profile);
@@ -162,11 +184,11 @@ export default function AppTopNav({
       return;
     }
 
-    document.body.style.paddingLeft = "88px";
+    document.body.style.paddingLeft = financePage ? "256px" : "88px";
     return () => {
       document.body.style.paddingLeft = "";
     };
-  }, [isMobile]);
+  }, [isMobile, financePage]);
 
   useEffect(() => {
     const loadCurrentUserProfile = async () => {
@@ -182,7 +204,7 @@ export default function AppTopNav({
 
       const { data, error } = await supabase
         .from("user_profiles")
-        .select("role, financial_access, can_submit_expense_claim, can_view_own_expense_claims, can_view_all_expense_claims, can_view_company_ledger, can_view_lawyer_compensation, can_view_finance_cash_transactions, can_manage_finance_cash_transactions, can_confirm_finance_cash_transactions, can_reverse_finance_cash_transactions, can_view_finance_billable_charges, can_manage_finance_billable_charges, can_approve_finance_billable_charges, can_submit_office_work_log, can_view_own_office_work_logs, can_view_all_office_work_logs")
+        .select("role, financial_access, can_submit_expense_claim, can_view_own_expense_claims, can_view_all_expense_claims, can_view_company_ledger, can_view_lawyer_compensation, can_view_finance_cash_transactions, can_manage_finance_cash_transactions, can_confirm_finance_cash_transactions, can_reverse_finance_cash_transactions, can_view_finance_billable_charges, can_manage_finance_billable_charges, can_approve_finance_billable_charges, can_submit_office_work_log, can_view_own_office_work_logs, can_view_all_office_work_logs, can_manage_finance_payments, can_confirm_finance_payments, can_reverse_finance_payments, can_reallocate_finance_payments, can_view_finance_receipts, can_manage_finance_receipts, can_issue_finance_receipts, can_void_finance_receipts, can_view_finance_tax_invoices, can_manage_finance_tax_invoices, can_issue_finance_tax_invoices")
         .eq("id", userData.user.id)
         .single();
 
@@ -195,6 +217,7 @@ export default function AppTopNav({
       }
 
       setProfile({
+        ...data,
         role: data.role || "",
         financial_access: data.financial_access === true,
         can_submit_expense_claim: data.can_submit_expense_claim === true,
@@ -309,6 +332,7 @@ export default function AppTopNav({
                   {!collapsed && <span>{item.label}</span>}
                 </Link>
               ))}
+              {!collapsed && visibleItems.some(item => item.page === "finance") ? <FinanceSidebar permissions={permissions} pathname={pathname} onNavigate={() => setDrawerOpen(false)} /> : null}
             </div>
           );
         })}
@@ -327,25 +351,31 @@ export default function AppTopNav({
     <>
       {!isMobile && (
         <aside
-          style={sidebarExpanded ? sidebarStyle : collapsedSidebarStyle}
+          style={expanded ? sidebarStyle : collapsedSidebarStyle}
+          onFocus={() => setSidebarExpanded(true)}
           onMouseEnter={() => setSidebarExpanded(true)}
           onMouseLeave={() => setSidebarExpanded(false)}
         >
-          {renderNavigation(!sidebarExpanded)}
+          {renderNavigation(!expanded)}
         </aside>
       )}
 
       {isMobile && (
         <div style={mobileTopBarStyle}>
           <button
+            ref={menuRef}
+            aria-expanded={drawerOpen}
+            aria-label={t("common.nav.menu")}
+            title={t("common.nav.menu")}
             type="button"
             onClick={() => setDrawerOpen(true)}
             style={mobileMenuButtonStyle}
           >
-            {t("common.nav.menu")}
+            <Menu size={20} aria-hidden="true" />
           </button>
-          <div style={mobileTitleStyle}>{title}</div>
+          {financePage ? <span style={{ flex: 1 }} /> : <div style={mobileTitleStyle}>{title}</div>}
           <LanguageSelector />
+          {financePage ? <Link href="/account/security" title={t("common.nav.account")} aria-label={t("common.nav.account")} style={utilityLinkStyle}><UserRound size={20} /></Link> : null}
         </div>
       )}
 
@@ -357,7 +387,7 @@ export default function AppTopNav({
             onClick={() => setDrawerOpen(false)}
             style={drawerOverlayStyle}
           />
-          <aside style={drawerStyle}>
+          <aside ref={drawerRef} role="dialog" aria-modal="true" aria-label={t("common.nav.menu")} style={drawerStyle}>
             <button
               type="button"
               onClick={() => setDrawerOpen(false)}
@@ -370,11 +400,15 @@ export default function AppTopNav({
         </>
       )}
 
-      <div style={pageHeaderStyle}>
-        {!isMobile ? <div style={{ float: "right", marginLeft: 12 }}><LanguageSelector /></div> : null}
+      {financePage && !isMobile ? <header data-finance-utilities style={financeUtilityStyle}>
+        <LanguageSelector />
+        <Link href="/account/security" title={t("common.nav.account")} aria-label={t("common.nav.account")} style={utilityLinkStyle}><UserRound size={20} /></Link>
+      </header> : null}
+      {!pathname.startsWith("/finance/payouts/") ? <div style={pageHeaderStyle}>
+        {!isMobile && !financePage ? <div style={{ float: "right", marginLeft: 12 }}><LanguageSelector /></div> : null}
         <h1 style={titleStyle}>{title}</h1>
         {subtitle ? <p style={subtitleStyle}>{subtitle}</p> : null}
-      </div>
+      </div> : null}
     </>
   );
 }
@@ -549,6 +583,15 @@ const pageHeaderStyle: React.CSSProperties = {
   paddingTop: 4,
 };
 
+const financeUtilityStyle: React.CSSProperties = {
+  display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12,
+  minHeight: 44, marginBottom: 16, paddingBottom: 8, borderBottom: "1px solid #e5e7eb",
+};
+const utilityLinkStyle: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", justifyContent: "center", width: 40, height: 40,
+  border: "1px solid #d1d5db", borderRadius: 6, color: "#334155", background: "#ffffff", flexShrink: 0,
+};
+
 const sidebarStyle: React.CSSProperties = {
   position: "fixed",
   top: 0,
@@ -651,6 +694,7 @@ const mobileTopBarStyle: React.CSSProperties = {
 };
 
 const mobileMenuButtonStyle: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 40, minHeight: 40,
   padding: "9px 12px",
   borderRadius: 8,
   border: "1px solid #0f2743",

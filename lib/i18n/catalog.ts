@@ -1,4 +1,5 @@
 import { commonMessages } from "./messages/common";
+import { payoutMessages } from "./messages/payouts";
 import { incomingMoneyMessages } from "./messages/incoming-money";
 import { directMoneyMessages } from "./messages/direct-money";
 import { payableMessages } from "./messages/payables";
@@ -24,7 +25,7 @@ import { compensationMessages } from "./messages/compensation";
 import { documentSettingsMessages } from "./messages/document-settings";
 import { formatMessage, type MessageCatalog, type MessageParameters, type UiLocale, type UiMessage } from "./core";
 
-export const messages: MessageCatalog = { ...taxPositionMessages, ...treasuryMessages, ...payableMessages, ...incomingMoneyMessages, ...directMoneyMessages, ...vpDistributionMessages, ...moneyAllocationMessages, ...taxCorrectionMessages, ...commonMessages, ...customerTaxMessages, ...documentDecisionMessages, ...taxInvoiceMessages, ...combinedDocumentMessages, ...receiptMessages, ...paymentMessages, ...invoiceMessages, ...billableChargeMessages, ...feeAgreementMessages, ...billingPlanMessages, ...quotationsMessages, ...cashTransactionsMessages, ...legacyFinanceMessages, ...compensationMessages, ...documentSettingsMessages };
+export const messages: MessageCatalog = { ...payoutMessages, ...taxPositionMessages, ...treasuryMessages, ...payableMessages, ...incomingMoneyMessages, ...directMoneyMessages, ...vpDistributionMessages, ...moneyAllocationMessages, ...taxCorrectionMessages, ...commonMessages, ...customerTaxMessages, ...documentDecisionMessages, ...taxInvoiceMessages, ...combinedDocumentMessages, ...receiptMessages, ...paymentMessages, ...invoiceMessages, ...billableChargeMessages, ...feeAgreementMessages, ...billingPlanMessages, ...quotationsMessages, ...cashTransactionsMessages, ...legacyFinanceMessages, ...compensationMessages, ...documentSettingsMessages };
 
 export function translate(locale: UiLocale, key: string, parameters?: MessageParameters): string {
   return formatMessage(messages, locale, key, parameters);

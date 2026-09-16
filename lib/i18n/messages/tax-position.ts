@@ -93,7 +93,7 @@ export const taxPositionMessages = {
  "taxPosition.incomingHelp": { th: "เครดิตภาษีไม่ใช่เงินสด สถานะหลักฐานไม่ใช่การยืนยันว่าใช้เครดิตยื่นภาษีแล้ว", en: "Tax credit is not cash. Evidence status does not mean the credit has been claimed." },
  "taxPosition.outgoing": { th: "WHT ขาออกรอนำส่ง", en: "Outgoing WHT obligations" },
  "taxPosition.noOutgoing": { th: "ยังไม่มีรายการภาษีหัก ณ ที่จ่ายขาออก", en: "No outgoing withholding tax records yet." },
- "taxPosition.outgoingHelp": { th: "ยังไม่เปิดใช้กระบวนการจ่ายเงินและนำส่งภาษี จึงยังไม่สรุปยอดภาระภาษีขาออก", en: "Payout and remittance are not enabled. An outgoing liability total is not available." },
+ "taxPosition.outgoingHelp": { th: "ภาษีที่หักจากการจ่ายเงินจริง ยังไม่ใช่การนำส่งภาษี และไม่หักกลบกับเครดิต WHT ขาเข้า", en: "Tax withheld from actual payouts. It is not remitted and is not offset against incoming WHT credits." },
  "taxPosition.open": { th: "กำลังรวบรวม", en: "Open" },
  "taxPosition.ready_for_review": { th: "พร้อมตรวจ", en: "Ready for review" },
  "taxPosition.filed": { th: "ยื่นแล้ว", en: "Filed" },

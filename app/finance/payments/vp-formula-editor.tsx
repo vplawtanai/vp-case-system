@@ -1,6 +1,9 @@
 "use client";
 
-import { useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { supabase } from "../../../lib/supabase";
+import { PayeeModal } from "../payouts/payee-modal";
+import type { Payee } from "../payouts/shared";
 import { useI18n } from "../../../lib/i18n/provider";
 import { compensationRoleLabel } from "../../../lib/i18n/legacy-finance";
 import { compensationFormulaDefinitions, createAllocation, formatPercent, getDisplayPercent, isFixedSourceWorkerRow,
@@ -42,6 +45,12 @@ export function VpFormulaEditor({ pool, input, people, currency, disabled, inval
   disabled: boolean; invalid: boolean; onChange: (value: FormulaInput) => void;
 }) {
   const { t, locale } = useI18n(), id = useId(), root = useRef<HTMLDivElement>(null);
+  const [payees, setPayees] = useState<Payee[]>([]), [newPayee, setNewPayee] = useState(false), [revision, setRevision] = useState(0);
+  useEffect(() => {
+    let live = true;
+    void supabase.rpc("get_finance_payees").then(r => { if (live && !r.error && Array.isArray(r.data)) setPayees(r.data.filter((p: Payee) => p.kind === "external" && p.is_active)); });
+    return () => { live = false; };
+  }, [revision]);
   const money = (value: number | undefined) => value === undefined ? "-" : `${value.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
   const calculated = input ? calculateFormula(pool, input, people) : { result: null, errors: ["formulaRequired"] };
   const issues = [...new Set([...calculated.errors, ...(input ? distributionRoleIssues(input, people) : [])])];
@@ -90,6 +99,7 @@ export function VpFormulaEditor({ pool, input, people, currency, disabled, inval
               {company ? <div className={css.readonly}><span>{t("vpFormula.recipient")}</span><strong>{t("vpFormula.companyName")}</strong></div> : <label>{t("vpFormula.recipient")}
                 <select aria-label={t("vpFormula.recipient")} value={people.some(person => person.id === row.recipient_user_id) || row.recipient_user_id === "__other__" ? row.recipient_user_id : ""}
                   aria-invalid={invalid && missingPerson} onChange={event => change(index, { recipient_user_id: event.target.value,
+                    recipient_payee_id: undefined,
                     recipient_name: event.target.value === "__other__" ? "" : people.find(person => person.id === event.target.value)?.name || "" })}>
                   <option value="">{t("vpFormula.chooseRecipient")}</option>
                   {people.map(person => <option value={person.id} key={person.id}>{person.name}</option>)}
@@ -103,8 +113,10 @@ export function VpFormulaEditor({ pool, input, people, currency, disabled, inval
                 {workRoles.filter(option => !workPool || option.value !== "Lead Lawyer / Case Owner").map(option => <option value={option.value} key={option.value}>{t(option.label)}</option>)}
               </select>{invalid && missingRole ? <span className={css.fieldError}>{t("vpFormula.error.controlledRole")}</span> : null}</label>
                 : <div className={css.readonly}><span>{t("vpFormula.type")}</span><strong>{t(residual ? "vpFormula.lead" : bucketLabel[bucket])}</strong></div>}
-              {!company && row.recipient_user_id === "__other__" ? <label>{t("vpFormula.externalName")}<input aria-label={t("vpFormula.externalName")} value={row.recipient_name}
-                aria-invalid={invalid && missingPerson} maxLength={300} onChange={event => change(index, { recipient_name: event.target.value })} /></label> : null}
+              {!company && row.recipient_user_id === "__other__" ? <div><label>{t("payout.external")}<select aria-label={t("payout.external")} value={row.recipient_payee_id || ""}
+                aria-invalid={invalid && !row.recipient_payee_id} onChange={event => change(index, { recipient_payee_id: event.target.value, recipient_name: payees.find(p => p.id === event.target.value)?.legal_name || "" })}>
+                <option value="">{row.recipient_name || t("vpFormula.chooseRecipient")}</option>{payees.map(p => <option key={p.id} value={p.id}>{p.legal_name}</option>)}</select></label>
+                <button type="button" className={styles.button} onClick={() => setNewPayee(true)}>{t("payout.add")}</button></div> : null}
               {locked ? <div className={css.readonly}><span>{t(parameterLabel)}</span><strong>{getDisplayPercent(row, input.code)}%</strong>
                 {residual ? <span>{t("vpFormula.remainderOwner")}</span> : <span>{t("vpFormula.fixedShare")}</span>}</div>
                 : <label>{t(parameterLabel)}<input aria-label={t(parameterLabel)} type="text" inputMode="decimal" maxLength={24} value={fixed ? row.amount : getDisplayPercent(row, input.code)}
@@ -124,5 +136,6 @@ export function VpFormulaEditor({ pool, input, people, currency, disabled, inval
       </section>;
     }) : null}
     {invalid && issues.length ? <div id={id} role="alert" className={styles.error}>{issues.map(error => <p key={error}>{t(`vpFormula.error.${error}`)}</p>)}</div> : null}
+    {newPayee ? <PayeeModal onClose={() => setNewPayee(false)} onSaved={() => { setNewPayee(false); setRevision(n => n + 1); }} /> : null}
   </div>;
 }

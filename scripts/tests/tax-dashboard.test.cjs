@@ -66,6 +66,12 @@ test('Dashboard: full pagination, cents arithmetic and Bangkok month boundaries'
  const many=fixture();many.groups=Array.from({length:27},(_,i)=>({...many.groups[0],recipient_id:'r'+i,components:[{id:'r'+i,recipient_id:'r'+i,bucket:'work',status:'open',currency:'THB',gross_amount:1}]}));
  const paged=await read(many);assert.equal(summarizeDashboard(paged.data,month).payable,27);assert.equal(paged.calls.filter(c=>c.rpc==='get_finance_payable_entitlements').length,2);
 });
+test('Dashboard: outgoing WHT is separate, monthly, unremitted and never offsets cash/VAT/incoming credit',async()=>{
+ const data=fixture();data.register.outgoing_workflow_available=true;data.register.outgoing=[{id:'one',payout_id:'synthetic',withheld_on:'2026-09-01',withheld_amount:93.12,remitted_amount:0}];
+ const a=adapter(data),loaded=await readDashboard(a.client,buildPermissions({role:'admin'}),'2026-09');const result=summarizeDashboard(loaded,'2026-09');
+ assert.equal(result.outgoingHeld,93.12);assert.equal(result.outgoingDue,93.12);assert.equal(result.wht,560.19);assert.equal(result.cash,34419.81);assert.equal(result.outputVat,1027.1);
+ assert.equal(summarizeDashboard(loaded,'2026-10').outgoingHeld,0);
+});
 test('Dashboard: read model has no writes/private RPC and all translated labels exist',()=>{
  const source=fs.readFileSync('app/finance/tax-position/dashboard-data.ts','utf8');assert.doesNotMatch(source,/\.(insert|update|delete|upsert)\(/);
  assert.deepEqual([...source.matchAll(/\.rpc\("([^"]+)"/g)].map(m=>m[1]).sort(),['get_finance_payable_entitlements','get_finance_tax_position','get_finance_treasury']);

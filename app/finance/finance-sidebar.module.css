@@ -1,0 +1,5 @@
+.nav { display:grid; gap:3px; padding:0 0 4px 12px; min-width:0; }
+.nav section { display:grid; gap:3px; }.nav h3 { font-size:12px; font-weight:600; margin:12px 10px 3px; color:#64748b; }
+.nav a { padding:8px 10px; min-height:36px; border-radius:5px; font-size:13px; line-height:1.5; text-decoration:none; color:#42536b; overflow-wrap:anywhere; }
+.nav a:hover { background:#eef4fc; }.nav a[aria-current] { color:#1259bd; background:#eaf2ff; font-weight:650; }
+.nav a:focus-visible { outline:2px solid #1766df; outline-offset:1px; }.nav .legacy { border-top:1px solid #e1e7ef; margin-top:8px; }.legacy a { color:#667388; }

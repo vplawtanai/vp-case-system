@@ -15,6 +15,7 @@ export type AllocationRow = {
   batch_id?: string;
   recipient_type: string;
   recipient_user_id: string;
+  recipient_payee_id?: string;
   recipient_name: string;
   role_label: string;
   custom_role?: string;

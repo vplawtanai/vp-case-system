@@ -101,7 +101,9 @@ export function TaxPositionWorkspace() {
     <p>{t("taxPosition.total")}: <strong>{amount(data.incoming_wht_total)}</strong></p>
     {data.facts.filter(f => f.tax_kind === "incoming_wht").map(fact)}
    </section>
-   <section className={styles.section}><h2>{t("taxPosition.outgoing")}</h2><p>{t("taxPosition.noOutgoing")}</p><p className={styles.muted}>{t("taxPosition.outgoingHelp")}</p></section>
+   <section className={styles.section}><h2>{t("taxPosition.outgoing")}</h2><p className={styles.muted}>{t("taxPosition.outgoingHelp")}</p>
+    {!data.outgoing?.length ? <EmptyState>{t("taxPosition.empty")}</EmptyState> : data.outgoing.map(w => <article className={styles.row} key={w.id}><strong>{w.payee_name}</strong><p>{date(w.withheld_on)} · {w.rate}% · {amount(w.withheld_amount)}</p><p>{t("payout.notRemitted")}</p></article>)}
+   </section>
    {data.can_materialize && data.pending_sources.length ? <section className={styles.section}><h2>{t("taxPosition.pending")}</h2>
     {data.pending_sources.map(s => <article className={styles.row} key={`${s.source_type}:${s.source_id}`}><div className={styles.heading}>
      <strong>{t(`taxPosition.${s.source_type}`)} · {sourceLabel(s)}</strong><span>{date(s.effective_on)}</span></div>

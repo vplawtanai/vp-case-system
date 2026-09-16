@@ -29,7 +29,7 @@ for(const locale of ['th','en'])test(`Payables ${locale}: hide pagination for ze
 });
 for(const locale of ['th','en'])test(`Finance ${locale}: Payables precedes Expense Claims; Compensation stays permission-gated inside Legacy`,()=>{
  const p=buildPermissions({role:'admin'}),items=financeNavigationItems(p,locale);
- assert.deepEqual(items.map(i=>i.group||i.page),['quotations','fee-agreements','billable-charges','invoices','payments','payment-documents','payables','treasury','claims','legacy']);
+ assert.deepEqual(items.map(i=>i.group||i.page),['quotations','fee-agreements','billable-charges','invoices','payments','payment-documents','treasury','tax-position','payables','claims','legacy']);
  assert.ok(!items.some(i=>i.page==='compensation'));
  const legacy=items.find(i=>i.group==='legacy');
  assert.deepEqual(legacy.children.map(i=>i.href),['/finance/compensation','/finance/ledger']);
@@ -77,7 +77,7 @@ test('TH/EN catalog complete; existing Finance read policy and navigation order 
   if(role==='admin'){assert.ok(links.findIndex(l=>l.page==='payables')<links.findIndex(l=>l.page==='compensation'));assert.ok(links.some(l=>l.page==='compensation'));}
  }
  assert.equal(activeFinancePage('/finance/payables','payments'),'payables');
- const source=fs.readFileSync('app/finance/payables/page.tsx','utf8');assert.match(source,/get_finance_payable_entitlements/);assert.doesNotMatch(source,/\.insert\(|\.update\(|\.delete\(|ensure_finance|payout/i);
+ const source=fs.readFileSync('app/finance/payables/page.tsx','utf8');assert.match(source,/get_finance_payable_entitlements/);assert.doesNotMatch(source,/\.insert\(|\.update\(|\.delete\(|ensure_finance|confirm_finance_payout/i);assert.match(source,/payoutHref\(group.recipient_id\)/);
  const action=fs.readFileSync('app/finance/payables/materialize-action.tsx','utf8');assert.match(action,/if \(lock.current/);assert.match(action,/p_expected_version: version/);
  const panel=fs.readFileSync('app/finance/payments/vp-distribution-panel.tsx','utf8');assert.match(panel,/current\?\.status === "finalized" \? <MaterializeEntitlements/);
 });

@@ -19,6 +19,7 @@ export type FormulaRecipient = {
   recipient_kind: "company" | "user" | "external"; recipient_user_id: string | null; recipient_name: string;
   percent: number | null; fixed_amount: number | null; amount: number; bucket: FormulaBucket;
   rounding_adjustment_cents: number;
+  recipient_payee_id?: string;
 };
 export type FormulaResult = {
   schema_version: 1; formula_code: FormulaCode; formula_version: number; formula_snapshot: FormulaDefinition;
@@ -85,12 +86,13 @@ export function calculateFormula(poolValue: number, input: FormulaInput, people:
     const name = company ? "Company" : kind === "external" ? row.recipient_name.trim() : user?.name || "";
     if (!name || name.length > 300 || (kind === "user" && !user)) errors.add("recipientRequired");
     return { component_no: index + 1, recipient_type: row.recipient_type, role_label: role,
+      ...(kind === "external" && row.recipient_payee_id ? { recipient_payee_id: row.recipient_payee_id } : {}),
       recipient_kind: kind, recipient_user_id: kind === "user" ? row.recipient_user_id || null : null, recipient_name: name,
       percent: fixed ? null : Number(values[index]) / 10000, fixed_amount: fixed ? Number(values[index]) / 100 : null,
       amount: Number(amounts[index]) / 100, bucket: bucket ?? "work_compensation_amount",
       rounding_adjustment_cents: Number(amounts[index] - floorAmounts[index]) };
   });
-  const identityKeys = recipients.map(row => JSON.stringify([row.recipient_kind, row.recipient_user_id ?? row.recipient_name, row.role_label, row.bucket]));
+  const identityKeys = recipients.map(row => JSON.stringify([row.recipient_kind, row.recipient_user_id ?? row.recipient_payee_id ?? row.recipient_name, row.role_label, row.bucket]));
   if (new Set(identityKeys).size !== identityKeys.length) errors.add("duplicateRecipient");
   const totals = { referral_amount: 0, company_share_amount: 0, work_compensation_amount: 0 };
   for (const bucket of Object.keys(totals) as FormulaBucket[]) totals[bucket] = Number(recipients.reduce((sum, row, index) => sum + (row.bucket === bucket ? amounts[index] : BigInt(0)), BigInt(0))) / 100;
@@ -102,6 +104,7 @@ export function restoreFormula(result: FormulaResult): FormulaInput {
   return { code: result.formula_code, version: result.formula_version, rows: result.recipients.map(row => normalizeAllocationForState({
     ...createAllocation(row.recipient_type, row.recipient_name, row.percent ?? 0, row.recipient_kind === "company", row.role_label),
     recipient_user_id: row.recipient_kind === "external" ? "__other__" : row.recipient_user_id ?? "",
+    ...(row.recipient_payee_id ? { recipient_payee_id: row.recipient_payee_id } : {}),
     amount: String(row.fixed_amount ?? row.amount),
   })) };
 }

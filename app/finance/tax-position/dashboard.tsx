@@ -89,7 +89,8 @@ export default function TaxDashboard({ permissions, taxDetails }: { permissions:
      <div className={styles.warning}><dt>{tr("input")}</dt><dd>{tr("inputIncomplete")}</dd></div>
      <div className={styles.net}><dt>{tr("net")}</dt><dd>{t("taxPosition.unknown")}</dd></div>
      <div><dt>{tr("incoming")}</dt><dd>{money(summary?.wht)}</dd></div>
-     <div><dt>{tr("outgoing")}</dt><dd>{tr("payoutUnavailable")}</dd></div>
+     <div><dt>{t("payout.outgoingHeld")}</dt><dd>{money(summary?.outgoingHeld)}</dd></div>
+     <div><dt>{t("payout.outgoingDue")}</dt><dd>{money(summary?.outgoingDue)}</dd></div>
     </dl>
     <p className={styles.filing}>{tr("filingOnly")} {summary?.period ? t(`taxPosition.${summary.period.status}`) : tr("unreviewed")}</p>
     <div className={styles.checklistTitle}><h3>{tr("actions")}</h3><button type="button" onClick={openDetails}>{tr("taxDetails")}<ArrowRight size={14} /></button></div>

@@ -8,7 +8,7 @@ const {lineFormulaChoices}=require('../../app/finance/payments/vp-formula.ts');
 const {fixture}=require('./vp-distribution-fixture.cjs');
 const {workspaceFixture}=require('./i18n-workspace-fixture.cjs');
 const {translate}=require('../../lib/i18n/catalog.ts');
-const editor=workspaceFixture('app/finance/payments/vp-formula-editor.tsx',['VpFormulaEditor','FormulaResultEvidence']);
+const editor=workspaceFixture('app/finance/payments/vp-formula-editor.tsx',['VpFormulaEditor','FormulaResultEvidence'],{'../payouts/payee-modal':{PayeeModal:()=>null}});
 const people=fixture().formula_people;
 function multiWorker(){
  const input=formula.initialFormula('source_worker_qc',10000);
