@@ -23,13 +23,14 @@ export function PayoutWorkspace({ id, payeeId: entryPayeeId, fixture }: { id: st
  const [selected, setSelected] = useState<string[]>([]), [rates, setRates] = useState<Record<string, string>>({}), [accountKey, setAccountKey] = useState("");
  const [initialDate] = useState(bangkokToday), [paidOn, setPaidOn] = useState(initialDate);
  const [note, setNote] = useState(""), [dirty, setDirty] = useState(false), [busy, setBusy] = useState(false), [ack, setAck] = useState(false);
+ const [paidAck, setPaidAck] = useState(false);
  const [modal, setModal] = useState<"confirm" | "cancel" | null>(null), [editPayee, setEditPayee] = useState<Payee | "new" | null>(null);
  const [changeRecipient, setChangeRecipient] = useState(false);
  const [newId] = useState(() => crypto.randomUUID());
  const apply = useCallback((next: Workspace) => {
   setData(next); const p = next.payout;
   setSelected(p?.choices_json.map(c => c.entitlement_id) || []); setRates(Object.fromEntries(p?.choices_json.map(c => [c.entitlement_id, String(c.rate)]) || []));
-  if (p) { setPaidOn(p.paid_on); setNote(p.note); setAccountKey(locationKey(p)); } setDirty(false); setAck(false);
+  if (p) { setPaidOn(p.paid_on); setNote(p.note); setAccountKey(locationKey(p)); } setDirty(false); setAck(false); setPaidAck(false);
  }, []);
  const load = useCallback(async (preserveForm = false) => {
   if (fixture) { apply(fixture); return; }
@@ -57,6 +58,7 @@ export function PayoutWorkspace({ id, payeeId: entryPayeeId, fixture }: { id: st
  const previewReady = readonly || math.valid;
  const money = (v: number | null | undefined) => v == null ? "-" : `${v.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} THB`;
  const balance = !account ? t("payout.chooseAccount") : account.system_balance == null ? t("payout.unknown") : money(account.system_balance);
+ const balanceAfter = !account || account.system_balance == null ? balance : previewReady ? money(account.system_balance - values.net) : "-";
  const destination = payee?.destination ? `${payee.destination.bank_name} ${mask(payee.destination.account_number)}` : t("payout.missing");
  const disabledReasons = [...review.blockers, ...(!p ? ["saveFirst"] : dirty ? ["dirty"] : []), ...(busy ? ["working"] : []), ...(loading ? ["checking"] : [])];
  const checklist = [
@@ -73,6 +75,7 @@ export function PayoutWorkspace({ id, payeeId: entryPayeeId, fixture }: { id: st
  const change = (fn: () => void) => { fn(); setDirty(true); setError(""); };
  async function act(action: "save" | "confirm" | "cancel") {
   if (lock.current || fixture || !data?.can_manage) return;
+  if (action === "confirm" && (!ack || !paidAck)) return;
   if (action === "save" && !valid) { setError("required"); return; }
   lock.current = true; setBusy(true); setError("");
   try {
@@ -112,7 +115,7 @@ export function PayoutWorkspace({ id, payeeId: entryPayeeId, fixture }: { id: st
     <div className={css.pair}><section className={css.section}><h2><Calculator />3. {t("payout.wht")}</h2><p className={css.muted}>{t("payout.whtHelp")}</p>{picked.map(r => <div className={css.rate} key={r.id}><span>{payableRoleLabel(r.role_label, locale)}</span><FieldGroup id={`wht-${r.id}`} label={t("payout.rate")}><select disabled={readonly || busy} value={rates[r.id] === undefined ? "" : ["0", "1", "3", "5"].includes(rates[r.id]) ? rates[r.id] : "other"} onChange={e => change(() => setRates({ ...rates, [r.id]: e.target.value === "other" ? "" : e.target.value }))}><option value="" disabled>{t("payout.choose")}</option><option value="0">{t("payout.none")}</option>{[1, 3, 5].map(n => <option key={n} value={n}>{n}%</option>)}<option value="other">{t("payout.other")}</option></select></FieldGroup>{rates[r.id] !== undefined && !["0", "1", "3", "5"].includes(rates[r.id]) ? <input aria-label={t("payout.rate")} type="text" inputMode="decimal" value={rates[r.id]} disabled={readonly || busy} onChange={e => change(() => setRates({ ...rates, [r.id]: e.target.value }))} /> : null}{componentPreview(r)}</div>)}</section>
      <section className={css.section}><h2><Wallet />4. {t("payout.account")}</h2>{readonly ? <p>{locationName(account, locale)}</p> : <FieldGroup id="payout-account" label={t("payout.account")}><select value={accountKey} disabled={busy} onChange={e => change(() => setAccountKey(e.target.value))}><option value="">{t("payout.choose")}</option>{data.accounts.filter(a => a.is_active).map(a => <option key={locationKey(a)} value={locationKey(a)}>{locationName(a, locale)}</option>)}</select></FieldGroup>}<div className={css.balance}><span>{t("payout.before")}</span><strong>{balance}</strong><small>{t("payout.balanceHelp")}</small></div><FieldGroup id="payout-date" label={t("payout.date")}><input type="date" value={paidOn} disabled={readonly || busy} onChange={e => change(() => setPaidOn(e.target.value))} /></FieldGroup></section></div>
     <section className={css.section}><FieldGroup id="payout-note" label={`5. ${t("payout.note")}`}><input value={note} maxLength={2000} disabled={readonly || busy} onChange={e => change(() => setNote(e.target.value))} /></FieldGroup></section>
-   </div><aside className={css.side}><h2><Banknote />{t("payout.summary")}</h2>{summary}<dl className={css.summary}><div><dt>{t("payout.account")}</dt><dd>{account ? locationName(account, locale) : t("payout.chooseAccount")}</dd></div><div><dt>{t("payout.before")}</dt><dd>{balance}</dd></div><div><dt>{t("payout.after")}</dt><dd>{!account || account.system_balance == null ? balance : previewReady ? money(account.system_balance - values.net) : "-"}</dd></div></dl>
+   </div><aside className={css.side}><h2><Banknote />{t("payout.summary")}</h2>{summary}<dl className={css.summary}><div><dt>{t("payout.account")}</dt><dd>{account ? locationName(account, locale) : t("payout.chooseAccount")}</dd></div><div><dt>{t("payout.before")}</dt><dd>{balance}</dd></div><div><dt>{t("payout.after")}</dt><dd>{balanceAfter}</dd></div></dl>
     {!readonly ? <>
      {review.recipientIssues.length ? <Callout tone="warning"><strong>{t("payout.recipientMissing")}</strong><ul>{review.recipientIssues.map(key => <li key={key}>{t(`payout.${key}`)}</li>)}</ul><button className={ui.secondary} disabled={busy} onClick={() => setEditPayee(payee!)}>{t("payout.fixPayee")}</button></Callout> : null}
      {previewReady && account?.system_balance != null && account.system_balance < values.net ? <Callout tone="warning">{t("payout.negative")}</Callout> : null}
@@ -120,7 +123,7 @@ export function PayoutWorkspace({ id, payeeId: entryPayeeId, fixture }: { id: st
      <p className={css.muted}>{t(dirty ? "payout.dirty" : p ? "payout.saved" : "payout.confirmHelp")}</p>
      <button className={ui.secondary} disabled={busy} onClick={() => void act("save")}><Save size={18} />{t("payout.save")}</button>
      {disabledReasons.length ? <div id="payout-review-blockers" className={css.disabledReason}><strong>{t("payout.cannotConfirm")}</strong><ul>{disabledReasons.map(key => <li key={key}>{t(`payout.${key}`)}</li>)}</ul></div> : null}
-     <button className={ui.primary} disabled={disabledReasons.length > 0} aria-describedby={disabledReasons.length ? "payout-review-blockers" : undefined} onClick={() => { setAck(false); setModal("confirm"); }}><Send size={18} />{t("payout.review")}</button>{p ? <div className={css.other}><button className={ui.danger} disabled={busy} onClick={() => { setAck(false); setModal("cancel"); }}>{t("payout.cancel")}</button></div> : null}
+     <button className={ui.primary} disabled={disabledReasons.length > 0} aria-describedby={disabledReasons.length ? "payout-review-blockers" : undefined} onClick={() => { setAck(false); setPaidAck(false); setModal("confirm"); }}><Send size={18} />{t("payout.review")}</button>{p ? <div className={css.other}><button className={ui.danger} disabled={busy} onClick={() => { setAck(false); setModal("cancel"); }}>{t("payout.cancel")}</button></div> : null}
     </> : null}
    </aside></div>
    <section className={css.section}><h2><Clock />{t("payout.history")}</h2>{payee && data.history.length ? <div className={css.history}>{data.history.map(h => <div key={h.id}><span>{date(h.paid_on)}</span><Link href={payoutHref(payee.id, h.id)}>{h.id.slice(0, 8).toUpperCase()}</Link><span>{t("payout.gross")}: {money(h.gross)}</span><span>{t("payout.net")}: {money(h.net)}</span><span>WHT: {money(h.wht)}</span><StatusBadge status={h.status} label={t(`payout.${h.status}`)} /></div>)}</div> : <p className={css.muted}>{t("payout.emptyHistory")}</p>}</section>
@@ -130,9 +133,24 @@ export function PayoutWorkspace({ id, payeeId: entryPayeeId, fixture }: { id: st
    <p>{t("payout.changeRecipientWarning")}</p><div className={css.payeeActions}><button className={ui.secondary} onClick={() => setChangeRecipient(false)}>{t("common.actions.cancel")}</button><button className={ui.primary} onClick={() => { setChangeRecipient(false); router.push("/finance/payables"); }}>{t("payout.backChooseRecipient")}</button></div>
   </DetailModal>
   <DetailModal open={!!modal} title={t(modal === "cancel" ? "payout.cancel" : "payout.review")} size="edit" onClose={() => { if (!busy) setModal(null); }} closeOnBackdrop={!busy}>
-   <div className={css.form}><p>{t(modal === "cancel" ? "payout.cancelHelp" : "payout.confirmHelp")}</p>{modal === "confirm" ? <><dl className={css.summary}><div><dt>{t("payout.checkRecipient")}</dt><dd>{payee?.legal_name}</dd></div><div><dt>{t("payout.destination")}</dt><dd>{account?.kind === "bank" ? destination : t("payout.cashDestination")}</dd></div><div><dt>{t("payout.account")}</dt><dd>{locationName(account, locale)}</dd></div><div><dt>{t("payout.date")}</dt><dd>{date(paidOn)}</dd></div></dl><div className={css.modalComponents}>{picked.map(row => <div key={row.id}><strong>{payableRoleLabel(row.role_label, locale)}</strong><small>{rates[row.id] === "0" ? t("payout.none") : `${t("payout.componentWht")} ${rates[row.id]}%`}</small>{componentPreview(row)}</div>)}</div>{summary}</> : null}
+   <div className={css.form}><p>{t(modal === "cancel" ? "payout.cancelHelp" : "payout.confirmHelp")}</p>{modal === "confirm" ? <>
+    <dl className={css.summary}><div><dt>{t("payout.checkRecipient")}</dt><dd>{payee?.legal_name}</dd></div><div><dt>{t("payout.destination")}</dt><dd>{account?.kind === "bank" ? destination : t("payout.cashDestination")}</dd></div><div><dt>{t("payout.account")}</dt><dd>{locationName(account, locale)}</dd></div><div><dt>{t("payout.date")}</dt><dd>{date(paidOn)}</dd></div></dl>
+    <div className={css.modalComponents}>{picked.map(row => <div key={row.id}><strong>{payableRoleLabel(row.role_label, locale)}</strong><small>{rates[row.id] === "0" ? t("payout.none") : `${t("payout.componentWht")} ${rates[row.id]}%`}</small>{componentPreview(row)}</div>)}</div>{summary}
+    <div><dl className={css.summary} data-confirmation-balance><div><dt>{t("payout.before")}</dt><dd>{balance}</dd></div><div><dt>{t("payout.outflow")}</dt><dd>{previewReady ? money(values.net) : "-"}</dd></div><div><dt>{t("payout.after")}</dt><dd>{balanceAfter}</dd></div></dl><p className={css.muted}>{t("payout.balanceHelp")}</p></div>
+   </> : null}
     {error ? <Callout tone="negative" role="alert">{t(`payout.${error}`)}</Callout> : null}
-    <label className={css.check}><input type="checkbox" checked={ack} disabled={busy} onChange={e => setAck(e.target.checked)} /><span>{t(modal === "cancel" ? "payout.cancelHelp" : "payout.ack")}</span></label><button className={modal === "cancel" ? ui.danger : ui.primary} disabled={busy || !ack} onClick={() => void act(modal === "cancel" ? "cancel" : "confirm")}><Check size={18} />{t(modal === "cancel" ? "payout.cancel" : "payout.confirm")}</button>
+    <label className={css.check}><input type="checkbox" checked={ack} disabled={busy} onChange={e => setAck(e.target.checked)} /><span>{t(modal === "cancel" ? "payout.cancelHelp" : "payout.ackReviewed")}</span></label>
+    {modal === "confirm" ? <>
+     <label className={css.check}><input type="checkbox" checked={paidAck} disabled={busy} onChange={e => setPaidAck(e.target.checked)} /><span>{t(account?.kind === "bank" ? "payout.paidBankAck" : "payout.paidCashAck", { amount: money(values.net), destination: payee?.destination ? mask(payee.destination.account_number) : t("payout.missing"), payee: payee?.legal_name || t("payout.missing") })}</span></label>
+     <div className={css.confirmationEffects} data-confirmation-effects><strong>{t("payout.confirmEffects")}</strong><ul>
+      <li>{t("payout.effectRights", { count: picked.length, amount: money(values.gross) })}</li>
+      <li>{t("payout.effectOutflow", { account: locationName(account, locale), amount: money(values.net) })}</li>
+      {values.wht > 0 ? <li>{t("payout.effectWht", { amount: money(values.wht) })}</li> : null}
+      <li>{t("payout.effectConfirmed")}</li><li>{t("payout.effectReadOnly")}</li>
+     </ul></div>
+     {!ack || !paidAck ? <p id="payout-confirm-ack-required" className={css.disabledReason} role="status">{t("payout.ackRequired")}</p> : null}
+    </> : null}
+    <button className={modal === "cancel" ? ui.danger : ui.primary} disabled={busy || !ack || (modal === "confirm" && !paidAck)} aria-describedby={modal === "confirm" && (!ack || !paidAck) ? "payout-confirm-ack-required" : undefined} onClick={() => void act(modal === "cancel" ? "cancel" : "confirm")}><Check size={18} />{t(modal === "cancel" ? "payout.cancel" : "payout.confirm")}</button>
    </div>
   </DetailModal>
  </PageShell>;

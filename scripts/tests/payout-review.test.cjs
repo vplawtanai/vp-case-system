@@ -64,7 +64,7 @@ for(const locale of ['th','en'])test(`${locale}: blocked UAT state, live checkli
  const saved=render(locale,{...f,payout:draft});assert.ok(!saved.includes('payout-review-blockers'));
  const dirty=render(locale,{...f,payout:draft},{'PayoutWorkspace.dirty':true});assert.ok(dirty.includes(t('dirty')));assert.ok(dirty.includes('payout-review-blockers'));
  const modal=render(locale,{...f,payout:draft},{'PayoutWorkspace.modal':'confirm'}).split('data-test-modal="true"')[1];
- for(const key of ['account','destination','date','ack'])assert.ok(modal.includes(t(key)),key);
+ for(const key of ['account','destination','date','ackReviewed'])assert.ok(modal.includes(t(key)),key);
  for(const value of ['1,940.00','58.20','1,881.80','1,164.00','3,045.80'])assert.ok(modal.includes(value),value);
  assert.equal((modal.match(/data-component-preview=/g)||[]).length,2);
 });

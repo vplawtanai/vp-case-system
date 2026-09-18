@@ -36,6 +36,7 @@
 .componentPreview dt { color:#617187; }.componentPreview dd { margin:4px 0 0; font-weight:600; font-variant-numeric:tabular-nums; }
 .componentPreview,.payee,.summary,.reviewList,.disabledReason,.steps { overflow-wrap:anywhere; }
 .modalComponents { display:grid; gap:12px; font-size:14px; }.modalComponents small { display:block; color:#617187; margin-top:4px; }
+.confirmationEffects { border-top:1px solid #dce5ed; padding-top:14px; font-size:14px; line-height:1.6; overflow-wrap:anywhere; }.confirmationEffects ul { margin:8px 0 0; padding-left:20px; }.confirmationEffects li+li { margin-top:6px; }
 .history>div { display:flex; gap:20px; justify-content:space-between; align-items:center; flex-wrap:wrap; padding:14px 0; border-bottom:1px solid #e6edf4; font-size:13px; }
 .page input:not([type=checkbox]),.page select,.form input:not([type=checkbox]),.form select { width:100%; min-width:0; min-height:40px; padding:8px 10px; border:1px solid #ced8e5; border-radius:6px; background:white; color:inherit; font:inherit; }
 .page button { min-height:40px; white-space:normal; }.page :focus-visible,.form :focus-visible { outline:2px solid #1766df; outline-offset:3px; }
