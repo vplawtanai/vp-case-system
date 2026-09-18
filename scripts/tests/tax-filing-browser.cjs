@@ -25,7 +25,7 @@ async function main(){
   const page=await browser.newPage(),errors=[],external=[];page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>{if(new URL(r.request().url()).hostname==='127.0.0.1')return r.continue();external.push(r.request().url());return r.abort();});
   require('./receipt-render-fixture.cjs');const {translate}=require('../../lib/i18n/catalog.ts'),url='http://127.0.0.1:'+server.address().port;
   const count=name=>page.evaluate(name=>window.calls.filter(c=>c.name===name).length,name);
-  async function geometry(){assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);}
+  async function geometry(){assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);assert.deepEqual(await page.locator('main button,main select,main dd,main [data-metric]').evaluateAll(nodes=>nodes.filter(n=>n.scrollWidth>n.clientWidth+1).map(n=>n.textContent)),[]);}
   for(const width of [1440,1024,768,390])for(const locale of ['th','en']){
    const t=k=>translate(locale,'taxFiling.'+k);await page.setViewportSize({width,height:1000});
    for(const future of [false,true]){
@@ -34,12 +34,22 @@ async function main(){
     await page.locator('[data-metric=net]').getByText(t('unknown'),{exact:true}).waitFor();await page.locator('[data-metric=outgoing]').getByText(future?'186.24 THB':'0.00 THB',{exact:true}).waitFor();
     await page.locator('[data-metric=periodStatus]').getByText(t('needs_review'),{exact:true}).waitFor();
     await page.locator('[data-metric=incoming]').getByText('560.19 THB',{exact:true}).waitFor();
-    const summary=page.getByRole('complementary');await summary.getByText('700.00 THB',{exact:true}).waitFor();await summary.getByText('560.19 THB',{exact:true}).waitFor();
+    const summary=page.getByRole('complementary',{name:t('summary'),exact:true});await summary.getByText('700.00 THB',{exact:true}).waitFor();await summary.getByText('560.19 THB',{exact:true}).waitFor();
     await page.locator('table').first().locator('tbody tr').first().locator('td').nth(2).getByText(t('unknown'),{exact:true}).waitFor();
     assert.equal(await page.evaluate(()=>window.data.incoming_wht_credit),0);assert.equal(await page.evaluate(()=>window.data.pools[0].output_vat),0);
     if(!future){assert.equal(await page.getByText(t('whtReviewed'),{exact:true}).count(),0);await page.getByRole('complementary').getByText(t('noWht'),{exact:true}).waitFor();}
-    assert.equal(await page.getByRole('button',{name:t('review'),exact:true}).count(),future?4:2);await geometry();await page.screenshot({path:out+`/${future?'future':'current'}-${locale}-${width}.png`,fullPage:true});
-    const reviews=page.getByRole('button',{name:t('review'),exact:true}),action=reviews.nth(future?1:0);await action.focus();await page.keyboard.press('Enter');const modal=page.getByRole('dialog');await modal.waitFor();await page.keyboard.press('Tab');assert.equal(await modal.locator(':focus').count(),1);await page.keyboard.press('Escape');await modal.waitFor({state:'hidden'});assert.ok(await action.evaluate(e=>e===document.activeElement));
+    assert.equal(await page.getByRole('button',{name:t('review'),exact:true}).count(),future?4:2);
+    await page.locator('table').first().getByText(t('inputReview'),{exact:true}).waitFor();
+    await summary.getByText(t('creditHelp'),{exact:true}).waitFor();
+    const history=page.getByRole('region',{name:t('history'),exact:true}),filings=page.getByRole('region',{name:t('filings'),exact:true});
+    await history.getByText(t('emptyHistory'),{exact:true}).waitFor();await history.getByText(t('historyHelp'),{exact:true}).waitFor();assert.equal(await history.locator('tbody tr').count(),0);
+    const boxes=await Promise.all([filings.boundingBox(),summary.boundingBox(),history.boundingBox()]);
+    if(width>=1200){assert.ok(boxes[1].x>=boxes[0].x+boxes[0].width);assert.ok(Math.abs(boxes[0].y-boxes[1].y)<2);assert.equal(boxes[0].x,boxes[2].x);}
+    else assert.ok(boxes[2].y>=boxes[1].y+boxes[1].height,'Mobile history follows summary');
+    assert.equal(await page.locator('main').getByRole('button',{name:t('saveDraft'),exact:true}).count(),0,'No direct lifecycle actions on overview');
+    await geometry();await page.screenshot({path:out+`/${future?'future':'current'}-${locale}-${width}.png`,fullPage:true});
+    if(!future&&width===1440){await history.screenshot({path:out+`/history-${locale}.png`});await summary.screenshot({path:out+`/summary-${locale}.png`});}
+    const reviews=page.getByRole('button',{name:t('review'),exact:true}),action=reviews.nth(future?1:0);await action.focus();await page.keyboard.press('Enter');const modal=page.getByRole('dialog');await modal.waitFor();assert.equal(await modal.locator('pre:visible').count(),0);assert.equal(await page.evaluate(()=>window.calls.some(c=>c.name!=='get_finance_tax_filings')),false,'Review is read-only');await page.keyboard.press('Tab');assert.equal(await modal.locator(':focus').count(),1);await page.keyboard.press('Escape');await modal.waitFor({state:'hidden'});assert.ok(await action.evaluate(e=>e===document.activeElement));
     await action.click();await modal.getByRole('button',{name:t('saveDraft'),exact:true}).click();await modal.waitFor({state:'hidden'});await action.click();await page.getByLabel(t('reviewAck'),{exact:true}).check();
     if(!future){assert.ok(await modal.getByRole('button',{name:t('markReady'),exact:true}).isDisabled());await page.keyboard.press('Escape');continue;}
     await modal.getByRole('button',{name:t('markReady'),exact:true}).click();await modal.waitFor({state:'hidden'});await action.click();await modal.getByRole('button',{name:t('recordFiled'),exact:true}).click();

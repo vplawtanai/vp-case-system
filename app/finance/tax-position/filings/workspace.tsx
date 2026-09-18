@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowDownToLine, ArrowRight, CheckCircle2, ChevronLeft, ChevronRight, Clock3, FileText, RefreshCw, TriangleAlert } from "lucide-react";
 import DetailModal from "../../../components/DetailModal";
-import { Callout, Disclosure, EmptyState, FieldGroup, PageShell, ReadOnlyGrid, StatusBadge } from "../../../components/ui/patterns";
+import { Callout, Disclosure, FieldGroup, PageShell, ReadOnlyGrid, StatusBadge } from "../../../components/ui/patterns";
 import ui from "../../../components/ui/vp-ui.module.css";
 import { supabase } from "../../../../lib/supabase";
 import { useI18n } from "../../../../lib/i18n/provider";
@@ -42,6 +42,7 @@ export function TaxFilingWorkspace({ permissions }: { permissions: UserPermissio
  const months = [...new Set([month, ...Array.from({ length: 37 }, (_, i) => shiftMonth(currentBangkokMonth(), i - 24))])].sort().reverse();
  const summary = data ? summarizeFilings(data, monthlyFacts) : null;
  const issues = data ? [...new Map(data.pools.flatMap(p => p.issues).map(i => [i.code, i])).values()] : [];
+ const issueTitle = (code: string) => tr(({ input_vat_incomplete: "inputReview", unclassified_wht: "classificationReview", source_evidence_incomplete: "sourceReview", legacy_filing_review: "previousFilingReview" } as Record<string, string>)[code] || code);
  const f = selection?.filing, r = f?.remittance, paymentMode = selection?.mode === "payment", cancellation = selection?.mode === "cancel" || selection?.mode === "cancelPayment";
  const selectedEvidence = f?.source_snapshot_json || selection?.pool;
  const reviewSources = [...new Map([...(selectedEvidence?.sources || []), ...(selectedEvidence?.review_sources || [])].map(s => [s.id, s])).values()];
@@ -77,48 +78,52 @@ export function TaxFilingWorkspace({ permissions }: { permissions: UserPermissio
   <FieldGroup id="filing-reference" label={tr("reference")}><input required maxLength={300} value={reference} onChange={e => setReference(e.target.value)} /></FieldGroup>
   <FieldGroup id="filing-evidence" label={tr("evidence")}><textarea required maxLength={2000} value={evidence} onChange={e => setEvidence(e.target.value)} /></FieldGroup></>;
  return <PageShell className={styles.page}>
-  <header className={styles.header}><div><h1>{tr("title")}</h1><p>{tr("subtitle")}</p></div><div className={styles.month}>
+  <header className={styles.header}><div><h1>{tr("title")}</h1><p>{tr("subtitle")}</p></div><div className={styles.periodControl}><label htmlFor="filing-period">{tr("period")}</label><div className={styles.month}>
    <button type="button" className={ui.secondary} disabled={busy} title={t("taxDashboard.previousMonth")} aria-label={t("taxDashboard.previousMonth")} onClick={() => changeMonth(shiftMonth(month, -1))}><ChevronLeft size={18} /></button>
-   <select aria-label={tr("period")} value={month} disabled={busy} onChange={e => changeMonth(e.target.value)}>{months.map(m => <option key={m} value={m}>{monthName(m)}</option>)}</select>
+   <select id="filing-period" aria-label={tr("period")} value={month} disabled={busy} onChange={e => changeMonth(e.target.value)}>{months.map(m => <option key={m} value={m}>{monthName(m)}</option>)}</select>
    <button type="button" className={ui.secondary} disabled={busy} title={t("taxDashboard.nextMonth")} aria-label={t("taxDashboard.nextMonth")} onClick={() => changeMonth(shiftMonth(month, 1))}><ChevronRight size={18} /></button>
    <button type="button" className={ui.secondary} disabled={busy || loading} title={t("common.actions.retry")} aria-label={t("common.actions.retry")} onClick={() => { setError(null); void load(); }}><RefreshCw size={18} /></button>
-  </div></header>
+  </div></div></header>
   {error && !selection ? <Callout tone="negative" role="alert">{tr(error)}</Callout> : null}{saved ? <p role="status">{tr("saved")}</p> : null}{loading ? <p role="status">{t("common.state.loading")}</p> : null}
   <div className={styles.cards} aria-busy={loading}>
-   {[{ key: "net", value: money(summary?.vat?.tax_amount), help: "incomplete", icon: <FileText />, tone: "blue" },
-    { key: "incoming", value: money(summary?.incomingWht), help: "creditHelp", icon: <ArrowDownToLine />, tone: "green" },
+   {[{ key: "net", value: money(summary?.vat?.tax_amount), help: "netHelp", icon: <FileText />, tone: "blue" },
+    { key: "incoming", value: money(summary?.incomingWht), help: "creditShort", icon: <ArrowDownToLine />, tone: "green" },
     { key: "outgoing", value: money(summary?.outgoing), help: "outgoingHelp", icon: <FileText />, tone: "blue" },
-    { key: "periodStatus", value: tr(summary?.status || "collecting"), help: "externalOnly", icon: <Clock3 />, tone: "amber" }].map(c => <article className={styles.card} key={c.key} data-tone={c.tone}><span className={styles.icon}>{c.icon}</span><div><h2>{tr(c.key)}</h2>{c.key === "periodStatus" ? <div data-metric={c.key}><StatusBadge status={summary?.status === "complete" ? "confirmed" : "pending"} label={loading ? "…" : c.value} /></div> : <strong data-metric={c.key}>{loading ? "…" : c.value}</strong>}<p>{tr(c.help)}</p></div></article>)}
+    { key: "periodStatus", value: tr(summary?.status || "collecting"), help: summary?.status === "needs_review" ? "periodReviewHelp" : "periodHelp", icon: <Clock3 />, tone: "amber" }].map(c => <article className={styles.card} key={c.key} data-tone={c.tone}><span className={styles.icon} aria-hidden="true">{c.icon}</span><div><h2>{tr(c.key)}</h2>{c.key === "periodStatus" ? <div data-metric={c.key}><StatusBadge status={summary?.status === "complete" ? "confirmed" : "pending"} label={loading ? "…" : c.value} /></div> : <strong data-metric={c.key} data-unknown={c.value === tr("unknown")}>{loading ? "…" : c.value}</strong>}<p>{tr(c.help)}</p></div></article>)}
   </div>
   {data && summary ? <>
-   <div className={styles.main}><div>
-    <section className={styles.section} aria-labelledby="filings-title"><h2 id="filings-title">{tr("filings")}</h2>
-     <table className={styles.table}><thead><tr>{["type", "due", "base", "amount", "status", "actions"].map(k => <th key={k} scope="col">{tr(k)}</th>)}</tr></thead><tbody>{summary.obligations.map(p => { const row = activeFiling(data, p.filing_type); return <tr key={p.filing_type}>
-      <td data-label={tr("type")}><strong>{tr(p.filing_type)}</strong><small>{tr("sourceCount", { count: p.source_count })}</small></td>
-      <td data-label={tr("due")}>{row?.due_date ? date(row.due_date) : tr("dueUnknown")}</td><td data-label={tr("base")}>{money(row?.status === "filed" ? row.base_amount : filingBaseAmount(p))}</td>
+   <div className={styles.main}>
+    <section className={`${styles.section} ${styles.filingSection}`} aria-labelledby="filings-title"><h2 id="filings-title">{tr("filings")}</h2>
+     <table className={`${styles.table} ${styles.filingTable}`}><thead><tr>{["type", "due", "base", "amount", "status", "actions"].map(k => <th key={k} scope="col">{tr(k)}</th>)}</tr></thead><tbody>{summary.obligations.map(p => { const row = activeFiling(data, p.filing_type); return <tr key={p.filing_type}>
+      <td data-label={tr("type")}><strong>{tr(p.filing_type)}</strong><small>{tr(p.filing_type === "vat" ? "vatDescription" : p.filing_type === "wht_natural" ? "naturalDescription" : "juristicDescription")}</small></td>
+      <td data-label={tr("due")} className={styles.dueCell}>{row?.due_date ? date(row.due_date) : tr("dueUnknown")}</td><td data-label={tr("base")}><span>{money(row?.status === "filed" ? row.base_amount : filingBaseAmount(p))}</span>{p.filing_type === "vat" && row?.status !== "filed" ? <small>{tr("outputKnown")}<b>{money(summary.outputVat)}</b></small> : null}</td>
       <td data-label={tr("amount")} className={styles.money}>{money(row?.status === "filed" ? row.tax_amount : p.tax_amount)}</td>
-      <td data-label={tr("status")}><StatusBadge status={!p.ready ? "pending" : row?.status === "filed" ? "confirmed" : "draft"} label={tr(filingState(row, p))} /></td>
+      <td data-label={tr("status")}><StatusBadge status={!p.ready ? "pending" : row?.status === "filed" ? "confirmed" : "draft"} label={tr(filingState(row, p))} />{!p.ready && row?.status !== "filed" ? <small className={styles.blockedReason}>{p.issues[0] ? issueTitle(p.issues[0].code) : tr("notReady")}</small> : null}</td>
       <td><button type="button" className={ui.secondary} onClick={() => open(p, row)}>{tr("review")}</button></td>
      </tr>; })}</tbody></table>
-     {summary.outgoing === 0 ? <p className={styles.muted}>{tr("noWht")}</p> : null}
+     {summary.outgoing === 0 ? <p className={styles.noLiability}><CheckCircle2 size={16} aria-hidden="true" />{tr("noWht")}</p> : null}
     </section>
-    <section className={styles.section} aria-labelledby="filing-issues"><h2 id="filing-issues">{tr("issues")}</h2><ul className={styles.issues}>
-     {issues.map(i => <li key={i.code}><TriangleAlert size={20} /><div><strong>{tr(i.code)}</strong>{i.count !== null ? <small>{tr("count", { count: i.count })}</small> : null}</div><button type="button" className={styles.linkButton} onClick={() => { const p = data.pools.find(p => p.issues.some(x => x.code === i.code))!; open(p, activeFiling(data, p.filing_type)); }}>{tr("review")}<ArrowRight size={16} /></button></li>)}
-     {!data.pools.some(p => p.filing_type !== "vat" && p.issues.length) ? <li data-ok><CheckCircle2 size={20} /><div>{tr(summary.outgoing ? "whtReviewed" : "noWht")}</div></li> : null}
+    <section className={`${styles.section} ${styles.issueSection}`} aria-labelledby="filing-issues"><h2 id="filing-issues">{tr("issues")}</h2><ul className={styles.issues}>
+     {issues.map(i => <li key={i.code}><TriangleAlert size={20} aria-hidden="true" /><div><strong>{issueTitle(i.code)}</strong><p>{tr(i.code)}</p>{i.count !== null ? <small>{tr("count", { count: i.count })}</small> : null}</div><div className={styles.issueAction}><StatusBadge status="pending" label={tr(i.code === "input_vat_incomplete" ? "incomplete" : "needs_review")} /><button type="button" className={styles.linkButton} onClick={() => { const p = data.pools.find(p => p.issues.some(x => x.code === i.code))!; open(p, activeFiling(data, p.filing_type)); }}>{tr("review")}<ArrowRight size={16} /></button></div></li>)}
+     {!data.pools.some(p => p.filing_type !== "vat" && p.issues.length) ? <li data-ok><CheckCircle2 size={20} aria-hidden="true" /><div><strong>{tr(summary.outgoing ? "whtReviewed" : "noWhtTitle")}</strong><p>{tr(summary.outgoing ? "outgoingHelp" : "noWht")}</p></div></li> : null}
     </ul></section>
-   </div><aside className={styles.summary} aria-labelledby="filing-summary"><h2 id="filing-summary">{tr("summary")}</h2><dl>
-    {[["output", money(summary.outputVat)], ["input", tr("incomplete")], ["net", money(summary.vat?.tax_amount)], ["incoming", money(summary.incomingWht)], ...data.pools.filter(p => p.filing_type !== "vat").map(p => [p.filing_type, money(p.tax_amount)])].map(([k, value]) => <div key={k}><dt>{tr(k)}</dt><dd>{value}</dd></div>)}
+   <aside className={styles.summary} aria-labelledby="filing-summary"><h2 id="filing-summary">{tr("summary")}</h2><dl>
+    <div><dt>{tr("output")}</dt><dd>{money(summary.outputVat)}</dd></div>
+    <div><dt>{tr("input")}</dt><dd className={styles.warningText}>{tr("incomplete")}</dd></div>
+    <div className={styles.netRow}><dt>{tr("net")}</dt><dd>{money(summary.vat?.tax_amount)}</dd></div>
+   </dl><div className={styles.creditGroup}><dl><div><dt>{tr("incoming")}</dt><dd>{money(summary.incomingWht)}</dd></div></dl><p>{tr("creditHelp")}</p></div><dl>
+    {data.pools.filter(p => p.filing_type !== "vat").map(p => <div key={p.filing_type}><dt>{tr(p.filing_type)}</dt><dd>{money(p.tax_amount)}</dd></div>)}
     <div className={styles.total}><dt>{tr("total")}</dt><dd>{summary.total === null ? tr("totalUnknown") : money(summary.total)}</dd></div>
-   </dl><p className={styles.muted}>{tr("creditHelp")}</p><h3>{tr("checklist")}</h3><ul className={styles.checklist}>
-    {issues.map(i => <li key={i.code}><TriangleAlert size={17} /><span>{tr(i.code)}</span></li>)}
-    {!data.pools.some(p => p.filing_type !== "vat" && p.issues.length) ? <li data-ok><CheckCircle2 size={17} /><span>{tr(summary.outgoing ? "whtReviewed" : "noWht")}</span></li> : null}
-   </ul><p className={styles.muted}>{tr("externalOnly")}</p></aside></div>
-   <section className={styles.section} aria-labelledby="filing-history"><h2 id="filing-history">{tr("history")}</h2>
-    {!data.history.length ? <EmptyState>{tr("emptyHistory")}</EmptyState> : <table className={styles.table}><thead><tr>{["type", "period", "filedOn", "amount", "status", "reference", "actions"].map(k => <th key={k} scope="col">{tr(k)}</th>)}</tr></thead><tbody>{data.history.map(h => <tr key={h.id}>
+   </dl><div className={styles.readiness}><h3>{tr("checklist")}</h3><ul className={styles.checklist}>
+    {issues.map(i => <li key={i.code}><TriangleAlert size={17} aria-hidden="true" /><span>{issueTitle(i.code)}</span></li>)}
+    {!data.pools.some(p => p.filing_type !== "vat" && p.issues.length) ? <li data-ok><CheckCircle2 size={17} aria-hidden="true" /><span>{tr(summary.outgoing ? "whtReviewed" : "noWht")}</span></li> : null}
+   </ul><a className={styles.linkButton} href="#filing-issues">{tr("reviewChecklist")}<ArrowRight size={16} /></a></div><p className={styles.summaryFootnote}>{tr("externalOnly")}</p></aside>
+   <section className={`${styles.section} ${styles.historySection}`} aria-labelledby="filing-history"><h2 id="filing-history">{tr("history")}</h2>
+    {!data.history.length ? <div className={styles.emptyHistory}><Clock3 size={24} aria-hidden="true" /><div><strong>{tr("emptyHistory")}</strong><p>{tr("historyHelp")}</p></div></div> : <table className={styles.table}><thead><tr>{["type", "period", "filedOn", "amount", "status", "reference", "actions"].map(k => <th key={k} scope="col">{tr(k)}</th>)}</tr></thead><tbody>{data.history.map(h => <tr key={h.id}>
      <td data-label={tr("type")}>{tr(h.filing_type)}</td><td data-label={tr("period")}>{monthName(h.period_month)}</td><td data-label={tr("filedOn")}>{h.filed_on ? date(h.filed_on) : "-"}</td><td data-label={tr("amount")} className={styles.money}>{money(h.tax_amount)}</td>
      <td data-label={tr("status")}>{tr(h.payment_state)}</td><td data-label={tr("reference")}>{h.external_reference || "-"}</td><td><button type="button" className={styles.linkButton} onClick={() => { const found = data.filings.find(f => f.id === h.id); if (found) open(found.source_snapshot_json, found, "review", true); else { queuedHistory.current = h.id; changeMonth(h.period_month.slice(0, 7)); } }}>{tr("details")}<ArrowRight size={16} /></button></td>
     </tr>)}</tbody></table>}
-   </section>
+   </section></div>
   </> : null}
   <DetailModal open={!!selection} title={selection ? `${tr(paymentMode ? "paymentReview" : cancellation ? "cancelDraft" : "review")} · ${tr(selection.pool.filing_type)}` : tr("review")} size="edit" onClose={close} closeOnBackdrop={!busy}>
    {selection && data ? <form ref={form} className={styles.form} onSubmit={submit} noValidate><fieldset disabled={busy}>

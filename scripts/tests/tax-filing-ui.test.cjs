@@ -18,3 +18,18 @@ test('052 UI scope: only controlled RPCs; legacy untyped filing action removed; 
  assert.match(page,/<TaxDashboard/);assert.match(page,/record_finance_incoming_wht_evidence/);assert.doesNotMatch(page,/transition_finance_tax_period/);
  assert.doesNotMatch(ui,/supabase\.from\(|\.insert\(|\.update\(|\.delete\(/);assert.match(ui,/get_finance_tax_filings/);assert.match(ui,/<Disclosure title=\{tr\("technical"\)\}/);
 });
+test('Filing page presents review-first sections and honest empty history in TH/EN',()=>{
+ const ui=fs.readFileSync('app/finance/tax-position/filings/workspace.tsx','utf8');
+ for(const id of ['filings-title','filing-issues','filing-summary','filing-history'])assert.match(ui,new RegExp('aria-labelledby="'+id+'"'));
+ assert.match(ui,/!data\.history\.length \? <div className=\{styles\.emptyHistory\}/);
+ assert.match(ui,/row\?\.status === "filed" \? row\.base_amount : filingBaseAmount\(p\)/);
+ assert.match(ui,/money\(summary\.outputVat\)/);assert.match(ui,/money\(summary\.incomingWht\)/);
+ assert.match(ui,/href="#filing-issues"/);
+ for(const locale of ['th','en']){
+  assert.ok(taxFilingMessages['taxFiling.historyHelp'][locale]);
+  assert.ok(taxFilingMessages['taxFiling.inputReview'][locale]);
+  assert.match(taxFilingMessages['taxFiling.creditHelp'][locale],/VAT/);
+ }
+ const beforeModal=ui.slice(ui.indexOf('return <PageShell'),ui.indexOf('<DetailModal open='));
+ assert.doesNotMatch(beforeModal,/type="submit"|onClick=\{[^}]*execute\(/);
+});

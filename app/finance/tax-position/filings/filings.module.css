@@ -1,10 +1,80 @@
 .tabs { display:flex; gap:24px; flex-wrap:wrap; border-bottom:1px solid var(--vp-divider,#d7e0e9); margin-bottom:20px; }.tabs a { padding:10px 0; color:#52647a; font-size:14px; text-decoration:none; border-bottom:2px solid transparent; }.tabs a[aria-current=page] { color:#185ba5; border-color:#185ba5; font-weight:650; }
-.page { min-width:0; }.header { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin:0 0 20px; }.header h1 { font-size:24px; line-height:1.4; margin:0 0 6px; }.header p { font-size:13px; color:var(--vp-muted); margin:0; max-width:640px; }.month { display:flex; align-items:center; gap:6px; min-width:0; }.month select { min-width:0; max-width:220px; padding:9px; border:1px solid var(--vp-border); background:white; font:inherit; font-size:13px; border-radius:4px; }.month button { padding:9px; }
-.cards { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:20px 0; }.card { display:grid; grid-template-columns:36px minmax(0,1fr); gap:12px; padding:14px; border:1px solid var(--vp-divider); border-radius:6px; min-width:0; }.card h2 { font-size:12px; line-height:1.5; margin:0 0 8px; }.card strong { font-size:21px; line-height:1.5; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }.card p { font-size:12px; line-height:1.5; color:var(--vp-muted); margin:6px 0 0; }.icon { width:36px; height:36px; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#2464ac; background:#edf4ff; }.icon svg { width:21px; height:21px; }.card[data-tone=green] .icon { background:#eaf6ee; color:#19754d; }.card[data-tone=amber] .icon { background:#fff5e4; color:#956115; }
-.main { display:grid; grid-template-columns:minmax(0,1.8fr) minmax(280px,1fr); gap:20px; align-items:start; }.main>div { min-width:0; }.section { margin:0 0 24px; min-width:0; }.section h2,.summary h2 { font-size:18px; margin:0 0 10px; line-height:1.5; }.summary { border:1px solid var(--vp-divider); border-radius:6px; padding:14px; min-width:0; }.summary h3 { font-size:15px; margin:18px 0 8px; }.summary dl { margin:0; }.summary dl>div { display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:9px 0; border-bottom:1px solid var(--vp-divider); font-size:13px; }.summary dt { color:var(--vp-muted); }.summary dd { margin:0; text-align:right; font-variant-numeric:tabular-nums; font-weight:600; overflow-wrap:anywhere; }.summary dl>.total { background:#eef5fc; padding:10px 6px; font-weight:650; }.total dt { color:var(--vp-text); }.muted { font-size:12px; line-height:1.6; color:var(--vp-muted); }
-.table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:12px; line-height:1.5; }.table th { color:#52647a; font-size:11px; text-align:left; padding:8px 6px; background:#f4f7fb; border-block:1px solid var(--vp-divider); }.table td { padding:12px 6px; vertical-align:top; border-bottom:1px solid var(--vp-divider); overflow-wrap:anywhere; }.table th:first-child { width:21%; }.table strong { font-size:13px; }.table small { display:block; color:var(--vp-muted); font-size:11px; margin-top:4px; }.money { font-weight:650; font-variant-numeric:tabular-nums; }.table button { font-size:12px; padding:7px 10px; min-height:36px; }.table td:last-child { text-align:right; }
-.issues,.checklist { list-style:none; margin:0; padding:0; }.issues { border-block:1px solid var(--vp-divider); }.issues li { display:flex; align-items:flex-start; gap:10px; padding:14px 0; border-bottom:1px solid var(--vp-divider); font-size:13px; }.issues li:last-child { border-bottom:0; }.issues li>div { flex:1; min-width:0; }.issues svg,.checklist svg { color:#a16a1b; flex:none; }.issues [data-ok] svg,.checklist [data-ok] svg { color:#188656; }.issues strong { font-size:13px; }.issues small { display:block; margin-top:4px; color:var(--vp-muted); }.checklist li { display:flex; gap:8px; font-size:12px; line-height:1.6; padding:5px 0; }.linkButton { display:inline-flex; gap:6px; align-items:center; background:transparent; border:0; color:#2464ac; font:inherit; font-size:12px; padding:6px 0; cursor:pointer; }.linkButton svg { color:inherit; flex:none; }
+.page { min-width:0; --vp-content-width:1360px; }
+.header { display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap; margin:0 0 20px; }
+.header>div { min-width:0; }
+.header h1 { font-size:24px; line-height:1.4; margin:0 0 6px; }
+.header p { font-size:14px; line-height:1.65; color:var(--vp-muted); margin:0; max-width:680px; }
+.periodControl>label { display:block; font-size:12px; color:var(--vp-muted); margin-bottom:6px; }
+.month { display:flex; align-items:center; gap:6px; min-width:0; }
+.month select { min-width:0; width:190px; max-width:100%; min-height:42px; padding:9px; border:1px solid var(--vp-border); background:var(--vp-surface); font:inherit; font-size:14px; border-radius:4px; }
+.month button { padding:9px; width:42px; height:42px; flex:none; }
+.cards { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:20px 0 24px; }
+.card { display:grid; grid-template-columns:38px minmax(0,1fr); gap:12px; padding:16px; border:1px solid var(--vp-divider); border-radius:6px; min-width:0; min-height:126px; align-content:start; background:var(--vp-surface); }
+.card h2 { font-size:13px; font-weight:600; line-height:1.5; margin:0 0 10px; }
+.card strong { display:block; font-size:24px; line-height:1.4; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.card strong[data-unknown=true] { font-size:21px; }
+.card p { font-size:12px; line-height:1.6; color:var(--vp-muted); margin:8px 0 0; }
+.icon { width:38px; height:38px; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#2464ac; background:#edf4ff; }
+.icon svg { width:21px; height:21px; }
+.card[data-tone=green] .icon { background:#eaf6ee; color:#19754d; }
+.card[data-tone=amber] .icon { background:#fff5e4; color:#956115; }
+.main { display:grid; grid-template-columns:minmax(0,1.75fr) minmax(330px,1fr); grid-template-areas:"filings summary" "issues summary" "history summary"; gap:24px; align-items:start; }
+.filingSection { grid-area:filings; }.issueSection { grid-area:issues; }.historySection { grid-area:history; }
+.section { margin:0; min-width:0; scroll-margin-top:24px; }
+.section h2,.summary h2 { font-size:18px; font-weight:650; margin:0 0 12px; line-height:1.5; }
+.summary { grid-area:summary; border:1px solid var(--vp-divider); border-radius:6px; padding:18px; min-width:0; background:var(--vp-surface); }
+.summary h2 { padding-bottom:12px; border-bottom:1px solid var(--vp-divider); }
+.summary h3 { font-size:15px; margin:0 0 10px; }
+.summary dl { margin:0; }
+.summary dl>div { display:flex; justify-content:space-between; align-items:baseline; gap:16px; padding:9px 0; font-size:13px; line-height:1.6; }
+.summary dt { color:var(--vp-muted); min-width:0; flex:1; }
+.summary dd { margin:0; text-align:right; font-variant-numeric:tabular-nums; font-weight:600; max-width:55%; overflow-wrap:anywhere; }
+.summary .warningText { color:var(--vp-warning); }
+.summary dl>.netRow { border-block:1px solid var(--vp-divider); margin-top:4px; padding-block:12px; }
+.netRow dt { color:var(--vp-text); font-weight:600; }
+.creditGroup { padding-block:8px 14px; margin-bottom:6px; border-bottom:1px solid var(--vp-divider); }
+.creditGroup dd { color:var(--vp-success); }
+.creditGroup p { color:var(--vp-muted); font-size:12px; line-height:1.65; margin:0; }
+.summary dl>.total { background:#eef5fc; padding:12px 10px; margin-top:8px; font-weight:650; }
+.total dt { color:var(--vp-text); }
+.readiness { margin-top:20px; padding-top:16px; border-top:1px solid var(--vp-divider); }
+.readiness .linkButton { margin-top:10px; }
+.summaryFootnote { border-top:1px solid var(--vp-divider); padding-top:14px; margin:12px 0 0; color:var(--vp-muted); font-size:12px; line-height:1.65; }
+.muted { font-size:12px; line-height:1.6; color:var(--vp-muted); }
+.table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:13px; line-height:1.6; }
+.table th { color:#52647a; font-weight:500; font-size:12px; text-align:left; padding:10px 8px; background:#f4f7fb; border-block:1px solid var(--vp-divider); }
+.table td { padding:16px 8px; vertical-align:top; border-bottom:1px solid var(--vp-divider); overflow-wrap:anywhere; }
+.table th:first-child { width:19%; }
+.table strong { font-size:14px; }
+.table small { display:block; color:var(--vp-muted); font-size:12px; margin-top:6px; }
+.table small b { display:block; color:var(--vp-text); font-weight:500; font-variant-numeric:tabular-nums; }
+.table .blockedReason { color:var(--vp-warning); }
+.filingTable th:nth-child(2) { width:13%; }.filingTable th:nth-child(3) { width:19%; }.filingTable th:nth-child(4) { width:17%; }
+.dueCell { color:var(--vp-muted); }
+.money { font-weight:650; font-variant-numeric:tabular-nums; }
+.table button { font-size:13px; padding:7px 10px; min-height:40px; }
+.table td:last-child { text-align:right; }
+.noLiability { display:flex; gap:8px; align-items:flex-start; font-size:12px; line-height:1.6; color:var(--vp-muted); margin:12px 0 0; }
+.noLiability svg { flex:none; color:var(--vp-success); margin-top:2px; }
+.issues,.checklist { list-style:none; margin:0; padding:0; }
+.issues { border-block:1px solid var(--vp-divider); }
+.issues li { display:flex; align-items:flex-start; gap:12px; padding:16px 0; border-bottom:1px solid var(--vp-divider); font-size:13px; line-height:1.65; }
+.issues li:last-child { border-bottom:0; }
+.issues li>div { flex:1; min-width:0; }
+.issues svg,.checklist svg { color:#a16a1b; flex:none; margin-top:2px; }
+.issues [data-ok] svg,.checklist [data-ok] svg { color:#188656; }
+.issues strong { font-size:14px; font-weight:600; }
+.issues p,.issues small { display:block; margin:4px 0 0; color:var(--vp-muted); font-size:12px; }
+.issues li>.issueAction { flex:0 1 140px; display:flex; align-items:flex-end; flex-direction:column; gap:4px; }
+.checklist li { display:flex; gap:8px; font-size:13px; line-height:1.6; padding:5px 0; }
+.linkButton { display:inline-flex; gap:6px; align-items:center; background:transparent; border:0; color:#2464ac; font:inherit; font-size:13px; padding:6px 0; cursor:pointer; text-decoration:none; min-height:36px; }
+.linkButton svg { color:inherit; flex:none; margin:0; }
+.linkButton:hover { text-decoration:underline; }
+.emptyHistory { display:flex; gap:14px; align-items:flex-start; padding:22px 16px; border-block:1px solid var(--vp-divider); background:#f8fafc; }
+.emptyHistory svg { color:var(--vp-muted); flex:none; margin-top:2px; }
+.emptyHistory strong { display:block; font-size:14px; line-height:1.6; font-weight:500; }
+.emptyHistory p { margin:6px 0 0; color:var(--vp-muted); font-size:13px; line-height:1.65; }
 .form { min-width:0; }.form fieldset { padding:0; border:0; margin:0; display:grid; gap:14px; min-width:0; }.form input:not([type=checkbox]),.form select,.form textarea { width:100%; min-width:0; padding:9px; min-height:42px; border:1px solid var(--vp-border); border-radius:4px; background:var(--vp-surface); font:inherit; font-size:14px; }.form textarea { min-height:76px; resize:vertical; }.check { display:flex; align-items:flex-start; gap:10px; line-height:1.6; font-size:14px; }.check input { flex:none; width:17px; height:17px; margin:3px 0 0; }.sourceList article { padding:12px 0; border-bottom:1px solid var(--vp-divider); font-size:13px; }.sourceList p { margin:6px 0; }.technical { white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; }.page button:focus-visible,.page a:focus-visible,.page input:focus-visible,.page select:focus-visible,.tabs a:focus-visible { outline:2px solid #246cdd; outline-offset:3px; }
-@media(max-width:1199px) { .cards { grid-template-columns:repeat(2,minmax(0,1fr)); }.main { grid-template-columns:minmax(0,1fr); }.summary { margin-bottom:24px; }.table { font-size:13px; } }
+@media(max-width:1199px) { .cards { grid-template-columns:repeat(2,minmax(0,1fr)); }.main { grid-template-columns:minmax(0,1fr); grid-template-areas:"filings" "issues" "summary" "history"; }.card { min-height:118px; } }
 @media(max-width:799px) { .table thead { position:absolute; width:1px; height:1px; clip-path:inset(50%); overflow:hidden; }.table,.table tbody { display:block; }.table tbody { display:grid; gap:10px; }.table tr { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); border:1px solid var(--vp-divider); border-radius:6px; padding:8px; }.table td { display:block; border:0; padding:6px; }.table td::before { content:attr(data-label); display:block; color:var(--vp-muted); font-size:11px; margin-bottom:4px; }.table td:last-child { grid-column:1/-1; border-top:1px solid var(--vp-divider); margin-top:6px; }.table button { min-height:40px; } }
-@media(max-width:599px) { .cards { grid-template-columns:minmax(0,1fr); }.header h1 { font-size:22px; }.month { width:100%; }.month select { flex:1; max-width:none; }.issues li { flex-wrap:wrap; }.issues .linkButton { margin-left:30px; }.table td:last-child button { width:100%; justify-content:center; }.form button { white-space:normal; }.summary dl>div { flex-wrap:wrap; }.summary dd { margin-left:auto; }.card strong { font-size:22px; } }
+@media(max-width:599px) { .cards { grid-template-columns:minmax(0,1fr); gap:10px; }.card { min-height:0; padding:14px; }.card h2 { margin-bottom:6px; }.header h1 { font-size:22px; }.periodControl,.month { width:100%; }.month select { flex:1; width:0; }.issues li { flex-wrap:wrap; gap:8px; }.issues li>.issueAction { flex:1 0 calc(100% - 32px); margin-left:32px; flex-direction:row; justify-content:space-between; align-items:center; }.table td:last-child button { width:100%; justify-content:center; }.form button { white-space:normal; }.summary { padding:16px; }.summary dd { max-width:52%; }.card strong { font-size:24px; }.emptyHistory { padding:18px 0; }.main { gap:24px; } }
