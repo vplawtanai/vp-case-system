@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
+import Link from "next/link";
 import DetailModal from "../../components/DetailModal";
 import { Callout, Disclosure, EmptyState, FieldGroup, PageHeader, PageShell, ReadOnlyGrid, StatusBadge } from "../../components/ui/patterns";
 import ui from "../../components/ui/vp-ui.module.css";
@@ -9,22 +10,23 @@ import { supabase } from "../../../lib/supabase";
 import { useI18n } from "../../../lib/i18n/provider";
 import { QuotationGuard } from "../quotations/shared";
 import FinanceSubNav from "../FinanceSubNav";
+import TaxModuleNav from "./module-nav";
 import TaxDashboard from "./dashboard";
-import { sourceLabel, taxErrorKey, type TaxFact, type TaxPeriod, type TaxPositionData, type TaxSource } from "./shared";
+import { sourceLabel, taxErrorKey, type TaxFact, type TaxPositionData, type TaxSource } from "./shared";
 import styles from "./tax-position.module.css";
 
-type Action = { kind: "source"; row: TaxSource } | { kind: "period"; row: TaxPeriod } | { kind: "evidence"; row: TaxFact };
+type Action = { kind: "source"; row: TaxSource } | { kind: "evidence"; row: TaxFact };
 export default function TaxPositionPage() {
  return <QuotationGuard canAccess={a => a.permissions.canViewFinanceTaxInvoices || a.profile?.role === "partner"}>
-  {a => <><FinanceSubNav activePage="tax-position" permissions={a.permissions} /><TaxDashboard permissions={a.permissions} taxDetails={<TaxPositionWorkspace />} /></>}
+  {a => <><FinanceSubNav activePage="tax-position" permissions={a.permissions} /><TaxModuleNav active="overview" /><TaxDashboard permissions={a.permissions} taxDetails={<TaxPositionWorkspace />} /></>}
  </QuotationGuard>;
 }
 export function TaxPositionWorkspace() {
  const { t, locale, date } = useI18n();
  const [data, setData] = useState<TaxPositionData | null>(null), [loading, setLoading] = useState(true), [busy, setBusy] = useState(false);
  const [error, setError] = useState<string | null>(null), [saved, setSaved] = useState(false), [action, setAction] = useState<Action | null>(null);
- const [status, setStatus] = useState(""), [reference, setReference] = useState(""), [filedOn, setFiledOn] = useState(""), [ack, setAck] = useState(false), [invalid, setInvalid] = useState(false);
- const lock = useRef(false), request = useRef(0), referenceRef = useRef<HTMLTextAreaElement>(null), ackRef = useRef<HTMLInputElement>(null), dateRef = useRef<HTMLInputElement>(null);
+ const [status, setStatus] = useState(""), [reference, setReference] = useState(""), [ack, setAck] = useState(false), [invalid, setInvalid] = useState(false);
+ const lock = useRef(false), request = useRef(0), referenceRef = useRef<HTMLTextAreaElement>(null), ackRef = useRef<HTMLInputElement>(null);
  const load = useCallback(async () => {
   const sequence = ++request.current; setLoading(true);
   try {
@@ -39,23 +41,21 @@ export function TaxPositionWorkspace() {
  const amount = (n: number | null) => n === null ? t("taxPosition.notRecorded") : `${n.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} THB`;
  const month = (s: string) => new Intl.DateTimeFormat(locale === "th" ? "th-TH" : "en-GB", { month: "short", year: "numeric", timeZone: "Asia/Bangkok" }).format(new Date(`${s}T00:00:00+07:00`));
  function open(next: Action) {
-  setAction(next); setStatus(next.kind === "period" ? next.row.status === "open" ? "ready_for_review" : next.row.status === "ready_for_review" ? "filed" : "open" : "received");
-  setReference(""); setFiledOn(""); setAck(false); setInvalid(false); setError(null); setSaved(false);
+  setAction(next); setStatus("received");
+  setReference(""); setAck(false); setInvalid(false); setError(null); setSaved(false);
  }
  function close() { if (!lock.current) { setAction(null); setError(null); setInvalid(false); } }
  async function submit(e: React.FormEvent) {
   e.preventDefault(); if (!action || lock.current) return;
-  if (!reference.trim() || !ack || (action.kind === "period" && status === "filed" && !filedOn)) {
+  if (!reference.trim() || !ack) {
    setInvalid(true); setError("taxPosition.error.required");
-   (!reference.trim() ? referenceRef.current : action.kind === "period" && status === "filed" && !filedOn ? dateRef.current : ackRef.current)?.focus(); return;
+   (!reference.trim() ? referenceRef.current : ackRef.current)?.focus(); return;
   }
   lock.current = true; setBusy(true); setError(null);
   try {
    const result = action.kind === "source"
     ? await supabase.rpc("materialize_finance_tax_source", { p_type: action.row.source_type, p_id: action.row.source_id, p_expected_source: action.row, p_acknowledged: ack, p_reason: reference.trim() })
-    : action.kind === "period"
-     ? await supabase.rpc("transition_finance_tax_period", { p_month: action.row.period_month, p_version: action.row.version, p_action: status, p_reference: reference.trim(), p_filed_on: status === "filed" ? filedOn : null, p_acknowledged: ack })
-     : await supabase.rpc("record_finance_incoming_wht_evidence", { p_fact_id: action.row.id, p_status: status, p_reference: reference.trim(), p_acknowledged: ack });
+    : await supabase.rpc("record_finance_incoming_wht_evidence", { p_fact_id: action.row.id, p_status: status, p_reference: reference.trim(), p_acknowledged: ack });
    if (result.error) throw result.error;
    setAction(null); setSaved(true); await load();
   } catch (e) { setError(taxErrorKey(e)); }
@@ -78,7 +78,7 @@ export function TaxPositionWorkspace() {
    <Disclosure title={t("taxPosition.technical")}><pre className={styles.technical}>{JSON.stringify(f, null, 2)}</pre></Disclosure>
   </article>;
  }
- const title = t(`taxPosition.${action?.kind === "source" ? "materialize" : action?.kind === "period" ? "periodAction" : "evidenceAction"}`);
+ const title = t(`taxPosition.${action?.kind === "source" ? "materialize" : "evidenceAction"}`);
  return <PageShell>
   <PageHeader title={t("taxPosition.title")} actions={<button className={ui.secondary} type="button" aria-label={t("common.actions.retry")} title={t("common.actions.retry")} disabled={loading || busy} onClick={() => { setError(null); void load(); }}><RefreshCw size={18} /></button>} />
   <p className={styles.muted}>{t("taxPosition.boundary")}</p>
@@ -93,7 +93,7 @@ export function TaxPositionWorkspace() {
      <div className={styles.heading}><h3>{month(p.period_month)}</h3><StatusBadge status={p.status} label={t(`taxPosition.${p.status}`)} /></div>
      <ReadOnlyGrid items={[{ key: "output", label: t("taxPosition.output"), value: amount(p.known_output_vat) }, { key: "input", label: t("taxPosition.input"), value: t("taxPosition.incomplete") }, { key: "net", label: t("taxPosition.net"), value: t("taxPosition.unknown") }]} />
      {p.filing_reference ? <p>{p.filing_reference} · {date(p.filed_on)}</p> : null}
-     {data.can_manage ? <button className={ui.secondary} type="button" disabled={busy} onClick={() => open({ kind: "period", row: p })}>{t("taxPosition.periodAction")}</button> : null}
+     <Link className={ui.secondary} href="/finance/tax-position/filings">{t("taxFiling.title")}</Link>
      <Disclosure title={t("taxPosition.sources")}>{data.facts.filter(f => f.tax_kind === "output_vat" && f.period_month === p.period_month).map(fact)}</Disclosure>
     </div>)}
    </section>
@@ -102,7 +102,7 @@ export function TaxPositionWorkspace() {
     {data.facts.filter(f => f.tax_kind === "incoming_wht").map(fact)}
    </section>
    <section className={styles.section}><h2>{t("taxPosition.outgoing")}</h2><p className={styles.muted}>{t("taxPosition.outgoingHelp")}</p>
-    {!data.outgoing?.length ? <EmptyState>{t("taxPosition.empty")}</EmptyState> : data.outgoing.map(w => <article className={styles.row} key={w.id}><strong>{w.payee_name}</strong><p>{date(w.withheld_on)} · {w.rate}% · {amount(w.withheld_amount)}</p><p>{t("payout.notRemitted")}</p></article>)}
+    {!data.outgoing?.length ? <EmptyState>{t("taxPosition.empty")}</EmptyState> : data.outgoing.map(w => <article className={styles.row} key={w.id}><strong>{w.payee_name}</strong><p>{date(w.withheld_on)} · {w.rate}% · {amount(w.withheld_amount)}</p><p>{w.remittance_status === "remitted" ? t("taxFiling.remitted") : t("payout.notRemitted")}</p></article>)}
    </section>
    {data.can_materialize && data.pending_sources.length ? <section className={styles.section}><h2>{t("taxPosition.pending")}</h2>
     {data.pending_sources.map(s => <article className={styles.row} key={`${s.source_type}:${s.source_id}`}><div className={styles.heading}>
@@ -116,13 +116,12 @@ export function TaxPositionWorkspace() {
   </> : null}
   <DetailModal open={!!action} title={title} size="edit" onClose={close} closeOnBackdrop={!busy}>
    {action ? <form className={styles.form} noValidate onSubmit={submit}>
-    <p>{t(action.kind === "period" ? "taxPosition.filingHelp" : action.kind === "evidence" ? "taxPosition.incomingHelp" : "taxPosition.boundary")}</p>
+    <p>{t(action.kind === "evidence" ? "taxPosition.incomingHelp" : "taxPosition.boundary")}</p>
     {action.kind === "source" ? <><strong>{sourceLabel(action.row)}</strong>{action.row.lines.map((l, n) => <p key={n}>{t(l.kind === "output_vat" ? "taxPosition.output" : "taxPosition.incoming")}: {amount(l.tax)}</p>)}</> : null}
     {action.kind !== "source" ? <FieldGroup id="tax-status" label={t("taxPosition.status")}><select value={status} disabled={busy} onChange={e => { setStatus(e.target.value); setInvalid(false); }}>
-     {(action.kind === "evidence" ? ["awaiting_evidence", "received", "verified"] : action.row.status === "open" ? ["ready_for_review"] : action.row.status === "ready_for_review" ? ["filed", "open"] : ["open"]).map(s => <option key={s} value={s}>{t(`taxPosition.${s}`)}</option>)}
+     {["awaiting_evidence", "received", "verified"].map(s => <option key={s} value={s}>{t(`taxPosition.${s}`)}</option>)}
     </select></FieldGroup> : null}
     <FieldGroup id="tax-reference" label={t("taxPosition.reference")}><textarea ref={referenceRef} required maxLength={2000} value={reference} disabled={busy} aria-invalid={invalid && !reference.trim()} onChange={e => { setReference(e.target.value); setInvalid(false); setError(null); }} /></FieldGroup>
-    {action.kind === "period" && status === "filed" ? <FieldGroup id="tax-filed-on" label={t("taxPosition.filedOn")}><input ref={dateRef} required type="date" value={filedOn} disabled={busy} aria-invalid={invalid && !filedOn} onChange={e => { setFiledOn(e.target.value); setInvalid(false); setError(null); }} /></FieldGroup> : null}
     <label className={styles.check}><input ref={ackRef} type="checkbox" checked={ack} disabled={busy} aria-invalid={invalid && !ack} onChange={e => { setAck(e.target.checked); setInvalid(false); setError(null); }} /><span>{t("taxPosition.ack")}</span></label>
     {error ? <Callout tone="negative" role="alert">{t(error)}</Callout> : null}
     <button type="submit" disabled={busy} className={ui.primary}>{t("taxPosition.save")}</button>

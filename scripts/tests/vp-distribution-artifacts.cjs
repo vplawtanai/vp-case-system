@@ -83,7 +83,7 @@ function contractFacts(sql) {
     const args = header.slice(header.indexOf('(') + 1, header.indexOf(')')).split(',').map(arg => arg.trim()).filter(Boolean);
     const returnType = /\breturns\s+(\w+)/i.exec(header)?.[1];
     const language = /\blanguage\s+(\w+)/i.exec(header)?.[1];
-    assert.ok(['boolean', 'uuid', 'jsonb', 'trigger', 'void', 'numeric', 'text'].includes(returnType), `Unsupported return type for ${fn.name}`);
+    assert.ok(['boolean', 'uuid', 'jsonb', 'trigger', 'void', 'numeric', 'text', 'timestamptz'].includes(returnType), `Unsupported return type for ${fn.name}`);
     assert.ok(['sql', 'plpgsql'].includes(language), `Unsupported language for ${fn.name}`);
     return { ...fn, returnType, language, argumentNames: args.map(arg => arg.split(/\s+/)[0]),
       defaultCount: args.filter(arg => /\bdefault\b|=/i.test(arg)).length,

@@ -13,7 +13,6 @@ export const supabase={async rpc(name,p){window.calls.push({name,p});await new P
 if(!window.data.can_manage)throw Error('Forbidden readonly mutation');if(window.fail){const message=window.fail;window.fail=null;return {error:{message}};}
 if(!p.p_acknowledged)throw Error('Missing acknowledgement');
 if(name==='materialize_finance_tax_source'){if(JSON.stringify(p.p_expected_source)!==JSON.stringify(window.data.pending_sources[0]))throw Error('Stale source');window.data.pending_sources=[];return {data:'revision'};}
-if(name==='transition_finance_tax_period'){if(p.p_version!==window.data.periods[0].version)throw Error('Stale period');Object.assign(window.data.periods[0],{status:p.p_action,version:p.p_version+1,filing_reference:p.p_action==='filed'?p.p_reference:null,filed_on:p.p_filed_on});return {data:null};}
 if(name==='record_finance_incoming_wht_evidence'){window.data.facts[0].evidence_status=p.p_status;window.data.facts[0].certificate_reference=p.p_reference;return {data:null};}throw Error('Forbidden RPC '+name);}};`);
 const guard=write('guard.js',`import{buildPermissions}from'${root}/lib/permissions.ts';export function QuotationGuard({canAccess,children}){const role=location.search.includes('readonly')?'partner':'admin';const access={profile:{role},permissions:buildPermissions({role})};return canAccess(access)?children(access):null;}`);
 const navigation=write('navigation.js','export const usePathname=()=>"/finance/tax-position";');
@@ -36,9 +35,10 @@ async function main(){
   for(const locale of ['th','en'])for(const width of [390,768,1024,1440]){
    const t=k=>translate(locale,'taxPosition.'+k);await page.setViewportSize({width,height:1000});await page.goto(url);await page.locator('button[lang='+locale+']').click();
    await page.getByRole('heading',{name:t('title'),exact:true}).waitFor();const action=page.getByRole('button',{name:t('materialize'),exact:true});await action.waitFor();
-   assert.equal(await page.getByRole('navigation').locator('a[aria-current="page"]').getAttribute('href'),'/finance/tax-position');
+   // FinanceSubNav is intentionally empty; the unchanged deployed rail is tested separately.
+   assert.equal(await page.getByRole('navigation').count(),0);
    await page.getByText('700.00 THB',{exact:true}).first().waitFor();await page.getByText(t('incomplete'),{exact:true}).waitFor();await page.getByText('3%',{exact:true}).waitFor();
-   await page.getByText(t('unknown'),{exact:true}).waitFor();await page.getByText(t('noOutgoing'),{exact:true}).waitFor();await geometry();
+   await page.getByText(t('unknown'),{exact:true}).waitFor();await page.getByText(t('empty'),{exact:true}).first().waitFor();await geometry();
    assert.equal(await page.locator('pre:visible').count(),0);assert.equal(await page.evaluate(()=>window.calls.some(c=>c.name!=='get_finance_tax_position')),false);
    await page.getByText(t('sources'),{exact:true}).click();await page.screenshot({path:out+`/tax-${locale}-${width}.png`,fullPage:true});
    await action.click();const modal=page.getByRole('dialog');await modal.waitFor();await page.keyboard.press('Tab');assert.equal(await modal.locator(':focus').count(),1);
@@ -51,15 +51,12 @@ async function main(){
    await modal.getByRole('button',{name:t('save'),exact:true}).click();await modal.waitFor({state:'hidden'});assert.equal(await calls('materialize_finance_tax_source'),2);
    await page.getByRole('button',{name:t('evidenceAction'),exact:true}).click();await page.getByLabel(t('reference'),{exact:true}).fill('Synthetic certificate');await page.getByLabel(t('ack'),{exact:true}).check();
    await modal.getByRole('button',{name:t('save'),exact:true}).click();await modal.waitFor({state:'hidden'});await page.getByText(t('received'),{exact:true}).waitFor();
-   await page.getByRole('button',{name:t('periodAction'),exact:true}).click();await modal.getByText(t('filingHelp'),{exact:true}).waitFor();await page.getByLabel(t('reference'),{exact:true}).fill('Review evidence');await page.getByLabel(t('ack'),{exact:true}).check();
-   await modal.getByRole('button',{name:t('save'),exact:true}).click();await modal.waitFor({state:'hidden'});await page.getByText(t('ready_for_review'),{exact:true}).waitFor();
-   await page.getByRole('button',{name:t('periodAction'),exact:true}).click();await page.getByLabel(t('reference'),{exact:true}).fill('External filing record');await page.getByLabel(t('ack'),{exact:true}).check();
-   await modal.getByRole('button',{name:t('save'),exact:true}).click();assert.equal(await calls('transition_finance_tax_period'),1);await page.getByLabel(t('filedOn'),{exact:true}).fill('2026-09-10');await geometry();await page.screenshot({path:out+`/filing-${locale}-${width}.png`,fullPage:true});
-   await modal.getByRole('button',{name:t('save'),exact:true}).click();await modal.waitFor({state:'hidden'});assert.equal(await calls('transition_finance_tax_period'),2);
-   await page.getByText(t('unknown'),{exact:true}).waitFor();await page.goto(url+'?readonly');await page.locator('button[lang='+locale+']').click();await page.getByText(t('noOutgoing'),{exact:true}).waitFor();
+   assert.equal(await page.getByRole('button',{name:t('periodAction'),exact:true}).count(),0);
+   await page.getByRole('link',{name:translate(locale,'taxFiling.title'),exact:true}).waitFor();assert.equal(await calls('transition_finance_tax_period'),0);
+   await page.getByText(t('unknown'),{exact:true}).waitFor();await page.goto(url+'?readonly');await page.locator('button[lang='+locale+']').click();await page.getByText(t('empty'),{exact:true}).first().waitFor();
    for(const k of ['materialize','periodAction','evidenceAction'])assert.equal(await page.getByRole('button',{name:t(k),exact:true}).count(),0);await geometry();
-   await page.goto(url+'?empty');await page.locator('button[lang='+locale+']').click();await page.getByText(t('empty'),{exact:true}).waitFor();
-   for(const k of ['incomplete','unknown','noOutgoing','outgoingHelp','filingHelp'])await page.getByText(t(k),{exact:true}).waitFor();
+   await page.goto(url+'?empty');await page.locator('button[lang='+locale+']').click();await page.getByText(t('empty'),{exact:true}).first().waitFor();
+   for(const k of ['incomplete','unknown','outgoingHelp','filingHelp'])await page.getByText(t(k),{exact:true}).waitFor();
    for(const k of ['materialize','periodAction','evidenceAction'])assert.equal(await page.getByRole('button',{name:t(k),exact:true}).count(),0);
    assert.equal(await page.evaluate(()=>window.calls.some(c=>c.name!=='get_finance_tax_position')),false);await geometry();await page.screenshot({path:out+`/zero-${locale}-${width}.png`,fullPage:true});
   }
