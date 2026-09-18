@@ -7,36 +7,40 @@ import { Callout, Disclosure, EmptyState, FieldGroup, PageShell, ReadOnlyGrid, S
 import ui from "../../../components/ui/vp-ui.module.css";
 import { supabase } from "../../../../lib/supabase";
 import { useI18n } from "../../../../lib/i18n/provider";
-import { currentBangkokMonth, shiftMonth } from "../dashboard-data";
+import type { UserPermissions } from "../../../../lib/permissions";
+import { currentBangkokMonth, readMonthlyTaxSources, shiftMonth, summarizeMonthlyTaxFacts, type MonthlyTaxFacts } from "../dashboard-data";
 import { locationKey, locationName, openingStart } from "../../treasury/shared";
-import { activeFiling, filingErrorKey, filingState, summarizeFilings, type Filing, type FilingData, type FilingPool } from "./shared";
+import { activeFiling, filingBaseAmount, filingErrorKey, filingState, summarizeFilings, type Filing, type FilingData, type FilingPool } from "./shared";
 import styles from "./filings.module.css";
 
 type Selection = { pool: FilingPool; filing?: Filing; mode: "review" | "file" | "payment" | "cancel" | "cancelPayment"; readonly?: boolean };
-export function TaxFilingWorkspace() {
+export function TaxFilingWorkspace({ permissions }: { permissions: UserPermissions }) {
  const { t, locale, date } = useI18n(), tr = (k: string, values?: Record<string, string | number>) => t(`taxFiling.${k}`, values);
  const [month, setMonth] = useState(currentBangkokMonth), [data, setData] = useState<FilingData | null>(null), [loading, setLoading] = useState(true), [busy, setBusy] = useState(false);
+ const [monthlyFacts, setMonthlyFacts] = useState<MonthlyTaxFacts | null>(null);
+ const { canViewFinancePayments, canViewFinanceTaxInvoices, canViewFinanceReceipts } = permissions;
  const [error, setError] = useState<string | null>(null), [saved, setSaved] = useState(false), [selection, setSelection] = useState<Selection | null>(null);
  const [due, setDue] = useState(""), [dueEvidence, setDueEvidence] = useState(""), [externalDate, setExternalDate] = useState(""), [reference, setReference] = useState(""), [evidence, setEvidence] = useState(""), [ack, setAck] = useState(false), [accountKey, setAccountKey] = useState("");
  const sequence = useRef(0), lock = useRef(false), requestId = useRef(""), form = useRef<HTMLFormElement>(null), queuedHistory = useRef<string | null>(null);
  const load = useCallback(async () => {
-  const n = ++sequence.current; setLoading(true); setData(null);
+  const n = ++sequence.current; setLoading(true); setData(null); setMonthlyFacts(null);
   try {
    const result = await supabase.rpc("get_finance_tax_filings", { p_month: `${month}-01` });
    if (result.error || !Array.isArray(result.data?.pools) || !Array.isArray(result.data?.filings) || !Array.isArray(result.data?.accounts) || !Array.isArray(result.data?.history)) throw result.error || new Error("response");
+   const sources = await readMonthlyTaxSources(supabase, { canViewFinancePayments, canViewFinanceTaxInvoices, canViewFinanceReceipts } as UserPermissions, month);
    if (n === sequence.current) {
-    const next = result.data as FilingData; setData(next);
+    const next = result.data as FilingData; setData(next); setMonthlyFacts(summarizeMonthlyTaxFacts(sources, month));
     if (queuedHistory.current) { const f = next.filings.find(f => f.id === queuedHistory.current); queuedHistory.current = null; if (f) setSelection({ pool: f.source_snapshot_json, filing: f, mode: "review", readonly: true }); }
    }
   } catch (e) { if (n === sequence.current) setError(filingErrorKey(e)); }
   finally { if (n === sequence.current) setLoading(false); }
- }, [month]);
+ }, [month, canViewFinancePayments, canViewFinanceTaxInvoices, canViewFinanceReceipts]);
  const invalidate = useCallback(() => { sequence.current++; }, []);
  useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => { clearTimeout(timer); invalidate(); }; }, [load, invalidate]);
  const money = (value: number | null | undefined) => value == null ? tr("unknown") : `${value.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} THB`;
  const monthName = (m: string) => new Intl.DateTimeFormat(locale === "th" ? "th-TH" : "en-GB", { month: "long", year: "numeric", timeZone: "Asia/Bangkok" }).format(new Date(`${m.slice(0, 7)}-01T00:00:00+07:00`));
  const months = [...new Set([month, ...Array.from({ length: 37 }, (_, i) => shiftMonth(currentBangkokMonth(), i - 24))])].sort().reverse();
- const summary = data ? summarizeFilings(data) : null;
+ const summary = data ? summarizeFilings(data, monthlyFacts) : null;
  const issues = data ? [...new Map(data.pools.flatMap(p => p.issues).map(i => [i.code, i])).values()] : [];
  const f = selection?.filing, r = f?.remittance, paymentMode = selection?.mode === "payment", cancellation = selection?.mode === "cancel" || selection?.mode === "cancelPayment";
  const selectedEvidence = f?.source_snapshot_json || selection?.pool;
@@ -82,7 +86,7 @@ export function TaxFilingWorkspace() {
   {error && !selection ? <Callout tone="negative" role="alert">{tr(error)}</Callout> : null}{saved ? <p role="status">{tr("saved")}</p> : null}{loading ? <p role="status">{t("common.state.loading")}</p> : null}
   <div className={styles.cards} aria-busy={loading}>
    {[{ key: "net", value: money(summary?.vat?.tax_amount), help: "incomplete", icon: <FileText />, tone: "blue" },
-    { key: "incoming", value: money(data?.incoming_wht_credit), help: "creditHelp", icon: <ArrowDownToLine />, tone: "green" },
+    { key: "incoming", value: money(summary?.incomingWht), help: "creditHelp", icon: <ArrowDownToLine />, tone: "green" },
     { key: "outgoing", value: money(summary?.outgoing), help: "outgoingHelp", icon: <FileText />, tone: "blue" },
     { key: "periodStatus", value: tr(summary?.status || "collecting"), help: "externalOnly", icon: <Clock3 />, tone: "amber" }].map(c => <article className={styles.card} key={c.key} data-tone={c.tone}><span className={styles.icon}>{c.icon}</span><div><h2>{tr(c.key)}</h2>{c.key === "periodStatus" ? <div data-metric={c.key}><StatusBadge status={summary?.status === "complete" ? "confirmed" : "pending"} label={loading ? "…" : c.value} /></div> : <strong data-metric={c.key}>{loading ? "…" : c.value}</strong>}<p>{tr(c.help)}</p></div></article>)}
   </div>
@@ -91,7 +95,7 @@ export function TaxFilingWorkspace() {
     <section className={styles.section} aria-labelledby="filings-title"><h2 id="filings-title">{tr("filings")}</h2>
      <table className={styles.table}><thead><tr>{["type", "due", "base", "amount", "status", "actions"].map(k => <th key={k} scope="col">{tr(k)}</th>)}</tr></thead><tbody>{summary.obligations.map(p => { const row = activeFiling(data, p.filing_type); return <tr key={p.filing_type}>
       <td data-label={tr("type")}><strong>{tr(p.filing_type)}</strong><small>{tr("sourceCount", { count: p.source_count })}</small></td>
-      <td data-label={tr("due")}>{row?.due_date ? date(row.due_date) : tr("dueUnknown")}</td><td data-label={tr("base")}>{money(p.base_amount)}</td>
+      <td data-label={tr("due")}>{row?.due_date ? date(row.due_date) : tr("dueUnknown")}</td><td data-label={tr("base")}>{money(row?.status === "filed" ? row.base_amount : filingBaseAmount(p))}</td>
       <td data-label={tr("amount")} className={styles.money}>{money(row?.status === "filed" ? row.tax_amount : p.tax_amount)}</td>
       <td data-label={tr("status")}><StatusBadge status={!p.ready ? "pending" : row?.status === "filed" ? "confirmed" : "draft"} label={tr(filingState(row, p))} /></td>
       <td><button type="button" className={ui.secondary} onClick={() => open(p, row)}>{tr("review")}</button></td>
@@ -103,7 +107,7 @@ export function TaxFilingWorkspace() {
      {!data.pools.some(p => p.filing_type !== "vat" && p.issues.length) ? <li data-ok><CheckCircle2 size={20} /><div>{tr(summary.outgoing ? "whtReviewed" : "noWht")}</div></li> : null}
     </ul></section>
    </div><aside className={styles.summary} aria-labelledby="filing-summary"><h2 id="filing-summary">{tr("summary")}</h2><dl>
-    {[["output", money(summary.vat?.output_vat)], ["input", tr("incomplete")], ["net", money(summary.vat?.tax_amount)], ["incoming", money(data.incoming_wht_credit)], ...data.pools.filter(p => p.filing_type !== "vat").map(p => [p.filing_type, money(p.tax_amount)])].map(([k, value]) => <div key={k}><dt>{tr(k)}</dt><dd>{value}</dd></div>)}
+    {[["output", money(summary.outputVat)], ["input", tr("incomplete")], ["net", money(summary.vat?.tax_amount)], ["incoming", money(summary.incomingWht)], ...data.pools.filter(p => p.filing_type !== "vat").map(p => [p.filing_type, money(p.tax_amount)])].map(([k, value]) => <div key={k}><dt>{tr(k)}</dt><dd>{value}</dd></div>)}
     <div className={styles.total}><dt>{tr("total")}</dt><dd>{summary.total === null ? tr("totalUnknown") : money(summary.total)}</dd></div>
    </dl><p className={styles.muted}>{tr("creditHelp")}</p><h3>{tr("checklist")}</h3><ul className={styles.checklist}>
     {issues.map(i => <li key={i.code}><TriangleAlert size={17} /><span>{tr(i.code)}</span></li>)}

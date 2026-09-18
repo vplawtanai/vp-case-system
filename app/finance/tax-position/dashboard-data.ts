@@ -15,6 +15,8 @@ export type MoneyData = { payments: PaymentRow[]; direct: DirectRow[]; component
 export type TaxDocument = { id: string; payment_id: string; status: string; tax_invoice_no: string; items: { id: string; amount_before_vat: Amount; vat_amount: Amount; total_amount: Amount }[]; point: { occurred_on: string; approved_at: string | null } };
 export type Correction = { id: string; correction_mode: string; status: string; adjustment_date: string; lines: { id: string; base_change: Amount; vat_change: Amount }[] };
 export type DashboardData = { money: MoneyData | null; taxes: { documents: TaxDocument[]; corrections: Correction[] } | null; treasury: TreasuryData | null; payables: PayableGroup[] | null; register: TaxPositionData | null };
+export type MonthlyTaxSources = Pick<DashboardData, "money" | "taxes">;
+export type MonthlyTaxFacts = { outputVat: number | null; incomingWht: number | null };
 export type Movement = { key: string; id: string; source: "payment" | "direct_money_receipt" | "tax_invoice" | "credit_note" | "debit_note"; reference: string; payer: string | null; date: string; gross: number; cash: number | null; vat: number | null; wht: number | null; href: string };
 export type Credit = { key: string; source: Movement["source"]; sourceId: string; reference: string; base: number | null; rate: number | null; amount: number; evidence: string };
 
@@ -69,7 +71,7 @@ async function optional<T>(allowed: boolean, read: () => Promise<T>): Promise<T 
  if (!allowed) return null;
  try { return await read(); } catch { return null; }
 }
-export async function readDashboard(client: SupabaseClient, permissions: UserPermissions, month: string): Promise<DashboardData> {
+export async function readMonthlyTaxSources(client: SupabaseClient, permissions: UserPermissions, month: string): Promise<MonthlyTaxSources> {
  const start = month + "-01", end = shiftMonth(month, 1) + "-01";
  const monthly = <T,>(table: string, columns: string, date: string) => readAll<T>((a, b) => client.from(table).select(columns, { count: "exact" }).gte(date, start).lt(date, end).order("id").range(a, b));
  const money = await optional(permissions.canViewFinancePayments, async () => {
@@ -90,6 +92,10 @@ export async function readDashboard(client: SupabaseClient, permissions: UserPer
   const lines = await byIds<Correction["lines"][number] & { correction_id: string }>(client, "finance_tax_correction_lines", "id,correction_id,base_change,vat_change", "correction_id", corrections.map(c => c.id));
   return { documents: docs.map(d => ({ ...d, point: points.find(p => p.tax_invoice_id === d.id)!, items: items.filter(i => i.tax_invoice_id === d.id) })), corrections: corrections.map(c => ({ ...c, lines: lines.filter(l => l.correction_id === c.id) })) };
  });
+ return { money, taxes };
+}
+export async function readDashboard(client: SupabaseClient, permissions: UserPermissions, month: string): Promise<DashboardData> {
+ const { money, taxes } = await readMonthlyTaxSources(client, permissions, month);
  const treasury = await optional(permissions.canViewFinanceCashTransactions, async () => {
   const r = await client.rpc("get_finance_treasury", { p_offset: 0 });
   if (r.error || !Array.isArray(r.data?.accounts)) throw r.error || new Error("Treasury unavailable");
@@ -184,4 +190,15 @@ export function summarizeDashboard(data: DashboardData, month: string) {
   outgoingHeld: data.register?.outgoing_workflow_available ? total((data.register.outgoing || []).filter(w => inMonth(w.withheld_on)).map(w => w.withheld_amount)) : null,
   outgoingDue: data.register?.outgoing_workflow_available ? total((data.register.outgoing || []).filter(w => inMonth(w.withheld_on)).map(w => (cents(w.withheld_amount) - cents(w.remitted_amount)) / 100)) : null,
  };
+}
+
+// Use the Overview calculation unchanged, without reading unrelated Treasury/Payables
+// or mistaking materialized filing allocations for all known monthly tax facts.
+export function summarizeMonthlyTaxFacts(sources: MonthlyTaxSources, month: string): MonthlyTaxFacts {
+ try {
+  const summary = summarizeDashboard({ ...sources, treasury: null, payables: null, register: null }, month);
+  return { outputVat: summary.outputVat, incomingWht: summary.wht };
+ } catch {
+  return { outputVat: null, incomingWht: null };
+ }
 }

@@ -1,4 +1,5 @@
 import type { Location } from "../../treasury/shared";
+import type { MonthlyTaxFacts } from "../dashboard-data";
 export type FilingType = "vat" | "wht_natural" | "wht_juristic";
 export type FilingSource = { id: string; economic_key: string; fingerprint: string; base: number | null; amount: number; date: string; rate: number | null; reference: string; source_type: string; source_id: string; payee_name?: string; entity_type?: string; evidence: unknown };
 export type FilingPool = { period_month: string; filing_type: FilingType; source_count: number; base_amount: number; tax_amount: number | null; output_vat: number | null; input_vat: null; input_vat_complete: false; ready: boolean; sources: FilingSource[]; review_sources?: FilingSource[]; issues: { code: string; count: number | null }[]; fingerprint: string };
@@ -11,14 +12,18 @@ export function filingState(filing: Filing | undefined, pool: FilingPool): strin
  if (filing?.status === "filed") return filing.tax_amount === 0 ? "no_payment_required" : filing.remittance?.status === "confirmed" ? "remitted" : "awaiting_payment";
  return filing?.source_changed ? "source_changed" : !pool.ready ? "needs_review" : filing?.status || "unprepared";
 }
-export function summarizeFilings(data: FilingData) {
+export function filingBaseAmount(pool: FilingPool) {
+ // A partial register is not a complete VAT filing base, even when it is empty.
+ return pool.filing_type === "vat" && !pool.input_vat_complete ? null : pool.base_amount;
+}
+export function summarizeFilings(data: FilingData, facts: MonthlyTaxFacts | null = null) {
  const vat = data.pools.find(p => p.filing_type === "vat"), wht = data.pools.filter(p => p.filing_type !== "vat");
  const outgoing = wht.every(p => p.ready) ? wht.reduce((n, p) => n + Math.round((p.tax_amount || 0) * 100), 0) / 100 : null;
  // Incoming WHT never participates in the obligation total.
  const total = vat?.ready && vat.tax_amount !== null && outgoing !== null ? Math.round((vat.tax_amount + outgoing) * 100) / 100 : null;
  const obligations = data.pools.filter(p => p.filing_type === "vat" || p.source_count > 0 || p.issues.length > 0 || activeFiling(data, p.filing_type));
  const complete = obligations.every(p => ["remitted", "no_payment_required"].includes(filingState(activeFiling(data, p.filing_type), p)));
- return { vat, outgoing, total, obligations, status: complete ? "complete" : obligations.some(p => !p.ready || activeFiling(data, p.filing_type)?.source_changed) ? "needs_review" : "collecting" };
+ return { vat, outputVat: facts?.outputVat ?? null, incomingWht: facts?.incomingWht ?? null, outgoing, total, obligations, status: complete ? "complete" : obligations.some(p => !p.ready || activeFiling(data, p.filing_type)?.source_changed) ? "needs_review" : "collecting" };
 }
 export function filingErrorKey(error: unknown) {
  const message = error && typeof error === "object" && "message" in error ? String(error.message) : "";
