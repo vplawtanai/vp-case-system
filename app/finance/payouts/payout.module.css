@@ -16,6 +16,8 @@
 .section h2,.side h2 { font-size:17px; font-weight:650; display:flex; align-items:flex-start; gap:10px; margin:0 0 12px; line-height:1.5; }
 .section h2 svg,.side h2 svg { width:22px; height:22px; flex:none; color:#1263d4; margin-top:2px; }
 .recipient { display:grid; grid-template-columns:minmax(190px,1fr) minmax(210px,1.25fr); gap:20px; align-items:start; }
+.recipient.contextualRecipient { grid-template-columns:minmax(0,1fr); }
+.payeeActions { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }.payeeActions button { white-space:normal; }
 .payee { display:grid; gap:5px; font-size:13px; }.payee>strong { font-size:18px; }.payee button { justify-self:start; margin-top:4px; }
 .muted { color:#617187; font-size:13px; line-height:1.65; margin:8px 0; }
 .rights { border:1px solid #dce5ed; border-radius:6px; overflow:hidden; }

@@ -12,16 +12,19 @@ import { payableRoleLabel, type PayableComponent } from "../payables/shared";
 import { locationKey, locationName } from "../treasury/shared";
 import { mask, payoutError, payoutHref, type Payee, type Workspace } from "./shared";
 import { bangkokToday, payoutComponentPreview, payoutReviewState } from "./review";
+import { hasPayoutEntrySelections, validPayeeContextId, validPayoutEntry } from "./entry-context";
 import { PayeeModal } from "./payee-modal";
 import css from "./payout.module.css";
 
-export function PayoutWorkspace({ id, payeeId, fixture }: { id: string; payeeId: string; fixture?: Workspace }) {
+export function PayoutWorkspace({ id, payeeId: entryPayeeId, fixture }: { id: string; payeeId: string | null; fixture?: Workspace }) {
  const { t, locale, date } = useI18n(), router = useRouter(), lock = useRef(false), sequence = useRef(0);
+ const payeeId = entryPayeeId?.toLowerCase() ?? null, contextual = payeeId !== null || id !== "new";
  const [data, setData] = useState<Workspace | null>(fixture || null), [loading, setLoading] = useState(!fixture), [error, setError] = useState("");
  const [selected, setSelected] = useState<string[]>([]), [rates, setRates] = useState<Record<string, string>>({}), [accountKey, setAccountKey] = useState("");
- const [paidOn, setPaidOn] = useState(bangkokToday);
+ const [initialDate] = useState(bangkokToday), [paidOn, setPaidOn] = useState(initialDate);
  const [note, setNote] = useState(""), [dirty, setDirty] = useState(false), [busy, setBusy] = useState(false), [ack, setAck] = useState(false);
  const [modal, setModal] = useState<"confirm" | "cancel" | null>(null), [editPayee, setEditPayee] = useState<Payee | "new" | null>(null);
+ const [changeRecipient, setChangeRecipient] = useState(false);
  const [newId] = useState(() => crypto.randomUUID());
  const apply = useCallback((next: Workspace) => {
   setData(next); const p = next.payout;
@@ -32,10 +35,12 @@ export function PayoutWorkspace({ id, payeeId, fixture }: { id: string; payeeId:
   if (fixture) { apply(fixture); return; }
   const request = ++sequence.current; setLoading(true); setError("");
   try {
+   if ((payeeId !== null && !validPayeeContextId(payeeId)) || (id !== "new" && payeeId === null)) { setData(null); setError("contextUnavailable"); return; }
    const r = await supabase.rpc("get_finance_payout_workspace", { p_payee_id: payeeId || null, p_payout_id: id === "new" ? null : id });
    if (r.error || !Array.isArray(r.data?.payees)) throw r.error || new Error("response");
+   if (!validPayoutEntry(r.data as Workspace, payeeId, id)) { if (request === sequence.current) { setData(null); setError("contextUnavailable"); } return; }
    if (request === sequence.current) { if (preserveForm) setData(r.data as Workspace); else apply(r.data as Workspace); }
-  } catch (e) { if (request === sequence.current) setError(payoutError(e)); }
+  } catch (e) { if (request === sequence.current) { setData(null); setError(payoutError(e)); } }
   finally { if (request === sequence.current) setLoading(false); }
  }, [apply, fixture, id, payeeId]);
  const invalidate = useCallback(() => { sequence.current++; }, []);
@@ -43,8 +48,8 @@ export function PayoutWorkspace({ id, payeeId, fixture }: { id: string; payeeId:
  const p = data?.payout, frozen = p?.confirmed_snapshot_json, readonly = !data?.can_manage || (!!p && p.status !== "draft");
  const payee = frozen ? { ...frozen.payee, destination: frozen.destination } : data?.payees.find(x => x.id === (p?.payee_id || payeeId));
  const allRows = new Map<string, PayableComponent>();
- for (const c of p?.choices_json || []) if (c.entitlement) allRows.set(c.entitlement_id, c.entitlement);
- if (!p || p.status === "draft") for (const c of data?.components || []) allRows.set(c.id, c);
+ for (const c of p?.choices_json || []) if (payee && c.entitlement?.recipient_id === payee.id) allRows.set(c.entitlement_id, c.entitlement);
+ if (!p || p.status === "draft") for (const c of data?.components || []) if (c.recipient_id === payee?.id && c.status === "open") allRows.set(c.id, c);
  const rows = [...allRows.values()], picked = rows.filter(r => selected.includes(r.id));
  const account = frozen?.account || data?.accounts.find(a => locationKey(a) === accountKey);
  const review = payoutReviewState(payee, account, picked, rates, paidOn, p?.status), math = review.math;
@@ -93,13 +98,13 @@ export function PayoutWorkspace({ id, payeeId, fixture }: { id: string; payeeId:
   <div className={css.breadcrumb}><span>{t("common.nav.finance")} / <Link href="/finance/payables">{t("payables.title")}</Link> / {t("payout.title")}</span><Link className={ui.secondary} href="/finance/payables"><ArrowLeft size={16} />{t("payables.title")}</Link></div>
   <div className={css.intro}><PageHeader title={t("payout.title")} description={t("payout.subtitle")} />
   <ol className={css.steps} aria-label={t("payout.progress")}>{["stepRecipient", "stepTax", "review", "done"].map((s, i) => <li key={s} data-state={review.completed[i] ? "complete" : review.activeStep === i ? "active" : "pending"} aria-current={review.activeStep === i ? "step" : undefined}><span aria-hidden="true">{review.completed[i] ? <Check size={16} /> : i + 1}</span><div>{t(`payout.${s}`)}<small>{t(`payout.${review.completed[i] ? "stepComplete" : review.activeStep === i ? "stepActive" : "stepPending"}`)}</small></div></li>)}</ol>
-  </div>{loading ? <p role="status">{t("common.state.loading")}</p> : !data ? <Callout tone="negative">{t(`payout.${error || "failed"}`)} <button onClick={() => void load()}>{t("common.actions.retry")}</button></Callout> : <>
+  </div>{loading ? <p role="status">{t("common.state.loading")}</p> : !data ? <Callout tone="negative" role="alert">{t(`payout.${error || "failed"}`)} <button onClick={() => void load()}>{t("common.actions.retry")}</button></Callout> : <>
    {error ? <Callout role="alert" tone="negative">{t(`payout.${error}`)}</Callout> : null}
    {readonly && p ? <Callout tone="info"><StatusBadge status={p.status} label={t(`payout.${p.status}`)} /> {t("payout.reference")}: {p.id.slice(0, 8).toUpperCase()} · {p.status === "confirmed" ? t("payout.readOnly") : null}</Callout> : null}
    <div className={css.layout}><div className={css.main}>
-    <section className={css.section}><h2><UserRound />1. {t("payout.recipient")}</h2><div className={css.recipient}>
-     {!readonly ? <div className={css.form}><FieldGroup id="payout-payee" label={t("payout.recipient")}><select value={payee?.id || ""} disabled={busy || !!p} onChange={e => router.push(payoutHref(e.target.value))}><option value="">{t("payout.choose")}</option>{data.payees.filter(p => p.is_active).map(p => <option key={p.id} value={p.id}>{p.legal_name} · {t(`payout.${p.kind}`)}</option>)}</select></FieldGroup><button className={ui.secondary} disabled={busy} onClick={() => setEditPayee("new")}>{t("payout.add")}</button></div> : null}
-     {payee ? <div className={css.payee}><strong>{payee.legal_name}</strong><span>{t(`payout.${payee.kind}`)} · {t(`payout.${payee.entity_type}`)}</span><span>{t("payout.taxId")}: {payee.tax_id ? mask(payee.tax_id) : t("payout.missing")}</span><span>{t("payout.destination")}: {destination}</span>{!readonly ? <><span className={css.muted}>{review.recipientIssues.length ? review.recipientIssues.map(key => t(`payout.${key}`)).join(" · ") : review.accountSelected && math.valid ? t("payout.ready") : t("payout.detailsPending")}</span><button className={ui.secondary} disabled={busy} onClick={() => setEditPayee(payee)}>{t("payout.edit")}</button></> : null}</div> : null}
+    <section className={css.section}><h2><UserRound />1. {t(contextual ? "payout.checkRecipient" : "payout.recipient")}</h2><div className={`${css.recipient} ${contextual ? css.contextualRecipient : ""}`} data-entry-mode={contextual ? "contextual" : "generic"}>
+     {!readonly && !contextual ? <div className={css.form}><FieldGroup id="payout-payee" label={t("payout.recipient")}><select value="" disabled={busy} onChange={e => { if (e.target.value) router.push(payoutHref(e.target.value)); }}><option value="">{t("payout.choose")}</option>{data.payees.filter(p => p.is_active).map(p => <option key={p.id} value={p.id}>{p.legal_name} · {t(`payout.${p.kind}`)}</option>)}</select></FieldGroup><button className={ui.secondary} disabled={busy} onClick={() => setEditPayee("new")}>{t("payout.add")}</button></div> : null}
+     {payee ? <div className={css.payee}><strong>{payee.legal_name}</strong><span>{t(`payout.${payee.kind}`)} · {t(`payout.${payee.entity_type}`)}</span><span>{t("payout.taxId")}: {payee.tax_id ? mask(payee.tax_id) : t("payout.missing")}</span><span>{t("payout.destination")}: {destination}</span>{!readonly ? <><span className={css.muted}>{review.recipientIssues.length ? review.recipientIssues.map(key => t(`payout.${key}`)).join(" · ") : review.accountSelected && math.valid ? t("payout.ready") : t("payout.detailsPending")}</span><div className={css.payeeActions}><button className={ui.secondary} disabled={busy} onClick={() => setEditPayee(payee)}>{t("payout.fixPayee")}</button>{id === "new" ? <button className={ui.secondary} disabled={busy} onClick={() => { if (hasPayoutEntrySelections(selected, rates, accountKey, paidOn, initialDate, note)) setChangeRecipient(true); else router.push("/finance/payables"); }}>{t("payout.changeRecipient")}</button> : null}</div></> : null}</div> : null}
     </div></section>
     <section className={css.section}><div className={css.heading}><h2><FileText />2. {t("payout.rights")}</h2><span>{t("payout.selected", { count: picked.length })}</span>{!readonly ? <button className={ui.secondary} disabled={busy || !rows.length} onClick={() => change(() => setSelected(selected.length === rows.length ? [] : rows.map(r => r.id)))}>{t("payout.selectAll")}</button> : null}</div>
      {rows.length ? <div className={css.rights}>{rows.map(r => <label className={css.right} key={r.id}><input type="checkbox" checked={selected.includes(r.id)} disabled={readonly || busy} onChange={e => change(() => setSelected(e.target.checked ? [...selected, r.id] : selected.filter(id => id !== r.id)))} /><span><strong>{payableRoleLabel(r.role_label, locale)}</strong><small>{r.distribution_id.slice(0, 8).toUpperCase()} · {date(r.finalized_at)}</small></span><strong>{money(r.gross_amount)}</strong></label>)}</div> : <EmptyState>{t("payout.noRights")}</EmptyState>}
@@ -118,9 +123,12 @@ export function PayoutWorkspace({ id, payeeId, fixture }: { id: string; payeeId:
      <button className={ui.primary} disabled={disabledReasons.length > 0} aria-describedby={disabledReasons.length ? "payout-review-blockers" : undefined} onClick={() => { setAck(false); setModal("confirm"); }}><Send size={18} />{t("payout.review")}</button>{p ? <div className={css.other}><button className={ui.danger} disabled={busy} onClick={() => { setAck(false); setModal("cancel"); }}>{t("payout.cancel")}</button></div> : null}
     </> : null}
    </aside></div>
-   <section className={css.section}><h2><Clock />{t("payout.history")}</h2>{data.history.length ? <div className={css.history}>{data.history.map(h => <div key={h.id}><span>{date(h.paid_on)}</span><Link href={payoutHref(payee?.id || payeeId, h.id)}>{h.id.slice(0, 8).toUpperCase()}</Link><span>{t("payout.gross")}: {money(h.gross)}</span><span>{t("payout.net")}: {money(h.net)}</span><span>WHT: {money(h.wht)}</span><StatusBadge status={h.status} label={t(`payout.${h.status}`)} /></div>)}</div> : <p className={css.muted}>{t("payout.emptyHistory")}</p>}</section>
+   <section className={css.section}><h2><Clock />{t("payout.history")}</h2>{payee && data.history.length ? <div className={css.history}>{data.history.map(h => <div key={h.id}><span>{date(h.paid_on)}</span><Link href={payoutHref(payee.id, h.id)}>{h.id.slice(0, 8).toUpperCase()}</Link><span>{t("payout.gross")}: {money(h.gross)}</span><span>{t("payout.net")}: {money(h.net)}</span><span>WHT: {money(h.wht)}</span><StatusBadge status={h.status} label={t(`payout.${h.status}`)} /></div>)}</div> : <p className={css.muted}>{t("payout.emptyHistory")}</p>}</section>
   </>}
   {editPayee ? <PayeeModal payee={editPayee === "new" ? undefined : editPayee} onClose={() => setEditPayee(null)} onSaved={payee => { setEditPayee(null); if (id === "new" && payee !== payeeId) router.push(payoutHref(payee)); else void load(true); }} /> : null}
+  <DetailModal open={changeRecipient} title={t("payout.changeRecipient")} size="edit" onClose={() => setChangeRecipient(false)}>
+   <p>{t("payout.changeRecipientWarning")}</p><div className={css.payeeActions}><button className={ui.secondary} onClick={() => setChangeRecipient(false)}>{t("common.actions.cancel")}</button><button className={ui.primary} onClick={() => { setChangeRecipient(false); router.push("/finance/payables"); }}>{t("payout.backChooseRecipient")}</button></div>
+  </DetailModal>
   <DetailModal open={!!modal} title={t(modal === "cancel" ? "payout.cancel" : "payout.review")} size="edit" onClose={() => { if (!busy) setModal(null); }} closeOnBackdrop={!busy}>
    <div className={css.form}><p>{t(modal === "cancel" ? "payout.cancelHelp" : "payout.confirmHelp")}</p>{modal === "confirm" ? <><dl className={css.summary}><div><dt>{t("payout.checkRecipient")}</dt><dd>{payee?.legal_name}</dd></div><div><dt>{t("payout.destination")}</dt><dd>{account?.kind === "bank" ? destination : t("payout.cashDestination")}</dd></div><div><dt>{t("payout.account")}</dt><dd>{locationName(account, locale)}</dd></div><div><dt>{t("payout.date")}</dt><dd>{date(paidOn)}</dd></div></dl><div className={css.modalComponents}>{picked.map(row => <div key={row.id}><strong>{payableRoleLabel(row.role_label, locale)}</strong><small>{rates[row.id] === "0" ? t("payout.none") : `${t("payout.componentWht")} ${rates[row.id]}%`}</small>{componentPreview(row)}</div>)}</div>{summary}</> : null}
     {error ? <Callout tone="negative" role="alert">{t(`payout.${error}`)}</Callout> : null}
