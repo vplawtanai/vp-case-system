@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 // Actual React UI with a closed synthetic adapter; all non-loopback traffic blocked.
 const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http'),assert=require('node:assert/strict');
+const dashboardFixture=require('./treasury-dashboard-fixture.cjs').fixture();
 const root=path.resolve(__dirname,'../..'),out=fs.mkdtempSync(path.join(os.tmpdir(),'vp-treasury-browser-'));
 const write=(name,text)=>{const p=path.join(out,name);fs.writeFileSync(p,text);return p;};
 const id=n=>'40000000-0000-4000-8000-'+String(n).padStart(12,'0');
@@ -9,8 +10,9 @@ const accounts=[{kind:'bank',account_id:id(1),bank_account_id:id(1),cash_locatio
 const source={source_type:'direct_money_receipt',source_id:id(3),status:'confirmed',bank_account_id:id(1),cash_location_id:null,received_on:'2026-07-01',cash_amount:10400,wht_amount:300,currency:'THB',payer_name:'Synthetic payer',reference:'SYNTHETIC-1',description:'Synthetic receipt'};
 const adapter=write('adapter.js',`
 window.calls=[];window.fail=null;window.data={can_manage:!location.search.includes('readonly'),accounts:${JSON.stringify(accounts)},transactions:[],openings:[],pending_sources:location.search.includes('readonly')?[]:[${JSON.stringify(source)}],has_next:false};
+if(location.search.includes('dashboard'))window.data=${JSON.stringify(dashboardFixture)};
 if(location.search.includes('payment'))Object.assign(window.data.pending_sources[0],{source_type:'payment',source_id:'${id(4)}',cash_amount:19160,wht_amount:840,reference:'SYNTHETIC-PAYMENT'});
-export const supabase={async rpc(name,p){window.calls.push({name,p});await new Promise(r=>setTimeout(r,60));const d=window.data;
+export const supabase={auth:{async getUser(){return{data:{user:{id:'synthetic'}}}},async signOut(){throw Error('Blocked')}},from(name){if(name!=='user_profiles')throw Error('Unexpected table');return{select(){return this},eq(){return this},async single(){return{data:{role:location.search.includes('readonly')?'partner':'admin'}}}}},async rpc(name,p){window.calls.push({name,p});await new Promise(r=>setTimeout(r,60));const d=window.data;
  if(name==='get_finance_treasury')return {data:structuredClone(d)};
  if(!d.can_manage)throw Error('Forbidden fixture mutation');if(window.fail){const message=window.fail;window.fail=null;return {error:{message}};}
  if(name==='save_finance_treasury_opening'){
@@ -27,20 +29,21 @@ export const supabase={async rpc(name,p){window.calls.push({name,p});await new P
   d.pending_sources=[];d.accounts[0].system_balance=150000+p.p_expected_source.cash_amount;return {data:{outcome:'posted',cash_transaction_id:'synthetic-leg'}};
  }throw Error('Forbidden RPC '+name);
 }};`);
-const navigation=write('navigation.js',"export const usePathname=()=>'/finance/treasury';");
+const navigation=write('navigation.js',"export const usePathname=()=>'/finance/treasury';export const useRouter=()=>({replace(){throw Error('Unexpected navigation')},refresh(){}});");
 const link=write('link.js',`import React from '${require.resolve('react')}';export default function Link({children,...props}){return React.createElement('a',props,children)}`);
 const guard=write('guard.js','export const QuotationGuard=()=>null;');
 const loader=write('loader.cjs',`module.exports=function(source){if(this.resourcePath.endsWith('.css')){const prefix=require('node:path').basename(this.resourcePath).replaceAll('.','_')+'_';return 'module.exports={__esModule:true,default:new Proxy({}, {get:(_,k)=>'+JSON.stringify(prefix)+'+k})};'}return require(${JSON.stringify(require.resolve('typescript'))}).transpileModule(source,{compilerOptions:{module:99,target:9,jsx:4,esModuleInterop:true}}).outputText};`);
 const entry=write('entry.tsx',`import React from'react';import{createRoot}from'react-dom/client';
-import{UiLocaleProvider}from'${root}/lib/i18n/provider.tsx';import LanguageSelector from'${root}/app/components/LanguageSelector.tsx';
+import{UiLocaleProvider,useI18n}from'${root}/lib/i18n/provider.tsx';import AppTopNav from'${root}/app/components/AppTopNav.tsx';
 import{TreasuryWorkspace}from'${root}/app/finance/treasury/page.tsx';
-createRoot(document.getElementById('root')).render(<UiLocaleProvider initialLocale="th" pathname="/finance/treasury"><LanguageSelector/><TreasuryWorkspace/></UiLocaleProvider>);`);
+function App(){const{t}=useI18n();return <><AppTopNav title={t('finance.quotation.guard.title')} activePage="finance"/><main style={{maxWidth:1180,margin:'0 auto',padding:24}}><TreasuryWorkspace/></main></>}
+createRoot(document.getElementById('root')).render(<UiLocaleProvider initialLocale="th" pathname="/finance/treasury"><App/></UiLocaleProvider>);`);
 async function main(){
  await new Promise((resolve,reject)=>require('next/dist/compiled/webpack/webpack').webpack({mode:'development',context:root,entry,output:{path:out,filename:'bundle.js'},resolve:{extensions:['.tsx','.ts','.js'],modules:[root+'/node_modules'],alias:{'next/navigation':navigation,'next/link':link,[root+'/lib/supabase']:adapter,[root+'/app/finance/quotations/shared']:guard}},module:{rules:[{test:/\.(tsx?|css)$/,use:loader}]},devtool:false},(e,s)=>e||s.hasErrors()?reject(e||Error(s.toString({all:false,errors:true}))):resolve()));
- const css=['app/components/ui/vp-ui.module.css','app/components/DetailModal.module.css','app/finance/treasury/treasury.module.css','app/components/LanguageSelector.module.css'].map(file=>{
+ const css=['app/components/ui/vp-ui.module.css','app/components/DetailModal.module.css','app/finance/treasury/treasury.module.css','app/components/LanguageSelector.module.css','app/finance/finance-sidebar.module.css'].map(file=>{
   const prefix=path.basename(file).replaceAll('.','_')+'_';return fs.readFileSync(root+'/'+file,'utf8').replace(/\.([A-Za-z_][A-Za-z_0-9-]*)/g,(_,key)=>'.'+prefix+key);
  }).join('\n');
- const server=http.createServer((req,res)=>{if(req.url==='/bundle.js'){res.setHeader('Content-Type','text/javascript');return res.end(fs.readFileSync(out+'/bundle.js'));}res.setHeader('Content-Type','text/html');res.end(`<!doctype html><html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif}#root{padding:12px;max-width:1200px;margin:auto}${css}</style><div id="root"></div><script src="/bundle.js"></script></html>`);});
+ const server=http.createServer((req,res)=>{if(req.url==='/bundle.js'){res.setHeader('Content-Type','text/javascript');return res.end(fs.readFileSync(out+'/bundle.js'));}res.setHeader('Content-Type','text/html');res.end(`<!doctype html><html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box}body{margin:0;padding:16px;font-family:Arial,sans-serif;background:#fff;color:#182b45}button,input,select{font-family:inherit}${css}</style><div id="root"></div><script src="/bundle.js"></script></html>`);});
  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});let browser;
  try{
   const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'/Users/paolawyer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
@@ -51,15 +54,34 @@ async function main(){
   const calls=name=>page.evaluate(name=>window.calls.filter(c=>c.name===name).length,name);
   async function geometry(){assert.deepEqual(await page.evaluate(()=>({overflow:document.documentElement.scrollWidth>innerWidth+1,
    outside:[...document.querySelectorAll('input,select,textarea,button')].filter(e=>e.offsetParent!==null&&e.getBoundingClientRect().right>innerWidth+1).map(e=>e.outerHTML)})),{overflow:false,outside:[]});}
+  for(const width of [1440,1024,768,390])for(const locale of ['th','en']){
+   const t=k=>translate(locale,'treasury.'+k);await page.setViewportSize({width,height:1100});await page.goto(url+'?dashboard');await page.locator('button[lang='+locale+']').first().click();
+   await page.locator('[data-treasury-summary]').waitFor();assert.ok((await page.locator('[data-summary=known]').innerText()).includes('49,560.00'));assert.ok((await page.locator('[data-summary=pending]').innerText()).includes('31,409.81'));
+   assert.ok((await page.locator('[data-summary=pending]').innerText()).includes(translate(locale,'treasury.pendingCount',{count:5})));assert.ok((await page.locator('[data-summary=unknown]').innerText()).includes('BAY · KTB'));
+   assert.equal(await page.locator('[data-balance=known]').count(),2);assert.equal(await page.locator('[data-balance=unknown]').count(),2);assert.equal(await page.getByRole('table').count(),2);assert.equal(await page.locator('[data-movement]').count(),2);
+   assert.equal(await page.getByRole('button',{name:t('materialize'),exact:true}).count(),5);assert.equal(await page.locator('pre:visible').count(),0);assert.equal(await page.locator('details[open]').count(),0);
+   await geometry();assert.ok(await page.locator('[data-summary-amount]').evaluateAll(es=>es.every(e=>{const range=document.createRange();range.selectNodeContents(e);return range.getClientRects().length===1&&e.scrollWidth<=e.clientWidth+1;})),'summary money must not split or clip');await page.screenshot({path:out+`/dashboard-${locale}-${width}.png`,fullPage:true});await page.screenshot({path:out+`/dashboard-viewport-${locale}-${width}.png`});
+   const grid=await page.locator('[data-account]').evaluateAll(es=>es.map(e=>({x:e.getBoundingClientRect().x,y:e.getBoundingClientRect().y})));assert.equal(new Set(grid.map(p=>p.x)).size,width===1440?4:width===390?1:2);
+   const maintenance=page.getByLabel(translate(locale,'treasury.accountActions',{account:'KBANK'}),{exact:true});await maintenance.focus();await page.keyboard.press('Enter');
+   const replacement=page.getByRole('button',{name:t('replacement'),exact:true}).first();await replacement.waitFor();await replacement.click();const modal=page.getByRole('dialog');await modal.waitFor();await modal.getByText(t('replaceHelp'),{exact:true}).waitFor();await page.keyboard.press('Escape');await modal.waitFor({state:'hidden'});assert.ok(await maintenance.evaluate(e=>e===document.activeElement));
+   await page.locator('[data-account="cash:'+dashboardFixture.accounts[1].account_id+'"]').getByRole('button',{name:t('viewMovements'),exact:true}).click();await page.getByText(t('noMatches'),{exact:true}).waitFor();assert.equal(await page.locator('#treasury-movements:focus').count(),1);
+   await page.getByRole('button',{name:t('resetFilters'),exact:true}).click();await page.getByLabel(t('fromDate'),{exact:true}).fill('2026-09-12');assert.equal(await page.locator('[data-movement]').count(),1);await page.getByLabel(t('toDate'),{exact:true}).fill('2026-09-14');assert.equal(await page.locator('[data-movement]').count(),0);
+   await page.getByRole('button',{name:t('resetFilters'),exact:true}).click();await page.getByLabel(t('type'),{exact:true}).selectOption('outflow');await page.getByText(t('noMatches'),{exact:true}).waitFor();await page.getByRole('button',{name:t('resetFilters'),exact:true}).click();
+   const detail=page.getByRole('button',{name:translate(locale,'treasury.openMovement',{reference:'TEST-30'}),exact:true});await detail.click();await modal.waitFor();assert.equal(await modal.locator('pre:visible').count(),0);await modal.locator('summary').click();await modal.locator('pre').waitFor();assert.ok((await modal.locator('pre').innerText()).includes(dashboardFixture.transactions[0].source_snapshot_json.source_id));await geometry();await page.keyboard.press('Escape');assert.ok(await detail.evaluate(e=>e===document.activeElement));
+   assert.equal(await page.evaluate(()=>window.calls.some(c=>c.name!=='get_finance_treasury')),false);
+   if(width===390){await page.getByRole('button',{name:translate(locale,'common.nav.menu'),exact:true}).click();const drawer=page.getByRole('dialog');await drawer.waitFor();await drawer.getByRole('link',{name:translate(locale,'finance.nav.legacyLedger'),exact:true}).waitFor();await page.keyboard.press('Escape');}
+   else{await page.locator('[data-app-sidebar]').hover();await page.getByRole('link',{name:translate(locale,'finance.nav.legacyLedger'),exact:true}).waitFor();assert.equal(await page.locator('a[aria-current="page"][href="/finance/treasury"]').count(),1);}
+   console.log('PASS dashboard',locale,width);
+  }
   for(const locale of ['th','en'])for(const width of [390,768,1024,1440])for(const sourceType of ['direct_money_receipt','payment']){
-   const t=k=>translate(locale,'treasury.'+k);await page.setViewportSize({width,height:1000});await page.goto(url+(sourceType==='payment'?'?payment':''));await page.locator('button[lang='+locale+']').click();
+   const t=k=>translate(locale,'treasury.'+k);await page.setViewportSize({width,height:1000});await page.goto(url+(sourceType==='payment'?'?payment':''));await page.locator('button[lang='+locale+']').first().click();
    const opening=page.getByRole('button',{name:t('opening'),exact:true}).first();await opening.waitFor();await geometry();
    await page.getByRole('heading',{name:t('pending'),exact:true}).waitFor();await page.getByText(t('pendingHelp'),{exact:true}).waitFor();
    assert.equal(await page.getByRole('button',{name:t('materialize'),exact:true}).count(),1);
    assert.equal(await page.evaluate(()=>window.calls.some(c=>c.name!=='get_finance_treasury')),false);
    assert.equal(await page.getByText(t('unknown'),{exact:true}).count(),2);await page.getByText(t('empty'),{exact:true}).waitFor();
    await page.getByText('Synthetic Bank · 000-0-00000-0',{exact:true}).waitFor();await page.getByRole('heading',{name:locale==='th'?'เงินสดสำนักงาน':'Office Cash',exact:true}).waitFor();
-   assert.equal(await page.locator('li strong').filter({hasText:'0.00'}).count(),0);assert.equal(await page.getByText(t('currency')+': THB',{exact:true}).count(),2);
+   assert.equal(await page.locator('[data-balance=unknown]').filter({hasText:'0.00'}).count(),0);assert.equal(await page.locator('[data-account]').filter({hasText:'THB'}).count(),2);
    assert.equal(await calls('save_finance_treasury_opening'),0);await page.screenshot({path:out+`/treasury-${sourceType}-${locale}-${width}.png`,fullPage:true});
    const previewAction=page.getByRole('button',{name:t('materialize'),exact:true});await previewAction.click();
    const blockedModal=page.getByRole('dialog');await blockedModal.getByText(t('unknown'),{exact:true}).waitFor();
@@ -78,7 +100,7 @@ async function main(){
    const materialized=await page.evaluate(()=>window.calls.find(c=>c.name==='materialize_finance_treasury_source').p);
    assert.equal(materialized.p_source_type,sourceType);assert.equal(materialized.p_expected_source.cash_amount,sourceType==='payment'?19160:10400);
    await page.screenshot({path:out+`/history-${sourceType}-${locale}-${width}.png`,fullPage:true});
-   await page.goto(url+'?readonly');await page.locator('button[lang='+locale+']').click();await page.getByText(t('empty'),{exact:true}).waitFor();
+   await page.goto(url+'?readonly');await page.locator('button[lang='+locale+']').first().click();await page.getByText(t('empty'),{exact:true}).waitFor();
    assert.equal(await page.getByRole('button',{name:t('opening'),exact:true}).count(),0);assert.equal(await page.getByRole('button',{name:t('materialize'),exact:true}).count(),0);await geometry();
   }
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,widths:[390,768,1024,1440],locales:['th','en'],keyboardFocus:true,acknowledgements:true,readOnly:true,externalRequests:0,artifacts:out}));

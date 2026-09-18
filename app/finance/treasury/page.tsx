@@ -1,16 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import { ArrowLeft, ArrowRight, Plus, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import DetailModal from "../../components/DetailModal";
-import { Callout, Disclosure, EmptyState, FieldGroup, PageHeader, PageShell, ReadOnlyGrid, StatusBadge } from "../../components/ui/patterns";
+import { Callout, FieldGroup, PageHeader, PageShell, ReadOnlyGrid } from "../../components/ui/patterns";
 import ui from "../../components/ui/vp-ui.module.css";
 import { supabase } from "../../../lib/supabase";
 import { useI18n } from "../../../lib/i18n/provider";
 import { QuotationGuard } from "../quotations/shared";
 import FinanceSubNav from "../FinanceSubNav";
-import { locationKey, locationName, openingStart, sourceBlock, sourceHref, treasuryError, type Location, type Opening, type TreasuryData, type TreasurySource } from "./shared";
+import { locationKey, locationName, openingStart, sourceBlock, treasuryError, type Location, type Opening, type TreasuryData, type TreasurySource } from "./shared";
+import { TreasuryDashboard } from "./dashboard-view";
 import styles from "./treasury.module.css";
 
 type OpeningForm = { id: string; account: string; start: string; amount: string; note: string; expected: string | null; prior: string | null; saved: Opening | null };
@@ -85,46 +85,13 @@ export function TreasuryWorkspace() {
    await load(); setSelected(null); setAck(false);
   });
  }
- return <PageShell>
+ return <PageShell className={styles.page}>
   <PageHeader title={t("treasury.title")} actions={<button className={ui.secondary} type="button" disabled={loading || busy} onClick={() => { setFailure(null); void load(); }} title={t("common.actions.retry")} aria-label={t("common.actions.retry")}><RefreshCw size={18} /></button>} />
   <p className={styles.muted}>{t("treasury.unreconciled")}</p>
   {failure && !opening && !selected ? <Callout tone="negative" role="alert">{failure}</Callout> : null}
   {loading ? <p role="status">{t("common.state.loading")}</p> : null}
-  {data ? <>
-   <ul className={styles.rows}>{data.accounts.map(a => <li className={styles.row} key={locationKey(a)}>
-    <div><h2>{locationName(a, locale)}</h2><span className={styles.muted}>{t(`treasury.${a.kind}`)}</span>
-     {a.kind === "bank" && (a.bank_name || a.account_number) ? <p className={styles.muted}>{[a.bank_name, a.account_number].filter(Boolean).join(" · ")}</p> : null}
-     <p className={styles.muted}>{t("treasury.currency")}: {a.currency}</p>
-    </div>
-    <div><span className={styles.muted}>{t("treasury.balance")}</span><strong className={styles.amount}>{amount(a.system_balance, a.currency)}</strong>
-     {a.opening_id ? <span className={styles.muted}>{t("treasury.openingSet")}</span> : null}
-    </div>
-    {data.can_manage && a.is_active ? <button type="button" className={ui.secondary} onClick={() => editOpening(a, data.openings.find(o => o.status === "draft" && locationKey(o) === locationKey(a)) || null, !!a.opening_id)}><Plus size={16} />{t(a.opening_id ? "treasury.replacement" : "treasury.opening")}</button> : null}
-   </li>)}</ul>
-   {data.can_manage && data.pending_sources.length ? <section className={styles.section}><h2>{t("treasury.pending")}</h2><Callout tone="warning">{t("treasury.pendingHelp")}</Callout>
-    {data.pending_sources.map(s => <article className={styles.row} key={`${s.source_type}:${s.source_id}`}>
-     <div><h3><Link href={sourceHref(s)}>{t(`treasury.${s.source_type}`)} · {s.reference}</Link></h3><span className={styles.muted}>{s.payer_name || "-"} · {date(s.received_on)}</span></div>
-     <div><strong>{amount(s.cash_amount, s.currency)}</strong><p className={styles.muted}>{locationName(accountFor(s), locale)}</p></div>
-     <button type="button" className={ui.secondary} onClick={() => { setSelected(s); setCashLocation(""); setAck(false); setInvalid(false); setFailure(null); }}>{t("treasury.materialize")}</button>
-    </article>)}</section> : null}
-   <section className={styles.section}><h2>{t("treasury.history")}</h2>
-    {!data.transactions.length ? <EmptyState>{t("treasury.empty")}</EmptyState> : data.transactions.map(c => <article className={styles.history} key={c.id}>
-     <div className={styles.actions}><strong>{locationName(accountFor(c), locale)}</strong><StatusBadge status={c.status} label={t(`treasury.${c.status}`)} /></div>
-     <dl className={styles.facts}>
-      <div><dt>{t("treasury.date")}</dt><dd>{date(c.source_snapshot_json?.received_on || c.occurred_at)}</dd></div>
-      <div><dt>{t(`treasury.${c.direction}`)}</dt><dd>{amount(c.cash_amount, c.currency)}</dd></div>
-      <div><dt>{t("treasury.source")}</dt><dd>{c.source_snapshot_json ? <Link href={sourceHref(c.source_snapshot_json)}>{t(`treasury.${c.source_snapshot_json.source_type}`)} · {c.source_snapshot_json.reference}</Link> : c.reference_no || "-"}</dd></div>
-      <div><dt>{t("treasury.payer")}</dt><dd>{c.source_snapshot_json?.payer_name || "-"}</dd></div>
-     </dl><p className={styles.muted}>{c.description}</p>
-     <Disclosure title={t("treasury.technical")}><pre className={styles.technical}>{JSON.stringify(c.source_snapshot_json, null, 2)}</pre></Disclosure>
-    </article>)}
-    {offset || data.has_next ? <div className={styles.actions}><button className={ui.secondary} disabled={!offset || loading} aria-label={t("finance.receipt.previous")} onClick={() => setOffset(Math.max(0, offset - 50))}><ArrowLeft size={18} /></button><button className={ui.secondary} disabled={!data.has_next || loading} aria-label={t("finance.receipt.next")} onClick={() => setOffset(offset + 50)}><ArrowRight size={18} /></button></div> : null}
-   </section>
-   <Disclosure title={t("treasury.openingHistory")}>{data.openings.map(o => <article className={styles.history} key={o.id}>
-    <div className={styles.actions}><strong>{locationName(accountFor(o), locale)}</strong><StatusBadge status={o.status} label={t(`treasury.${o.status}`)} /><span>{date(openingStart(o.as_of))} · {amount(o.balance_amount, o.currency)}</span></div>
-    <p>{o.note}</p>{o.status === "draft" && data.can_manage && accountFor(o) ? <button className={ui.secondary} onClick={() => editOpening(accountFor(o)!, o)}>{t("common.actions.edit")}</button> : null}
-   </article>)}</Disclosure>
-  </> : null}
+  {data ? <TreasuryDashboard data={data} offset={offset} loading={loading} busy={busy} onPage={setOffset} onOpening={editOpening}
+   onMaterialize={s => { setSelected(s); setCashLocation(""); setAck(false); setInvalid(false); setFailure(null); }} /> : null}
   <DetailModal open={!!opening} title={t("treasury.opening")} size="edit" onClose={close} closeOnBackdrop={!busy}>
    {opening ? <><p>{t("treasury.openingHelp")}</p>{opening.prior ? <Callout tone="warning">{t("treasury.replaceHelp")}</Callout> : null}
     <form className={styles.form} noValidate ref={formRef} onSubmit={saveOpening}>
