@@ -27,7 +27,8 @@
 .balance { background:#f1f6fc; padding:14px; display:grid; gap:6px; margin:14px 0; font-size:13px; }.balance small { color:#617187; }
 .side { position:sticky; top:20px; padding:18px; border:1px solid #dce5ed; border-radius:6px; display:grid; gap:12px; min-width:0; background:#fff; }
 .summary { margin:0; display:grid; gap:0; }.summary>div { display:flex; align-items:start; justify-content:space-between; gap:14px; padding:12px 0; border-bottom:1px solid #edf1f6; font-size:14px; }.summary dt { color:#50637d; }.summary dd { margin:0; font-weight:650; font-variant-numeric:tabular-nums; text-align:right; }.summary .net { background:#edf5ff; color:#0961d6; padding:14px 10px; font-size:18px; }.net dt { color:inherit; }
-.other { border-top:1px solid #e4e9ef; padding-top:20px; margin-top:8px; }.other button { font-size:13px; }
+.lifecycle { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:12px 0; border-block:1px solid #dce5ed; font-size:14px; }.lifecycle>div { min-width:0; overflow-wrap:anywhere; }.lifecycle strong { margin-left:8px; }
+.cancelEffects { font-size:14px; line-height:1.6; overflow-wrap:anywhere; }.cancelEffects p { margin:0 0 8px; }.cancelEffects ul { margin:0 0 12px; padding-left:20px; }
 .reviewList { padding:12px; background:#f7f9fc; font-size:13px; line-height:1.6; }.reviewList ul { margin:8px 0 0; padding:0; list-style:none; display:grid; gap:12px; }
 .reviewList li { display:flex; align-items:flex-start; gap:8px; }.reviewList svg { flex:none; margin-top:3px; }.reviewList li>div { min-width:0; }.reviewList small { margin-left:8px; }.reviewList span { display:block; color:#50637d; }
 .reviewList li[data-state=ready] svg { color:#17664b; }.reviewList li[data-state=missing] svg,.reviewList li[data-state=missing] small { color:#98611a; }.reviewList li[data-state=pending] { color:#617187; }

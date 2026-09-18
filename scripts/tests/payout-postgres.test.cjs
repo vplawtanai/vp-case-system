@@ -97,6 +97,37 @@ test('051 permissions, immutable allocation/WHT, payee snapshot stable, no gener
 });
 module.exports={setup,rights,payee,save,confirm,flush};
 
+test('051 Draft cancellation preserves evidence and open Payables, is idempotent, permission guarded and financially inert',async()=>{
+ await setup();const r=await rights();await payee();await treasury.opening({amount:29560});const id=await save(r);await flush();
+ const before=await scalar('select to_jsonb(p) from finance_payouts p where id=$1',[id]);
+ const financial=await prior.financialState(),tax=await scalar('select get_finance_tax_position()'),balances=await query('select * from finance_treasury_balances');
+ const entitlements=await query('select * from finance_payable_entitlements order by id'),available=await scalar('select get_finance_payable_entitlements()');
+ assert.equal(await scalar('select count(*)::int from finance_payout_allocations where payout_id=$1',[id]),0);
+ await rejected(()=>rpc('cancel_finance_payout',[id,1,false]),/ACK_REQUIRED/);
+ await rejected(()=>rpc('cancel_finance_payout',[id,99,true]),/STALE/);
+ await query("update user_profiles set role='partner' where id=$1",[ids.staff]);
+ await asActor(ids.staff,async()=>{
+  const view=await scalar('select get_finance_payout_workspace($1,$2)',[people[0].id,id]);assert.equal(view.can_manage,false);
+  await rejects('select cancel_finance_payout($1,1,true)',[id],/PERMISSION_DENIED/);
+  await rejects("update finance_payouts set status='cancelled' where id=$1",[id],/permission denied/);
+ });
+ assert.equal(await rpc('cancel_finance_payout',[id,1,true]),id);await flush();
+ const after=await scalar('select to_jsonb(p) from finance_payouts p where id=$1',[id]);assert.equal(after.status,'cancelled');assert.equal(after.version,2);
+ assert.ok(after.cancelled_at);assert.equal(after.cancelled_by,ids.admin);
+ for(const key of Object.keys(before).filter(k=>!['status','version','cancelled_at','cancelled_by','updated_at','updated_by'].includes(k)))assert.deepEqual(after[key],before[key],key);
+ const audit=await query("select * from finance_payout_audit where payout_id=$1 and event_type='cancelled'",[id]);assert.equal(audit.length,1);assert.equal(audit[0].actor_id,ids.admin);assert.deepEqual(audit[0].evidence_json,before);
+ assert.equal(await rpc('cancel_finance_payout',[id,1,true]),id);await flush();
+ assert.deepEqual(await scalar('select to_jsonb(p) from finance_payouts p where id=$1',[id]),after);
+ assert.deepEqual(await query("select * from finance_payout_audit where payout_id=$1 and event_type='cancelled'",[id]),audit);
+ await rejected(()=>confirm(id),/STALE/);await rejected(()=>save(r,{id,version:2}),/IMMUTABLE/);
+ await rejects('delete from finance_payouts where id=$1',[id],/IMMUTABLE/);
+ assert.deepEqual(await prior.financialState(),financial);assert.deepEqual(await scalar('select get_finance_tax_position()'),tax);assert.deepEqual(await query('select * from finance_treasury_balances'),balances);
+ assert.deepEqual(await query('select * from finance_payable_entitlements order by id'),entitlements);assert.deepEqual(await scalar('select get_finance_payable_entitlements()'),available);
+ for(const [table,key] of [['finance_payout_allocations','payout_id'],['finance_cash_transactions','source_payout_id'],['finance_outgoing_wht_obligations','payout_source_id']])assert.equal(await scalar(`select count(*)::int from ${table} where ${key}=$1`,[id]),0);
+ const view=await scalar('select get_finance_payout_workspace($1,$2)',[people[0].id,id]);assert.equal(view.payout.id,id);assert.equal(view.payout.status,'cancelled');assert.equal(view.components.length,r.rows.length);assert.equal(view.history.filter(h=>h.id===id&&h.status==='cancelled').length,1);
+ const next=await save(r);await confirm(next);await flush();await rejected(()=>rpc('cancel_finance_payout',[next,2,true]),/STALE/);
+});
+
 test('051 heterogeneous WHT, stale master, cancellation and second-draft double-settlement protection',async()=>{
  await setup();const r=await rights();await payee();await treasury.opening({amount:29560});
  const id=await save(r),second=await save(r),third=await save(r);

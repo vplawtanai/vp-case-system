@@ -59,7 +59,7 @@ for(const locale of ['th','en']){
   for(const ack of [false,true]){
    const html=render(locale,{'PayoutWorkspace.modal':'cancel','PayoutWorkspace.ack':ack,'PayoutWorkspace.paidAck':false});
    assert.equal((html.match(/type="checkbox"/g)||[]).length,1);
-   assert.equal(finalButton(html,t('cancel')).includes('disabled=""'),!ack);
+   assert.equal(finalButton(html,t('cancelConfirm')).includes('disabled=""'),!ack);
    assert.ok(!html.includes('data-confirmation-effects'));assert.ok(!html.includes(t('ackRequired')));
   }
  });
