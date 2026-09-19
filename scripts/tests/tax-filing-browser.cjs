@@ -50,8 +50,43 @@ async function main(){
     await geometry();await page.screenshot({path:out+`/${future?'future':'current'}-${locale}-${width}.png`,fullPage:true});
     if(!future&&width===1440){await history.screenshot({path:out+`/history-${locale}.png`});await summary.screenshot({path:out+`/summary-${locale}.png`});}
     const reviews=page.getByRole('button',{name:t('review'),exact:true}),action=reviews.nth(future?1:0);await action.focus();await page.keyboard.press('Enter');const modal=page.getByRole('dialog');await modal.waitFor();assert.equal(await modal.locator('pre:visible').count(),0);assert.equal(await page.evaluate(()=>window.calls.some(c=>c.name!=='get_finance_tax_filings')),false,'Review is read-only');await page.keyboard.press('Tab');assert.equal(await modal.locator(':focus').count(),1);await page.keyboard.press('Escape');await modal.waitFor({state:'hidden'});assert.ok(await action.evaluate(e=>e===document.activeElement));
-    await action.click();await modal.getByRole('button',{name:t('saveDraft'),exact:true}).click();await modal.waitFor({state:'hidden'});await action.click();await page.getByLabel(t('reviewAck'),{exact:true}).check();
-    if(!future){assert.ok(await modal.getByRole('button',{name:t('markReady'),exact:true}).isDisabled());await page.keyboard.press('Escape');continue;}
+    await action.click();
+    if(!future){
+     await modal.getByRole('heading',{name:t('vatReviewTitle'),exact:true}).waitFor();
+     await modal.getByText('700.00 THB',{exact:true}).waitFor();await modal.getByText('560.19 THB',{exact:true}).waitFor();
+     for(const key of ['incomplete','unknown','vatNotReady','vatInputBlockReason','notCollected','monthlyOutputKnown','noWht','vatCreditHelp','vatDraftHelp'])await modal.getByText(t(key),{exact:true}).first().waitFor();
+     assert.equal(await modal.getByText(translate(locale,'taxFiling.sourceCount',{count:0}),{exact:true}).count(),0);
+     assert.equal(await modal.getByRole('button',{name:t('recordFiled'),exact:true}).count(),0);
+     const technical=modal.locator('details').filter({has:page.locator('summary').getByText(t('technical'),{exact:true})});
+     assert.equal(await technical.getAttribute('open'),null);assert.equal(await technical.locator('pre').isVisible(),false);
+     const raw=await technical.locator('pre').textContent();assert.equal(raw,await page.evaluate(()=>JSON.stringify(window.data.pools[0],null,2)));
+     await technical.locator('summary').focus();await page.keyboard.press('Enter');await technical.locator('pre').waitFor({state:'visible'});assert.equal(await technical.locator('pre').textContent(),raw);
+     await page.keyboard.press('Space');assert.equal(await technical.locator('pre').isVisible(),false);
+     const dueSection=modal.locator('details').filter({has:page.locator('summary').filter({hasText:t('dueOptional')})});
+     assert.equal(await dueSection.getAttribute('open'),null);await dueSection.getByText(t('dueNotSet'),{exact:true}).waitFor();
+     assert.equal(await modal.getByLabel(t('due'),{exact:true}).isVisible(),false);assert.equal(await modal.getByLabel(t('due'),{exact:true}).getAttribute('required'),null);
+     await dueSection.locator('summary').focus();await page.keyboard.press('Enter');await modal.getByLabel(t('due'),{exact:true}).fill('2026-10-23');
+     assert.notEqual(await modal.getByLabel(t('dueEvidence'),{exact:true}).getAttribute('required'),null);
+     await dueSection.locator('summary').click();await modal.getByRole('button',{name:t('saveForReview'),exact:true}).click();assert.equal(await count('create_finance_tax_filing'),0);
+     assert.ok(await modal.getByLabel(t('dueEvidence'),{exact:true}).isVisible(),'Invalid optional-date evidence reopens its section');
+     await modal.getByLabel(t('due'),{exact:true}).fill('');await dueSection.locator('summary').click();
+     await modal.locator('button').first().focus();await page.keyboard.press('Shift+Tab');assert.ok(await technical.locator('summary').evaluate(e=>e===document.activeElement));await page.keyboard.press('Tab');assert.ok(await modal.locator('button').first().evaluate(e=>e===document.activeElement));
+     await modal.locator('form').evaluate(form=>{form.parentElement.scrollTop=0;});await modal.screenshot({path:out+`/vat-review-${locale}-${width}.png`});
+     assert.equal(await page.evaluate(()=>window.calls.some(c=>c.name!=='get_finance_tax_filings')),false,'Opening/reviewing/date editing never creates a real or fixture Draft');
+    }
+    await modal.getByRole('button',{name:t(future?'saveDraft':'saveForReview'),exact:true}).click();await modal.waitFor({state:'hidden'});await action.click();await page.getByLabel(t('reviewAck'),{exact:true}).check();
+    if(!future){
+     assert.ok(await modal.getByRole('button',{name:t('markReady'),exact:true}).isDisabled());assert.equal(await modal.getByRole('button',{name:t('recordFiled'),exact:true}).count(),0);assert.equal(await count('transition_finance_tax_filing'),0);assert.equal(await count('create_finance_tax_remittance'),0);assert.equal(await page.evaluate(()=>window.calls.find(c=>c.name==='create_finance_tax_filing').p.p_due_date),null);
+     assert.equal(await modal.locator('pre:visible').count(),0,'Technical evidence resets for saved Draft review');await page.keyboard.press('Escape');
+     if(width===1440){
+      // Synthetic stored states only: never call a live lifecycle or database.
+      await page.evaluate(()=>{window.data.filings[0].status='ready_for_review';});await page.getByRole('button',{name:translate(locale,'common.actions.retry'),exact:true}).click();await action.click();
+      assert.ok(await modal.getByRole('button',{name:t('recordFiled'),exact:true}).isDisabled());assert.equal(await count('transition_finance_tax_filing'),0);await page.keyboard.press('Escape');
+      await page.evaluate(()=>{const f=window.data.filings[0];Object.assign(f,{status:'filed',tax_amount:123,filed_on:'2026-09-10',external_reference:'FROZEN-FIXTURE',filing_evidence:'Frozen fixture evidence'});window.data.history=[{...f,payment_state:'awaiting_payment'}];});await page.getByRole('button',{name:translate(locale,'common.actions.retry'),exact:true}).click();
+      await history.getByRole('button',{name:t('details'),exact:true}).click();await modal.getByText('123.00 THB',{exact:true}).waitFor();assert.equal(await modal.getByText('700.00 THB',{exact:true}).count(),0,'Filed evidence is not replaced with live monthly facts');assert.equal(await modal.getByText('560.19 THB',{exact:true}).count(),0);assert.equal(await modal.getByRole('button',{name:t('payment'),exact:true}).count(),0);await page.keyboard.press('Escape');
+     }
+     continue;
+    }
     await modal.getByRole('button',{name:t('markReady'),exact:true}).click();await modal.waitFor({state:'hidden'});await action.click();await modal.getByRole('button',{name:t('recordFiled'),exact:true}).click();
     await modal.getByRole('button',{name:t('recordFiled'),exact:true}).click();assert.equal(await count('transition_finance_tax_filing'),1);await page.getByLabel(t('filedOn'),{exact:true}).fill('2026-09-10');await page.getByLabel(t('reference'),{exact:true}).fill('EXTERNAL-TEST');await page.getByLabel(t('evidence'),{exact:true}).fill('Synthetic filing evidence');await page.getByLabel(t('filingAck'),{exact:true}).check();await geometry();await page.screenshot({path:out+`/filing-review-${locale}-${width}.png`,fullPage:true});
     await modal.getByRole('button',{name:t('recordFiled'),exact:true}).click();await modal.waitFor({state:'hidden'});assert.equal(await count('create_finance_tax_remittance'),0);
@@ -62,9 +97,13 @@ async function main(){
    await page.goto(url+'?future&readonly');await page.locator('button[lang='+locale+']').first().click();const action=page.getByRole('button',{name:t('review'),exact:true}).nth(1);await action.waitFor();await action.click();assert.equal(await page.getByRole('button',{name:t('saveDraft'),exact:true}).count(),0);await page.keyboard.press('Escape');
    if(width!==390){await page.locator('[data-app-sidebar]').hover();await page.getByRole('link',{name:translate(locale,'finance.nav.legacyLedger'),exact:true}).waitFor();assert.equal(await page.locator('a[aria-current="page"][href="/finance/tax-position"]').count(),1);}
    assert.equal(await page.evaluate(()=>window.calls.some(c=>c.name!=='get_finance_tax_filings')),false);
+   await page.getByRole('button',{name:t('review'),exact:true}).first().click();
+   assert.equal(await page.getByRole('dialog').getByText(t('technical'),{exact:true}).count(),0,'VAT technical evidence is Admin-only');
+   assert.equal(await page.getByRole('dialog').getByRole('button',{name:t('saveForReview'),exact:true}).count(),0);await page.keyboard.press('Escape');
    await page.goto(url+'?readfail');await page.locator('button[lang='+locale+']').first().click();await page.getByRole('heading',{name:t('history'),exact:true}).waitFor();
    await page.locator('[data-metric=incoming]').getByText(t('unknown'),{exact:true}).waitFor();
    const output=page.getByRole('complementary').locator('dl>div').filter({has:page.locator('dt').getByText(t('output'),{exact:true})});assert.equal(await output.locator('dd').innerText(),t('unknown'));
+   await page.getByRole('button',{name:t('review'),exact:true}).first().click();const unavailable=page.getByRole('dialog');await unavailable.getByText(t('monthlyOutputUnknown'),{exact:true}).waitFor();assert.equal(await unavailable.getByText('0.00 THB',{exact:true}).count(),0);assert.equal(await unavailable.getByText(t('monthlyOutputKnown'),{exact:true}).count(),0);await page.keyboard.press('Escape');
    assert.equal(await page.evaluate(()=>window.calls.some(c=>c.name!=='get_finance_tax_filings')),false);await geometry();console.log('PASS',locale,width);
   }
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,artifacts:out,externalRequests:0}));

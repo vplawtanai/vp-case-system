@@ -11,6 +11,7 @@ import type { UserPermissions } from "../../../../lib/permissions";
 import { currentBangkokMonth, readMonthlyTaxSources, shiftMonth, summarizeMonthlyTaxFacts, type MonthlyTaxFacts } from "../dashboard-data";
 import { locationKey, locationName, openingStart } from "../../treasury/shared";
 import { activeFiling, filingBaseAmount, filingErrorKey, filingState, summarizeFilings, type Filing, type FilingData, type FilingPool } from "./shared";
+import { VatFilingReview } from "./vat-review";
 import styles from "./filings.module.css";
 
 type Selection = { pool: FilingPool; filing?: Filing; mode: "review" | "file" | "payment" | "cancel" | "cancelPayment"; readonly?: boolean };
@@ -44,6 +45,8 @@ export function TaxFilingWorkspace({ permissions }: { permissions: UserPermissio
  const issues = data ? [...new Map(data.pools.flatMap(p => p.issues).map(i => [i.code, i])).values()] : [];
  const issueTitle = (code: string) => tr(({ input_vat_incomplete: "inputReview", unclassified_wht: "classificationReview", source_evidence_incomplete: "sourceReview", legacy_filing_review: "previousFilingReview" } as Record<string, string>)[code] || code);
  const f = selection?.filing, r = f?.remittance, paymentMode = selection?.mode === "payment", cancellation = selection?.mode === "cancel" || selection?.mode === "cancelPayment";
+ const vatReview = selection?.mode === "review" && selection.pool.filing_type === "vat" && !selection.readonly && f?.status !== "filed" && f?.status !== "cancelled";
+ const reviewMonthMatches = selection?.pool.period_month.slice(0, 7) === month;
  const selectedEvidence = f?.source_snapshot_json || selection?.pool;
  const reviewSources = [...new Map([...(selectedEvidence?.sources || []), ...(selectedEvidence?.review_sources || [])].map(s => [s.id, s])).values()];
  const account = r && paymentMode ? r.draft_snapshot_json.account : data?.accounts.find(a => locationKey(a) === accountKey);
@@ -125,28 +128,33 @@ export function TaxFilingWorkspace({ permissions }: { permissions: UserPermissio
     </tr>)}</tbody></table>}
    </section></div>
   </> : null}
-  <DetailModal open={!!selection} title={selection ? `${tr(paymentMode ? "paymentReview" : cancellation ? "cancelDraft" : "review")} · ${tr(selection.pool.filing_type)}` : tr("review")} size="edit" onClose={close} closeOnBackdrop={!busy}>
+  <DetailModal open={!!selection} title={vatReview ? tr("vatReviewTitle") : selection ? `${tr(paymentMode ? "paymentReview" : cancellation ? "cancelDraft" : "review")} · ${tr(selection.pool.filing_type)}` : tr("review")} subtitle={vatReview && selection ? `${tr("period")} ${monthName(selection.pool.period_month)}` : undefined} size="edit" onClose={close} closeOnBackdrop={!busy}>
    {selection && data ? <form ref={form} className={styles.form} onSubmit={submit} noValidate><fieldset disabled={busy}>
-    <ReadOnlyGrid items={[{ key: "period", label: tr("period"), value: monthName(selection.pool.period_month) }, { key: "amount", label: tr("amount"), value: money(f ? f.tax_amount : selection.pool.tax_amount) },
-     { key: "count", label: tr("base"), value: tr("sourceCount", { count: (f?.source_snapshot_json || selection.pool).source_count }) }, { key: "due", label: tr("due"), value: f?.due_date ? date(f.due_date) : tr("dueUnknown") }]} />
+    {vatReview ? <VatFilingReview pool={selection.pool} monthlyFacts={reviewMonthMatches ? monthlyFacts : null} outgoingWht={reviewMonthMatches ? summary?.outgoing ?? null : null} /> : <ReadOnlyGrid items={[{ key: "period", label: tr("period"), value: monthName(selection.pool.period_month) }, { key: "amount", label: tr("amount"), value: money(f ? f.tax_amount : selection.pool.tax_amount) },
+     { key: "count", label: tr("base"), value: tr("sourceCount", { count: (f?.source_snapshot_json || selection.pool).source_count }) }, { key: "due", label: tr("due"), value: f?.due_date ? date(f.due_date) : tr("dueUnknown") }]} />}
     {f?.source_changed ? <Callout tone="warning">{tr(f.status === "filed" ? "amendment" : "staleDraft")}</Callout> : null}
     {selection.mode === "review" ? <>
-     {(f?.source_snapshot_json || selection.pool).issues.map(i => <Callout key={i.code} tone="warning">{tr(i.code)}</Callout>)}
+     {!vatReview ? (f?.source_snapshot_json || selection.pool).issues.map(i => <Callout key={i.code} tone="warning">{tr(i.code)}</Callout>) : null}
      <div className={styles.sourceList}>{reviewSources.map(s => <article key={s.id}><strong>{s.payee_name || s.reference}</strong><p>{date(s.date)} · {tr("base")}: {money(s.base)} · {s.rate === null ? "-" : `${s.rate}%`} · {money(s.amount)}</p>
       {s.source_type === "payout" ? <p>{tr(s.entity_type === "natural_person" ? "wht_natural" : s.entity_type === "juristic_person" ? "wht_juristic" : "unclassified_wht")}</p> : null}
       {s.source_type === "payout" ? <Link href={`/finance/payouts/${s.source_id}`}>{s.reference}</Link> : null}
      </article>)}</div>
-     {!f && data.can_manage ? <><FieldGroup id="filing-due" label={tr("due")} help={tr("dueHelp")}><input type="date" value={due} onChange={e => { setDue(e.target.value); if (!e.target.value) setDueEvidence(""); }} /></FieldGroup>
-      {due ? <FieldGroup id="filing-due-evidence" label={tr("dueEvidence")}><textarea required maxLength={2000} value={dueEvidence} onChange={e => setDueEvidence(e.target.value)} /></FieldGroup> : null}<button className={ui.primary} type="submit">{tr("saveDraft")}</button></> : null}
+     {vatReview ? <div className={styles.vatDue}><Disclosure title={<span>{tr("dueOptional")}<small>{f?.due_date ? date(f.due_date) : due ? date(due) : tr("dueNotSet")}</small></span>}>
+      {!f && data.can_manage ? <><FieldGroup id="filing-due" label={tr("due")} help={tr("dueHelp")}><input type="date" value={due} onChange={e => { setDue(e.target.value); if (!e.target.value) setDueEvidence(""); }} /></FieldGroup>
+       {due ? <FieldGroup id="filing-due-evidence" label={tr("dueEvidence")}><textarea required maxLength={2000} value={dueEvidence} onInvalid={e => e.currentTarget.closest("details")?.setAttribute("open", "")} onChange={e => setDueEvidence(e.target.value)} /></FieldGroup> : null}</> : <p className={styles.muted}>{f?.due_date_evidence || tr("dueHelp")}</p>}
+     </Disclosure></div> : null}
+     {!f && data.can_manage ? <>{!vatReview ? <><FieldGroup id="filing-due" label={tr("due")} help={tr("dueHelp")}><input type="date" value={due} onChange={e => { setDue(e.target.value); if (!e.target.value) setDueEvidence(""); }} /></FieldGroup>
+      {due ? <FieldGroup id="filing-due-evidence" label={tr("dueEvidence")}><textarea required maxLength={2000} value={dueEvidence} onChange={e => setDueEvidence(e.target.value)} /></FieldGroup> : null}</> : null}
+      <div className={styles.draftAction}>{vatReview && !selection.pool.ready ? <p id="vat-draft-help">{tr("vatDraftHelp")}</p> : null}<button className={vatReview && !selection.pool.ready ? ui.secondary : ui.primary} aria-describedby={vatReview && !selection.pool.ready ? "vat-draft-help" : undefined} type="submit">{tr(vatReview && !selection.pool.ready ? "saveForReview" : "saveDraft")}</button></div></> : null}
      {f?.status === "draft" && data.can_manage && !selection.readonly ? <>{checked("reviewAck")}<button className={ui.primary} disabled={!selection.pool.ready || f.source_changed} type="submit">{tr("markReady")}</button></> : null}
      {f?.status === "ready_for_review" && data.can_manage && !selection.readonly ? <button className={ui.primary} type="button" disabled={f.source_changed || !selection.pool.ready} onClick={() => open(selection.pool, f, "file")}>{tr("recordFiled")}</button> : null}
      {f?.status === "filed" ? <><ReadOnlyGrid items={[{ key: "filed", label: tr("filedOn"), value: date(f.filed_on) }, { key: "ref", label: tr("reference"), value: f.external_reference }, { key: "evidence", label: tr("evidence"), value: f.filing_evidence }]} />
       {f.tax_amount === 0 ? <p>{tr("no_payment_required")}</p> : r?.status === "confirmed" ? <ReadOnlyGrid items={[{ key: "paid", label: tr("paidOn"), value: date(r.paid_on) }, { key: "cash", label: tr("paymentAmount"), value: money(r.amount) }, { key: "ref", label: tr("reference"), value: r.external_reference }]} />
        : data.can_remit && !selection.readonly ? <button type="button" className={ui.primary} onClick={() => open(selection.pool, f, "payment")}>{tr(r ? "paymentReview" : "payment")}</button> : null}</> : null}
      {f && ["draft", "ready_for_review"].includes(f.status) && data.can_manage && !selection.readonly ? <Disclosure title={tr("otherActions")}><button type="button" className={ui.secondary} onClick={() => open(selection.pool, f, "cancel")}>{tr("cancelDraft")}</button></Disclosure> : null}
-     <Disclosure title={tr("technical")}><pre className={styles.technical}>{JSON.stringify(f || selection.pool, null, 2)}</pre></Disclosure>
+     {selection.pool.filing_type !== "vat" || permissions.role === "admin" ? <div className={styles.technicalSection}><Disclosure title={tr("technical")} key={`${selection.pool.period_month}:${selection.pool.filing_type}:${f?.id || "new"}`}><pre className={styles.technical}>{JSON.stringify(f || selection.pool, null, 2)}</pre></Disclosure></div> : null}
     </> : null}
-    {selection.mode === "file" ? <><Callout tone="warning">{tr("filingWarning")}</Callout>{evidenceFields}{checked("filingAck")}<button type="submit" className={ui.primary}>{tr("recordFiled")}</button></> : null}
+    {selection.mode === "file" ? <><Callout tone="warning">{tr("filingWarning")}</Callout>{evidenceFields}{checked("filingAck")}<button type="submit" className={ui.primary} disabled={f?.source_changed || !selection.pool.ready}>{tr("recordFiled")}</button></> : null}
     {paymentMode ? <><Callout tone="warning">{tr("paymentWarning")}</Callout>
      {!r ? <FieldGroup id="remittance-account" label={tr("account")}><select required value={accountKey} onChange={e => setAccountKey(e.target.value)}><option value="">{tr("selectAccount")}</option>{data.accounts.filter(a => a.is_active && a.currency === "THB").map(a => <option key={locationKey(a)} value={locationKey(a)}>{locationName(a, locale)}</option>)}</select></FieldGroup> : <p>{tr("account")}: {locationName(account, locale)}</p>}
      <ReadOnlyGrid items={[{ key: "before", label: tr("before"), value: money(account?.system_balance) }, { key: "paid", label: tr("paymentAmount"), value: money(f?.tax_amount) }, { key: "after", label: tr("after"), value: money(after) }]} /><p className={styles.muted}>{tr("balanceHelp")}</p>
