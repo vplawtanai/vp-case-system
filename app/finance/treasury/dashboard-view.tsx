@@ -10,15 +10,17 @@ import { useI18n } from "../../../lib/i18n/provider";
 import { emptyMovementFilters, filterMovements, movementDate, movementSource, treasuryOverview, type CurrencyTotal } from "./dashboard";
 import { locationKey, locationName, openingStart, sourceHref, type CashMovement, type Location, type Opening, type TreasuryData, type TreasurySource } from "./shared";
 import styles from "./treasury.module.css";
+import { FinanceEvidence } from "../FinanceEvidence";
 
 type Props = {
+ isAdmin?: boolean;
  data: TreasuryData; offset: number; loading: boolean; busy: boolean;
  onPage: (offset: number) => void;
  onOpening: (account: Location, saved?: Opening | null, replace?: boolean) => void;
  onMaterialize: (source: TreasurySource) => void;
 };
 
-export function TreasuryDashboard({ data, offset, loading, busy, onPage, onOpening, onMaterialize }: Props) {
+export function TreasuryDashboard({ data, offset, loading, busy, onPage, onOpening, onMaterialize, isAdmin = false }: Props) {
  const { t, locale, date } = useI18n(), overview = treasuryOverview(data);
  const [filters, setFilters] = useState(emptyMovementFilters), [detail, setDetail] = useState<CashMovement | null>(null);
  const movementHeading = useRef<HTMLHeadingElement>(null);
@@ -65,11 +67,11 @@ export function TreasuryDashboard({ data, offset, loading, busy, onPage, onOpeni
     </article>;
    })}</div>}
   </section>
-  {data.can_manage ? <section className={styles.section} aria-labelledby="treasury-pending"><div className={styles.sectionHeading}><h2 id="treasury-pending">{t("treasury.pending")}</h2><span className={styles.queueTotal}>{t("treasury.pendingCount", { count: data.pending_sources.length })}{overview.pending?.totals.map(v => <span key={v.currency}> · {money(v.amount, v.currency)}</span>)}</span></div>
+  {data.can_manage ? <section className={styles.section} aria-labelledby="treasury-pending"><div className={styles.sectionHeading}><h2 id="treasury-pending">{t("treasury.pending")}</h2><span className={styles.queueTotal}>{t("treasury.pendingCount", { count: overview.eligible.length })}{overview.pending?.totals.map(v => <span key={v.currency}> · {money(v.amount, v.currency)}</span>)}</span></div>
    <p className={styles.muted}>{t("treasury.pendingHelp")}</p>
-   {!data.pending_sources.length ? <EmptyState>{t("treasury.pendingEmpty")}</EmptyState> : <table className={`${styles.table} ${styles.pendingTable}`}><thead><tr>
+   {!overview.eligible.length ? <EmptyState>{t("treasury.pendingEmpty")}</EmptyState> : <table className={`${styles.table} ${styles.pendingTable}`}><thead><tr>
     {["receivedDate", "reference", "amount", "targetAccount", "source", "status", "actions"].map(key => <th key={key} scope="col">{t(`treasury.${key}`)}</th>)}</tr></thead>
-    <tbody>{data.pending_sources.map(s => <tr key={`${s.source_type}:${s.source_id}`}>
+    <tbody>{overview.eligible.map(s => <tr key={`${s.source_type}:${s.source_id}`}>
      <td data-label={t("treasury.receivedDate")}>{date(s.received_on)}</td>
      <td data-label={t("treasury.reference")}><Link href={sourceHref(s)} className={styles.reference}>{s.reference}</Link></td>
      <td data-label={t("treasury.amount")} className={styles.money}>{money(s.cash_amount, s.currency)}</td>
@@ -79,6 +81,8 @@ export function TreasuryDashboard({ data, offset, loading, busy, onPage, onOpeni
      <td className={styles.rowActions}><button type="button" className={ui.secondary} disabled={busy} onClick={() => onMaterialize(s)}><ArrowDownToLine size={16} />{t("treasury.materialize")}</button></td>
     </tr>)}</tbody></table>}
   </section> : null}
+  {data.can_manage && overview.historical.length ? <Disclosure title={`${t("treasury.preCutoff")} · ${overview.historical.length}`}><p className={styles.muted}>{t("treasury.preCutoffHelp")}</p><div className={styles.historical}>{overview.historical.map(s => <div key={s.source_id}><Link href={sourceHref(s)}>{s.reference}</Link><span>{date(s.received_on)} · {locationName(accountFor(s), locale)}</span><strong>{money(s.cash_amount, s.currency)}</strong></div>)}</div></Disclosure> : null}
+  {data.can_manage && overview.unresolved.length ? <Disclosure title={`${t("treasury.receiptReview")} · ${overview.unresolved.length}`}><div className={styles.historical}>{overview.unresolved.map(({ source: s, block }) => <div key={s.source_id}><Link href={sourceHref(s)}>{s.reference}</Link><span>{t(`treasury.${block}`)}</span><strong>{money(s.cash_amount, s.currency)}</strong>{s.source_type === "direct_money_receipt" && !locationKey(s) ? <button type="button" className={ui.secondary} onClick={() => onMaterialize(s)}>{t("treasury.reviewLocation")}</button> : null}</div>)}</div></Disclosure> : null}
   <section className={styles.section} aria-labelledby="treasury-movements"><h2 id="treasury-movements" ref={movementHeading} tabIndex={-1}>{t("treasury.history")}</h2>
    <div className={styles.filters}>
     <FieldGroup id="cashbook-account" label={t("treasury.account")}><select value={filters.account} onChange={e => setFilters({ ...filters, account: e.target.value })}><option value="">{t("treasury.allAccounts")}</option>{data.accounts.map(a => <option key={locationKey(a)} value={locationKey(a)}>{locationName(a, locale)}</option>)}</select></FieldGroup>
@@ -110,7 +114,7 @@ export function TreasuryDashboard({ data, offset, loading, busy, onPage, onOpeni
     { key: "reference", label: t("treasury.reference"), value: reference(detail) }, { key: "date", label: t("treasury.date"), value: date(movementDate(detail)) },
     { key: "account", label: t("treasury.account"), value: locationName(accountFor(detail), locale) }, { key: "cash", label: t(`treasury.${detail.direction}`), value: money(detail.cash_amount, detail.currency) },
     { key: "status", label: t("treasury.status"), value: <StatusBadge status={detail.status} label={t(`treasury.${detail.status}`)} /> },
-   ]} /><p>{detail.description}</p><Disclosure title={t("treasury.technical")}><pre className={styles.technical}>{JSON.stringify(detail, null, 2)}</pre></Disclosure>
+   ]} /><p>{detail.description}</p><FinanceEvidence title={t("treasury.technical")} raw={detail} isAdmin={isAdmin}><ReadOnlyGrid items={[{ key: "date", label: t("treasury.date"), value: date(movementDate(detail)) }, { key: "amount", label: t("treasury.amount"), value: money(detail.cash_amount, detail.currency) }, { key: "account", label: t("treasury.account"), value: locationName(accountFor(detail), locale) }]} /></FinanceEvidence>
   </> : null}</DetailModal>
  </>;
 }

@@ -1,4 +1,4 @@
-import { locationKey, type CashMovement, type TreasuryData, type TreasurySource } from "./shared";
+import { locationKey, sourceBlock, type CashMovement, type TreasuryData, type TreasurySource } from "./shared";
 
 export type CurrencyTotal = { currency: string; amount: number };
 export type MovementFilters = { account: string; direction: string; from: string; to: string };
@@ -14,10 +14,20 @@ function currencyTotals(rows: { currency: string; amount: number }[]): CurrencyT
 export function treasuryOverview(data: TreasuryData) {
  const known = data.accounts.filter(a => a.system_balance !== null && Number.isFinite(a.system_balance));
  const unknown = data.accounts.filter(a => !known.includes(a));
+ const classified = data.pending_sources.map(source => ({ source, block: sourceBlock(source, data.accounts.find(a => locationKey(a) === locationKey(source) && a.currency === source.currency)) }));
+ const eligible = classified.filter(s => !s.block).map(s => s.source);
+ const historical = classified.filter(s => s.block === "cutoffCovered").map(s => s.source);
+ const unresolved = classified.filter(s => s.block && s.block !== "cutoffCovered");
  return {
-  known, unknown, accounts: [...known, ...unknown],
+  known, unknown, accounts: [...known, ...unknown], eligible, historical, unresolved,
+  components: currencyTotals(known.map(a => ({ currency: a.currency, amount: a.system_balance! }))).flatMap(({ currency }) => {
+   const rows = known.filter(a => a.currency === currency);
+   if (rows.some(a => a.opening_amount === null || ![a.opening_amount, a.inflow, a.outflow].every(Number.isFinite))) return [];
+   const sum = (key: "opening_amount" | "inflow" | "outflow") => rows.reduce((total, a) => total + Math.round(a[key]! * 100), 0) / 100;
+   return [{ currency, amount: sum("opening_amount"), inflow: sum("inflow"), outflow: sum("outflow") }];
+  }),
   balances: currencyTotals(known.map(a => ({ currency: a.currency, amount: a.system_balance! }))),
-  pending: data.can_manage ? { count: data.pending_sources.length, totals: currencyTotals(data.pending_sources.map(s => ({ currency: s.currency, amount: s.cash_amount }))) } : null,
+  pending: data.can_manage ? { count: eligible.length, totals: currencyTotals(eligible.map(s => ({ currency: s.currency, amount: s.cash_amount }))) } : null,
  };
 }
 

@@ -201,3 +201,26 @@ For each later route: select reference, preserve props/state/handlers, replace o
 presentation, verify semantics in both locales and 4 widths, inspect diff for unintended
 business changes, then deploy. Keep document renderer changes in a separate reviewed task.
 Do not begin Entitlement, Payables or Cashbook as part of v1.
+
+## Finance hardening adoption (054)
+
+- Desktop navigation keeps the existing overlay rail and menu tree. Coordinate width,
+  labels, submenus and chevrons in 180-240ms (currently 220ms); disable transitions for
+  reduced motion. Never shift the main content when expanding the rail.
+- Reveal the current link inside the navigation scroll container on expansion, route
+  change or mobile drawer open only. Open the current Finance module. Do not scroll
+  the document or override subsequent manual navigation scrolling.
+- 390px is a visual design target, not merely an overflow test. Keep financial meaning,
+  readable amounts, compact hierarchy, stacked labeled rows, comfortable controls,
+  modal focus trapping and visible primary actions. Inspect TH/EN screenshots at
+  390/768/1024/1440, including expanded navigation and technical disclosures.
+- `FinanceEvidence` provides a collapsed human-readable technical summary. Its nested
+  Raw JSON disclosure is rendered only for Admin, also closed by default. Do not show
+  raw UUIDs, fingerprints or internal contracts as operational labels. This is a UI
+  boundary; existing server/RLS access is not changed. Adopt only when a page is touched.
+- SYSTEM EVIDENCE FIRST; attachments only when materially necessary. Prefer structured
+  facts, references/URLs, actor/time, hashes and existing document links. Never require
+  duplicate uploads of documents already in VP OS. A calculated tax deadline freezes
+  its reviewed rule/channel/calendar evidence, not an uploaded monthly calendar.
+- A current system balance is STOCK; confirmed money received in a selected month is
+  FLOW. Label them explicitly and show server-backed components. Unknown is never zero.

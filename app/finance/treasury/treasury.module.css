@@ -37,6 +37,9 @@
 .history { border-bottom: 1px solid var(--vp-divider); padding: 14px 0; min-width: 0; }
 .history > p { margin: 8px 0; overflow-wrap: anywhere; }
 .technical { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+.relationship { display:grid; grid-template-columns:1fr 1fr; gap:24px; border-block:1px solid var(--vp-divider); padding:16px 0; margin:16px 0; }.relationship h2 { font-size:16px; margin:0 0 8px; }.relationship p { font-size:12px; color:var(--vp-muted); line-height:1.6; margin:6px 0; }.flow header { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }.flow input { min-width:0; max-width:100%; min-height:40px; border:1px solid var(--vp-border); border-radius:4px; background:white; padding:6px; font:inherit; font-size:13px; }.flowTotal { font-size:26px; font-variant-numeric:tabular-nums; display:block; margin:10px 0; }.stock dl { margin:12px 0; }.stock dl>div { display:flex; justify-content:space-between; gap:16px; font-size:13px; margin:8px 0; }.stock dd { margin:0; font-variant-numeric:tabular-nums; white-space:nowrap; }.equationTotal { border-top:1px solid var(--vp-divider); padding-top:10px; font-weight:700; }
+@media(max-width:767px) { .relationship { grid-template-columns:1fr; gap:16px; }.stock { border-top:1px solid var(--vp-divider); padding-top:16px; }.flowTotal { font-size:24px; } }
+.historical { display:grid; gap:8px; }.historical>div { display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:6px 16px; padding:10px 0; border-bottom:1px solid var(--vp-divider); font-size:13px; }.historical strong { font-variant-numeric:tabular-nums; }.historical a { color:#235e97; }
 @media(max-width:1199px) { .accounts { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:899px) {
  .summaries { grid-template-columns:repeat(2,minmax(0,1fr)); }.summaryCard:last-child { grid-column:1 / -1; }

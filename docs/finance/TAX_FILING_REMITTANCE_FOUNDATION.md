@@ -160,3 +160,133 @@ current month. Inspect incomplete Input VAT, unknown net VAT/total payable, inco
 WHT shown separately, no outgoing liability from cancelled Payout 3977A5EA, and empty
 filing/remittance history. Check TH/EN and send screenshots. Stop before creating any
 Draft or recording any filing/payment; existing Production records remain untouched.
+
+## Reviewed due-date contract (054 applied and verified)
+
+The business owner confirmed manual Production apply and post-apply PASS:
+`finance_ux_integrity_hardening_verification_pass = true`, with empty failed checks,
+catalog differences and function differences. Repository finalization/deployment is
+authorized; no Production business write or reviewed-rule publication is authorized.
+
+Audit found no reviewed deadline rule, channel/default setting or authoritative holiday
+calendar in 052/053. The previous optional manual date/reference was not an automatic
+rule source. No legal dates or holidays are inferred or seeded by this hardening task.
+
+Migration 054 adds the append-only reviewed rule registry:
+`finance_tax_deadline_rules`, controlled by Admin-only
+`publish_finance_tax_deadline_rule`. Each rule records filing type (VAT/natural-person
+WHT/juristic-person WHT), online/paper channel, effective period range, due day in the
+following month, explicit holiday policy and reviewed calendar coverage, source
+reference, review reason, version, actor/time, and optional superseded rule.
+Exact retries are idempotent. Overlapping independent rules are blocked; correction
+or withdrawal appends a version for the same range, never edits history. No default
+weekends, calendar dates or automatic government extensions are assumed.
+
+`get_finance_tax_deadline` returns a calculated date only inside reviewed calendar
+coverage. Missing/withdrawn/out-of-coverage rules return `review_required` and null,
+displayed as "ต้องตรวจสอบกฎกำหนดส่ง". Online is a controlled UI initial selection,
+not a new company master setting. No duplicate configuration or upload is added.
+Real rule publication still requires an independently reviewed business/legal source;
+fixture days and holidays are explicitly synthetic, not recommended statutory dates.
+
+Normal operators choose channel and see the system date, without a manual date or
+evidence field. Admin may explicitly enable an exception requiring date, reason and
+reference/URL, with server actor/time. No attachment is required. This does not change
+financial readiness, filing/remittance transitions, source collection or VAT arithmetic.
+
+New `create_finance_tax_filing_review` freezes the exact reviewed deadline and optional
+override in `deadline_snapshot_json`, and the existing created audit freezes the whole
+row. Financial `source_snapshot_json` remains the 053 schema-2 monthly/coverage
+contract. Reviewed deadline changes reject stale creation; exact retry preserves the
+original frozen evidence. Existing immutable-row/audit guards protect the new column.
+The original create RPC body is preserved but execution is revoked for browser roles,
+so arbitrary manual date input cannot bypass the new entry point. Existing filed
+snapshot JSON is not retroactively rewritten; deadline evidence lives in the row/audit.
+
+Compatibility gate: migration application requires zero Filing rows. Adding a column
+changes whole-row audit equality, so an existing Filing must trigger STOP and separate
+compatibility review, not backfill or repair. Preflight also preserves the verified
+053 zero-state and September facts. A Draft may remain unready with a null deadline;
+deadline availability cannot turn incomplete Input VAT into a ready filing.
+
+Retained operator artifacts (manually applied by the owner, never executed against
+Production by the implementation agent; do not reapply):
+
+- `scripts/sql/preflight_finance_ux_integrity_hardening.sql`: one SELECT/row, exact
+  prior 053 contracts, zero-state, unused namespace and upstream evidence hashes.
+- `scripts/sql/dry_run_finance_ux_integrity_hardening.sql`: literal BEGIN/ROLLBACK,
+  guarded preflight, exact embedded 054 and detailed verifier. No COMMIT/business UAT.
+- `supabase/migrations/202607180054_add_reviewed_tax_deadlines.sql`: immutable applied artifact.
+- `scripts/sql/verify_finance_ux_integrity_hardening.sql`: one SELECT/row; named checks,
+  failed checks, catalog/function differences, unchanged financial evidence hashes.
+
+Operator must compare all upstream hashes before/after; mutable Ledger/Compensation
+counts are not fixed gates. Local fixtures cover permissions, idempotency, stale rules,
+immutable overrides, strict cutoff rejection, schema-2 VAT 700/coverage 0/null tax/false
+ready, and literal rollback. No Production Draft or rules have been created here.
+After deployment, human UAT is inspection only: Treasury flow/stock and historical
+cutoff evidence, active sidebar reveal, and Tax Filing review with no invented deadline.
+Stop before creating rules, Filing Drafts, remittances, Openings or Cashbook entries.
+
+### 054 finalization inventory and validation
+
+Only these 36 files belong to the hardening work; 25 pre-existing unrelated untracked
+files remain untouched and excluded from staging. Paths are repo-relative:
+
+```text
+app/components/AppTopNav.tsx
+app/components/AppSidebar.module.css
+app/components/sidebar-reveal.ts
+app/components/DetailModal.tsx
+app/finance/FinanceEvidence.tsx
+app/finance/treasury/page.tsx
+app/finance/treasury/shared.ts
+app/finance/treasury/dashboard.ts
+app/finance/treasury/dashboard-view.tsx
+app/finance/treasury/relationship.tsx
+app/finance/treasury/treasury.module.css
+app/finance/tax-position/page.tsx
+app/finance/tax-position/filings/workspace.tsx
+app/finance/tax-position/filings/shared.ts
+app/finance/tax-position/filings/technical-evidence.tsx
+app/finance/tax-position/filings/deadline-review.tsx
+app/finance/tax-position/filings/filings.module.css
+lib/i18n/messages/treasury.ts
+lib/i18n/messages/tax-filings.ts
+docs/ui/VP_UI_SYSTEM_V1.md
+docs/finance/TREASURY_CASHBOOK_FOUNDATION.md
+docs/finance/TAX_FILING_REMITTANCE_FOUNDATION.md
+scripts/tests/finance-hardening-artifacts.cjs
+scripts/tests/finance-hardening-catalog.json
+scripts/tests/finance-hardening-postgres.test.cjs
+scripts/tests/finance-hardening-ui.test.cjs
+scripts/tests/treasury-dashboard-fixture.cjs
+scripts/tests/treasury-dashboard.test.cjs
+scripts/tests/treasury-browser.cjs
+scripts/tests/tax-filing-ui.test.cjs
+scripts/tests/tax-filing-browser.cjs
+scripts/tests/tax-position-browser.cjs
+supabase/migrations/202607180054_add_reviewed_tax_deadlines.sql
+scripts/sql/preflight_finance_ux_integrity_hardening.sql
+scripts/sql/dry_run_finance_ux_integrity_hardening.sql
+scripts/sql/verify_finance_ux_integrity_hardening.sql
+```
+
+Local validation: 84 focused UI/helper/static/regression tests and 54 isolated
+PostgreSQL cases (049:12, 050:8, 051:8, 052:10, 053:8, 054:8). PGlite fixtures never
+connect to Production; they are not a live multi-session concurrency/load test.
+The literal dry-run executes then rolls back, with matching upstream hashes and
+exact catalog/function manifest. Preflight and verifier each remain one SELECT/row.
+All 80 tracked migration artifacts through 053 remain byte-identical to pre-task HEAD.
+
+Closed-loopback real React browser suites passed Treasury, Tax Position and Filing
+TH/EN at 390/768/1024/1440, no external requests, responsive geometry, nested evidence,
+operator/Admin boundaries and modal focus. Treasury additionally checks active reveal
+on Treasury/Tax/Filing/Payables/Legacy routes, reduced motion and no scroll hijacking.
+1440/390 screenshots were visually inspected; menu horizontal clipping was corrected.
+Targeted ESLint (zero warnings), TypeScript, production build and whitespace checks pass.
+
+Applied 054 SHA-256 (unchanged from the prepared artifact):
+`daf3fe7d5f33ba4c8eae0de8cd001973f7843c161e8ac5e7969be9e79b85cad1`.
+Applied 053 SHA-256 remains
+`5438f8dad942c3bdc9793c79434bebbeec576b1ff5b6c8a790f7e133d5575914`.

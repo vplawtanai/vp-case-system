@@ -11,6 +11,8 @@ import { useI18n } from "../../lib/i18n/provider";
 import LanguageSelector from "./LanguageSelector";
 import { FinanceSidebar } from "../finance/FinanceSidebar";
 import type { UserPermissionProfile } from "../../lib/permissions";
+import sidebarCss from "./AppSidebar.module.css";
+import { revealActiveNavigation } from "./sidebar-reveal";
 
 type AppTopNavProps = {
   title: string;
@@ -93,6 +95,14 @@ export default function AppTopNav({
   const financeExpanded = financePreference?.pathname === pathname ? financePreference.expanded : financePage;
   const expanded = sidebarExpanded || sidebarFocused;
   const drawerRef = useRef<HTMLElement>(null), menuRef = useRef<HTMLButtonElement>(null);
+  const navigationRef = useRef<HTMLElement>(null);
+  function revealModule() { if (financePage) setFinancePreference(null); }
+  useEffect(() => {
+    if (!(isMobile ? drawerOpen : expanded)) return;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const timer = setTimeout(() => { if (navigationRef.current) revealActiveNavigation(navigationRef.current, reduced); }, reduced ? 0 : 230);
+    return () => clearTimeout(timer);
+  }, [expanded, drawerOpen, isMobile, pathname, profile.role]);
 
   useEffect(() => {
     if (!drawerOpen) return;
@@ -302,15 +312,15 @@ export default function AppTopNav({
     <>
       <div style={brandStyle}>
         <div style={brandMarkStyle}>VP</div>
-        {!collapsed && (
-          <div>
+        {(
+          <div data-sidebar-label aria-hidden={collapsed || undefined}>
             <div style={brandTitleStyle}>VP Case System</div>
             <div style={brandSubtitleStyle}>Office OS</div>
           </div>
         )}
       </div>
 
-      <nav style={sidebarNavStyle}>
+      <nav ref={navigationRef} style={sidebarNavStyle} data-sidebar-navigation>
         {navGroups.map((group) => {
           const visibleItems = group.items.filter((item) => item.visible);
           if (visibleItems.length === 0) return null;
@@ -324,7 +334,7 @@ export default function AppTopNav({
                   onClick={() => setFinancePreference({ pathname, expanded: !financeExpanded })}
                   style={{ ...getLinkStyle(item.page, collapsed), width: collapsed ? 48 : "100%", font: "inherit", fontWeight: 650, cursor: "pointer", textAlign: "left" }}>
                   <span style={navIconStyle}><NavIcon name={item.icon} /></span>
-                  {!collapsed && <><span style={{ flex: 1 }}>{item.label}</span><ChevronDown size={16} style={{ transform: financeExpanded ? "rotate(180deg)" : undefined }} aria-hidden="true" /></>}
+                  <span data-sidebar-label aria-hidden={collapsed || undefined} style={{ flex: collapsed ? undefined : 1 }}>{item.label}</span><span data-sidebar-label><ChevronDown data-sidebar-chevron size={16} style={{ transform: financeExpanded ? "rotate(180deg)" : undefined }} aria-hidden="true" /></span>
                 </button>
               ) : (
                 <Link
@@ -337,14 +347,15 @@ export default function AppTopNav({
                   style={getLinkStyle(item.page, collapsed)}
                   title={item.label}
                   aria-label={item.label}
+                  aria-current={isActivePage(item.page) ? "page" : undefined}
                 >
                   <span style={navIconStyle}>
                     <NavIcon name={item.icon} />
                   </span>
-                  {!collapsed && <span>{item.label}</span>}
+                  <span data-sidebar-label aria-hidden={collapsed || undefined}>{item.label}</span>
                 </Link>
               ))}
-              {visibleItems.some(item => item.page === "finance") ? <div id="finance-sidebar-links" hidden={collapsed || !financeExpanded}><FinanceSidebar permissions={permissions} pathname={pathname} onNavigate={() => setDrawerOpen(false)} /></div> : null}
+              {visibleItems.some(item => item.page === "finance") ? <div id="finance-sidebar-links" data-sidebar-submenu hidden={!financeExpanded} inert={collapsed}><FinanceSidebar permissions={permissions} pathname={pathname} onNavigate={() => setDrawerOpen(false)} /></div> : null}
             </div>
           );
         })}
@@ -354,7 +365,7 @@ export default function AppTopNav({
         <span style={navIconStyle}>
           <NavIcon name="logout" />
         </span>
-        {!collapsed && <span>{t("common.nav.logout")}</span>}
+        <span data-sidebar-label aria-hidden={collapsed || undefined}>{t("common.nav.logout")}</span>
       </button>
     </>
   );
@@ -364,12 +375,13 @@ export default function AppTopNav({
       {!isMobile && (
         <aside
           data-app-sidebar
+          className={sidebarCss.shell}
           data-expanded={expanded}
           style={expanded ? sidebarStyle : collapsedSidebarStyle}
-          onFocus={event => setSidebarFocused(event.target.matches(":focus-visible"))}
+          onFocus={event => { if (!expanded) revealModule(); setSidebarFocused(event.target.matches(":focus-visible")); }}
           onKeyDown={event => { if (event.key === "Tab") setSidebarFocused(true); }}
           onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setSidebarFocused(false); }}
-          onMouseEnter={() => setSidebarExpanded(true)}
+          onMouseEnter={() => { revealModule(); setSidebarExpanded(true); }}
           onMouseLeave={() => setSidebarExpanded(false)}
         >
           {renderNavigation(!expanded)}
@@ -384,7 +396,7 @@ export default function AppTopNav({
             aria-label={t("common.nav.menu")}
             title={t("common.nav.menu")}
             type="button"
-            onClick={() => setDrawerOpen(true)}
+            onClick={() => { revealModule(); setDrawerOpen(true); }}
             style={mobileMenuButtonStyle}
           >
             <Menu size={20} aria-hidden="true" />
@@ -403,7 +415,7 @@ export default function AppTopNav({
             onClick={() => setDrawerOpen(false)}
             style={drawerOverlayStyle}
           />
-          <aside ref={drawerRef} role="dialog" aria-modal="true" aria-label={t("common.nav.menu")} style={drawerStyle}>
+          <aside ref={drawerRef} className={sidebarCss.shell} data-expanded="true" role="dialog" aria-modal="true" aria-label={t("common.nav.menu")} style={drawerStyle}>
             <button
               type="button"
               onClick={() => setDrawerOpen(false)}
@@ -622,8 +634,7 @@ const sidebarStyle: React.CSSProperties = {
   background: "#ffffff",
   borderRight: "1px solid #e5e7eb",
   boxShadow: "2px 0 16px rgba(15, 23, 42, 0.06)",
-  overflowY: "auto",
-  transition: "width 180ms ease, padding 180ms ease, box-shadow 180ms ease",
+  overflow: "hidden",
 };
 
 const collapsedSidebarStyle: React.CSSProperties = {

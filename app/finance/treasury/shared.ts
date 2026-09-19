@@ -16,6 +16,7 @@ export function openingStart(asOf: string): string {
 export function sourceBlock(source: TreasurySource, account: Location | undefined): string | null {
  if (source.source_type === "payment" && !source.bank_account_id) return "paymentLocationRequired";
  if (!account?.is_active) return "locationRequired";
+ if (source.status !== "confirmed" || source.cash_amount <= 0 || source.currency !== account.currency) return "locationRequired";
  if (!account.opening_id || !account.opening_as_of) return "unknown";
  if (source.received_on < openingStart(account.opening_as_of)) return "cutoffCovered";
  return null;

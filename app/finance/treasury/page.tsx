@@ -12,30 +12,34 @@ import FinanceSubNav from "../FinanceSubNav";
 import { locationKey, locationName, openingStart, sourceBlock, treasuryError, type Location, type Opening, type TreasuryData, type TreasurySource } from "./shared";
 import { TreasuryDashboard } from "./dashboard-view";
 import styles from "./treasury.module.css";
+import { TreasuryRelationship, type TreasuryFlow } from "./relationship";
+import { currentBangkokMonth } from "../tax-position/dashboard-data";
 
 type OpeningForm = { id: string; account: string; start: string; amount: string; note: string; expected: string | null; prior: string | null; saved: Opening | null };
 export default function TreasuryPage() {
  return <QuotationGuard canAccess={a => a.permissions.canViewFinanceCashTransactions}>
-  {a => <><FinanceSubNav activePage="treasury" permissions={a.permissions} /><TreasuryWorkspace /></>}
+  {a => <><FinanceSubNav activePage="treasury" permissions={a.permissions} /><TreasuryWorkspace isAdmin={a.permissions.role === "admin"} /></>}
  </QuotationGuard>;
 }
 
-export function TreasuryWorkspace() {
+export function TreasuryWorkspace({ isAdmin = false }: { isAdmin?: boolean }) {
  const { t, locale, date } = useI18n();
  const [data, setData] = useState<TreasuryData | null>(null), [offset, setOffset] = useState(0), [loading, setLoading] = useState(true);
+ const [month, setMonth] = useState(currentBangkokMonth), [flow, setFlow] = useState<TreasuryFlow | null>(null);
  const [failure, setFailure] = useState<string | null>(null), [busy, setBusy] = useState(false), [ack, setAck] = useState(false), [invalid, setInvalid] = useState(false);
  const [opening, setOpening] = useState<OpeningForm | null>(null), [selected, setSelected] = useState<TreasurySource | null>(null), [cashLocation, setCashLocation] = useState("");
  const lock = useRef(false), request = useRef(0), formRef = useRef<HTMLFormElement>(null), ackRef = useRef<HTMLInputElement>(null);
  const load = useCallback(async () => {
-  const sequence = ++request.current; setLoading(true);
+  const sequence = ++request.current; setLoading(true); setFlow(null);
   try {
    const r = await supabase.rpc("get_finance_treasury", { p_offset: offset });
    if (r.error || !Array.isArray(r.data?.accounts) || !Array.isArray(r.data?.transactions) || !Array.isArray(r.data?.pending_sources)) throw r.error || new Error("response");
-   if (sequence === request.current) { setData(r.data); return r.data as TreasuryData; }
+   const monthly = await supabase.rpc("get_finance_treasury_month_flow", { p_month: `${month}-01` });
+   if (sequence === request.current) { setData(r.data); if (!monthly.error) setFlow(monthly.data); return r.data as TreasuryData; }
   } catch (e) { if (sequence === request.current) { setData(null); setFailure(treasuryError(e, locale)); } }
   finally { if (sequence === request.current) setLoading(false); }
   return null;
- }, [offset, locale]);
+ }, [offset, locale, month]);
  const invalidate = useCallback(() => { request.current++; }, []);
  useEffect(() => { void load(); return invalidate; }, [load, invalidate]);
  const amount = (value: number | null, currency = "THB") => value === null ? t("treasury.unknown") : `${value.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
@@ -90,7 +94,8 @@ export function TreasuryWorkspace() {
   <p className={styles.muted}>{t("treasury.unreconciled")}</p>
   {failure && !opening && !selected ? <Callout tone="negative" role="alert">{failure}</Callout> : null}
   {loading ? <p role="status">{t("common.state.loading")}</p> : null}
-  {data ? <TreasuryDashboard data={data} offset={offset} loading={loading} busy={busy} onPage={setOffset} onOpening={editOpening}
+  {data ? <TreasuryRelationship data={data} flow={flow} month={month} onMonth={setMonth} /> : null}
+  {data ? <TreasuryDashboard isAdmin={isAdmin} data={data} offset={offset} loading={loading} busy={busy} onPage={setOffset} onOpening={editOpening}
    onMaterialize={s => { setSelected(s); setCashLocation(""); setAck(false); setInvalid(false); setFailure(null); }} /> : null}
   <DetailModal open={!!opening} title={t("treasury.opening")} size="edit" onClose={close} closeOnBackdrop={!busy}>
    {opening ? <><p>{t("treasury.openingHelp")}</p>{opening.prior ? <Callout tone="warning">{t("treasury.replaceHelp")}</Callout> : null}

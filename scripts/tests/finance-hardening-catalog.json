@@ -1,0 +1,2076 @@
+[
+  {
+    "name": "finance_cash_transactions",
+    "kind": "r",
+    "rls": true,
+    "force_rls": false,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "occurred_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "direction",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "transaction_type",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "bank_account_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "cash_amount",
+        "type": "numeric(14,2)",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "currency",
+        "type": "text",
+        "default": "'THB'::text",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "default": "'draft'::text",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "source_payment_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "reference_no",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "note",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "reversal_of_transaction_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "created_by_user_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "updated_by_user_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "confirmed_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "confirmed_by_user_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "cancelled_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "cancelled_by_user_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "cancel_reason",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "cash_location_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "source_direct_money_receipt_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "source_snapshot_json",
+        "type": "jsonb",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "source_payout_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "source_tax_remittance_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_cash_transaction_integrity",
+        "type": "t",
+        "validated": true,
+        "deferrable": true,
+        "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED",
+        "initially_deferred": true
+      },
+      {
+        "name": "finance_cash_transactions_amount_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((cash_amount > (0)::numeric))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_cash_transactions_bank_account_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (bank_account_id) REFERENCES finance_bank_accounts(id) ON DELETE RESTRICT",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_cash_transactions_cancelled_by_user_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (cancelled_by_user_id) REFERENCES user_profiles(id) ON DELETE RESTRICT",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_cash_transactions_cash_location_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (cash_location_id) REFERENCES finance_cash_locations(id) ON DELETE RESTRICT",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_cash_transactions_confirmed_by_user_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (confirmed_by_user_id) REFERENCES user_profiles(id) ON DELETE RESTRICT",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_cash_transactions_created_by_user_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (created_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_cash_transactions_currency_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((currency ~ '^[A-Z]{3}$'::text))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_cash_transactions_direction_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((direction = ANY (ARRAY['inflow'::text, 'outflow'::text])))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_cash_transactions_lifecycle_metadata_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((((status = 'draft'::text) AND (confirmed_at IS NULL) AND (confirmed_by_user_id IS NULL) AND (cancelled_at IS NULL) AND (cancelled_by_user_id IS NULL) AND (cancel_reason IS NULL)) OR ((status = 'confirmed'::text) AND (confirmed_at IS NOT NULL) AND (confirmed_by_user_id IS NOT NULL) AND (cancelled_at IS NULL) AND (cancelled_by_user_id IS NULL) AND (cancel_reason IS NULL)) OR ((status = 'cancelled'::text) AND (confirmed_at IS NULL) AND (confirmed_by_user_id IS NULL) AND (cancelled_at IS NOT NULL) AND (cancelled_by_user_id IS NOT NULL) AND (NULLIF(btrim(COALESCE(cancel_reason, ''::text)), ''::text) IS NOT NULL))))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_cash_transactions_no_self_reversal_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((reversal_of_transaction_id IS NULL) OR (reversal_of_transaction_id <> id)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_cash_transactions_pkey",
+        "type": "p",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_cash_transactions_reversal_of_transaction_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (reversal_of_transaction_id) REFERENCES finance_cash_transactions(id) ON DELETE RESTRICT",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_cash_transactions_source_contract_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((((reversal_of_transaction_id IS NULL) AND (((transaction_type = 'customer_payment'::text) AND (source_payment_id IS NOT NULL) AND (source_direct_money_receipt_id IS NULL) AND (direction = 'inflow'::text)) OR ((transaction_type = 'direct_money_receipt'::text) AND (source_direct_money_receipt_id IS NOT NULL) AND (source_payment_id IS NULL) AND (direction = 'inflow'::text) AND (source_snapshot_json IS NOT NULL)) OR ((transaction_type <> ALL (ARRAY['customer_payment'::text, 'direct_money_receipt'::text, 'reversal'::text])) AND (source_payment_id IS NULL) AND (source_direct_money_receipt_id IS NULL)))) OR ((reversal_of_transaction_id IS NOT NULL) AND (transaction_type = 'reversal'::text) AND (status = 'confirmed'::text))))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_cash_transactions_source_direct_money_receipt_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (source_direct_money_receipt_id) REFERENCES finance_direct_money_receipts(id) ON DELETE RESTRICT",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_cash_transactions_source_payment_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (source_payment_id) REFERENCES finance_payments(id) ON DELETE RESTRICT",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_cash_transactions_source_payout_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (source_payout_id) REFERENCES finance_payouts(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_cash_transactions_source_payout_id_key",
+        "type": "u",
+        "validated": true,
+        "deferrable": false,
+        "definition": "UNIQUE (source_payout_id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_cash_transactions_source_tax_remittance_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (source_tax_remittance_id) REFERENCES finance_tax_remittances(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_cash_transactions_source_tax_remittance_id_key",
+        "type": "u",
+        "validated": true,
+        "deferrable": false,
+        "definition": "UNIQUE (source_tax_remittance_id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_cash_transactions_status_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((status = ANY (ARRAY['draft'::text, 'confirmed'::text, 'cancelled'::text])))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_cash_transactions_text_length_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((length(COALESCE(reference_no, ''::text)) <= 500) AND (length(COALESCE(description, ''::text)) <= 1000) AND (length(COALESCE(note, ''::text)) <= 4000) AND (length(COALESCE(cancel_reason, ''::text)) <= 2000)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_cash_transactions_type_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((transaction_type = ANY (ARRAY['customer_payment'::text, 'direct_money_receipt'::text, 'manual_inflow'::text, 'manual_outflow'::text, 'expense_claim'::text, 'refund'::text, 'tax_payment'::text, 'transfer'::text, 'reversal'::text, 'other'::text])))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_cash_transactions_type_direction_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((((transaction_type <> 'manual_inflow'::text) OR (direction = 'inflow'::text)) AND ((transaction_type <> ALL (ARRAY['manual_outflow'::text, 'expense_claim'::text, 'refund'::text, 'tax_payment'::text])) OR (direction = 'outflow'::text))))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_cash_transactions_updated_by_user_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (updated_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL",
+        "initially_deferred": false
+      },
+      {
+        "name": "payout_cash_integrity",
+        "type": "t",
+        "validated": true,
+        "deferrable": true,
+        "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED",
+        "initially_deferred": true
+      },
+      {
+        "name": "payout_cash_source",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((source_payout_id IS NULL) OR ((transaction_type = 'other'::text) AND (direction = 'outflow'::text) AND (status = 'confirmed'::text) AND (source_payment_id IS NULL) AND (source_direct_money_receipt_id IS NULL) AND (reversal_of_transaction_id IS NULL) AND (source_snapshot_json IS NULL))))",
+        "initially_deferred": false
+      },
+      {
+        "name": "tax_remittance_cash_integrity",
+        "type": "t",
+        "validated": true,
+        "deferrable": true,
+        "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED",
+        "initially_deferred": true
+      },
+      {
+        "name": "tax_remittance_cash_source",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((source_tax_remittance_id IS NULL) OR ((direction = 'outflow'::text) AND (transaction_type = 'other'::text) AND (status = 'confirmed'::text) AND (source_payment_id IS NULL) AND (source_direct_money_receipt_id IS NULL) AND (source_payout_id IS NULL) AND (reversal_of_transaction_id IS NULL) AND (source_snapshot_json IS NULL))))",
+        "initially_deferred": false
+      },
+      {
+        "name": "treasury_cash_evidence",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((source_snapshot_json IS NULL) OR (jsonb_typeof(source_snapshot_json) = 'object'::text)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "treasury_cash_location",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((num_nonnulls(bank_account_id, cash_location_id) = 1))",
+        "initially_deferred": false
+      },
+      {
+        "name": "treasury_cash_source",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((num_nonnulls(source_payment_id, source_direct_money_receipt_id) <= 1))",
+        "initially_deferred": false
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_cash_transactions_pkey",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_cash_transactions_pkey ON public.finance_cash_transactions USING btree (id)"
+      },
+      {
+        "name": "finance_cash_transactions_source_payout_id_key",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_cash_transactions_source_payout_id_key ON public.finance_cash_transactions USING btree (source_payout_id)"
+      },
+      {
+        "name": "finance_cash_transactions_source_tax_remittance_id_key",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_cash_transactions_source_tax_remittance_id_key ON public.finance_cash_transactions USING btree (source_tax_remittance_id)"
+      },
+      {
+        "name": "idx_finance_cash_transactions_account_date",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE INDEX idx_finance_cash_transactions_account_date ON public.finance_cash_transactions USING btree (bank_account_id, currency, occurred_at DESC)"
+      },
+      {
+        "name": "idx_finance_cash_transactions_source_payment",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE INDEX idx_finance_cash_transactions_source_payment ON public.finance_cash_transactions USING btree (source_payment_id) WHERE (source_payment_id IS NOT NULL)"
+      },
+      {
+        "name": "idx_finance_cash_transactions_status_date",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE INDEX idx_finance_cash_transactions_status_date ON public.finance_cash_transactions USING btree (status, occurred_at DESC)"
+      },
+      {
+        "name": "treasury_cash_direct_original",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX treasury_cash_direct_original ON public.finance_cash_transactions USING btree (source_direct_money_receipt_id) WHERE ((source_direct_money_receipt_id IS NOT NULL) AND (reversal_of_transaction_id IS NULL))"
+      },
+      {
+        "name": "treasury_cash_location_date",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE INDEX treasury_cash_location_date ON public.finance_cash_transactions USING btree (cash_location_id, currency, occurred_at DESC)"
+      },
+      {
+        "name": "uq_finance_cash_transactions_reversal",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX uq_finance_cash_transactions_reversal ON public.finance_cash_transactions USING btree (reversal_of_transaction_id) WHERE (reversal_of_transaction_id IS NOT NULL)"
+      },
+      {
+        "name": "uq_finance_cash_transactions_source_payment",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX uq_finance_cash_transactions_source_payment ON public.finance_cash_transactions USING btree (source_payment_id) WHERE ((source_payment_id IS NOT NULL) AND (reversal_of_transaction_id IS NULL))"
+      }
+    ],
+    "policies": [
+      {
+        "name": "finance cash viewers select transactions",
+        "check": null,
+        "roles": [
+          "authenticated"
+        ],
+        "using": "treasury_can_view(bank_account_id, cash_location_id)",
+        "command": "SELECT",
+        "permissive": "PERMISSIVE"
+      }
+    ],
+    "triggers": [
+      {
+        "name": "finance_cash_transaction_integrity",
+        "enabled": "O",
+        "definition": "CREATE CONSTRAINT TRIGGER finance_cash_transaction_integrity AFTER INSERT OR DELETE OR UPDATE ON public.finance_cash_transactions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION enforce_finance_cash_transaction_integrity()"
+      },
+      {
+        "name": "finance_cash_transaction_lifecycle_guard",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER finance_cash_transaction_lifecycle_guard BEFORE INSERT OR DELETE OR UPDATE ON public.finance_cash_transactions FOR EACH ROW EXECUTE FUNCTION enforce_finance_cash_transaction_lifecycle()"
+      },
+      {
+        "name": "payout_cash_integrity",
+        "enabled": "O",
+        "definition": "CREATE CONSTRAINT TRIGGER payout_cash_integrity AFTER INSERT OR UPDATE ON public.finance_cash_transactions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION payout_integrity()"
+      },
+      {
+        "name": "tax_remittance_cash_integrity",
+        "enabled": "O",
+        "definition": "CREATE CONSTRAINT TRIGGER tax_remittance_cash_integrity AFTER INSERT OR UPDATE ON public.finance_cash_transactions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION tax_filing_integrity()"
+      },
+      {
+        "name": "tax_remittance_no_generic_reversal",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER tax_remittance_no_generic_reversal BEFORE INSERT ON public.finance_cash_transactions FOR EACH ROW EXECUTE FUNCTION tax_filing_cash_reversal_guard()"
+      },
+      {
+        "name": "treasury_cash_no_truncate",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER treasury_cash_no_truncate BEFORE TRUNCATE ON public.finance_cash_transactions FOR EACH STATEMENT EXECUTE FUNCTION protect_finance_cash_audit_event()"
+      }
+    ]
+  },
+  {
+    "name": "finance_tax_deadline_rules",
+    "kind": "r",
+    "rls": true,
+    "force_rls": false,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "version",
+        "type": "bigint",
+        "default": null,
+        "identity": "a",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "filing_type",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "channel",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "effective_from",
+        "type": "date",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "effective_to",
+        "type": "date",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "supersedes_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "spec",
+        "type": "jsonb",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "reviewed_by",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "reviewed_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_tax_deadline_rules_channel_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((channel = ANY (ARRAY['online'::text, 'paper'::text])))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_deadline_rules_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((EXTRACT(day FROM effective_to) = (1)::numeric) AND (effective_to >= effective_from)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_deadline_rules_effective_from_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((EXTRACT(day FROM effective_from) = (1)::numeric))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_deadline_rules_filing_type_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((filing_type = ANY (ARRAY['vat'::text, 'wht_natural'::text, 'wht_juristic'::text])))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_deadline_rules_pkey",
+        "type": "p",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_deadline_rules_reviewed_by_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (reviewed_by) REFERENCES user_profiles(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_deadline_rules_spec_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((jsonb_typeof(spec) = 'object'::text))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_deadline_rules_status_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((status = ANY (ARRAY['reviewed'::text, 'withdrawn'::text])))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_deadline_rules_supersedes_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (supersedes_id) REFERENCES finance_tax_deadline_rules(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_deadline_rules_supersedes_id_key",
+        "type": "u",
+        "validated": true,
+        "deferrable": false,
+        "definition": "UNIQUE (supersedes_id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_deadline_rules_version_key",
+        "type": "u",
+        "validated": true,
+        "deferrable": false,
+        "definition": "UNIQUE (version)",
+        "initially_deferred": false
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_tax_deadline_rules_pkey",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_deadline_rules_pkey ON public.finance_tax_deadline_rules USING btree (id)"
+      },
+      {
+        "name": "finance_tax_deadline_rules_supersedes_id_key",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_deadline_rules_supersedes_id_key ON public.finance_tax_deadline_rules USING btree (supersedes_id)"
+      },
+      {
+        "name": "finance_tax_deadline_rules_version_key",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_deadline_rules_version_key ON public.finance_tax_deadline_rules USING btree (version)"
+      }
+    ],
+    "policies": null,
+    "triggers": [
+      {
+        "name": "tax_deadline_rules_immutable",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER tax_deadline_rules_immutable BEFORE DELETE OR UPDATE OR TRUNCATE ON public.finance_tax_deadline_rules FOR EACH STATEMENT EXECUTE FUNCTION tax_position_immutable()"
+      }
+    ]
+  },
+  {
+    "name": "finance_tax_filing_allocations",
+    "kind": "r",
+    "rls": true,
+    "force_rls": false,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "filing_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "tax_fact_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "outgoing_wht_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "economic_key",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "source_fingerprint",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "evidence_json",
+        "type": "jsonb",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_tax_filing_allocations_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((num_nonnulls(tax_fact_id, outgoing_wht_id) = 1))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filing_allocations_evidence_json_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((jsonb_typeof(evidence_json) = 'object'::text))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filing_allocations_filing_id_economic_key_key",
+        "type": "u",
+        "validated": true,
+        "deferrable": false,
+        "definition": "UNIQUE (filing_id, economic_key)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filing_allocations_filing_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (filing_id) REFERENCES finance_tax_filings(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filing_allocations_outgoing_wht_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (outgoing_wht_id) REFERENCES finance_outgoing_wht_obligations(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filing_allocations_pkey",
+        "type": "p",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filing_allocations_source_fingerprint_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((length(source_fingerprint) = 32))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filing_allocations_tax_fact_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (tax_fact_id) REFERENCES finance_tax_position_facts(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "tax_filing_allocation_integrity",
+        "type": "t",
+        "validated": true,
+        "deferrable": true,
+        "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED",
+        "initially_deferred": true
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_tax_filing_allocations_filing_id_economic_key_key",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_filing_allocations_filing_id_economic_key_key ON public.finance_tax_filing_allocations USING btree (filing_id, economic_key)"
+      },
+      {
+        "name": "finance_tax_filing_allocations_pkey",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_filing_allocations_pkey ON public.finance_tax_filing_allocations USING btree (id)"
+      },
+      {
+        "name": "tax_filing_fact_coverage",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE INDEX tax_filing_fact_coverage ON public.finance_tax_filing_allocations USING btree (economic_key)"
+      }
+    ],
+    "policies": null,
+    "triggers": [
+      {
+        "name": "tax_filing_allocation_integrity",
+        "enabled": "O",
+        "definition": "CREATE CONSTRAINT TRIGGER tax_filing_allocation_integrity AFTER INSERT ON public.finance_tax_filing_allocations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION tax_filing_integrity()"
+      },
+      {
+        "name": "tax_filing_no_rewrite",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER tax_filing_no_rewrite BEFORE DELETE OR UPDATE ON public.finance_tax_filing_allocations FOR EACH ROW EXECUTE FUNCTION tax_filing_immutable()"
+      },
+      {
+        "name": "tax_filing_no_truncate",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER tax_filing_no_truncate BEFORE TRUNCATE ON public.finance_tax_filing_allocations FOR EACH STATEMENT EXECUTE FUNCTION tax_filing_immutable()"
+      }
+    ]
+  },
+  {
+    "name": "finance_tax_filing_audit",
+    "kind": "r",
+    "rls": true,
+    "force_rls": false,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "filing_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "event_type",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "version",
+        "type": "integer",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "actor_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "evidence_json",
+        "type": "jsonb",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_tax_filing_audit_actor_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (actor_id) REFERENCES user_profiles(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filing_audit_event_type_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((event_type = ANY (ARRAY['created'::text, 'ready_for_review'::text, 'filed'::text, 'cancelled'::text])))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filing_audit_evidence_json_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((jsonb_typeof(evidence_json) = 'object'::text))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filing_audit_filing_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (filing_id) REFERENCES finance_tax_filings(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filing_audit_filing_id_version_key",
+        "type": "u",
+        "validated": true,
+        "deferrable": false,
+        "definition": "UNIQUE (filing_id, version)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filing_audit_pkey",
+        "type": "p",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "tax_filing_audit_integrity",
+        "type": "t",
+        "validated": true,
+        "deferrable": true,
+        "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED",
+        "initially_deferred": true
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_tax_filing_audit_filing_id_version_key",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_filing_audit_filing_id_version_key ON public.finance_tax_filing_audit USING btree (filing_id, version)"
+      },
+      {
+        "name": "finance_tax_filing_audit_pkey",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_filing_audit_pkey ON public.finance_tax_filing_audit USING btree (id)"
+      }
+    ],
+    "policies": null,
+    "triggers": [
+      {
+        "name": "tax_filing_audit_integrity",
+        "enabled": "O",
+        "definition": "CREATE CONSTRAINT TRIGGER tax_filing_audit_integrity AFTER INSERT ON public.finance_tax_filing_audit DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION tax_filing_integrity()"
+      },
+      {
+        "name": "tax_filing_no_rewrite",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER tax_filing_no_rewrite BEFORE DELETE OR UPDATE ON public.finance_tax_filing_audit FOR EACH ROW EXECUTE FUNCTION tax_filing_immutable()"
+      },
+      {
+        "name": "tax_filing_no_truncate",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER tax_filing_no_truncate BEFORE TRUNCATE ON public.finance_tax_filing_audit FOR EACH STATEMENT EXECUTE FUNCTION tax_filing_immutable()"
+      }
+    ]
+  },
+  {
+    "name": "finance_tax_filings",
+    "kind": "r",
+    "rls": true,
+    "force_rls": false,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "period_month",
+        "type": "date",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "filing_type",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "filing_version",
+        "type": "integer",
+        "default": "1",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "amendment_of_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "default": "'draft'::text",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "version",
+        "type": "integer",
+        "default": "1",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "due_date",
+        "type": "date",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "due_date_evidence",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "source_fingerprint",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "source_snapshot_json",
+        "type": "jsonb",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "base_amount",
+        "type": "numeric(14,2)",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "tax_amount",
+        "type": "numeric(14,2)",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "currency",
+        "type": "text",
+        "default": "'THB'::text",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "filed_on",
+        "type": "date",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "filed_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "filed_by",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "external_reference",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "filing_evidence",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "filed_snapshot_json",
+        "type": "jsonb",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "cancelled_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "cancelled_by",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "cancellation_reason",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "created_by",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "deadline_snapshot_json",
+        "type": "jsonb",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_tax_filings_amendment_of_id_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((amendment_of_id IS NULL))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filings_amendment_of_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (amendment_of_id) REFERENCES finance_tax_filings(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filings_cancelled_by_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (cancelled_by) REFERENCES user_profiles(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filings_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((((due_date IS NULL) AND (due_date_evidence IS NULL)) OR ((due_date IS NOT NULL) AND (due_date_evidence IS NOT NULL) AND (due_date >= period_month) AND ((length(btrim(due_date_evidence)) >= 1) AND (length(btrim(due_date_evidence)) <= 2000)))))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filings_check1",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((status = 'filed'::text) = (num_nonnulls(filed_on, filed_at, filed_by, external_reference, filing_evidence, filed_snapshot_json) = 6)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filings_check2",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((status = 'filed'::text) OR (num_nonnulls(filed_on, filed_at, filed_by, external_reference, filing_evidence, filed_snapshot_json) = 0)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filings_check3",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((status <> 'filed'::text) OR ((tax_amount IS NOT NULL) AND (filed_on >= period_month) AND ((length(btrim(external_reference)) >= 1) AND (length(btrim(external_reference)) <= 300)) AND ((length(btrim(filing_evidence)) >= 1) AND (length(btrim(filing_evidence)) <= 2000)))))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filings_check4",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((status = 'cancelled'::text) = (num_nonnulls(cancelled_at, cancelled_by, cancellation_reason) = 3)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filings_check5",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((status = 'cancelled'::text) OR (num_nonnulls(cancelled_at, cancelled_by, cancellation_reason) = 0)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filings_created_by_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filings_currency_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((currency = 'THB'::text))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filings_filed_by_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (filed_by) REFERENCES user_profiles(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filings_filing_type_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((filing_type = ANY (ARRAY['vat'::text, 'wht_natural'::text, 'wht_juristic'::text])))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filings_filing_version_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((filing_version = 1))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filings_period_month_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((EXTRACT(day FROM period_month) = (1)::numeric))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filings_pkey",
+        "type": "p",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filings_source_fingerprint_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((length(source_fingerprint) = 32))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filings_source_snapshot_json_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((jsonb_typeof(source_snapshot_json) = 'object'::text))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filings_status_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((status = ANY (ARRAY['draft'::text, 'ready_for_review'::text, 'filed'::text, 'cancelled'::text])))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filings_tax_amount_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((tax_amount >= (0)::numeric))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_filings_version_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((version > 0))",
+        "initially_deferred": false
+      },
+      {
+        "name": "tax_filing_deadline_snapshot_shape",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((deadline_snapshot_json IS NULL) OR ((jsonb_typeof(deadline_snapshot_json) = 'object'::text) AND ((deadline_snapshot_json ->> 'schema_version'::text) = '1'::text) AND ((deadline_snapshot_json ->> 'channel'::text) = ANY (ARRAY['online'::text, 'paper'::text])) AND ((deadline_snapshot_json ->> 'status'::text) = ANY (ARRAY['calculated'::text, 'review_required'::text, 'admin_override'::text])))))",
+        "initially_deferred": false
+      },
+      {
+        "name": "tax_filing_integrity",
+        "type": "t",
+        "validated": true,
+        "deferrable": true,
+        "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED",
+        "initially_deferred": true
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_tax_filings_pkey",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_filings_pkey ON public.finance_tax_filings USING btree (id)"
+      },
+      {
+        "name": "tax_filing_effective_period",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX tax_filing_effective_period ON public.finance_tax_filings USING btree (period_month, filing_type) WHERE (status <> 'cancelled'::text)"
+      }
+    ],
+    "policies": null,
+    "triggers": [
+      {
+        "name": "tax_filing_integrity",
+        "enabled": "O",
+        "definition": "CREATE CONSTRAINT TRIGGER tax_filing_integrity AFTER INSERT OR UPDATE ON public.finance_tax_filings DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION tax_filing_integrity()"
+      },
+      {
+        "name": "tax_filing_no_rewrite",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER tax_filing_no_rewrite BEFORE DELETE OR UPDATE ON public.finance_tax_filings FOR EACH ROW EXECUTE FUNCTION tax_filing_immutable()"
+      },
+      {
+        "name": "tax_filing_no_truncate",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER tax_filing_no_truncate BEFORE TRUNCATE ON public.finance_tax_filings FOR EACH STATEMENT EXECUTE FUNCTION tax_filing_immutable()"
+      }
+    ]
+  },
+  {
+    "name": "finance_tax_remittance_audit",
+    "kind": "r",
+    "rls": true,
+    "force_rls": false,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "remittance_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "event_type",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "version",
+        "type": "integer",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "actor_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "evidence_json",
+        "type": "jsonb",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_tax_remittance_audit_actor_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (actor_id) REFERENCES user_profiles(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_remittance_audit_event_type_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((event_type = ANY (ARRAY['created'::text, 'confirmed'::text, 'cancelled'::text])))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_remittance_audit_evidence_json_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((jsonb_typeof(evidence_json) = 'object'::text))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_remittance_audit_pkey",
+        "type": "p",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_remittance_audit_remittance_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (remittance_id) REFERENCES finance_tax_remittances(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_remittance_audit_remittance_id_version_key",
+        "type": "u",
+        "validated": true,
+        "deferrable": false,
+        "definition": "UNIQUE (remittance_id, version)",
+        "initially_deferred": false
+      },
+      {
+        "name": "tax_remittance_audit_integrity",
+        "type": "t",
+        "validated": true,
+        "deferrable": true,
+        "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED",
+        "initially_deferred": true
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_tax_remittance_audit_pkey",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_remittance_audit_pkey ON public.finance_tax_remittance_audit USING btree (id)"
+      },
+      {
+        "name": "finance_tax_remittance_audit_remittance_id_version_key",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_remittance_audit_remittance_id_version_key ON public.finance_tax_remittance_audit USING btree (remittance_id, version)"
+      }
+    ],
+    "policies": null,
+    "triggers": [
+      {
+        "name": "tax_filing_no_rewrite",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER tax_filing_no_rewrite BEFORE DELETE OR UPDATE ON public.finance_tax_remittance_audit FOR EACH ROW EXECUTE FUNCTION tax_filing_immutable()"
+      },
+      {
+        "name": "tax_filing_no_truncate",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER tax_filing_no_truncate BEFORE TRUNCATE ON public.finance_tax_remittance_audit FOR EACH STATEMENT EXECUTE FUNCTION tax_filing_immutable()"
+      },
+      {
+        "name": "tax_remittance_audit_integrity",
+        "enabled": "O",
+        "definition": "CREATE CONSTRAINT TRIGGER tax_remittance_audit_integrity AFTER INSERT ON public.finance_tax_remittance_audit DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION tax_filing_integrity()"
+      }
+    ]
+  },
+  {
+    "name": "finance_tax_remittances",
+    "kind": "r",
+    "rls": true,
+    "force_rls": false,
+    "columns": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "filing_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "status",
+        "type": "text",
+        "default": "'draft'::text",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "version",
+        "type": "integer",
+        "default": "1",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "amount",
+        "type": "numeric(14,2)",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "currency",
+        "type": "text",
+        "default": "'THB'::text",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "paid_on",
+        "type": "date",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "bank_account_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "cash_location_id",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "external_reference",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "payment_evidence",
+        "type": "text",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "draft_snapshot_json",
+        "type": "jsonb",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "confirmed_snapshot_json",
+        "type": "jsonb",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "confirmed_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "confirmed_by",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "cancelled_at",
+        "type": "timestamp with time zone",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "cancelled_by",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": false,
+        "generated": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "default": "now()",
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      },
+      {
+        "name": "created_by",
+        "type": "uuid",
+        "default": null,
+        "identity": "",
+        "not_null": true,
+        "generated": ""
+      }
+    ],
+    "constraints": [
+      {
+        "name": "finance_tax_remittances_amount_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((amount > (0)::numeric))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_remittances_bank_account_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (bank_account_id) REFERENCES finance_bank_accounts(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_remittances_cancelled_by_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (cancelled_by) REFERENCES user_profiles(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_remittances_cash_location_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (cash_location_id) REFERENCES finance_cash_locations(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_remittances_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((num_nonnulls(bank_account_id, cash_location_id) = 1))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_remittances_check1",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((status = 'confirmed'::text) = (num_nonnulls(confirmed_snapshot_json, confirmed_at, confirmed_by) = 3)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_remittances_check2",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((status = 'confirmed'::text) OR (num_nonnulls(confirmed_snapshot_json, confirmed_at, confirmed_by) = 0)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_remittances_check3",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((status = 'cancelled'::text) = (num_nonnulls(cancelled_at, cancelled_by) = 2)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_remittances_check4",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((status = 'cancelled'::text) OR (num_nonnulls(cancelled_at, cancelled_by) = 0)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_remittances_confirmed_by_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (confirmed_by) REFERENCES user_profiles(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_remittances_created_by_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_remittances_currency_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((currency = 'THB'::text))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_remittances_draft_snapshot_json_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((jsonb_typeof(draft_snapshot_json) = 'object'::text))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_remittances_external_reference_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((length(btrim(external_reference)) >= 1) AND (length(btrim(external_reference)) <= 300)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_remittances_filing_id_fkey",
+        "type": "f",
+        "validated": true,
+        "deferrable": false,
+        "definition": "FOREIGN KEY (filing_id) REFERENCES finance_tax_filings(id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_remittances_payment_evidence_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK (((length(btrim(payment_evidence)) >= 1) AND (length(btrim(payment_evidence)) <= 2000)))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_remittances_pkey",
+        "type": "p",
+        "validated": true,
+        "deferrable": false,
+        "definition": "PRIMARY KEY (id)",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_remittances_status_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((status = ANY (ARRAY['draft'::text, 'confirmed'::text, 'cancelled'::text])))",
+        "initially_deferred": false
+      },
+      {
+        "name": "finance_tax_remittances_version_check",
+        "type": "c",
+        "validated": true,
+        "deferrable": false,
+        "definition": "CHECK ((version > 0))",
+        "initially_deferred": false
+      },
+      {
+        "name": "tax_remittance_integrity",
+        "type": "t",
+        "validated": true,
+        "deferrable": true,
+        "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED",
+        "initially_deferred": true
+      }
+    ],
+    "indexes": [
+      {
+        "name": "finance_tax_remittances_pkey",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX finance_tax_remittances_pkey ON public.finance_tax_remittances USING btree (id)"
+      },
+      {
+        "name": "tax_remittance_once",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE UNIQUE INDEX tax_remittance_once ON public.finance_tax_remittances USING btree (filing_id) WHERE (status <> 'cancelled'::text)"
+      }
+    ],
+    "policies": null,
+    "triggers": [
+      {
+        "name": "tax_filing_no_rewrite",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER tax_filing_no_rewrite BEFORE DELETE OR UPDATE ON public.finance_tax_remittances FOR EACH ROW EXECUTE FUNCTION tax_filing_immutable()"
+      },
+      {
+        "name": "tax_filing_no_truncate",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER tax_filing_no_truncate BEFORE TRUNCATE ON public.finance_tax_remittances FOR EACH STATEMENT EXECUTE FUNCTION tax_filing_immutable()"
+      },
+      {
+        "name": "tax_remittance_integrity",
+        "enabled": "O",
+        "definition": "CREATE CONSTRAINT TRIGGER tax_remittance_integrity AFTER INSERT OR UPDATE ON public.finance_tax_remittances DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION tax_filing_integrity()"
+      }
+    ]
+  }
+]

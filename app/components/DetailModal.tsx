@@ -89,7 +89,16 @@ export default function DetailModal({
       }
       if (event.key !== "Tab" || !panelRef.current) return;
 
-      const focusable = Array.from(panelRef.current.querySelectorAll<HTMLElement>(focusableSelector)).filter((element) => !element.hasAttribute("disabled") && element.getAttribute("aria-hidden") !== "true" && element.getClientRects().length > 0);
+      const focusable = Array.from(panelRef.current.querySelectorAll<HTMLElement>(focusableSelector)).filter((element) => {
+        if (element.hasAttribute("disabled") || element.getAttribute("aria-hidden") === "true" || !element.getClientRects().length) return false;
+        // Nested summaries can retain layout rectangles inside a closed ancestor.
+        let disclosure = element.parentElement?.closest("details:not([open])");
+        while (disclosure) {
+          if (!disclosure.querySelector(":scope > summary")?.contains(element)) return false;
+          disclosure = disclosure.parentElement?.closest("details:not([open])");
+        }
+        return true;
+      });
       if (!focusable.length) {
         event.preventDefault();
         panelRef.current.focus();

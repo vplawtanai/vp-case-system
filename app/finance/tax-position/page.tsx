@@ -14,14 +14,15 @@ import TaxModuleNav from "./module-nav";
 import TaxDashboard from "./dashboard";
 import { sourceLabel, taxErrorKey, type TaxFact, type TaxPositionData, type TaxSource } from "./shared";
 import styles from "./tax-position.module.css";
+import { FinanceEvidence } from "../FinanceEvidence";
 
 type Action = { kind: "source"; row: TaxSource } | { kind: "evidence"; row: TaxFact };
 export default function TaxPositionPage() {
  return <QuotationGuard canAccess={a => a.permissions.canViewFinanceTaxInvoices || a.profile?.role === "partner"}>
-  {a => <><FinanceSubNav activePage="tax-position" permissions={a.permissions} /><TaxModuleNav active="overview" /><TaxDashboard permissions={a.permissions} taxDetails={<TaxPositionWorkspace />} /></>}
+  {a => <><FinanceSubNav activePage="tax-position" permissions={a.permissions} /><TaxModuleNav active="overview" /><TaxDashboard permissions={a.permissions} taxDetails={<TaxPositionWorkspace isAdmin={a.permissions.role === "admin"} />} /></>}
  </QuotationGuard>;
 }
-export function TaxPositionWorkspace() {
+export function TaxPositionWorkspace({ isAdmin = false }: { isAdmin?: boolean }) {
  const { t, locale, date } = useI18n();
  const [data, setData] = useState<TaxPositionData | null>(null), [loading, setLoading] = useState(true), [busy, setBusy] = useState(false);
  const [error, setError] = useState<string | null>(null), [saved, setSaved] = useState(false), [action, setAction] = useState<Action | null>(null);
@@ -75,7 +76,7 @@ export function TaxPositionWorkspace() {
    <p className={styles.muted}>{t(`taxPosition.${f.date_basis}`)}</p>
    {f.certificate_reference ? <p>{f.certificate_reference}</p> : null}
    {f.tax_kind === "incoming_wht" && data?.can_manage ? <button className={ui.secondary} type="button" disabled={busy} onClick={() => open({ kind: "evidence", row: f })}>{t("taxPosition.evidenceAction")}</button> : null}
-   <Disclosure title={t("taxPosition.technical")}><pre className={styles.technical}>{JSON.stringify(f, null, 2)}</pre></Disclosure>
+   <FinanceEvidence title={t("taxPosition.technical")} raw={f} isAdmin={isAdmin}><ReadOnlyGrid items={[{ key: "period", label: t("taxFiling.period"), value: month(f.period_month) }, { key: "source", label: t("treasury.source"), value: t(`taxPosition.${f.source_type}`) }, { key: "tax", label: t("taxPosition.tax"), value: amount(f.tax_amount) }]} /></FinanceEvidence>
   </article>;
  }
  const title = t(`taxPosition.${action?.kind === "source" ? "materialize" : "evidenceAction"}`);
@@ -112,7 +113,7 @@ export function TaxPositionWorkspace() {
      <button className={ui.secondary} type="button" disabled={busy} onClick={() => open({ kind: "source", row: s })}>{t("taxPosition.materialize")}</button>
     </article>)}
    </section> : null}
-   <Disclosure title={t("taxPosition.history")}><pre className={styles.technical}>{JSON.stringify(data.history, null, 2)}</pre></Disclosure>
+   <FinanceEvidence title={t("taxPosition.history")} raw={data.history} isAdmin={isAdmin}><p>{t("taxFiling.sourceCount", { count: data.history.length })}</p></FinanceEvidence>
   </> : null}
   <DetailModal open={!!action} title={title} size="edit" onClose={close} closeOnBackdrop={!busy}>
    {action ? <form className={styles.form} noValidate onSubmit={submit}>

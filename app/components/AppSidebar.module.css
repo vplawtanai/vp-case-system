@@ -1,0 +1,14 @@
+.shell { overflow:hidden; transition:width 220ms cubic-bezier(.2,.7,.2,1),padding 220ms ease-out,box-shadow 220ms ease-out; }
+.shell svg { flex-shrink:0; }
+.shell[data-expanded=false] nav a,.shell[data-expanded=false] nav button { gap:0 !important; }
+.shell nav { width:100%; grid-template-columns:minmax(0,1fr); }
+.shell nav>div { min-width:0; }
+.shell[data-expanded=true] nav a,.shell[data-expanded=true] nav button { white-space:normal !important; }
+.shell[data-expanded=true] [data-sidebar-label] { min-width:0; overflow-wrap:anywhere; }
+.shell [data-sidebar-label],.shell [data-sidebar-submenu] { transition:opacity 180ms ease-out,transform 220ms ease-out; }
+.shell[data-expanded=false] [data-sidebar-label] { opacity:0; transform:translateX(-4px); pointer-events:none; width:0; overflow:hidden; }
+.shell[data-expanded=false] [data-sidebar-submenu] { opacity:0; visibility:hidden; max-height:0; overflow:hidden; }
+.shell nav { min-height:0; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; scrollbar-width:thin; }
+.shell button,.shell a { transition:background-color 180ms ease-out,padding 220ms ease-out; }
+.shell [data-sidebar-chevron] { transition:transform 220ms ease-out; }
+@media(prefers-reduced-motion:reduce) { .shell,.shell * { transition:none !important; scroll-behavior:auto !important; } }

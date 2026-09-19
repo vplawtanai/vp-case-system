@@ -13,6 +13,8 @@ import { locationKey, locationName, openingStart } from "../../treasury/shared";
 import { activeFiling, filingBaseAmount, filingCoverage, filingErrorKey, filingState, summarizeFilings, type Filing, type FilingData, type FilingPool } from "./shared";
 import { VatFilingReview } from "./vat-review";
 import { FilingTechnicalEvidence } from "./technical-evidence";
+import { FinanceEvidence } from "../../FinanceEvidence";
+import { DeadlineReview, type DeadlineSelection } from "./deadline-review";
 import styles from "./filings.module.css";
 
 type Selection = { pool: FilingPool; filing?: Filing; mode: "review" | "file" | "payment" | "cancel" | "cancelPayment"; readonly?: boolean };
@@ -22,7 +24,7 @@ export function TaxFilingWorkspace({ permissions }: { permissions: UserPermissio
  const [monthlyFacts, setMonthlyFacts] = useState<MonthlyTaxFacts | null>(null);
  const { canViewFinancePayments, canViewFinanceTaxInvoices, canViewFinanceReceipts } = permissions;
  const [error, setError] = useState<string | null>(null), [saved, setSaved] = useState(false), [selection, setSelection] = useState<Selection | null>(null);
- const [due, setDue] = useState(""), [dueEvidence, setDueEvidence] = useState(""), [externalDate, setExternalDate] = useState(""), [reference, setReference] = useState(""), [evidence, setEvidence] = useState(""), [ack, setAck] = useState(false), [accountKey, setAccountKey] = useState("");
+ const [deadline, setDeadline] = useState<DeadlineSelection | null>(null), [externalDate, setExternalDate] = useState(""), [reference, setReference] = useState(""), [evidence, setEvidence] = useState(""), [ack, setAck] = useState(false), [accountKey, setAccountKey] = useState("");
  const sequence = useRef(0), lock = useRef(false), requestId = useRef(""), form = useRef<HTMLFormElement>(null), queuedHistory = useRef<string | null>(null);
  const load = useCallback(async () => {
   const n = ++sequence.current; setLoading(true); setData(null); setMonthlyFacts(null);
@@ -57,7 +59,7 @@ export function TaxFilingWorkspace({ permissions }: { permissions: UserPermissio
  const cutoffBlock = paymentMode && r?.status === "draft" && account?.opening_as_of && r.paid_on < openingStart(account.opening_as_of);
  function changeMonth(value: string) { sequence.current++; setMonth(value); setData(null); setLoading(true); setSelection(null); setSaved(false); setError(null); }
  function open(pool: FilingPool, filing?: Filing, mode: Selection["mode"] = "review", readonly = false) {
-  requestId.current = crypto.randomUUID(); setSelection({ pool, filing, mode, readonly }); setDue(""); setDueEvidence(""); setExternalDate(""); setReference(""); setEvidence(""); setAccountKey(""); setAck(false); setError(null); setSaved(false);
+  requestId.current = crypto.randomUUID(); setSelection({ pool, filing, mode, readonly }); setDeadline(null); setExternalDate(""); setReference(""); setEvidence(""); setAccountKey(""); setAck(false); setError(null); setSaved(false);
  }
  function close() { if (!lock.current) { setSelection(null); setError(null); } }
  async function execute(name: string, args: Record<string, unknown>) {
@@ -75,7 +77,7 @@ export function TaxFilingWorkspace({ permissions }: { permissions: UserPermissio
    void execute("create_finance_tax_remittance", { p_id: requestId.current, p_filing_id: f.id, p_bank: account.bank_account_id, p_cash: account.cash_location_id, p_paid_on: externalDate, p_reference: reference.trim(), p_evidence: evidence.trim(), p_expected_account: account }); return;
   }
   if (selection.mode === "cancelPayment" && r) { void execute("transition_finance_tax_remittance", { p_id: r.id, p_version: r.version, p_action: "cancelled", p_acknowledged: ack }); return; }
-  if (!f) { void execute("create_finance_tax_filing", { p_id: requestId.current, p_month: selection.pool.period_month, p_type: selection.pool.filing_type, p_expected_fingerprint: selection.pool.fingerprint, p_due_date: due || null, p_due_evidence: dueEvidence.trim() || null }); return; }
+  if (!f) { if (!deadline) return; void execute("create_finance_tax_filing_review", { p_id: requestId.current, p_month: selection.pool.period_month, p_type: selection.pool.filing_type, p_expected_fingerprint: selection.pool.fingerprint, p_channel: deadline.channel, p_expected_deadline: deadline.expected, p_override: deadline.override }); return; }
   void execute("transition_finance_tax_filing", { p_id: f.id, p_version: f.version, p_action: cancellation ? "cancelled" : selection.mode === "file" ? "filed" : "ready_for_review", p_filed_on: selection.mode === "file" ? externalDate : null, p_reference: reference.trim() || null, p_evidence: evidence.trim() || null, p_acknowledged: ack });
  }
  const checked = (label: string) => <label className={styles.check}><input type="checkbox" required checked={ack} disabled={busy} onChange={e => setAck(e.target.checked)} /><span>{tr(label)}</span></label>;
@@ -141,22 +143,18 @@ export function TaxFilingWorkspace({ permissions }: { permissions: UserPermissio
       {s.source_type === "payout" ? <p>{tr(s.entity_type === "natural_person" ? "wht_natural" : s.entity_type === "juristic_person" ? "wht_juristic" : "unclassified_wht")}</p> : null}
       {s.source_type === "payout" ? <Link href={`/finance/payouts/${s.source_id}`}>{s.reference}</Link> : null}
      </article>)}</div>
-     {vatReview ? <div className={styles.vatDue}><Disclosure title={<span>{tr("dueOptional")}<small>{f?.due_date ? date(f.due_date) : due ? date(due) : tr("dueNotSet")}</small></span>}>
-      {!f && data.can_manage ? <><FieldGroup id="filing-due" label={tr("due")} help={tr("dueHelp")}><input type="date" value={due} onChange={e => { setDue(e.target.value); if (!e.target.value) setDueEvidence(""); }} /></FieldGroup>
-       {due ? <FieldGroup id="filing-due-evidence" label={tr("dueEvidence")}><textarea required maxLength={2000} value={dueEvidence} onInvalid={e => e.currentTarget.closest("details")?.setAttribute("open", "")} onChange={e => setDueEvidence(e.target.value)} /></FieldGroup> : null}</> : <p className={styles.muted}>{f?.due_date_evidence || tr("dueHelp")}</p>}
-     </Disclosure></div> : null}
-     {!f && data.can_manage ? <>{!vatReview ? <><FieldGroup id="filing-due" label={tr("due")} help={tr("dueHelp")}><input type="date" value={due} onChange={e => { setDue(e.target.value); if (!e.target.value) setDueEvidence(""); }} /></FieldGroup>
-      {due ? <FieldGroup id="filing-due-evidence" label={tr("dueEvidence")}><textarea required maxLength={2000} value={dueEvidence} onChange={e => setDueEvidence(e.target.value)} /></FieldGroup> : null}</> : null}
-      <div className={styles.draftAction}>{vatReview && !selection.pool.ready ? <p id="vat-draft-help">{tr("vatDraftHelp")}</p> : null}<button className={vatReview && !selection.pool.ready ? ui.secondary : ui.primary} aria-describedby={vatReview && !selection.pool.ready ? "vat-draft-help" : undefined} type="submit">{tr(vatReview && !selection.pool.ready ? "saveForReview" : "saveDraft")}</button></div></> : null}
+     {!f && data.can_manage ? <><DeadlineReview key={requestId.current} month={selection.pool.period_month} type={selection.pool.filing_type} isAdmin={permissions.role === "admin"} onChange={setDeadline} />
+      <div className={styles.draftAction}>{vatReview && !selection.pool.ready ? <p id="vat-draft-help">{tr("vatDraftHelp")}</p> : null}<button disabled={!deadline} className={vatReview && !selection.pool.ready ? ui.secondary : ui.primary} aria-describedby={vatReview && !selection.pool.ready ? "vat-draft-help" : undefined} type="submit">{tr(vatReview && !selection.pool.ready ? "saveForReview" : "saveDraft")}</button></div></> : null}
+     {f ? <ReadOnlyGrid items={[{ key: "channel", label: tr("channel"), value: f.deadline_snapshot_json ? tr(f.deadline_snapshot_json.channel) : tr("unknown") }, { key: "due", label: tr("due"), value: f.due_date ? date(f.due_date) : tr("ruleReviewRequired") }]} /> : null}
      {f?.status === "draft" && data.can_manage && !selection.readonly ? <>{checked("reviewAck")}<button className={ui.primary} disabled={!selection.pool.ready || f.source_changed} type="submit">{tr("markReady")}</button></> : null}
      {f?.status === "ready_for_review" && data.can_manage && !selection.readonly ? <button className={ui.primary} type="button" disabled={f.source_changed || !selection.pool.ready} onClick={() => open(selection.pool, f, "file")}>{tr("recordFiled")}</button> : null}
      {f?.status === "filed" ? <><ReadOnlyGrid items={[{ key: "filed", label: tr("filedOn"), value: date(f.filed_on) }, { key: "ref", label: tr("reference"), value: f.external_reference }, { key: "evidence", label: tr("evidence"), value: f.filing_evidence }]} />
       {f.tax_amount === 0 ? <p>{tr("no_payment_required")}</p> : r?.status === "confirmed" ? <ReadOnlyGrid items={[{ key: "paid", label: tr("paidOn"), value: date(r.paid_on) }, { key: "cash", label: tr("paymentAmount"), value: money(r.amount) }, { key: "ref", label: tr("reference"), value: r.external_reference }]} />
        : data.can_remit && !selection.readonly ? <button type="button" className={ui.primary} onClick={() => open(selection.pool, f, "payment")}>{tr(r ? "paymentReview" : "payment")}</button> : null}</> : null}
      {f && ["draft", "ready_for_review"].includes(f.status) && data.can_manage && !selection.readonly ? <Disclosure title={tr("otherActions")}><button type="button" className={ui.secondary} onClick={() => open(selection.pool, f, "cancel")}>{tr("cancelDraft")}</button></Disclosure> : null}
-     {selection.pool.filing_type !== "vat" || permissions.role === "admin" ? <div className={styles.technicalSection}><Disclosure title={tr("technical")} key={`${selection.pool.period_month}:${selection.pool.filing_type}:${f?.id || "new"}`}>
-      {selection.pool.filing_type === "vat" ? <FilingTechnicalEvidence pool={selection.pool} filing={f} /> : <pre className={styles.technical}>{JSON.stringify(f || selection.pool, null, 2)}</pre>}
-     </Disclosure></div> : null}
+     <div className={styles.technicalSection} key={`${selection.pool.period_month}:${selection.pool.filing_type}:${f?.id || "new"}`}>
+      {selection.pool.filing_type === "vat" ? <FilingTechnicalEvidence pool={selection.pool} filing={f} isAdmin={permissions.role === "admin"} /> : <FinanceEvidence title={tr("technical")} raw={f || selection.pool} isAdmin={permissions.role === "admin"}><ReadOnlyGrid items={[{ key: "count", label: tr("draftCoverage"), value: tr("sourceCount", { count: selectedCoverage?.source_count || 0 }) }, { key: "tax", label: tr("amount"), value: money(selectedEvidence?.tax_amount) }]} /></FinanceEvidence>}
+     </div>
     </> : null}
     {selection.mode === "file" ? <><Callout tone="warning">{tr("filingWarning")}</Callout>{evidenceFields}{checked("filingAck")}<button type="submit" className={ui.primary} disabled={f?.source_changed || !selection.pool.ready}>{tr("recordFiled")}</button></> : null}
     {paymentMode ? <><Callout tone="warning">{tr("paymentWarning")}</Callout>

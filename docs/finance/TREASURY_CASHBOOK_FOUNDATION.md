@@ -232,3 +232,45 @@ and Office Cash remain visible, each balance says "Opening balance not set", and
 history says no cash movements. Inspect the opening dialog, then close without
 saving. Send screenshots before choosing a real cutover date or opening amount.
 Do not materialize Direct Money 028430C3 or Payment 95E22D0E yet.
+
+## Cutoff and relationship audit (054 applied and verified)
+
+Migration 049 defines a confirmed Opening as independently verified held money for
+one bank/cash location and currency. Its start date is an account-specific boundary:
+`as_of` is the end of the preceding Bangkok day. The balance view includes only
+confirmed movements strictly after that cutoff. An Opening is not revenue.
+
+`get_finance_treasury` historically returns all confirmed sources with no original
+Cash row, without filtering the cutoff. `treasury_post_source` already rejects manual
+posting on/before the cutoff (`FINANCE_CASH_TRANSACTION_BEFORE_CUTOVER`), checks the
+current Opening and superseded-opening gap, and preserves source/account/amount,
+acknowledgement, authority, locks and idempotency. These functions remain unchanged.
+The UI now classifies that read evidence using the same existing `sourceBlock` check:
+
+- Eligible, post-cutoff sources only: actionable pending queue.
+- Sources before the current start: historical disclosure, links but no posting action.
+- Missing Opening/account or other blockers: separate review disclosure. Existing
+  explicit legacy Direct Money location review remains available, not auto-posting.
+
+With the supplied Sep-2026 evidence, all five Aug-27 through Sep-05 receipts
+(31,409.81 THB) precede the Sep-10 KBANK start. They are historical, not five pending
+actions. No records are removed or repaired, and KBANK Opening 0 is not reinterpreted.
+Bypassing the cutoff could count held opening money twice; the unchanged RPC prohibits
+it. Do not backfill these sources or treat their absence in Cashbook as permission.
+
+The relationship panel separates complete monthly confirmed source cash from stock:
+
+- September FLOW: 46,419.81, of which 16,859.81 is pre-cutoff and 29,560 represented
+  after cutoff. August receipts are not September flow. WHT is never cash.
+- Current known STOCK: confirmed Openings 20,000 + inflows 29,560 - outflows 0 = 49,560.
+  Components come from the authoritative balance view, never the paginated table.
+  BAY/KTB unknown balances are excluded explicitly, not substituted with zero.
+
+The amounts above are acceptance evidence, not hard-coded production values. Migration
+054 adds permission-checked, read-only `get_finance_treasury_month_flow` for complete
+THB Payment/Direct Money monthly aggregates; confirmed status and existing location
+visibility apply. It neither creates Cash nor depends on revenue distribution.
+Economic rights/company share/VAT buckets do not create additional cash inflows.
+
+The owner confirmed manual 054 verification PASS. Deployment is authorized, not
+historical materialization, Opening changes or any other Production business writes.

@@ -1,5 +1,15 @@
 import type { MessageCatalog } from "../core";
 export const taxFilingMessages = {
+ "taxFiling.rawJson": { th: "ดูข้อมูลดิบ", en: "Raw JSON" },
+ "taxFiling.ruleReviewRequired": { th: "ต้องตรวจสอบกฎกำหนดส่ง", en: "Deadline rule requires review" },
+ "taxFiling.channel": { th: "ช่องทางยื่น", en: "Filing channel" },
+ "taxFiling.online": { th: "ออนไลน์", en: "Online" },
+ "taxFiling.paper": { th: "กระดาษ", en: "Paper" },
+ "taxFiling.calculatedDue": { th: "คำนวณตามกฎกำหนดส่งที่ระบบตรวจสอบไว้", en: "Calculated from a reviewed deadline rule." },
+ "taxFiling.deadlineIndependent": { th: "กำหนดส่งแยกจากความครบถ้วนของภาษี ไม่ทำให้แบบพร้อมยื่น", en: "The deadline does not establish tax completeness or filing readiness." },
+ "taxFiling.override": { th: "ข้อยกเว้นกำหนดส่ง (Admin)", en: "Deadline exception (Admin)" },
+ "taxFiling.overrideReason": { th: "เหตุผลข้อยกเว้น", en: "Exception reason" },
+ "taxFiling.overrideReference": { th: "เลขประกาศ / URL / แหล่งอ้างอิง", en: "Announcement / URL / source reference" },
  "taxFiling.title": { th: "การยื่นและนำส่งภาษี", en: "Tax filing & remittance" },
  "taxFiling.overview": { th: "ภาพรวม", en: "Overview" },
  "taxFiling.module": { th: "มุมมองภาษี", en: "Tax views" },
