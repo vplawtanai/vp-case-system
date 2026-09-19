@@ -19,7 +19,7 @@ import { FinanceEvidence } from "../FinanceEvidence";
 type Action = { kind: "source"; row: TaxSource } | { kind: "evidence"; row: TaxFact };
 export default function TaxPositionPage() {
  return <QuotationGuard canAccess={a => a.permissions.canViewFinanceTaxInvoices || a.profile?.role === "partner"}>
-  {a => <><FinanceSubNav activePage="tax-position" permissions={a.permissions} /><TaxModuleNav active="overview" /><TaxDashboard permissions={a.permissions} taxDetails={<TaxPositionWorkspace isAdmin={a.permissions.role === "admin"} />} /></>}
+  {a => <><FinanceSubNav activePage="tax-position" permissions={a.permissions} /><TaxModuleNav active="overview" /><TaxDashboard permissions={a.permissions} /></>}
  </QuotationGuard>;
 }
 export function TaxPositionWorkspace({ isAdmin = false }: { isAdmin?: boolean }) {

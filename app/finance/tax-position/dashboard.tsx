@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowDownToLine, ArrowRight, ChevronLeft, ChevronRight, Clock3, FileCheck2, FileText, Landmark, RefreshCw, Wallet, MoreHorizontal } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight, Clock3, FileCheck2, FileText, Landmark, RefreshCw, ShieldCheck, Wallet, MoreHorizontal } from "lucide-react";
 import DetailModal from "../../components/DetailModal";
 import { Callout, PageShell, ReadOnlyGrid } from "../../components/ui/patterns";
 import ui from "../../components/ui/vp-ui.module.css";
@@ -12,12 +12,14 @@ import type { UserPermissions } from "../../../lib/permissions";
 import { locationName } from "../treasury/shared";
 import { currentBangkokMonth, readDashboard, shiftMonth, summarizeDashboard, type DashboardData, type Movement } from "./dashboard-data";
 import styles from "./dashboard.module.css";
+import { TaxAudit } from "./tax-audit";
 
-export default function TaxDashboard({ permissions, taxDetails }: { permissions: UserPermissions; taxDetails: ReactNode }) {
+export default function TaxDashboard({ permissions }: { permissions: UserPermissions }) {
  const { t, locale, date } = useI18n(), tr = (key: string, args?: Record<string, string | number>) => t(`taxDashboard.${key}`, args);
  const [month, setMonth] = useState(currentBangkokMonth), [data, setData] = useState<DashboardData | null>(null), [loading, setLoading] = useState(true), [updated, setUpdated] = useState<string | null>(null);
- const [selected, setSelected] = useState<Movement | null>(null), [details, setDetails] = useState(false), [showAll, setShowAll] = useState(false);
- const sequence = useRef(0), detailRef = useRef<HTMLDetailsElement>(null);
+ const [selected, setSelected] = useState<Movement | null>(null), [auditOpen, setAuditOpen] = useState(false), [showAll, setShowAll] = useState(false);
+ const sequence = useRef(0);
+ const isAdmin = permissions.role === "admin";
  const { canViewFinancePayments, canViewFinanceCashTransactions, canViewFinanceTaxInvoices, canViewFinanceReceipts } = permissions;
  const load = useCallback(async () => {
   const request = ++sequence.current; setLoading(true); setData(null);
@@ -31,15 +33,13 @@ export default function TaxDashboard({ permissions, taxDetails }: { permissions:
  const money = (value: number | null | undefined) => value == null ? tr("unavailable") : `${numeric(value)} THB`;
  const monthName = (value: string) => new Intl.DateTimeFormat(locale === "th" ? "th-TH" : "en-GB", { month: "long", year: "numeric", timeZone: "Asia/Bangkok" }).format(new Date(`${value}-01T00:00:00+07:00`));
  const months = [...new Set([month, ...Array.from({ length: 37 }, (_, i) => shiftMonth(currentBangkokMonth(), i - 24))])].sort().reverse();
- function changeMonth(value: string) { if (value === month) return; sequence.current++; setData(null); setMonth(value); setSelected(null); setShowAll(false); setLoading(true); }
- function openDetails() { setDetails(true); if (detailRef.current) { detailRef.current.open = true; detailRef.current.scrollIntoView({ block: "start", behavior: "smooth" }); detailRef.current.querySelector("summary")?.focus(); } }
+ function changeMonth(value: string) { if (value === month) return; sequence.current++; setData(null); setMonth(value); setSelected(null); setAuditOpen(false); setShowAll(false); setLoading(true); }
  const missing = !loading && (!data?.money || !data?.taxes || !data?.treasury || !data?.payables || !data?.register || !summary);
  const gaps = (data?.register?.coverage.invoice_items_without_approved_tax_point || 0) + (data?.register?.coverage.unresolved_direct_sources || 0);
  const creditsToCheck = summary?.credits.filter(c => c.evidence !== "verified").length || 0;
  const rows = showAll ? summary?.movements || [] : summary?.movements.slice(0, 10) || [];
  const cards = [
-  { key: "received", icon: <ArrowDownToLine />, tone: "green", value: summary?.cash, meta: tr("receivedCount", { count: summary?.receiptCount || 0 }), badge: data?.money ? tr("confirmed") : null },
-  { key: "treasury", icon: <Landmark />, tone: "blue", value: summary?.systemBalance, meta: tr("systemNow"), badge: null },
+  { key: "treasury", icon: <Landmark />, tone: "blue", value: summary?.systemBalance, meta: tr("balanceBasis"), badge: null },
   { key: "vat", icon: <FileText />, tone: "amber", value: summary?.outputVat, meta: tr("inputIncomplete"), badge: tr("purchaseReview") },
   { key: "wht", icon: <FileCheck2 />, tone: "green", value: summary?.wht, meta: tr("whtCount", { count: summary?.whtSources || 0 }), badge: null },
   { key: "payables", icon: <Wallet />, tone: "red", value: summary?.payable, meta: tr("recipients", { count: summary?.recipients || 0 }), badge: null },
@@ -61,10 +61,11 @@ export default function TaxDashboard({ permissions, taxDetails }: { permissions:
    {c.badge ? <span className={styles.badge}>{c.badge}</span> : null}
    <p>{loading || c.value == null ? tr("notSummarized") : c.meta}</p>
    {c.key === "treasury" && summary?.accounts.length ? <small>{summary.accounts.filter(a => a.system_balance !== null).map(a => `${locationName(a, locale)} ${money(a.system_balance)}`).join(" · ")}{summary.unknownAccounts ? ` · ${tr("unopened", { count: summary.unknownAccounts })}` : ""}</small> : null}
+   {c.key === "treasury" && permissions.canViewFinanceCashTransactions ? <Link className={styles.contextLink} href="/finance/treasury">{tr("openTreasury")}<ArrowRight size={14} /></Link> : null}
    {c.key === "vat" ? <small>{tr("net")}: {t("taxPosition.unknown")}</small> : null}
    {c.key === "wht" ? <small>{tr("creditNotCash")}</small> : null}
   </article>)}</div>
-  {gaps > 0 ? <div className={styles.notice}><span>{tr("coverage", { count: gaps })}</span><button type="button" onClick={openDetails}>{tr("taxDetails")}<ArrowRight size={14} /></button></div> : null}
+  {gaps > 0 ? <div className={styles.notice}><span>{tr("coverage", { count: gaps })}</span></div> : null}
   {summary?.unresolved && !gaps ? <p className={styles.notice}>{tr("coverage", { count: summary.unresolved })}</p> : null}
   {summary?.foreign ? <p className={styles.notice}>{tr("foreign", { count: summary.foreign })}</p> : null}
   <div className={styles.main}>
@@ -93,7 +94,7 @@ export default function TaxDashboard({ permissions, taxDetails }: { permissions:
      <div><dt>{t("payout.outgoingDue")}</dt><dd>{money(summary?.outgoingDue)}</dd></div>
     </dl>
     <p className={styles.filing}>{tr("filingOnly")} {summary?.period ? t(`taxPosition.${summary.period.status}`) : tr("unreviewed")}</p>
-    <div className={styles.checklistTitle}><h3>{tr("actions")}</h3><button type="button" onClick={openDetails}>{tr("taxDetails")}<ArrowRight size={14} /></button></div>
+    <div className={styles.checklistTitle}><h3>{tr("actions")}</h3><Link className={styles.contextLink} href="/finance/tax-position/filings">{t("taxFiling.title")}<ArrowRight size={14} /></Link></div>
     <ol className={styles.checklist}>
      <li><span>{tr("purchaseAction")}</span><small className={styles.warning}>{tr("incomplete")}</small></li>
      {(summary?.credits.length || 0) > 0 ? <li><span>{tr("whtAction")}</span><small>{creditsToCheck ? tr("toReview", { count: creditsToCheck }) : tr("evidenceVerified")}</small></li> : null}
@@ -110,7 +111,10 @@ export default function TaxDashboard({ permissions, taxDetails }: { permissions:
     <article className={`${styles.account} ${styles.payableAccount}`}><Wallet size={22} aria-hidden="true" /><div><h3>{tr("payableRights")}</h3><strong>{money(summary?.payable)}</strong><small>{summary?.payable != null ? tr("recipients", { count: summary.recipients }) : tr("unavailable")}</small></div>{permissions.canViewFinancePayments ? <Link href="/finance/payables" aria-label={tr("openPayables")} title={tr("openPayables")}><ArrowRight size={19} /></Link> : null}</article>
    </div>
   </section>
-  <details ref={detailRef} className={styles.details} onToggle={e => setDetails(e.currentTarget.open)}><summary>{tr("taxDetails")}</summary>{details ? taxDetails : null}</details>
+  {isAdmin ? <div className={styles.auditEntry}><button type="button" className={ui.secondary} disabled={!data || !summary || loading} onClick={() => setAuditOpen(true)}><ShieldCheck size={16} />{tr("adminAudit")}</button></div> : null}
+  <DetailModal open={isAdmin && auditOpen} title={tr("adminAudit")} size="edit" onClose={() => setAuditOpen(false)}>
+   {isAdmin && auditOpen && data && summary ? <TaxAudit permissions={permissions} data={data} summary={summary} month={month} /> : null}
+  </DetailModal>
   <DetailModal open={!!selected} title={selected ? `${tr(selected.source)} · ${selected.reference}` : tr("open")} size="edit" onClose={() => setSelected(null)}>
    {selected ? <><ReadOnlyGrid items={[
     { key: "date", label: tr("date"), value: date(selected.date) }, { key: "payer", label: tr("payer"), value: selected.payer || tr("notEstablished") },

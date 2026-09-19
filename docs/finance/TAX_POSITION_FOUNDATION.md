@@ -154,9 +154,13 @@ non-loopback requests. No Production credentials, SQL or application actions.
 ## Monthly business dashboard (read-only presentation)
 
 The default page is now a monthly business dashboard, not the tax register.
-Five summaries precede the activity/month-end split and current account/payable
-position. The original register, its controlled actions and raw audit evidence
-remain behind a collapsed Tax details disclosure. Opening the normal dashboard
+Four summaries precede the activity/month-end split and current account/payable
+position: current system cash balance, VAT, incoming WHT and Payables. There is no
+monthly cash-receipt summary. The balance explicitly means Opening plus Cashbook,
+not monthly receipts. The original register is no longer mounted inline. Admin alone
+can open a focused read-only audit modal using already loaded monthly/source/history
+evidence, with raw data nested and closed by default. Register evidence counts never
+imply Filing Draft allocation completeness. Opening the normal dashboard
 never materializes historical facts. Its adapter calls SELECT and existing read
 RPCs only. No migration or backend authority change is required.
 
@@ -213,3 +217,9 @@ used cash as gross. Mockup numbers and its numeric net-VAT liability are not cop
 Focused QA: dashboard amount/source tests, permission/unknown/pagination cases,
 TH/EN browser checks at 390/768/1024/1440, month controls, no-write adapter,
 keyboard/modal focus, and existing register-action/navigation regression fixtures.
+
+The consolidation preserves the current shared Overview/Filing monthly reader and
+schema-2 snapshots. September regression evidence is Output VAT 700, incoming WHT
+560.19, outgoing WHT 0 without a confirmed Payout, Input VAT incomplete and net VAT
+unknown. Cancelled Draft Payouts contribute nothing. These are test expectations,
+not UI constants. Filing readiness, deadlines, lifecycle and permissions are unchanged.

@@ -258,18 +258,21 @@ actions. No records are removed or repaired, and KBANK Opening 0 is not reinterp
 Bypassing the cutoff could count held opening money twice; the unchanged RPC prohibits
 it. Do not backfill these sources or treat their absence in Cashbook as permission.
 
-The relationship panel separates complete monthly confirmed source cash from stock:
+The current operational panel shows only authoritative Cashbook stock:
 
-- September FLOW: 46,419.81, of which 16,859.81 is pre-cutoff and 29,560 represented
-  after cutoff. August receipts are not September flow. WHT is never cash.
 - Current known STOCK: confirmed Openings 20,000 + inflows 29,560 - outflows 0 = 49,560.
   Components come from the authoritative balance view, never the paginated table.
   BAY/KTB unknown balances are excluded explicitly, not substituted with zero.
+- Monthly source receipt totals are not shown alongside current stock. The five
+  pre-cutoff receipts are collapsed after current movements and have no posting action.
+  The actionable queue is empty when no source passes the existing cutoff checks.
 
 The amounts above are acceptance evidence, not hard-coded production values. Migration
 054 adds permission-checked, read-only `get_finance_treasury_month_flow` for complete
 THB Payment/Direct Money monthly aggregates; confirmed status and existing location
 visibility apply. It neither creates Cash nor depends on revenue distribution.
+The consolidated operational page no longer calls that optional monthly-flow reader;
+the applied RPC is unchanged. Current balances still use `get_finance_treasury`.
 Economic rights/company share/VAT buckets do not create additional cash inflows.
 
 The owner confirmed manual 054 verification PASS. Deployment is authorized, not

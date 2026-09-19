@@ -14,10 +14,11 @@ test('054 SELECT-only exact artifacts and rollback; no top-level business writes
  const ref='9281e7bd148a6c0aa30a18973cf79173706efb19',files=cp.execFileSync('git',['ls-tree','-r','--name-only',ref,'supabase/migrations'],{encoding:'utf8'}).trim().split('\n');
  files.push('app/finance/tax-position/dashboard-data.ts','app/finance/finance-navigation.ts','app/finance/FinanceSidebar.tsx');for(const file of files)assert.deepEqual(fs.readFileSync(file),cp.execFileSync('git',['show',ref+':'+file]),file);
 });
-for(const locale of ['th','en'])test(`054 ${locale}: monthly flow, stock, pre-cutoff and unknown components stay separate; raw evidence Admin-only`,()=>{
- const data=fixture(),before=JSON.stringify(data),flow={period_month:'2026-09-01',currency:'THB',receipt_count:5,cash:46419.81,pre_cutoff:16859.81,represented:29560,pending:0,unresolved:0};
- const html=render(locale,React.createElement(TreasuryRelationship,{data,flow,month:'2026-09',onMonth:()=>{}}));
- for(const amount of ['46,419.81','16,859.81','29,560.00','49,560.00','20,000.00'])assert.ok(html.includes(amount),amount);
+for(const locale of ['th','en'])test(`054 ${locale}: current stock and unknown components stay separate; raw evidence Admin-only`,()=>{
+ const data=fixture(),before=JSON.stringify(data);
+ const html=render(locale,React.createElement(TreasuryRelationship,{data}));
+ for(const amount of ['29,560.00','49,560.00','20,000.00'])assert.ok(html.includes(amount),amount);
+ assert.doesNotMatch(html,/46,419\.81|16,859\.81/);
  assert.deepEqual(treasuryOverview(data).components,[{currency:'THB',amount:20000,inflow:29560,outflow:0}]);assert.equal(JSON.stringify(data),before);
  assert.deepEqual(treasuryOverview({...data,accounts:[{...data.accounts[0],opening_amount:null}]}).components,[]);
  const payload={id:'private-uuid',source_contract:'unchanged'};

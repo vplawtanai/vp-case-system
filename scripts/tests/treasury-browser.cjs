@@ -59,7 +59,12 @@ async function main(){
    const t=k=>translate(locale,'treasury.'+k);await page.setViewportSize({width,height:1100});await page.goto(url+'?dashboard');await page.locator('button[lang='+locale+']').first().click();
    await page.locator('[data-treasury-summary]').waitFor();assert.ok((await page.locator('[data-summary=known]').innerText()).includes('49,560.00'));
    assert.ok((await page.locator('[data-summary=pending]').innerText()).includes(translate(locale,'treasury.pendingCount',{count:0})));assert.ok((await page.locator('[data-summary=unknown]').innerText()).includes('BAY · KTB'));
-   await page.getByText('46,419.81 THB',{exact:true}).waitFor();await page.getByText('16,859.81 THB',{exact:true}).waitFor();
+   await page.getByRole('region',{name:t('currentStock'),exact:true}).waitFor();
+   assert.equal(await page.getByText('46,419.81 THB',{exact:true}).count(),0);assert.equal(await page.getByText('16,859.81 THB',{exact:true}).count(),0);
+   const archive=page.locator('details').filter({has:page.locator('summary').getByText(t('preCutoff')+' · 5',{exact:true})});
+   assert.equal(await archive.getAttribute('open'),null);assert.equal(await archive.getByRole('button').count(),0);
+   assert.ok(await archive.evaluate(e=>e.getBoundingClientRect().top>document.getElementById('treasury-movements').getBoundingClientRect().top));
+   await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:out+`/current-state-${locale}-${width}.png`});
    assert.equal(await page.locator('[data-balance=known]').count(),2);assert.equal(await page.locator('[data-balance=unknown]').count(),2);assert.equal(await page.getByRole('table').count(),1);assert.equal(await page.locator('[data-movement]').count(),2);
    assert.equal(await page.getByRole('button',{name:t('materialize'),exact:true}).count(),0);assert.equal(await page.locator('pre:visible').count(),0);assert.equal(await page.locator('details[open]').count(),0);
    const historical=page.locator('details').filter({has:page.locator('summary').filter({hasText:t('preCutoff')})});await historical.locator('summary').click();assert.equal(await historical.getByRole('link').count(),5);assert.equal(await historical.getByRole('button').count(),0);await historical.locator('summary').click();

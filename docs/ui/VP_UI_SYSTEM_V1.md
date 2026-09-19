@@ -224,3 +224,20 @@ Do not begin Entitlement, Payables or Cashbook as part of v1.
   its reviewed rule/channel/calendar evidence, not an uploaded monthly calendar.
 - A current system balance is STOCK; confirmed money received in a selected month is
   FLOW. Label them explicitly and show server-backed components. Unknown is never zero.
+
+## Finance presentation freeze
+
+- Tax Overview has four owner summaries: current system cash balance, monthly VAT,
+  incoming WHT credit, and Payables. No monthly received-cash summary card. Explain
+  that the current balance comes from Opening Balances and Cashbook, not monthly receipts.
+- Do not mount the legacy inline Tax Register on Overview. Only the existing Admin
+  role sees the secondary audit action. Its focused read-only modal reuses loaded
+  monthly/source/history evidence, with nested closed Raw JSON; no new reads or actions.
+  Register evidence counts are not filing allocation completeness or monthly VAT totals.
+- Treasury leads with Opening + post-cutoff inflows - outflows = current balance.
+  Do not compare monthly source cash alongside this stock. Pre-cutoff evidence belongs
+  after current movements, collapsed and read-only; it is not an actionable pending queue.
+- Retain the accepted Filing page, schema-2 monthly facts versus allocation coverage,
+  reviewed-rule/channel due dates, and controlled Admin-only exceptional override.
+  No rule means review required, never a guessed deadline. Structured evidence needs
+  no mandatory attachment. Preserve the deployed sidebar tree and interaction contract.
