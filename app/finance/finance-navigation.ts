@@ -1,6 +1,8 @@
 import type { UserPermissions } from "../../lib/permissions";
 import { translate } from "../../lib/i18n/catalog";
 import type { UiLocale } from "../../lib/i18n/core";
+import type { ExpenseAccess } from "./expenses/shared";
+export type FinanceNavigationPermissions = UserPermissions & { expenseAccess?: ExpenseAccess | null };
 
 export type FinanceSubNavPage =
   | "quotations"
@@ -16,6 +18,8 @@ export type FinanceSubNavPage =
   | "tax-position"
   | "ledger"
   | "claims"
+  | "expenses"
+  | "expense-claims"
   | "payables"
   | "compensation";
 
@@ -33,7 +37,7 @@ export type FinanceNavigationGroup = {
 
 export type FinanceNavigationItem = FinanceNavigationLink | FinanceNavigationGroup;
 
-export function financeNavigationLinks(permissions: UserPermissions, locale: UiLocale = "th"): FinanceNavigationLink[] {
+export function financeNavigationLinks(permissions: FinanceNavigationPermissions, locale: UiLocale = "th"): FinanceNavigationLink[] {
   const t = (key: string) => translate(locale, key);
   const links: (FinanceNavigationLink | null)[] = [
     permissions.canViewFinanceQuotations
@@ -60,14 +64,20 @@ export function financeNavigationLinks(permissions: UserPermissions, locale: UiL
     permissions.canViewFinanceTaxInvoices
       ? { href: "/finance/tax-invoices", page: "tax-invoices" as const, label: t("finance.nav.taxInvoices") }
       : null,
+    permissions.expenseAccess?.can_view_all || permissions.expenseAccess?.can_record || permissions.expenseAccess?.can_view_accounts
+      ? { href: "/finance/expenses", page: "expenses" as const, label: t("expenses.title") }
+      : null,
+    permissions.expenseAccess?.can_claim || permissions.expenseAccess?.can_view_all || permissions.canSubmitExpenseClaim || permissions.canViewOwnExpenseClaims
+      ? { href: "/finance/expenses/claims", page: "expense-claims" as const, label: t("expenses.claims") }
+      : null,
+    permissions.canViewFinancePayments || permissions.expenseAccess?.can_view_all
+      ? { href: "/finance/payables", page: "payables" as const, label: t("payables.title") }
+      : null,
     permissions.canViewFinanceCashTransactions
       ? { href: "/finance/treasury", page: "treasury" as const, label: t("treasury.title") }
       : null,
     permissions.canViewFinanceTaxInvoices || permissions.role === "partner"
       ? { href: "/finance/tax-position", page: "tax-position" as const, label: t("taxPosition.title") }
-      : null,
-    permissions.canViewFinancePayments
-      ? { href: "/finance/payables", page: "payables" as const, label: t("payables.title") }
       : null,
     permissions.canSubmitExpenseClaim || permissions.canViewOwnExpenseClaims || permissions.canViewAllExpenseClaims
       ? { href: "/finance/expense-claims", page: "claims" as const, label: t("payables.legacyClaims") }
@@ -82,7 +92,7 @@ export function financeNavigationLinks(permissions: UserPermissions, locale: UiL
   return links.filter((link): link is FinanceNavigationLink => Boolean(link));
 }
 
-export function financeNavigationItems(permissions: UserPermissions, locale: UiLocale = "th"): FinanceNavigationItem[] {
+export function financeNavigationItems(permissions: FinanceNavigationPermissions, locale: UiLocale = "th"): FinanceNavigationItem[] {
   const items: FinanceNavigationItem[] = [];
   for (const link of financeNavigationLinks(permissions, locale)) {
     const group = ["receipts", "combined-documents", "tax-invoices"].includes(link.page)
@@ -102,6 +112,7 @@ export function activeFinancePage(pathname: string | null, fallback: FinanceSubN
     ["billable-charges", "billable-charges"], ["invoices", "invoices"], ["payments", "payments"], ["direct-money", "payments"],
     ["receipts", "receipts"], ["combined-documents", "combined-documents"], ["tax-invoices", "tax-invoices"],
     ["tax-position", "tax-position"],
+    ["expenses/claims", "expense-claims"], ["expenses", "expenses"],
     ["expense-claims", "claims"], ["payables", "payables"], ["compensation", "compensation"], ["ledger", "ledger"], ["cash-transactions", "cash-transactions"], ["treasury", "treasury"],
   ];
   return routes.find(([route]) => pathname === `/finance/${route}` || pathname?.startsWith(`/finance/${route}/`))?.[1] || fallback;

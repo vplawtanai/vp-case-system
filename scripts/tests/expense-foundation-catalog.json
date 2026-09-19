@@ -1,0 +1,4593 @@
+{
+  "sha256": "518588ec6146c770f14c46b57484d512b5b3f709e21c179f1aed28df08bd1086",
+  "priorFunctions": [
+    {
+      "name": "assert_finance_billable_charge_context",
+      "signature": "public.assert_finance_billable_charge_context(uuid, bigint, uuid)",
+      "body_hash": "79ea6c5b4cae8483a652384ed1385e60",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "void",
+      "arguments": "p_client_id uuid, p_case_id bigint, p_advisory_matter_id uuid",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "cancel_finance_payout",
+      "signature": "public.cancel_finance_payout(uuid, integer, boolean)",
+      "body_hash": "7fc9d1fa39b4dc4791fbbddb44605661",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_id uuid, p_expected_version integer, p_acknowledged boolean",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "confirm_finance_payout",
+      "signature": "public.confirm_finance_payout(uuid, integer, integer, uuid, boolean)",
+      "body_hash": "4e016367b9090c03d8b58a7c5a6b988d",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_id uuid, p_expected_version integer, p_expected_payee_version integer, p_expected_destination_id uuid, p_acknowledged boolean",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "create_finance_tax_filing_review",
+      "signature": "public.create_finance_tax_filing_review(uuid, date, text, text, text, jsonb, jsonb)",
+      "body_hash": "534e736da31a22cc3ee69df3f91af963",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_id uuid, p_month date, p_type text, p_expected_fingerprint text, p_channel text, p_expected_deadline jsonb, p_override jsonb DEFAULT NULL::jsonb",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "current_user_can_confirm_finance_cash_transactions",
+      "signature": "public.current_user_can_confirm_finance_cash_transactions()",
+      "body_hash": "a07eab5c67d567ed15bdf0b425e998d6",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "boolean",
+      "arguments": "",
+      "returns_set": false,
+      "language": "sql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "get_finance_payees",
+      "signature": "public.get_finance_payees(text)",
+      "body_hash": "fd2c37519abbc80d32bed28488131718",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "p_search text DEFAULT ''::text",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "get_finance_payout_workspace",
+      "signature": "public.get_finance_payout_workspace(uuid, uuid)",
+      "body_hash": "004768edd6695f05667a406d01ced5a4",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "p_payee_id uuid, p_payout_id uuid DEFAULT NULL::uuid",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "get_finance_treasury",
+      "signature": "public.get_finance_treasury(integer)",
+      "body_hash": "82d0c09fbfd9cd07d0ed22f109e489d5",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "p_offset integer DEFAULT 0",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "get_finance_treasury_month_flow",
+      "signature": "public.get_finance_treasury_month_flow(date)",
+      "body_hash": "c87f70de91a32bfe19c3f5dc4b552fb8",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "p_month date",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "payout_assert",
+      "signature": "public.payout_assert(uuid)",
+      "body_hash": "0a02795188a0128c0a050dc183e34ad5",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "void",
+      "arguments": "p_id uuid",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "payout_can_manage",
+      "signature": "public.payout_can_manage()",
+      "body_hash": "db25a8767b50522c600262f7701aeaad",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "boolean",
+      "arguments": "",
+      "returns_set": false,
+      "language": "sql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "payout_choices",
+      "signature": "public.payout_choices(uuid, jsonb)",
+      "body_hash": "7e0a11fb33408427019a09ebff887a57",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "p_payee uuid, p_choices jsonb",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "save_finance_payee",
+      "signature": "public.save_finance_payee(uuid, uuid, jsonb, integer)",
+      "body_hash": "c3e1897b3a42934e417207a0786c8b95",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_id uuid, p_profile_id uuid, p_input jsonb, p_expected_version integer",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "save_finance_payout",
+      "signature": "public.save_finance_payout(uuid, uuid, date, uuid, uuid, jsonb, text, integer)",
+      "body_hash": "1764726f779c70bdfdd3aff0c90e7fba",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_id uuid, p_payee_id uuid, p_paid_on date, p_bank_account_id uuid, p_cash_location_id uuid, p_choices jsonb, p_note text, p_expected_version integer",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "tax_filing_assert",
+      "signature": "public.tax_filing_assert(uuid)",
+      "body_hash": "1d775207b9373f621b003eda4bd56609",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "void",
+      "arguments": "p_id uuid",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "tax_filing_monthly_facts",
+      "signature": "public.tax_filing_monthly_facts(date)",
+      "body_hash": "5ca5fd9e4b2eeb18cdf385cb86f0b52c",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "p_month date",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "tax_filing_pool",
+      "signature": "public.tax_filing_pool(date, text)",
+      "body_hash": "c85b5b38cf8f281c075d8b1b5e7f86a0",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "p_month date, p_type text",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "tax_position_source",
+      "signature": "public.tax_position_source(text, uuid)",
+      "body_hash": "49215b2bd881644d3d25dabde2f7b4af",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "p_type text, p_id uuid",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "tax_position_sync",
+      "signature": "public.tax_position_sync(text, uuid, text)",
+      "body_hash": "801730305cefce1e2a420fce3af2edf0",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_type text, p_id uuid, p_reason text",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "transition_finance_tax_filing",
+      "signature": "public.transition_finance_tax_filing(uuid, integer, text, date, text, text, boolean)",
+      "body_hash": "970640b6da99d482886fd3e769f93971",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_id uuid, p_version integer, p_action text, p_filed_on date, p_reference text, p_evidence text, p_acknowledged boolean",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "transition_finance_tax_remittance",
+      "signature": "public.transition_finance_tax_remittance(uuid, integer, text, boolean)",
+      "body_hash": "9654505c924ff3680765f52bb4cb6c41",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_id uuid, p_version integer, p_action text, p_acknowledged boolean",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "treasury_can_view",
+      "signature": "public.treasury_can_view(uuid, uuid)",
+      "body_hash": "115fa322da6dad6019bb97f88aa366e9",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "boolean",
+      "arguments": "p_bank uuid, p_cash uuid",
+      "returns_set": false,
+      "language": "sql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "treasury_location_active",
+      "signature": "public.treasury_location_active(uuid, uuid)",
+      "body_hash": "cee644694d7c7a5af8477d75e4f4be09",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "boolean",
+      "arguments": "p_bank uuid, p_cash uuid",
+      "returns_set": false,
+      "language": "sql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    }
+  ],
+  "functions": [
+    {
+      "name": "assert_finance_billable_charge_context",
+      "signature": "public.assert_finance_billable_charge_context(uuid, bigint, uuid)",
+      "body_hash": "79ea6c5b4cae8483a652384ed1385e60",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "void",
+      "arguments": "p_client_id uuid, p_case_id bigint, p_advisory_matter_id uuid",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "bridge_finance_legacy_expense",
+      "signature": "public.bridge_finance_legacy_expense(text, uuid, text, boolean)",
+      "body_hash": "053a9e41933ac31cc875c211a8f8ed70",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_legacy_id text, p_id uuid, p_reason text, p_acknowledged boolean",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "cancel_finance_payout",
+      "signature": "public.cancel_finance_payout(uuid, integer, boolean)",
+      "body_hash": "7fc9d1fa39b4dc4791fbbddb44605661",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_id uuid, p_expected_version integer, p_acknowledged boolean",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "confirm_finance_expense_payout",
+      "signature": "public.confirm_finance_expense_payout(uuid, integer, integer, uuid, boolean)",
+      "body_hash": "5f306f842bdd587b122df7640dbed1a9",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_id uuid, p_version integer, p_payee_version integer, p_destination uuid, p_acknowledged boolean",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "confirm_finance_payout",
+      "signature": "public.confirm_finance_payout(uuid, integer, integer, uuid, boolean)",
+      "body_hash": "6c6aeca51beb6f508a562cf27a8a7a0d",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_id uuid, p_expected_version integer, p_expected_payee_version integer, p_expected_destination_id uuid, p_acknowledged boolean",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "confirm_finance_payout_before_expense",
+      "signature": "public.confirm_finance_payout_before_expense(uuid, integer, integer, uuid, boolean)",
+      "body_hash": "4e016367b9090c03d8b58a7c5a6b988d",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_id uuid, p_expected_version integer, p_expected_payee_version integer, p_expected_destination_id uuid, p_acknowledged boolean",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "create_finance_tax_filing_review",
+      "signature": "public.create_finance_tax_filing_review(uuid, date, text, text, text, jsonb, jsonb)",
+      "body_hash": "534e736da31a22cc3ee69df3f91af963",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_id uuid, p_month date, p_type text, p_expected_fingerprint text, p_channel text, p_expected_deadline jsonb, p_override jsonb DEFAULT NULL::jsonb",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "current_user_can_confirm_finance_cash_transactions",
+      "signature": "public.current_user_can_confirm_finance_cash_transactions()",
+      "body_hash": "a07eab5c67d567ed15bdf0b425e998d6",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "boolean",
+      "arguments": "",
+      "returns_set": false,
+      "language": "sql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "decide_finance_expense_settlement",
+      "signature": "public.decide_finance_expense_settlement(uuid, uuid, text, uuid, numeric, date, text)",
+      "body_hash": "1ae8cbd4d0abe6ab6379010cd7b40035",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_id uuid, p_expense uuid, p_mode text, p_payee uuid, p_amount numeric, p_due_on date, p_reason text",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "expense_account_allowed",
+      "signature": "public.expense_account_allowed(uuid, uuid, text)",
+      "body_hash": "b96c9c0cf7b9aa3102478f15ba268998",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "boolean",
+      "arguments": "p_bank uuid, p_cash uuid, p_right text",
+      "returns_set": false,
+      "language": "sql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "expense_account_balance",
+      "signature": "public.expense_account_balance(uuid, uuid)",
+      "body_hash": "5577a7d81e907ba9eec1e43cbd0c1877",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "TABLE(currency text, opening_id uuid, opening_as_of timestamp with time zone, opening_amount numeric, system_balance numeric, inflow numeric, outflow numeric)",
+      "arguments": "p_bank uuid, p_cash uuid",
+      "returns_set": true,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "expense_account_balance_private",
+      "signature": "public.expense_account_balance_private(uuid, uuid)",
+      "body_hash": "e81dc36e2aee96116618d87b887085ae",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "TABLE(currency text, opening_id uuid, opening_as_of timestamp with time zone, opening_amount numeric, system_balance numeric, inflow numeric, outflow numeric)",
+      "arguments": "p_bank uuid, p_cash uuid",
+      "returns_set": true,
+      "language": "sql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "expense_can_claim",
+      "signature": "public.expense_can_claim()",
+      "body_hash": "0f177d93b62d633fe87d32f8c32c8af3",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "boolean",
+      "arguments": "",
+      "returns_set": false,
+      "language": "sql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "expense_can_manage",
+      "signature": "public.expense_can_manage()",
+      "body_hash": "989076708ee51cbbd676b5314ee02f5c",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "boolean",
+      "arguments": "",
+      "returns_set": false,
+      "language": "sql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "expense_can_read",
+      "signature": "public.expense_can_read(uuid)",
+      "body_hash": "3d562654e19156e53dd3798142a8cdb2",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "boolean",
+      "arguments": "p_id uuid",
+      "returns_set": false,
+      "language": "sql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "expense_can_tax_review",
+      "signature": "public.expense_can_tax_review()",
+      "body_hash": "a8443cbe3def100e54f0acf8f8d65b91",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "boolean",
+      "arguments": "",
+      "returns_set": false,
+      "language": "sql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "expense_can_view_all",
+      "signature": "public.expense_can_view_all()",
+      "body_hash": "edd57b189cb8e6cc1be8eae1778ec88c",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "boolean",
+      "arguments": "",
+      "returns_set": false,
+      "language": "sql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "expense_document",
+      "signature": "public.expense_document(uuid)",
+      "body_hash": "78107d09b66f902bc18a83cc088ffa23",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "p_id uuid",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "expense_immutable",
+      "signature": "public.expense_immutable()",
+      "body_hash": "31b5ed56e28bbe0344ec240fd6d72cde",
+      "security_definer": false,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "trigger",
+      "arguments": "",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "expense_integrity",
+      "signature": "public.expense_integrity()",
+      "body_hash": "bfda05b2c0edf271f1e95c7dc1d28674",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "trigger",
+      "arguments": "",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "expense_legacy_bridge_guard",
+      "signature": "public.expense_legacy_bridge_guard()",
+      "body_hash": "1aa4ad264e15c4cf52f23aceb3062862",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "trigger",
+      "arguments": "",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "expense_payout_choice",
+      "signature": "public.expense_payout_choice(uuid, boolean)",
+      "body_hash": "064509bff590326dc9d7f7cbcc736cc5",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "p_expense uuid, p_actual_wht boolean",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "expense_payout_model_guard",
+      "signature": "public.expense_payout_model_guard()",
+      "body_hash": "b3f654f93fcfb9f138b08b5bf4f0cbc7",
+      "security_definer": false,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "trigger",
+      "arguments": "",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "get_finance_assigned_account_movements",
+      "signature": "public.get_finance_assigned_account_movements(uuid, uuid, integer)",
+      "body_hash": "5a6b185e16f34cb15c4ea619cc02c089",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "p_bank uuid, p_cash uuid, p_offset integer DEFAULT 0",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "get_finance_expense_access",
+      "signature": "public.get_finance_expense_access()",
+      "body_hash": "1801e92bb68f0172b2d70ba207816be4",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "",
+      "returns_set": false,
+      "language": "sql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "get_finance_expense_accounts",
+      "signature": "public.get_finance_expense_accounts()",
+      "body_hash": "f5e64fb24988b8887943b664043bfd18",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "",
+      "returns_set": false,
+      "language": "sql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "get_finance_expense_obligations",
+      "signature": "public.get_finance_expense_obligations(integer)",
+      "body_hash": "d675e8a70ed6031bf3e25dcdc58a34ff",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "p_offset integer DEFAULT 0",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "get_finance_expense_parties",
+      "signature": "public.get_finance_expense_parties()",
+      "body_hash": "a7416627ca02b142414da6816f22e54b",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "get_finance_expenses",
+      "signature": "public.get_finance_expenses(uuid, boolean, integer)",
+      "body_hash": "0b0f524c5367cd5a1bc3d12f4eb95267",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "p_id uuid DEFAULT NULL::uuid, p_claims boolean DEFAULT false, p_offset integer DEFAULT 0",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "get_finance_payees",
+      "signature": "public.get_finance_payees(text)",
+      "body_hash": "fd2c37519abbc80d32bed28488131718",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "p_search text DEFAULT ''::text",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "get_finance_payout_workspace",
+      "signature": "public.get_finance_payout_workspace(uuid, uuid)",
+      "body_hash": "090801c9a4d5489f05eabd30f9350e46",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "p_payee_id uuid, p_payout_id uuid DEFAULT NULL::uuid",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "get_finance_payout_workspace_before_expense",
+      "signature": "public.get_finance_payout_workspace_before_expense(uuid, uuid)",
+      "body_hash": "004768edd6695f05667a406d01ced5a4",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "p_payee_id uuid, p_payout_id uuid DEFAULT NULL::uuid",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "get_finance_treasury",
+      "signature": "public.get_finance_treasury(integer)",
+      "body_hash": "82d0c09fbfd9cd07d0ed22f109e489d5",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "p_offset integer DEFAULT 0",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "get_finance_treasury_authorities",
+      "signature": "public.get_finance_treasury_authorities()",
+      "body_hash": "9a6540bc7acdf7ab3a3b5d7e73bc07bd",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "get_finance_treasury_month_flow",
+      "signature": "public.get_finance_treasury_month_flow(date)",
+      "body_hash": "c87f70de91a32bfe19c3f5dc4b552fb8",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "p_month date",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "payout_assert",
+      "signature": "public.payout_assert(uuid)",
+      "body_hash": "0abe18941bdc8b007525b021d6d05d8c",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "void",
+      "arguments": "p_id uuid",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "payout_assert_before_expense",
+      "signature": "public.payout_assert_before_expense(uuid)",
+      "body_hash": "0a02795188a0128c0a050dc183e34ad5",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "void",
+      "arguments": "p_id uuid",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "payout_can_manage",
+      "signature": "public.payout_can_manage()",
+      "body_hash": "db25a8767b50522c600262f7701aeaad",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "boolean",
+      "arguments": "",
+      "returns_set": false,
+      "language": "sql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "payout_choices",
+      "signature": "public.payout_choices(uuid, jsonb)",
+      "body_hash": "7e0a11fb33408427019a09ebff887a57",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "p_payee uuid, p_choices jsonb",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "prepare_finance_expense_payout",
+      "signature": "public.prepare_finance_expense_payout(uuid, uuid, integer, date, uuid, uuid, boolean, text)",
+      "body_hash": "1310128fe17c2c29613e347e995d4bbc",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_id uuid, p_expense uuid, p_version integer, p_paid_on date, p_bank uuid, p_cash uuid, p_actual_wht boolean, p_note text",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "record_finance_paid_expense",
+      "signature": "public.record_finance_paid_expense(uuid, jsonb, uuid, uuid, date, boolean)",
+      "body_hash": "d401e95c8ea9bbf534e461bd0d4e107e",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_id uuid, p_input jsonb, p_bank uuid, p_cash uuid, p_paid_on date, p_acknowledged boolean",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "review_finance_expense",
+      "signature": "public.review_finance_expense(uuid, integer, boolean, text)",
+      "body_hash": "037fc2ea05d5591e8481c1ec85369ffc",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_id uuid, p_version integer, p_accept boolean, p_reason text",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "review_finance_expense_tax",
+      "signature": "public.review_finance_expense_tax(uuid, uuid, uuid, jsonb)",
+      "body_hash": "0dca13ad948f8fc7b307b3ede196067a",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_id uuid, p_expense uuid, p_previous uuid, p_input jsonb",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "save_finance_expense",
+      "signature": "public.save_finance_expense(uuid, integer, jsonb)",
+      "body_hash": "e750877a112d308fcfea86ab86cca099",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_id uuid, p_version integer, p_input jsonb",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "save_finance_payee",
+      "signature": "public.save_finance_payee(uuid, uuid, jsonb, integer)",
+      "body_hash": "c3e1897b3a42934e417207a0786c8b95",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_id uuid, p_profile_id uuid, p_input jsonb, p_expected_version integer",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "save_finance_payout",
+      "signature": "public.save_finance_payout(uuid, uuid, date, uuid, uuid, jsonb, text, integer)",
+      "body_hash": "86d8275c840930cd3a1d4a5de1156ac4",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_id uuid, p_payee_id uuid, p_paid_on date, p_bank_account_id uuid, p_cash_location_id uuid, p_choices jsonb, p_note text, p_expected_version integer",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "save_finance_payout_before_expense",
+      "signature": "public.save_finance_payout_before_expense(uuid, uuid, date, uuid, uuid, jsonb, text, integer)",
+      "body_hash": "1764726f779c70bdfdd3aff0c90e7fba",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_id uuid, p_payee_id uuid, p_paid_on date, p_bank_account_id uuid, p_cash_location_id uuid, p_choices jsonb, p_note text, p_expected_version integer",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "set_finance_treasury_authority",
+      "signature": "public.set_finance_treasury_authority(uuid, uuid, uuid, jsonb, integer, text)",
+      "body_hash": "08ce2d8844797bb17987d89dc9299229",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_user uuid, p_bank uuid, p_cash uuid, p_rights jsonb, p_version integer, p_reason text",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "submit_finance_expense",
+      "signature": "public.submit_finance_expense(uuid, integer)",
+      "body_hash": "045b4201c13c72e5014b09bb150d77d4",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_id uuid, p_version integer",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "tax_filing_assert",
+      "signature": "public.tax_filing_assert(uuid)",
+      "body_hash": "1d775207b9373f621b003eda4bd56609",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "void",
+      "arguments": "p_id uuid",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "tax_filing_monthly_facts",
+      "signature": "public.tax_filing_monthly_facts(date)",
+      "body_hash": "d29adcb6926e980efff3a1b0c6718cad",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "p_month date",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "tax_filing_monthly_facts_before_expense",
+      "signature": "public.tax_filing_monthly_facts_before_expense(date)",
+      "body_hash": "5ca5fd9e4b2eeb18cdf385cb86f0b52c",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "p_month date",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "tax_filing_pool",
+      "signature": "public.tax_filing_pool(date, text)",
+      "body_hash": "c85b5b38cf8f281c075d8b1b5e7f86a0",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "p_month date, p_type text",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "tax_position_source",
+      "signature": "public.tax_position_source(text, uuid)",
+      "body_hash": "d3bd8e74ad5a7badcf59ba426f5ac28a",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "p_type text, p_id uuid",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "tax_position_source_before_expense",
+      "signature": "public.tax_position_source_before_expense(text, uuid)",
+      "body_hash": "49215b2bd881644d3d25dabde2f7b4af",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "jsonb",
+      "arguments": "p_type text, p_id uuid",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "tax_position_sync",
+      "signature": "public.tax_position_sync(text, uuid, text)",
+      "body_hash": "801730305cefce1e2a420fce3af2edf0",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_type text, p_id uuid, p_reason text",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "transition_finance_tax_filing",
+      "signature": "public.transition_finance_tax_filing(uuid, integer, text, date, text, text, boolean)",
+      "body_hash": "970640b6da99d482886fd3e769f93971",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_id uuid, p_version integer, p_action text, p_filed_on date, p_reference text, p_evidence text, p_acknowledged boolean",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "transition_finance_tax_remittance",
+      "signature": "public.transition_finance_tax_remittance(uuid, integer, text, boolean)",
+      "body_hash": "9654505c924ff3680765f52bb4cb6c41",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_id uuid, p_version integer, p_action text, p_acknowledged boolean",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "treasury_can_view",
+      "signature": "public.treasury_can_view(uuid, uuid)",
+      "body_hash": "115fa322da6dad6019bb97f88aa366e9",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "boolean",
+      "arguments": "p_bank uuid, p_cash uuid",
+      "returns_set": false,
+      "language": "sql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "treasury_location_active",
+      "signature": "public.treasury_location_active(uuid, uuid)",
+      "body_hash": "cee644694d7c7a5af8477d75e4f4be09",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "boolean",
+      "arguments": "p_bank uuid, p_cash uuid",
+      "returns_set": false,
+      "language": "sql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    },
+    {
+      "name": "waive_finance_expense_reimbursement",
+      "signature": "public.waive_finance_expense_reimbursement(uuid, text, boolean)",
+      "body_hash": "5d245389576afc0d2d75c126cb056e88",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ],
+      "kind": "f",
+      "result": "uuid",
+      "arguments": "p_obligation uuid, p_reason text, p_acknowledged boolean",
+      "returns_set": false,
+      "language": "plpgsql",
+      "strict": false,
+      "parallel": "u",
+      "leakproof": false
+    }
+  ],
+  "catalog": [
+    {
+      "name": "finance_expense_audit",
+      "kind": "r",
+      "rls": true,
+      "force_rls": false,
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "expense_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "event_type",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "actor_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "evidence_json",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "finance_expense_audit_actor_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (actor_id) REFERENCES user_profiles(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_audit_event_type_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((event_type = ANY (ARRAY['saved'::text, 'submitted'::text, 'accepted'::text, 'rejected'::text, 'tax_reviewed'::text, 'settlement_decided'::text, 'waived'::text, 'legacy_bridged'::text, 'payment_confirmed'::text])))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_audit_evidence_json_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((jsonb_typeof(evidence_json) = 'object'::text))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_audit_expense_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (expense_id) REFERENCES finance_expenses(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_audit_pkey",
+          "type": "p",
+          "validated": true,
+          "deferrable": false,
+          "definition": "PRIMARY KEY (id)",
+          "initially_deferred": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "finance_expense_audit_pkey",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_expense_audit_pkey ON public.finance_expense_audit USING btree (id)"
+        }
+      ],
+      "policies": null,
+      "triggers": [
+        {
+          "name": "expense_history_immutable",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_history_immutable BEFORE DELETE OR UPDATE ON public.finance_expense_audit FOR EACH ROW EXECUTE FUNCTION expense_immutable()"
+        },
+        {
+          "name": "expense_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_no_truncate BEFORE TRUNCATE ON public.finance_expense_audit FOR EACH STATEMENT EXECUTE FUNCTION expense_immutable()"
+        }
+      ]
+    },
+    {
+      "name": "finance_expense_obligation_waivers",
+      "kind": "r",
+      "rls": true,
+      "force_rls": false,
+      "columns": [
+        {
+          "name": "obligation_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "reason",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "disposition",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "created_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "expense_integrity",
+          "type": "t",
+          "validated": true,
+          "deferrable": true,
+          "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED",
+          "initially_deferred": true
+        },
+        {
+          "name": "finance_expense_obligation_waivers_created_by_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_obligation_waivers_disposition_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((disposition = 'person_paid_no_reimbursement'::text))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_obligation_waivers_obligation_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (obligation_id) REFERENCES finance_expense_obligations(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_obligation_waivers_pkey",
+          "type": "p",
+          "validated": true,
+          "deferrable": false,
+          "definition": "PRIMARY KEY (obligation_id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_obligation_waivers_reason_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((length(btrim(reason)) >= 1) AND (length(btrim(reason)) <= 2000)))",
+          "initially_deferred": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "finance_expense_obligation_waivers_pkey",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_expense_obligation_waivers_pkey ON public.finance_expense_obligation_waivers USING btree (obligation_id)"
+        }
+      ],
+      "policies": null,
+      "triggers": [
+        {
+          "name": "expense_history_immutable",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_history_immutable BEFORE DELETE OR UPDATE ON public.finance_expense_obligation_waivers FOR EACH ROW EXECUTE FUNCTION expense_immutable()"
+        },
+        {
+          "name": "expense_integrity",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER expense_integrity AFTER INSERT OR UPDATE ON public.finance_expense_obligation_waivers DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION expense_integrity()"
+        },
+        {
+          "name": "expense_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_no_truncate BEFORE TRUNCATE ON public.finance_expense_obligation_waivers FOR EACH STATEMENT EXECUTE FUNCTION expense_immutable()"
+        }
+      ]
+    },
+    {
+      "name": "finance_expense_obligations",
+      "kind": "r",
+      "rls": true,
+      "force_rls": false,
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "expense_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "settlement_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "source_type",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "payee_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "gross_amount",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "currency",
+          "type": "text",
+          "default": "'THB'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "due_on",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "created_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "expense_integrity",
+          "type": "t",
+          "validated": true,
+          "deferrable": true,
+          "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED",
+          "initially_deferred": true
+        },
+        {
+          "name": "finance_expense_obligations_created_by_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_obligations_currency_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((currency = 'THB'::text))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_obligations_expense_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (expense_id) REFERENCES finance_expenses(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_obligations_expense_id_key",
+          "type": "u",
+          "validated": true,
+          "deferrable": false,
+          "definition": "UNIQUE (expense_id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_obligations_gross_amount_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((gross_amount > (0)::numeric))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_obligations_payee_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (payee_id) REFERENCES finance_payees(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_obligations_pkey",
+          "type": "p",
+          "validated": true,
+          "deferrable": false,
+          "definition": "PRIMARY KEY (id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_obligations_settlement_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (settlement_id) REFERENCES finance_expense_settlements(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_obligations_settlement_id_key",
+          "type": "u",
+          "validated": true,
+          "deferrable": false,
+          "definition": "UNIQUE (settlement_id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_obligations_source_type_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((source_type = ANY (ARRAY['employee_reimbursement'::text, 'supplier_payable'::text])))",
+          "initially_deferred": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "finance_expense_obligations_expense_id_key",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_expense_obligations_expense_id_key ON public.finance_expense_obligations USING btree (expense_id)"
+        },
+        {
+          "name": "finance_expense_obligations_pkey",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_expense_obligations_pkey ON public.finance_expense_obligations USING btree (id)"
+        },
+        {
+          "name": "finance_expense_obligations_settlement_id_key",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_expense_obligations_settlement_id_key ON public.finance_expense_obligations USING btree (settlement_id)"
+        }
+      ],
+      "policies": null,
+      "triggers": [
+        {
+          "name": "expense_history_immutable",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_history_immutable BEFORE DELETE OR UPDATE ON public.finance_expense_obligations FOR EACH ROW EXECUTE FUNCTION expense_immutable()"
+        },
+        {
+          "name": "expense_integrity",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER expense_integrity AFTER INSERT OR UPDATE ON public.finance_expense_obligations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION expense_integrity()"
+        },
+        {
+          "name": "expense_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_no_truncate BEFORE TRUNCATE ON public.finance_expense_obligations FOR EACH STATEMENT EXECUTE FUNCTION expense_immutable()"
+        }
+      ]
+    },
+    {
+      "name": "finance_expense_settlements",
+      "kind": "r",
+      "rls": true,
+      "force_rls": false,
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "expense_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "mode",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "payee_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "amount",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "reason",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "created_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "expense_integrity",
+          "type": "t",
+          "validated": true,
+          "deferrable": true,
+          "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED",
+          "initially_deferred": true
+        },
+        {
+          "name": "finance_expense_settlements_amount_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((amount >= (0)::numeric))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_settlements_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((((mode = ANY (ARRAY['supplier_unpaid'::text, 'reimburse'::text])) AND (payee_id IS NOT NULL) AND (amount > (0)::numeric)) OR ((mode = ANY (ARRAY['company_bank'::text, 'company_cash'::text])) AND (amount > (0)::numeric)) OR ((mode = ANY (ARRAY['undecided'::text, 'no_reimbursement'::text])) AND (amount = (0)::numeric))))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_settlements_created_by_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_settlements_expense_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (expense_id) REFERENCES finance_expenses(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_settlements_expense_id_key",
+          "type": "u",
+          "validated": true,
+          "deferrable": false,
+          "definition": "UNIQUE (expense_id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_settlements_mode_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((mode = ANY (ARRAY['undecided'::text, 'company_bank'::text, 'company_cash'::text, 'supplier_unpaid'::text, 'reimburse'::text, 'no_reimbursement'::text])))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_settlements_payee_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (payee_id) REFERENCES finance_payees(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_settlements_pkey",
+          "type": "p",
+          "validated": true,
+          "deferrable": false,
+          "definition": "PRIMARY KEY (id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_settlements_reason_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((length(btrim(reason)) >= 1) AND (length(btrim(reason)) <= 2000)))",
+          "initially_deferred": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "finance_expense_settlements_expense_id_key",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_expense_settlements_expense_id_key ON public.finance_expense_settlements USING btree (expense_id)"
+        },
+        {
+          "name": "finance_expense_settlements_pkey",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_expense_settlements_pkey ON public.finance_expense_settlements USING btree (id)"
+        }
+      ],
+      "policies": null,
+      "triggers": [
+        {
+          "name": "expense_history_immutable",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_history_immutable BEFORE DELETE OR UPDATE ON public.finance_expense_settlements FOR EACH ROW EXECUTE FUNCTION expense_immutable()"
+        },
+        {
+          "name": "expense_integrity",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER expense_integrity AFTER INSERT OR UPDATE ON public.finance_expense_settlements DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION expense_integrity()"
+        },
+        {
+          "name": "expense_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_no_truncate BEFORE TRUNCATE ON public.finance_expense_settlements FOR EACH STATEMENT EXECUTE FUNCTION expense_immutable()"
+        }
+      ]
+    },
+    {
+      "name": "finance_expense_tax_reviews",
+      "kind": "r",
+      "rls": true,
+      "force_rls": false,
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "expense_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "revision",
+          "type": "integer",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "supersedes_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "vat_state",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "vat_base",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "vat_rate",
+          "type": "numeric(7,4)",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "vat_amount",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "eligibility",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "supplier_tax_id",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "tax_document_reference",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "tax_document_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "company_name_status",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "wht_state",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "wht_base",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "wht_rate",
+          "type": "numeric(7,4)",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "wht_amount",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "wht_exception",
+          "type": "boolean",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "reason",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "request_json",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "reviewed_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "reviewed_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "expense_integrity",
+          "type": "t",
+          "validated": true,
+          "deferrable": true,
+          "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED",
+          "initially_deferred": true
+        },
+        {
+          "name": "finance_expense_tax_reviews_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((((vat_state = 'exists'::text) AND (vat_base > (0)::numeric) AND (vat_rate >= (0)::numeric) AND (vat_rate <= (100)::numeric) AND (vat_amount = round(((vat_base * vat_rate) / (100)::numeric), 2)) AND (num_nonnulls(vat_base, vat_rate, vat_amount) = 3)) OR ((vat_state <> 'exists'::text) AND (num_nonnulls(vat_base, vat_rate, vat_amount) = 0))))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_tax_reviews_check1",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((eligibility <> 'eligible'::text) OR ((vat_state = 'exists'::text) AND (company_name_status = 'yes'::text) AND (supplier_tax_id IS NOT NULL) AND (NULLIF(btrim(tax_document_reference), ''::text) IS NOT NULL) AND (tax_document_date IS NOT NULL))))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_tax_reviews_check2",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((vat_state <> 'pending'::text) OR (eligibility = 'pending'::text)))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_tax_reviews_check3",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((vat_state <> 'none'::text) OR (eligibility = 'ineligible'::text)))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_tax_reviews_check4",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((((wht_state = 'withhold'::text) AND (wht_base > (0)::numeric) AND (wht_rate > (0)::numeric) AND (wht_rate < (100)::numeric) AND (wht_amount = round(((wht_base * wht_rate) / (100)::numeric), 2)) AND (num_nonnulls(wht_base, wht_rate, wht_amount) = 3)) OR ((wht_state <> 'withhold'::text) AND (num_nonnulls(wht_base, wht_rate, wht_amount) = 0))))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_tax_reviews_company_name_status_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((company_name_status = ANY (ARRAY['yes'::text, 'no'::text, 'unknown'::text])))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_tax_reviews_eligibility_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((eligibility = ANY (ARRAY['eligible'::text, 'ineligible'::text, 'pending'::text])))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_tax_reviews_expense_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (expense_id) REFERENCES finance_expenses(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_tax_reviews_expense_id_revision_key",
+          "type": "u",
+          "validated": true,
+          "deferrable": false,
+          "definition": "UNIQUE (expense_id, revision)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_tax_reviews_pkey",
+          "type": "p",
+          "validated": true,
+          "deferrable": false,
+          "definition": "PRIMARY KEY (id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_tax_reviews_reason_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((length(btrim(reason)) >= 1) AND (length(btrim(reason)) <= 2000)))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_tax_reviews_request_json_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((jsonb_typeof(request_json) = 'object'::text))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_tax_reviews_reviewed_by_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (reviewed_by) REFERENCES user_profiles(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_tax_reviews_revision_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((revision > 0))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_tax_reviews_supersedes_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (supersedes_id) REFERENCES finance_expense_tax_reviews(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_tax_reviews_supersedes_id_key",
+          "type": "u",
+          "validated": true,
+          "deferrable": false,
+          "definition": "UNIQUE (supersedes_id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_tax_reviews_supplier_tax_id_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((supplier_tax_id ~ '^[0-9]{13}$'::text))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_tax_reviews_vat_state_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((vat_state = ANY (ARRAY['none'::text, 'exists'::text, 'pending'::text])))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expense_tax_reviews_wht_state_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((wht_state = ANY (ARRAY['none'::text, 'withhold'::text, 'pending'::text])))",
+          "initially_deferred": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "finance_expense_tax_reviews_expense_id_revision_key",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_expense_tax_reviews_expense_id_revision_key ON public.finance_expense_tax_reviews USING btree (expense_id, revision)"
+        },
+        {
+          "name": "finance_expense_tax_reviews_pkey",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_expense_tax_reviews_pkey ON public.finance_expense_tax_reviews USING btree (id)"
+        },
+        {
+          "name": "finance_expense_tax_reviews_supersedes_id_key",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_expense_tax_reviews_supersedes_id_key ON public.finance_expense_tax_reviews USING btree (supersedes_id)"
+        }
+      ],
+      "policies": null,
+      "triggers": [
+        {
+          "name": "expense_history_immutable",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_history_immutable BEFORE DELETE OR UPDATE ON public.finance_expense_tax_reviews FOR EACH ROW EXECUTE FUNCTION expense_immutable()"
+        },
+        {
+          "name": "expense_integrity",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER expense_integrity AFTER INSERT OR UPDATE ON public.finance_expense_tax_reviews DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION expense_integrity()"
+        },
+        {
+          "name": "expense_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_no_truncate BEFORE TRUNCATE ON public.finance_expense_tax_reviews FOR EACH STATEMENT EXECUTE FUNCTION expense_immutable()"
+        }
+      ]
+    },
+    {
+      "name": "finance_expenses",
+      "kind": "r",
+      "rls": true,
+      "force_rls": false,
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "origin",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "legacy_claim_id",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "reference",
+          "type": "text",
+          "default": "('EXP-'::text || upper((id)::text))",
+          "identity": "",
+          "not_null": false,
+          "generated": "s"
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "default": "'draft'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "default": "1",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "expense_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "category",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "vendor_name",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "supplier_payee_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "claimant_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "client_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "case_id",
+          "type": "bigint",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "advisory_matter_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "currency",
+          "type": "text",
+          "default": "'THB'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "gross_amount",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "personally_paid",
+          "type": "boolean",
+          "default": "false",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "reimbursement_requested",
+          "type": "numeric(14,2)",
+          "default": "0",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "vat_awareness",
+          "type": "text",
+          "default": "'unknown'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "wht_awareness",
+          "type": "text",
+          "default": "'unknown'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "note",
+          "type": "text",
+          "default": "''::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "submitted_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "reviewed_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "reviewed_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "review_reason",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "created_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "updated_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "expense_integrity",
+          "type": "t",
+          "validated": true,
+          "deferrable": true,
+          "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED",
+          "initially_deferred": true
+        },
+        {
+          "name": "finance_expenses_advisory_matter_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (advisory_matter_id) REFERENCES advisory_matters(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_case_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (case_id) REFERENCES cases(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_category_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((length(btrim(category)) >= 1) AND (length(btrim(category)) <= 150)))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((reimbursement_requested >= (0)::numeric) AND (reimbursement_requested <= gross_amount)))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_check1",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((origin = 'legacy_claim'::text) = (legacy_claim_id IS NOT NULL)))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_check2",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((origin <> 'employee_claim'::text) OR (claimant_id = created_by)))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_check3",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((NOT personally_paid) OR (claimant_id IS NOT NULL)))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_check4",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((personally_paid OR (reimbursement_requested = (0)::numeric)))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_check5",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((case_id IS NULL) OR (advisory_matter_id IS NULL)))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_check6",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((status = 'draft'::text) OR (submitted_at IS NOT NULL)))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_check7",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((status = ANY (ARRAY['accepted'::text, 'rejected'::text])) = ((reviewed_at IS NOT NULL) AND (reviewed_by IS NOT NULL) AND (NULLIF(btrim(review_reason), ''::text) IS NOT NULL))))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_claimant_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (claimant_id) REFERENCES user_profiles(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_client_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (client_id) REFERENCES clients(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_created_by_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_currency_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((currency = 'THB'::text))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_description_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((length(btrim(description)) >= 1) AND (length(btrim(description)) <= 2000)))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_gross_amount_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((gross_amount > (0)::numeric))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_legacy_claim_id_key",
+          "type": "u",
+          "validated": true,
+          "deferrable": false,
+          "definition": "UNIQUE (legacy_claim_id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_note_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((length(note) <= 2000))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_origin_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((origin = ANY (ARRAY['company_purchase'::text, 'employee_claim'::text, 'legacy_claim'::text])))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_pkey",
+          "type": "p",
+          "validated": true,
+          "deferrable": false,
+          "definition": "PRIMARY KEY (id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_reference_key",
+          "type": "u",
+          "validated": true,
+          "deferrable": false,
+          "definition": "UNIQUE (reference)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_reviewed_by_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (reviewed_by) REFERENCES user_profiles(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_status_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((status = ANY (ARRAY['draft'::text, 'submitted'::text, 'accepted'::text, 'rejected'::text])))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_supplier_payee_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (supplier_payee_id) REFERENCES finance_payees(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_updated_by_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (updated_by) REFERENCES user_profiles(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_vat_awareness_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((vat_awareness = ANY (ARRAY['yes'::text, 'no'::text, 'unknown'::text])))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_vendor_name_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((length(vendor_name) <= 300))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_version_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((version > 0))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_wht_awareness_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((wht_awareness = ANY (ARRAY['yes'::text, 'no'::text, 'unknown'::text])))",
+          "initially_deferred": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "expense_claim_owner",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX expense_claim_owner ON public.finance_expenses USING btree (claimant_id, created_at, id)"
+        },
+        {
+          "name": "expense_review_queue",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX expense_review_queue ON public.finance_expenses USING btree (status, expense_date, id)"
+        },
+        {
+          "name": "finance_expenses_legacy_claim_id_key",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_expenses_legacy_claim_id_key ON public.finance_expenses USING btree (legacy_claim_id)"
+        },
+        {
+          "name": "finance_expenses_pkey",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_expenses_pkey ON public.finance_expenses USING btree (id)"
+        },
+        {
+          "name": "finance_expenses_reference_key",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_expenses_reference_key ON public.finance_expenses USING btree (reference)"
+        }
+      ],
+      "policies": null,
+      "triggers": [
+        {
+          "name": "expense_history_immutable",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_history_immutable BEFORE DELETE OR UPDATE ON public.finance_expenses FOR EACH ROW EXECUTE FUNCTION expense_immutable()"
+        },
+        {
+          "name": "expense_integrity",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER expense_integrity AFTER INSERT OR UPDATE ON public.finance_expenses DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION expense_integrity()"
+        },
+        {
+          "name": "expense_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_no_truncate BEFORE TRUNCATE ON public.finance_expenses FOR EACH STATEMENT EXECUTE FUNCTION expense_immutable()"
+        }
+      ]
+    },
+    {
+      "name": "finance_payout_allocations",
+      "kind": "r",
+      "rls": true,
+      "force_rls": false,
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "payout_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "entitlement_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "gross_amount",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "treatment",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "rate",
+          "type": "numeric(7,4)",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "wht_amount",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "evidence_json",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "expense_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "expense_obligation_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "wht_base",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "expense_allocation_source",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((num_nonnulls(entitlement_id, expense_id) = 1) AND ((expense_obligation_id IS NULL) OR (expense_id IS NOT NULL)) AND ((expense_id IS NULL) OR (wht_base IS NOT NULL))))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payout_allocations_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((wht_amount = round(((COALESCE(wht_base, gross_amount) * rate) / (100)::numeric), 2)))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payout_allocations_check1",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((((treatment = 'none'::text) AND (rate = (0)::numeric)) OR ((treatment = 'withhold'::text) AND (rate > (0)::numeric) AND (rate < (100)::numeric))))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payout_allocations_entitlement_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (entitlement_id) REFERENCES finance_payable_entitlements(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payout_allocations_entitlement_id_key",
+          "type": "u",
+          "validated": true,
+          "deferrable": false,
+          "definition": "UNIQUE (entitlement_id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payout_allocations_evidence_json_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((jsonb_typeof(evidence_json) = 'object'::text))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payout_allocations_expense_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (expense_id) REFERENCES finance_expenses(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payout_allocations_expense_id_key",
+          "type": "u",
+          "validated": true,
+          "deferrable": false,
+          "definition": "UNIQUE (expense_id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payout_allocations_expense_obligation_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (expense_obligation_id) REFERENCES finance_expense_obligations(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payout_allocations_expense_obligation_id_key",
+          "type": "u",
+          "validated": true,
+          "deferrable": false,
+          "definition": "UNIQUE (expense_obligation_id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payout_allocations_gross_amount_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((gross_amount > (0)::numeric))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payout_allocations_payout_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (payout_id) REFERENCES finance_payouts(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payout_allocations_pkey",
+          "type": "p",
+          "validated": true,
+          "deferrable": false,
+          "definition": "PRIMARY KEY (id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payout_allocations_treatment_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((treatment = ANY (ARRAY['none'::text, 'withhold'::text])))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payout_allocations_wht_base_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((wht_base >= (0)::numeric))",
+          "initially_deferred": false
+        },
+        {
+          "name": "payout_allocation_integrity",
+          "type": "t",
+          "validated": true,
+          "deferrable": true,
+          "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED",
+          "initially_deferred": true
+        }
+      ],
+      "indexes": [
+        {
+          "name": "finance_payout_allocations_entitlement_id_key",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_payout_allocations_entitlement_id_key ON public.finance_payout_allocations USING btree (entitlement_id)"
+        },
+        {
+          "name": "finance_payout_allocations_expense_id_key",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_payout_allocations_expense_id_key ON public.finance_payout_allocations USING btree (expense_id)"
+        },
+        {
+          "name": "finance_payout_allocations_expense_obligation_id_key",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_payout_allocations_expense_obligation_id_key ON public.finance_payout_allocations USING btree (expense_obligation_id)"
+        },
+        {
+          "name": "finance_payout_allocations_pkey",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_payout_allocations_pkey ON public.finance_payout_allocations USING btree (id)"
+        }
+      ],
+      "policies": null,
+      "triggers": [
+        {
+          "name": "payout_allocation_integrity",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER payout_allocation_integrity AFTER INSERT ON public.finance_payout_allocations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION payout_integrity()"
+        },
+        {
+          "name": "payout_immutable",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER payout_immutable BEFORE DELETE OR UPDATE ON public.finance_payout_allocations FOR EACH ROW EXECUTE FUNCTION payout_immutable()"
+        },
+        {
+          "name": "payout_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER payout_no_truncate BEFORE TRUNCATE ON public.finance_payout_allocations FOR EACH STATEMENT EXECUTE FUNCTION payout_immutable()"
+        }
+      ]
+    },
+    {
+      "name": "finance_payouts",
+      "kind": "r",
+      "rls": true,
+      "force_rls": false,
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "payee_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "default": "'draft'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "default": "1",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "paid_on",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "bank_account_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "cash_location_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "currency",
+          "type": "text",
+          "default": "'THB'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "choices_json",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "gross_amount",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "wht_amount",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "net_amount",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "note",
+          "type": "text",
+          "default": "''::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "confirmed_snapshot_json",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "confirmed_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "confirmed_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "cancelled_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "cancelled_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "created_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "updated_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "source_model",
+          "type": "text",
+          "default": "'revenue_distribution_v1'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "expense_payout_payee_contract",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((source_model = 'expense_v1'::text) OR (payee_id IS NOT NULL)))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payouts_bank_account_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (bank_account_id) REFERENCES finance_bank_accounts(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payouts_cancelled_by_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (cancelled_by) REFERENCES user_profiles(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payouts_cash_location_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (cash_location_id) REFERENCES finance_cash_locations(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payouts_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((net_amount > (0)::numeric) AND (net_amount = (gross_amount - wht_amount))))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payouts_check1",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((num_nonnulls(bank_account_id, cash_location_id) = 1))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payouts_check2",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((status = 'confirmed'::text) = ((confirmed_at IS NOT NULL) AND (confirmed_by IS NOT NULL) AND (confirmed_snapshot_json IS NOT NULL))))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payouts_check3",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((status = 'cancelled'::text) = ((cancelled_at IS NOT NULL) AND (cancelled_by IS NOT NULL))))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payouts_choices_json_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((jsonb_typeof(choices_json) = 'array'::text) AND ((jsonb_array_length(choices_json) >= 1) AND (jsonb_array_length(choices_json) <= 100))))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payouts_confirmed_by_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (confirmed_by) REFERENCES user_profiles(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payouts_created_by_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payouts_currency_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((currency = 'THB'::text))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payouts_gross_amount_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((gross_amount > (0)::numeric))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payouts_note_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((length(note) <= 2000))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payouts_payee_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (payee_id) REFERENCES finance_payees(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payouts_pkey",
+          "type": "p",
+          "validated": true,
+          "deferrable": false,
+          "definition": "PRIMARY KEY (id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payouts_source_model_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((source_model = ANY (ARRAY['revenue_distribution_v1'::text, 'expense_v1'::text])))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payouts_status_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((status = ANY (ARRAY['draft'::text, 'confirmed'::text, 'cancelled'::text])))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payouts_updated_by_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (updated_by) REFERENCES user_profiles(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payouts_version_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((version > 0))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_payouts_wht_amount_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((wht_amount >= (0)::numeric))",
+          "initially_deferred": false
+        },
+        {
+          "name": "payout_integrity",
+          "type": "t",
+          "validated": true,
+          "deferrable": true,
+          "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED",
+          "initially_deferred": true
+        }
+      ],
+      "indexes": [
+        {
+          "name": "finance_payouts_pkey",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_payouts_pkey ON public.finance_payouts USING btree (id)"
+        }
+      ],
+      "policies": null,
+      "triggers": [
+        {
+          "name": "expense_payout_model_guard",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_payout_model_guard BEFORE UPDATE ON public.finance_payouts FOR EACH ROW EXECUTE FUNCTION expense_payout_model_guard()"
+        },
+        {
+          "name": "payout_immutable",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER payout_immutable BEFORE DELETE OR UPDATE ON public.finance_payouts FOR EACH ROW EXECUTE FUNCTION payout_immutable()"
+        },
+        {
+          "name": "payout_integrity",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER payout_integrity AFTER INSERT OR UPDATE ON public.finance_payouts DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION payout_integrity()"
+        },
+        {
+          "name": "payout_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER payout_no_truncate BEFORE TRUNCATE ON public.finance_payouts FOR EACH STATEMENT EXECUTE FUNCTION payout_immutable()"
+        }
+      ]
+    },
+    {
+      "name": "finance_tax_position_facts",
+      "kind": "r",
+      "rls": true,
+      "force_rls": false,
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "revision_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "source_line_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "tax_kind",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "effective_on",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "period_month",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "currency",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "base_amount",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "rate_percent",
+          "type": "numeric(7,4)",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "tax_amount",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "treatment",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "date_basis",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "document_reference",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "payer_json",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "evidence_json",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "finance_tax_position_facts_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((period_month = (date_trunc('month'::text, (effective_on)::timestamp with time zone))::date))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_tax_position_facts_check1",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((tax_kind = 'output_vat'::text) OR ((tax_amount > (0)::numeric) AND ((base_amount IS NULL) OR (base_amount > (0)::numeric)))))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_tax_position_facts_currency_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((currency = 'THB'::text))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_tax_position_facts_date_basis_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((date_basis = ANY (ARRAY['confirmed_receipt'::text, 'approved_tax_point'::text, 'document_adjustment'::text, 'reviewed_expense_document'::text])))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_tax_position_facts_evidence_json_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((jsonb_typeof(evidence_json) = 'object'::text))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_tax_position_facts_period_month_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((EXTRACT(day FROM period_month) = (1)::numeric))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_tax_position_facts_pkey",
+          "type": "p",
+          "validated": true,
+          "deferrable": false,
+          "definition": "PRIMARY KEY (id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_tax_position_facts_rate_percent_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((rate_percent >= (0)::numeric) AND (rate_percent <= (100)::numeric)))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_tax_position_facts_revision_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (revision_id) REFERENCES finance_tax_source_revisions(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_tax_position_facts_revision_id_source_line_id_tax_k_key",
+          "type": "u",
+          "validated": true,
+          "deferrable": false,
+          "definition": "UNIQUE (revision_id, source_line_id, tax_kind)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_tax_position_facts_tax_kind_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((tax_kind = ANY (ARRAY['output_vat'::text, 'incoming_wht'::text, 'input_vat'::text])))",
+          "initially_deferred": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "finance_tax_position_facts_pkey",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_tax_position_facts_pkey ON public.finance_tax_position_facts USING btree (id)"
+        },
+        {
+          "name": "finance_tax_position_facts_revision_id_source_line_id_tax_k_key",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_tax_position_facts_revision_id_source_line_id_tax_k_key ON public.finance_tax_position_facts USING btree (revision_id, source_line_id, tax_kind)"
+        },
+        {
+          "name": "tax_position_period",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX tax_position_period ON public.finance_tax_position_facts USING btree (period_month, tax_kind)"
+        }
+      ],
+      "policies": [
+        {
+          "name": "tax_position_read",
+          "check": null,
+          "roles": [
+            "authenticated"
+          ],
+          "using": "tax_position_can_view()",
+          "command": "SELECT",
+          "permissive": "PERMISSIVE"
+        }
+      ],
+      "triggers": [
+        {
+          "name": "tax_position_no_rewrite",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER tax_position_no_rewrite BEFORE DELETE OR UPDATE ON public.finance_tax_position_facts FOR EACH ROW EXECUTE FUNCTION tax_position_immutable()"
+        },
+        {
+          "name": "tax_position_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER tax_position_no_truncate BEFORE TRUNCATE ON public.finance_tax_position_facts FOR EACH STATEMENT EXECUTE FUNCTION tax_position_immutable()"
+        }
+      ]
+    },
+    {
+      "name": "finance_tax_source_revisions",
+      "kind": "r",
+      "rls": true,
+      "force_rls": false,
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "source_type",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "source_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "revision",
+          "type": "integer",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "fingerprint",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "supersedes_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "evidence_json",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "reason",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "actor_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "finance_tax_source_revisions_actor_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (actor_id) REFERENCES user_profiles(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_tax_source_revisions_evidence_json_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((jsonb_typeof(evidence_json) = 'object'::text))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_tax_source_revisions_fingerprint_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((length(fingerprint) = 32))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_tax_source_revisions_pkey",
+          "type": "p",
+          "validated": true,
+          "deferrable": false,
+          "definition": "PRIMARY KEY (id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_tax_source_revisions_reason_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((length(btrim(reason)) >= 1) AND (length(btrim(reason)) <= 2000)))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_tax_source_revisions_revision_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((revision > 0))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_tax_source_revisions_source_type_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((source_type = ANY (ARRAY['direct_money_receipt'::text, 'payment'::text, 'tax_invoice'::text, 'tax_correction'::text, 'expense'::text])))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_tax_source_revisions_source_type_source_id_fingerpr_key",
+          "type": "u",
+          "validated": true,
+          "deferrable": false,
+          "definition": "UNIQUE (source_type, source_id, fingerprint)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_tax_source_revisions_source_type_source_id_revision_key",
+          "type": "u",
+          "validated": true,
+          "deferrable": false,
+          "definition": "UNIQUE (source_type, source_id, revision)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_tax_source_revisions_supersedes_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (supersedes_id) REFERENCES finance_tax_source_revisions(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_tax_source_revisions_supersedes_id_key",
+          "type": "u",
+          "validated": true,
+          "deferrable": false,
+          "definition": "UNIQUE (supersedes_id)",
+          "initially_deferred": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "finance_tax_source_revisions_pkey",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_tax_source_revisions_pkey ON public.finance_tax_source_revisions USING btree (id)"
+        },
+        {
+          "name": "finance_tax_source_revisions_source_type_source_id_fingerpr_key",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_tax_source_revisions_source_type_source_id_fingerpr_key ON public.finance_tax_source_revisions USING btree (source_type, source_id, fingerprint)"
+        },
+        {
+          "name": "finance_tax_source_revisions_source_type_source_id_revision_key",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_tax_source_revisions_source_type_source_id_revision_key ON public.finance_tax_source_revisions USING btree (source_type, source_id, revision)"
+        },
+        {
+          "name": "finance_tax_source_revisions_supersedes_id_key",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_tax_source_revisions_supersedes_id_key ON public.finance_tax_source_revisions USING btree (supersedes_id)"
+        }
+      ],
+      "policies": [
+        {
+          "name": "tax_position_read",
+          "check": null,
+          "roles": [
+            "authenticated"
+          ],
+          "using": "tax_position_can_view()",
+          "command": "SELECT",
+          "permissive": "PERMISSIVE"
+        }
+      ],
+      "triggers": [
+        {
+          "name": "tax_position_no_rewrite",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER tax_position_no_rewrite BEFORE DELETE OR UPDATE ON public.finance_tax_source_revisions FOR EACH ROW EXECUTE FUNCTION tax_position_immutable()"
+        },
+        {
+          "name": "tax_position_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER tax_position_no_truncate BEFORE TRUNCATE ON public.finance_tax_source_revisions FOR EACH STATEMENT EXECUTE FUNCTION tax_position_immutable()"
+        }
+      ]
+    },
+    {
+      "name": "finance_treasury_account_authorities",
+      "kind": "r",
+      "rls": true,
+      "force_rls": false,
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "bank_account_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "cash_location_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "view_balance",
+          "type": "boolean",
+          "default": "false",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "view_movements",
+          "type": "boolean",
+          "default": "false",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "record_outflow",
+          "type": "boolean",
+          "default": "false",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "confirm_outflow",
+          "type": "boolean",
+          "default": "false",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "default": "1",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "updated_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "finance_treasury_account_authorities_bank_account_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (bank_account_id) REFERENCES finance_bank_accounts(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_treasury_account_authorities_cash_location_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (cash_location_id) REFERENCES finance_cash_locations(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_treasury_account_authorities_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((num_nonnulls(bank_account_id, cash_location_id) = 1))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_treasury_account_authorities_check1",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((NOT confirm_outflow) OR record_outflow))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_treasury_account_authorities_pkey",
+          "type": "p",
+          "validated": true,
+          "deferrable": false,
+          "definition": "PRIMARY KEY (id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_treasury_account_authorities_updated_by_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (updated_by) REFERENCES user_profiles(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_treasury_account_authorities_user_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (user_id) REFERENCES user_profiles(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_treasury_account_authorities_version_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((version > 0))",
+          "initially_deferred": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "expense_account_bank_authority",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX expense_account_bank_authority ON public.finance_treasury_account_authorities USING btree (user_id, bank_account_id) WHERE (bank_account_id IS NOT NULL)"
+        },
+        {
+          "name": "expense_account_cash_authority",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX expense_account_cash_authority ON public.finance_treasury_account_authorities USING btree (user_id, cash_location_id) WHERE (cash_location_id IS NOT NULL)"
+        },
+        {
+          "name": "finance_treasury_account_authorities_pkey",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_treasury_account_authorities_pkey ON public.finance_treasury_account_authorities USING btree (id)"
+        }
+      ],
+      "policies": null,
+      "triggers": [
+        {
+          "name": "expense_history_immutable",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_history_immutable BEFORE DELETE OR UPDATE ON public.finance_treasury_account_authorities FOR EACH ROW EXECUTE FUNCTION expense_immutable()"
+        },
+        {
+          "name": "expense_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_no_truncate BEFORE TRUNCATE ON public.finance_treasury_account_authorities FOR EACH STATEMENT EXECUTE FUNCTION expense_immutable()"
+        }
+      ]
+    },
+    {
+      "name": "finance_treasury_authority_audit",
+      "kind": "r",
+      "rls": true,
+      "force_rls": false,
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "authority_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "actor_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "reason",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "evidence_json",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "finance_treasury_authority_audit_actor_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (actor_id) REFERENCES user_profiles(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_treasury_authority_audit_authority_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (authority_id) REFERENCES finance_treasury_account_authorities(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_treasury_authority_audit_authority_id_version_key",
+          "type": "u",
+          "validated": true,
+          "deferrable": false,
+          "definition": "UNIQUE (authority_id, version)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_treasury_authority_audit_pkey",
+          "type": "p",
+          "validated": true,
+          "deferrable": false,
+          "definition": "PRIMARY KEY (id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_treasury_authority_audit_reason_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((length(btrim(reason)) >= 1) AND (length(btrim(reason)) <= 2000)))",
+          "initially_deferred": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "finance_treasury_authority_audit_authority_id_version_key",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_treasury_authority_audit_authority_id_version_key ON public.finance_treasury_authority_audit USING btree (authority_id, version)"
+        },
+        {
+          "name": "finance_treasury_authority_audit_pkey",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_treasury_authority_audit_pkey ON public.finance_treasury_authority_audit USING btree (id)"
+        }
+      ],
+      "policies": null,
+      "triggers": [
+        {
+          "name": "expense_history_immutable",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_history_immutable BEFORE DELETE OR UPDATE ON public.finance_treasury_authority_audit FOR EACH ROW EXECUTE FUNCTION expense_immutable()"
+        },
+        {
+          "name": "expense_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_no_truncate BEFORE TRUNCATE ON public.finance_treasury_authority_audit FOR EACH STATEMENT EXECUTE FUNCTION expense_immutable()"
+        }
+      ]
+    }
+  ],
+  "view": {
+    "definition": " SELECT a.kind,\n    a.account_id,\n    a.bank_account_id,\n    a.cash_location_id,\n    a.name_th,\n    a.name_en,\n    a.bank_name,\n    a.account_number,\n    a.is_active,\n    b.currency,\n    b.opening_id,\n    b.opening_as_of,\n    b.opening_amount::numeric(14,2) AS opening_amount,\n    b.system_balance,\n    b.inflow,\n    b.outflow\n   FROM finance_treasury_accounts a\n     CROSS JOIN LATERAL expense_account_balance(a.bank_account_id, a.cash_location_id) b(currency, opening_id, opening_as_of, opening_amount, system_balance, inflow, outflow);",
+    "reloptions": [
+      "security_invoker=true"
+    ]
+  }
+}

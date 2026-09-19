@@ -1,11 +1,11 @@
 export type TaxSource = {
- source_type: "payment" | "direct_money_receipt" | "tax_invoice" | "tax_correction";
+ source_type: "payment" | "direct_money_receipt" | "tax_invoice" | "tax_correction" | "expense";
  source_id: string; reference: string | null; effective_on: string; currency: string;
  payer: { name?: string | null }; warnings: string[];
  lines: { kind: string; base: number | null; rate: number | null; tax: number }[];
 };
 export type TaxFact = {
- id: string; tax_kind: "output_vat" | "incoming_wht"; source_type: TaxSource["source_type"]; source_id: string;
+ id: string; tax_kind: "output_vat" | "incoming_wht" | "input_vat"; source_type: TaxSource["source_type"]; source_id: string;
  document_reference: string | null; period_month: string; effective_on: string; currency: string;
  base_amount: number | null; rate_percent: number | null; tax_amount: number; treatment: string; date_basis: string;
  payer_json: { name?: string | null }; evidence_status: string; certificate_reference: string | null;

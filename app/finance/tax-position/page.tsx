@@ -96,6 +96,7 @@ export function TaxPositionWorkspace({ isAdmin = false }: { isAdmin?: boolean })
      {p.filing_reference ? <p>{p.filing_reference} · {date(p.filed_on)}</p> : null}
      <Link className={ui.secondary} href="/finance/tax-position/filings">{t("taxFiling.title")}</Link>
      <Disclosure title={t("taxPosition.sources")}>{data.facts.filter(f => f.tax_kind === "output_vat" && f.period_month === p.period_month).map(fact)}</Disclosure>
+     <Disclosure title={t("expenses.reviewedInput")}>{data.facts.filter(f => f.tax_kind === "input_vat" && f.period_month === p.period_month).map(fact)}</Disclosure>
     </div>)}
    </section>
    <section className={styles.section}><h2>{t("taxPosition.incoming")}</h2><p className={styles.muted}>{t("taxPosition.incomingHelp")}</p>

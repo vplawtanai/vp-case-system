@@ -7,7 +7,7 @@ const {financeNavigationLinks,financeNavigationItems,activeFinancePage}=require(
 const {translate}=require('../../lib/i18n/catalog.ts');
 const {payableMessages}=require('../../lib/i18n/messages/payables.ts');
 const {initialPayableFilters,payableError,payableGroupKey,payableRoleLabel,payableQueueSummary}=require('../../app/finance/payables/shared.ts');
-const page=workspaceFixture('app/finance/payables/page.tsx',['PayablesWorkspace','PayableGroups'],{'../quotations/shared':{QuotationGuard:()=>null},'../FinanceSubNav':{default:()=>null}});
+const page=workspaceFixture('app/finance/payables/page.tsx',['PayablesWorkspace','PayableGroups'],{'../quotations/shared':{QuotationGuard:()=>null},'../FinanceSubNav':{default:()=>null},'./multi-source':{MultiSourcePayables:()=>null}});
 const materialize=workspaceFixture('app/finance/payables/materialize-action.tsx',['MaterializeEntitlements']);
 for(const locale of ['th','en'])test(`Payables ${locale}: initial zero-state is neutral and offers no payout or materialization action`,()=>{
  const html=page.render(locale,{'PayablesWorkspace.loading':false,'PayablesWorkspace.data':{groups:[],has_next:false}},{},'PayablesWorkspace');
@@ -29,7 +29,7 @@ for(const locale of ['th','en'])test(`Payables ${locale}: hide pagination for ze
 });
 for(const locale of ['th','en'])test(`Finance ${locale}: Expense Claims and Compensation stay permission-gated inside Legacy`,()=>{
  const p=buildPermissions({role:'admin'}),items=financeNavigationItems(p,locale);
- assert.deepEqual(items.map(i=>i.group||i.page),['quotations','fee-agreements','billable-charges','invoices','payments','payment-documents','treasury','tax-position','payables','legacy']);
+ assert.deepEqual(items.map(i=>i.group||i.page),['quotations','fee-agreements','billable-charges','invoices','payments','payment-documents','expense-claims','payables','treasury','tax-position','legacy']);
  assert.ok(!items.some(i=>i.page==='compensation'));
  const legacy=items.find(i=>i.group==='legacy');
  assert.deepEqual(legacy.children.map(i=>i.href),['/finance/expense-claims','/finance/compensation','/finance/ledger']);
@@ -47,7 +47,9 @@ for(const locale of ['th','en'])test(`Payables ${locale}: recipient/currency gro
  const html=page.render(locale,{'PayablesWorkspace.loading':false,'PayablesWorkspace.data':data},{},'PayablesWorkspace');
  assert.equal((html.match(/data-recipient=/g)||[]).length,3);assert.equal((html.match(/<h2>Pam<\/h2>/g)||[]).length,1);
  for(const amount of ['5,820.00 THB','3,104.00 THB','1,940.00 THB','776.00 THB','1,164.00 THB'])assert.ok(html.includes(amount));
- for(const key of ['title','referral','work','open','technical'])assert.ok(html.includes(translate(locale,'payables.'+key)));
+ for(const key of ['title','referral','work','open'])assert.ok(html.includes(translate(locale,'payables.'+key)));
+ assert.doesNotMatch(html,/<pre/);
+ assert.ok(page.render(locale,{}, {...data,isAdmin:true},'PayableGroups').includes(translate(locale,'payables.technical')));
  assert.doesNotMatch(html,/<details[^>]*\bopen|\/finance\/compensation|<button[^>]*>Pay<\/button>/);
  assert.equal(JSON.stringify(data),before);
  assert.equal((html.match(/aria-expanded="false"/g)||[]).length,3);
@@ -91,7 +93,7 @@ test('TH/EN catalog complete; existing Finance read policy and navigation order 
   if(role==='admin'){assert.ok(links.findIndex(l=>l.page==='payables')<links.findIndex(l=>l.page==='compensation'));assert.ok(links.some(l=>l.page==='compensation'));}
  }
  assert.equal(activeFinancePage('/finance/payables','payments'),'payables');
- const source=fs.readFileSync('app/finance/payables/page.tsx','utf8');assert.match(source,/get_finance_payable_entitlements/);assert.doesNotMatch(source,/\.insert\(|\.update\(|\.delete\(|ensure_finance|confirm_finance_payout/i);assert.match(source,/payoutHref\(group.recipient_id\)/);
+ const source=fs.readFileSync('app/finance/payables/page.tsx','utf8');assert.match(source,/get_finance_payable_entitlements/);assert.doesNotMatch(source,/\.insert\(|\.update\(|\.delete\(|ensure_finance|confirm_finance_payout/i);assert.match(fs.readFileSync('app/finance/payables/groups.tsx','utf8'),/payoutHref\(group.recipient_id\)/);
  const action=fs.readFileSync('app/finance/payables/materialize-action.tsx','utf8');assert.match(action,/if \(lock.current/);assert.match(action,/p_expected_version: version/);
  const panel=fs.readFileSync('app/finance/payments/vp-distribution-panel.tsx','utf8');assert.match(panel,/current\?\.status === "finalized" \? <MaterializeEntitlements/);
 });

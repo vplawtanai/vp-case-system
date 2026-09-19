@@ -187,6 +187,7 @@ export function summarizeDashboard(data: DashboardData, month: string) {
   accounts: accounts as Location[], systemBalance: known.length ? total(known.map(a => a.system_balance!)) : null, unknownAccounts: accounts.length - known.length,
   payable: data.payables ? total(rights.map(c => c.gross_amount)) : null, recipients: new Set(rights.map(c => c.recipient_id)).size,
   period: data.register?.periods.find(p => p.period_month === `${month}-01`) || null,
+  reviewedInputVat: data.register ? total(data.register.facts.filter(f => f.tax_kind === "input_vat" && f.period_month === `${month}-01`).map(f => f.tax_amount)) : null,
   outgoingHeld: data.register?.outgoing_workflow_available ? total((data.register.outgoing || []).filter(w => inMonth(w.withheld_on)).map(w => w.withheld_amount)) : null,
   outgoingDue: data.register?.outgoing_workflow_available ? total((data.register.outgoing || []).filter(w => inMonth(w.withheld_on)).map(w => (cents(w.withheld_amount) - cents(w.remitted_amount)) / 100)) : null,
  };

@@ -5,7 +5,7 @@ export type FilingType = "vat" | "wht_natural" | "wht_juristic";
 export type FilingSource = { id: string; economic_key: string; fingerprint: string; base: number | null; amount: number; date: string; rate: number | null; reference: string; source_type: string; source_id: string; payee_name?: string; entity_type?: string; evidence: unknown };
 type AllocationCoverage = { source_count: number; base_amount: number; output_vat: number | null; sources: FilingSource[]; review_sources?: FilingSource[] };
 type PoolCommon = { period_month: string; filing_type: FilingType; tax_amount: number | null; ready: boolean; issues: { code: string; count: number | null }[]; fingerprint: string };
-export type FrozenMonthlyFacts = { output_vat: number | null; input_vat: null; input_vat_complete: false; net_vat: null; source_evidence: unknown[]; source_contract: string };
+export type FrozenMonthlyFacts = { output_vat: number | null; input_vat: null; input_vat_complete: false; net_vat: null; source_evidence: unknown[]; source_contract: string; reviewed_input_vat?: number; reviewed_input_sources?: unknown[] };
 export type FilingPool = PoolCommon & ((AllocationCoverage & { schema_version?: 1; input_vat: null; input_vat_complete: false }) | { schema_version: 2; monthly_facts: FrozenMonthlyFacts; allocation_coverage: AllocationCoverage });
 export function filingCoverage(pool: FilingPool): AllocationCoverage { return pool.schema_version === 2 ? pool.allocation_coverage : pool; }
 export function filingInput(pool: FilingPool) { return pool.schema_version === 2 ? pool.monthly_facts : pool; }

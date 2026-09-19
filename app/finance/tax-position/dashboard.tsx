@@ -88,6 +88,7 @@ export default function TaxDashboard({ permissions }: { permissions: UserPermiss
     <dl className={styles.taxSummary}>
      <div><dt>{tr("output")}</dt><dd>{money(summary?.outputVat)}</dd></div>
      <div className={styles.warning}><dt>{tr("input")}</dt><dd>{tr("inputIncomplete")}</dd></div>
+     {summary?.reviewedInputVat != null && summary.reviewedInputVat > 0 ? <div><dt>{t("expenses.reviewedInput")}</dt><dd>{money(summary.reviewedInputVat)}</dd></div> : null}
      <div className={styles.net}><dt>{tr("net")}</dt><dd>{t("taxPosition.unknown")}</dd></div>
      <div><dt>{tr("incoming")}</dt><dd>{money(summary?.wht)}</dd></div>
      <div><dt>{t("payout.outgoingHeld")}</dt><dd>{money(summary?.outgoingHeld)}</dd></div>
@@ -96,7 +97,7 @@ export default function TaxDashboard({ permissions }: { permissions: UserPermiss
     <p className={styles.filing}>{tr("filingOnly")} {summary?.period ? t(`taxPosition.${summary.period.status}`) : tr("unreviewed")}</p>
     <div className={styles.checklistTitle}><h3>{tr("actions")}</h3><Link className={styles.contextLink} href="/finance/tax-position/filings">{t("taxFiling.title")}<ArrowRight size={14} /></Link></div>
     <ol className={styles.checklist}>
-     <li><span>{tr("purchaseAction")}</span><small className={styles.warning}>{tr("incomplete")}</small></li>
+     <li><Link href="/finance/expenses?tax=pending">{tr("purchaseAction")}</Link><small className={styles.warning}>{tr("incomplete")}</small></li>
      {(summary?.credits.length || 0) > 0 ? <li><span>{tr("whtAction")}</span><small>{creditsToCheck ? tr("toReview", { count: creditsToCheck }) : tr("evidenceVerified")}</small></li> : null}
      <li><span>{tr("periodAction")}</span><small>{summary?.period ? t(`taxPosition.${summary.period.status}`) : tr("unreviewed")}</small></li>
     </ol>

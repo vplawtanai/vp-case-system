@@ -1,56 +1,34 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import { ArrowLeft, ArrowRight, ChevronDown, ChevronRight, RotateCcw } from "lucide-react";
-import { Callout, Disclosure, EmptyState, FieldGroup, FilterToolbar, MoneySummary, PageHeader, PageShell, ReadOnlyGrid, SourceBadge, StatusBadge } from "../../components/ui/patterns";
+import { ArrowLeft, ArrowRight, ChevronRight, RotateCcw } from "lucide-react";
+import { Callout, EmptyState, FieldGroup, FilterToolbar, PageHeader, PageShell } from "../../components/ui/patterns";
 import ui from "../../components/ui/vp-ui.module.css";
 import { supabase } from "../../../lib/supabase";
 import { useI18n } from "../../../lib/i18n/provider";
 import { QuotationGuard } from "../quotations/shared";
 import FinanceSubNav from "../FinanceSubNav";
-import { initialPayableFilters, payableGroupKey, payableQueueSummary, payableRoleLabel, payableSourceHref, type PayableGroup, type PayablePage } from "./shared";
+import { initialPayableFilters, payableQueueSummary, type PayableGroup, type PayablePage } from "./shared";
 import styles from "./payables.module.css";
-import { payoutHref } from "../payouts/shared";
+import { PayableGroups } from "./groups";
+export { PayableGroups };
+import { MultiSourcePayables } from "./multi-source";
 
 export default function PayablesPage() {
-  return <QuotationGuard canAccess={access => access.permissions.canViewFinancePayments}>
-    {access => <><FinanceSubNav activePage="payables" permissions={access.permissions} /><PayablesWorkspace /></>}
+  return <QuotationGuard canAccess={() => true}>
+    {access => <><FinanceSubNav activePage="payables" permissions={access.permissions} /><PayablesAccess canReadRevenue={access.permissions.canViewFinancePayments} isAdmin={access.permissions.role === "admin"} /></>}
   </QuotationGuard>;
 }
 
-export function PayableGroups({ groups }: { groups: PayableGroup[] }) {
-  const { t, locale, date } = useI18n();
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  return <div className={styles.groups}>{groups.map(group => <article className={styles.group} key={payableGroupKey(group)} data-recipient={payableGroupKey(group)}>
-    <div className={styles.groupHeading}>
-      <div className={styles.identity}><span className={styles.avatar} aria-hidden="true">{Array.from(group.recipient_name.trim())[0]}</span><div><h2>{group.recipient_name}</h2><SourceBadge label={t(group.components[0]?.recipient_type === "payee" ? "payout.external" : "payables.user")} /></div></div>
-      <div className={styles.recipientAmount}><MoneySummary className={styles.total} locale={locale} currency={group.currency} items={[{ key: "open", label: t("payables.openAmount"), amount: group.open_amount, emphasis: true }]} /><span className={styles.muted}>{t(group.components.length === 1 ? "payables.oneComponent" : "payables.count", { count: group.components.length })}</span></div>
-      <div className={styles.recipientActions}><Link className={ui.primary} href={payoutHref(group.recipient_id)}>{t("payables.pay")}<ArrowRight size={16} aria-hidden="true" /></Link>
-        <button type="button" className={ui.secondary} aria-expanded={!!expanded[payableGroupKey(group)]} aria-controls={`payable-details-${payableGroupKey(group)}`} onClick={() => setExpanded(previous => ({ ...previous, [payableGroupKey(group)]: !previous[payableGroupKey(group)] }))}>{t(expanded[payableGroupKey(group)] ? "payables.hideDetails" : "payables.details")}<ChevronDown size={16} aria-hidden="true" /></button></div>
-    </div>
-    <table className={styles.breakdown}><caption className={styles.srOnly}>{t("payables.breakdown")}: {group.recipient_name}</caption><thead><tr><th>{t("payables.bucket")}</th><th>{t("payables.reference")}</th><th>{t("payables.earnedAt")}</th><th>{t("payables.amount")}</th></tr></thead><tbody>{group.components.map(row => <tr key={row.id}>
-      <td data-label={t("payables.bucket")}><span>{payableRoleLabel(row.role_label, locale)}</span>{row.status !== "open" ? <StatusBadge status={row.status} label={t(row.status === "settled" ? "payout.settled" : `payables.${row.status}`)} /> : null}</td>
-      <td data-label={t("payables.reference")}><Link href={payableSourceHref(row)}><span>{t(`payables.${row.source_type}`)}</span><small>{row.received_money_id.slice(0, 8).toUpperCase()}</small></Link></td>
-      <td data-label={t("payables.earnedAt")}>{date(row.finalized_at)}</td><td data-label={t("payables.amount")} className={styles.lineAmount}><span>{row.gross_amount.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <small>{row.currency}</small></span></td>
-    </tr>)}</tbody></table>
-    <div id={`payable-details-${payableGroupKey(group)}`} hidden={!expanded[payableGroupKey(group)]}>
-      {group.components.map(row => <section className={styles.component} key={row.id}>
-        <div className={styles.componentHeading}><h3>{payableRoleLabel(row.role_label, locale)}</h3><StatusBadge status={row.status} label={t(row.status === "settled" ? "payout.settled" : `payables.${row.status}`)} /></div>
-        <ReadOnlyGrid items={[
-          { key: "bucket", label: t("payables.bucket"), value: t(`payables.${row.bucket}`) },
-          { key: "name", label: t("payables.frozenName"), value: row.recipient_name },
-          { key: "source", label: t("payables.source"), value: <Link href={payableSourceHref(row)}>{t(`payables.${row.source_type}`)} · {row.received_money_id.slice(0, 8).toUpperCase()}<ArrowRight size={14} aria-hidden="true" /></Link> },
-          { key: "line", label: t("payables.sourceLine"), value: row.evidence_json.line?.description || "-" },
-          { key: "finalized", label: t("payables.finalized"), value: date(row.finalized_at, true) },
-          { key: "distribution", label: t("payables.distribution"), value: `${row.distribution_id.slice(0, 8).toUpperCase()} · ${t("payables.revision", { revision: row.distribution_revision, version: row.distribution_version })}` },
-          { key: "formula", label: t("payables.formula"), value: `${row.formula_code} v${row.formula_version} · ${t("payables.component", { number: row.component_no })}` },
-        ]} />
-        <MoneySummary locale={locale} currency={row.currency} items={[{ key: "amount", label: t("payables.amount"), amount: row.gross_amount, emphasis: true }]} />
-        <Disclosure title={t("payables.technical")}><pre className={styles.technical}>{JSON.stringify(row, null, 2)}</pre></Disclosure>
-      </section>)}
-    </div>
-  </article>)}</div>;
+function PayablesAccess({ canReadRevenue, isAdmin }: { canReadRevenue: boolean; isAdmin: boolean }) {
+ const { t } = useI18n(), [allowed, setAllowed] = useState<boolean | null>(null), [failed, setFailed] = useState(false);
+ useEffect(() => { let live = true; void supabase.rpc("get_finance_expense_access").then(({ data, error }) => {
+  if (!live) return; if (error || typeof data?.can_view_all !== "boolean") setFailed(true); else setAllowed(data.can_view_all);
+ }); return () => { live = false; }; }, []);
+ if (failed) return <Callout tone="negative" role="alert">{t("expenses.failed")}</Callout>;
+ if (allowed === null) return <p role="status">{t("expenses.loading")}</p>;
+ if (!allowed && !canReadRevenue) return <Callout tone="warning">{t("expenses.denied")}</Callout>;
+ return <MultiSourcePayables canReadRevenue={canReadRevenue} canReadExpense={allowed} isAdmin={isAdmin} />;
 }
 
 export function PayablesWorkspace() {

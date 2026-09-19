@@ -30,7 +30,7 @@ for(const locale of ['th','en'])test(`Payout ${locale}: compact source facts, di
  for(const e of Object.values(payoutMessages)){assert.ok(e.th);assert.ok(e.en);}
 });
 test('Sidebar exact Finance order and exposed Legacy; horizontal nav renders nothing',()=>{
- for(const locale of ['th','en']){const items=financeNavigationItems(buildPermissions({role:'admin'}),locale);assert.deepEqual(items.map(i=>i.group||i.page),['quotations','fee-agreements','billable-charges','invoices','payments','payment-documents','treasury','tax-position','payables','legacy']);assert.deepEqual(items.at(-1).children.map(i=>i.href),['/finance/expense-claims','/finance/compensation','/finance/ledger']);}
+ for(const locale of ['th','en']){const items=financeNavigationItems(buildPermissions({role:'admin'}),locale);assert.deepEqual(items.map(i=>i.group||i.page),['quotations','fee-agreements','billable-charges','invoices','payments','payment-documents','expense-claims','payables','treasury','tax-position','legacy']);assert.deepEqual(items.at(-1).children.map(i=>i.href),['/finance/expense-claims','/finance/compensation','/finance/ledger']);}
  assert.equal(activeFinancePage('/finance/payouts/new','payments'),'payables');
  assert.match(fs.readFileSync('app/finance/FinanceSubNav.tsx','utf8'),/return null/);
  const source=fs.readFileSync('app/finance/payouts/workspace.tsx','utf8');assert.doesNotMatch(source,/\.from\(|\.insert\(|\.update\(|\.delete\(/);assert.match(source,/p_expected_payee_version/);assert.match(source,/p_expected_destination_id/);

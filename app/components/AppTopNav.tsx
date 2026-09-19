@@ -10,6 +10,7 @@ import type { UserPermissions, UserRole } from "../../lib/permissions";
 import { useI18n } from "../../lib/i18n/provider";
 import LanguageSelector from "./LanguageSelector";
 import { FinanceSidebar } from "../finance/FinanceSidebar";
+import type { ExpenseAccess } from "../finance/expenses/shared";
 import type { UserPermissionProfile } from "../../lib/permissions";
 import sidebarCss from "./AppSidebar.module.css";
 import { revealActiveNavigation } from "./sidebar-reveal";
@@ -120,15 +121,24 @@ export default function AppTopNav({
     return () => { document.removeEventListener("keydown", keyboard); (previous || menu)?.focus(); };
   }, [drawerOpen]);
 
+  const [expenseAccess, setExpenseAccess] = useState<ExpenseAccess | null>(null);
+  useEffect(() => {
+    let live = true;
+    void supabase.rpc("get_finance_expense_access").then(result => { if (live) setExpenseAccess(result.error ? null : result.data as ExpenseAccess); });
+    return () => { live = false; };
+  }, [pathname]);
   const permissions: UserPermissions = useMemo(() => {
     return buildPermissions(profile);
   }, [profile]);
-  const financeHref = permissions.canViewFinanceCashTransactions
+  const expenseFinanceVisible = !!(expenseAccess?.can_view_all || expenseAccess?.can_claim || expenseAccess?.can_record || expenseAccess?.can_view_accounts);
+  const financeHref = expenseFinanceVisible && !permissions.canViewFinanceModule
+    ? expenseAccess?.can_view_all || expenseAccess?.can_record || expenseAccess?.can_view_accounts ? "/finance/expenses" : "/finance/expenses/claims"
+    : permissions.canViewFinanceCashTransactions
     ? "/finance/cash-transactions"
     : permissions.canViewCompanyLedger
       ? "/finance/ledger"
       : permissions.canUseExpenseClaims
-        ? "/finance/expense-claims"
+        ? "/finance/expenses/claims"
         : "/finance/compensation";
 
   const navGroups = useMemo(
@@ -153,7 +163,7 @@ export default function AppTopNav({
       {
         title: t("common.nav.finance"),
         items: [
-          { page: "finance" as const, label: t("common.nav.finance"), icon: "finance" as const, href: financeHref, visible: permissions.canViewFinanceModule },
+          { page: "finance" as const, label: t("common.nav.finance"), icon: "finance" as const, href: financeHref, visible: permissions.canViewFinanceModule || expenseFinanceVisible },
         ],
       },
       {
@@ -178,7 +188,7 @@ export default function AppTopNav({
         ],
       },
     ],
-    [financeHref, permissions, t]
+    [expenseFinanceVisible, financeHref, permissions, t]
   );
 
   useEffect(() => {
@@ -355,7 +365,7 @@ export default function AppTopNav({
                   <span data-sidebar-label aria-hidden={collapsed || undefined}>{item.label}</span>
                 </Link>
               ))}
-              {visibleItems.some(item => item.page === "finance") ? <div id="finance-sidebar-links" data-sidebar-submenu hidden={!financeExpanded} inert={collapsed}><FinanceSidebar permissions={permissions} pathname={pathname} onNavigate={() => setDrawerOpen(false)} /></div> : null}
+              {visibleItems.some(item => item.page === "finance") ? <div id="finance-sidebar-links" data-sidebar-submenu hidden={!financeExpanded} inert={collapsed}><FinanceSidebar permissions={{ ...permissions, expenseAccess }} pathname={pathname} onNavigate={() => setDrawerOpen(false)} /></div> : null}
             </div>
           );
         })}
