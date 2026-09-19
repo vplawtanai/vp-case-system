@@ -15,8 +15,10 @@ SHA-256 `28717cf534fba05b7591b188b15646c0833177bf412caf1a35c3864fd7ed6b2b`.
   issued Tax Invoice/correction/Direct Money contracts, not Invoice gross or receipts.
 - 050 has **no authoritative complete Input VAT register**: period input and net
   amounts are constrained NULL and input status is incomplete. Migration 052 cannot
-  truthfully support a ready/filed VAT return yet. VAT Drafts preserve known output
-  evidence, but no typed total or acknowledgement can override this blocker.
+  truthfully support a ready/filed VAT return yet. 052 VAT Drafts preserve only
+  materialized output evidence, not all known monthly facts. The audited gap and
+  applied 053 fix are documented in [Snapshot Consistency](TAX_FILING_SNAPSHOT_CONSISTENCY.md).
+  No typed total or acknowledgement can override the incomplete-input blocker.
 - 051 owns outgoing WHT obligations generated only by confirmed Payouts. Draft and
   cancelled Payout previews never enter this pool. Frozen `payee_json.entity_type`
   identifies natural/juristic buckets; missing or inconsistent evidence blocks review.

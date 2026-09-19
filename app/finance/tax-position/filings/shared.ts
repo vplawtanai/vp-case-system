@@ -2,7 +2,19 @@ import type { Location } from "../../treasury/shared";
 import type { MonthlyTaxFacts } from "../dashboard-data";
 export type FilingType = "vat" | "wht_natural" | "wht_juristic";
 export type FilingSource = { id: string; economic_key: string; fingerprint: string; base: number | null; amount: number; date: string; rate: number | null; reference: string; source_type: string; source_id: string; payee_name?: string; entity_type?: string; evidence: unknown };
-export type FilingPool = { period_month: string; filing_type: FilingType; source_count: number; base_amount: number; tax_amount: number | null; output_vat: number | null; input_vat: null; input_vat_complete: false; ready: boolean; sources: FilingSource[]; review_sources?: FilingSource[]; issues: { code: string; count: number | null }[]; fingerprint: string };
+type AllocationCoverage = { source_count: number; base_amount: number; output_vat: number | null; sources: FilingSource[]; review_sources?: FilingSource[] };
+type PoolCommon = { period_month: string; filing_type: FilingType; tax_amount: number | null; ready: boolean; issues: { code: string; count: number | null }[]; fingerprint: string };
+export type FrozenMonthlyFacts = { output_vat: number | null; input_vat: null; input_vat_complete: false; net_vat: null; source_evidence: unknown[]; source_contract: string };
+export type FilingPool = PoolCommon & ((AllocationCoverage & { schema_version?: 1; input_vat: null; input_vat_complete: false }) | { schema_version: 2; monthly_facts: FrozenMonthlyFacts; allocation_coverage: AllocationCoverage });
+export function filingCoverage(pool: FilingPool): AllocationCoverage { return pool.schema_version === 2 ? pool.allocation_coverage : pool; }
+export function filingInput(pool: FilingPool) { return pool.schema_version === 2 ? pool.monthly_facts : pool; }
+export function filingMonthlyFacts(pool: FilingPool, current: MonthlyTaxFacts | null): MonthlyTaxFacts | null {
+ return pool.schema_version === 2 ? { outputVat: pool.monthly_facts.output_vat, incomingWht: current?.incomingWht ?? null } : current;
+}
+// Version 1 has allocation evidence only. Label it without inventing frozen monthly facts.
+export function filingTechnicalEvidence(pool: FilingPool) {
+ return pool.schema_version === 2 ? pool : { schema_version: 1, monthly_facts: null, allocation_coverage: pool };
+}
 export type Remittance = { id: string; filing_id: string; status: "draft" | "confirmed" | "cancelled"; version: number; amount: number; paid_on: string; external_reference: string; payment_evidence: string; bank_account_id: string | null; cash_location_id: string | null; draft_snapshot_json: { account: Location; amount_due: number }; confirmed_snapshot_json: unknown };
 export type Filing = { id: string; period_month: string; filing_type: FilingType; status: "draft" | "ready_for_review" | "filed" | "cancelled"; version: number; due_date: string | null; due_date_evidence: string | null; tax_amount: number | null; base_amount: number; filed_on: string | null; external_reference: string | null; filing_evidence: string | null; source_snapshot_json: FilingPool; filed_snapshot_json: unknown; source_changed: boolean; remittance: Remittance | null; payment_history: Remittance[]; audit: unknown[] };
 export type FilingHistory = Pick<Filing, "id" | "filing_type" | "period_month" | "status" | "tax_amount" | "filed_on" | "external_reference"> & { payment_state: string };
@@ -14,16 +26,16 @@ export function filingState(filing: Filing | undefined, pool: FilingPool): strin
 }
 export function filingBaseAmount(pool: FilingPool) {
  // A partial register is not a complete VAT filing base, even when it is empty.
- return pool.filing_type === "vat" && !pool.input_vat_complete ? null : pool.base_amount;
+ return pool.filing_type === "vat" && !filingInput(pool).input_vat_complete ? null : filingCoverage(pool).base_amount;
 }
 export function summarizeFilings(data: FilingData, facts: MonthlyTaxFacts | null = null) {
  const vat = data.pools.find(p => p.filing_type === "vat"), wht = data.pools.filter(p => p.filing_type !== "vat");
  const outgoing = wht.every(p => p.ready) ? wht.reduce((n, p) => n + Math.round((p.tax_amount || 0) * 100), 0) / 100 : null;
  // Incoming WHT never participates in the obligation total.
  const total = vat?.ready && vat.tax_amount !== null && outgoing !== null ? Math.round((vat.tax_amount + outgoing) * 100) / 100 : null;
- const obligations = data.pools.filter(p => p.filing_type === "vat" || p.source_count > 0 || p.issues.length > 0 || activeFiling(data, p.filing_type));
+ const obligations = data.pools.filter(p => p.filing_type === "vat" || filingCoverage(p).source_count > 0 || p.issues.length > 0 || activeFiling(data, p.filing_type));
  const complete = obligations.every(p => ["remitted", "no_payment_required"].includes(filingState(activeFiling(data, p.filing_type), p)));
- return { vat, outputVat: facts?.outputVat ?? null, incomingWht: facts?.incomingWht ?? null, outgoing, total, obligations, status: complete ? "complete" : obligations.some(p => !p.ready || activeFiling(data, p.filing_type)?.source_changed) ? "needs_review" : "collecting" };
+ return { vat, outputVat: vat ? filingMonthlyFacts(vat, facts)?.outputVat ?? null : facts?.outputVat ?? null, incomingWht: facts?.incomingWht ?? null, outgoing, total, obligations, status: complete ? "complete" : obligations.some(p => !p.ready || activeFiling(data, p.filing_type)?.source_changed) ? "needs_review" : "collecting" };
 }
 export function filingErrorKey(error: unknown) {
  const message = error && typeof error === "object" && "message" in error ? String(error.message) : "";

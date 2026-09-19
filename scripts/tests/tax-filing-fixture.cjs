@@ -15,4 +15,11 @@ function monthlyFixture(){
  f.tables.finance_payouts=[{id:id(77),status:'cancelled',wht_amount:93.12}];
  return f;
 }
-module.exports={fixture,monthlyFixture,id};
+function snapshotFixture(future=false){
+ const data=fixture(future),old=data.pools[0];
+ data.pools[0]={schema_version:2,period_month:old.period_month,filing_type:'vat',tax_amount:null,ready:false,issues:old.issues,fingerprint:old.fingerprint,
+  monthly_facts:{output_vat:700,input_vat:null,input_vat_complete:false,net_vat:null,source_contract:'tax_position_source_v1',source_evidence:[]},
+  allocation_coverage:{output_vat:0,base_amount:0,source_count:0,sources:[]}};
+ return data;
+}
+module.exports={fixture,snapshotFixture,monthlyFixture,id};

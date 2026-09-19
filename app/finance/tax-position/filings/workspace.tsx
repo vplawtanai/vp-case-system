@@ -10,8 +10,9 @@ import { useI18n } from "../../../../lib/i18n/provider";
 import type { UserPermissions } from "../../../../lib/permissions";
 import { currentBangkokMonth, readMonthlyTaxSources, shiftMonth, summarizeMonthlyTaxFacts, type MonthlyTaxFacts } from "../dashboard-data";
 import { locationKey, locationName, openingStart } from "../../treasury/shared";
-import { activeFiling, filingBaseAmount, filingErrorKey, filingState, summarizeFilings, type Filing, type FilingData, type FilingPool } from "./shared";
+import { activeFiling, filingBaseAmount, filingCoverage, filingErrorKey, filingState, summarizeFilings, type Filing, type FilingData, type FilingPool } from "./shared";
 import { VatFilingReview } from "./vat-review";
+import { FilingTechnicalEvidence } from "./technical-evidence";
 import styles from "./filings.module.css";
 
 type Selection = { pool: FilingPool; filing?: Filing; mode: "review" | "file" | "payment" | "cancel" | "cancelPayment"; readonly?: boolean };
@@ -48,7 +49,8 @@ export function TaxFilingWorkspace({ permissions }: { permissions: UserPermissio
  const vatReview = selection?.mode === "review" && selection.pool.filing_type === "vat" && !selection.readonly && f?.status !== "filed" && f?.status !== "cancelled";
  const reviewMonthMatches = selection?.pool.period_month.slice(0, 7) === month;
  const selectedEvidence = f?.source_snapshot_json || selection?.pool;
- const reviewSources = [...new Map([...(selectedEvidence?.sources || []), ...(selectedEvidence?.review_sources || [])].map(s => [s.id, s])).values()];
+ const selectedCoverage = selectedEvidence ? filingCoverage(selectedEvidence) : null;
+ const reviewSources = [...new Map([...(selectedCoverage?.sources || []), ...(selectedCoverage?.review_sources || [])].map(s => [s.id, s])).values()];
  const account = r && paymentMode ? r.draft_snapshot_json.account : data?.accounts.find(a => locationKey(a) === accountKey);
  const after = account?.system_balance != null && f?.tax_amount != null ? Math.round((account.system_balance - f.tax_amount) * 100) / 100 : null;
  const openingBlock = paymentMode && r?.status === "draft" && (!account?.opening_id || account.system_balance === null);
@@ -130,8 +132,8 @@ export function TaxFilingWorkspace({ permissions }: { permissions: UserPermissio
   </> : null}
   <DetailModal open={!!selection} title={vatReview ? tr("vatReviewTitle") : selection ? `${tr(paymentMode ? "paymentReview" : cancellation ? "cancelDraft" : "review")} · ${tr(selection.pool.filing_type)}` : tr("review")} subtitle={vatReview && selection ? `${tr("period")} ${monthName(selection.pool.period_month)}` : undefined} size="edit" onClose={close} closeOnBackdrop={!busy}>
    {selection && data ? <form ref={form} className={styles.form} onSubmit={submit} noValidate><fieldset disabled={busy}>
-    {vatReview ? <VatFilingReview pool={selection.pool} monthlyFacts={reviewMonthMatches ? monthlyFacts : null} outgoingWht={reviewMonthMatches ? summary?.outgoing ?? null : null} /> : <ReadOnlyGrid items={[{ key: "period", label: tr("period"), value: monthName(selection.pool.period_month) }, { key: "amount", label: tr("amount"), value: money(f ? f.tax_amount : selection.pool.tax_amount) },
-     { key: "count", label: tr("base"), value: tr("sourceCount", { count: (f?.source_snapshot_json || selection.pool).source_count }) }, { key: "due", label: tr("due"), value: f?.due_date ? date(f.due_date) : tr("dueUnknown") }]} />}
+    {vatReview ? <VatFilingReview pool={f?.source_snapshot_json || selection.pool} monthlyFacts={reviewMonthMatches ? monthlyFacts : null} outgoingWht={reviewMonthMatches ? summary?.outgoing ?? null : null} /> : <ReadOnlyGrid items={[{ key: "period", label: tr("period"), value: monthName(selection.pool.period_month) }, { key: "amount", label: tr("amount"), value: money(f ? f.tax_amount : selection.pool.tax_amount) },
+     { key: "count", label: tr("base"), value: tr("sourceCount", { count: filingCoverage(f?.source_snapshot_json || selection.pool).source_count }) }, { key: "due", label: tr("due"), value: f?.due_date ? date(f.due_date) : tr("dueUnknown") }]} />}
     {f?.source_changed ? <Callout tone="warning">{tr(f.status === "filed" ? "amendment" : "staleDraft")}</Callout> : null}
     {selection.mode === "review" ? <>
      {!vatReview ? (f?.source_snapshot_json || selection.pool).issues.map(i => <Callout key={i.code} tone="warning">{tr(i.code)}</Callout>) : null}
@@ -152,7 +154,9 @@ export function TaxFilingWorkspace({ permissions }: { permissions: UserPermissio
       {f.tax_amount === 0 ? <p>{tr("no_payment_required")}</p> : r?.status === "confirmed" ? <ReadOnlyGrid items={[{ key: "paid", label: tr("paidOn"), value: date(r.paid_on) }, { key: "cash", label: tr("paymentAmount"), value: money(r.amount) }, { key: "ref", label: tr("reference"), value: r.external_reference }]} />
        : data.can_remit && !selection.readonly ? <button type="button" className={ui.primary} onClick={() => open(selection.pool, f, "payment")}>{tr(r ? "paymentReview" : "payment")}</button> : null}</> : null}
      {f && ["draft", "ready_for_review"].includes(f.status) && data.can_manage && !selection.readonly ? <Disclosure title={tr("otherActions")}><button type="button" className={ui.secondary} onClick={() => open(selection.pool, f, "cancel")}>{tr("cancelDraft")}</button></Disclosure> : null}
-     {selection.pool.filing_type !== "vat" || permissions.role === "admin" ? <div className={styles.technicalSection}><Disclosure title={tr("technical")} key={`${selection.pool.period_month}:${selection.pool.filing_type}:${f?.id || "new"}`}><pre className={styles.technical}>{JSON.stringify(f || selection.pool, null, 2)}</pre></Disclosure></div> : null}
+     {selection.pool.filing_type !== "vat" || permissions.role === "admin" ? <div className={styles.technicalSection}><Disclosure title={tr("technical")} key={`${selection.pool.period_month}:${selection.pool.filing_type}:${f?.id || "new"}`}>
+      {selection.pool.filing_type === "vat" ? <FilingTechnicalEvidence pool={selection.pool} filing={f} /> : <pre className={styles.technical}>{JSON.stringify(f || selection.pool, null, 2)}</pre>}
+     </Disclosure></div> : null}
     </> : null}
     {selection.mode === "file" ? <><Callout tone="warning">{tr("filingWarning")}</Callout>{evidenceFields}{checked("filingAck")}<button type="submit" className={ui.primary} disabled={f?.source_changed || !selection.pool.ready}>{tr("recordFiled")}</button></> : null}
     {paymentMode ? <><Callout tone="warning">{tr("paymentWarning")}</Callout>
