@@ -23,7 +23,8 @@ for(const locale of ['th','en'])test(`055 ${locale}: real Expense summaries, min
  const f=fixture('list'),t=k=>translate(locale,'expenses.'+k);
  const html=list.render(locale,{}, {rows:f.data.rows,claims:false},'ExpenseList');assert.ok(html.includes('10,700.00'));assert.ok(html.includes(t('no_reimbursement')));assert.doesNotMatch(html,/<pre|type="file"/);
  const employee=fixture('employee'),form=forms.render(locale,{}, {claim:true,access:employee.data.access,accounts:[],lookups:employee.lookups,run:()=>{throw Error('No writes');},busy:false},'ExpenseFactsForm');
- for(const key of ['date','category','amount','description','personallyPaid','requested','vatAwareness','whtAwareness'])assert.ok(form.includes(t(key)),key);
+ for(const key of ['date','category','amount','description','requested','vatAwareness','whtAwareness'])assert.ok(form.includes(t(key)),key);
+ assert.ok(!form.includes(t('personallyPaid')));assert.match(form,/<select[^>]*id="expense-category"/);assert.doesNotMatch(form,/<details[^>]*\bopen/);
  for(const key of ['vatRate','eligibility','whtRate','confirmPayment'])assert.ok(!form.includes(t(key)),key);
  assert.doesNotMatch(form,/<pre|type="file"/);
  const admin={...buildPermissions({role:'admin'}),expenseAccess:f.data.access},items=financeNavigationItems(admin,locale);

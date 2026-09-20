@@ -1,54 +1,80 @@
 "use client";
-import { useState } from "react";
+import { useId, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Check, Save, Send, Wallet } from "lucide-react";
 import { Callout, FieldGroup } from "../../components/ui/patterns";
 import ui from "../../components/ui/vp-ui.module.css";
 import { useI18n } from "../../../lib/i18n/provider";
+import { legacyCategoryLabel } from "../../../lib/i18n/legacy-finance";
 import { bangkokToday } from "../payouts/review";
 import { type Expense, type ExpenseAccess, type ExpenseAccount, type ExpenseLookups, type SettlementMode, expenseHref } from "./shared";
+import { expenseCategories, expenseCategoryChoice } from "./categories";
 import css from "./expenses.module.css";
 
 export type ExpenseRun = (rpc: string, args: Record<string, unknown>) => Promise<string | null>;
-export function ExpenseFactsForm({ row, claim, access, accounts, lookups, run, busy, onDirty }: { row?: Expense; claim: boolean; access: ExpenseAccess; accounts: ExpenseAccount[]; lookups: ExpenseLookups; run: ExpenseRun; busy: boolean; onDirty?: (dirty: boolean) => void }) {
- const { t } = useI18n(), router = useRouter();
- const [id] = useState(() => row?.id || crypto.randomUUID()), [immediate, setImmediate] = useState(!claim && !access.can_manage);
+export function ExpenseFactsForm({ row, claim, access, accounts, lookups, run, busy, onDirty, onSaved, actionContainer }: { row?: Expense; claim: boolean; access: ExpenseAccess; accounts: ExpenseAccount[]; lookups: ExpenseLookups; run: ExpenseRun; busy: boolean; onDirty?: (dirty: boolean) => void; onSaved?: (id: string) => void; actionContainer?: HTMLElement | null }) {
+ const { t, locale } = useI18n(), router = useRouter();
+ const formId = useId();
+ const [id] = useState(() => row?.id || crypto.randomUUID());
+ const [handling, setHandling] = useState(!claim && !access.can_manage ? "company_paid" : row?.personally_paid ? "personal" : "unknown");
+ const immediate = !claim && handling === "company_paid";
+ const [categoryChoice, setCategoryChoice] = useState(() => expenseCategoryChoice(row?.category || ""));
+ const [related, setRelated] = useState(!!(row?.client_id || row?.case_id || row?.advisory_matter_id));
+ const [reducedRequest, setReducedRequest] = useState(!!row && row.reimbursement_requested < row.gross_amount);
  const [account, setAccount] = useState(""), [paidOn, setPaidOn] = useState(bangkokToday), [ack, setAck] = useState(false);
  const [form, setForm] = useState({ expense_date: row?.expense_date || bangkokToday(), category: row?.category || "", description: row?.description || "", gross_amount: row ? String(row.gross_amount) : "", vendor_name: row?.vendor_name || "", supplier_payee_id: row?.supplier_payee_id || "", claimant_id: row?.claimant_id || "", client_id: row?.client_id || "", case_id: row?.case_id ? String(row.case_id) : "", advisory_matter_id: row?.advisory_matter_id || "", note: row?.note || "", personally_paid: row?.personally_paid ?? claim, reimbursement_requested: row ? String(row.reimbursement_requested) : "", vat_awareness: row?.vat_awareness || "unknown", wht_awareness: row?.wht_awareness || "unknown" });
  const set = (key: keyof typeof form, value: string | boolean) => setForm(old => {
   if (key === "client_id") return { ...old, client_id: String(value), case_id: "", advisory_matter_id: "" };
   if (key === "case_id") return { ...old, case_id: String(value), advisory_matter_id: "", client_id: lookups.cases.find(c => String(c.id) === value)?.client_id || old.client_id };
   if (key === "advisory_matter_id") return { ...old, advisory_matter_id: String(value), case_id: "", client_id: lookups.matters.find(m => m.id === value)?.client_id || old.client_id };
+  if (key === "gross_amount" && claim && !reducedRequest) return { ...old, gross_amount: String(value), reimbursement_requested: String(value) };
   return { ...old, [key]: value };
  });
  const field = (key: keyof typeof form, label: string, type = "text", required = false) => <FieldGroup id={`expense-${key}`} label={t(`expenses.${label}`)}><input type={type} required={required} max={type === "date" ? bangkokToday() : undefined} min={type === "number" ? 0 : undefined} step={type === "number" ? "0.01" : undefined} maxLength={key === "description" ? 2000 : 300} value={String(form[key])} onChange={e => set(key, e.target.value)} /></FieldGroup>;
- const select = (key: keyof typeof form, label: string, options: { id: string | number; name: string }[]) => <FieldGroup id={`expense-${key}`} label={t(`expenses.${label}`)}><select value={String(form[key])} onChange={e => set(key, e.target.value)}><option value="">{t("expenses.optional")}</option>{options.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select></FieldGroup>;
+ const select = (key: keyof typeof form, label: string, options: { id: string | number; name: string }[], required = false) => <FieldGroup id={`expense-${key}`} label={t(`expenses.${label}`)}><select required={required} value={String(form[key])} onChange={e => set(key, e.target.value)}><option value="">{t(required ? "expenses.choose" : "expenses.optional")}</option>{options.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select></FieldGroup>;
+ function changeHandling(value: string) {
+  setHandling(value); setAck(false); setAccount("");
+  setForm(old => ({ ...old, personally_paid: value === "personal", claimant_id: value === "personal" ? old.claimant_id : "", reimbursement_requested: value === "personal" ? old.reimbursement_requested : "" }));
+ }
  async function save(event: React.FormEvent) {
   event.preventDefault(); if (busy) return;
   const a = accounts.find(a => a.id === account);
   const input = { ...form, origin: claim ? "employee_claim" : "company_purchase", currency: "THB", gross_amount: Number(form.gross_amount), reimbursement_requested: form.personally_paid && !immediate ? Number(form.reimbursement_requested) : 0, bank_account_id: a?.bank_account_id || null, cash_location_id: a?.cash_location_id || null };
   const result = immediate ? await run("record_finance_paid_expense", { p_id: id, p_input: input, p_bank: a?.bank_account_id || null, p_cash: a?.cash_location_id || null, p_paid_on: paidOn, p_acknowledged: ack }) : await run("save_finance_expense", { p_id: id, p_version: row?.version ?? null, p_input: input });
-  if (result) { onDirty?.(false); router.push(expenseHref({ id: result, origin: claim ? "employee_claim" : "company_purchase" })); }
+  if (result) { onDirty?.(false); if (onSaved) onSaved(result); else router.push(expenseHref({ id: result, origin: claim ? "employee_claim" : "company_purchase" })); }
  }
- return <form onSubmit={save} onChange={() => onDirty?.(true)} className={css.form}><fieldset disabled={busy}><legend>{t(claim ? "expenses.newClaim" : "expenses.facts")}</legend><div className={css.formGrid}>
-  {field("expense_date", "date", "date", true)}{field("category", "category", "text", true)}{field("gross_amount", "amount", "number", true)}
-  {!claim ? field("vendor_name", "vendor") : <FieldGroup id="expense-claimant" label={t("expenses.claimant")}><input readOnly value={row?.claimant_name || t("expenses.ownClaims")} /></FieldGroup>}
-  {!claim && access.can_manage ? select("supplier_payee_id", "payee", lookups.payees.map(p => ({ id: p.id, name: p.legal_name }))) : null}
-  {select("client_id", "client", lookups.clients)}{select("case_id", "case", lookups.cases.filter(x => !form.client_id || x.client_id === form.client_id).map(x => ({ id: x.id, name: `${x.file_no || ""} ${x.title || ""}` })))}{select("advisory_matter_id", "matter", lookups.matters.filter(x => !form.client_id || x.client_id === form.client_id).map(x => ({ id: x.id, name: `${x.matter_no || ""} ${x.title || ""}` })))}
+ const actions = <div className={css.footer}><button type="submit" form={formId} className={ui.primary} disabled={busy || (immediate && (!ack || !account))}><Save size={17} aria-hidden="true" />{t(busy ? "expenses.working" : immediate ? "expenses.paidEntry" : "expenses.save")}</button></div>;
+ return <form id={formId} onSubmit={save} onChange={() => onDirty?.(true)} className={css.form}><fieldset disabled={busy} className={css.createFields}><legend>{t(claim ? "expenses.newClaim" : "expenses.facts")}</legend><div className={css.formGrid}>
+  {field("expense_date", "date", "date", true)}
+  <FieldGroup id="expense-category" label={t("expenses.category")}><select required value={categoryChoice} onChange={e => { setCategoryChoice(e.target.value); set("category", e.target.value === "Other" ? "" : e.target.value); }}><option value="">{t("expenses.choose")}</option>{expenseCategories.map(category => <option key={category} value={category}>{legacyCategoryLabel(category, locale)}</option>)}</select></FieldGroup>
+  {categoryChoice === "Other" ? <div className={css.span}><FieldGroup id="expense-custom-category" label={t("finance.legacy.fields.customCategory")}><input required maxLength={150} value={form.category} onChange={e => set("category", e.target.value)} /></FieldGroup></div> : null}
+  {field("gross_amount", "amount", "number", true)}
+  {!claim ? <FieldGroup id="expense-handling" label={t("expenses.paymentFacts")}><select value={handling} onChange={e => changeHandling(e.target.value)}>
+   {access.can_manage ? <><option value="unknown">{t("expenses.handlingUnknown")}</option><option value="unpaid">{t("expenses.handlingUnpaid")}</option><option value="personal">{t("expenses.handlingPersonal")}</option></> : null}
+   {!row && accounts.some(a => a.can_record && a.can_confirm) ? <option value="company_paid">{t("expenses.handlingCompanyPaid")}</option> : null}
+  </select></FieldGroup> : null}
   <div className={css.span}>{field("description", "description", "text", true)}</div>
-  {!immediate ? <><label className={css.check}><input type="checkbox" checked={form.personally_paid} onChange={e => set("personally_paid", e.target.checked)} /><span>{t("expenses.personallyPaid")}</span></label>
-   {form.personally_paid ? <>{!claim ? select("claimant_id", "claimant", lookups.people) : null}{field("reimbursement_requested", "requested", "number", true)}</> : null}
-   {(["vat_awareness", "wht_awareness"] as const).map(key => <FieldGroup key={key} id={`expense-${key}`} label={t(key === "vat_awareness" ? "expenses.vatAwareness" : "expenses.whtAwareness")}><select value={form[key]} onChange={e => set(key, e.target.value)}>{["unknown", "yes", "no"].map(v => <option key={v} value={v}>{t(`expenses.${v}`)}</option>)}</select></FieldGroup>)}</> : null}
-  <div className={css.span}><FieldGroup id="expense-note" label={t("expenses.note")}><textarea maxLength={2000} value={form.note} onChange={e => set("note", e.target.value)} /></FieldGroup></div>
- </div></fieldset>
- {!claim && !row && accounts.some(a => a.can_record && a.can_confirm) ? <div className={css.paymentPanel}>
-  {access.can_manage ? <label className={css.check}><input type="checkbox" checked={immediate} disabled={busy} onChange={e => { setImmediate(e.target.checked); setAck(false); }} /><span>{t("expenses.paidEntry")}</span></label> : <h3>{t("expenses.paidEntry")}</h3>}
-  {immediate ? <><p className={css.muted}>{t("expenses.paidEntryHelp")}</p><div className={css.formGrid}>
+ </div>
+ {!claim && handling === "unpaid" ? <div className={css.formGrid}>{field("vendor_name", "vendor")}{access.can_manage ? select("supplier_payee_id", "supplierKnown", lookups.payees.map(p => ({ id: p.id, name: p.legal_name }))) : null}</div> : null}
+ {!immediate && (claim || form.personally_paid) ? <div className={css.requestFields}>
+  {!claim ? select("claimant_id", "claimant", lookups.people, true) : null}
+  <FieldGroup id="expense-reimbursement_requested" label={t("expenses.requested")} help={t(claim ? "expenses.claimRequestHelp" : "expenses.draftRequestHelp")}><input type="number" min="0" max={form.gross_amount || undefined} step="0.01" required={claim} readOnly={claim && !reducedRequest} value={claim && !reducedRequest ? form.gross_amount : form.reimbursement_requested} onChange={e => set("reimbursement_requested", e.target.value)} /></FieldGroup>
+  {claim ? <label className={css.check}><input type="checkbox" checked={reducedRequest} onChange={e => { setReducedRequest(e.target.checked); if (!e.target.checked) set("reimbursement_requested", form.gross_amount); }} /><span>{t("expenses.requestLess")}</span></label> : <p className={css.muted}>{t("expenses.draftZeroRequest")}</p>}
+ </div> : null}
+ {immediate && !row ? <div className={css.paymentPanel}>
+  <p className={css.muted}>{t("expenses.paidEntryHelp")}</p><div className={css.formGrid}>
    <AccountSelect accounts={accounts.filter(a => a.can_record && a.can_confirm)} value={account} onChange={setAccount} disabled={busy} />
    <FieldGroup id="expense-paid-on" label={t("expenses.paidOn")}><input type="date" value={paidOn} min={form.expense_date} max={bangkokToday()} required disabled={busy} onChange={e => setPaidOn(e.target.value)} /></FieldGroup></div>
-   <label className={css.check}><input required type="checkbox" checked={ack} disabled={busy} onChange={e => setAck(e.target.checked)} /><span>{t("expenses.paymentAck")}</span></label></> : null}
+   <label className={css.check}><input required type="checkbox" checked={ack} disabled={busy} onChange={e => setAck(e.target.checked)} /><span>{t("expenses.paymentAck")}</span></label>
  </div> : null}
- <div className={css.footer}><button type="submit" className={ui.primary} disabled={busy || (immediate && (!ack || !account))}><Save size={17} aria-hidden="true" />{t(immediate ? "expenses.paidEntry" : "expenses.save")}</button></div>
+ <div className={css.optionalFields}>
+  <label className={css.check}><input type="checkbox" checked={related} aria-controls={`${formId}-context`} aria-expanded={related} onChange={e => { setRelated(e.target.checked); if (!e.target.checked) setForm(old => ({ ...old, client_id: "", case_id: "", advisory_matter_id: "" })); }} /><span>{t("expenses.relatedWork")}</span></label>
+  {related ? <div id={`${formId}-context`} className={css.formGrid}>{select("client_id", "client", lookups.clients)}{select("case_id", "case", lookups.cases.filter(x => !form.client_id || x.client_id === form.client_id).map(x => ({ id: x.id, name: `${x.file_no || ""} ${x.title || ""}` })))}{select("advisory_matter_id", "matter", lookups.matters.filter(x => !form.client_id || x.client_id === form.client_id).map(x => ({ id: x.id, name: `${x.matter_no || ""} ${x.title || ""}` })))}</div> : null}
+  {!immediate ? <details className={css.disclosure}><summary>{t("expenses.taxIfKnown")}</summary><div className={css.formGrid}>{(["vat_awareness", "wht_awareness"] as const).map(key => <FieldGroup key={key} id={`expense-${key}`} label={t(key === "vat_awareness" ? "expenses.vatAwareness" : "expenses.whtAwareness")}><select value={form[key]} onChange={e => set(key, e.target.value)}>{["unknown", "yes", "no"].map(v => <option key={v} value={v}>{t(`expenses.${v}`)}</option>)}</select></FieldGroup>)}</div></details> : null}
+  <details className={css.disclosure} open={row?.note ? true : undefined}><summary>{t("expenses.optionalDetails")}</summary><div className={css.formGrid}>{!claim && handling !== "unpaid" ? field("vendor_name", "vendor") : null}<div className={css.span}><FieldGroup id="expense-note" label={t("expenses.note")}><textarea maxLength={2000} value={form.note} onChange={e => set("note", e.target.value)} /></FieldGroup></div></div></details>
+ </div></fieldset>
+ {actionContainer ? createPortal(actions, actionContainer) : actions}
  </form>;
 }
 

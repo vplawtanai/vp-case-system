@@ -11,6 +11,7 @@ import { readExpenses, readExpenseLookups } from "./data";
 import { emptyLookups, expenseError, expenseHref, expensePaymentState, expenseShortRef, expenseSummary, pendingExpenseTax, type Expense, type ExpenseData, type ExpenseLookups } from "./shared";
 import { ExpenseFactsForm, ExpensePaymentPanel, ExpenseSettlementForm, ExpenseTaxForm, type ExpenseRun } from "./forms";
 import { ExpenseAdminTools } from "./admin-tools";
+import { ExpenseCreateModal } from "./create-modal";
 import css from "./expenses.module.css";
 
 export function ExpenseBadge({ state }: { state: string }) {
@@ -21,15 +22,16 @@ export function ExpenseBadge({ state }: { state: string }) {
 export function ExpenseWorkspace({ id, claims = false, initialTaxFilter = false, fixture, fixtureLookups }: { id?: string; claims?: boolean; initialTaxFilter?: boolean; fixture?: ExpenseData; fixtureLookups?: ExpenseLookups }) {
  const { t, locale } = useI18n(), router = useRouter(), lock = useRef(false), seq = useRef(0);
  const [data, setData] = useState<ExpenseData | null>(fixture || null), [lookups, setLookups] = useState(fixtureLookups || emptyLookups), [loading, setLoading] = useState(!fixture), [busy, setBusy] = useState(false), [error, setError] = useState(""), [notice, setNotice] = useState("");
- const load = useCallback(async () => {
+ const [createOpen, setCreateOpen] = useState(false);
+ const load = useCallback(async (preserveContext = false) => {
   if (fixture) return;
-  const current = ++seq.current; setLoading(true); setError("");
+  const current = ++seq.current; if (!preserveContext) setLoading(true); setError("");
   try {
    const next = await readExpenses(id && id !== "new" ? id : null, claims);
    if (current !== seq.current) return;
    setData(next);
    try { const values = await readExpenseLookups(next.access.can_view_all); if (current === seq.current) setLookups(values); } catch { if (current === seq.current) setError("failed"); }
-  } catch (e) { if (current === seq.current) { setData(null); setError(expenseError(e)); } }
+  } catch (e) { if (current === seq.current) { if (!preserveContext) setData(null); setError(preserveContext ? "refreshAfterSaveFailed" : expenseError(e)); } }
   finally { if (current === seq.current) setLoading(false); }
  }, [claims, fixture, id]);
  const invalidate = useCallback(() => { seq.current++; }, []);
@@ -40,32 +42,33 @@ export function ExpenseWorkspace({ id, claims = false, initialTaxFilter = false,
   try {
    const r = await supabase.rpc(rpc, args);
    if (r.error) throw r.error;
-   await load(); setNotice("saved"); return typeof r.data === "string" ? r.data : null;
+   await load(!id); setNotice("saved"); return typeof r.data === "string" ? r.data : null;
   } catch (e) { setError(expenseError(e)); return null; }
   finally { lock.current = false; setBusy(false); }
  };
  const access = data?.access, record = data?.record, creating = id === "new";
  const canCreate = claims ? access?.can_claim : access?.can_manage || access?.can_record;
- const newHref = claims ? "/finance/expenses/claims/new" : "/finance/expenses/new";
+ const openCreate = () => { if (!canCreate || loading || busy) return; setError(""); setNotice(""); setCreateOpen(true); };
  const title = id && id !== "new" ? claims ? "claimReview" : "financeReview" : claims ? "claims" : "title";
  return <PageShell><div className={css.page}>
   <div className={css.breadcrumb}><span>{t("common.nav.finance")}</span><span aria-hidden="true">/</span><Link href={claims ? "/finance/expenses/claims" : "/finance/expenses"}>{t(claims ? "expenses.claims" : "expenses.title")}</Link>{record ? <><span aria-hidden="true">/</span><span>{expenseShortRef(record.id)}</span></> : null}</div>
   <header className={css.heading}><div className={css.title}><span className={css.icon}><FileText size={23} aria-hidden="true" /></span><div><h1>{t(`expenses.${title}`)}</h1><p>{t(claims ? "expenses.claimHelp" : "expenses.subtitle")}</p></div></div>
-   <div className={css.actions}>{id ? <Link className={ui.secondary} href={claims ? "/finance/expenses/claims" : "/finance/expenses"}><ArrowLeft size={17} aria-hidden="true" />{t("expenses.back")}</Link> : canCreate ? <Link className={ui.primary} href={newHref}><Plus size={17} aria-hidden="true" />{t(claims ? "expenses.newClaim" : "expenses.new")}</Link> : null}
+   <div className={css.actions}>{id ? <Link className={ui.secondary} href={claims ? "/finance/expenses/claims" : "/finance/expenses"}><ArrowLeft size={17} aria-hidden="true" />{t("expenses.back")}</Link> : canCreate ? <button type="button" className={ui.primary} aria-haspopup="dialog" disabled={loading || busy} onClick={openCreate}><Plus size={17} aria-hidden="true" />{t(claims ? "expenses.newClaim" : "expenses.new")}</button> : null}
     <button type="button" className={ui.secondary} title={t("expenses.refresh")} aria-label={t("expenses.refresh")} disabled={loading || busy} onClick={() => void load()}><RefreshCw size={17} aria-hidden="true" /></button></div></header>
-  {error ? <Callout tone="negative" role="alert">{t(`expenses.${error}`)}</Callout> : null}{notice ? <Callout tone="success" role="status">{t(`expenses.${notice}`)}</Callout> : null}
+  {error && !createOpen ? <Callout tone="negative" role="alert">{t(`expenses.${error}`)}</Callout> : null}{notice ? <Callout tone="success" role="status">{t(`expenses.${notice}`)}</Callout> : null}
   {loading ? <p role="status">{t("expenses.loading")}</p> : data && access ? <>
    {creating ? canCreate ? <ExpenseFactsForm claim={claims} access={access} accounts={data.accounts} lookups={lookups} run={run} busy={busy} /> : <Callout tone="warning">{t("expenses.denied")}</Callout> : record ?
     <ExpenseDetail key={`${record.id}:${record.version}:${record.tax_review?.id}:${record.settlement?.id}:${record.payout?.version}:${record.obligation?.waived}`} data={data} row={record} lookups={lookups} run={run} busy={busy} /> : !id ? <>
-     {claims ? <ExpenseClaimList rows={data.rows} canCreate={access.can_claim} viewAll={access.can_view_all} /> : <ExpenseList rows={data.rows} claims={false} initialTaxFilter={initialTaxFilter} />}
+     {claims ? <ExpenseClaimList rows={data.rows} canCreate={access.can_claim} viewAll={access.can_view_all} onCreate={openCreate} /> : <ExpenseList rows={data.rows} claims={false} initialTaxFilter={initialTaxFilter} />}
      {!claims && data.accounts.some(a => a.can_view_balance || a.can_view_movements) && !access.can_view_all ? <section className={css.section}><h2>{t("expenses.movements")}</h2><div className={css.stats}>{data.accounts.map(a => <div key={a.id} className={css.stat}><Wallet size={20} /><div>{a.name}<strong>{a.can_view_balance ? a.balance == null ? t("expenses.unavailable") : `${a.balance.toLocaleString(locale, { minimumFractionDigits: 2 })} THB` : t("expenses.balancePrivate")}</strong>{a.can_view_movements ? <ScopedMovements bank={a.bank_account_id} cash={a.cash_location_id} fixture={!!fixture} /> : null}</div></div>)}</div></section> : null}
      {access.is_admin ? <ExpenseAdminTools access={access} accounts={data.accounts} lookups={lookups} run={run} busy={busy} fixture={!!fixture} showAuthorities={!claims} onBridge={value => router.push(`/finance/expenses/claims/${value}`)} /> : null}
     </> : <Callout tone="warning">{t("expenses.denied")}</Callout>}
   </> : null}
+  {createOpen && !id && data && access ? <ExpenseCreateModal claim={claims} access={access} accounts={data.accounts} lookups={lookups} run={run} busy={busy} error={error} onClose={() => { setCreateOpen(false); setError(""); }} onSaved={() => setCreateOpen(false)} /> : null}
  </div></PageShell>;
 }
 
-export function ExpenseClaimList({ rows, canCreate, viewAll }: { rows: Expense[]; canCreate: boolean; viewAll: boolean }) {
+export function ExpenseClaimList({ rows, canCreate, viewAll, onCreate }: { rows: Expense[]; canCreate: boolean; viewAll: boolean; onCreate: () => void }) {
  const { t, locale, date } = useI18n();
  const [search, setSearch] = useState(""), [status, setStatus] = useState("all"), [page, setPage] = useState(0);
  const filtered = rows.filter(r => [r.reference, r.description, r.category, viewAll ? r.claimant_name : ""].join(" ").toLowerCase().includes(search.toLowerCase()) && (status === "all" || r.status === status || expensePaymentState(r) === status));
@@ -82,7 +85,7 @@ export function ExpenseClaimList({ rows, canCreate, viewAll }: { rows: Expense[]
     <td data-label={t("expenses.approved")} className={css.money}>{row.obligation ? money(row.obligation.gross_amount, row.currency) : row.settlement?.mode === "no_reimbursement" ? t("expenses.notReimbursed") : t("expenses.awaitingDecision")}</td>
     <td data-label={t("expenses.status")}><ExpenseBadge state={row.status} />{row.obligation || row.payout || row.settlement?.mode === "no_reimbursement" ? <small>{t(`expenses.${expensePaymentState(row)}`)}</small> : null}</td>
     <td data-label={t("expenses.action")}><Link className={ui.secondary} href={expenseHref(row)}>{t("expenses.view")}<ArrowRight size={14} aria-hidden="true" /></Link></td>
-   </tr>)}</tbody></table> : <div className={`${css.empty} ${css.claimEmpty}`}><span className={css.icon}><FileText size={24} aria-hidden="true" /></span><h3>{t(rows.length ? "expenses.noMatchingClaims" : "expenses.noClaims")}</h3><p>{t(rows.length ? "expenses.adjustClaimFilters" : "expenses.noClaimsHelp")}</p>{!rows.length && canCreate ? <Link className={ui.primary} href="/finance/expenses/claims/new"><Plus size={17} aria-hidden="true" />{t("expenses.newClaim")}</Link> : null}</div>}
+   </tr>)}</tbody></table> : <div className={`${css.empty} ${css.claimEmpty}`}><span className={css.icon}><FileText size={24} aria-hidden="true" /></span><h3>{t(rows.length ? "expenses.noMatchingClaims" : "expenses.noClaims")}</h3><p>{t(rows.length ? "expenses.adjustClaimFilters" : "expenses.noClaimsHelp")}</p>{!rows.length && canCreate ? <button type="button" className={ui.primary} aria-haspopup="dialog" onClick={onCreate}><Plus size={17} aria-hidden="true" />{t("expenses.newClaim")}</button> : null}</div>}
   </section>
   {filtered.length > 10 ? <div className={css.footer}><button className={ui.secondary} type="button" disabled={!page} aria-label={t("expenses.previous")} onClick={() => setPage(p => p - 1)}><ArrowLeft size={18} /></button><span>{page + 1}</span><button className={ui.secondary} type="button" disabled={(page + 1) * 10 >= filtered.length} aria-label={t("expenses.next")} onClick={() => setPage(p => p + 1)}><ArrowRight size={18} /></button></div> : null}
  </>;

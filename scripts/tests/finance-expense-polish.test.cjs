@@ -18,7 +18,7 @@ for(const locale of ['th','en']) {
    for(const key of ['authorities','vatBase','vatAmount','vatRate','eligibility','whtRate','movements'])assert.ok(!html.includes(t(key)),flow+' '+key);
    assert.equal(html.includes(t('adminTools')),flow==='claims-admin');assert.equal(html.includes(t('bridge')),flow==='claims-admin');
    assert.doesNotMatch(html,/<details[^>]*\bopen|<pre/);
-   if(flow==='claims-empty'){assert.ok(html.includes(t('noClaims')));assert.ok(html.includes(t('noClaimsHelp')));assert.match(html,/href="\/finance\/expenses\/claims\/new"/);}
+   if(flow==='claims-empty'){assert.ok(html.includes(t('noClaims')));assert.ok(html.includes(t('noClaimsHelp')));assert.equal((html.match(/aria-haspopup="dialog"/g)||[]).length,2);}
    else {assert.ok(html.includes('4,500.00 THB'));assert.ok(html.includes('3,725.00 THB'));assert.ok(html.includes(t('awaitingDecision')));assert.ok(html.includes(t('approved')));}
   }
   const empty=workspace.render(locale,{}, {rows:[],canCreate:false,viewAll:false},'ExpenseClaimList');assert.doesNotMatch(empty,/href="\/finance\/expenses\/claims\/new"/);
@@ -52,7 +52,7 @@ for(const locale of ['th','en']) {
  });
 }
 test('Expense polish preserves readers, financial helpers, RPCs, migrations and sidebar motion/reveal',()=>{
- const files=['app/finance/expenses/data.ts','app/finance/expenses/shared.ts','app/finance/expenses/forms.tsx','app/finance/payables/shared.ts','app/components/sidebar-reveal.ts','app/components/AppSidebar.module.css',...cp.execFileSync('git',['ls-tree','-r','--name-only','HEAD','supabase/migrations'],{encoding:'utf8'}).trim().split('\n')];
+ const files=['app/finance/expenses/data.ts','app/finance/expenses/shared.ts','app/finance/payables/shared.ts','app/components/sidebar-reveal.ts','app/components/AppSidebar.module.css',...cp.execFileSync('git',['ls-tree','-r','--name-only','HEAD','supabase/migrations'],{encoding:'utf8'}).trim().split('\n')];
  for(const file of files)assert.deepEqual(fs.readFileSync(file),cp.execFileSync('git',['show','HEAD:'+file]),file);
  const source=fs.readFileSync('app/finance/payables/groups.tsx','utf8');assert.doesNotMatch(source,/Array\.from\(group\.recipient_name|charAt\(|avatar_url|https:\/\//);
  const css=fs.readFileSync('app/finance/finance-sidebar.module.css','utf8');assert.match(css,/font-size:15px/);assert.match(css,/a\[aria-current\]::before/);

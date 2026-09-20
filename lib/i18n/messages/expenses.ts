@@ -1,5 +1,18 @@
 import type { MessageCatalog } from "../core";
 const copy: Record<string, [string, string]> = {
+ paymentFacts: ["สถานะการชำระ", "Payment facts"],
+ handlingUnknown: ["ยังไม่แน่ใจ / รอตรวจ", "Not sure / awaiting review"], handlingUnpaid: ["บริษัทยังไม่ได้จ่าย", "Company has not paid"],
+ handlingPersonal: ["บุคคลออกเงินให้ก่อน", "A person paid first"], handlingCompanyPaid: ["บริษัทจ่ายแล้ว", "Company has already paid"],
+ supplierKnown: ["ผู้ขาย / ผู้รับเงิน (ถ้าทราบ)", "Supplier / recipient (if known)"],
+ claimRequestHelp: ["จำนวนที่คุณขอคืน ฝ่ายการเงินจะพิจารณาการคืนเงินภายหลัง", "The amount you are requesting. Finance decides reimbursement later."],
+ draftRequestHelp: ["ระบุจำนวนที่ขอคืน หากทราบ ยังไม่ใช่ยอดที่บริษัทอนุมัติให้คืน", "Enter the requested amount, if known. This is not an approved company obligation."],
+ draftZeroRequest: ["เว้นว่างหรือระบุ 0 หมายถึงยังไม่มีจำนวนที่ขอคืนในร่างนี้ ไม่ใช่ผลตัดสินว่าไม่ต้องคืนเงิน", "Blank or 0 means no amount is requested in this draft yet, not a decision against reimbursement."],
+ requestLess: ["ขอคืนน้อยกว่าจำนวนเงินรวม", "Request less than the full amount"],
+ relatedWork: ["เกี่ยวข้องกับงานลูกค้า (ไม่บังคับ)", "Related to client work (optional)"],
+ taxIfKnown: ["ข้อมูลภาษี (ถ้าทราบ)", "Tax information (if known)"], optionalDetails: ["ข้อมูลเพิ่มเติม / หมายเหตุ (ไม่บังคับ)", "Additional details / note (optional)"],
+ keepEditing: ["แก้ไขต่อ", "Keep editing"], discardCreate: ["ปิดโดยไม่บันทึก", "Close without saving"],
+ discardCreateHelp: ["ข้อมูลที่กรอกไว้ยังไม่ได้บันทึก ต้องการปิดโดยไม่บันทึกหรือไม่", "Your entries have not been saved. Close without saving?"],
+ refreshAfterSaveFailed: ["บันทึกแล้ว แต่โหลดรายการล่าสุดไม่สำเร็จ กรุณากดรีเฟรช ไม่ต้องสร้างซ้ำ", "Saved, but the list could not be refreshed. Use Refresh; do not create the record again."],
  adminTools: ["เครื่องมือผู้ดูแลระบบ", "Administrator tools"],
  claimSearch: ["ค้นหาเลขที่ หมวด หรือรายละเอียด", "Find reference, category or description"],
  approved: ["จำนวนที่อนุมัติ", "Approved amount"], awaitingDecision: ["รอพิจารณา", "Awaiting review"], notReimbursed: ["ไม่ต้องคืนเงิน", "No reimbursement"],
