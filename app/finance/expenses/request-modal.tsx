@@ -40,11 +40,14 @@ export function ExpenseRequestModal({ request, claim, access, accounts, lookups,
   if (saved) onSaved(saved);
  }
  return <>
-  <DetailModal open size="workflow" title={t(claim ? "expenses.newClaim" : "expenses.newBatch")} onClose={close} closeOnBackdrop={false}
+  <DetailModal open size="workflow" title={t(claim ? "expenses.newClaimRequest" : "expenses.newBatch")} onClose={close} closeOnBackdrop={false}
    footer={<div className={css.createFooter}><button type="button" className={ui.secondary} disabled={busy} onClick={close}>{t("common.actions.close")}</button><button type="button" className={ui.primary} disabled={busy || !!editing || !items.length} onClick={() => void save()}><Save size={17} />{t("expenses.saveRequest")}</button></div>}>
    <div className={css.page}>
     {error ? <Callout tone="negative" role="alert">{t(`expenses.${error}`)}</Callout> : null}
-    <div className={css.sectionHead}><h2>{t("expenses.requestItems")}</h2><span>{t("expenses.count", { count: items.length })}</span></div>
+    <section className={css.requestSummary} aria-label={t("expenses.requestSummary")}>
+     <h2>{t("expenses.requestItems")}</h2>
+     <dl className={css.requestTotals} aria-live="polite"><div><dt>{t("expenses.itemCount")}</dt><dd>{t("expenses.count", { count: items.length })}</dd></div><div><dt>{t("expenses.expenseTotal")}</dt><dd>{money(total("gross_amount"))}</dd></div><div><dt>{t("expenses.requestedTotal")}</dt><dd>{money(total("reimbursement_requested"))}</dd></div></dl>
+    </section>
     <div className={css.requestItems}>{items.map((item, index) => <article key={item.id} className={css.requestItem} data-request-item={item.id}>
      <div><strong>{t("expenses.itemNumber", { count: index + 1 })}</strong><p>{date(String(item.input.expense_date))} · {expenseCategoryLabel(String(item.input.category), locale)}</p><p>{String(item.input.description)}</p></div>
      <div className={css.itemAmount}><strong>{money(Number(item.input.gross_amount))}</strong><small>{t("expenses.requested")}: {money(Number(item.input.reimbursement_requested || 0))}</small></div>
@@ -54,15 +57,15 @@ export function ExpenseRequestModal({ request, claim, access, accounts, lookups,
       if (n === 2) { setItems(old => old.filter(x => x.id !== item.id)); setDirty(true); }
      }}><Icon size={16} /></button>; })}</div>
     </article>)}</div>
+    <button type="button" className={`${ui.secondary} ${css.addRequestItem}`} disabled={busy || !!editing || items.length >= 100} onClick={() => setEditing(crypto.randomUUID())}><Plus size={17} />{t("expenses.addItem")}</button>
     {editing ? <section className={css.itemEditor} aria-label={t("expenses.editItem")}>
-     <ExpenseFactsForm key={editing} row={edited ? editorRow(edited, claim) : undefined} claim={claim} access={access} accounts={accounts} lookups={lookups} run={run} busy={busy} onDirty={setEditorDirty} onCapture={input => {
+     <ExpenseFactsForm key={editing} itemNumber={edited ? items.indexOf(edited) + 1 : items.length + 1} row={edited ? editorRow(edited, claim) : undefined} claim={claim} access={access} accounts={accounts} lookups={lookups} run={run} busy={busy} onDirty={setEditorDirty} onCapture={input => {
       const next = { id: editing, version: edited?.version ?? null, input };
       setItems(old => edited ? old.map(i => i.id === editing ? next : i) : [...old, next]); setEditing(null); setEditorDirty(false); setDirty(true);
      }} />
      <button type="button" className={ui.secondary} disabled={busy} onClick={() => { if (!editorDirty || window.confirm(t("expenses.discardItem"))) { setEditing(null); setEditorDirty(false); } }}>{t("expenses.cancelItem")}</button>
-    </section> : <button type="button" className={ui.secondary} disabled={busy || items.length >= 100} onClick={() => setEditing(crypto.randomUUID())}><Plus size={17} />{t("expenses.addItem")}</button>}
+    </section> : null}
     <details className={css.disclosure}><summary>{t("expenses.requestNote")}</summary><FieldGroup id="expense-request-note" label={t("expenses.note")}><textarea maxLength={2000} value={note} disabled={busy} onChange={e => { setNote(e.target.value); setDirty(true); }} /></FieldGroup></details>
-    <dl className={css.requestTotals}><div><dt>{t("expenses.requestItems")}</dt><dd>{items.length}</dd></div><div><dt>{t("expenses.expenseTotal")}</dt><dd>{money(total("gross_amount"))}</dd></div><div><dt>{t("expenses.requestedTotal")}</dt><dd>{money(total("reimbursement_requested"))}</dd></div></dl>
    </div>
   </DetailModal>
   {confirmClose ? <DetailModal open size="edit" title={t("common.state.unsaved")} onClose={() => setConfirmClose(false)} closeOnBackdrop={false} footer={<div className={css.actions}><button type="button" className={ui.secondary} onClick={() => setConfirmClose(false)}>{t("expenses.keepEditing")}</button><button type="button" className={ui.secondary} onClick={onClose}>{t("expenses.discardCreate")}</button></div>}><p>{t("expenses.discardCreateHelp")}</p></DetailModal> : null}

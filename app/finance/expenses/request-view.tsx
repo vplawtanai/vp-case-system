@@ -32,7 +32,7 @@ export function ExpenseRequestReview({ request, access, busy, error, run, onClos
   {request.status === "draft" && (own || access.can_manage) ? <button type="button" className={ui.primary} disabled={busy} onClick={() => void run("submit_finance_expense_request", { p_id: request.id, p_version: request.version })}><Send size={17} />{t("expenses.submitRequest")}</button> : null}
  </div>}><div className={css.page}>
   {error ? <Callout tone="negative" role="alert">{t(`expenses.${error}`)}</Callout> : null}
-  <div className={css.actions}><span className={css.badge}>{t(`expenses.${requestProgress(request)}`)}</span><WorkflowDate value={requestWorkflowTime(request)} /></div>
+  <div className={css.actions}><span className={css.badge}>{t(`expenses.${requestProgress(request)}`)}</span>{request.status === "submitted" ? <span>{t("expenses.requestSubmittedAt")}: {request.submitted_at ? <time dateTime={request.submitted_at}>{date(request.submitted_at, true)}</time> : t("expenses.queueTimeUnknown")}</span> : <WorkflowDate value={requestWorkflowTime(request)} />}</div>
   {request.note ? <p>{request.note}</p> : null}
   <dl className={css.requestTotals}><div><dt>{t("expenses.requestItems")}</dt><dd>{totals.count}</dd></div><div><dt>{t("expenses.expenseTotal")}</dt><dd>{totals.gross.toLocaleString(locale, { minimumFractionDigits: 2 })} THB</dd></div><div><dt>{t("expenses.requestedTotal")}</dt><dd>{totals.requested.toLocaleString(locale, { minimumFractionDigits: 2 })} THB</dd></div></dl>
   <div className={css.requestItems}>{request.items.map((item, index) => <section key={item.id} className={css.requestItemReview}>

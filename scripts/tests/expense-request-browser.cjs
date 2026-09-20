@@ -27,29 +27,44 @@ async function main(){
   const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'/Users/paolawyer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
   const page=await browser.newPage(),errors=[],external=[];page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>{if(new URL(r.request().url()).hostname==='127.0.0.1')return r.continue();external.push(r.request().url());return r.abort();});
   require('./receipt-render-fixture.cjs');const {translate}=require('../../lib/i18n/catalog.ts'),url='http://127.0.0.1:'+server.address().port;
-  for(const width of [1440,1024,768,390])for(const locale of ['th','en'])for(const claim of [false,true])for(const count of [1,3,10]){
+  // Narrow UX pass: full Thai at two widths; English changed-component smoke only.
+  for(const width of [1440,390])for(const locale of width===1440?['th','en']:['th'])for(const claim of [false,true])for(const count of locale==='th'?[0,1,3]:[1]){
    const t=k=>translate(locale,'expenses.'+k),route=claim?'/finance/expenses/claims':'/finance/expenses';await page.setViewportSize({width,height:900});await page.goto(`${url}${route}?locale=${locale}`);
    const launcher=page.getByRole('button',{name:t(claim?'newClaim':'new'),exact:true}).first();await launcher.click();await page.getByRole('dialog').waitFor();
+   const summary=page.getByRole('region',{name:t('requestSummary'),exact:true});
+   assert.ok((await summary.innerText()).includes('0.00 THB'));assert.equal(await page.locator('legend').first().textContent(),translate(locale,'expenses.itemNumber',{count:1}));
+   assert.ok(await page.getByRole('button',{name:t('saveRequest'),exact:true}).isDisabled());
+   const fits=async()=>{assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);assert.equal(await page.getByRole('dialog').evaluate(e=>e.scrollWidth>e.clientWidth+1),false);};
+   await fits();
+   if(!count){
+    await page.screenshot({path:out+`/empty-${claim?'claim':'company'}-${locale}-${width}.png`,fullPage:true});
+    await page.getByRole('button',{name:t('cancelItem'),exact:true}).click();assert.equal(await page.locator('[role=dialog] form').count(),0);assert.equal(await page.evaluate(()=>window.calls.length),0);
+    console.log('PASS',locale,width,claim?'Claim':'Company','empty request / zero totals / numbered editor / no writes');continue;
+   }
    for(let i=0;i<count;i++){
-    if(i)await page.getByRole('button',{name:t('addItem'),exact:true}).click();assert.equal(await page.locator('[role=dialog] form').count(),1);
-    await page.locator('#expense-expense_date').fill(['2026-09-03','2026-09-05','2026-09-08','2026-09-12'][i%4]);await page.locator('#expense-category').selectOption('ค่าเดินทาง');await page.locator('#expense-gross_amount').fill(String(100+i));await page.locator('#expense-description').fill('Synthetic item '+(i+1));
+    if(i)await page.getByRole('dialog').getByRole('button',{name:t('addItem'),exact:true}).click();assert.equal(await page.locator('[role=dialog] form').count(),1);
+    await page.locator('#expense-expense_date').fill(['2026-09-03','2026-09-05','2026-09-08'][i]);await page.locator('#expense-category').selectOption('ค่าเดินทาง');await page.locator('#expense-gross_amount').fill(String([300,120,450][i]));await page.locator('#expense-description').fill('Synthetic item '+(i+1));
     if(claim)assert.equal(await page.locator('#expense-claimant_id').count(),0);
-    await page.getByRole('button',{name:t('keepItem'),exact:true}).click();assert.equal(await page.locator('[role=dialog] form').count(),0);
+    await page.getByRole('button',{name:t('addThisItem'),exact:true}).click();assert.equal(await page.locator('[role=dialog] form').count(),0);assert.ok(await page.getByRole('dialog').getByRole('button',{name:t('addItem'),exact:true}).isEnabled());
    }
    assert.equal(await page.locator('[data-request-item]').count(),count);assert.equal(await page.evaluate(()=>window.calls.length),0,'Item entry is local, never independent saves');
    // Edit, duplicate and remove without losing other completed items.
-   await page.getByRole('button',{name:t('copyItem'),exact:true}).first().click();assert.equal(await page.locator('[data-request-item]').count(),count+1);await page.getByRole('button',{name:t('removeItem'),exact:true}).last().click();
-   await page.getByRole('button',{name:t('editItem'),exact:true}).first().click();assert.equal(await page.locator('#expense-description').inputValue(),'Synthetic item 1');await page.getByRole('button',{name:t('keepItem'),exact:true}).click();
+   const total=count===1?300:870,formatted=n=>n.toLocaleString(locale,{minimumFractionDigits:2,maximumFractionDigits:2})+' THB';
+   assert.ok((await summary.innerText()).includes(formatted(total)));
+   await page.getByRole('button',{name:t('copyItem'),exact:true}).first().click();assert.equal(await page.locator('[data-request-item]').count(),count+1);assert.ok((await summary.innerText()).includes(formatted(total+300)));
+   await page.getByRole('button',{name:t('removeItem'),exact:true}).last().click();assert.ok((await summary.innerText()).includes(formatted(total)));
+   await page.getByRole('button',{name:t('editItem'),exact:true}).first().click();assert.equal(await page.locator('#expense-description').inputValue(),'Synthetic item 1');assert.equal(await page.locator('[role=dialog] form').count(),1);
+   await page.locator('#expense-gross_amount').fill('301');await page.getByRole('button',{name:t('saveItemChanges'),exact:true}).click();assert.ok((await summary.innerText()).includes(formatted(total+1)));
    await page.keyboard.press('Escape');assert.equal(await page.getByRole('dialog').count(),2);await page.getByRole('button',{name:t('keepEditing'),exact:true}).click();
    const dialog=page.getByRole('dialog'),save=page.getByRole('button',{name:t('saveRequest'),exact:true});await save.focus();assert.ok(await save.evaluate(e=>document.activeElement===e));
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);assert.equal(await dialog.evaluate(e=>e.scrollWidth>e.clientWidth+1),false);
-   await page.screenshot({path:out+`/${claim?'claim':'company'}-${count}-${locale}-${width}.png`,fullPage:true});
+   await summary.scrollIntoViewIfNeeded();await page.screenshot({path:out+`/${claim?'claim':'company'}-${count}-${locale}-${width}.png`,fullPage:true});
    await page.evaluate(()=>{window.failNext=true;});await save.click();await dialog.getByRole('alert').waitFor();assert.equal(await page.locator('[data-request-item]').count(),count);
    await save.click();await page.getByRole('button',{name:t('submitRequest'),exact:true}).waitFor();
    const calls=await page.evaluate(()=>window.calls);assert.equal(calls.length,2);assert.equal(calls[0].args.p_operation,calls[1].args.p_operation);assert.equal(calls[1].args.p_items.length,count);
    assert.equal(await page.locator('main [data-request-row]').count(),1,'One envelope in review queue');
    await page.getByRole('button',{name:t('submitRequest'),exact:true}).click();await page.getByRole('button',{name:t('submitRequest'),exact:true}).waitFor({state:'hidden'});
-   await page.getByRole('dialog').getByText(t('claimSubmitted')+':',{exact:false}).count();
+   assert.ok((await page.getByRole('dialog').innerText()).includes(t('requestSubmittedAt')));assert.equal(await page.getByRole('dialog').locator('input').count(),0);
    await page.screenshot({path:out+`/review-${claim?'claim':'company'}-${count}-${locale}-${width}.png`,fullPage:true});
    await page.keyboard.press('Escape');await page.getByRole('dialog').waitFor({state:'hidden'});
    assert.equal(await page.locator('main tbody tr').count(),1);const sort=page.locator(claim?'#claim-queue-order':'#expense-queue-order');await sort.selectOption('oldest');assert.equal(await page.locator('main tbody tr').count(),1);

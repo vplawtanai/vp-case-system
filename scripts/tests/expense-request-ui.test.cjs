@@ -33,7 +33,7 @@ test('Batch capture never implies already-paid; Draft account context and existi
  const form=workspaceFixture('app/finance/expenses/forms.tsx',['ExpenseFactsForm']),f=fixture('list');
  for(const locale of ['th','en']){
   const html=form.render(locale,{}, {claim:false,access:f.data.access,accounts:f.data.accounts,lookups:f.lookups,run:()=>{},busy:false,onCapture:()=>{}},'ExpenseFactsForm');
-  assert.doesNotMatch(html,/value="company_paid"/);assert.ok(html.includes(translate(locale,'expenses.keepItem')));
+  assert.doesNotMatch(html,/value="company_paid"/);assert.ok(html.includes(translate(locale,'expenses.addThisItem')));
  }
  const account={bank_account_id:id(77),cash_location_id:null},row=expense(800,{request_entry_account:account});
  const line=modal.requestItemFromExpense(row);assert.equal(line.input.bank_account_id,account.bank_account_id);assert.equal(line.input.cash_location_id,null);

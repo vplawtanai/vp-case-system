@@ -2,7 +2,7 @@
 import { useId, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Check, Save, Send, Wallet } from "lucide-react";
+import { Check, Plus, Save, Send, Wallet } from "lucide-react";
 import { Callout, FieldGroup } from "../../components/ui/patterns";
 import ui from "../../components/ui/vp-ui.module.css";
 import { useI18n } from "../../../lib/i18n/provider";
@@ -12,7 +12,7 @@ import { expenseCategoryOptions, expenseCategoryLabel, expenseCategoryChoice } f
 import css from "./expenses.module.css";
 
 export type ExpenseRun = (rpc: string, args: Record<string, unknown>) => Promise<string | null>;
-export function ExpenseFactsForm({ row, claim, access, accounts, lookups, run, busy, onDirty, onSaved, actionContainer, onCapture }: { row?: Expense; claim: boolean; access: ExpenseAccess; accounts: ExpenseAccount[]; lookups: ExpenseLookups; run: ExpenseRun; busy: boolean; onDirty?: (dirty: boolean) => void; onSaved?: (id: string) => void; actionContainer?: HTMLElement | null; onCapture?: (input: Record<string, unknown>) => void }) {
+export function ExpenseFactsForm({ row, claim, access, accounts, lookups, run, busy, onDirty, onSaved, actionContainer, onCapture, itemNumber }: { row?: Expense; claim: boolean; access: ExpenseAccess; accounts: ExpenseAccount[]; lookups: ExpenseLookups; run: ExpenseRun; busy: boolean; onDirty?: (dirty: boolean) => void; onSaved?: (id: string) => void; actionContainer?: HTMLElement | null; onCapture?: (input: Record<string, unknown>) => void; itemNumber?: number }) {
  const { t, locale } = useI18n(), router = useRouter();
  const formId = useId();
  const [id] = useState(() => row?.id || crypto.randomUUID());
@@ -46,8 +46,8 @@ export function ExpenseFactsForm({ row, claim, access, accounts, lookups, run, b
   const result = immediate ? await run("record_finance_paid_expense", { p_id: id, p_input: input, p_bank: a?.bank_account_id || null, p_cash: a?.cash_location_id || null, p_paid_on: paidOn, p_acknowledged: ack }) : await run("save_finance_expense", { p_id: id, p_version: row?.version ?? null, p_input: input });
   if (result) { onDirty?.(false); if (onSaved) onSaved(result); else router.push(expenseHref({ id: result, origin: claim ? "employee_claim" : "company_purchase" })); }
  }
- const actions = <div className={css.footer}><button type="submit" form={formId} className={ui.primary} disabled={busy || (immediate && (!ack || !account))}><Save size={17} aria-hidden="true" />{t(busy ? "expenses.working" : onCapture ? "expenses.keepItem" : immediate ? "expenses.paidEntry" : "expenses.save")}</button></div>;
- return <form id={formId} onSubmit={save} onChange={() => onDirty?.(true)} className={css.form}><fieldset disabled={busy} className={css.createFields}><legend>{t(claim ? "expenses.newClaim" : "expenses.facts")}</legend><div className={css.formGrid}>
+ const actions = <div className={css.footer}><button type="submit" form={formId} className={ui.primary} disabled={busy || (immediate && (!ack || !account))}>{onCapture && !row ? <Plus size={17} aria-hidden="true" /> : <Save size={17} aria-hidden="true" />}{t(busy ? "expenses.working" : onCapture ? row ? "expenses.saveItemChanges" : "expenses.addThisItem" : immediate ? "expenses.paidEntry" : "expenses.save")}</button></div>;
+ return <form id={formId} onSubmit={save} onChange={() => onDirty?.(true)} className={css.form}><fieldset disabled={busy} className={css.createFields}><legend>{onCapture && itemNumber ? t("expenses.itemNumber", { count: itemNumber }) : t(claim ? "expenses.newClaim" : "expenses.facts")}</legend><div className={css.formGrid}>
   {field("expense_date", "date", "date", true)}
   <FieldGroup id="expense-category" className={css.categoryField} label={t("expenses.category")} help={categoryChoice && categoryChoice !== "Other" ? expenseCategoryLabel(categoryChoice, locale) : undefined}><select required value={categoryChoice} onChange={e => { setCategoryChoice(e.target.value); set("category", e.target.value === "Other" ? customCategory : e.target.value); }}><option value="">{t("expenses.choose")}</option>{categories.map(category => <option key={category.value} value={category.value}>{category.label[locale]}</option>)}</select></FieldGroup>
   {categoryChoice === "Other" ? <div className={css.span}><FieldGroup id="expense-custom-category" label={t("finance.legacy.fields.customCategory")}><input required maxLength={150} value={form.category} onChange={e => { setCustomCategory(e.target.value); set("category", e.target.value); }} /></FieldGroup></div> : null}
