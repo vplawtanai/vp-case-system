@@ -6,10 +6,9 @@ import { Check, Save, Send, Wallet } from "lucide-react";
 import { Callout, FieldGroup } from "../../components/ui/patterns";
 import ui from "../../components/ui/vp-ui.module.css";
 import { useI18n } from "../../../lib/i18n/provider";
-import { legacyCategoryLabel } from "../../../lib/i18n/legacy-finance";
 import { bangkokToday } from "../payouts/review";
 import { type Expense, type ExpenseAccess, type ExpenseAccount, type ExpenseLookups, type SettlementMode, expenseHref } from "./shared";
-import { expenseCategories, expenseCategoryChoice } from "./categories";
+import { expenseCategoryOptions, expenseCategoryLabel, expenseCategoryChoice } from "./categories";
 import css from "./expenses.module.css";
 
 export type ExpenseRun = (rpc: string, args: Record<string, unknown>) => Promise<string | null>;
@@ -20,6 +19,8 @@ export function ExpenseFactsForm({ row, claim, access, accounts, lookups, run, b
  const [handling, setHandling] = useState(!claim && !access.can_manage ? "company_paid" : row?.personally_paid ? "personal" : "unknown");
  const immediate = !claim && handling === "company_paid";
  const [categoryChoice, setCategoryChoice] = useState(() => expenseCategoryChoice(row?.category || ""));
+ const [customCategory, setCustomCategory] = useState(() => expenseCategoryChoice(row?.category || "") === "Other" ? row?.category || "" : "");
+ const categories = expenseCategoryOptions(claim ? "claim" : "company", row?.category);
  const [related, setRelated] = useState(!!(row?.client_id || row?.case_id || row?.advisory_matter_id));
  const [reducedRequest, setReducedRequest] = useState(!!row && row.reimbursement_requested < row.gross_amount);
  const [account, setAccount] = useState(""), [paidOn, setPaidOn] = useState(bangkokToday), [ack, setAck] = useState(false);
@@ -47,8 +48,8 @@ export function ExpenseFactsForm({ row, claim, access, accounts, lookups, run, b
  const actions = <div className={css.footer}><button type="submit" form={formId} className={ui.primary} disabled={busy || (immediate && (!ack || !account))}><Save size={17} aria-hidden="true" />{t(busy ? "expenses.working" : immediate ? "expenses.paidEntry" : "expenses.save")}</button></div>;
  return <form id={formId} onSubmit={save} onChange={() => onDirty?.(true)} className={css.form}><fieldset disabled={busy} className={css.createFields}><legend>{t(claim ? "expenses.newClaim" : "expenses.facts")}</legend><div className={css.formGrid}>
   {field("expense_date", "date", "date", true)}
-  <FieldGroup id="expense-category" label={t("expenses.category")}><select required value={categoryChoice} onChange={e => { setCategoryChoice(e.target.value); set("category", e.target.value === "Other" ? "" : e.target.value); }}><option value="">{t("expenses.choose")}</option>{expenseCategories.map(category => <option key={category} value={category}>{legacyCategoryLabel(category, locale)}</option>)}</select></FieldGroup>
-  {categoryChoice === "Other" ? <div className={css.span}><FieldGroup id="expense-custom-category" label={t("finance.legacy.fields.customCategory")}><input required maxLength={150} value={form.category} onChange={e => set("category", e.target.value)} /></FieldGroup></div> : null}
+  <FieldGroup id="expense-category" className={css.categoryField} label={t("expenses.category")} help={categoryChoice && categoryChoice !== "Other" ? expenseCategoryLabel(categoryChoice, locale) : undefined}><select required value={categoryChoice} onChange={e => { setCategoryChoice(e.target.value); set("category", e.target.value === "Other" ? customCategory : e.target.value); }}><option value="">{t("expenses.choose")}</option>{categories.map(category => <option key={category.value} value={category.value}>{category.label[locale]}</option>)}</select></FieldGroup>
+  {categoryChoice === "Other" ? <div className={css.span}><FieldGroup id="expense-custom-category" label={t("finance.legacy.fields.customCategory")}><input required maxLength={150} value={form.category} onChange={e => { setCustomCategory(e.target.value); set("category", e.target.value); }} /></FieldGroup></div> : null}
   {field("gross_amount", "amount", "number", true)}
   {!claim ? <FieldGroup id="expense-handling" label={t("expenses.paymentFacts")}><select value={handling} onChange={e => changeHandling(e.target.value)}>
    {access.can_manage ? <><option value="unknown">{t("expenses.handlingUnknown")}</option><option value="unpaid">{t("expenses.handlingUnpaid")}</option><option value="personal">{t("expenses.handlingPersonal")}</option></> : null}

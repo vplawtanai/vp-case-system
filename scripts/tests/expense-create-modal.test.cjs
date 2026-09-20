@@ -5,11 +5,11 @@ const {translate}=require('../../lib/i18n/catalog.ts');
 const forms=workspaceFixture('app/finance/expenses/forms.tsx',['ExpenseFactsForm']);
 const modal=workspaceFixture('app/finance/expenses/create-modal.tsx',['ExpenseCreateModal'],{'./forms':{ExpenseFactsForm:forms.ExpenseFactsForm},'../../components/DetailModal':{default:({title,children,footer})=>React.createElement('section',{role:'dialog'},title,children,footer)}});
 const workspace=workspaceFixture('app/finance/expenses/workspace.tsx',['ExpenseWorkspace'],{'./data':{},'./forms':{ExpenseFactsForm:forms.ExpenseFactsForm},'./create-modal':{ExpenseCreateModal:modal.ExpenseCreateModal}});
-test('One category vocabulary matches Legacy stored values exactly, with translated labels and custom historical values',()=>{
+test('Canonical categories retain Legacy stored values, with translated labels and custom historical values',()=>{
  const {expenseCategories,expenseCategoryChoice}=require('../../app/finance/expenses/categories.ts');
  const ast=ts.createSourceFile('legacy.tsx',fs.readFileSync('app/finance/expense-claims/page.tsx','utf8'),99,true,ts.ScriptKind.TSX);let legacy;
  function visit(n){if(ts.isVariableDeclaration(n)&&n.name.getText(ast)==='expenseCategories')legacy=n.initializer.elements.map(n=>n.text);ts.forEachChild(n,visit);}visit(ast);
- assert.deepEqual([...expenseCategories],legacy);assert.equal(expenseCategoryChoice('ค่าเดินทาง'),'ค่าเดินทาง');assert.equal(expenseCategoryChoice('Historic custom category'),'Other');assert.equal(expenseCategoryChoice(''),'');
+ assert.ok(legacy.every(value=>expenseCategories.some(category=>category.value===value)));assert.equal(expenseCategoryChoice('ค่าเดินทาง'),'ค่าเดินทาง');assert.equal(expenseCategoryChoice('Historic custom category'),'Other');assert.equal(expenseCategoryChoice(''),'');
  const f=fixture('list');
  for(const locale of ['th','en']){
   for(const claim of [false,true]){

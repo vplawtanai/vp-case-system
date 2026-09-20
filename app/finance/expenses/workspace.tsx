@@ -12,6 +12,7 @@ import { emptyLookups, expenseError, expenseHref, expensePaymentState, expenseSh
 import { ExpenseFactsForm, ExpensePaymentPanel, ExpenseSettlementForm, ExpenseTaxForm, type ExpenseRun } from "./forms";
 import { ExpenseAdminTools } from "./admin-tools";
 import { ExpenseCreateModal } from "./create-modal";
+import { expenseCategoryLabel } from "./categories";
 import css from "./expenses.module.css";
 
 export function ExpenseBadge({ state }: { state: string }) {
@@ -71,7 +72,7 @@ export function ExpenseWorkspace({ id, claims = false, initialTaxFilter = false,
 export function ExpenseClaimList({ rows, canCreate, viewAll, onCreate }: { rows: Expense[]; canCreate: boolean; viewAll: boolean; onCreate: () => void }) {
  const { t, locale, date } = useI18n();
  const [search, setSearch] = useState(""), [status, setStatus] = useState("all"), [page, setPage] = useState(0);
- const filtered = rows.filter(r => [r.reference, r.description, r.category, viewAll ? r.claimant_name : ""].join(" ").toLowerCase().includes(search.toLowerCase()) && (status === "all" || r.status === status || expensePaymentState(r) === status));
+ const filtered = rows.filter(r => [r.reference, r.description, r.category, expenseCategoryLabel(r.category, locale), viewAll ? r.claimant_name : ""].join(" ").toLowerCase().includes(search.toLowerCase()) && (status === "all" || r.status === status || expensePaymentState(r) === status));
  const visible = filtered.slice(page * 10, page * 10 + 10);
  const money = (value: number, currency: string) => `${value.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
  return <>
@@ -79,7 +80,7 @@ export function ExpenseClaimList({ rows, canCreate, viewAll, onCreate }: { rows:
   <section aria-label={t(viewAll ? "expenses.allClaims" : "expenses.ownClaims")}><div className={css.sectionHead}><h2>{t(viewAll ? "expenses.allClaims" : "expenses.ownClaims")} <span>({filtered.length})</span></h2></div>
    {visible.length ? <table className={`${css.table} ${css.claimTable}`}><thead><tr>{["date", "category", "description", "requested", "approved", "status", "action"].map(k => <th key={k}>{t(`expenses.${k}`)}</th>)}</tr></thead><tbody>{visible.map(row => <tr key={row.id}>
     <td data-label={t("expenses.date")}>{date(row.expense_date)}<small>{expenseShortRef(row.id)}</small></td>
-    <td data-label={t("expenses.category")}>{row.category}</td>
+    <td data-label={t("expenses.category")}>{expenseCategoryLabel(row.category, locale)}</td>
     <td data-label={t("expenses.description")}>{row.description}{viewAll && row.claimant_name ? <small>{row.claimant_name}</small> : null}</td>
     <td data-label={t("expenses.requested")} className={css.money}>{money(row.reimbursement_requested, row.currency)}</td>
     <td data-label={t("expenses.approved")} className={css.money}>{row.obligation ? money(row.obligation.gross_amount, row.currency) : row.settlement?.mode === "no_reimbursement" ? t("expenses.notReimbursed") : t("expenses.awaitingDecision")}</td>
@@ -95,7 +96,7 @@ export function ExpenseList({ rows, claims, initialTaxFilter = false }: { rows: 
  const { t, locale, date } = useI18n();
  const [search, setSearch] = useState(""), [state, setState] = useState(initialTaxFilter ? "tax" : "all"), [origin, setOrigin] = useState("all"), [page, setPage] = useState(0);
  const summary = expenseSummary(rows), icons = { review: Clock, unpaid: Wallet, paid: CircleCheck, tax: ShieldCheck };
- const filtered = rows.filter(r => [r.description, r.vendor_name, r.claimant_name, r.reference, r.id].join(" ").toLowerCase().includes(search.toLowerCase()) && (origin === "all" || r.origin === origin) && (state === "all" || (state === "tax" ? pendingExpenseTax(r) : r.status === state || expensePaymentState(r) === state)));
+ const filtered = rows.filter(r => [r.description, r.vendor_name, r.claimant_name, r.reference, r.id, r.category, expenseCategoryLabel(r.category, locale)].join(" ").toLowerCase().includes(search.toLowerCase()) && (origin === "all" || r.origin === origin) && (state === "all" || (state === "tax" ? pendingExpenseTax(r) : r.status === state || expensePaymentState(r) === state)));
  const visible = filtered.slice(page * 10, page * 10 + 10);
  return <>
   {!claims ? <div className={css.stats}>{Object.entries(summary).map(([key, value]) => { const Icon = icons[key as keyof typeof icons]; return <article className={css.stat} key={key}><span className={css.icon}><Icon size={24} aria-hidden="true" /></span><div><span>{t(`expenses.${key}`)}</span><strong>{t("expenses.count", { count: value.count })}</strong><small>{value.amount.toLocaleString(locale, { minimumFractionDigits: 2 })} THB</small></div></article>; })}</div> : null}
@@ -105,7 +106,7 @@ export function ExpenseList({ rows, claims, initialTaxFilter = false }: { rows: 
   <section><div className={css.sectionHead}><h2>{t(claims ? "expenses.allClaims" : "expenses.allExpenses")} <span>({filtered.length})</span></h2><Search size={18} aria-hidden="true" /></div>
    {visible.length ? <table className={css.table}><thead><tr>{["reference", "description", "vendor", "amount", "vat", "payment", "action"].map(k => <th key={k}>{t(`expenses.${k}`)}</th>)}</tr></thead><tbody>{visible.map(r => <tr key={r.id}>
     <td data-label={t("expenses.reference")}><Link href={expenseHref(r)}>{expenseShortRef(r.id)}</Link><small>{date(r.expense_date)}</small></td>
-    <td data-label={t("expenses.description")}>{r.description}<small><ExpenseBadge state={r.origin} /></small></td><td data-label={t("expenses.vendor")}>{r.claimant_name || r.vendor_name || t("expenses.optional")}<small>{r.category}</small></td>
+    <td data-label={t("expenses.description")}>{r.description}<small><ExpenseBadge state={r.origin} /></small></td><td data-label={t("expenses.vendor")}>{r.claimant_name || r.vendor_name || t("expenses.optional")}<small>{expenseCategoryLabel(r.category, locale)}</small></td>
     <td className={css.money} data-label={t("expenses.amount")}>{r.gross_amount.toLocaleString(locale, { minimumFractionDigits: 2 })}<small>{r.currency}</small></td>
     <td data-label={t("expenses.vat")}><ExpenseBadge state={r.tax_review?.vat_state || "pending"} /><small>WHT: {t(`expenses.${r.tax_review?.wht_state || "pending"}`)}</small></td>
     <td data-label={t("expenses.payment")}><ExpenseBadge state={expensePaymentState(r)} /><small>{t(`expenses.${r.status}`)}</small></td>
@@ -123,7 +124,7 @@ function ExpenseDetail({ data, row, lookups, run, busy }: { data: ExpenseData; r
  const editable = row.status === "draft" && row.created_by === access.user_id;
  return <><div className={css.actions}><ExpenseBadge state={row.status} /><ExpenseBadge state={row.origin} /></div><div className={css.columns}><div className={css.main}>
   <section className={css.section}>{editable ? <><ExpenseFactsForm row={row} claim={row.origin === "employee_claim"} access={access} accounts={data.accounts} lookups={lookups} run={run} busy={busy} onDirty={setDirty} /><div className={css.footer}>{dirty ? <span role="status">{t("expenses.saveBeforeSubmit")}</span> : null}<button className={ui.primary} type="button" disabled={busy || dirty} onClick={() => void run("submit_finance_expense", { p_id: row.id, p_version: row.version })}><SendIcon />{t("expenses.submit")}</button></div></> : <><h2>{t("expenses.facts")}</h2><p className={css.muted}>{t("expenses.immutableFacts")}</p><dl className={css.facts}>
-   {[["reference", expenseShortRef(row.id)], ["date", date(row.expense_date)], ["vendor", row.vendor_name], ["claimant", row.claimant_name], ["category", row.category], ["amount", money(row.gross_amount)], ["description", row.description], ["note", row.note], ["requested", row.personally_paid ? money(row.reimbursement_requested) : null], ["vatAwareness", t(`expenses.${row.vat_awareness}`)], ["whtAwareness", t(`expenses.${row.wht_awareness}`)]].filter(([, value]) => value).map(([label, value]) => <div key={label} className={label === "description" || label === "note" ? css.span : undefined}><dt>{t(`expenses.${label}`)}</dt><dd>{value}</dd></div>)}
+   {[["reference", expenseShortRef(row.id)], ["date", date(row.expense_date)], ["vendor", row.vendor_name], ["claimant", row.claimant_name], ["category", expenseCategoryLabel(row.category, locale)], ["amount", money(row.gross_amount)], ["description", row.description], ["note", row.note], ["requested", row.personally_paid ? money(row.reimbursement_requested) : null], ["vatAwareness", t(`expenses.${row.vat_awareness}`)], ["whtAwareness", t(`expenses.${row.wht_awareness}`)]].filter(([, value]) => value).map(([label, value]) => <div key={label} className={label === "description" || label === "note" ? css.span : undefined}><dt>{t(`expenses.${label}`)}</dt><dd>{value}</dd></div>)}
   </dl></>}</section>
   {row.status === "submitted" && access.can_manage ? <section className={css.section}><form className={css.form} onSubmit={async e => { e.preventDefault(); await run("review_finance_expense", { p_id: row.id, p_version: row.version, p_accept: true, p_reason: reason }); }}><h2>{t("expenses.review")}</h2><FieldGroup id="expense-review-reason" label={t("expenses.reason")}><textarea required maxLength={2000} value={reason} disabled={busy} onChange={e => setReason(e.target.value)} /></FieldGroup><div className={css.footer}><button className={ui.secondary} type="button" disabled={busy || !reason.trim()} onClick={() => void run("review_finance_expense", { p_id: row.id, p_version: row.version, p_accept: false, p_reason: reason })}>{t("expenses.reject")}</button><button className={ui.primary} type="submit" disabled={busy}><Check size={17} />{t("expenses.accept")}</button></div></form></section> : row.review_reason ? <div className={css.reviewBand}><p>{row.review_reason}</p></div> : row.status === "submitted" ? <Callout tone="info">{t("expenses.claimSubmittedHelp")}</Callout> : null}
   {row.status === "accepted" ? <>
