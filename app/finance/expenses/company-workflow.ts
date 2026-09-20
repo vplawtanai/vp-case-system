@@ -23,7 +23,7 @@ export function companyQueue(requests: ExpenseRequest[], options: Parameters<typ
  return expenseQueueEntries([], matching, { ...options, status: "all", claims: false });
 }
 export const companyTimeline = (request: ExpenseRequest) => requestTimeline(request).filter(e => request.status === "draft" || e.key !== "created");
-export const companyProgress = (request: ExpenseRequest) => request.items.filter(e => e.status === "accepted" || e.status === "rejected").length;
+export const companyProgress = (request: ExpenseRequest) => request.items.filter(companyReviewComplete).length;
 export function companyPayee(row: Expense, lookups: ExpenseLookups) {
  const knownId = row.settlement?.payee_id || (!row.personally_paid ? row.supplier_payee_id : null);
  const matches = knownId ? lookups.payees.filter(p => p.id === knownId) : row.personally_paid && row.claimant_id ? lookups.payees.filter(p => p.profile_id === row.claimant_id) : [];

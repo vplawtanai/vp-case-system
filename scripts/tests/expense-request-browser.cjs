@@ -28,7 +28,7 @@ export const supabase={async rpc(name,args){window.calls.push({name,args:structu
  if(window.failSubmit&&name==='submit_finance_expense_request'){window.failSubmit=false;return{error:{message:'EXPENSE_PERMISSION_DENIED'}};}
  if(name==='save_finance_expense_request'){if(operations.has(args.p_operation))return{data:args.p_id};const old=requests.find(r=>r.id===args.p_id);if(old&&old.version!==args.p_version)throw Error('Stale fixture save');const row={id:args.p_id,kind:args.p_kind,note:args.p_note,status:'draft',version:(old?.version||0)+1,created_at:'2026-09-18T01:00:00Z',submitted_at:null,created_by:f.data.access.user_id,requester_name:'Synthetic staff',audit:[],items:args.p_items.map((i,n)=>makeItem(n+1,{...i.input,id:i.id,request_id:args.p_id,version:(i.version||0)+1}))};requests=[...requests.filter(r=>r.id!==row.id),row];operations.add(args.p_operation);window.writes.push(name);if(window.loseSaveResponse){window.loseSaveResponse=false;return{error:{message:'Network failed after commit'}};}return{data:row.id};}
  if(name==='submit_finance_expense_request'){const r=requests.find(r=>r.id===args.p_id);if(r.status==='submitted')return{data:r.id};if(r.version!==args.p_version)throw Error('Wrong saved version');r.status='submitted';r.submitted_at='2026-09-20T04:42:00Z';r.version++;r.items.forEach(i=>{i.status='submitted';i.submitted_at=r.submitted_at;i.version++;});window.writes.push(name);if(window.loseSubmitResponse){window.loseSubmitResponse=false;return{error:{message:'Network failed after submit'}};}return{data:r.id};}
- if(name==='review_finance_expense'){const r=requests.find(r=>r.items.some(i=>i.id===args.p_id)),i=r.items.find(i=>i.id===args.p_id);i.status=args.p_accept?'accepted':'rejected';i.review_reason=args.p_reason;i.version++;window.writes.push(name);return{data:i.id};}
+ if(name==='review_finance_expense'){const r=requests.find(r=>r.items.some(i=>i.id===args.p_id)),i=r.items.find(i=>i.id===args.p_id);if(i.status!=='submitted'||i.version!==args.p_version)throw Error('Approval fixture guard');i.status=args.p_accept?'accepted':'rejected';i.review_reason=args.p_reason;i.version++;window.writes.push(name);return{data:i.id};}
  if(name==='review_finance_expense_tax'){
   const r=requests.find(r=>r.kind==='company_expense_batch'&&r.items.some(i=>i.id===args.p_expense)),i=r.items.find(i=>i.id===args.p_expense);
   if(window.failTax){window.failTax=false;return{error:{message:'EXPENSE_PERMISSION_DENIED'}};}
@@ -38,8 +38,8 @@ export const supabase={async rpc(name,args){window.calls.push({name,args:structu
  }
  if(name==='decide_finance_expense_settlement'){
   const r=requests.find(r=>r.kind==='company_expense_batch'&&r.items.some(i=>i.id===args.p_expense)),i=r.items.find(i=>i.id===args.p_expense);
-  if(i.status!=='accepted')throw Error('Settlement fixture guard');i.settlement={id:args.p_id,mode:args.p_mode,payee_id:args.p_payee,amount:args.p_amount,reason:args.p_reason};
-  if(['supplier_unpaid','reimburse'].includes(args.p_mode))i.obligation={...obligation,id:args.p_id,gross_amount:args.p_amount,payee_id:args.p_payee};window.writes.push(name);return{data:args.p_id};
+  if(i.settlement?.id===args.p_id)return{data:args.p_id};if(i.status!=='accepted'||i.settlement)throw Error('Settlement fixture guard');i.settlement={id:args.p_id,mode:args.p_mode,payee_id:args.p_payee,amount:args.p_amount,reason:args.p_reason};
+  if(['supplier_unpaid','reimburse'].includes(args.p_mode))i.obligation={...obligation,id:args.p_id,gross_amount:args.p_amount,payee_id:args.p_payee};window.writes.push(name);if(window.loseSettlementResponse){window.loseSettlementResponse=false;return{error:{message:'Network lost'}};}return{data:args.p_id};
  }
  throw Error('Forbidden local RPC '+name);}};
 `);
@@ -56,7 +56,7 @@ async function main(){
   const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'/Users/paolawyer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
   const page=await browser.newPage(),errors=[],external=[];page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>{if(new URL(r.request().url()).hostname==='127.0.0.1')return r.continue();external.push(r.request().url());return r.abort();});
   require('./receipt-render-fixture.cjs');const {translate}=require('../../lib/i18n/catalog.ts'),url='http://127.0.0.1:'+server.address().port;
-  const fits=async()=>{assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);assert.equal(await page.getByRole('dialog').evaluate(e=>e.scrollWidth>e.clientWidth+1),false);};
+  const fits=async()=>{assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);assert.equal(await page.getByRole('dialog').evaluate(e=>e.scrollWidth>e.clientWidth+1),false);const b=await page.getByRole('dialog').boundingBox();assert.ok(b.x>=0&&b.y>=0&&b.x+b.width<=page.viewportSize().width+1&&b.y+b.height<=page.viewportSize().height+1);};
   let scenarios=0;
   // Direct-submit failure checkpoints, two items, both workflows and changed-label EN smoke.
   for(const width of [390,1440])for(const locale of width===1440?['th','en']:['th'])for(const claim of companyOnly?[false]:[false,true]){
@@ -65,6 +65,7 @@ async function main(){
    assert.equal(await dialog.locator('input[name=submitted_at]').count(),0);
    const submit=()=>dialog.getByRole('button',{name:t(claim?'submitRequest':'sendForReview'),exact:true}),save=()=>dialog.getByRole('button',{name:t('saveForLater'),exact:true});
    assert.ok(await submit().isDisabled());
+   await fits();await page.screenshot({path:out+`/create-empty-${claim?'claim':'company'}-${locale}-${width}.png`});
    for(let i=0;i<2;i++){
     if(i)await dialog.getByRole('button',{name:t('addItem'),exact:true}).click();assert.equal(await dialog.locator('form').count(),1);
     await page.locator('#expense-expense_date').fill('2026-09-03');await page.locator('#expense-category').selectOption(claim?'ค่าเดินทาง':'company.travel');await page.locator('#expense-gross_amount').fill(String(i?120:300));await page.locator('#expense-description').fill('Synthetic item '+(i+1));await dialog.getByRole('button',{name:t('addThisItem'),exact:true}).click();
@@ -103,7 +104,7 @@ async function main(){
    }else assert.deepEqual(await page.evaluate(()=>window.writes),[]);
    console.log('PASS state',width,role,scenario);scenarios++;
   }
-  for(const width of [390,1440])for(const scenario of ['draft','submitted','partial','waiting','rejected','no-tax','exception','reimbursement']){
+  for(const width of [390,1440])for(const scenario of ['draft','submitted','partial','waiting','paid','rejected','no-tax','exception','reimbursement']){
    const t=k=>translate('th','expenses.'+k);await page.setViewportSize({width,height:950});await page.goto(`${url}/finance/expenses?locale=th&scenario=${scenario}`);
    await page.locator('[data-request-row]').waitFor();assert.equal(await page.locator('[data-request-row]').count(),1);assert.ok(!(await page.locator('body').innerText()).includes('CLAIM MUST NOT LEAK'));assert.equal(await page.locator('#expense-origin-filter').count(),0);
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);await page.screenshot({path:out+`/company-list-${scenario}-${width}.png`,fullPage:true});
@@ -112,22 +113,30 @@ async function main(){
    const active=dialog.locator('[id^="company-item-"]');assert.ok(await active.count()<=1);
    if(scenario==='partial'){assert.ok((await dialog.innerText()).includes('1 / 2'));assert.ok((await active.getAttribute('id')).endsWith('002'));}
    if(scenario==='waiting'){assert.ok((await dialog.innerText()).includes('2 / 2'));assert.equal(await active.count(),0);}
+   if(scenario==='paid'){await dialog.locator('[aria-controls^="company-item-"]').first().click();assert.ok((await active.innerText()).includes(t('handlingCompanyPaid')));}
    if(scenario==='reimbursement')assert.ok((await dialog.innerText()).includes(t('staffRequestedTotal')));
    else assert.ok(!(await dialog.innerText()).includes(t('staffRequestedTotal')));
-   await page.screenshot({path:out+`/company-review-${scenario}-${width}.png`,fullPage:true});
+   await page.screenshot({path:out+`/company-review-${scenario}-${width}.png`});
    if(scenario==='no-tax'){
     assert.ok((await dialog.innerText()).includes('0 / 2'));await dialog.getByLabel(t('companyNoTaxAck')).check();await dialog.locator('#company-review-reason').fill('Explicit local no-tax review');
-    await dialog.getByRole('button',{name:t('companyApprove'),exact:true}).focus();assert.ok(await dialog.getByRole('button',{name:t('companyApprove'),exact:true}).evaluate(e=>document.activeElement===e));await page.screenshot({path:out+`/company-review-actions-${width}.png`,fullPage:true});
-    await page.evaluate(key=>{window[key]=true;},width===390?'failTax':'loseTaxResponse');await dialog.getByRole('button',{name:t('companyApprove'),exact:true}).click();await dialog.getByRole('button',{name:t('companyRetryTax'),exact:true}).waitFor();
-    assert.ok((await dialog.innerText()).includes(t('companyTaxPartial')));await dialog.getByRole('button',{name:t('companyRetryTax'),exact:true}).click();await dialog.locator('#expense-settlement-mode').waitFor();
-    await page.waitForFunction(()=>window.writes.includes('review_finance_expense_tax'));await dialog.locator('#expense-settlement-mode').selectOption('supplier_unpaid');
+    await dialog.locator('#expense-settlement-mode').selectOption('supplier_unpaid');
     assert.equal(await dialog.locator('#settlement-payee').getAttribute('readonly'),'');assert.equal(await dialog.getByRole('link',{name:t('managePayee'),exact:true}).count(),0);
-    await dialog.locator('#settlement-reason').fill('Supplier unpaid, local fixture');await dialog.getByRole('button',{name:t('saveSettlement'),exact:true}).click();
+    await dialog.getByRole('button',{name:t('companyApprove'),exact:true}).focus();assert.ok(await dialog.getByRole('button',{name:t('companyApprove'),exact:true}).evaluate(e=>document.activeElement===e));await page.screenshot({path:out+`/company-review-actions-${width}.png`,fullPage:true});
+    await page.evaluate(key=>{window[key]=true;},width===390?'failTax':'loseTaxResponse');await dialog.getByRole('button',{name:t('companyApprove'),exact:true}).click();await dialog.getByRole('button',{name:t('companyRetryReview'),exact:true}).waitFor();
+    assert.ok((await dialog.innerText()).includes(t('companyReviewPartial')));assert.ok((await dialog.innerText()).includes('0 / 2'));await dialog.getByRole('button',{name:t('companyRetryReview'),exact:true}).click();
     await page.waitForFunction(()=>document.querySelector('[id^="company-item-"]')?.id.endsWith('002'));assert.ok((await dialog.innerText()).includes('1 / 2'));assert.equal(await active.count(),1);assert.ok(await active.evaluate(e=>document.activeElement===e));
     await dialog.locator('#company-review-reason').fill('Local rejection');await dialog.getByRole('button',{name:t('companyReject'),exact:true}).click();await active.waitFor({state:'hidden'});assert.ok((await dialog.innerText()).includes('2 / 2'));
     const calls=await page.evaluate(()=>window.calls),writes=await page.evaluate(()=>window.writes),taxCalls=calls.filter(c=>c.name==='review_finance_expense_tax');assert.equal(taxCalls.length,2);assert.deepEqual(taxCalls[0].args,taxCalls[1].args);
     assert.deepEqual(writes,['review_finance_expense','review_finance_expense_tax','decide_finance_expense_settlement','review_finance_expense']);
     await fits();await page.screenshot({path:out+`/company-complete-${width}.png`,fullPage:true});
+   }else if(scenario==='exception'){
+    await dialog.locator('#tax-vat_state').selectOption('exists');await dialog.locator('#tax-vat_base').fill('280.37');await dialog.locator('#tax-vat_rate').fill('7');await dialog.locator('#tax-eligibility').selectOption('ineligible');await dialog.locator('#tax-wht_state').selectOption('none');await dialog.locator('#expense-settlement-mode').selectOption('supplier_unpaid');await dialog.locator('#company-review-reason').fill('Local VAT ineligible review');
+    await fits();await page.screenshot({path:out+`/company-vat-controls-${width}.png`,fullPage:true});await dialog.getByRole('button',{name:t('companyApprove'),exact:true}).click();await page.waitForFunction(()=>document.querySelector('[id^="company-item-"]')?.id.endsWith('002'));
+    const calls=await page.evaluate(()=>window.calls);assert.deepEqual(calls.map(c=>c.name),['review_finance_expense','review_finance_expense_tax','decide_finance_expense_settlement']);assert.equal(calls[1].args.p_input.eligibility,'ineligible');assert.equal(calls[1].args.p_input.vat_base,280.37);
+   }else if(scenario==='reimbursement'){
+    await dialog.getByLabel(t('companyNoTaxAck')).check();await dialog.locator('#expense-settlement-mode').selectOption('reimburse');await dialog.locator('#settlement-amount').fill('200');await dialog.locator('#company-review-reason').fill('Local partial reimbursement');
+    await page.evaluate(()=>{window.loseSettlementResponse=true;});await dialog.getByRole('button',{name:t('companyApprove'),exact:true}).click();await dialog.getByRole('button',{name:t('companyRetryReview'),exact:true}).waitFor();await dialog.getByRole('button',{name:t('companyRetryReview'),exact:true}).click();await page.waitForFunction(()=>document.querySelector('[id^="company-item-"]')?.id.endsWith('002'));
+    const calls=await page.evaluate(()=>window.calls),settlements=calls.filter(c=>c.name==='decide_finance_expense_settlement');assert.equal(settlements.length,2);assert.deepEqual(settlements[0].args,settlements[1].args);assert.equal(settlements[0].args.p_amount,200);assert.equal(calls.filter(c=>c.name==='review_finance_expense').length,1);
    }else assert.deepEqual(await page.evaluate(()=>window.writes),[]);
    console.log('PASS Company state',width,scenario);scenarios++;
   }

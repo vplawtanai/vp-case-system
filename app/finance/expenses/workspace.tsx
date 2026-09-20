@@ -60,11 +60,11 @@ export function ExpenseWorkspace({ id, claims = false, initialTaxFilter = false,
  const access = data?.access, record = data?.record, creating = id === "new";
  const canCreate = claims ? access?.can_claim : access?.can_manage || access?.can_record;
  const openCreate = () => { if (!canCreate || loading || busy) return; setError(""); setNotice(""); setCreateOpen(true); };
- const title = id && id !== "new" ? claims ? "claimReview" : "financeReview" : claims ? "claims" : "title";
+ const title = id && id !== "new" ? claims ? "claimReview" : "financeReview" : claims ? "claims" : "companyTitle";
  const selectedRequest = data?.requests?.find(r => r.id === requestId && r.kind === (claims ? "employee_claim" : "company_expense_batch"));
  return <PageShell><div className={css.page}>
-  <div className={css.breadcrumb}><span>{t("common.nav.finance")}</span><span aria-hidden="true">/</span><Link href={claims ? "/finance/expenses/claims" : "/finance/expenses"}>{t(claims ? "expenses.claims" : "expenses.title")}</Link>{record ? <><span aria-hidden="true">/</span><span>{expenseShortRef(record.id)}</span></> : null}</div>
-  <header className={css.heading}><div className={css.title}><span className={css.icon}><FileText size={23} aria-hidden="true" /></span><div><h1>{t(`expenses.${title}`)}</h1><p>{t(claims ? "expenses.claimHelp" : "expenses.subtitle")}</p></div></div>
+  <div className={css.breadcrumb}><span>{t("common.nav.finance")}</span><span aria-hidden="true">/</span><Link href={claims ? "/finance/expenses/claims" : "/finance/expenses"}>{t(claims ? "expenses.claims" : "expenses.companyTitle")}</Link>{record ? <><span aria-hidden="true">/</span><span>{expenseShortRef(record.id)}</span></> : null}</div>
+  <header className={css.heading}><div className={css.title}><span className={css.icon}><FileText size={23} aria-hidden="true" /></span><div><h1>{t(`expenses.${title}`)}</h1><p>{t(claims ? "expenses.claimHelp" : "expenses.companySubtitle")}</p></div></div>
    <div className={css.actions}>{id ? <Link className={ui.secondary} href={claims ? "/finance/expenses/claims" : "/finance/expenses"}><ArrowLeft size={17} aria-hidden="true" />{t("expenses.back")}</Link> : canCreate ? <button type="button" className={ui.primary} aria-haspopup="dialog" disabled={loading || busy} onClick={openCreate}><Plus size={17} aria-hidden="true" />{t(claims ? "expenses.newClaim" : "expenses.new")}</button> : null}
     <button type="button" className={ui.secondary} title={t("expenses.refresh")} aria-label={t("expenses.refresh")} disabled={loading || busy} onClick={() => void load()}><RefreshCw size={17} aria-hidden="true" /></button></div></header>
   {error && !createOpen ? <Callout tone="negative" role="alert">{t(`expenses.${error}`)}</Callout> : null}{notice ? <Callout tone="success" role="status">{t(`expenses.${notice}`)}</Callout> : null}

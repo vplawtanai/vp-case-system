@@ -38,11 +38,11 @@ for(const locale of ['th','en'])for(const claim of [false,true]){
   const dirty=modal.render(locale,{'ExpenseCreateModal.confirmClose':true},props,'ExpenseCreateModal');assert.equal((dirty.match(/role="dialog"/g)||[]).length,2);assert.ok(dirty.includes(t('keepEditing')));assert.ok(dirty.includes(t('discardCreate')));
  });
 }
-test('Existing RPC calls/payloads, input contract, permissions, routes and shared modal remain unchanged',()=>{
+test('Create/payment RPC calls, input contract, permissions, routes and shared modal remain unchanged',()=>{
  const file='app/finance/expenses/forms.tsx',source=fs.readFileSync(file,'utf8'),old=cp.execFileSync('git',['show','HEAD:'+file],{encoding:'utf8'});
- function contract(text){const ast=ts.createSourceFile(file,text,99,true,ts.ScriptKind.TSX),found=[];function visit(n){if(ts.isCallExpression(n)&&n.expression.getText(ast)==='run')found.push(n.getText(ast));if(ts.isVariableDeclaration(n)&&n.name.getText(ast)==='input')found.push(n.getText(ast));ts.forEachChild(n,visit);}visit(ast);return found;}
+ function contract(text){const ast=ts.createSourceFile(file,text,99,true,ts.ScriptKind.TSX),found=[];function visit(n){if(ts.isFunctionDeclaration(n)&&['ExpenseTaxForm','ExpenseSettlementForm'].includes(n.name?.text))return;if(ts.isCallExpression(n)&&n.expression.getText(ast)==='run')found.push(n.getText(ast));if(ts.isVariableDeclaration(n)&&n.name.getText(ast)==='input')found.push(n.getText(ast));ts.forEachChild(n,visit);}visit(ast);return found;}
  assert.deepEqual(contract(source),contract(old));assert.match(source,/if \(onSaved\) onSaved\(result\); else router.push/);assert.match(source,/form=\{formId\}/);
- for(const name of ['AccountSelect','ExpenseTaxForm','ExpenseSettlementForm','ExpensePaymentPanel']){
+ for(const name of ['AccountSelect','ExpensePaymentPanel']){
   const declaration=text=>ts.createSourceFile(file,text,99,true,ts.ScriptKind.TSX).statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text===name).getText();
   assert.equal(declaration(source),declaration(old),name+' remains byte-identical');
  }

@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import { ArrowRight, Check, Pencil, Send } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, Pencil, Send } from "lucide-react";
 import DetailModal from "../../components/DetailModal";
 import { Callout, FieldGroup } from "../../components/ui/patterns";
 import ui from "../../components/ui/vp-ui.module.css";
@@ -41,49 +40,58 @@ export function CompanyRequestReview({ request, access, lookups, busy, error, ru
   <section className={css.requestProgress} aria-label={t("expenses.requestProgress")}><div className={company.progress}><span className={css.badge}>{t(`expenses.${stageKey(stage)}`)}</span><strong role="status">{t(reviewed === total.count ? "expenses.companyReviewDone" : "expenses.companyReviewProgress", { count: reviewed, total: total.count })}</strong></div><h2>{t("expenses.nextAction")}</h2><p>{t(`expenses.${requestNextAction(request, access)}`, { count: request.items.filter(i => i.status === "submitted").length })}</p>{reviewed === total.count && remaining ? <p>{t("expenses.companyRemaining", { count: remaining })}</p> : null}</section>
   {request.note ? <p>{request.note}</p> : null}
   <dl className={css.requestTotals}><div><dt>{t("expenses.requestItems")}</dt><dd>{total.count}</dd></div><div><dt>{t("expenses.expenseTotal")}</dt><dd>{money(total.gross)}</dd></div>{hasReimbursement(false, request.items) ? <div><dt>{t(decided ? "expenses.companyReimbursementDue" : "expenses.staffRequestedTotal")}</dt><dd>{money(decided ? reimbursed : total.requested)}</dd></div> : null}</dl>
-  <div className={css.requestItems}>{request.items.map((item, index) => <section key={item.id} className={css.requestItemReview}>
-   <button className={css.itemToggle} type="button" disabled={busy} aria-expanded={active === item.id} aria-controls={`company-item-${item.id}`} onClick={() => setSelection({ id: active === item.id ? null : item.id, complete: companyReviewComplete(item) })}><span><strong>{t("expenses.itemNumber", { count: index + 1 })}: {item.description}</strong><small>{date(item.expense_date)} · {expenseCategoryLabel(item.category, locale)}</small></span><span><strong>{money(item.gross_amount)}</strong><small>{t(`expenses.${stageKey(itemStage(item))}`)}</small>{staff && !companyReviewComplete(item) && request.status !== "draft" ? <small className={css.reviewLink}>{t("expenses.reviewItem")} <ArrowRight size={14} /></small> : null}</span></button>
+  <div className={css.requestItems}>{request.items.map((item, index) => <section key={item.id} className={`${css.requestItemReview} ${company.itemCard}`}>
+   <button className={`${css.itemToggle} ${company.itemToggle}`} type="button" disabled={busy} aria-expanded={active === item.id} aria-controls={`company-item-${item.id}`} onClick={() => setSelection({ id: active === item.id ? null : item.id, complete: companyReviewComplete(item) })}><span><strong>{t("expenses.itemNumber", { count: index + 1 })}: {item.description}</strong><small>{date(item.expense_date)} · {expenseCategoryLabel(item.category, locale)}</small></span><span className={company.itemStatus}><strong>{money(item.gross_amount)}</strong><span className={css.badge}>{t(`expenses.${stageKey(itemStage(item))}`)}</span>{staff && !companyReviewComplete(item) && request.status !== "draft" && active !== item.id ? <small className={css.reviewLink}>{t("expenses.reviewItem")} <ArrowRight size={14} /></small> : null}<ChevronDown size={18} aria-hidden="true" /></span></button>
    {active === item.id ? <div ref={panel} tabIndex={-1} id={`company-item-${item.id}`} className={`${css.itemEditor} ${company.selected}`}><CompanyItemReview key={item.id} row={item} access={access} lookups={lookups} run={run} busy={busy} /></div> : null}
   </section>)}</div>
-  <section className={css.section}><h2>{t("expenses.requestTimeline")}</h2><ol className={css.requestTimeline}>{companyTimeline(request).map(e => <li key={e.key}><span>{t(`expenses.${stageKey(e.label)}`)}{e.item ? ` · ${t("expenses.itemNumber", { count: e.item })}` : ""}</span><time dateTime={e.at}>{date(e.at, true)}</time></li>)}</ol></section>
+  <details className={css.disclosure}><summary>{t("expenses.requestTimeline")}</summary><ol className={css.requestTimeline}>{companyTimeline(request).map(e => <li key={e.key}><span>{t(`expenses.${stageKey(e.label)}`)}{e.item ? ` · ${t("expenses.itemNumber", { count: e.item })}` : ""}</span><time dateTime={e.at}>{date(e.at, true)}</time></li>)}</ol></details>
  </div></DetailModal>;
 }
 
 export function CompanyItemReview({ row, access, lookups, run, busy }: { row: Expense; access: ExpenseAccess; lookups: ExpenseLookups; run: ExpenseRun; busy: boolean }) {
  const { t, locale, date } = useI18n();
  const [reason, setReason] = useState(""), [ack, setAck] = useState(false), [working, setWorking] = useState(false), [partial, setPartial] = useState(false);
- const lock = useRef(false), taxAttempt = useRef<ReturnType<typeof noTaxReviewArgs> | null>(null);
+ const [taxPlan, setTaxPlan] = useState<Record<string, unknown> | null>(null), [settlementPlan, setSettlementPlan] = useState<Record<string, unknown> | null>(null);
+ const lock = useRef(false), reviewPanel = useRef<HTMLDivElement>(null);
+ const attempt = useRef<{ steps: { rpc: string; args: Record<string, unknown> }[]; next: number } | null>(null);
  const disabled = busy || working, payee = companyPayee(row, lookups), tax = row.tax_review;
  const simple = row.vat_awareness === "no" && row.wht_awareness === "no" && !tax;
  const money = (v: number) => `${v.toLocaleString(locale, { minimumFractionDigits: 2 })} THB`;
  async function approve(accept: boolean) {
   if (lock.current || disabled || !reason.trim()) return;
+  if (accept && !attempt.current && [...(reviewPanel.current?.querySelectorAll<HTMLFormElement>("form[data-review-plan]") || [])].some(form => !form.reportValidity())) return;
   lock.current = true; setWorking(true);
   try {
-   if (!partial && row.status === "submitted") {
-    if (!await run("review_finance_expense", { p_id: row.id, p_version: row.version, p_accept: accept, p_reason: reason })) return;
+   if (!attempt.current) {
+    const steps = [{ rpc: "review_finance_expense", args: { p_id: row.id, p_version: row.version, p_accept: accept, p_reason: reason } as Record<string, unknown> }];
+    if (accept && access.can_tax_review) {
+     const args = simple ? ack ? noTaxReviewArgs(row, crypto.randomUUID(), reason) : null : taxPlan;
+     if (args) steps.push({ rpc: "review_finance_expense_tax", args });
+    }
+    if (accept && settlementPlan && settlementPlan.p_mode !== "undecided") steps.push({ rpc: "decide_finance_expense_settlement", args: settlementPlan });
+    attempt.current = { steps, next: 0 };
    }
-   if (accept && ack && simple && access.can_tax_review) {
-    setPartial(true);
-    taxAttempt.current ??= noTaxReviewArgs(row, crypto.randomUUID(), reason);
-    if (!await run("review_finance_expense_tax", taxAttempt.current)) return;
+   // Resume only unfinished steps, with identical operation IDs and payloads after a failed response.
+   while (attempt.current.next < attempt.current.steps.length) {
+    const step = attempt.current.steps[attempt.current.next];
+    if (!await run(step.rpc, step.args)) { setPartial(true); return; }
+    attempt.current.next++;
    }
-   setPartial(false);
+   setPartial(false); attempt.current = null;
   } finally { lock.current = false; setWorking(false); }
  }
  const context = [["client", lookups.clients.find(c => c.id === row.client_id)?.name], ["case", lookups.cases.find(c => c.id === row.case_id)?.title], ["matter", lookups.matters.find(c => c.id === row.advisory_matter_id)?.title]];
- return <div className={company.review}>
-  <section><h3>{t("expenses.facts")}</h3><dl className={css.facts}>{[["date", date(row.expense_date)], ["category", expenseCategoryLabel(row.category, locale)], ["amount", money(row.gross_amount)], ["vendor", row.vendor_name], ["description", row.description], ["note", row.note], ...context].filter(([,v]) => v).map(([k,v]) => <div key={k}><dt>{t(`expenses.${k}`)}</dt><dd>{v}</dd></div>)}</dl></section>
-  <section><h3>{t("expenses.companyPaymentPayee")}</h3><dl className={css.facts}><div><dt>{t("expenses.payment")}</dt><dd>{t(`expenses.${row.settlement?.mode || (row.personally_paid ? "personallyPaid" : "undecided")}`)}</dd></div><div><dt>{t(row.personally_paid ? "expenses.companyReimbursementPayee" : "expenses.payee")}</dt><dd>{payee?.legal_name || (row.personally_paid ? row.claimant_name : row.vendor_name) || t("expenses.companyMissingPayee")}</dd></div>{row.personally_paid ? <div><dt>{t("expenses.staffRequestedTotal")}</dt><dd>{money(row.reimbursement_requested)}</dd></div> : null}{row.settlement ? <div><dt>{t("expenses.settlementAmount")}</dt><dd>{money(row.settlement.amount)}<br />{row.settlement.reason}</dd></div> : null}</dl>
-   {row.status === "accepted" && !row.settlement && access.can_manage ? <ExpenseSettlementForm key={`settlement-${payee?.id || "unknown"}`} companyReview row={row} lookups={lookups} run={run} busy={disabled} /> : null}
-   {!payee && row.status === "accepted" && !row.settlement && access.can_manage ? <Link className={ui.secondary} href="/finance/payouts/new">{t("expenses.managePayee")}<ArrowRight size={14} /></Link> : null}
+ return <div className={company.review} ref={reviewPanel}>
+  <section><h3>{t("expenses.companyFacts")}</h3><dl className={css.facts}>{[["date", date(row.expense_date)], ["category", expenseCategoryLabel(row.category, locale)], ["amount", money(row.gross_amount)], ["vendor", row.vendor_name], ["description", row.description], ["note", row.note], ...context].filter(([,v]) => v).map(([k,v]) => <div key={k}><dt>{t(`expenses.${k}`)}</dt><dd>{v}</dd></div>)}</dl></section>
+  <section><h3>{t("expenses.companyPaymentPayee")}</h3><dl className={css.facts}><div><dt>{t("expenses.companyPaymentQuestion")}</dt><dd>{t(`expenses.${row.payout?.status === "confirmed" ? "handlingCompanyPaid" : row.personally_paid ? "companyPersonalPaid" : row.settlement?.mode === "supplier_unpaid" ? "handlingUnpaid" : "companyPaymentUnknown"}`)}</dd></div><div><dt>{t(row.personally_paid ? "expenses.companyReimbursementPayee" : "expenses.payee")}</dt><dd>{payee?.legal_name || (row.personally_paid ? row.claimant_name : row.vendor_name) || t("expenses.companyMissingPayee")}</dd></div>{row.personally_paid ? <div><dt>{t("expenses.staffRequestedTotal")}</dt><dd>{money(row.reimbursement_requested)}</dd></div> : null}{row.settlement ? <><div><dt>{t("expenses.payment")}</dt><dd>{t(`expenses.${row.settlement.mode}`)}</dd></div><div><dt>{t("expenses.settlementAmount")}</dt><dd>{money(row.settlement.amount)}<br />{row.settlement.reason}</dd></div></> : null}</dl>
+   {(row.status === "submitted" || row.status === "accepted") && !row.settlement && access.can_manage ? <ExpenseSettlementForm key={`settlement-${payee?.id || "unknown"}`} companyReview row={row} lookups={lookups} run={run} busy={disabled || partial} plan={row.status === "submitted" || partial ? { onPlan: setSettlementPlan, reason } : undefined} /> : null}
   </section>
   <section><h3>{t("expenses.companyTax")}</h3><div className={company.taxFacts}><span>VAT<strong>{t(`expenses.${tax?.vat_state || row.vat_awareness}`)}</strong></span><span>WHT<strong>{t(`expenses.${tax?.wht_state || row.wht_awareness}`)}</strong></span><span>{t("expenses.eligibility")}<strong>{t(tax?.vat_state === "none" ? "expenses.companyNotApplicable" : `expenses.${tax?.eligibility || "pending"}`)}</strong></span></div>
    {simple && access.can_tax_review && (row.status === "submitted" || partial) ? <label className={css.check}><input type="checkbox" checked={ack} disabled={disabled || partial} onChange={e => setAck(e.target.checked)} /><span>{t("expenses.companyNoTaxAck")}</span></label> : null}
-   {partial && !tax ? <Callout tone="warning">{t("expenses.companyTaxPartial")}</Callout> : null}
-   {row.status === "accepted" && pendingExpenseTax(row) && !partial ? access.can_tax_review ? <ExpenseTaxForm key={tax?.id || "new"} secondary row={row} run={run} busy={disabled} /> : <p>{t("expenses.companyTaxPermission")}</p> : null}
+   {(row.status === "submitted" || row.status === "accepted") && pendingExpenseTax(row) && !(simple && (row.status === "submitted" || partial)) ? access.can_tax_review ? <ExpenseTaxForm key={tax?.id || "new"} secondary row={row} run={run} busy={disabled || partial} plan={row.status === "submitted" || partial ? { onPlan: setTaxPlan, reason } : undefined} /> : <p>{t("expenses.companyTaxPermission")}</p> : null}
    {tax?.wht_exception ? <Callout tone="warning">{t("expenses.whtException")}</Callout> : null}
   </section>
-  {(row.status === "submitted" || (partial && !tax)) && access.can_manage ? <form className={css.form} onSubmit={e => { e.preventDefault(); void approve(true); }}><FieldGroup id="company-review-reason" label={t("expenses.reason")}><textarea required value={reason} maxLength={2000} disabled={disabled || partial} onChange={e => setReason(e.target.value)} /></FieldGroup><div className={css.footer}>{!partial ? <button type="button" className={ui.secondary} disabled={disabled || !reason.trim()} onClick={() => void approve(false)}>{t("expenses.companyReject")}</button> : null}<button type="submit" className={ui.primary} disabled={disabled || !reason.trim()}><Check size={17} />{t(partial ? "expenses.companyRetryTax" : "expenses.companyApprove")}</button></div></form> : row.review_reason ? <p>{t("expenses.reviewResult")}: {row.review_reason}</p> : null}
+  {partial ? <div className={company.reviewResult}><Callout tone="warning">{t("expenses.companyReviewPartial")}</Callout></div> : null}
+  {(row.status === "submitted" || partial) && access.can_manage ? <form className={`${css.form} ${company.decision}`} onSubmit={e => { e.preventDefault(); void approve(true); }}><FieldGroup id="company-review-reason" label={t("expenses.reason")}><textarea required value={reason} maxLength={2000} disabled={disabled || partial} onChange={e => setReason(e.target.value)} /></FieldGroup><div className={company.decisionActions}><div className={css.footer}>{!partial ? <button type="button" className={ui.secondary} disabled={disabled || !reason.trim()} onClick={() => void approve(false)}>{t("expenses.companyReject")}</button> : null}<button type="submit" className={ui.primary} disabled={disabled || !reason.trim()}><Check size={17} />{t(partial ? "expenses.companyRetryReview" : "expenses.companyApprove")}</button></div><small>{t("expenses.companyNextItemHelp")}</small></div></form> : row.review_reason ? <p className={company.reviewResult}>{t("expenses.reviewResult")}: {row.review_reason}</p> : null}
  </div>;
 }

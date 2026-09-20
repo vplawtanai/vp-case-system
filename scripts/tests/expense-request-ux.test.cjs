@@ -11,7 +11,7 @@ const f=fixture('list'),props={access:f.data.access,accounts:f.data.accounts,loo
 const request=(count,status='draft')=>({id:id(900),kind:'employee_claim',status,version:1,note:'',created_by:f.data.access.user_id,created_at:'2026-09-19T01:00:00Z',submitted_at:status==='submitted'?'2026-09-20T04:42:00Z':null,requester_name:'Fixture',audit:[],items:Array.from({length:count},(_,i)=>expense(i+100,{status,gross_amount:[300,120,450][i],reimbursement_requested:[300,120,450][i]}))});
 for(const claim of [true,false])test(`TH ${claim?'Claim':'Company'}: top summary, empty first item and distinct item/request actions`,()=>{
  const html=modal.render('th',{}, {...props,claim},'ExpenseRequestModal');
- assert.ok(html.includes(translate('th',claim?'expenses.newClaimRequest':'expenses.newBatch')));
+ assert.ok(html.includes(translate('th',claim?'expenses.newClaimRequest':'expenses.companyNewRequest')));
  assert.ok(html.indexOf('aria-label="สรุปคำขอ"')<html.indexOf('<form'));
  assert.match(html,/<legend>รายการที่ 1<\/legend>/);assert.ok(html.includes('0.00 THB'));assert.match(html,/<dd>0 รายการ<\/dd>/);
  assert.ok(html.includes('เพิ่มรายการนี้'));assert.ok(html.includes('บันทึกไว้ทำต่อ'));assert.ok(html.includes(claim?'ส่งคำขอ':'ส่งตรวจ'));assert.ok(!html.includes('เก็บรายการนี้'));
@@ -36,6 +36,9 @@ test('EN changed labels smoke; no changes to calculations, item RPC payloads or 
  const html=modal.render('en',{}, {...props,claim:true},'ExpenseRequestModal');
  for(const label of ['Create expense claim request','Request summary','Item 1','Add this item','Add expense item','Save for later','Submit request'])assert.ok(html.includes(label),label);
  for(const file of ['app/finance/expenses/requests.ts','supabase/migrations/202607180056_add_expense_request_foundation.sql'])assert.equal(fs.readFileSync(file,'utf8'),cp.execFileSync('git',['show','HEAD:'+file],{encoding:'utf8'}));
- const extracts=(file,source)=>{const a=ts.createSourceFile(file,source,99,true,ts.ScriptKind.TSX),out=[];function visit(n){if((ts.isCallExpression(n)&&n.expression.getText(a)==='run')||(ts.isFunctionDeclaration(n)&&['save','changeHandling'].includes(n.name?.text))||(ts.isVariableDeclaration(n)&&n.name.getText(a)==='total'))out.push(n.getText(a));ts.forEachChild(n,visit);}visit(a);return out;};
- for(const file of ['app/finance/expenses/forms.tsx','app/finance/expenses/workspace.tsx'])assert.deepEqual(extracts(file,fs.readFileSync(file,'utf8')),extracts(file,cp.execFileSync('git',['show','HEAD:'+file],{encoding:'utf8'})),file);
+ const extracts=(file,source)=>{const a=ts.createSourceFile(file,source,99,true,ts.ScriptKind.TSX),out=[];function visit(n){if(ts.isFunctionDeclaration(n)&&['ExpenseTaxForm','ExpenseSettlementForm'].includes(n.name?.text))return;if((ts.isCallExpression(n)&&n.expression.getText(a)==='run')||(ts.isFunctionDeclaration(n)&&['save','changeHandling'].includes(n.name?.text))||(ts.isVariableDeclaration(n)&&n.name.getText(a)==='total'))out.push(n.getText(a));ts.forEachChild(n,visit);}visit(a);return out;};
+ for(const file of ['app/finance/expenses/forms.tsx','app/finance/expenses/workspace.tsx','app/finance/expenses/request-modal.tsx'])assert.deepEqual(extracts(file,fs.readFileSync(file,'utf8')),extracts(file,cp.execFileSync('git',['show','HEAD:'+file],{encoding:'utf8'})),file);
+ // Planning moves the two existing payloads, but cannot alter their financial expressions.
+ const amounts=source=>{const a=ts.createSourceFile('forms.tsx',source,99,true,ts.ScriptKind.TSX),out=[];function visit(n){if(ts.isPropertyAssignment(n)&&['p_amount','p_payee','p_due_on','vat_base','vat_rate','wht_base','wht_rate','p_previous'].includes(n.name.getText(a)))out.push(n.getText(a));ts.forEachChild(n,visit);}visit(a);return out;};
+ assert.deepEqual(amounts(fs.readFileSync('app/finance/expenses/forms.tsx','utf8')),amounts(cp.execFileSync('git',['show','HEAD:app/finance/expenses/forms.tsx'],{encoding:'utf8'})));
 });

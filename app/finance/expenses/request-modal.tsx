@@ -10,6 +10,7 @@ import { expenseCategoryLabel } from "./categories";
 import type { Expense, ExpenseAccess, ExpenseAccount, ExpenseLookups } from "./shared";
 import type { ExpenseRequest, RequestItemInput } from "./requests";
 import css from "./expenses.module.css";
+import company from "./company.module.css";
 import { readExpenseRequest } from "./data";
 import { hasReimbursement } from "./request-operations";
 
@@ -63,13 +64,13 @@ export function ExpenseRequestModal({ request, claim, access, accounts, lookups,
   finally { lock.current = false; setWorking(false); }
  }
  return <>
-  <DetailModal open size="workflow" title={t(claim ? "expenses.newClaimRequest" : "expenses.newBatch")} onClose={close} closeOnBackdrop={false}
+  <DetailModal open size={claim ? "workflow" : "detail"} title={t(claim ? "expenses.newClaimRequest" : "expenses.companyNewRequest")} onClose={close} closeOnBackdrop={false}
    footer={<div className={css.createFooter}><button type="button" className={ui.secondary} disabled={busy || working} onClick={close}>{t("common.actions.close")}</button><button type="button" className={ui.secondary} disabled={busy || working || !!editing || !items.length} onClick={() => void save()}><Save size={17} />{t("expenses.saveForLater")}</button><button type="button" className={ui.primary} disabled={busy || working || !!editing || !items.length} onClick={() => void save(true)}><Send size={17} />{t(claim ? "expenses.submitRequest" : "expenses.sendForReview")}</button></div>}>
-   <div className={css.page}>
+   <div className={`${css.page} ${claim ? "" : company.create}`}>
     {localError || error ? <Callout tone="negative" role="alert">{t(`expenses.${localError || error}`)} {checkpoint && !localError ? t("expenses.requestRetry") : null}</Callout> : null}
     <div className={css.requestMetadata}><span>{t(claim ? "expenses.requestClaimant" : "expenses.recordedBy")}: <strong>{creator}</strong></span>{(savedDraft || request)?.created_at ? <span>{t("expenses.draftCreatedAt")}: {date((savedDraft || request)!.created_at, true)}</span> : null}</div>
-    <section className={css.requestSummary} aria-label={t("expenses.requestSummary")}>
-     <h2>{t("expenses.requestItems")}</h2>
+    <section className={`${css.requestSummary} ${claim ? "" : company.createSummary}`} aria-label={t("expenses.requestSummary")}>
+     {claim ? <h2>{t("expenses.requestItems")}</h2> : null}
      <dl className={css.requestTotals} aria-live="polite"><div><dt>{t("expenses.itemCount")}</dt><dd>{t("expenses.count", { count: items.length })}</dd></div><div><dt>{t("expenses.expenseTotal")}</dt><dd>{money(total("gross_amount"))}</dd></div>{reimbursement ? <div><dt>{t(claim ? "expenses.requestedTotal" : "expenses.staffRequestedTotal")}</dt><dd>{money(total("reimbursement_requested"))}</dd></div> : null}</dl>
     </section>
     <div className={css.requestItems}>{items.map((item, index) => <article key={item.id} className={css.requestItem} data-request-item={item.id}>
@@ -82,7 +83,7 @@ export function ExpenseRequestModal({ request, claim, access, accounts, lookups,
      }}><Icon size={16} /></button>; })}</div>
     </article>)}</div>
     <button type="button" className={`${ui.secondary} ${css.addRequestItem}`} disabled={blocked || !!editing || items.length >= 100} onClick={() => setEditing(crypto.randomUUID())}><Plus size={17} />{t("expenses.addItem")}</button>
-    {editing ? <section className={css.itemEditor} aria-label={t("expenses.editItem")}>
+    {editing ? <section className={`${css.itemEditor} ${claim ? "" : company.createEditor}`} aria-label={t("expenses.editItem")}>
      <ExpenseFactsForm key={editing} itemNumber={edited ? items.indexOf(edited) + 1 : items.length + 1} row={edited ? editorRow(edited, claim) : undefined} claim={claim} access={access} accounts={accounts} lookups={lookups} run={run} busy={busy} onDirty={setEditorDirty} onCapture={input => {
       const next = { id: editing, version: edited?.version ?? null, input };
       setItems(old => edited ? old.map(i => i.id === editing ? next : i) : [...old, next]); setEditing(null); setEditorDirty(false); setDirty(true);

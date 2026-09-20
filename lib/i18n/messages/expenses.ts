@@ -1,5 +1,13 @@
 import type { MessageCatalog } from "../core";
 const copy: Record<string, [string, string]> = {
+ companyTitle: ["ค่าใช้จ่ายบริษัท", "Company expenses"], companySubtitle: ["บันทึกและตรวจสอบค่าใช้จ่ายของบริษัท", "Record and review company expenses."],
+ companyNewRequest: ["สร้างคำขอค่าใช้จ่ายบริษัท", "Create company expense request"], companyFacts: ["ข้อมูลรายการ", "Item facts"],
+ companyVendor: ["ผู้ขาย / ผู้ให้บริการ (ถ้ามี)", "Vendor / service provider (if applicable)"],
+ companyPaymentQuestion: ["รายการนี้จ่ายเงินแล้วหรือยัง?", "Has this expense been paid?"],
+ companyPaymentUnknown: ["ไม่ทราบ / ให้ฝ่ายการเงินตรวจ", "Unknown / Finance to review"], companyPersonalPaid: ["บุคคลสำรองจ่ายแล้ว", "A person has paid first"],
+ companyReviewPartial: ["ยังบันทึกผลการตรวจไม่ครบ ข้อมูลที่เลือกยังอยู่ ลองบันทึกขั้นตอนที่เหลืออีกครั้ง หากสถานะเปลี่ยนไป ให้ปิดแล้วเปิดคำขอเดิมเพื่อตรวจสอบ", "Review is not fully saved. Your choices are retained. Retry the remaining steps. If the status has changed, reopen this request to check it."],
+ companyRetryReview: ["ลองบันทึกผลการตรวจอีกครั้ง", "Retry review decisions"], companyNextItemHelp: ["เมื่อตรวจภาษีและวิธีชำระครบ ระบบจะเปิดรายการถัดไปให้", "The next item opens when tax and settlement review is complete."],
+ companySearchPlaceholder: ["ค้นหาด้วยเลขที่คำขอ รายการ ชื่อผู้ขาย หรือชื่อผู้บันทึก", "Request reference, item, supplier or creator"],
  companySearch: ["ค้นหาคำขอ รายการ ผู้ขาย หรือผู้บันทึก", "Search request, item, supplier or creator"],
  companyRequestCount: ["{count} คำขอ", "{count} requests"], companyRequests: ["คำขอค่าใช้จ่ายบริษัท", "Company expense requests"], companyRequest: ["คำขอ", "Request"], companyQueuedAt: ["เข้าคิวเมื่อ", "Queue time"],
  companyEmpty: ["ยังไม่มีคำขอค่าใช้จ่ายบริษัทที่ตรงกับตัวกรอง", "No company expense requests match these filters."],

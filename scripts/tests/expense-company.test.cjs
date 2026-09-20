@@ -43,6 +43,8 @@ test('Progress 0/2 -> 1/2 -> 2/2; approval alone is not complete tax/settlement'
  const e=expense(10,{status:'submitted'}),r=request([e,{...e,id:id(12)}]);
  assert.equal(companyProgress(r),0);assert.equal(companyProgress({...r,items:[reviewed,e]}),1);assert.equal(companyProgress({...r,items:[reviewed,{...e,status:'rejected'}]}),2);
  assert.equal(companyReviewComplete({...reviewed,tax_review:null}),false);assert.equal(companyReviewComplete({...reviewed,settlement:null}),false);assert.equal(companyReviewComplete(reviewed),true);
+ assert.equal(companyProgress(request([{...reviewed,tax_review:null}])),0);
+ assert.equal(companyProgress(request([{...reviewed,settlement:null}])),0);
 });
 test('Known payee derived by exact supplier ID or unique personal payer; ambiguous remains unresolved',()=>{
  assert.equal(companyPayee(expense(10),f.lookups).id,id(4));
@@ -72,5 +74,28 @@ test('Reimbursement summary absent when irrelevant; requested and approved remai
 });
 test('Company Admin tools removed; query selection cannot open Claim; backend and Claim review unchanged',()=>{
  const source=fs.readFileSync('app/finance/expenses/workspace.tsx','utf8');assert.match(source,/claims && access.is_admin/);assert.match(source,/r.kind === \(claims \? "employee_claim" : "company_expense_batch"\)/);
- for(const file of ['app/finance/expenses/request-view.tsx','app/finance/expenses/request-operations.ts','app/finance/expenses/request-modal.tsx','app/finance/expenses/data.ts','app/finance/expenses/shared.ts','app/finance/expenses/requests.ts'])assert.equal(fs.readFileSync(file,'utf8'),cp.execFileSync('git',['show','HEAD:'+file],{encoding:'utf8'}),file);
+ for(const file of ['app/finance/expenses/request-view.tsx','app/finance/expenses/request-operations.ts','app/finance/expenses/data.ts','app/finance/expenses/shared.ts','app/finance/expenses/requests.ts'])assert.equal(fs.readFileSync(file,'utf8'),cp.execFileSync('git',['show','HEAD:'+file],{encoding:'utf8'}),file);
+});
+test('Company request capture does not invent an Item Type or persist unsupported paid/unpaid states',()=>{
+ const forms=workspaceFixture('app/finance/expenses/forms.tsx',['ExpenseFactsForm']);
+ for(const locale of ['th','en']){
+  const html=forms.render(locale,{}, {...props,accounts:f.data.accounts,claim:false,onCapture:noop,row:expense(10,{status:'draft',personally_paid:false})},'ExpenseFactsForm');
+  assert.match(html,/<option value="unknown" selected="">/);assert.doesNotMatch(html,/<option value="(?:unpaid|company_paid)"/);
+  assert.doesNotMatch(html,/name="item_type"|id="expense-item-type"/);assert.match(html,/expense-vendor_name/);
+ }
+});
+test('Finance plans use existing controls before approval without separate mutation buttons',()=>{
+ const forms=workspaceFixture('app/finance/expenses/forms.tsx',['ExpenseTaxForm','ExpenseSettlementForm']);
+ for(const component of ['ExpenseTaxForm','ExpenseSettlementForm']){
+  const html=forms.render('en',{}, {...props,row:expense(10,{status:'submitted'}),companyReview:true,plan:{onPlan:noop,reason:'Explicit review'}},component);
+  assert.match(html,/data-review-plan=/);assert.doesNotMatch(html,/type="submit"|id="(?:tax|settlement)-reason"/);
+  const standalone=forms.render('en',{}, {...props,row:expense(10)},component);assert.match(standalone,/type="submit"/);assert.doesNotMatch(standalone,/data-review-plan/);
+ }
+});
+test('Only confirmed payout is displayed as company paid; settlement instructions are not money movement',()=>{
+ for(const mode of ['company_bank','company_cash','supplier_unpaid']){
+  const html=review.render('en',{}, {...props,row:{...reviewed,settlement:{...reviewed.settlement,mode},payout:null}},'CompanyItemReview');
+  assert.doesNotMatch(html,/Company has already paid/);
+ }
+ const paid=review.render('en',{}, {...props,row:{...reviewed,payout:{status:'confirmed'}}},'CompanyItemReview');assert.match(paid,/Company has already paid/);
 });
