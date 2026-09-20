@@ -3,6 +3,12 @@ import { readAll } from "../tax-position/dashboard-data";
 import { emptyLookups, type ExpenseData, type ExpenseLookups } from "./shared";
 import type { ExpenseRequest } from "./requests";
 
+export async function readExpenseRequest(id: string): Promise<ExpenseRequest> {
+ const r = await supabase.rpc("get_finance_expense_requests", { p_id: id });
+ if (r.error || r.data?.id !== id || !Number.isInteger(r.data.version) || !Array.isArray(r.data.items) || !["draft", "submitted"].includes(r.data.status)) throw r.error || new Error("request response");
+ return r.data;
+}
+
 export async function readExpenseRequests(claims: boolean): Promise<ExpenseRequest[] | null> {
  const rows: ExpenseRequest[] = [];
  for (let offset = 0; offset < 100000; offset += 50) {
@@ -30,7 +36,7 @@ export async function readExpenses(id: string | null, claims: boolean): Promise<
  }
  throw new Error("read limit");
 }
-export async function readExpenseLookups(all: boolean): Promise<ExpenseLookups> {
+export async function readExpenseLookups(all: boolean, userId?: string): Promise<ExpenseLookups> {
  // Existing RLS, not a new broad customer/case read grant.
  const clients = await readAll<ExpenseLookups["clients"][number]>((a, b) => supabase.from("clients").select("id,name", { count: "exact" }).order("id").range(a, b));
  const cases = await readAll<ExpenseLookups["cases"][number]>((a, b) => supabase.from("cases").select("id,client_id,file_no,title", { count: "exact" }).order("id").range(a, b));
@@ -40,6 +46,11 @@ export async function readExpenseLookups(all: boolean): Promise<ExpenseLookups> 
   const r = await supabase.rpc("get_finance_expense_parties");
   if (r.error || !Array.isArray(r.data?.payees)) throw r.error || new Error("response");
   parties = r.data;
+ }
+ if (!all && userId) {
+  const r = await supabase.from("user_profiles").select("id,staff_name,full_name,email").eq("id", userId).single();
+  if (r.error) throw r.error;
+  parties.people = [{ id: r.data.id, name: r.data.staff_name || r.data.full_name || r.data.email }];
  }
  return { clients, cases, matters, ...parties };
 }

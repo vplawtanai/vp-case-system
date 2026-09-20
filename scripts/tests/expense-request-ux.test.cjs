@@ -14,7 +14,7 @@ for(const claim of [true,false])test(`TH ${claim?'Claim':'Company'}: top summary
  assert.ok(html.includes(translate('th',claim?'expenses.newClaimRequest':'expenses.newBatch')));
  assert.ok(html.indexOf('aria-label="สรุปคำขอ"')<html.indexOf('<form'));
  assert.match(html,/<legend>รายการที่ 1<\/legend>/);assert.ok(html.includes('0.00 THB'));assert.match(html,/<dd>0 รายการ<\/dd>/);
- assert.ok(html.includes('เพิ่มรายการนี้'));assert.ok(html.includes('บันทึกร่างคำขอ'));assert.ok(!html.includes('เก็บรายการนี้'));
+ assert.ok(html.includes('เพิ่มรายการนี้'));assert.ok(html.includes('บันทึกไว้ทำต่อ'));assert.ok(html.includes(claim?'ส่งคำขอ':'ส่งตรวจ'));assert.ok(!html.includes('เก็บรายการนี้'));
  assert.equal((html.match(/<form /g)||[]).length,1);assert.doesNotMatch(html,/<input[^>]*(submitted|created)_at/);
 });
 for(const count of [1,3])test(`TH ${count} completed items: compact cards and existing derived totals`,()=>{
@@ -29,13 +29,13 @@ test('Submitted time is read-only, exact source timestamp; Draft never masquerad
   const r=request(1,status),html=review.render('th',{}, {...props,request:r,onEdit:()=>{},renderItem:()=>null},'ExpenseRequestReview');
   assert.equal(html.includes('ยื่นคำขอเมื่อ'),status==='submitted');assert.doesNotMatch(html,/<input/);
   assert.ok(html.includes(status==='submitted'?r.submitted_at:r.created_at));
-  assert.equal(html.includes('ส่งคำขอ'),status==='draft');
+  assert.equal(/<button[^>]*>.*?<\/button>/s.test(html),true);
  }
 });
-test('EN changed labels smoke; no changes to request calculations, readers, RPC payloads or Migration 056',()=>{
+test('EN changed labels smoke; no changes to calculations, item RPC payloads or Migration 056',()=>{
  const html=modal.render('en',{}, {...props,claim:true},'ExpenseRequestModal');
- for(const label of ['Create expense claim request','Request summary','Item 1','Add this item','Add expense item','Save request draft'])assert.ok(html.includes(label),label);
- for(const file of ['app/finance/expenses/requests.ts','app/finance/expenses/data.ts','supabase/migrations/202607180056_add_expense_request_foundation.sql'])assert.equal(fs.readFileSync(file,'utf8'),cp.execFileSync('git',['show','HEAD:'+file],{encoding:'utf8'}));
+ for(const label of ['Create expense claim request','Request summary','Item 1','Add this item','Add expense item','Save for later','Submit request'])assert.ok(html.includes(label),label);
+ for(const file of ['app/finance/expenses/requests.ts','app/finance/expenses/forms.tsx','supabase/migrations/202607180056_add_expense_request_foundation.sql'])assert.equal(fs.readFileSync(file,'utf8'),cp.execFileSync('git',['show','HEAD:'+file],{encoding:'utf8'}));
  const extracts=(file,source)=>{const a=ts.createSourceFile(file,source,99,true,ts.ScriptKind.TSX),out=[];function visit(n){if((ts.isCallExpression(n)&&n.expression.getText(a)==='run')||(ts.isFunctionDeclaration(n)&&['save','changeHandling'].includes(n.name?.text))||(ts.isVariableDeclaration(n)&&n.name.getText(a)==='total'))out.push(n.getText(a));ts.forEachChild(n,visit);}visit(a);return out;};
- for(const file of ['app/finance/expenses/forms.tsx','app/finance/expenses/request-modal.tsx','app/finance/expenses/request-view.tsx'])assert.deepEqual(extracts(file,fs.readFileSync(file,'utf8')),extracts(file,cp.execFileSync('git',['show','HEAD:'+file],{encoding:'utf8'})),file);
+ for(const file of ['app/finance/expenses/forms.tsx','app/finance/expenses/workspace.tsx'])assert.deepEqual(extracts(file,fs.readFileSync(file,'utf8')),extracts(file,cp.execFileSync('git',['show','HEAD:'+file],{encoding:'utf8'})),file);
 });

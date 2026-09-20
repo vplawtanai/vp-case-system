@@ -17,7 +17,7 @@ const lists=workspaceFixture('app/finance/expenses/workspace.tsx',['ExpenseClaim
 for(const locale of ['th','en'])for(const count of [1,3,10])test(`${locale} ${count} items: collapsed summaries, derived totals, no parent tax/payment action`,()=>{
  const f=fixture('list'),r={...request(count),status:'draft',submitted_at:null},t=k=>translate(locale,'expenses.'+k);
  const html=modal.render(locale,{}, {request:r,claim:true,access:f.data.access,accounts:f.data.accounts,lookups:f.lookups,run:()=>{throw Error('no writes');},busy:false,error:'',onClose:()=>{},onSaved:()=>{}},'ExpenseRequestModal');
- assert.equal((html.match(/data-request-item=/g)||[]).length,count);assert.doesNotMatch(html,/<form/);assert.ok(html.includes(t('requestedTotal')));assert.ok(html.includes(t('addItem')));assert.ok(html.includes(t('saveRequest')));assert.ok(!html.includes(t('confirmPayment')));
+ assert.equal((html.match(/data-request-item=/g)||[]).length,count);assert.doesNotMatch(html,/<form/);assert.ok(html.includes(t('requestedTotal')));assert.ok(html.includes(t('addItem')));assert.ok(html.includes(t('saveForLater')));assert.ok(!html.includes(t('confirmPayment')));
  const queue=lists.render(locale,{}, {rows:[],requests:[r],canCreate:true,viewAll:true,onCreate:()=>{}},'ExpenseClaimList');assert.equal((queue.match(/data-request-row=/g)||[]).length,1);assert.ok(queue.includes(t('draftCreated')));assert.ok(!queue.includes('data-workflow-event="claimSubmitted"'));
 });
 module.exports={request};

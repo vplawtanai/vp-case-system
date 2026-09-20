@@ -1,16 +1,24 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-// Real React/modal/handlers, isolated in-memory adapters; external network is blocked.
+// Real React handlers with in-memory lifecycle fixtures. Every external request is blocked.
 const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http'),assert=require('node:assert/strict');
-const {fixture,expense}=require('./expense-foundation-fixture.cjs');
-const root=path.resolve(__dirname,'../..'),out=fs.mkdtempSync(path.join(os.tmpdir(),'vp-expense-request-'));
+const {fixture,expense,tax,obligation,id}=require('./expense-foundation-fixture.cjs');
+const root=path.resolve(__dirname,'../..'),out=fs.mkdtempSync(path.join(os.tmpdir(),'vp-expense-operations-'));
 const write=(name,text)=>{const p=path.join(out,name);fs.writeFileSync(p,text);return p;};
 const f=fixture('list');f.data.access.is_admin=false;
 const adapter=write('adapter.js',`
-const f=${JSON.stringify(f)},seed=${JSON.stringify(expense(1))};let requests=[];window.calls=[];window.writes=[];
+const f=${JSON.stringify(f)},seed=${JSON.stringify(expense(10))},tax=${JSON.stringify(tax)},obligation=${JSON.stringify(obligation(40,id(10)))};
+const params=new URLSearchParams(location.search),scenario=params.get('scenario'),claim=location.pathname.includes('/claims'),creator=params.get('role')==='creator';let requests=[];window.calls=[];window.writes=[];
+if(creator)f.data.access={...f.data.access,can_manage:false,can_tax_review:false,can_record:false,can_confirm:false,can_view_all:false,is_admin:false};
+const makeItem=(i,input={})=>({...seed,id:'00000000-0056-4000-8000-00000000000'+i,origin:claim?'employee_claim':'company_purchase',created_by:f.data.access.user_id,request_id:'00000000-0056-4000-8000-000000000900',request_active:true,version:2,status:'draft',audit:[],submitted_at:null,review_reason:null,gross_amount:i===1?300:120,description:'Synthetic item '+i,personally_paid:claim,reimbursement_requested:claim?(i===1?300:120):0,...input});
+if(scenario){const status=scenario==='draft'?'draft':scenario==='submitted'?'submitted':scenario==='rejected'?'rejected':'accepted',at='2026-09-19T04:00:00Z';requests=[{id:'00000000-0056-4000-8000-000000000900',kind:claim?'employee_claim':'company_expense_batch',status:scenario==='draft'?'draft':'submitted',version:2,note:'',created_at:'2026-09-18T01:00:00Z',submitted_at:scenario==='draft'?null:at,created_by:f.data.access.user_id,requester_name:'Synthetic staff',audit:[],items:[1,2].map(i=>makeItem(i,{status,submitted_at:scenario==='draft'?null:at,review_reason:status==='rejected'?'Synthetic rejection reason':null,tax_review:scenario==='waiting'||scenario==='paid'?tax:null,settlement:scenario==='waiting'||scenario==='paid'?{id:'settlement-'+i,mode:'supplier_unpaid',amount:300,payee_id:obligation.payee_id,reason:'Synthetic decision'}:null,obligation:scenario==='waiting'||scenario==='paid'?{...obligation,id:'obligation-'+i,settled:scenario==='paid',created_at:'2026-09-19T06:00:00Z'}:null,payout:scenario==='paid'?{id:'paid-'+i,status:'confirmed',gross:300,net:300,wht:0,paid_on:'2026-09-20'}:null,audit:[...(status==='accepted'||status==='rejected'?[{id:'review-'+i,event_type:status,created_at:'2026-09-19T05:00:00Z',actor_name:'Finance',evidence_json:null}]:[]),...(scenario==='paid'?[{id:'payment-'+i,event_type:'payment_confirmed',created_at:'2026-09-20T05:00:00Z',actor_name:'Finance',evidence_json:null}]:[])]}))}];}
 export async function readExpenses(){return {...f.data,rows:[]};}export async function readExpenseLookups(){return f.lookups;}export async function readExpenseRequests(){return structuredClone(requests);}
-export const supabase={async rpc(name,args){window.calls.push({name,args:structuredClone(args)});await new Promise(r=>setTimeout(r,120));if(window.failNext){window.failNext=false;return{error:{message:'EXPENSE_PERMISSION_DENIED'}};}
- if(name==='save_finance_expense_request'){let old=requests.find(r=>r.id===args.p_id);const row={id:args.p_id,kind:args.p_kind,note:args.p_note,status:'draft',version:(old?.version||0)+1,created_at:'2026-09-15T01:00:00Z',submitted_at:null,created_by:f.data.access.user_id,requester_name:'Synthetic staff',audit:[],items:args.p_items.map(i=>({...seed,...i.input,id:i.id,version:(i.version||0)+1,status:'draft',request_id:args.p_id,request_active:true,submitted_at:null,created_by:f.data.access.user_id}))};requests=[...requests.filter(r=>r.id!==row.id),row];window.writes.push(name);return{data:row.id};}
- if(name==='submit_finance_expense_request'){const r=requests.find(r=>r.id===args.p_id);r.status='submitted';r.submitted_at='2026-09-20T04:42:00Z';r.version++;r.items.forEach(i=>{i.status='submitted';i.submitted_at=r.submitted_at;i.version++;});window.writes.push(name);return{data:r.id};}
+export async function readExpenseRequest(id){if(window.failRead){window.failRead=false;throw Error('Local read failed');}const r=requests.find(r=>r.id===id);if(window.editDuringRead){window.editDuringRead=false;r.version++;r.note='Another tab edit';}return structuredClone(r);}
+const operations=new Set();
+export const supabase={async rpc(name,args){window.calls.push({name,args:structuredClone(args)});await new Promise(r=>setTimeout(r,80));
+ if(window.failSave&&name==='save_finance_expense_request'){window.failSave=false;return{error:{message:'EXPENSE_PERMISSION_DENIED'}};}
+ if(window.failSubmit&&name==='submit_finance_expense_request'){window.failSubmit=false;return{error:{message:'EXPENSE_PERMISSION_DENIED'}};}
+ if(name==='save_finance_expense_request'){if(operations.has(args.p_operation))return{data:args.p_id};const old=requests.find(r=>r.id===args.p_id);if(old&&old.version!==args.p_version)throw Error('Stale fixture save');const row={id:args.p_id,kind:args.p_kind,note:args.p_note,status:'draft',version:(old?.version||0)+1,created_at:'2026-09-18T01:00:00Z',submitted_at:null,created_by:f.data.access.user_id,requester_name:'Synthetic staff',audit:[],items:args.p_items.map((i,n)=>makeItem(n+1,{...i.input,id:i.id,request_id:args.p_id,version:(i.version||0)+1}))};requests=[...requests.filter(r=>r.id!==row.id),row];operations.add(args.p_operation);window.writes.push(name);if(window.loseSaveResponse){window.loseSaveResponse=false;return{error:{message:'Network failed after commit'}};}return{data:row.id};}
+ if(name==='submit_finance_expense_request'){const r=requests.find(r=>r.id===args.p_id);if(r.status==='submitted')return{data:r.id};if(r.version!==args.p_version)throw Error('Wrong saved version');r.status='submitted';r.submitted_at='2026-09-20T04:42:00Z';r.version++;r.items.forEach(i=>{i.status='submitted';i.submitted_at=r.submitted_at;i.version++;});window.writes.push(name);if(window.loseSubmitResponse){window.loseSubmitResponse=false;return{error:{message:'Network failed after submit'}};}return{data:r.id};}
  if(name==='review_finance_expense'){const r=requests.find(r=>r.items.some(i=>i.id===args.p_id)),i=r.items.find(i=>i.id===args.p_id);i.status=args.p_accept?'accepted':'rejected';i.review_reason=args.p_reason;i.version++;window.writes.push(name);return{data:i.id};}
  throw Error('Forbidden local RPC '+name);}};
 `);
@@ -27,51 +35,54 @@ async function main(){
   const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'/Users/paolawyer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
   const page=await browser.newPage(),errors=[],external=[];page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>{if(new URL(r.request().url()).hostname==='127.0.0.1')return r.continue();external.push(r.request().url());return r.abort();});
   require('./receipt-render-fixture.cjs');const {translate}=require('../../lib/i18n/catalog.ts'),url='http://127.0.0.1:'+server.address().port;
-  // Narrow UX pass: full Thai at two widths; English changed-component smoke only.
-  for(const width of [1440,390])for(const locale of width===1440?['th','en']:['th'])for(const claim of [false,true])for(const count of locale==='th'?[0,1,3]:[1]){
-   const t=k=>translate(locale,'expenses.'+k),route=claim?'/finance/expenses/claims':'/finance/expenses';await page.setViewportSize({width,height:900});await page.goto(`${url}${route}?locale=${locale}`);
-   const launcher=page.getByRole('button',{name:t(claim?'newClaim':'new'),exact:true}).first();await launcher.click();await page.getByRole('dialog').waitFor();
-   const summary=page.getByRole('region',{name:t('requestSummary'),exact:true});
-   assert.ok((await summary.innerText()).includes('0.00 THB'));assert.equal(await page.locator('legend').first().textContent(),translate(locale,'expenses.itemNumber',{count:1}));
-   assert.ok(await page.getByRole('button',{name:t('saveRequest'),exact:true}).isDisabled());
-   const fits=async()=>{assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);assert.equal(await page.getByRole('dialog').evaluate(e=>e.scrollWidth>e.clientWidth+1),false);};
-   await fits();
-   if(!count){
-    await page.screenshot({path:out+`/empty-${claim?'claim':'company'}-${locale}-${width}.png`,fullPage:true});
-    await page.getByRole('button',{name:t('cancelItem'),exact:true}).click();assert.equal(await page.locator('[role=dialog] form').count(),0);assert.equal(await page.evaluate(()=>window.calls.length),0);
-    console.log('PASS',locale,width,claim?'Claim':'Company','empty request / zero totals / numbered editor / no writes');continue;
+  const fits=async()=>{assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);assert.equal(await page.getByRole('dialog').evaluate(e=>e.scrollWidth>e.clientWidth+1),false);};
+  let scenarios=0;
+  // Direct-submit failure checkpoints, two items, both workflows and changed-label EN smoke.
+  for(const width of [390,1440])for(const locale of width===1440?['th','en']:['th'])for(const claim of [false,true]){
+   const t=k=>translate(locale,'expenses.'+k),route=claim?'/finance/expenses/claims':'/finance/expenses';await page.setViewportSize({width,height:950});await page.goto(`${url}${route}?locale=${locale}`);
+   await page.getByRole('button',{name:t(claim?'newClaim':'new'),exact:true}).first().click();const dialog=page.getByRole('dialog');await dialog.waitFor();
+   assert.equal(await dialog.locator('input[name=submitted_at]').count(),0);
+   const submit=()=>dialog.getByRole('button',{name:t(claim?'submitRequest':'sendForReview'),exact:true}),save=()=>dialog.getByRole('button',{name:t('saveForLater'),exact:true});
+   assert.ok(await submit().isDisabled());
+   for(let i=0;i<2;i++){
+    if(i)await dialog.getByRole('button',{name:t('addItem'),exact:true}).click();assert.equal(await dialog.locator('form').count(),1);
+    await page.locator('#expense-expense_date').fill('2026-09-03');await page.locator('#expense-category').selectOption('ค่าเดินทาง');await page.locator('#expense-gross_amount').fill(String(i?120:300));await page.locator('#expense-description').fill('Synthetic item '+(i+1));await dialog.getByRole('button',{name:t('addThisItem'),exact:true}).click();
    }
-   for(let i=0;i<count;i++){
-    if(i)await page.getByRole('dialog').getByRole('button',{name:t('addItem'),exact:true}).click();assert.equal(await page.locator('[role=dialog] form').count(),1);
-    await page.locator('#expense-expense_date').fill(['2026-09-03','2026-09-05','2026-09-08'][i]);await page.locator('#expense-category').selectOption('ค่าเดินทาง');await page.locator('#expense-gross_amount').fill(String([300,120,450][i]));await page.locator('#expense-description').fill('Synthetic item '+(i+1));
-    if(claim)assert.equal(await page.locator('#expense-claimant_id').count(),0);
-    await page.getByRole('button',{name:t('addThisItem'),exact:true}).click();assert.equal(await page.locator('[role=dialog] form').count(),0);assert.ok(await page.getByRole('dialog').getByRole('button',{name:t('addItem'),exact:true}).isEnabled());
+   assert.equal(await dialog.locator('form').count(),0);assert.equal(await page.locator('[data-request-item]').count(),2);assert.ok((await dialog.innerText()).includes('420.00 THB'));
+   assert.equal((await dialog.innerText()).includes(t('requestedTotal')),claim);
+   await submit().focus();assert.ok(await submit().evaluate(e=>document.activeElement===e));await fits();await page.screenshot({path:out+`/create-${claim?'claim':'company'}-${locale}-${width}.png`,fullPage:true});
+   const failure=locale==='en'?(claim?'loseSubmitResponse':'loseSaveResponse'):width===390?(claim?'failSubmit':'failSave'):'failRead';
+   await page.evaluate(key=>{window[key]=true;},failure);await submit().dblclick();await dialog.getByRole('alert').waitFor();
+   assert.equal(await page.locator('[data-request-item]').count(),2);await submit().click();await page.locator('[data-request-item]').first().waitFor({state:'hidden'});
+   const calls=await page.evaluate(()=>window.calls),writes=await page.evaluate(()=>window.writes);
+   assert.equal(writes.filter(n=>n==='save_finance_expense_request').length,1);assert.equal(writes.filter(n=>n==='submit_finance_expense_request').length,1);
+   const saves=calls.filter(c=>c.name==='save_finance_expense_request');assert.ok(saves.every(c=>c.args.p_operation===saves[0].args.p_operation));assert.equal(await page.locator('[data-request-row]').count(),1);
+   assert.ok((await dialog.innerText()).includes(t(claim?'requestSubmittedAt':'requestSentAt')));await fits();
+   console.log('PASS direct submit',locale,width,claim?'Claim':'Company',failure);scenarios++;
+   // Optional draft remains a separate, working choice.
+   await page.goto(`${url}${route}?locale=${locale}&scenario=draft`);await page.getByRole('button',{name:t('view'),exact:true}).click();await dialog.getByRole('button',{name:t('editRequest'),exact:true}).click();await save().click();await dialog.getByRole('button',{name:t('editRequest'),exact:true}).waitFor();
+   assert.deepEqual(await page.evaluate(()=>window.writes),['save_finance_expense_request']);
+   if(width===1440&&locale==='en'&&!claim){
+    await page.goto(`${url}${route}?locale=en&scenario=draft`);await page.getByRole('button',{name:t('view'),exact:true}).click();await dialog.getByRole('button',{name:t('editRequest'),exact:true}).click();await page.evaluate(()=>{window.editDuringRead=true;});await submit().click();await dialog.getByRole('alert').waitFor();assert.ok((await dialog.getByRole('alert').innerText()).includes(t('stale')));assert.deepEqual(await page.evaluate(()=>window.writes),['save_finance_expense_request']);assert.equal(await page.locator('[data-request-item]').count(),2);console.log('PASS unseen Draft revision blocks Submit');scenarios++;
    }
-   assert.equal(await page.locator('[data-request-item]').count(),count);assert.equal(await page.evaluate(()=>window.calls.length),0,'Item entry is local, never independent saves');
-   // Edit, duplicate and remove without losing other completed items.
-   const total=count===1?300:870,formatted=n=>n.toLocaleString(locale,{minimumFractionDigits:2,maximumFractionDigits:2})+' THB';
-   assert.ok((await summary.innerText()).includes(formatted(total)));
-   await page.getByRole('button',{name:t('copyItem'),exact:true}).first().click();assert.equal(await page.locator('[data-request-item]').count(),count+1);assert.ok((await summary.innerText()).includes(formatted(total+300)));
-   await page.getByRole('button',{name:t('removeItem'),exact:true}).last().click();assert.ok((await summary.innerText()).includes(formatted(total)));
-   await page.getByRole('button',{name:t('editItem'),exact:true}).first().click();assert.equal(await page.locator('#expense-description').inputValue(),'Synthetic item 1');assert.equal(await page.locator('[role=dialog] form').count(),1);
-   await page.locator('#expense-gross_amount').fill('301');await page.getByRole('button',{name:t('saveItemChanges'),exact:true}).click();assert.ok((await summary.innerText()).includes(formatted(total+1)));
-   await page.keyboard.press('Escape');assert.equal(await page.getByRole('dialog').count(),2);await page.getByRole('button',{name:t('keepEditing'),exact:true}).click();
-   const dialog=page.getByRole('dialog'),save=page.getByRole('button',{name:t('saveRequest'),exact:true});await save.focus();assert.ok(await save.evaluate(e=>document.activeElement===e));
-   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);assert.equal(await dialog.evaluate(e=>e.scrollWidth>e.clientWidth+1),false);
-   await summary.scrollIntoViewIfNeeded();await page.screenshot({path:out+`/${claim?'claim':'company'}-${count}-${locale}-${width}.png`,fullPage:true});
-   await page.evaluate(()=>{window.failNext=true;});await save.click();await dialog.getByRole('alert').waitFor();assert.equal(await page.locator('[data-request-item]').count(),count);
-   await save.click();await page.getByRole('button',{name:t('submitRequest'),exact:true}).waitFor();
-   const calls=await page.evaluate(()=>window.calls);assert.equal(calls.length,2);assert.equal(calls[0].args.p_operation,calls[1].args.p_operation);assert.equal(calls[1].args.p_items.length,count);
-   assert.equal(await page.locator('main [data-request-row]').count(),1,'One envelope in review queue');
-   await page.getByRole('button',{name:t('submitRequest'),exact:true}).click();await page.getByRole('button',{name:t('submitRequest'),exact:true}).waitFor({state:'hidden'});
-   assert.ok((await page.getByRole('dialog').innerText()).includes(t('requestSubmittedAt')));assert.equal(await page.getByRole('dialog').locator('input').count(),0);
-   await page.screenshot({path:out+`/review-${claim?'claim':'company'}-${count}-${locale}-${width}.png`,fullPage:true});
-   await page.keyboard.press('Escape');await page.getByRole('dialog').waitFor({state:'hidden'});
-   assert.equal(await page.locator('main tbody tr').count(),1);const sort=page.locator(claim?'#claim-queue-order':'#expense-queue-order');await sort.selectOption('oldest');assert.equal(await page.locator('main tbody tr').count(),1);
-   assert.ok((await page.evaluate(()=>window.writes)).every(n=>['save_finance_expense_request','submit_finance_expense_request'].includes(n)));
-   console.log('PASS',locale,width,claim?'Claim':'Company',count,'items / local error-retry / one envelope / no financial RPC');
   }
-  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,artifacts:out,externalRequests:0}));
+  for(const width of [390,1440])for(const role of ['creator','reviewer'])for(const scenario of ['draft','submitted','accepted','rejected','waiting','paid']){
+   const locale='th',t=k=>translate(locale,'expenses.'+k);await page.setViewportSize({width,height:950});await page.goto(`${url}/finance/expenses/claims?locale=th&scenario=${scenario}&role=${role}`);
+   await page.getByRole('button',{name:t(role==='reviewer'&&scenario==='submitted'?'reviewRequest':'view'),exact:true}).click();const dialog=page.getByRole('dialog');await dialog.waitFor();
+   const content=await dialog.innerText();assert.ok(content.includes('Synthetic staff'));assert.ok(content.includes(t('draftCreatedAt')));assert.ok(content.includes(t('requestTimeline')));
+   assert.equal(content.includes(t('requestSubmittedAt')),scenario!=='draft');
+   if(scenario==='rejected'){assert.ok(content.includes(t('nextRejected')));assert.equal(await dialog.getByRole('button',{name:t('submitRequest'),exact:true}).count(),0);}
+   if(role==='creator')assert.equal(await dialog.locator('form').count(),0);
+   if(scenario==='paid')assert.ok(content.includes(t('nextPaid')));
+   if(scenario==='waiting')assert.ok(content.includes(t('nextWaitingPayment')));
+   await fits();await page.screenshot({path:out+`/${scenario}-${role}-${width}.png`,fullPage:true});
+   if(role==='reviewer'&&scenario==='submitted'){
+    assert.equal(await dialog.locator('#expense-review-reason').count(),1);await dialog.locator('#expense-review-reason').fill('Reviewed local fixture');await dialog.getByRole('button',{name:t('accept'),exact:true}).click();await dialog.locator('#tax-vat_state').waitFor();
+    assert.deepEqual(await page.evaluate(()=>window.writes),['review_finance_expense']);assert.ok((await dialog.innerText()).includes(t('settlement')));
+   }else assert.deepEqual(await page.evaluate(()=>window.writes),[]);
+   console.log('PASS state',width,role,scenario);scenarios++;
+  }
+  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,scenarios,artifacts:out,externalRequests:0}));
  }finally{if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));}
 }
 main().catch(e=>{console.error(e);console.error('Artifacts:',out);process.exitCode=1;});
