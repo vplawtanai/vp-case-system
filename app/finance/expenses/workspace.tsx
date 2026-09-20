@@ -14,6 +14,8 @@ import { ExpenseAdminTools } from "./admin-tools";
 import { ExpenseRequestModal } from "./request-modal";
 import { ExpenseCreateModal } from "./create-modal";
 import { ExpenseRequestReview, ExpenseRequestRow } from "./request-view";
+import { CompanyExpenseList } from "./company-list";
+import { CompanyRequestReview } from "./company-review";
 import { expenseQueueEntries, type ExpenseRequest } from "./requests";
 import { expenseCategoryLabel } from "./categories";
 import { claimWorkflowTime, expenseWorkflowTime, type QueueOrder } from "../workflow-time";
@@ -59,6 +61,7 @@ export function ExpenseWorkspace({ id, claims = false, initialTaxFilter = false,
  const canCreate = claims ? access?.can_claim : access?.can_manage || access?.can_record;
  const openCreate = () => { if (!canCreate || loading || busy) return; setError(""); setNotice(""); setCreateOpen(true); };
  const title = id && id !== "new" ? claims ? "claimReview" : "financeReview" : claims ? "claims" : "title";
+ const selectedRequest = data?.requests?.find(r => r.id === requestId && r.kind === (claims ? "employee_claim" : "company_expense_batch"));
  return <PageShell><div className={css.page}>
   <div className={css.breadcrumb}><span>{t("common.nav.finance")}</span><span aria-hidden="true">/</span><Link href={claims ? "/finance/expenses/claims" : "/finance/expenses"}>{t(claims ? "expenses.claims" : "expenses.title")}</Link>{record ? <><span aria-hidden="true">/</span><span>{expenseShortRef(record.id)}</span></> : null}</div>
   <header className={css.heading}><div className={css.title}><span className={css.icon}><FileText size={23} aria-hidden="true" /></span><div><h1>{t(`expenses.${title}`)}</h1><p>{t(claims ? "expenses.claimHelp" : "expenses.subtitle")}</p></div></div>
@@ -68,13 +71,13 @@ export function ExpenseWorkspace({ id, claims = false, initialTaxFilter = false,
   {loading ? <p role="status">{t("expenses.loading")}</p> : data && access ? <>
    {creating ? canCreate ? <ExpenseFactsForm claim={claims} access={access} accounts={data.accounts} lookups={lookups} run={run} busy={busy} /> : <Callout tone="warning">{t("expenses.denied")}</Callout> : record ?
     <ExpenseDetail key={`${record.id}:${record.version}:${record.tax_review?.id}:${record.settlement?.id}:${record.payout?.version}:${record.obligation?.waived}`} data={data} row={record} lookups={lookups} run={run} busy={busy} /> : !id ? <>
-     {claims ? <ExpenseClaimList access={access} rows={data.rows} requests={data.requests} onRequest={setRequestId} canCreate={access.can_claim} viewAll={access.can_view_all} onCreate={openCreate} /> : <ExpenseList access={access} rows={data.rows} requests={data.requests} onRequest={setRequestId} claims={false} initialTaxFilter={initialTaxFilter} />}
+     {claims ? <ExpenseClaimList access={access} rows={data.rows} requests={data.requests} onRequest={setRequestId} canCreate={access.can_claim} viewAll={access.can_view_all} onCreate={openCreate} /> : <CompanyExpenseList access={access} requests={data.requests || []} onRequest={setRequestId} initialTaxFilter={initialTaxFilter} />}
      {!claims && data.accounts.some(a => a.can_view_balance || a.can_view_movements) && !access.can_view_all ? <section className={css.section}><h2>{t("expenses.movements")}</h2><div className={css.stats}>{data.accounts.map(a => <div key={a.id} className={css.stat}><Wallet size={20} /><div>{a.name}<strong>{a.can_view_balance ? a.balance == null ? t("expenses.unavailable") : `${a.balance.toLocaleString(locale, { minimumFractionDigits: 2 })} THB` : t("expenses.balancePrivate")}</strong>{a.can_view_movements ? <ScopedMovements bank={a.bank_account_id} cash={a.cash_location_id} fixture={!!fixture} /> : null}</div></div>)}</div></section> : null}
-     {access.is_admin ? <ExpenseAdminTools access={access} accounts={data.accounts} lookups={lookups} run={run} busy={busy} fixture={!!fixture} showAuthorities={!claims} onBridge={value => router.push(`/finance/expenses/claims/${value}`)} /> : null}
+     {claims && access.is_admin ? <ExpenseAdminTools access={access} accounts={data.accounts} lookups={lookups} run={run} busy={busy} fixture={!!fixture} showAuthorities={!claims} onBridge={value => router.push(`/finance/expenses/claims/${value}`)} /> : null}
     </> : <Callout tone="warning">{t("expenses.denied")}</Callout>}
   </> : null}
   {(createOpen || editRequestId) && !id && data && access ? data.requests ? <ExpenseRequestModal request={data.requests.find(r => r.id === editRequestId)} claim={editRequestId ? data.requests.find(r => r.id === editRequestId)?.kind === "employee_claim" : claims} access={access} accounts={data.accounts} lookups={lookups} run={run} busy={busy} error={error} onClose={() => { setCreateOpen(false); setEditRequestId(null); setError(""); }} onSaved={(saved, request) => { setData(old => old ? { ...old, requests: [...(old.requests || []).filter(r => r.id !== saved), request] } : old); setCreateOpen(false); setEditRequestId(null); setError(""); setRequestId(saved); }} /> : <ExpenseCreateModal claim={claims} access={access} accounts={data.accounts} lookups={lookups} run={run} busy={busy} error={error} onClose={() => { setCreateOpen(false); setError(""); }} onSaved={() => setCreateOpen(false)} /> : null}
-  {requestId && !editRequestId && data && access && data.requests?.some(r => r.id === requestId) ? <ExpenseRequestReview request={data.requests.find(r => r.id === requestId)!} access={access} busy={busy} error={error} run={run} onClose={() => { setRequestId(null); setError(""); }} onEdit={() => setEditRequestId(requestId)} renderItem={row => <ExpenseDetail key={`${row.id}:${row.version}:${row.tax_review?.id}:${row.settlement?.id}:${row.payout?.version}:${row.obligation?.waived}`} data={data} row={row} lookups={lookups} run={run} busy={busy} />} /> : null}
+  {selectedRequest && !editRequestId && data && access ? claims ? <ExpenseRequestReview request={selectedRequest} access={access} busy={busy} error={error} run={run} onClose={() => { setRequestId(null); setError(""); }} onEdit={() => setEditRequestId(requestId)} renderItem={row => <ExpenseDetail key={`${row.id}:${row.version}:${row.tax_review?.id}:${row.settlement?.id}:${row.payout?.version}:${row.obligation?.waived}`} data={data} row={row} lookups={lookups} run={run} busy={busy} />} /> : <CompanyRequestReview key={selectedRequest.id} request={selectedRequest} access={access} lookups={lookups} busy={busy} error={error} run={run} onClose={() => { setRequestId(null); setError(""); }} onEdit={() => setEditRequestId(requestId)} /> : null}
  </div></PageShell>;
 }
 

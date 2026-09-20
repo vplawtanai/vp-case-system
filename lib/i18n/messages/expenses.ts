@@ -1,5 +1,15 @@
 import type { MessageCatalog } from "../core";
 const copy: Record<string, [string, string]> = {
+ companySearch: ["ค้นหาคำขอ รายการ ผู้ขาย หรือผู้บันทึก", "Search request, item, supplier or creator"],
+ companyRequestCount: ["{count} คำขอ", "{count} requests"], companyRequests: ["คำขอค่าใช้จ่ายบริษัท", "Company expense requests"], companyRequest: ["คำขอ", "Request"], companyQueuedAt: ["เข้าคิวเมื่อ", "Queue time"],
+ companyEmpty: ["ยังไม่มีคำขอค่าใช้จ่ายบริษัทที่ตรงกับตัวกรอง", "No company expense requests match these filters."],
+ companyReviewProgress: ["ตรวจแล้ว {count} / {total} รายการ", "Reviewed {count} / {total} items"], companyReviewDone: ["ตรวจครบแล้ว {count} / {total} รายการ", "All reviewed: {count} / {total} items"],
+ companyRemaining: ["ยังต้องตรวจภาษีหรือวิธีชำระอีก {count} รายการ", "Tax or settlement decisions remain for {count} items."],
+ companyApprove: ["อนุมัติรายการ", "Approve item"], companyReject: ["ไม่อนุมัติรายการ", "Reject item"], companyPaymentPayee: ["การชำระเงิน / ผู้รับเงิน", "Settlement / payee"], companyTax: ["ภาษี", "Tax"],
+ companyNoTaxAck: ["ตรวจแล้วว่ารายการนี้ไม่มี VAT และไม่มีการหักภาษี ณ ที่จ่าย", "I have verified that this item has no VAT and no withholding tax."],
+ companyTaxPartial: ["อนุมัติค่าใช้จ่ายแล้ว แต่ยังยืนยันผลการตรวจภาษีไม่ได้ กรุณาลองบันทึกผลภาษีเดิมอีกครั้ง", "Expense approval succeeded, but the tax decision is not yet confirmed. Retry the same tax decision."],
+ companyRetryTax: ["ลองบันทึกผลภาษีอีกครั้ง", "Retry tax decision"], companyTaxPermission: ["รอผู้มีสิทธิตรวจภาษียืนยันข้อมูล", "Awaiting confirmation by an authorized tax reviewer."],
+ companyNotApplicable: ["ไม่เกี่ยวข้อง", "Not applicable"], companyMissingPayee: ["ยังไม่ได้ระบุผู้รับเงิน", "Payee not specified"], companyReimbursementPayee: ["ผู้รับเงินคืน", "Reimbursement payee"], companyReimbursementDue: ["ยอดที่ต้องคืนบุคลากร", "Approved staff reimbursement"],
  saveForLater: ["บันทึกไว้ทำต่อ", "Save for later"], sendForReview: ["ส่งตรวจ", "Send for review"],
  recordedBy: ["ผู้บันทึก", "Recorded by"], requestClaimant: ["ผู้เบิก", "Claimant"], currentUser: ["ผู้ใช้งานปัจจุบัน", "Current user"],
  draftCreatedAt: ["สร้างร่างเมื่อ", "Draft created"], requestSentAt: ["ส่งตรวจเมื่อ", "Sent for review"],

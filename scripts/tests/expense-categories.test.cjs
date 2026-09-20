@@ -2,6 +2,7 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const {workspaceFixture}=require('./i18n-workspace-fixture.cjs'),{fixture,expense}=require('./expense-foundation-fixture.cjs');
 const {expenseCategories,expenseCategoryOptions,expenseCategoryChoice,expenseCategoryLabel}=require('../../app/finance/expenses/categories.ts');
+const {companyCategories}=require('../../app/finance/expenses/company-categories.ts');
 const forms=workspaceFixture('app/finance/expenses/forms.tsx',['ExpenseFactsForm']);
 const lists=workspaceFixture('app/finance/expenses/workspace.tsx',['ExpenseList','ExpenseClaimList','ExpenseBadge','ExpenseDetail'],{'./data':{}});
 const values=html=>[...html.match(/<select\b[^>]*id="expense-category"[\s\S]*?<\/select>/)[0].matchAll(/<option value="([^"]*)"/g)].map(match=>match[1]).filter(Boolean);
@@ -26,7 +27,7 @@ test('One registry filters by workflow metadata, with 15 Company and 8 Claim cho
 for(const locale of ['th','en'])for(const claim of [false,true]){
  test(`${locale} ${claim?'Claim':'Company'} form filters new options but preserves a saved excluded or out-of-workflow category`,()=>{
   const f=fixture('list'),props={claim,access:f.data.access,accounts:f.data.accounts,lookups:f.lookups,run:()=>null,busy:false};
-  const html=forms.render(locale,{},props,'ExpenseFactsForm');assert.deepEqual(values(html),expenseCategoryOptions(claim?'claim':'company').map(c=>c.value));
+  const html=forms.render(locale,{},props,'ExpenseFactsForm');assert.deepEqual(values(html),(claim?expenseCategoryOptions('claim'):companyCategories).map(c=>c.value));
   for(const stored of [...excluded,'ค่าเว็บไซต์ / Hosting / Domain','ค่า Software / System']){
    const row={...f.data.rows[0],category:stored},before=JSON.stringify(row);
    const edit=forms.render(locale,{}, {...props,row},'ExpenseFactsForm');assert.ok(values(edit).includes(stored));assert.equal(expenseCategoryChoice(stored),stored);assert.ok(edit.includes(expenseCategoryLabel(stored,locale)));assert.equal(JSON.stringify(row),before);

@@ -35,7 +35,7 @@ test('Submitted time is read-only, exact source timestamp; Draft never masquerad
 test('EN changed labels smoke; no changes to calculations, item RPC payloads or Migration 056',()=>{
  const html=modal.render('en',{}, {...props,claim:true},'ExpenseRequestModal');
  for(const label of ['Create expense claim request','Request summary','Item 1','Add this item','Add expense item','Save for later','Submit request'])assert.ok(html.includes(label),label);
- for(const file of ['app/finance/expenses/requests.ts','app/finance/expenses/forms.tsx','supabase/migrations/202607180056_add_expense_request_foundation.sql'])assert.equal(fs.readFileSync(file,'utf8'),cp.execFileSync('git',['show','HEAD:'+file],{encoding:'utf8'}));
+ for(const file of ['app/finance/expenses/requests.ts','supabase/migrations/202607180056_add_expense_request_foundation.sql'])assert.equal(fs.readFileSync(file,'utf8'),cp.execFileSync('git',['show','HEAD:'+file],{encoding:'utf8'}));
  const extracts=(file,source)=>{const a=ts.createSourceFile(file,source,99,true,ts.ScriptKind.TSX),out=[];function visit(n){if((ts.isCallExpression(n)&&n.expression.getText(a)==='run')||(ts.isFunctionDeclaration(n)&&['save','changeHandling'].includes(n.name?.text))||(ts.isVariableDeclaration(n)&&n.name.getText(a)==='total'))out.push(n.getText(a));ts.forEachChild(n,visit);}visit(a);return out;};
  for(const file of ['app/finance/expenses/forms.tsx','app/finance/expenses/workspace.tsx'])assert.deepEqual(extracts(file,fs.readFileSync(file,'utf8')),extracts(file,cp.execFileSync('git',['show','HEAD:'+file],{encoding:'utf8'})),file);
 });

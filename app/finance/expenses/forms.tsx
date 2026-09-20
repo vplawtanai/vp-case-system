@@ -9,6 +9,8 @@ import { useI18n } from "../../../lib/i18n/provider";
 import { bangkokToday } from "../payouts/review";
 import { type Expense, type ExpenseAccess, type ExpenseAccount, type ExpenseLookups, type SettlementMode, expenseHref } from "./shared";
 import { expenseCategoryOptions, expenseCategoryLabel, expenseCategoryChoice } from "./categories";
+import { companyCategories, companyCategoryGroups } from "./company-categories";
+import { companyPayee } from "./company-workflow";
 import css from "./expenses.module.css";
 
 export type ExpenseRun = (rpc: string, args: Record<string, unknown>) => Promise<string | null>;
@@ -49,7 +51,7 @@ export function ExpenseFactsForm({ row, claim, access, accounts, lookups, run, b
  const actions = <div className={css.footer}><button type="submit" form={formId} className={ui.primary} disabled={busy || (immediate && (!ack || !account))}>{onCapture && !row ? <Plus size={17} aria-hidden="true" /> : <Save size={17} aria-hidden="true" />}{t(busy ? "expenses.working" : onCapture ? row ? "expenses.saveItemChanges" : "expenses.addThisItem" : immediate ? "expenses.paidEntry" : "expenses.save")}</button></div>;
  return <form id={formId} onSubmit={save} onChange={() => onDirty?.(true)} className={css.form}><fieldset disabled={busy} className={css.createFields}><legend>{onCapture && itemNumber ? t("expenses.itemNumber", { count: itemNumber }) : t(claim ? "expenses.newClaim" : "expenses.facts")}</legend><div className={css.formGrid}>
   {field("expense_date", "date", "date", true)}
-  <FieldGroup id="expense-category" className={css.categoryField} label={t("expenses.category")} help={categoryChoice && categoryChoice !== "Other" ? expenseCategoryLabel(categoryChoice, locale) : undefined}><select required value={categoryChoice} onChange={e => { setCategoryChoice(e.target.value); set("category", e.target.value === "Other" ? customCategory : e.target.value); }}><option value="">{t("expenses.choose")}</option>{categories.map(category => <option key={category.value} value={category.value}>{category.label[locale]}</option>)}</select></FieldGroup>
+  <FieldGroup id="expense-category" className={css.categoryField} label={t("expenses.category")} help={categoryChoice && categoryChoice !== "Other" ? expenseCategoryLabel(categoryChoice, locale) : undefined}><select required value={categoryChoice} onChange={e => { setCategoryChoice(e.target.value); set("category", e.target.value === "Other" ? customCategory : e.target.value); }}><option value="">{t("expenses.choose")}</option>{claim ? categories.map(category => <option key={category.value} value={category.value}>{category.label[locale]}</option>) : <>{companyCategoryGroups.map(group => <optgroup key={group.label.en} label={group.label[locale]}>{group.items.map(category => <option key={category.value} value={category.value}>{category.label[locale]}</option>)}</optgroup>)}{row?.category && categoryChoice !== "Other" && !companyCategories.some(c => c.value === row.category) ? <option value={row.category}>{expenseCategoryLabel(row.category, locale)}</option> : null}</>}</select></FieldGroup>
   {categoryChoice === "Other" ? <div className={css.span}><FieldGroup id="expense-custom-category" label={t("finance.legacy.fields.customCategory")}><input required maxLength={150} value={form.category} onChange={e => { setCustomCategory(e.target.value); set("category", e.target.value); }} /></FieldGroup></div> : null}
   {field("gross_amount", "amount", "number", true)}
   {!claim ? <FieldGroup id="expense-handling" label={t("expenses.paymentFacts")}><select value={handling} onChange={e => changeHandling(e.target.value)}>
@@ -86,7 +88,7 @@ export function AccountSelect({ accounts, value, onChange, disabled }: { account
  const { t, locale } = useI18n(), a = accounts.find(a => a.id === value);
  return <FieldGroup id="expense-payment-account" label={t("expenses.account")} help={a ? a.can_view_balance ? `${t("expenses.balance")}: ${a.balance == null ? t("expenses.unavailable") : a.balance.toLocaleString(locale, { minimumFractionDigits: 2 }) + " THB"}` : t("expenses.balancePrivate") : undefined}><select required disabled={disabled} value={value} onChange={e => onChange(e.target.value)}><option value="">{t("expenses.choose")}</option>{accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></FieldGroup>;
 }
-export function ExpenseTaxForm({ row, run, busy }: { row: Expense; run: ExpenseRun; busy: boolean }) {
+export function ExpenseTaxForm({ row, run, busy, secondary = false }: { row: Expense; run: ExpenseRun; busy: boolean; secondary?: boolean }) {
  const { t } = useI18n(), r = row.tax_review;
  const [id] = useState(() => crypto.randomUUID());
  const [form, setForm] = useState({ vat_state: r?.vat_state || "pending", vat_base: r?.vat_base == null ? "" : String(r.vat_base), vat_rate: r?.vat_rate == null ? "" : String(r.vat_rate), eligibility: r?.eligibility || "pending", supplier_tax_id: r?.supplier_tax_id || "", tax_document_reference: r?.tax_document_reference || "", tax_document_date: r?.tax_document_date || row.expense_date, company_name_status: r?.company_name_status || "unknown", wht_state: r?.wht_state || "pending", wht_base: r?.wht_base == null ? "" : String(r.wht_base), wht_rate: r?.wht_rate == null ? "" : String(r.wht_rate), reason: "" });
@@ -100,23 +102,24 @@ export function ExpenseTaxForm({ row, run, busy }: { row: Expense; run: ExpenseR
   {select("wht_state", "wht", ["pending", "none", "withhold"])}{form.wht_state === "withhold" ? <>{field("wht_base", "whtBase", "number", true)}{field("wht_rate", "whtRate", "number", true)}</> : null}
   <div className={css.span}><FieldGroup id="tax-reason" label={t("expenses.reason")}><textarea required value={form.reason} maxLength={2000} onChange={e => set("reason", e.target.value)} /></FieldGroup></div>
  </div></fieldset>{row.personally_paid && form.wht_state !== "none" ? <Callout tone="warning">{t("expenses.whtException")}</Callout> : null}
- <div className={css.footer}><button className={ui.primary} type="submit" disabled={busy}><Save size={17} aria-hidden="true" />{t("expenses.saveReview")}</button></div></form>;
+ <div className={css.footer}><button className={secondary ? ui.secondary : ui.primary} type="submit" disabled={busy}><Save size={17} aria-hidden="true" />{t("expenses.saveReview")}</button></div></form>;
 }
-export function ExpenseSettlementForm({ row, lookups, run, busy }: { row: Expense; lookups: ExpenseLookups; run: ExpenseRun; busy: boolean }) {
+export function ExpenseSettlementForm({ row, lookups, run, busy, companyReview = false }: { row: Expense; lookups: ExpenseLookups; run: ExpenseRun; busy: boolean; companyReview?: boolean }) {
  const { t } = useI18n(), [id] = useState(() => crypto.randomUUID());
+ const knownPayee = companyReview ? companyPayee(row, lookups) : null;
  const [mode, setMode] = useState<SettlementMode>("undecided"), [amount, setAmount] = useState(String(row.personally_paid ? row.reimbursement_requested : row.gross_amount));
- const [payee, setPayee] = useState(row.personally_paid ? lookups.payees.find(p => p.profile_id === row.claimant_id)?.id || "" : row.supplier_payee_id || ""), [due, setDue] = useState(""), [reason, setReason] = useState("");
+ const [payee, setPayee] = useState(companyReview ? knownPayee?.id || "" : row.personally_paid ? lookups.payees.find(p => p.profile_id === row.claimant_id)?.id || "" : row.supplier_payee_id || ""), [due, setDue] = useState(""), [reason, setReason] = useState("");
  const modes = row.personally_paid ? ["undecided", "reimburse", "no_reimbursement"] : ["undecided", "company_bank", "company_cash", "supplier_unpaid"];
  const payable = mode === "reimburse" || mode === "supplier_unpaid";
  return <form className={css.form} onSubmit={async e => { e.preventDefault(); await run("decide_finance_expense_settlement", { p_id: id, p_expense: row.id, p_mode: mode, p_payee: payable || mode === "company_bank" || mode === "company_cash" ? payee || null : null, p_amount: mode === "no_reimbursement" ? 0 : mode === "reimburse" ? Number(amount) : row.gross_amount, p_due_on: due || null, p_reason: reason }); }}>
   <fieldset disabled={busy}><legend>{t("expenses.settlement")}</legend><div className={css.formGrid}>
    <FieldGroup id="expense-settlement-mode" label={t("expenses.payment")}><select value={mode} onChange={e => setMode(e.target.value as SettlementMode)}>{modes.map(v => <option key={v} value={v}>{t(`expenses.${v}`)}</option>)}</select></FieldGroup>
-   {mode !== "no_reimbursement" && mode !== "undecided" ? <FieldGroup id="settlement-payee" label={t("expenses.payee")}><select required={payable} value={payee} onChange={e => setPayee(e.target.value)}><option value="">{t("expenses.choose")}</option>{lookups.payees.filter(p => mode !== "reimburse" || p.profile_id === row.claimant_id).map(p => <option key={p.id} value={p.id}>{p.legal_name}</option>)}</select></FieldGroup> : null}
+   {mode !== "no_reimbursement" && mode !== "undecided" ? <FieldGroup id="settlement-payee" label={t("expenses.payee")}>{knownPayee ? <input readOnly value={knownPayee.legal_name} /> : <select required={payable} value={payee} onChange={e => setPayee(e.target.value)}><option value="">{t("expenses.choose")}</option>{lookups.payees.filter(p => mode !== "reimburse" || p.profile_id === row.claimant_id).map(p => <option key={p.id} value={p.id}>{p.legal_name}</option>)}</select>}</FieldGroup> : null}
    {mode === "reimburse" ? <FieldGroup id="settlement-amount" label={t("expenses.settlementAmount")}><input type="number" min="0.01" max={row.gross_amount} step="0.01" required value={amount} onChange={e => setAmount(e.target.value)} /></FieldGroup> : null}
    {payable ? <FieldGroup id="settlement-due" label={t("expenses.due")}><input type="date" value={due} onChange={e => setDue(e.target.value)} /></FieldGroup> : null}
    <div className={css.span}><FieldGroup id="settlement-reason" label={t("expenses.reason")}><textarea required maxLength={2000} value={reason} onChange={e => setReason(e.target.value)} /></FieldGroup></div>
   </div></fieldset><Callout tone="info">{t(mode === "no_reimbursement" ? "expenses.noReimbursementHelp" : "expenses.obligationHelp")}</Callout>
-  <div className={css.footer}><button className={ui.primary} disabled={busy || mode === "undecided"} type="submit"><Check size={17} aria-hidden="true" />{t("expenses.saveSettlement")}</button></div>
+  <div className={css.footer}><button className={companyReview ? ui.secondary : ui.primary} disabled={busy || mode === "undecided"} type="submit"><Check size={17} aria-hidden="true" />{t("expenses.saveSettlement")}</button></div>
  </form>;
 }
 export function ExpensePaymentPanel({ row, access, accounts, run, busy }: { row: Expense; access: ExpenseAccess; accounts: ExpenseAccount[]; run: ExpenseRun; busy: boolean }) {

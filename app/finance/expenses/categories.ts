@@ -1,4 +1,5 @@
 import type { UiLocale } from "../../../lib/i18n/core";
+import { companyCategories } from "./company-categories";
 
 export type ExpenseWorkflow = "company" | "claim";
 type ExpenseCategory = { value: string; workflow: ExpenseWorkflow | "both" | null; label: Record<UiLocale, string> };
@@ -31,9 +32,9 @@ export function expenseCategoryOptions(workflow: ExpenseWorkflow, existingValue?
 }
 
 export function expenseCategoryLabel(value: string | null, locale: UiLocale) {
- return expenseCategories.find(category => category.value === value)?.label[locale] || value || "-";
+ return companyCategories.find(category => category.value === value)?.label[locale] || expenseCategories.find(category => category.value === value)?.label[locale] || value || "-";
 }
 
 export function expenseCategoryChoice(value: string) {
- return expenseCategories.some(category => category.value === value) ? value : value ? "Other" : "";
+ return [...expenseCategories, ...companyCategories].some(category => category.value === value) ? value : value ? "Other" : "";
 }
