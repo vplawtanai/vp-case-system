@@ -1,6 +1,21 @@
 import { supabase } from "../../../lib/supabase";
 import { readAll } from "../tax-position/dashboard-data";
 import { emptyLookups, type ExpenseData, type ExpenseLookups } from "./shared";
+import type { ExpenseRequest } from "./requests";
+
+export async function readExpenseRequests(claims: boolean): Promise<ExpenseRequest[] | null> {
+ const rows: ExpenseRequest[] = [];
+ for (let offset = 0; offset < 100000; offset += 50) {
+  const r = await supabase.rpc("get_finance_expense_requests", { p_claims: claims, p_offset: offset });
+  // Rolling deployment compatibility only; never hide permission/network/data errors.
+  if (offset === 0 && r.error?.code === "PGRST202" && r.error.message.includes("get_finance_expense_requests")) return null;
+  if (r.error || !Array.isArray(r.data?.rows)) throw r.error || new Error("response");
+  rows.push(...r.data.rows);
+  if (!r.data.has_next) return rows;
+  if (r.data.rows.length !== 50) throw new Error("incomplete request read");
+ }
+ throw new Error("request read limit");
+}
 
 export async function readExpenses(id: string | null, claims: boolean): Promise<ExpenseData> {
  let result: ExpenseData | null = null;

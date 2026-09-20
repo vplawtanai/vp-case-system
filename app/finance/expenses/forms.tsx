@@ -12,18 +12,18 @@ import { expenseCategoryOptions, expenseCategoryLabel, expenseCategoryChoice } f
 import css from "./expenses.module.css";
 
 export type ExpenseRun = (rpc: string, args: Record<string, unknown>) => Promise<string | null>;
-export function ExpenseFactsForm({ row, claim, access, accounts, lookups, run, busy, onDirty, onSaved, actionContainer }: { row?: Expense; claim: boolean; access: ExpenseAccess; accounts: ExpenseAccount[]; lookups: ExpenseLookups; run: ExpenseRun; busy: boolean; onDirty?: (dirty: boolean) => void; onSaved?: (id: string) => void; actionContainer?: HTMLElement | null }) {
+export function ExpenseFactsForm({ row, claim, access, accounts, lookups, run, busy, onDirty, onSaved, actionContainer, onCapture }: { row?: Expense; claim: boolean; access: ExpenseAccess; accounts: ExpenseAccount[]; lookups: ExpenseLookups; run: ExpenseRun; busy: boolean; onDirty?: (dirty: boolean) => void; onSaved?: (id: string) => void; actionContainer?: HTMLElement | null; onCapture?: (input: Record<string, unknown>) => void }) {
  const { t, locale } = useI18n(), router = useRouter();
  const formId = useId();
  const [id] = useState(() => row?.id || crypto.randomUUID());
- const [handling, setHandling] = useState(!claim && !access.can_manage ? "company_paid" : row?.personally_paid ? "personal" : "unknown");
- const immediate = !claim && handling === "company_paid";
+ const [handling, setHandling] = useState(!onCapture && !claim && !access.can_manage ? "company_paid" : row?.personally_paid ? "personal" : row?.supplier_payee_id ? "unpaid" : "unknown");
+ const immediate = !onCapture && !claim && handling === "company_paid";
  const [categoryChoice, setCategoryChoice] = useState(() => expenseCategoryChoice(row?.category || ""));
  const [customCategory, setCustomCategory] = useState(() => expenseCategoryChoice(row?.category || "") === "Other" ? row?.category || "" : "");
  const categories = expenseCategoryOptions(claim ? "claim" : "company", row?.category);
  const [related, setRelated] = useState(!!(row?.client_id || row?.case_id || row?.advisory_matter_id));
  const [reducedRequest, setReducedRequest] = useState(!!row && row.reimbursement_requested < row.gross_amount);
- const [account, setAccount] = useState(""), [paidOn, setPaidOn] = useState(bangkokToday), [ack, setAck] = useState(false);
+ const [account, setAccount] = useState(row?.request_entry_account?.bank_account_id || row?.request_entry_account?.cash_location_id || ""), [paidOn, setPaidOn] = useState(bangkokToday), [ack, setAck] = useState(false);
  const [form, setForm] = useState({ expense_date: row?.expense_date || bangkokToday(), category: row?.category || "", description: row?.description || "", gross_amount: row ? String(row.gross_amount) : "", vendor_name: row?.vendor_name || "", supplier_payee_id: row?.supplier_payee_id || "", claimant_id: row?.claimant_id || "", client_id: row?.client_id || "", case_id: row?.case_id ? String(row.case_id) : "", advisory_matter_id: row?.advisory_matter_id || "", note: row?.note || "", personally_paid: row?.personally_paid ?? claim, reimbursement_requested: row ? String(row.reimbursement_requested) : "", vat_awareness: row?.vat_awareness || "unknown", wht_awareness: row?.wht_awareness || "unknown" });
  const set = (key: keyof typeof form, value: string | boolean) => setForm(old => {
   if (key === "client_id") return { ...old, client_id: String(value), case_id: "", advisory_matter_id: "" };
@@ -42,21 +42,24 @@ export function ExpenseFactsForm({ row, claim, access, accounts, lookups, run, b
   event.preventDefault(); if (busy) return;
   const a = accounts.find(a => a.id === account);
   const input = { ...form, origin: claim ? "employee_claim" : "company_purchase", currency: "THB", gross_amount: Number(form.gross_amount), reimbursement_requested: form.personally_paid && !immediate ? Number(form.reimbursement_requested) : 0, bank_account_id: a?.bank_account_id || null, cash_location_id: a?.cash_location_id || null };
+  if (onCapture) { onCapture(input); onDirty?.(false); return; }
   const result = immediate ? await run("record_finance_paid_expense", { p_id: id, p_input: input, p_bank: a?.bank_account_id || null, p_cash: a?.cash_location_id || null, p_paid_on: paidOn, p_acknowledged: ack }) : await run("save_finance_expense", { p_id: id, p_version: row?.version ?? null, p_input: input });
   if (result) { onDirty?.(false); if (onSaved) onSaved(result); else router.push(expenseHref({ id: result, origin: claim ? "employee_claim" : "company_purchase" })); }
  }
- const actions = <div className={css.footer}><button type="submit" form={formId} className={ui.primary} disabled={busy || (immediate && (!ack || !account))}><Save size={17} aria-hidden="true" />{t(busy ? "expenses.working" : immediate ? "expenses.paidEntry" : "expenses.save")}</button></div>;
+ const actions = <div className={css.footer}><button type="submit" form={formId} className={ui.primary} disabled={busy || (immediate && (!ack || !account))}><Save size={17} aria-hidden="true" />{t(busy ? "expenses.working" : onCapture ? "expenses.keepItem" : immediate ? "expenses.paidEntry" : "expenses.save")}</button></div>;
  return <form id={formId} onSubmit={save} onChange={() => onDirty?.(true)} className={css.form}><fieldset disabled={busy} className={css.createFields}><legend>{t(claim ? "expenses.newClaim" : "expenses.facts")}</legend><div className={css.formGrid}>
   {field("expense_date", "date", "date", true)}
   <FieldGroup id="expense-category" className={css.categoryField} label={t("expenses.category")} help={categoryChoice && categoryChoice !== "Other" ? expenseCategoryLabel(categoryChoice, locale) : undefined}><select required value={categoryChoice} onChange={e => { setCategoryChoice(e.target.value); set("category", e.target.value === "Other" ? customCategory : e.target.value); }}><option value="">{t("expenses.choose")}</option>{categories.map(category => <option key={category.value} value={category.value}>{category.label[locale]}</option>)}</select></FieldGroup>
   {categoryChoice === "Other" ? <div className={css.span}><FieldGroup id="expense-custom-category" label={t("finance.legacy.fields.customCategory")}><input required maxLength={150} value={form.category} onChange={e => { setCustomCategory(e.target.value); set("category", e.target.value); }} /></FieldGroup></div> : null}
   {field("gross_amount", "amount", "number", true)}
   {!claim ? <FieldGroup id="expense-handling" label={t("expenses.paymentFacts")}><select value={handling} onChange={e => changeHandling(e.target.value)}>
-   {access.can_manage ? <><option value="unknown">{t("expenses.handlingUnknown")}</option><option value="unpaid">{t("expenses.handlingUnpaid")}</option><option value="personal">{t("expenses.handlingPersonal")}</option></> : null}
-   {!row && accounts.some(a => a.can_record && a.can_confirm) ? <option value="company_paid">{t("expenses.handlingCompanyPaid")}</option> : null}
+   {access.can_manage || onCapture ? <option value="unknown">{t("expenses.handlingUnknown")}</option> : null}
+   {access.can_manage ? <><option value="unpaid">{t("expenses.handlingUnpaid")}</option><option value="personal">{t("expenses.handlingPersonal")}</option></> : null}
+   {!onCapture && !row && accounts.some(a => a.can_record && a.can_confirm) ? <option value="company_paid">{t("expenses.handlingCompanyPaid")}</option> : null}
   </select></FieldGroup> : null}
   <div className={css.span}>{field("description", "description", "text", true)}</div>
  </div>
+ {onCapture && !claim && !access.can_manage ? <AccountSelect accounts={accounts.filter(a => a.can_record)} value={account} onChange={setAccount} disabled={busy} /> : null}
  {!claim && handling === "unpaid" ? <div className={css.formGrid}>{field("vendor_name", "vendor")}{access.can_manage ? select("supplier_payee_id", "supplierKnown", lookups.payees.map(p => ({ id: p.id, name: p.legal_name }))) : null}</div> : null}
  {!immediate && (claim || form.personally_paid) ? <div className={css.requestFields}>
   {!claim ? select("claimant_id", "claimant", lookups.people, true) : null}

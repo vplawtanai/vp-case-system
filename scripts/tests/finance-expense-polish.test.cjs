@@ -52,7 +52,7 @@ for(const locale of ['th','en']) {
  });
 }
 test('Expense polish preserves readers, financial helpers, RPCs, migrations and sidebar motion/reveal',()=>{
- const files=['app/finance/expenses/data.ts','app/components/sidebar-reveal.ts','app/components/AppSidebar.module.css',...cp.execFileSync('git',['ls-tree','-r','--name-only','HEAD','supabase/migrations'],{encoding:'utf8'}).trim().split('\n')];
+ const files=['app/components/sidebar-reveal.ts','app/components/AppSidebar.module.css',...cp.execFileSync('git',['ls-tree','-r','--name-only','HEAD','supabase/migrations'],{encoding:'utf8'}).trim().split('\n')];
  for(const file of files)assert.deepEqual(fs.readFileSync(file),cp.execFileSync('git',['show','HEAD:'+file]),file);
  const runtime=s=>require('typescript').transpileModule(s,{compilerOptions:{module:1,target:9}}).outputText;
  for(const file of ['app/finance/expenses/shared.ts','app/finance/payables/shared.ts'])assert.equal(runtime(fs.readFileSync(file,'utf8')),runtime(cp.execFileSync('git',['show','HEAD:'+file],{encoding:'utf8'})),file+' runtime/financial helpers unchanged');

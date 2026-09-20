@@ -14,6 +14,7 @@ let rows=params.has('empty')?[]:seed.map(r=>({...r,origin:claim?'employee_claim'
 window.attempts=[];window.created=[];window.readCount=0;window.navigations=[];
 export async function readExpenses(){window.readCount++;await new Promise(r=>setTimeout(r,80));if(window.failReadOnce){window.failReadOnce=false;throw Error('synthetic refresh error');}return {access,accounts:claim?[]:base.data.accounts,rows:[...rows],has_next:false};}
 export async function readExpenseLookups(){return base.lookups;}
+export async function readExpenseRequests(){return null;}
 export const supabase={async rpc(name,args){if(!['save_finance_expense','record_finance_paid_expense'].includes(name))throw Error('Unexpected RPC '+name);window.attempts.push({name,args:structuredClone(args)});await new Promise(r=>setTimeout(r,180));if(window.failNext){window.failNext=false;return {error:{message:'EXPENSE_PERMISSION'}};}if(!window.created.includes(args.p_id)){window.created.push(args.p_id);rows=[{...seed[0],...args.p_input,id:args.p_id,status:'draft',version:1,reference:'LOCAL-'+args.p_id},...rows];}if(window.failAfterSave){window.failAfterSave=false;window.failReadOnce=true;}return {data:args.p_id,error:null};}};
 `);
 const navigation=write('navigation.js',`export const useRouter=()=>({push:(href)=>window.navigations.push(href)});export const usePathname=()=>location.pathname;export const useSearchParams=()=>new URLSearchParams(location.search);`);

@@ -1,19 +1,22 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, Check, CircleCheck, Clock, FileText, Plus, RefreshCw, Search, ShieldCheck, Wallet } from "lucide-react";
 import { Callout, FieldGroup, PageShell } from "../../components/ui/patterns";
 import ui from "../../components/ui/vp-ui.module.css";
 import { useI18n } from "../../../lib/i18n/provider";
 import { supabase } from "../../../lib/supabase";
-import { readExpenses, readExpenseLookups } from "./data";
-import { emptyLookups, expenseError, expenseHref, expensePaymentState, expenseShortRef, expenseSummary, pendingExpenseTax, type Expense, type ExpenseData, type ExpenseLookups } from "./shared";
+import { readExpenses, readExpenseLookups, readExpenseRequests } from "./data";
+import { emptyLookups, expenseError, expenseHref, expensePaymentState, expenseShortRef, expenseSummary, type Expense, type ExpenseData, type ExpenseLookups } from "./shared";
 import { ExpenseFactsForm, ExpensePaymentPanel, ExpenseSettlementForm, ExpenseTaxForm, type ExpenseRun } from "./forms";
 import { ExpenseAdminTools } from "./admin-tools";
+import { ExpenseRequestModal } from "./request-modal";
 import { ExpenseCreateModal } from "./create-modal";
+import { ExpenseRequestReview, ExpenseRequestRow } from "./request-view";
+import { expenseQueueEntries, type ExpenseRequest } from "./requests";
 import { expenseCategoryLabel } from "./categories";
-import { claimWorkflowTime, expenseWorkflowTime, orderByWorkflow, type QueueOrder } from "../workflow-time";
+import { claimWorkflowTime, expenseWorkflowTime, type QueueOrder } from "../workflow-time";
 import { QueueSort, WorkflowDate } from "../workflow-time-ui";
 import css from "./expenses.module.css";
 
@@ -26,11 +29,14 @@ export function ExpenseWorkspace({ id, claims = false, initialTaxFilter = false,
  const { t, locale } = useI18n(), router = useRouter(), lock = useRef(false), seq = useRef(0);
  const [data, setData] = useState<ExpenseData | null>(fixture || null), [lookups, setLookups] = useState(fixtureLookups || emptyLookups), [loading, setLoading] = useState(!fixture), [busy, setBusy] = useState(false), [error, setError] = useState(""), [notice, setNotice] = useState("");
  const [createOpen, setCreateOpen] = useState(false);
+ const params = useSearchParams();
+ const [requestId, setRequestId] = useState<string | null>(params.get("request")), [editRequestId, setEditRequestId] = useState<string | null>(null);
  const load = useCallback(async (preserveContext = false) => {
   if (fixture) return;
   const current = ++seq.current; if (!preserveContext) setLoading(true); setError("");
   try {
    const next = await readExpenses(id && id !== "new" ? id : null, claims);
+   if (!id) next.requests = await readExpenseRequests(claims) ?? undefined;
    if (current !== seq.current) return;
    setData(next);
    try { const values = await readExpenseLookups(next.access.can_view_all); if (current === seq.current) setLookups(values); } catch { if (current === seq.current) setError("failed"); }
@@ -62,26 +68,27 @@ export function ExpenseWorkspace({ id, claims = false, initialTaxFilter = false,
   {loading ? <p role="status">{t("expenses.loading")}</p> : data && access ? <>
    {creating ? canCreate ? <ExpenseFactsForm claim={claims} access={access} accounts={data.accounts} lookups={lookups} run={run} busy={busy} /> : <Callout tone="warning">{t("expenses.denied")}</Callout> : record ?
     <ExpenseDetail key={`${record.id}:${record.version}:${record.tax_review?.id}:${record.settlement?.id}:${record.payout?.version}:${record.obligation?.waived}`} data={data} row={record} lookups={lookups} run={run} busy={busy} /> : !id ? <>
-     {claims ? <ExpenseClaimList rows={data.rows} canCreate={access.can_claim} viewAll={access.can_view_all} onCreate={openCreate} /> : <ExpenseList rows={data.rows} claims={false} initialTaxFilter={initialTaxFilter} />}
+     {claims ? <ExpenseClaimList rows={data.rows} requests={data.requests} onRequest={setRequestId} canCreate={access.can_claim} viewAll={access.can_view_all} onCreate={openCreate} /> : <ExpenseList rows={data.rows} requests={data.requests} onRequest={setRequestId} claims={false} initialTaxFilter={initialTaxFilter} />}
      {!claims && data.accounts.some(a => a.can_view_balance || a.can_view_movements) && !access.can_view_all ? <section className={css.section}><h2>{t("expenses.movements")}</h2><div className={css.stats}>{data.accounts.map(a => <div key={a.id} className={css.stat}><Wallet size={20} /><div>{a.name}<strong>{a.can_view_balance ? a.balance == null ? t("expenses.unavailable") : `${a.balance.toLocaleString(locale, { minimumFractionDigits: 2 })} THB` : t("expenses.balancePrivate")}</strong>{a.can_view_movements ? <ScopedMovements bank={a.bank_account_id} cash={a.cash_location_id} fixture={!!fixture} /> : null}</div></div>)}</div></section> : null}
      {access.is_admin ? <ExpenseAdminTools access={access} accounts={data.accounts} lookups={lookups} run={run} busy={busy} fixture={!!fixture} showAuthorities={!claims} onBridge={value => router.push(`/finance/expenses/claims/${value}`)} /> : null}
     </> : <Callout tone="warning">{t("expenses.denied")}</Callout>}
   </> : null}
-  {createOpen && !id && data && access ? <ExpenseCreateModal claim={claims} access={access} accounts={data.accounts} lookups={lookups} run={run} busy={busy} error={error} onClose={() => { setCreateOpen(false); setError(""); }} onSaved={() => setCreateOpen(false)} /> : null}
+  {(createOpen || editRequestId) && !id && data && access ? data.requests ? <ExpenseRequestModal request={data.requests.find(r => r.id === editRequestId)} claim={editRequestId ? data.requests.find(r => r.id === editRequestId)?.kind === "employee_claim" : claims} access={access} accounts={data.accounts} lookups={lookups} run={run} busy={busy} error={error} onClose={() => { setCreateOpen(false); setEditRequestId(null); setError(""); }} onSaved={saved => { setCreateOpen(false); setEditRequestId(null); setRequestId(saved); }} /> : <ExpenseCreateModal claim={claims} access={access} accounts={data.accounts} lookups={lookups} run={run} busy={busy} error={error} onClose={() => { setCreateOpen(false); setError(""); }} onSaved={() => setCreateOpen(false)} /> : null}
+  {requestId && !editRequestId && data && access && data.requests?.some(r => r.id === requestId) ? <ExpenseRequestReview request={data.requests.find(r => r.id === requestId)!} access={access} busy={busy} error={error} run={run} onClose={() => { setRequestId(null); setError(""); }} onEdit={() => setEditRequestId(requestId)} renderItem={row => <ExpenseDetail key={`${row.id}:${row.version}:${row.tax_review?.id}:${row.settlement?.id}:${row.payout?.version}:${row.obligation?.waived}`} data={data} row={row} lookups={lookups} run={run} busy={busy} />} /> : null}
  </div></PageShell>;
 }
 
-export function ExpenseClaimList({ rows, canCreate, viewAll, onCreate }: { rows: Expense[]; canCreate: boolean; viewAll: boolean; onCreate: () => void }) {
+export function ExpenseClaimList({ rows, requests = [], onRequest = () => {}, canCreate, viewAll, onCreate }: { rows: Expense[]; requests?: ExpenseRequest[]; onRequest?: (id: string) => void; canCreate: boolean; viewAll: boolean; onCreate: () => void }) {
  const { t, locale, date } = useI18n();
  const [search, setSearch] = useState(""), [status, setStatus] = useState("all"), [page, setPage] = useState(0);
  const [order, setOrder] = useState<QueueOrder>("newest");
- const filtered = rows.filter(r => [r.reference, r.description, r.category, expenseCategoryLabel(r.category, locale), viewAll ? r.claimant_name : ""].join(" ").toLowerCase().includes(search.toLowerCase()) && (status === "all" || r.status === status || expensePaymentState(r) === status));
- const visible = orderByWorkflow(filtered, r => claimWorkflowTime(r).at, r => r.id, order).slice(page * 10, page * 10 + 10);
+ const filtered = expenseQueueEntries(rows, requests, { claims: true, status, search, locale, order, viewAll });
+ const visible = filtered.slice(page * 10, page * 10 + 10);
  const money = (value: number, currency: string) => `${value.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
  return <>
   <div className={css.filters}><FieldGroup id="claim-search" label={t("expenses.claimSearch")}><input type="search" value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} /></FieldGroup><FieldGroup id="claim-status" label={t("expenses.status")}><select value={status} onChange={e => { setStatus(e.target.value); setPage(0); }}>{["all", "draft", "submitted", "accepted", "rejected", "unpaid", "paid"].map(s => <option key={s} value={s}>{t(`expenses.${s}`)}</option>)}</select></FieldGroup><QueueSort id="claim-queue-order" value={order} newest="newestSubmitted" onChange={v => { setOrder(v); setPage(0); }} /></div>
   <section aria-label={t(viewAll ? "expenses.allClaims" : "expenses.ownClaims")}><div className={css.sectionHead}><h2>{t(viewAll ? "expenses.allClaims" : "expenses.ownClaims")} <span>({filtered.length})</span></h2></div>
-   {visible.length ? <table className={`${css.table} ${css.claimTable}`}><thead><tr>{["date", "category", "description", "requested", "approved", "status", "action"].map(k => <th key={k}>{t(`expenses.${k}`)}</th>)}</tr></thead><tbody>{visible.map(row => <tr key={row.id}>
+   {visible.length ? <table className={`${css.table} ${css.claimTable}`}><thead><tr>{["date", "category", "description", "requested", "approved", "status", "action"].map(k => <th key={k}>{t(`expenses.${k}`)}</th>)}</tr></thead><tbody>{visible.map(entry => { if (entry.request) return <ExpenseRequestRow key={entry.id} request={entry.request} onOpen={() => onRequest(entry.id)} />; const row = entry.expense; return <tr key={row.id}>
     <td data-label={t("expenses.date")}><span>{date(row.expense_date)}</span><small>{expenseShortRef(row.id)}</small></td>
     <td data-label={t("expenses.category")}>{expenseCategoryLabel(row.category, locale)}</td>
     <td data-label={t("expenses.description")}>{row.description}{viewAll && row.claimant_name ? <small>{row.claimant_name}</small> : null}</td>
@@ -89,33 +96,33 @@ export function ExpenseClaimList({ rows, canCreate, viewAll, onCreate }: { rows:
     <td data-label={t("expenses.approved")} className={css.money}>{row.obligation ? money(row.obligation.gross_amount, row.currency) : row.settlement?.mode === "no_reimbursement" ? t("expenses.notReimbursed") : t("expenses.awaitingDecision")}</td>
     <td data-label={t("expenses.status")}><ExpenseBadge state={row.status} /><small className={css.workflowDate}><WorkflowDate value={claimWorkflowTime(row)} /></small>{row.obligation || row.payout || row.settlement?.mode === "no_reimbursement" ? <small>{t(`expenses.${expensePaymentState(row)}`)}</small> : null}</td>
     <td data-label={t("expenses.action")}><Link className={ui.secondary} href={expenseHref(row)}>{t("expenses.view")}<ArrowRight size={14} aria-hidden="true" /></Link></td>
-   </tr>)}</tbody></table> : <div className={`${css.empty} ${css.claimEmpty}`}><span className={css.icon}><FileText size={24} aria-hidden="true" /></span><h3>{t(rows.length ? "expenses.noMatchingClaims" : "expenses.noClaims")}</h3><p>{t(rows.length ? "expenses.adjustClaimFilters" : "expenses.noClaimsHelp")}</p>{!rows.length && canCreate ? <button type="button" className={ui.primary} aria-haspopup="dialog" onClick={onCreate}><Plus size={17} aria-hidden="true" />{t("expenses.newClaim")}</button> : null}</div>}
+   </tr>; })}</tbody></table> : <div className={`${css.empty} ${css.claimEmpty}`}><span className={css.icon}><FileText size={24} aria-hidden="true" /></span><h3>{t(rows.length || requests.length ? "expenses.noMatchingClaims" : "expenses.noClaims")}</h3><p>{t(rows.length || requests.length ? "expenses.adjustClaimFilters" : "expenses.noClaimsHelp")}</p>{!rows.length && !requests.length && canCreate ? <button type="button" className={ui.primary} aria-haspopup="dialog" onClick={onCreate}><Plus size={17} aria-hidden="true" />{t("expenses.newClaim")}</button> : null}</div>}
   </section>
   {filtered.length > 10 ? <div className={css.footer}><button className={ui.secondary} type="button" disabled={!page} aria-label={t("expenses.previous")} onClick={() => setPage(p => p - 1)}><ArrowLeft size={18} /></button><span>{page + 1}</span><button className={ui.secondary} type="button" disabled={(page + 1) * 10 >= filtered.length} aria-label={t("expenses.next")} onClick={() => setPage(p => p + 1)}><ArrowRight size={18} /></button></div> : null}
  </>;
 }
 
-export function ExpenseList({ rows, claims, initialTaxFilter = false }: { rows: Expense[]; claims: boolean; initialTaxFilter?: boolean }) {
+export function ExpenseList({ rows, requests = [], onRequest = () => {}, claims, initialTaxFilter = false }: { rows: Expense[]; requests?: ExpenseRequest[]; onRequest?: (id: string) => void; claims: boolean; initialTaxFilter?: boolean }) {
  const { t, locale, date } = useI18n();
  const [search, setSearch] = useState(""), [state, setState] = useState(initialTaxFilter ? "tax" : "all"), [origin, setOrigin] = useState("all"), [page, setPage] = useState(0);
  const [order, setOrder] = useState<QueueOrder>("newest");
- const summary = expenseSummary(rows), icons = { review: Clock, unpaid: Wallet, paid: CircleCheck, tax: ShieldCheck };
- const filtered = rows.filter(r => [r.description, r.vendor_name, r.claimant_name, r.reference, r.id, r.category, expenseCategoryLabel(r.category, locale)].join(" ").toLowerCase().includes(search.toLowerCase()) && (origin === "all" || r.origin === origin) && (state === "all" || (state === "tax" ? pendingExpenseTax(r) : r.status === state || expensePaymentState(r) === state)));
- const visible = orderByWorkflow(filtered, r => expenseWorkflowTime(r, state).at, r => r.id, order).slice(page * 10, page * 10 + 10);
+ const summary = expenseSummary([...rows, ...requests.flatMap(r => r.items)]), icons = { review: Clock, unpaid: Wallet, paid: CircleCheck, tax: ShieldCheck };
+ const filtered = expenseQueueEntries(rows, requests, { claims: false, status: state, origin, search, locale, order });
+ const visible = filtered.slice(page * 10, page * 10 + 10);
  return <>
   {!claims ? <div className={css.stats}>{Object.entries(summary).map(([key, value]) => { const Icon = icons[key as keyof typeof icons]; return <article className={css.stat} key={key}><span className={css.icon}><Icon size={24} aria-hidden="true" /></span><div><span>{t(`expenses.${key}`)}</span><strong>{t("expenses.count", { count: value.count })}</strong><small>{value.amount.toLocaleString(locale, { minimumFractionDigits: 2 })} THB</small></div></article>; })}</div> : null}
   <div className={css.filters}><FieldGroup id="expense-search" label={t("expenses.search")}><input type="search" value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} /></FieldGroup>
    {!claims ? <FieldGroup id="expense-origin-filter" label={t("expenses.origin")}><select value={origin} onChange={e => { setOrigin(e.target.value); setPage(0); }}>{["all", "company_purchase", "employee_claim", "legacy_claim"].map(v => <option key={v} value={v}>{t(`expenses.${v}`)}</option>)}</select></FieldGroup> : null}
    <FieldGroup id="expense-status-filter" label={t("expenses.status")}><select value={state} onChange={e => { setState(e.target.value); setPage(0); }}>{["all", "draft", "submitted", "accepted", "rejected", "unpaid", "paid", "tax"].map(v => <option key={v} value={v}>{t(`expenses.${v}`)}</option>)}</select></FieldGroup><QueueSort id="expense-queue-order" value={order} onChange={v => { setOrder(v); setPage(0); }} /></div>
   <section><div className={css.sectionHead}><h2>{t(claims ? "expenses.allClaims" : "expenses.allExpenses")} <span>({filtered.length})</span></h2><Search size={18} aria-hidden="true" /></div>
-   {visible.length ? <table className={css.table}><thead><tr>{["reference", "description", "vendor", "amount", "vat", "payment", "action"].map(k => <th key={k}>{t(`expenses.${k}`)}</th>)}</tr></thead><tbody>{visible.map(r => <tr key={r.id}>
+   {visible.length ? <table className={css.table}><thead><tr>{["reference", "description", "vendor", "amount", "vat", "payment", "action"].map(k => <th key={k}>{t(`expenses.${k}`)}</th>)}</tr></thead><tbody>{visible.map(entry => { if (entry.request) return <ExpenseRequestRow key={entry.id} request={entry.request} onOpen={() => onRequest(entry.id)} />; const r = entry.expense; return <tr key={r.id}>
     <td data-label={t("expenses.reference")}><Link href={expenseHref(r)}>{expenseShortRef(r.id)}</Link><small>{t("expenses.date")}: {date(r.expense_date)}</small></td>
     <td data-label={t("expenses.description")}>{r.description}<small><ExpenseBadge state={r.origin} /></small></td><td data-label={t("expenses.vendor")}>{r.claimant_name || r.vendor_name || t("expenses.optional")}<small>{expenseCategoryLabel(r.category, locale)}</small></td>
     <td className={css.money} data-label={t("expenses.amount")}>{r.gross_amount.toLocaleString(locale, { minimumFractionDigits: 2 })}<small>{r.currency}</small></td>
     <td data-label={t("expenses.vat")}><ExpenseBadge state={r.tax_review?.vat_state || "pending"} /><small>WHT: {t(`expenses.${r.tax_review?.wht_state || "pending"}`)}</small></td>
     <td data-label={t("expenses.payment")}><ExpenseBadge state={expensePaymentState(r)} /><small>{t(`expenses.${r.status}`)}</small><small className={css.workflowDate}><WorkflowDate value={expenseWorkflowTime(r, state)} /></small></td>
     <td data-label={t("expenses.action")}><Link className={ui.secondary} href={expenseHref(r)}>{t("expenses.open")}<ArrowRight size={14} aria-hidden="true" /></Link></td>
-   </tr>)}</tbody></table> : <div className={css.empty}><strong>{t("expenses.empty")}</strong><p>{t("expenses.emptyHelp")}</p></div>}
+   </tr>; })}</tbody></table> : <div className={css.empty}><strong>{t("expenses.empty")}</strong><p>{t("expenses.emptyHelp")}</p></div>}
   </section>
   {filtered.length > 10 ? <div className={css.footer}><button type="button" className={ui.secondary} disabled={!page} aria-label={t("expenses.previous")} onClick={() => setPage(p => p - 1)}><ArrowLeft size={18} /></button><span>{page + 1}</span><button type="button" className={ui.secondary} disabled={(page + 1) * 10 >= filtered.length} aria-label={t("expenses.next")} onClick={() => setPage(p => p + 1)}><ArrowRight size={18} /></button></div> : null}
  </>;
@@ -125,8 +132,8 @@ function ExpenseDetail({ data, row, lookups, run, busy }: { data: ExpenseData; r
  const [dirty, setDirty] = useState(false);
  const { t, locale, date } = useI18n(), [reason, setReason] = useState(""), [waiveReason, setWaiveReason] = useState(""), [waiveAck, setWaiveAck] = useState(false);
  const access = data.access, tax = row.tax_review, money = (v: number | null | undefined) => v == null ? t("expenses.pending") : `${v.toLocaleString(locale, { minimumFractionDigits: 2 })} THB`;
- const editable = row.status === "draft" && row.created_by === access.user_id;
- return <><div className={css.actions}><ExpenseBadge state={row.status} /><ExpenseBadge state={row.origin} /></div><div className={css.columns}><div className={css.main}>
+ const editable = row.status === "draft" && row.created_by === access.user_id && !row.request_id;
+ return <>{row.request_id && row.status === "draft" ? <Callout tone="info">{t(row.request_active === false ? "expenses.removedRequestItem" : "expenses.requestDraftHelp")} <Link href={`${row.origin === "employee_claim" ? "/finance/expenses/claims" : "/finance/expenses"}?request=${row.request_id}`}>{t("expenses.openRequest")}</Link></Callout> : null}<div className={css.actions}><ExpenseBadge state={row.status} /><ExpenseBadge state={row.origin} /></div><div className={css.columns}><div className={css.main}>
   <section className={css.section}>{editable ? <><ExpenseFactsForm row={row} claim={row.origin === "employee_claim"} access={access} accounts={data.accounts} lookups={lookups} run={run} busy={busy} onDirty={setDirty} /><div className={css.footer}>{dirty ? <span role="status">{t("expenses.saveBeforeSubmit")}</span> : null}<button className={ui.primary} type="button" disabled={busy || dirty} onClick={() => void run("submit_finance_expense", { p_id: row.id, p_version: row.version })}><SendIcon />{t("expenses.submit")}</button></div></> : <><h2>{t("expenses.facts")}</h2><p className={css.muted}>{t("expenses.immutableFacts")}</p><dl className={css.facts}>
    {[["reference", expenseShortRef(row.id)], ["date", date(row.expense_date)], ["vendor", row.vendor_name], ["claimant", row.claimant_name], ["category", expenseCategoryLabel(row.category, locale)], ["amount", money(row.gross_amount)], ["description", row.description], ["note", row.note], ["requested", row.personally_paid ? money(row.reimbursement_requested) : null], ["vatAwareness", t(`expenses.${row.vat_awareness}`)], ["whtAwareness", t(`expenses.${row.wht_awareness}`)]].filter(([, value]) => value).map(([label, value]) => <div key={label} className={label === "description" || label === "note" ? css.span : undefined}><dt>{t(`expenses.${label}`)}</dt><dd>{value}</dd></div>)}
   </dl></>}</section>
