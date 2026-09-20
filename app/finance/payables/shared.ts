@@ -9,7 +9,7 @@ export type PayableComponent = {
   distribution_fingerprint: string; source_type: "payment" | "direct_money_receipt"; received_money_id: string;
   source_line_id: string; component_key: string; component_no: number; formula_code: string; formula_version: number;
   bucket: "referral" | "work"; role_label: string; recipient_type: "user" | "payee"; recipient_id: string; recipient_name: string;
-  currency: string; gross_amount: number; finalized_at: string; status: "open" | "superseded" | "settled";
+  currency: string; gross_amount: number; finalized_at: string; created_at?: string | null; status: "open" | "superseded" | "settled";
   evidence_json: { line?: { description?: string }; [key: string]: unknown };
 };
 export type PayableGroup = { recipient_id: string; recipient_name: string; currency: string; open_amount: number; components: PayableComponent[] };

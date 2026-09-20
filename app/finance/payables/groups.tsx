@@ -9,6 +9,7 @@ import { payableGroupKey, payableRoleLabel, payableSourceHref, type PayableGroup
 import { payoutHref } from "../payouts/shared";
 import styles from "./payables.module.css";
 import { PayableSourceBadge, RecipientAvatar } from "./source-identity";
+import { WorkflowDate } from "../workflow-time-ui";
 
 export function PayableGroups({ groups, isAdmin = false }: { groups: PayableGroup[]; isAdmin?: boolean }) {
   const { t, locale, date } = useI18n();
@@ -20,10 +21,10 @@ export function PayableGroups({ groups, isAdmin = false }: { groups: PayableGrou
       <div className={styles.recipientActions}><Link className={ui.primary} href={payoutHref(group.recipient_id)}>{t("payables.pay")}<ArrowRight size={16} aria-hidden="true" /></Link>
         <button type="button" className={ui.secondary} aria-expanded={!!expanded[payableGroupKey(group)]} aria-controls={`payable-details-${payableGroupKey(group)}`} onClick={() => setExpanded(previous => ({ ...previous, [payableGroupKey(group)]: !previous[payableGroupKey(group)] }))}>{t(expanded[payableGroupKey(group)] ? "payables.hideDetails" : "payables.details")}<ChevronDown size={16} aria-hidden="true" /></button></div>
     </div>
-    <table className={styles.breakdown}><caption className={styles.srOnly}>{t("payables.breakdown")}: {group.recipient_name}</caption><thead><tr><th>{t("payables.bucket")}</th><th>{t("payables.reference")}</th><th>{t("payables.earnedAt")}</th><th>{t("payables.amount")}</th></tr></thead><tbody>{group.components.map(row => <tr key={row.id}>
+    <table className={styles.breakdown}><caption className={styles.srOnly}>{t("payables.breakdown")}: {group.recipient_name}</caption><thead><tr><th>{t("payables.bucket")}</th><th>{t("payables.reference")}</th><th>{t("expenses.readyToPay")}</th><th>{t("payables.amount")}</th></tr></thead><tbody>{group.components.map(row => <tr key={row.id}>
       <td data-label={t("payables.bucket")}><span>{payableRoleLabel(row.role_label, locale)}</span>{row.status !== "open" ? <StatusBadge status={row.status} label={t(row.status === "settled" ? "payout.settled" : `payables.${row.status}`)} /> : null}</td>
       <td data-label={t("payables.reference")}><Link href={payableSourceHref(row)}><span>{t(`payables.${row.source_type}`)}</span><small>{row.received_money_id.slice(0, 8).toUpperCase()}</small></Link></td>
-      <td data-label={t("payables.earnedAt")}>{date(row.finalized_at)}</td><td data-label={t("payables.amount")} className={styles.lineAmount}><span>{row.gross_amount.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <small>{row.currency}</small></span></td>
+      <td data-label={t("expenses.readyToPay")}><WorkflowDate value={{ event: "readyToPay", at: row.created_at || null }} /></td><td data-label={t("payables.amount")} className={styles.lineAmount}><span>{row.gross_amount.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <small>{row.currency}</small></span></td>
     </tr>)}</tbody></table>
     <div id={`payable-details-${payableGroupKey(group)}`} hidden={!expanded[payableGroupKey(group)]}>
       {group.components.map(row => <section className={styles.component} key={row.id}>

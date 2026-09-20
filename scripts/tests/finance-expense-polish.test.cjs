@@ -52,8 +52,10 @@ for(const locale of ['th','en']) {
  });
 }
 test('Expense polish preserves readers, financial helpers, RPCs, migrations and sidebar motion/reveal',()=>{
- const files=['app/finance/expenses/data.ts','app/finance/expenses/shared.ts','app/finance/payables/shared.ts','app/components/sidebar-reveal.ts','app/components/AppSidebar.module.css',...cp.execFileSync('git',['ls-tree','-r','--name-only','HEAD','supabase/migrations'],{encoding:'utf8'}).trim().split('\n')];
+ const files=['app/finance/expenses/data.ts','app/components/sidebar-reveal.ts','app/components/AppSidebar.module.css',...cp.execFileSync('git',['ls-tree','-r','--name-only','HEAD','supabase/migrations'],{encoding:'utf8'}).trim().split('\n')];
  for(const file of files)assert.deepEqual(fs.readFileSync(file),cp.execFileSync('git',['show','HEAD:'+file]),file);
+ const runtime=s=>require('typescript').transpileModule(s,{compilerOptions:{module:1,target:9}}).outputText;
+ for(const file of ['app/finance/expenses/shared.ts','app/finance/payables/shared.ts'])assert.equal(runtime(fs.readFileSync(file,'utf8')),runtime(cp.execFileSync('git',['show','HEAD:'+file],{encoding:'utf8'})),file+' runtime/financial helpers unchanged');
  const source=fs.readFileSync('app/finance/payables/groups.tsx','utf8');assert.doesNotMatch(source,/Array\.from\(group\.recipient_name|charAt\(|avatar_url|https:\/\//);
  const css=fs.readFileSync('app/finance/finance-sidebar.module.css','utf8');assert.match(css,/font-size:15px/);assert.match(css,/a\[aria-current\]::before/);
  assert.match(fs.readFileSync('app/finance/expenses/admin-tools.tsx','utf8'),/if \(!access.is_admin\) return null/);

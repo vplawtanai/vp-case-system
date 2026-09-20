@@ -19,6 +19,8 @@ const copy: Record<string, [string, string]> = {
  noClaims: ["ยังไม่มีคำขอเบิกค่าใช้จ่าย", "No expense claims yet"], noClaimsHelp: ["เมื่อคุณสำรองจ่ายค่าใช้จ่ายของสำนักงาน สามารถสร้างคำขอเบิกและติดตามสถานะได้ที่นี่", "Create a claim for office expenses you paid personally and follow its progress here."],
  noMatchingClaims: ["ไม่พบคำขอที่ตรงกับตัวกรอง", "No matching claims"], adjustClaimFilters: ["ลองเปลี่ยนคำค้นหาหรือสถานะที่เลือก", "Try another search or status."],
  payableItems: ["รายการที่รอจ่าย", "Open items"],
+ queueOrder: ["เรียงรายการ", "Sort order"], newestQueue: ["เข้าคิวล่าสุด", "Newest in queue"], newestSubmitted: ["ยื่นล่าสุด", "Newest submission"], newestReady: ["พร้อมจ่ายล่าสุด", "Newest payable"], oldestWaiting: ["รอนานที่สุด", "Oldest waiting"],
+ draftCreated: ["สร้างร่าง", "Draft created"], claimSubmitted: ["ยื่นขอเบิก", "Claim submitted"], sentForReview: ["ส่งตรวจ", "Sent for review"], reviewCompleted: ["พิจารณาแล้ว", "Reviewed"], taxQueue: ["เข้าคิวตรวจภาษี", "Entered tax review"], readyToPay: ["พร้อมจ่ายเมื่อ", "Ready to pay"], paymentRecorded: ["ยืนยันการจ่าย", "Payment confirmed"], settlementDecided: ["ตัดสินวิธีชำระ", "Settlement decided"], rightWaived: ["ยกเลิกสิทธิเมื่อ", "Right waived"], legacyEntered: ["เข้าระบบใหม่", "Entered new workflow"], queueTimeUnknown: ["ไม่พบเวลาที่เข้าคิว", "Queue entry time unavailable"],
  revenuePayablesHelp: ["สิทธิจากการแบ่งรายได้ที่ยืนยันแล้ว", "Rights from finalized revenue distributions."],
  reimbursementPayablesHelp: ["ยอดคืนเงินที่ฝ่ายการเงินพิจารณาแล้ว", "Reimbursements reviewed by Finance."],
  supplierPayablesHelp: ["ภาระต่อผู้ขายที่ยังไม่ได้ชำระ", "Supplier obligations awaiting payment."],

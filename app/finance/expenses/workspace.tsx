@@ -13,6 +13,8 @@ import { ExpenseFactsForm, ExpensePaymentPanel, ExpenseSettlementForm, ExpenseTa
 import { ExpenseAdminTools } from "./admin-tools";
 import { ExpenseCreateModal } from "./create-modal";
 import { expenseCategoryLabel } from "./categories";
+import { claimWorkflowTime, expenseWorkflowTime, orderByWorkflow, type QueueOrder } from "../workflow-time";
+import { QueueSort, WorkflowDate } from "../workflow-time-ui";
 import css from "./expenses.module.css";
 
 export function ExpenseBadge({ state }: { state: string }) {
@@ -72,19 +74,20 @@ export function ExpenseWorkspace({ id, claims = false, initialTaxFilter = false,
 export function ExpenseClaimList({ rows, canCreate, viewAll, onCreate }: { rows: Expense[]; canCreate: boolean; viewAll: boolean; onCreate: () => void }) {
  const { t, locale, date } = useI18n();
  const [search, setSearch] = useState(""), [status, setStatus] = useState("all"), [page, setPage] = useState(0);
+ const [order, setOrder] = useState<QueueOrder>("newest");
  const filtered = rows.filter(r => [r.reference, r.description, r.category, expenseCategoryLabel(r.category, locale), viewAll ? r.claimant_name : ""].join(" ").toLowerCase().includes(search.toLowerCase()) && (status === "all" || r.status === status || expensePaymentState(r) === status));
- const visible = filtered.slice(page * 10, page * 10 + 10);
+ const visible = orderByWorkflow(filtered, r => claimWorkflowTime(r).at, r => r.id, order).slice(page * 10, page * 10 + 10);
  const money = (value: number, currency: string) => `${value.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
  return <>
-  <div className={css.filters}><FieldGroup id="claim-search" label={t("expenses.claimSearch")}><input type="search" value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} /></FieldGroup><FieldGroup id="claim-status" label={t("expenses.status")}><select value={status} onChange={e => { setStatus(e.target.value); setPage(0); }}>{["all", "draft", "submitted", "accepted", "rejected", "unpaid", "paid"].map(s => <option key={s} value={s}>{t(`expenses.${s}`)}</option>)}</select></FieldGroup></div>
+  <div className={css.filters}><FieldGroup id="claim-search" label={t("expenses.claimSearch")}><input type="search" value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} /></FieldGroup><FieldGroup id="claim-status" label={t("expenses.status")}><select value={status} onChange={e => { setStatus(e.target.value); setPage(0); }}>{["all", "draft", "submitted", "accepted", "rejected", "unpaid", "paid"].map(s => <option key={s} value={s}>{t(`expenses.${s}`)}</option>)}</select></FieldGroup><QueueSort id="claim-queue-order" value={order} newest="newestSubmitted" onChange={v => { setOrder(v); setPage(0); }} /></div>
   <section aria-label={t(viewAll ? "expenses.allClaims" : "expenses.ownClaims")}><div className={css.sectionHead}><h2>{t(viewAll ? "expenses.allClaims" : "expenses.ownClaims")} <span>({filtered.length})</span></h2></div>
    {visible.length ? <table className={`${css.table} ${css.claimTable}`}><thead><tr>{["date", "category", "description", "requested", "approved", "status", "action"].map(k => <th key={k}>{t(`expenses.${k}`)}</th>)}</tr></thead><tbody>{visible.map(row => <tr key={row.id}>
-    <td data-label={t("expenses.date")}>{date(row.expense_date)}<small>{expenseShortRef(row.id)}</small></td>
+    <td data-label={t("expenses.date")}><span>{date(row.expense_date)}</span><small>{expenseShortRef(row.id)}</small></td>
     <td data-label={t("expenses.category")}>{expenseCategoryLabel(row.category, locale)}</td>
     <td data-label={t("expenses.description")}>{row.description}{viewAll && row.claimant_name ? <small>{row.claimant_name}</small> : null}</td>
     <td data-label={t("expenses.requested")} className={css.money}>{money(row.reimbursement_requested, row.currency)}</td>
     <td data-label={t("expenses.approved")} className={css.money}>{row.obligation ? money(row.obligation.gross_amount, row.currency) : row.settlement?.mode === "no_reimbursement" ? t("expenses.notReimbursed") : t("expenses.awaitingDecision")}</td>
-    <td data-label={t("expenses.status")}><ExpenseBadge state={row.status} />{row.obligation || row.payout || row.settlement?.mode === "no_reimbursement" ? <small>{t(`expenses.${expensePaymentState(row)}`)}</small> : null}</td>
+    <td data-label={t("expenses.status")}><ExpenseBadge state={row.status} /><small className={css.workflowDate}><WorkflowDate value={claimWorkflowTime(row)} /></small>{row.obligation || row.payout || row.settlement?.mode === "no_reimbursement" ? <small>{t(`expenses.${expensePaymentState(row)}`)}</small> : null}</td>
     <td data-label={t("expenses.action")}><Link className={ui.secondary} href={expenseHref(row)}>{t("expenses.view")}<ArrowRight size={14} aria-hidden="true" /></Link></td>
    </tr>)}</tbody></table> : <div className={`${css.empty} ${css.claimEmpty}`}><span className={css.icon}><FileText size={24} aria-hidden="true" /></span><h3>{t(rows.length ? "expenses.noMatchingClaims" : "expenses.noClaims")}</h3><p>{t(rows.length ? "expenses.adjustClaimFilters" : "expenses.noClaimsHelp")}</p>{!rows.length && canCreate ? <button type="button" className={ui.primary} aria-haspopup="dialog" onClick={onCreate}><Plus size={17} aria-hidden="true" />{t("expenses.newClaim")}</button> : null}</div>}
   </section>
@@ -95,21 +98,22 @@ export function ExpenseClaimList({ rows, canCreate, viewAll, onCreate }: { rows:
 export function ExpenseList({ rows, claims, initialTaxFilter = false }: { rows: Expense[]; claims: boolean; initialTaxFilter?: boolean }) {
  const { t, locale, date } = useI18n();
  const [search, setSearch] = useState(""), [state, setState] = useState(initialTaxFilter ? "tax" : "all"), [origin, setOrigin] = useState("all"), [page, setPage] = useState(0);
+ const [order, setOrder] = useState<QueueOrder>("newest");
  const summary = expenseSummary(rows), icons = { review: Clock, unpaid: Wallet, paid: CircleCheck, tax: ShieldCheck };
  const filtered = rows.filter(r => [r.description, r.vendor_name, r.claimant_name, r.reference, r.id, r.category, expenseCategoryLabel(r.category, locale)].join(" ").toLowerCase().includes(search.toLowerCase()) && (origin === "all" || r.origin === origin) && (state === "all" || (state === "tax" ? pendingExpenseTax(r) : r.status === state || expensePaymentState(r) === state)));
- const visible = filtered.slice(page * 10, page * 10 + 10);
+ const visible = orderByWorkflow(filtered, r => expenseWorkflowTime(r, state).at, r => r.id, order).slice(page * 10, page * 10 + 10);
  return <>
   {!claims ? <div className={css.stats}>{Object.entries(summary).map(([key, value]) => { const Icon = icons[key as keyof typeof icons]; return <article className={css.stat} key={key}><span className={css.icon}><Icon size={24} aria-hidden="true" /></span><div><span>{t(`expenses.${key}`)}</span><strong>{t("expenses.count", { count: value.count })}</strong><small>{value.amount.toLocaleString(locale, { minimumFractionDigits: 2 })} THB</small></div></article>; })}</div> : null}
   <div className={css.filters}><FieldGroup id="expense-search" label={t("expenses.search")}><input type="search" value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} /></FieldGroup>
    {!claims ? <FieldGroup id="expense-origin-filter" label={t("expenses.origin")}><select value={origin} onChange={e => { setOrigin(e.target.value); setPage(0); }}>{["all", "company_purchase", "employee_claim", "legacy_claim"].map(v => <option key={v} value={v}>{t(`expenses.${v}`)}</option>)}</select></FieldGroup> : null}
-   <FieldGroup id="expense-status-filter" label={t("expenses.status")}><select value={state} onChange={e => { setState(e.target.value); setPage(0); }}>{["all", "draft", "submitted", "accepted", "rejected", "unpaid", "paid", "tax"].map(v => <option key={v} value={v}>{t(`expenses.${v}`)}</option>)}</select></FieldGroup></div>
+   <FieldGroup id="expense-status-filter" label={t("expenses.status")}><select value={state} onChange={e => { setState(e.target.value); setPage(0); }}>{["all", "draft", "submitted", "accepted", "rejected", "unpaid", "paid", "tax"].map(v => <option key={v} value={v}>{t(`expenses.${v}`)}</option>)}</select></FieldGroup><QueueSort id="expense-queue-order" value={order} onChange={v => { setOrder(v); setPage(0); }} /></div>
   <section><div className={css.sectionHead}><h2>{t(claims ? "expenses.allClaims" : "expenses.allExpenses")} <span>({filtered.length})</span></h2><Search size={18} aria-hidden="true" /></div>
    {visible.length ? <table className={css.table}><thead><tr>{["reference", "description", "vendor", "amount", "vat", "payment", "action"].map(k => <th key={k}>{t(`expenses.${k}`)}</th>)}</tr></thead><tbody>{visible.map(r => <tr key={r.id}>
-    <td data-label={t("expenses.reference")}><Link href={expenseHref(r)}>{expenseShortRef(r.id)}</Link><small>{date(r.expense_date)}</small></td>
+    <td data-label={t("expenses.reference")}><Link href={expenseHref(r)}>{expenseShortRef(r.id)}</Link><small>{t("expenses.date")}: {date(r.expense_date)}</small></td>
     <td data-label={t("expenses.description")}>{r.description}<small><ExpenseBadge state={r.origin} /></small></td><td data-label={t("expenses.vendor")}>{r.claimant_name || r.vendor_name || t("expenses.optional")}<small>{expenseCategoryLabel(r.category, locale)}</small></td>
     <td className={css.money} data-label={t("expenses.amount")}>{r.gross_amount.toLocaleString(locale, { minimumFractionDigits: 2 })}<small>{r.currency}</small></td>
     <td data-label={t("expenses.vat")}><ExpenseBadge state={r.tax_review?.vat_state || "pending"} /><small>WHT: {t(`expenses.${r.tax_review?.wht_state || "pending"}`)}</small></td>
-    <td data-label={t("expenses.payment")}><ExpenseBadge state={expensePaymentState(r)} /><small>{t(`expenses.${r.status}`)}</small></td>
+    <td data-label={t("expenses.payment")}><ExpenseBadge state={expensePaymentState(r)} /><small>{t(`expenses.${r.status}`)}</small><small className={css.workflowDate}><WorkflowDate value={expenseWorkflowTime(r, state)} /></small></td>
     <td data-label={t("expenses.action")}><Link className={ui.secondary} href={expenseHref(r)}>{t("expenses.open")}<ArrowRight size={14} aria-hidden="true" /></Link></td>
    </tr>)}</tbody></table> : <div className={css.empty}><strong>{t("expenses.empty")}</strong><p>{t("expenses.emptyHelp")}</p></div>}
   </section>

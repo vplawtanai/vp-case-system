@@ -29,6 +29,8 @@
 @media(max-width:1100px){.payableStats .stat:first-child{grid-column:1/-1}}
 .createFooter{display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:10px}.createFooter button{min-height:42px}.createFooter>div{min-width:0}
 .categoryField{container-type:inline-size}.categoryField>p{display:none;overflow-wrap:anywhere}
+.workflowDate{display:block;font-size:12px;line-height:1.6;overflow-wrap:anywhere;color:var(--expense-muted)}
+.filters>.queueSort{min-width:180px}
 @container (max-width:420px){.categoryField>p{display:block}}
 .form .createFields{display:grid;gap:18px}.createFields .paymentPanel{margin-top:0}.createFields .muted{margin:0;line-height:1.65}.requestFields{display:grid;gap:10px;border-top:1px solid var(--expense-border);padding-top:16px}.optionalFields{display:grid;gap:14px}.optionalFields .disclosure{padding:12px 0 0}.optionalFields .disclosure summary{min-height:34px;line-height:1.6}.optionalFields>.check{font-size:14px;min-height:34px;align-items:center!important}
 @media(max-width:480px){.heading .actions button[aria-haspopup=dialog]{flex:1}.createFooter>button,.createFooter>div{flex:1}.createFooter>div button{width:100%}}
