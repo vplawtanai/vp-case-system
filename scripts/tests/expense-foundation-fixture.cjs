@@ -14,6 +14,10 @@ function fixture(flow){
  if(flow==='company-review')data={...data,record:company};
  if(flow==='claim-review')data={...data,record:claim};
  if(flow==='employee')data={...data,access:{...access,can_manage:false,can_tax_review:false,can_view_all:false,can_record:false,can_confirm:false,is_admin:false},accounts:[],rows:[claim]};
+ if(flow.startsWith('claims')) {
+  const own={...access,can_manage:false,can_tax_review:false,can_view_all:false,can_record:false,can_confirm:false,is_admin:false};
+  data={...data,access:flow==='claims-admin'?access:flow==='claims-finance'?{...access,is_admin:false}:own,accounts:[],rows:flow==='claims-empty'?[]:[claim,expense(17,{origin:'employee_claim',personally_paid:true,claimant_id:id(1),reimbursement_requested:4500,settlement:{id:id(44),mode:'reimburse',amount:3725,reason:'Synthetic partial approval'},obligation:obligation(45,id(17),{source_type:'employee_reimbursement',gross_amount:3725,payee_id:id(1)}),tax_review:tax})]};
+ }
  if(flow==='draft')data={...data,record:expense(16,{origin:'employee_claim',claimant_id:id(1),status:'draft',submitted_at:null,personally_paid:true})};
  if(flow==='confirmed')data={...data,access:{...access,is_admin:false,can_manage:false,can_tax_review:false},record:rows[4]};
  return {data,lookups,revenue:require('./payable-fixture.cjs').fixture().groups,obligations:[obligation(41,id(13)),obligation(43,id(11),{source_type:'employee_reimbursement',gross_amount:3725,payee_id:id(1),payee_name:'พนักงานทดสอบ / Synthetic employee',description:'เดินทางไปศาล / Synthetic travel reimbursement'})]};

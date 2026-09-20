@@ -8,13 +8,14 @@ import { useI18n } from "../../../lib/i18n/provider";
 import { payableGroupKey, payableRoleLabel, payableSourceHref, type PayableGroup } from "./shared";
 import { payoutHref } from "../payouts/shared";
 import styles from "./payables.module.css";
+import { PayableSourceBadge, RecipientAvatar } from "./source-identity";
 
 export function PayableGroups({ groups, isAdmin = false }: { groups: PayableGroup[]; isAdmin?: boolean }) {
   const { t, locale, date } = useI18n();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   return <div className={styles.groups}>{groups.map(group => <article className={styles.group} key={payableGroupKey(group)} data-recipient={payableGroupKey(group)}>
     <div className={styles.groupHeading}>
-      <div className={styles.identity}><span className={styles.avatar} aria-hidden="true">{Array.from(group.recipient_name.trim())[0]}</span><div><h2>{group.recipient_name}</h2><SourceBadge label={t(group.components[0]?.recipient_type === "payee" ? "payout.external" : "payables.user")} /></div></div>
+      <div className={styles.identity}><RecipientAvatar kind={group.components[0]?.recipient_type === "user" ? "person" : "payee"} /><div><h2>{group.recipient_name}</h2><div className={styles.identityBadges}><PayableSourceBadge source="revenue_distribution" /><SourceBadge label={t(group.components[0]?.recipient_type === "payee" ? "payout.external" : "payables.user")} /></div></div></div>
       <div className={styles.recipientAmount}><MoneySummary className={styles.total} locale={locale} currency={group.currency} items={[{ key: "open", label: t("payables.openAmount"), amount: group.open_amount, emphasis: true }]} /><span className={styles.muted}>{t(group.components.length === 1 ? "payables.oneComponent" : "payables.count", { count: group.components.length })}</span></div>
       <div className={styles.recipientActions}><Link className={ui.primary} href={payoutHref(group.recipient_id)}>{t("payables.pay")}<ArrowRight size={16} aria-hidden="true" /></Link>
         <button type="button" className={ui.secondary} aria-expanded={!!expanded[payableGroupKey(group)]} aria-controls={`payable-details-${payableGroupKey(group)}`} onClick={() => setExpanded(previous => ({ ...previous, [payableGroupKey(group)]: !previous[payableGroupKey(group)] }))}>{t(expanded[payableGroupKey(group)] ? "payables.hideDetails" : "payables.details")}<ChevronDown size={16} aria-hidden="true" /></button></div>

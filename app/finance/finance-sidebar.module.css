@@ -1,6 +1,20 @@
-.nav { display:grid; gap:3px; padding:0 0 4px 12px; min-width:0; }
-.nav section { display:grid; gap:3px; }.nav h3 { font-size:12px; font-weight:600; margin:12px 10px 3px; color:#64748b; }
-.nav a { padding:8px 10px; min-height:36px; border-radius:5px; font-size:13px; line-height:1.5; text-decoration:none; color:#42536b; overflow-wrap:anywhere; }
-.nav a:hover { background:#eef4fc; }.nav a[aria-current] { color:#1259bd; background:#eaf2ff; font-weight:650; }
-.nav a:focus-visible { outline:2px solid #1766df; outline-offset:1px; }.nav .legacy { border-top:1px solid #e1e7ef; margin-top:8px; }.legacy a { color:#667388; }
-.accordion{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;border:0;background:transparent;color:#42536b;text-align:left;padding:8px 10px;font-size:13px;line-height:1.5;cursor:pointer;border-radius:5px}.accordion:hover{background:#eef4fc}.accordion:focus-visible{outline:2px solid #1766df;outline-offset:1px}.accordion span{min-width:0;overflow-wrap:anywhere}.accordion svg{flex:0 0 15px}.children{display:grid;gap:3px;padding-left:10px}.children[hidden]{display:none}
+.nav { display:grid; gap:4px; padding:0 0 8px 6px; min-width:0; }
+.nav section { --section-accent:#526274; --section-tint:#f0f3f6; display:grid; gap:3px; }
+.nav section[data-finance-section=incomeGroup] { --section-accent:#21744f; --section-tint:#eaf6ef; }
+.nav section[data-finance-section=expenseGroup] { --section-accent:#a4422d; --section-tint:#fff0ea; }
+.nav section[data-finance-section=moneyGroup] { --section-accent:#245fab; --section-tint:#edf4ff; }
+.nav section[data-finance-section=taxGroup] { --section-accent:#75519a; --section-tint:#f5effb; }
+.nav h3 { display:flex; align-items:center; gap:9px; font-size:15px; line-height:1.5; font-weight:700; margin:18px 8px 7px; color:var(--section-accent); }
+.nav h3::before { content:""; width:3px; height:16px; flex:0 0 3px; border-radius:2px; background:var(--section-accent); }
+.nav a { position:relative; display:block; padding:10px 10px 10px 14px; min-height:40px; border-radius:5px; font-size:13px; line-height:1.5; text-decoration:none; color:#435269; overflow-wrap:anywhere; }
+.nav a:hover { background:#f3f6fa; }
+.nav a[aria-current] { color:var(--section-accent); background:var(--section-tint); font-weight:700; }
+.nav a[aria-current]::before { content:""; position:absolute; left:0; top:8px; bottom:8px; width:3px; border-radius:2px; background:var(--section-accent); }
+.nav a:focus-visible,.accordion:focus-visible { outline:2px solid #1766df; outline-offset:1px; }
+.nav .legacy { border-top:1px solid #e1e7ef; margin-top:12px; }
+.accordion { display:flex; justify-content:space-between; align-items:center; gap:8px; width:100%; min-height:40px; border:0; background:transparent; color:#435269; text-align:left; padding:10px 10px 10px 14px; font-size:13px; line-height:1.5; cursor:pointer; border-radius:5px; }
+.accordion:hover { background:#f3f6fa; }
+.accordion span { min-width:0; overflow-wrap:anywhere; }
+.accordion svg { flex:0 0 15px; }
+.children { display:grid; gap:3px; padding-left:12px; margin-left:13px; border-left:1px solid #e1e7ef; }
+.children[hidden] { display:none; }

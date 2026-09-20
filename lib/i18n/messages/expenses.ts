@@ -1,5 +1,14 @@
 import type { MessageCatalog } from "../core";
 const copy: Record<string, [string, string]> = {
+ adminTools: ["เครื่องมือผู้ดูแลระบบ", "Administrator tools"],
+ claimSearch: ["ค้นหาเลขที่ หมวด หรือรายละเอียด", "Find reference, category or description"],
+ approved: ["จำนวนที่อนุมัติ", "Approved amount"], awaitingDecision: ["รอพิจารณา", "Awaiting review"], notReimbursed: ["ไม่ต้องคืนเงิน", "No reimbursement"],
+ noClaims: ["ยังไม่มีคำขอเบิกค่าใช้จ่าย", "No expense claims yet"], noClaimsHelp: ["เมื่อคุณสำรองจ่ายค่าใช้จ่ายของสำนักงาน สามารถสร้างคำขอเบิกและติดตามสถานะได้ที่นี่", "Create a claim for office expenses you paid personally and follow its progress here."],
+ noMatchingClaims: ["ไม่พบคำขอที่ตรงกับตัวกรอง", "No matching claims"], adjustClaimFilters: ["ลองเปลี่ยนคำค้นหาหรือสถานะที่เลือก", "Try another search or status."],
+ payableItems: ["รายการที่รอจ่าย", "Open items"],
+ revenuePayablesHelp: ["สิทธิจากการแบ่งรายได้ที่ยืนยันแล้ว", "Rights from finalized revenue distributions."],
+ reimbursementPayablesHelp: ["ยอดคืนเงินที่ฝ่ายการเงินพิจารณาแล้ว", "Reimbursements reviewed by Finance."],
+ supplierPayablesHelp: ["ภาระต่อผู้ขายที่ยังไม่ได้ชำระ", "Supplier obligations awaiting payment."],
  saveBeforeSubmit: ["บันทึกข้อมูลที่แก้ไขก่อนส่งตรวจ", "Save your changes before submitting."],
  title: ["การซื้อ / ค่าใช้จ่ายบริษัท", "Purchases / Company expenses"], claims: ["เบิกค่าใช้จ่าย", "Expense claims"],
  subtitle: ["ตรวจรายการซื้อ ภาษี และการชำระเงินของบริษัท", "Review company purchases, tax and settlement."], claimHelp: ["บันทึกค่าใช้จ่ายที่คุณสำรองจ่าย และติดตามการคืนเงิน", "Record expenses you paid personally and track reimbursement."],

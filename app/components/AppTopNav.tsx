@@ -342,7 +342,7 @@ export default function AppTopNav({
                 <button key={item.href} type="button" aria-label={item.label} title={item.label}
                   aria-expanded={financeExpanded} aria-controls="finance-sidebar-links"
                   onClick={() => setFinancePreference({ pathname, expanded: !financeExpanded })}
-                  style={{ ...getLinkStyle(item.page, collapsed), width: collapsed ? 48 : "100%", font: "inherit", fontWeight: 650, cursor: "pointer", textAlign: "left" }}>
+                  style={{ ...getLinkStyle(item.page, collapsed), ...(!collapsed ? { background: "#f2f5f8", color: "#30465d", boxShadow: "none", border: "1px solid #dce4ec" } : {}), width: collapsed ? 48 : "100%", font: "inherit", fontWeight: 650, cursor: "pointer", textAlign: "left" }}>
                   <span style={navIconStyle}><NavIcon name={item.icon} /></span>
                   <span data-sidebar-label aria-hidden={collapsed || undefined} style={{ flex: collapsed ? undefined : 1 }}>{item.label}</span><span data-sidebar-label><ChevronDown data-sidebar-chevron size={16} style={{ transform: financeExpanded ? "rotate(180deg)" : undefined }} aria-hidden="true" /></span>
                 </button>

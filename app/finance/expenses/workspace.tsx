@@ -57,12 +57,35 @@ export function ExpenseWorkspace({ id, claims = false, initialTaxFilter = false,
   {loading ? <p role="status">{t("expenses.loading")}</p> : data && access ? <>
    {creating ? canCreate ? <ExpenseFactsForm claim={claims} access={access} accounts={data.accounts} lookups={lookups} run={run} busy={busy} /> : <Callout tone="warning">{t("expenses.denied")}</Callout> : record ?
     <ExpenseDetail key={`${record.id}:${record.version}:${record.tax_review?.id}:${record.settlement?.id}:${record.payout?.version}:${record.obligation?.waived}`} data={data} row={record} lookups={lookups} run={run} busy={busy} /> : !id ? <>
-     <ExpenseList rows={data.rows} claims={claims} initialTaxFilter={initialTaxFilter} />
-     {data.accounts.some(a => a.can_view_balance || a.can_view_movements) && !access.can_view_all ? <section className={css.section}><h2>{t("expenses.movements")}</h2><div className={css.stats}>{data.accounts.map(a => <div key={a.id} className={css.stat}><Wallet size={20} /><div>{a.name}<strong>{a.can_view_balance ? a.balance == null ? t("expenses.unavailable") : `${a.balance.toLocaleString(locale, { minimumFractionDigits: 2 })} THB` : t("expenses.balancePrivate")}</strong>{a.can_view_movements ? <ScopedMovements bank={a.bank_account_id} cash={a.cash_location_id} fixture={!!fixture} /> : null}</div></div>)}</div></section> : null}
-     {access.can_manage ? <ExpenseAdminTools access={access} accounts={data.accounts} lookups={lookups} run={run} busy={busy} fixture={!!fixture} onBridge={value => router.push(`/finance/expenses/claims/${value}`)} /> : null}
+     {claims ? <ExpenseClaimList rows={data.rows} canCreate={access.can_claim} viewAll={access.can_view_all} /> : <ExpenseList rows={data.rows} claims={false} initialTaxFilter={initialTaxFilter} />}
+     {!claims && data.accounts.some(a => a.can_view_balance || a.can_view_movements) && !access.can_view_all ? <section className={css.section}><h2>{t("expenses.movements")}</h2><div className={css.stats}>{data.accounts.map(a => <div key={a.id} className={css.stat}><Wallet size={20} /><div>{a.name}<strong>{a.can_view_balance ? a.balance == null ? t("expenses.unavailable") : `${a.balance.toLocaleString(locale, { minimumFractionDigits: 2 })} THB` : t("expenses.balancePrivate")}</strong>{a.can_view_movements ? <ScopedMovements bank={a.bank_account_id} cash={a.cash_location_id} fixture={!!fixture} /> : null}</div></div>)}</div></section> : null}
+     {access.is_admin ? <ExpenseAdminTools access={access} accounts={data.accounts} lookups={lookups} run={run} busy={busy} fixture={!!fixture} showAuthorities={!claims} onBridge={value => router.push(`/finance/expenses/claims/${value}`)} /> : null}
     </> : <Callout tone="warning">{t("expenses.denied")}</Callout>}
   </> : null}
  </div></PageShell>;
+}
+
+export function ExpenseClaimList({ rows, canCreate, viewAll }: { rows: Expense[]; canCreate: boolean; viewAll: boolean }) {
+ const { t, locale, date } = useI18n();
+ const [search, setSearch] = useState(""), [status, setStatus] = useState("all"), [page, setPage] = useState(0);
+ const filtered = rows.filter(r => [r.reference, r.description, r.category, viewAll ? r.claimant_name : ""].join(" ").toLowerCase().includes(search.toLowerCase()) && (status === "all" || r.status === status || expensePaymentState(r) === status));
+ const visible = filtered.slice(page * 10, page * 10 + 10);
+ const money = (value: number, currency: string) => `${value.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
+ return <>
+  <div className={css.filters}><FieldGroup id="claim-search" label={t("expenses.claimSearch")}><input type="search" value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} /></FieldGroup><FieldGroup id="claim-status" label={t("expenses.status")}><select value={status} onChange={e => { setStatus(e.target.value); setPage(0); }}>{["all", "draft", "submitted", "accepted", "rejected", "unpaid", "paid"].map(s => <option key={s} value={s}>{t(`expenses.${s}`)}</option>)}</select></FieldGroup></div>
+  <section aria-label={t(viewAll ? "expenses.allClaims" : "expenses.ownClaims")}><div className={css.sectionHead}><h2>{t(viewAll ? "expenses.allClaims" : "expenses.ownClaims")} <span>({filtered.length})</span></h2></div>
+   {visible.length ? <table className={`${css.table} ${css.claimTable}`}><thead><tr>{["date", "category", "description", "requested", "approved", "status", "action"].map(k => <th key={k}>{t(`expenses.${k}`)}</th>)}</tr></thead><tbody>{visible.map(row => <tr key={row.id}>
+    <td data-label={t("expenses.date")}>{date(row.expense_date)}<small>{expenseShortRef(row.id)}</small></td>
+    <td data-label={t("expenses.category")}>{row.category}</td>
+    <td data-label={t("expenses.description")}>{row.description}{viewAll && row.claimant_name ? <small>{row.claimant_name}</small> : null}</td>
+    <td data-label={t("expenses.requested")} className={css.money}>{money(row.reimbursement_requested, row.currency)}</td>
+    <td data-label={t("expenses.approved")} className={css.money}>{row.obligation ? money(row.obligation.gross_amount, row.currency) : row.settlement?.mode === "no_reimbursement" ? t("expenses.notReimbursed") : t("expenses.awaitingDecision")}</td>
+    <td data-label={t("expenses.status")}><ExpenseBadge state={row.status} />{row.obligation || row.payout || row.settlement?.mode === "no_reimbursement" ? <small>{t(`expenses.${expensePaymentState(row)}`)}</small> : null}</td>
+    <td data-label={t("expenses.action")}><Link className={ui.secondary} href={expenseHref(row)}>{t("expenses.view")}<ArrowRight size={14} aria-hidden="true" /></Link></td>
+   </tr>)}</tbody></table> : <div className={`${css.empty} ${css.claimEmpty}`}><span className={css.icon}><FileText size={24} aria-hidden="true" /></span><h3>{t(rows.length ? "expenses.noMatchingClaims" : "expenses.noClaims")}</h3><p>{t(rows.length ? "expenses.adjustClaimFilters" : "expenses.noClaimsHelp")}</p>{!rows.length && canCreate ? <Link className={ui.primary} href="/finance/expenses/claims/new"><Plus size={17} aria-hidden="true" />{t("expenses.newClaim")}</Link> : null}</div>}
+  </section>
+  {filtered.length > 10 ? <div className={css.footer}><button className={ui.secondary} type="button" disabled={!page} aria-label={t("expenses.previous")} onClick={() => setPage(p => p - 1)}><ArrowLeft size={18} /></button><span>{page + 1}</span><button className={ui.secondary} type="button" disabled={(page + 1) * 10 >= filtered.length} aria-label={t("expenses.next")} onClick={() => setPage(p => p + 1)}><ArrowRight size={18} /></button></div> : null}
+ </>;
 }
 
 export function ExpenseList({ rows, claims, initialTaxFilter = false }: { rows: Expense[]; claims: boolean; initialTaxFilter?: boolean }) {
