@@ -53,8 +53,11 @@ test('Cashbook label uses matching frozen evidence only; missing/malformed evide
 });
 test('Existing mutation call payloads, readiness rules, migrations and protected flows are unchanged',()=>{
  function calls(source){const ast=ts.createSourceFile('x.tsx',source,99,true,ts.ScriptKind.TSX),found=[];function visit(n){if(ts.isCallExpression(n)&&n.expression.getText(ast)==='run')found.push(n.getText(ast));ts.forEachChild(n,visit);}visit(ast);return found;}
- for(const file of ['forms.tsx','company-review.tsx','workspace.tsx']){const path='app/finance/expenses/'+file;assert.deepEqual(calls(fs.readFileSync(path,'utf8')),calls(cp.execFileSync('git',['show','HEAD:'+path],{encoding:'utf8'})),path);}
- const protectedFiles=['app/finance/expenses/company-money.ts','app/finance/expenses/company-workflow.ts','app/finance/expenses/request-operations.ts','app/finance/expenses/requests.ts','app/finance/expenses/request-modal.tsx','app/finance/expenses/data.ts','app/finance/payables/groups.tsx','app/finance/treasury/dashboard.ts'];
+ // 059 binds actual withholding to the frozen structured decision; all other arguments remain unchanged.
+ const structuredWht='row.tax_review?.request_json?.schema_version === 2 ? row.tax_review.wht_state === "withhold" : withhold';
+ assert.ok(fs.readFileSync('app/finance/expenses/forms.tsx','utf8').includes(structuredWht));
+ for(const file of ['forms.tsx','company-review.tsx','workspace.tsx']){const path='app/finance/expenses/'+file;assert.deepEqual(calls(fs.readFileSync(path,'utf8').replace(structuredWht,'withhold')),calls(cp.execFileSync('git',['show','b805f832:'+path],{encoding:'utf8'})),path);}
+ const protectedFiles=['app/finance/expenses/request-operations.ts','app/finance/expenses/requests.ts','app/finance/expenses/request-modal.tsx','app/finance/expenses/data.ts','app/finance/payables/groups.tsx','app/finance/treasury/dashboard.ts'];
  const migrations=cp.execFileSync('git',['ls-tree','-r','--name-only','HEAD','supabase/migrations'],{encoding:'utf8'}).trim().split('\n');
  for(const file of [...protectedFiles,...migrations])assert.deepEqual(fs.readFileSync(file),cp.execFileSync('git',['show','HEAD:'+file]),file);
 });

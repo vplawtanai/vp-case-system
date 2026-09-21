@@ -4,7 +4,7 @@ import { pendingExpenseTax, type Expense, type ExpenseLookups } from "./shared";
 import { companyMoneyCandidates } from "./company-money";
 
 export const companyRequests = (requests: ExpenseRequest[]) => requests.filter(r => r.kind === "company_expense_batch");
-export const companyReviewComplete = (item: Expense) => item.status === "rejected" || (item.status === "accepted" && !pendingExpenseTax(item) && !!item.settlement && item.settlement.mode !== "undecided");
+export const companyReviewComplete = (item: Expense) => item.status === "rejected" || (item.status === "accepted" && (item.tax_review?.request_json?.schema_version === 2 ? item.tax_review.vat_state !== "pending" && item.tax_review.wht_state !== "pending" && !item.tax_review.wht_exception : !pendingExpenseTax(item)) && !!item.settlement && item.settlement.mode !== "undecided");
 export function companyItemLane(item: Expense) {
  if (item.status === "draft") return "draft";
  if (item.status === "rejected") return "rejected";

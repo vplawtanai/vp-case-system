@@ -15,7 +15,7 @@ import { ExpenseRequestModal } from "./request-modal";
 import { ExpenseCreateModal } from "./create-modal";
 import { ExpenseRequestReview, ExpenseRequestRow } from "./request-view";
 import { CompanyExpenseList } from "./company-list";
-import { CompanyRequestReview } from "./company-review";
+import { CompanyItemReview, CompanyRequestReview } from "./company-review";
 import { expenseQueueEntries, type ExpenseRequest } from "./requests";
 import { expenseCategoryLabel } from "./categories";
 import { claimWorkflowTime, expenseWorkflowTime, type QueueOrder } from "../workflow-time";
@@ -140,6 +140,11 @@ function ExpenseDetail({ data, row, lookups, run, busy }: { data: ExpenseData; r
  const access = data.access, tax = row.tax_review, money = (v: number | null | undefined) => v == null ? t("expenses.pending") : `${v.toLocaleString(locale, { minimumFractionDigits: 2 })} THB`;
  const knownPayee = companyPayee(row, lookups);
  const editable = row.status === "draft" && row.created_by === access.user_id && !row.request_id;
+ if (access.company_tax_calculation_supported && row.origin === "company_purchase" && !row.personally_paid && ["submitted", "accepted"].includes(row.status)) return <>
+  <CompanyItemReview row={row} access={access} accounts={data.accounts} lookups={lookups} run={run} busy={busy} />
+  {row.creator_payment_fact !== "company_paid" ? <ExpensePaymentPanel row={row} access={access} accounts={data.accounts} run={run} busy={busy} /> : null}
+  <ExpenseActivity row={row} isAdmin={access.is_admin} />
+ </>;
  return <>{row.request_id && row.status === "draft" ? <Callout tone="info">{t(row.request_active === false ? "expenses.removedRequestItem" : "expenses.requestDraftHelp")} <Link href={`${row.origin === "employee_claim" ? "/finance/expenses/claims" : "/finance/expenses"}?request=${row.request_id}`}>{t("expenses.openRequest")}</Link></Callout> : null}<div className={css.actions}><ExpenseBadge state={row.status} /><ExpenseBadge state={row.origin} /></div><div className={css.columns}><div className={css.main}>
   <section className={css.section}>{editable ? <><ExpenseFactsForm row={row} claim={row.origin === "employee_claim"} access={access} accounts={data.accounts} lookups={lookups} run={run} busy={busy} onDirty={setDirty} /><div className={css.footer}>{dirty ? <span role="status">{t("expenses.saveBeforeSubmit")}</span> : null}<button className={ui.primary} type="button" disabled={busy || dirty} onClick={() => void run("submit_finance_expense", { p_id: row.id, p_version: row.version })}><SendIcon />{t("expenses.submit")}</button></div></> : <><h2>{t("expenses.facts")}</h2><p className={css.muted}>{t("expenses.immutableFacts")}</p><dl className={css.facts}>
    {[["reference", expenseShortRef(row.id)], ["date", date(row.expense_date)], ["vendor", row.vendor_name], ["claimant", row.request_id && row.origin === "employee_claim" ? null : row.claimant_name], ["category", expenseCategoryLabel(row.category, locale)], ["amount", money(row.gross_amount)], ["description", row.description], ["note", row.note], ["requested", row.personally_paid ? money(row.reimbursement_requested) : null], ["vatAwareness", t(`expenses.${row.vat_awareness}`)], ["whtAwareness", t(`expenses.${row.wht_awareness}`)]].filter(([, value]) => value).map(([label, value]) => <div key={label} className={label === "description" || label === "note" ? css.span : undefined}><dt>{t(`expenses.${label}`)}</dt><dd>{value}</dd></div>)}

@@ -23,7 +23,7 @@ export function companyMoneyCandidates(row: Expense, lookups: ExpenseLookups, mo
 
 // Readiness is client-side review guidance, not an alternative tax/settlement calculation.
 // The existing RPCs still validate amounts, evidence, permissions and concurrent changes.
-export function companyApprovalMissing(row: Expense, money: Record<string, unknown> | null, tax: Record<string, unknown> | null, reason: string, lookups: ExpenseLookups) {
+export function companyApprovalMissing(row: Expense, money: Record<string, unknown> | null, tax: Record<string, unknown> | null, reason: string, lookups: ExpenseLookups, calculation?: import("./company-tax").CompanyTaxCalculation | null) {
  const missing: string[] = [];
  const mode = row.settlement?.mode || String(money?.p_mode || "undecided");
  if (mode === "undecided" || !companyMoneyModes(row).includes(mode as SettlementMode)) missing.push(row.creator_payment_fact === "company_paid" ? "companyNeedPaidChannel" : "companyNeedMoney");
@@ -31,6 +31,10 @@ export function companyApprovalMissing(row: Expense, money: Record<string, unkno
   if (!companyMoneyCandidates(row, lookups, mode).some(p => p.id === money?.p_payee)) missing.push(mode === "reimburse" ? "companyNeedPayer" : "companyNeedSupplier");
   const amount = money?.p_amount;
   if (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0 || amount > row.gross_amount || Math.abs(amount * 100 - Math.round(amount * 100)) > 0.000001) missing.push("companyNeedAmount");
+ }
+ if (calculation !== undefined) {
+  if (!row.settlement && ["company_bank", "company_cash", "supplier_unpaid"].includes(mode) && money?.p_amount !== calculation?.gross) missing.push("companyTaxCalculating");
+  return [...missing, ...(calculation?.missing || ["companyTaxCalculating"])];
  }
  const t = row.tax_review && !tax ? row.tax_review : tax;
  if (!t || !["none", "exists"].includes(String(t.vat_state)) || t.eligibility === "pending" || (t.vat_state === "none" && t.eligibility !== "ineligible")) missing.push("companyNeedVat");

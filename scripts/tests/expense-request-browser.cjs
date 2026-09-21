@@ -11,6 +11,7 @@ const f=${JSON.stringify(f)},seed=${JSON.stringify(expense(10))},tax=${JSON.stri
 const params=new URLSearchParams(location.search),scenario=params.get('scenario'),claim=location.pathname.includes('/claims'),creator=params.get('role')==='creator';let requests=[];window.calls=[];window.writes=[];
 f.data.access.creator_payment_fact_supported=params.get('schema')!=='056';
 f.data.access.company_declaration_without_account_supported=!['056','057'].includes(params.get('schema'));
+f.data.access.company_tax_calculation_supported=params.has('tax059');
 if(creator)f.data.access={...f.data.access,can_manage:false,can_tax_review:false,can_record:false,can_confirm:false,can_view_all:false,is_admin:false};
 f.data.access.can_create_company=f.data.access.can_manage||f.data.access.can_claim||f.data.access.can_record;
 if(creator){f.data.accounts=[];f.lookups.payees=[];}
@@ -51,6 +52,17 @@ export const supabase={from(table){
  if(table!=='finance_payouts')throw Error('Forbidden fixture read '+table);
  const query={select(columns){window.calls.push({name:'select_payout_evidence',columns});return query;},in(){return query;},eq(){return query;},then(resolve){return Promise.resolve({data:params.has('missingEvidence')?[]:[{id:'payout-fixture',status:'confirmed',source_model:'expense_v1',confirmed_snapshot_json:{schema_version:2,source_model:'expense_v1',choices:[{expense_id:'expense-fixture',expense:{id:'expense-fixture',origin:'company_purchase',description:'UAT PAID'}}]}}]}).then(resolve);}};return query;
 },async rpc(name,args){window.calls.push({name,args:structuredClone(args)});await new Promise(r=>setTimeout(r,80));
+ if(name==='preview_finance_company_expense_tax'){
+  if(window.failPreview){window.failPreview=false;return{error:{message:'Synthetic preview unavailable'}};}
+  const i=requests.flatMap(r=>r.items).find(i=>i.id===args.p_expense),v=args.p_input;
+  const values=v.vat_mode==='exclusive'?[300,21,321]:v.vat_mode==='inclusive'?[280.37,19.63,300]:v.vat_mode==='none'?[i.gross_amount,0,i.gross_amount]:[null,null,null];
+  const missing=[];if(!v.vat_mode)missing.push('companyNeedVat');if(!v.wht_state)missing.push('companyNeedWht');
+  if(v.vat_mode!=='none'&&v.eligibility==='eligible'&&(!v.supplier_tax_id||!v.tax_document_reference||!v.tax_document_date||v.company_name_status!=='yes'))missing.push('companyNeedVatEvidence');
+  if((i.tax_review||(i.creator_payment_fact==='company_paid'&&v.wht_state==='withhold'))&&!v.reason.trim())missing.push('companyNeedReason');
+  if(i.creator_payment_fact==='company_paid'&&v.wht_state==='withhold'&&!v.paid_withholding_ack)missing.push('companyPaidWhtAck');
+  const wht=v.wht_state==='withhold'?v.vat_mode==='inclusive'?8.41:9:v.wht_state==='none'?0:null;
+  return{data:{schema_version:2,declared_amount:i.gross_amount,vat_base:values[0],vat_rate:v.vat_mode==='none'?0:v.vat_rate,vat_amount:values[1],gross:values[2],wht_base:v.wht_state==='withhold'?values[0]:0,wht_rate:v.wht_state==='withhold'?v.wht_rate:0,wht_amount:wht,net:values[2]===null||wht===null?null:values[2]-wht,ready:missing.length===0,missing}};
+ }
  if(name==='get_finance_expense_parties')return{data:structuredClone(f.lookups)};
  if(name==='get_finance_payees'){if(window.denyLookup){window.denyLookup=false;return{error:{message:'PAYOUT_PERMISSION_DENIED'}};}return{data:structuredClone(window.supplierRegister||f.lookups.payees.map(p=>({...p,kind:p.profile_id?'internal':'external',entity_type:p.entity_type||'natural_person',tax_id:p.tax_id||null,is_active:true,version:1,destination:null})))};}
  if(name==='save_finance_payee'){if(window.denyPayee){window.denyPayee=false;return{error:{message:'PAYOUT_PERMISSION_DENIED'}};}if(f.lookups.payees.some(p=>p.id===args.p_id))throw Error('Duplicate fixture payee');f.lookups.payees.push({id:args.p_id,profile_id:args.p_profile_id,legal_name:args.p_profile_id?'Synthetic personal payer':args.p_input.legal_name});window.writes.push(name);return{data:args.p_id};}
@@ -63,7 +75,9 @@ export const supabase={from(table){
   const r=requests.find(r=>r.kind==='company_expense_batch'&&r.items.some(i=>i.id===args.p_expense)),i=r.items.find(i=>i.id===args.p_expense);
   if(window.failTax){window.failTax=false;return{error:{message:'EXPENSE_PERMISSION_DENIED'}};}
   if(i.tax_review?.id===args.p_id)return{data:args.p_id};if(i.status!=='accepted'||(i.tax_review?.id||null)!==args.p_previous)throw Error('Tax fixture guard');
-  i.tax_review={...tax,...args.p_input,id:args.p_id,vat_amount:null,wht_amount:null,wht_exception:false};window.writes.push(name);
+  i.tax_review={...tax,...args.p_input,id:args.p_id,vat_amount:null,wht_amount:null,wht_exception:false};
+  if(args.p_input.schema_version===2){i.tax_review={...i.tax_review,vat_state:args.p_input.vat_mode==='none'?'none':'exists',eligibility:args.p_input.vat_mode==='none'?'ineligible':args.p_input.eligibility,request_json:{schema_version:2,raw_input:args.p_input}};}
+  window.writes.push(name);
   if(window.loseTaxResponse){window.loseTaxResponse=false;return{error:{message:'Network lost'}};}return{data:args.p_id};
  }
  if(name==='decide_finance_expense_settlement'){
@@ -95,6 +109,10 @@ async function main(){
   const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'/Users/paolawyer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
   const page=await browser.newPage(),errors=[],external=[];page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>{if(new URL(r.request().url()).hostname==='127.0.0.1')return r.continue();external.push(r.request().url());return r.abort();});
   require('./receipt-render-fixture.cjs');const {translate}=require('../../lib/i18n/catalog.ts'),url='http://127.0.0.1:'+server.address().port;
+  if(process.argv.includes('--tax059')){
+   const scenarios=await require('./company-tax-review-browser.cjs')({page,url,out,translate});
+   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,scenarios,artifacts:out,externalRequests:0}));return;
+  }
   if(process.argv.includes('--ux')){
    const scenarios=await require('./finance-expense-ux-browser.cjs')({page,url,out,translate,id});
    assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,scenarios,artifacts:out,externalRequests:0}));return;

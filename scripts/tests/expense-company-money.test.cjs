@@ -56,6 +56,7 @@ test('057 workflow artifacts SELECT-only and exactly embedded; 001-056 and prote
  const dry=fs.readFileSync(a.filenames.dry,'utf8');assert.equal(dry.split('-- BEGIN EMBEDDED MIGRATION 057\n')[1].split('-- END EMBEDDED MIGRATION 057')[0],a.source());assert.match(lexical(dry).trim(),/^begin;/i);assert.match(lexical(dry).trim(),/rollback;$/i);assert.doesNotMatch(lexical(dry),/\bcommit\b/i);
  for(const statement of lexical(a.source()).split(';'))assert.doesNotMatch(statement.trim(),/^(insert|update|delete|merge|truncate|copy|select)\b/i);
  const files=cp.execFileSync('git',['ls-tree','-r','--name-only','HEAD','supabase/migrations'],{encoding:'utf8'}).trim().split('\n');
- files.push(...['company-list.tsx','company-categories.ts','company.module.css','request-view.tsx','request-operations.ts','requests.ts','data.ts'].map(p=>'app/finance/expenses/'+p));
+ // 059 changes the company review stylesheet; list/request/source contracts remain protected.
+ files.push(...['company-list.tsx','company-categories.ts','request-view.tsx','request-operations.ts','requests.ts','data.ts'].map(p=>'app/finance/expenses/'+p));
  for(const file of files)assert.deepEqual(fs.readFileSync(file),cp.execFileSync('git',['show','HEAD:'+file]),file);
 });
