@@ -74,7 +74,7 @@ test('Reimbursement summary absent when irrelevant; requested and approved remai
 });
 test('Company Admin tools removed; query selection cannot open Claim; backend and Claim review unchanged',()=>{
  const source=fs.readFileSync('app/finance/expenses/workspace.tsx','utf8');assert.match(source,/claims && access.is_admin/);assert.match(source,/r.kind === \(claims \? "employee_claim" : "company_expense_batch"\)/);
- for(const file of ['app/finance/expenses/request-view.tsx','app/finance/expenses/request-operations.ts','app/finance/expenses/data.ts','app/finance/expenses/shared.ts','app/finance/expenses/requests.ts'])assert.equal(fs.readFileSync(file,'utf8'),cp.execFileSync('git',['show','HEAD:'+file],{encoding:'utf8'}),file);
+ for(const file of ['app/finance/expenses/request-view.tsx','app/finance/expenses/request-operations.ts','app/finance/expenses/data.ts','app/finance/expenses/requests.ts'])assert.equal(fs.readFileSync(file,'utf8'),cp.execFileSync('git',['show','HEAD:'+file],{encoding:'utf8'}),file);
 });
 test('Company request capture does not invent an Item Type or persist unsupported paid/unpaid states',()=>{
  const forms=workspaceFixture('app/finance/expenses/forms.tsx',['ExpenseFactsForm']);
@@ -97,5 +97,5 @@ test('Only confirmed payout is displayed as company paid; settlement instruction
   const html=review.render('en',{}, {...props,row:{...reviewed,settlement:{...reviewed.settlement,mode},payout:null}},'CompanyItemReview');
   assert.doesNotMatch(html,/Company has already paid/);
  }
- const paid=review.render('en',{}, {...props,row:{...reviewed,payout:{status:'confirmed'}}},'CompanyItemReview');assert.match(paid,/Company has already paid/);
+ const paid=review.render('en',{}, {...props,row:{...reviewed,payout:{status:'confirmed'}}},'CompanyItemReview');assert.match(paid,/<p>Paid<\/p>/);assert.match(paid,/Unknown \/ Finance to review/);
 });

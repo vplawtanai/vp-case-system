@@ -9,14 +9,17 @@ const f=fixture('list');f.data.access.is_admin=false;
 const adapter=write('adapter.js',`
 const f=${JSON.stringify(f)},seed=${JSON.stringify(expense(10))},tax=${JSON.stringify(tax)},obligation=${JSON.stringify(obligation(40,id(10)))};
 const params=new URLSearchParams(location.search),scenario=params.get('scenario'),claim=location.pathname.includes('/claims'),creator=params.get('role')==='creator';let requests=[];window.calls=[];window.writes=[];
+f.data.access.creator_payment_fact_supported=params.get('schema')!=='056';
 if(creator)f.data.access={...f.data.access,can_manage:false,can_tax_review:false,can_record:false,can_confirm:false,can_view_all:false,is_admin:false};
 const makeItem=(i,input={})=>({...seed,id:'00000000-0056-4000-8000-00000000000'+i,origin:claim?'employee_claim':'company_purchase',created_by:f.data.access.user_id,request_id:'00000000-0056-4000-8000-000000000900',request_active:true,version:2,status:'draft',audit:[],submitted_at:null,review_reason:null,gross_amount:i===1?300:120,description:'Synthetic item '+i,personally_paid:claim,reimbursement_requested:claim?(i===1?300:120):0,...input});
 if(scenario){const status=scenario==='draft'?'draft':scenario==='submitted'?'submitted':scenario==='rejected'?'rejected':'accepted',at='2026-09-19T04:00:00Z';requests=[{id:'00000000-0056-4000-8000-000000000900',kind:claim?'employee_claim':'company_expense_batch',status:scenario==='draft'?'draft':'submitted',version:2,note:'',created_at:'2026-09-18T01:00:00Z',submitted_at:scenario==='draft'?null:at,created_by:f.data.access.user_id,requester_name:'Synthetic staff',audit:[],items:[1,2].map(i=>makeItem(i,{status,submitted_at:scenario==='draft'?null:at,review_reason:status==='rejected'?'Synthetic rejection reason':null,tax_review:scenario==='waiting'||scenario==='paid'?tax:null,settlement:scenario==='waiting'||scenario==='paid'?{id:'settlement-'+i,mode:'supplier_unpaid',amount:300,payee_id:obligation.payee_id,reason:'Synthetic decision'}:null,obligation:scenario==='waiting'||scenario==='paid'?{...obligation,id:'obligation-'+i,settled:scenario==='paid',created_at:'2026-09-19T06:00:00Z'}:null,payout:scenario==='paid'?{id:'paid-'+i,status:'confirmed',gross:300,net:300,wht:0,paid_on:'2026-09-20'}:null,audit:[...(status==='accepted'||status==='rejected'?[{id:'review-'+i,event_type:status,created_at:'2026-09-19T05:00:00Z',actor_name:'Finance',evidence_json:null}]:[]),...(scenario==='paid'?[{id:'payment-'+i,event_type:'payment_confirmed',created_at:'2026-09-20T05:00:00Z',actor_name:'Finance',evidence_json:null}]:[])]}))}];}
 if(!claim&&scenario){
  const r=requests[0];
- if(['no-tax','partial','reimbursement','exception'].includes(scenario))r.items.forEach(i=>{i.status='submitted';i.vat_awareness=scenario==='exception'?'yes':'no';i.wht_awareness='no';i.tax_review=null;i.settlement=null;i.obligation=null;i.audit=[];});
+ if(['no-tax','partial','reimbursement','exception','company-paid','unknown','missing-supplier','missing-payer','wht'].includes(scenario))r.items.forEach(i=>{i.status='submitted';i.vat_awareness=scenario==='exception'?'yes':'no';i.wht_awareness=scenario==='wht'?'yes':'no';i.tax_review=null;i.settlement=null;i.obligation=null;i.audit=[];i.creator_payment_fact=scenario==='company-paid'?'company_paid':scenario==='unknown'?'unknown':'unpaid';});
  if(scenario==='partial'){r.items[0].status='accepted';r.items[0].tax_review=tax;r.items[0].settlement={id:'settlement-1',mode:'supplier_unpaid',amount:300,payee_id:seed.supplier_payee_id,reason:'Reviewed'};r.items[0].obligation={...obligation,gross_amount:300};}
- if(scenario==='reimbursement')r.items.forEach(i=>{i.personally_paid=true;i.claimant_id=f.data.access.user_id;i.claimant_name='Synthetic personal payer';i.reimbursement_requested=i.gross_amount;});
+ if(['reimbursement','missing-payer'].includes(scenario))r.items.forEach(i=>{i.creator_payment_fact='personal_paid';i.personally_paid=true;i.claimant_id=f.data.access.user_id;i.claimant_name='Synthetic personal payer';i.reimbursement_requested=i.gross_amount;});
+ if(scenario==='missing-supplier'){r.items.forEach(i=>{i.supplier_payee_id=null;});f.lookups.payees=f.lookups.payees.filter(p=>p.profile_id);}
+ if(scenario==='missing-payer')f.lookups.payees=f.lookups.payees.filter(p=>!p.profile_id);
  requests.push({...structuredClone(r),id:'00000000-0056-4000-8000-000000000999',kind:'employee_claim',requester_name:'CLAIM MUST NOT LEAK'});
 }
 window.fixtureRequests=requests;
@@ -24,6 +27,8 @@ export async function readExpenses(){return {...f.data,rows:[]};}export async fu
 export async function readExpenseRequest(id){if(window.failRead){window.failRead=false;throw Error('Local read failed');}const r=requests.find(r=>r.id===id);if(window.editDuringRead){window.editDuringRead=false;r.version++;r.note='Another tab edit';}return structuredClone(r);}
 const operations=new Set();
 export const supabase={async rpc(name,args){window.calls.push({name,args:structuredClone(args)});await new Promise(r=>setTimeout(r,80));
+ if(name==='get_finance_expense_parties')return{data:structuredClone(f.lookups)};
+ if(name==='save_finance_payee'){if(window.denyPayee){window.denyPayee=false;return{error:{message:'PAYOUT_PERMISSION_DENIED'}};}if(f.lookups.payees.some(p=>p.id===args.p_id))throw Error('Duplicate fixture payee');f.lookups.payees.push({id:args.p_id,profile_id:args.p_profile_id,legal_name:args.p_profile_id?'Synthetic personal payer':args.p_input.legal_name});window.writes.push(name);return{data:args.p_id};}
  if(window.failSave&&name==='save_finance_expense_request'){window.failSave=false;return{error:{message:'EXPENSE_PERMISSION_DENIED'}};}
  if(window.failSubmit&&name==='submit_finance_expense_request'){window.failSubmit=false;return{error:{message:'EXPENSE_PERMISSION_DENIED'}};}
  if(name==='save_finance_expense_request'){if(operations.has(args.p_operation))return{data:args.p_id};const old=requests.find(r=>r.id===args.p_id);if(old&&old.version!==args.p_version)throw Error('Stale fixture save');const row={id:args.p_id,kind:args.p_kind,note:args.p_note,status:'draft',version:(old?.version||0)+1,created_at:'2026-09-18T01:00:00Z',submitted_at:null,created_by:f.data.access.user_id,requester_name:'Synthetic staff',audit:[],items:args.p_items.map((i,n)=>makeItem(n+1,{...i.input,id:i.id,request_id:args.p_id,version:(i.version||0)+1}))};requests=[...requests.filter(r=>r.id!==row.id),row];operations.add(args.p_operation);window.writes.push(name);if(window.loseSaveResponse){window.loseSaveResponse=false;return{error:{message:'Network failed after commit'}};}return{data:row.id};}
@@ -49,7 +54,7 @@ const loader=write('loader.cjs',`module.exports=function(source){if(this.resourc
 const entry=write('entry.tsx',`import React from'react';import{createRoot}from'react-dom/client';import{UiLocaleProvider}from'${root}/lib/i18n/provider.tsx';import{ExpenseWorkspace}from'${root}/app/finance/expenses/workspace.tsx';createRoot(document.getElementById('root')).render(<UiLocaleProvider initialLocale={new URLSearchParams(location.search).get('locale')} pathname="/finance/expenses"><main style={{maxWidth:1200,margin:'0 auto',padding:20}}><ExpenseWorkspace claims={location.pathname.includes('/claims')}/></main></UiLocaleProvider>);`);
 async function main(){
  await new Promise((resolve,reject)=>require('next/dist/compiled/webpack/webpack').webpack({mode:'development',context:root,entry,output:{path:out,filename:'bundle.js'},resolve:{extensions:['.tsx','.ts','.js'],modules:[root+'/node_modules'],alias:{'next/navigation':navigation,'next/link':link,[root+'/lib/supabase']:adapter,[root+'/app/finance/expenses/data']:adapter}},module:{rules:[{test:/\.(tsx?|css|js)$/,exclude:/node_modules/,use:loader}]},devtool:false},(e,s)=>e||s.hasErrors()?reject(e||Error(s.toString({all:false,errors:true}))):resolve()));
- const css=['app/components/ui/vp-ui.module.css','app/components/DetailModal.module.css','app/finance/expenses/expenses.module.css','app/finance/expenses/company.module.css'].map(file=>{const prefix=path.basename(file).replaceAll('.','_')+'_';return fs.readFileSync(root+'/'+file,'utf8').replace(/\.([A-Za-z_][A-Za-z_0-9-]*)/g,(_,key)=>'.'+prefix+key).replace(/:global\(([^)]+)\)/g,'$1');}).join('\n');
+ const css=['app/components/ui/vp-ui.module.css','app/components/DetailModal.module.css','app/finance/expenses/expenses.module.css','app/finance/expenses/company.module.css','app/finance/payouts/payout.module.css'].map(file=>{const prefix=path.basename(file).replaceAll('.','_')+'_';return fs.readFileSync(root+'/'+file,'utf8').replace(/\.([A-Za-z_][A-Za-z_0-9-]*)/g,(_,key)=>'.'+prefix+key).replace(/:global\(([^)]+)\)/g,'$1');}).join('\n');
  const server=http.createServer((req,res)=>{if(req.url==='/bundle.js'){res.setHeader('Content-Type','text/javascript');return res.end(fs.readFileSync(out+'/bundle.js'));}res.setHeader('Content-Type','text/html');res.end(`<!doctype html><html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;color:#182b45}button,input,select,textarea{font-family:inherit}${css}</style><div id="root"></div><script src="/bundle.js"></script></html>`);});
  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});let browser;
  try{
@@ -113,7 +118,7 @@ async function main(){
    const active=dialog.locator('[id^="company-item-"]');assert.ok(await active.count()<=1);
    if(scenario==='partial'){assert.ok((await dialog.innerText()).includes('1 / 2'));assert.ok((await active.getAttribute('id')).endsWith('002'));}
    if(scenario==='waiting'){assert.ok((await dialog.innerText()).includes('2 / 2'));assert.equal(await active.count(),0);}
-   if(scenario==='paid'){await dialog.locator('[aria-controls^="company-item-"]').first().click();assert.ok((await active.innerText()).includes(t('handlingCompanyPaid')));}
+   if(scenario==='paid'){await dialog.locator('[aria-controls^="company-item-"]').first().click();assert.ok((await active.innerText()).includes(t('paid')));}
    if(scenario==='reimbursement')assert.ok((await dialog.innerText()).includes(t('staffRequestedTotal')));
    else assert.ok(!(await dialog.innerText()).includes(t('staffRequestedTotal')));
    await page.screenshot({path:out+`/company-review-${scenario}-${width}.png`});
@@ -141,8 +146,45 @@ async function main(){
    console.log('PASS Company state',width,scenario);scenarios++;
   }
   await page.setViewportSize({width:1440,height:950});await page.goto(`${url}/finance/expenses?locale=en&scenario=no-tax`);await page.locator('[data-request-row] button').click();
-  for(const label of ['Settlement / payee','Approve item','Reject item','I have verified that this item has no VAT and no withholding tax.'])assert.ok((await page.getByRole('dialog').innerText()).includes(label),label);
+  for(const label of ['Money handling for this item','Approve item','Reject item','I have verified that this item has no VAT and no withholding tax.'])assert.ok((await page.getByRole('dialog').innerText()).includes(label),label);
   await fits();assert.deepEqual(await page.evaluate(()=>window.writes),[]);scenarios++;console.log('PASS Company EN review smoke');
+  for(const width of [390,1440])for(const scenario of ['company-paid','unknown','missing-supplier','missing-payer','wht']){
+   const t=k=>translate('th','expenses.'+k);await page.setViewportSize({width,height:950});await page.goto(`${url}/finance/expenses?locale=th&scenario=${scenario}`);await page.locator('[data-request-row] button').click();const dialog=page.getByRole('dialog');await dialog.waitFor();
+   const approve=()=>dialog.getByRole('button',{name:t('companyApprove'),exact:true});assert.ok(await approve().isDisabled());
+   await dialog.locator('#company-review-reason').fill('Explicit local money decision');
+   if(scenario!=='wht')await dialog.getByLabel(t('companyNoTaxAck')).check();
+   if(scenario==='company-paid'){
+    assert.equal(await dialog.locator('#expense-settlement-mode option[value=supplier_unpaid]').count(),0);await dialog.locator('#expense-settlement-mode').selectOption('company_bank');assert.equal(await dialog.locator('#settlement-payee').count(),0);
+   }else if(scenario==='unknown'){
+    assert.equal(await dialog.locator('#expense-settlement-mode').inputValue(),'undecided');assert.ok(await approve().isDisabled());await dialog.locator('#expense-settlement-mode').selectOption('supplier_unpaid');
+   }else if(scenario==='wht'){
+    assert.ok(await approve().isDisabled());await dialog.locator('#tax-wht_state').selectOption('withhold');await dialog.locator('#tax-wht_base').fill('300');await dialog.locator('#tax-wht_rate').fill('3');
+   }else{
+    assert.ok(await approve().isDisabled());assert.equal(await dialog.locator('#settlement-payee option').count(),1,'No unrelated employee/supplier candidate');
+    await dialog.getByRole('button',{name:t(scenario==='missing-payer'?'companySetUpPayer':'companyAddSupplier'),exact:true}).click();const setup=page.getByRole('dialog').last();await setup.locator('#payee-name').waitFor();
+    if(scenario==='missing-supplier')await setup.locator('#payee-name').fill('Synthetic external supplier');else assert.ok(await setup.locator('#payee-name').isDisabled());
+    await page.evaluate(()=>{window.denyPayee=true;});await setup.getByRole('button',{name:translate('th','common.actions.save'),exact:true}).click();await setup.getByRole('alert').waitFor();assert.deepEqual(await page.evaluate(()=>window.writes),[]);
+    await setup.getByRole('button',{name:translate('th','common.actions.save'),exact:true}).click();await page.waitForFunction(()=>document.querySelectorAll('[role=dialog]').length===1);await page.waitForFunction(()=>!document.querySelector('button[type=submit].vp-ui_module_css_primary')?.disabled);
+   }
+   await fits();assert.ok(await approve().isEnabled());await approve().focus();assert.ok(await approve().evaluate(e=>document.activeElement===e));await page.screenshot({path:out+`/money-${scenario}-${width}.png`,fullPage:true});
+   await approve().click();await page.waitForFunction(()=>document.querySelector('[id^="company-item-"]')?.id.endsWith('002'));
+   const calls=await page.evaluate(()=>window.calls),m=calls.find(c=>c.name==='decide_finance_expense_settlement').args;
+   if(scenario==='company-paid'){assert.equal(m.p_mode,'company_bank');assert.equal(m.p_payee,null);assert.equal(await page.evaluate(()=>window.fixtureRequests[0].items[0].obligation),null);}
+   assert.ok(calls.every(c=>['review_finance_expense','review_finance_expense_tax','decide_finance_expense_settlement','save_finance_payee','get_finance_expense_parties'].includes(c.name)));
+   console.log('PASS money path',width,scenario);scenarios++;
+  }
+  for(const width of [390,1440]){
+   const t=k=>translate('th','expenses.'+k);await page.setViewportSize({width,height:950});await page.goto(`${url}/finance/expenses?locale=th`);await page.getByRole('button',{name:t('new'),exact:true}).first().click();let dialog=page.getByRole('dialog');
+   for(const value of ['unpaid','company_paid','personal','unknown']){
+    if(value!=='unpaid')await dialog.getByRole('button',{name:t('addItem'),exact:true}).click();await dialog.locator('#expense-expense_date').fill('2026-09-03');await dialog.locator('#expense-category').selectOption('company.travel');await dialog.locator('#expense-gross_amount').fill('100');await dialog.locator('#expense-description').fill('Synthetic '+value);await dialog.locator('#expense-handling').selectOption(value);
+    if(value==='personal'){await dialog.locator('#expense-claimant_id').selectOption(id(1));await dialog.locator('#expense-reimbursement_requested').fill('75');}else assert.equal(await dialog.locator('#expense-claimant_id').count(),0);
+    assert.equal(await dialog.locator('#expense-paid-on').count(),0);await fits();await dialog.getByRole('button',{name:t('addThisItem'),exact:true}).click();
+   }
+   await dialog.getByRole('button',{name:t('sendForReview'),exact:true}).click();await page.waitForFunction(()=>window.writes.length===2);const payload=(await page.evaluate(()=>window.calls)).find(c=>c.name==='save_finance_expense_request').args;
+   assert.deepEqual(payload.p_items.map(i=>i.input.creator_payment_fact),['unpaid','company_paid','personal_paid','unknown']);assert.deepEqual(await page.evaluate(()=>window.writes),['save_finance_expense_request','submit_finance_expense_request']);
+   await page.goto(`${url}/finance/expenses?locale=th&schema=056`);await page.getByRole('button',{name:t('new'),exact:true}).first().click();dialog=page.getByRole('dialog');assert.equal(await dialog.locator('#expense-handling option[value=company_paid],#expense-handling option[value=unpaid]').count(),0);assert.deepEqual(await page.evaluate(()=>window.writes),[]);
+   scenarios++;console.log('PASS capture and pre-057 gate',width);
+  }
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,scenarios,artifacts:out,externalRequests:0}));
  }finally{if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));}
 }

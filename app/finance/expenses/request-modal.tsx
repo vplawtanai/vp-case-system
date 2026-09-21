@@ -17,7 +17,7 @@ import { hasReimbursement } from "./request-operations";
 type Props = { request?: ExpenseRequest; claim: boolean; access: ExpenseAccess; accounts: ExpenseAccount[]; lookups: ExpenseLookups; run: ExpenseRun; busy: boolean; error: string; onClose: () => void; onSaved: (id: string, request: ExpenseRequest) => void };
 export function requestItemFromExpense(row: Expense): RequestItemInput {
  const keys = ["expense_date", "category", "description", "gross_amount", "vendor_name", "supplier_payee_id", "claimant_id", "client_id", "case_id", "advisory_matter_id", "note", "personally_paid", "reimbursement_requested", "vat_awareness", "wht_awareness"] as const;
- return { id: row.id, version: row.version, input: { ...Object.fromEntries(keys.map(k => [k, row[k]])), ...row.request_entry_account } };
+ return { id: row.id, version: row.version, input: { ...Object.fromEntries(keys.map(k => [k, row[k]])), ...row.request_entry_account, ...(row.creator_payment_fact === undefined ? {} : { creator_payment_fact: row.creator_payment_fact }) } };
 }
 // Local editor values only: no server event/history is invented for an unsaved line.
 function editorRow(item: RequestItemInput, claim: boolean): Expense {

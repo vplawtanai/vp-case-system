@@ -1,0 +1,978 @@
+{
+  "sha256": "bf1ce95d7216b0de44b512e03f9acb40c62f2b1d59ccad8a9e5d84dc5169379a",
+  "prior": [
+    {
+      "name": "confirm_finance_expense_payout",
+      "signature": "public.confirm_finance_expense_payout(uuid, integer, integer, uuid, boolean)",
+      "hash": "5f306f842bdd587b122df7640dbed1a9",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "decide_finance_expense_settlement",
+      "signature": "public.decide_finance_expense_settlement(uuid, uuid, text, uuid, numeric, date, text)",
+      "hash": "1ae8cbd4d0abe6ab6379010cd7b40035",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "expense_can_claim",
+      "signature": "public.expense_can_claim()",
+      "hash": "0f177d93b62d633fe87d32f8c32c8af3",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "expense_can_manage",
+      "signature": "public.expense_can_manage()",
+      "hash": "989076708ee51cbbd676b5314ee02f5c",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "expense_can_read",
+      "signature": "public.expense_can_read(uuid)",
+      "hash": "3d562654e19156e53dd3798142a8cdb2",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "expense_document",
+      "signature": "public.expense_document(uuid)",
+      "hash": "de6f2f5ca9bc19d7ee9df4eb0c5abbea",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "expense_immutable",
+      "signature": "public.expense_immutable()",
+      "hash": "31b5ed56e28bbe0344ec240fd6d72cde",
+      "security_definer": false,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "get_finance_expense_access",
+      "signature": "public.get_finance_expense_access()",
+      "hash": "1801e92bb68f0172b2d70ba207816be4",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "get_finance_expense_obligations",
+      "signature": "public.get_finance_expense_obligations(integer)",
+      "hash": "d675e8a70ed6031bf3e25dcdc58a34ff",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "get_finance_expense_parties",
+      "signature": "public.get_finance_expense_parties()",
+      "hash": "a7416627ca02b142414da6816f22e54b",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "prepare_finance_expense_payout",
+      "signature": "public.prepare_finance_expense_payout(uuid, uuid, integer, date, uuid, uuid, boolean, text)",
+      "hash": "1310128fe17c2c29613e347e995d4bbc",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "record_finance_paid_expense",
+      "signature": "public.record_finance_paid_expense(uuid, jsonb, uuid, uuid, date, boolean)",
+      "hash": "d401e95c8ea9bbf534e461bd0d4e107e",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "review_finance_expense",
+      "signature": "public.review_finance_expense(uuid, integer, boolean, text)",
+      "hash": "037fc2ea05d5591e8481c1ec85369ffc",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "review_finance_expense_tax",
+      "signature": "public.review_finance_expense_tax(uuid, uuid, uuid, jsonb)",
+      "hash": "0dca13ad948f8fc7b307b3ede196067a",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "save_finance_expense",
+      "signature": "public.save_finance_expense(uuid, integer, jsonb)",
+      "hash": "924138c0defc3fab0ec5ca3220f82807",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "save_finance_expense_before_requests",
+      "signature": "public.save_finance_expense_before_requests(uuid, integer, jsonb)",
+      "hash": "e750877a112d308fcfea86ab86cca099",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "save_finance_expense_request",
+      "signature": "public.save_finance_expense_request(uuid, uuid, integer, text, text, jsonb)",
+      "hash": "1697a4fa15956cf44175996612ac805e",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "submit_finance_expense",
+      "signature": "public.submit_finance_expense(uuid, integer)",
+      "hash": "e852b02babd783a3760d5f9773caeb56",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "submit_finance_expense_request",
+      "signature": "public.submit_finance_expense_request(uuid, integer)",
+      "hash": "bffd44527bdbe87ed96534423ed64d2b",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "tax_position_source",
+      "signature": "public.tax_position_source(text, uuid)",
+      "hash": "d3bd8e74ad5a7badcf59ba426f5ac28a",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ]
+    }
+  ],
+  "functions": [
+    {
+      "name": "confirm_finance_expense_payout",
+      "signature": "public.confirm_finance_expense_payout(uuid, integer, integer, uuid, boolean)",
+      "hash": "5f306f842bdd587b122df7640dbed1a9",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "decide_finance_expense_settlement",
+      "signature": "public.decide_finance_expense_settlement(uuid, uuid, text, uuid, numeric, date, text)",
+      "hash": "1ae8cbd4d0abe6ab6379010cd7b40035",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "expense_can_claim",
+      "signature": "public.expense_can_claim()",
+      "hash": "0f177d93b62d633fe87d32f8c32c8af3",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "expense_can_manage",
+      "signature": "public.expense_can_manage()",
+      "hash": "989076708ee51cbbd676b5314ee02f5c",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "expense_can_read",
+      "signature": "public.expense_can_read(uuid)",
+      "hash": "3d562654e19156e53dd3798142a8cdb2",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "expense_document",
+      "signature": "public.expense_document(uuid)",
+      "hash": "de6f2f5ca9bc19d7ee9df4eb0c5abbea",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "expense_immutable",
+      "signature": "public.expense_immutable()",
+      "hash": "31b5ed56e28bbe0344ec240fd6d72cde",
+      "security_definer": false,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "get_finance_expense_access",
+      "signature": "public.get_finance_expense_access()",
+      "hash": "9ad7d9394d044990edce7dcc37fbd3b3",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "get_finance_expense_obligations",
+      "signature": "public.get_finance_expense_obligations(integer)",
+      "hash": "d675e8a70ed6031bf3e25dcdc58a34ff",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "get_finance_expense_parties",
+      "signature": "public.get_finance_expense_parties()",
+      "hash": "a7416627ca02b142414da6816f22e54b",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "prepare_finance_expense_payout",
+      "signature": "public.prepare_finance_expense_payout(uuid, uuid, integer, date, uuid, uuid, boolean, text)",
+      "hash": "1310128fe17c2c29613e347e995d4bbc",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "record_finance_paid_expense",
+      "signature": "public.record_finance_paid_expense(uuid, jsonb, uuid, uuid, date, boolean)",
+      "hash": "d401e95c8ea9bbf534e461bd0d4e107e",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "review_finance_expense",
+      "signature": "public.review_finance_expense(uuid, integer, boolean, text)",
+      "hash": "037fc2ea05d5591e8481c1ec85369ffc",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "review_finance_expense_tax",
+      "signature": "public.review_finance_expense_tax(uuid, uuid, uuid, jsonb)",
+      "hash": "0dca13ad948f8fc7b307b3ede196067a",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "save_finance_expense",
+      "signature": "public.save_finance_expense(uuid, integer, jsonb)",
+      "hash": "924138c0defc3fab0ec5ca3220f82807",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "save_finance_expense_before_requests",
+      "signature": "public.save_finance_expense_before_requests(uuid, integer, jsonb)",
+      "hash": "283d4d8a0fab7c2ee5a8bcb96d055201",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "save_finance_expense_request",
+      "signature": "public.save_finance_expense_request(uuid, uuid, integer, text, text, jsonb)",
+      "hash": "1697a4fa15956cf44175996612ac805e",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "submit_finance_expense",
+      "signature": "public.submit_finance_expense(uuid, integer)",
+      "hash": "e852b02babd783a3760d5f9773caeb56",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "submit_finance_expense_request",
+      "signature": "public.submit_finance_expense_request(uuid, integer)",
+      "hash": "bffd44527bdbe87ed96534423ed64d2b",
+      "security_definer": true,
+      "volatility": "v",
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "name": "tax_position_source",
+      "signature": "public.tax_position_source(text, uuid)",
+      "hash": "d3bd8e74ad5a7badcf59ba426f5ac28a",
+      "security_definer": true,
+      "volatility": "s",
+      "config": [
+        "search_path=public"
+      ]
+    }
+  ],
+  "catalog": [
+    {
+      "name": "finance_expenses",
+      "kind": "r",
+      "rls": true,
+      "force_rls": false,
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "origin",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "legacy_claim_id",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "reference",
+          "type": "text",
+          "default": "('EXP-'::text || upper((id)::text))",
+          "identity": "",
+          "not_null": false,
+          "generated": "s"
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "default": "'draft'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "default": "1",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "expense_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "category",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "vendor_name",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "supplier_payee_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "claimant_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "client_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "case_id",
+          "type": "bigint",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "advisory_matter_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "currency",
+          "type": "text",
+          "default": "'THB'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "gross_amount",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "personally_paid",
+          "type": "boolean",
+          "default": "false",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "reimbursement_requested",
+          "type": "numeric(14,2)",
+          "default": "0",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "vat_awareness",
+          "type": "text",
+          "default": "'unknown'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "wht_awareness",
+          "type": "text",
+          "default": "'unknown'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "note",
+          "type": "text",
+          "default": "''::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "submitted_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "reviewed_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "reviewed_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "review_reason",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "created_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "updated_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "name": "creator_payment_fact",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "name": "expense_creator_payment_fact_contract",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((creator_payment_fact IS NULL) OR ((origin = 'company_purchase'::text) AND (creator_payment_fact = ANY (ARRAY['unpaid'::text, 'company_paid'::text, 'personal_paid'::text, 'unknown'::text])))))",
+          "initially_deferred": false
+        },
+        {
+          "name": "expense_integrity",
+          "type": "t",
+          "validated": true,
+          "deferrable": true,
+          "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED",
+          "initially_deferred": true
+        },
+        {
+          "name": "finance_expenses_advisory_matter_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (advisory_matter_id) REFERENCES advisory_matters(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_case_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (case_id) REFERENCES cases(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_category_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((length(btrim(category)) >= 1) AND (length(btrim(category)) <= 150)))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((reimbursement_requested >= (0)::numeric) AND (reimbursement_requested <= gross_amount)))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_check1",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((origin = 'legacy_claim'::text) = (legacy_claim_id IS NOT NULL)))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_check2",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((origin <> 'employee_claim'::text) OR (claimant_id = created_by)))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_check3",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((NOT personally_paid) OR (claimant_id IS NOT NULL)))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_check4",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((personally_paid OR (reimbursement_requested = (0)::numeric)))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_check5",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((case_id IS NULL) OR (advisory_matter_id IS NULL)))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_check6",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((status = 'draft'::text) OR (submitted_at IS NOT NULL)))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_check7",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((status = ANY (ARRAY['accepted'::text, 'rejected'::text])) = ((reviewed_at IS NOT NULL) AND (reviewed_by IS NOT NULL) AND (NULLIF(btrim(review_reason), ''::text) IS NOT NULL))))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_claimant_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (claimant_id) REFERENCES user_profiles(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_client_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (client_id) REFERENCES clients(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_created_by_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_currency_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((currency = 'THB'::text))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_description_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK (((length(btrim(description)) >= 1) AND (length(btrim(description)) <= 2000)))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_gross_amount_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((gross_amount > (0)::numeric))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_legacy_claim_id_key",
+          "type": "u",
+          "validated": true,
+          "deferrable": false,
+          "definition": "UNIQUE (legacy_claim_id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_note_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((length(note) <= 2000))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_origin_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((origin = ANY (ARRAY['company_purchase'::text, 'employee_claim'::text, 'legacy_claim'::text])))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_pkey",
+          "type": "p",
+          "validated": true,
+          "deferrable": false,
+          "definition": "PRIMARY KEY (id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_reference_key",
+          "type": "u",
+          "validated": true,
+          "deferrable": false,
+          "definition": "UNIQUE (reference)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_reviewed_by_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (reviewed_by) REFERENCES user_profiles(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_status_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((status = ANY (ARRAY['draft'::text, 'submitted'::text, 'accepted'::text, 'rejected'::text])))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_supplier_payee_id_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (supplier_payee_id) REFERENCES finance_payees(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_updated_by_fkey",
+          "type": "f",
+          "validated": true,
+          "deferrable": false,
+          "definition": "FOREIGN KEY (updated_by) REFERENCES user_profiles(id)",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_vat_awareness_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((vat_awareness = ANY (ARRAY['yes'::text, 'no'::text, 'unknown'::text])))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_vendor_name_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((length(vendor_name) <= 300))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_version_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((version > 0))",
+          "initially_deferred": false
+        },
+        {
+          "name": "finance_expenses_wht_awareness_check",
+          "type": "c",
+          "validated": true,
+          "deferrable": false,
+          "definition": "CHECK ((wht_awareness = ANY (ARRAY['yes'::text, 'no'::text, 'unknown'::text])))",
+          "initially_deferred": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "expense_claim_owner",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX expense_claim_owner ON public.finance_expenses USING btree (claimant_id, created_at, id)"
+        },
+        {
+          "name": "expense_review_queue",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX expense_review_queue ON public.finance_expenses USING btree (status, expense_date, id)"
+        },
+        {
+          "name": "finance_expenses_legacy_claim_id_key",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_expenses_legacy_claim_id_key ON public.finance_expenses USING btree (legacy_claim_id)"
+        },
+        {
+          "name": "finance_expenses_pkey",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_expenses_pkey ON public.finance_expenses USING btree (id)"
+        },
+        {
+          "name": "finance_expenses_reference_key",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX finance_expenses_reference_key ON public.finance_expenses USING btree (reference)"
+        }
+      ],
+      "policies": null,
+      "triggers": [
+        {
+          "name": "expense_history_immutable",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_history_immutable BEFORE DELETE OR UPDATE ON public.finance_expenses FOR EACH ROW EXECUTE FUNCTION expense_immutable()"
+        },
+        {
+          "name": "expense_integrity",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER expense_integrity AFTER INSERT OR UPDATE ON public.finance_expenses DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION expense_integrity()"
+        },
+        {
+          "name": "expense_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_no_truncate BEFORE TRUNCATE ON public.finance_expenses FOR EACH STATEMENT EXECUTE FUNCTION expense_immutable()"
+        },
+        {
+          "name": "expense_request_submission_time",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_request_submission_time BEFORE UPDATE ON public.finance_expenses FOR EACH ROW EXECUTE FUNCTION expense_request_guard()"
+        }
+      ]
+    }
+  ]
+}

@@ -8,6 +8,7 @@ import { useI18n } from "../../../lib/i18n/provider";
 import { requestReference, requestTotals, type ExpenseRequest } from "./requests";
 import { hasReimbursement, itemStage, requestNextAction, requestStage } from "./request-operations";
 import { companyPayee, companyProgress, companyReviewComplete, companyTimeline, noTaxReviewArgs } from "./company-workflow";
+import { companyApprovalMissing, creatorPaymentLabel } from "./company-money";
 import { expenseCategoryLabel } from "./categories";
 import { ExpenseSettlementForm, ExpenseTaxForm, type ExpenseRun } from "./forms";
 import { pendingExpenseTax, type Expense, type ExpenseAccess, type ExpenseLookups } from "./shared";
@@ -52,13 +53,18 @@ export function CompanyItemReview({ row, access, lookups, run, busy }: { row: Ex
  const { t, locale, date } = useI18n();
  const [reason, setReason] = useState(""), [ack, setAck] = useState(false), [working, setWorking] = useState(false), [partial, setPartial] = useState(false);
  const [taxPlan, setTaxPlan] = useState<Record<string, unknown> | null>(null), [settlementPlan, setSettlementPlan] = useState<Record<string, unknown> | null>(null);
+ const [updatedPayees, setUpdatedPayees] = useState<ExpenseLookups["payees"] | null>(null);
+ const parties = updatedPayees ? { ...lookups, payees: updatedPayees } : lookups;
  const lock = useRef(false), reviewPanel = useRef<HTMLDivElement>(null);
  const attempt = useRef<{ steps: { rpc: string; args: Record<string, unknown> }[]; next: number } | null>(null);
- const disabled = busy || working, payee = companyPayee(row, lookups), tax = row.tax_review;
+ const disabled = busy || working, payee = companyPayee(row, parties), tax = row.tax_review;
  const simple = row.vat_awareness === "no" && row.wht_awareness === "no" && !tax;
  const money = (v: number) => `${v.toLocaleString(locale, { minimumFractionDigits: 2 })} THB`;
+ const plannedTax = access.can_tax_review ? simple ? ack ? noTaxReviewArgs(row, "readiness-only", reason).p_input : null : taxPlan?.p_input as Record<string, unknown> | null : null;
+ const missing = companyApprovalMissing(row, settlementPlan, plannedTax, reason, parties);
  async function approve(accept: boolean) {
   if (lock.current || disabled || !reason.trim()) return;
+  if (accept && !attempt.current && missing.length) return;
   if (accept && !attempt.current && [...(reviewPanel.current?.querySelectorAll<HTMLFormElement>("form[data-review-plan]") || [])].some(form => !form.reportValidity())) return;
   lock.current = true; setWorking(true);
   try {
@@ -83,8 +89,9 @@ export function CompanyItemReview({ row, access, lookups, run, busy }: { row: Ex
  const context = [["client", lookups.clients.find(c => c.id === row.client_id)?.name], ["case", lookups.cases.find(c => c.id === row.case_id)?.title], ["matter", lookups.matters.find(c => c.id === row.advisory_matter_id)?.title]];
  return <div className={company.review} ref={reviewPanel}>
   <section><h3>{t("expenses.companyFacts")}</h3><dl className={css.facts}>{[["date", date(row.expense_date)], ["category", expenseCategoryLabel(row.category, locale)], ["amount", money(row.gross_amount)], ["vendor", row.vendor_name], ["description", row.description], ["note", row.note], ...context].filter(([,v]) => v).map(([k,v]) => <div key={k}><dt>{t(`expenses.${k}`)}</dt><dd>{v}</dd></div>)}</dl></section>
-  <section><h3>{t("expenses.companyPaymentPayee")}</h3><dl className={css.facts}><div><dt>{t("expenses.companyPaymentQuestion")}</dt><dd>{t(`expenses.${row.payout?.status === "confirmed" ? "handlingCompanyPaid" : row.personally_paid ? "companyPersonalPaid" : row.settlement?.mode === "supplier_unpaid" ? "handlingUnpaid" : "companyPaymentUnknown"}`)}</dd></div><div><dt>{t(row.personally_paid ? "expenses.companyReimbursementPayee" : "expenses.payee")}</dt><dd>{payee?.legal_name || (row.personally_paid ? row.claimant_name : row.vendor_name) || t("expenses.companyMissingPayee")}</dd></div>{row.personally_paid ? <div><dt>{t("expenses.staffRequestedTotal")}</dt><dd>{money(row.reimbursement_requested)}</dd></div> : null}{row.settlement ? <><div><dt>{t("expenses.payment")}</dt><dd>{t(`expenses.${row.settlement.mode}`)}</dd></div><div><dt>{t("expenses.settlementAmount")}</dt><dd>{money(row.settlement.amount)}<br />{row.settlement.reason}</dd></div></> : null}</dl>
-   {(row.status === "submitted" || row.status === "accepted") && !row.settlement && access.can_manage ? <ExpenseSettlementForm key={`settlement-${payee?.id || "unknown"}`} companyReview row={row} lookups={lookups} run={run} busy={disabled || partial} plan={row.status === "submitted" || partial ? { onPlan: setSettlementPlan, reason } : undefined} /> : null}
+  <section><h3>{t("expenses.companyPaymentPayee")}</h3><strong>{t("expenses.companyCreatorDeclaration")}</strong><dl className={css.facts}><div><dt>{t("expenses.companyPaymentQuestion")}</dt><dd>{t(`expenses.${creatorPaymentLabel(row)}`)}{row.creator_payment_fact === "personal_paid" && row.claimant_name ? ` · ${row.claimant_name}` : ""}</dd></div>{row.personally_paid ? <><div><dt>{t("expenses.companyReimbursementPayee")}</dt><dd>{payee?.legal_name || row.claimant_name || t("expenses.companyMissingPayee")}</dd></div><div><dt>{t("expenses.staffRequestedTotal")}</dt><dd>{money(row.reimbursement_requested)}</dd></div></> : null}{row.settlement ? <><div><dt>{t("expenses.companyMoneyDecision")}</dt><dd>{t(`expenses.${row.settlement.mode}`)}</dd></div><div><dt>{t("expenses.settlementAmount")}</dt><dd>{money(row.settlement.amount)}<br />{row.settlement.reason}</dd></div></> : null}</dl><p className={css.muted}>{t("expenses.companyDeclarationOnly")}</p>
+   {row.payout?.status === "confirmed" ? <p>{t("expenses.paid")}</p> : null}
+   {(row.status === "submitted" || row.status === "accepted") && !row.settlement && access.can_manage ? <ExpenseSettlementForm companyReview row={row} lookups={parties} onPayees={setUpdatedPayees} run={run} busy={disabled || partial} plan={row.status === "submitted" || partial ? { onPlan: setSettlementPlan, reason } : undefined} /> : null}
   </section>
   <section><h3>{t("expenses.companyTax")}</h3><div className={company.taxFacts}><span>VAT<strong>{t(`expenses.${tax?.vat_state || row.vat_awareness}`)}</strong></span><span>WHT<strong>{t(`expenses.${tax?.wht_state || row.wht_awareness}`)}</strong></span><span>{t("expenses.eligibility")}<strong>{t(tax?.vat_state === "none" ? "expenses.companyNotApplicable" : `expenses.${tax?.eligibility || "pending"}`)}</strong></span></div>
    {simple && access.can_tax_review && (row.status === "submitted" || partial) ? <label className={css.check}><input type="checkbox" checked={ack} disabled={disabled || partial} onChange={e => setAck(e.target.checked)} /><span>{t("expenses.companyNoTaxAck")}</span></label> : null}
@@ -92,6 +99,7 @@ export function CompanyItemReview({ row, access, lookups, run, busy }: { row: Ex
    {tax?.wht_exception ? <Callout tone="warning">{t("expenses.whtException")}</Callout> : null}
   </section>
   {partial ? <div className={company.reviewResult}><Callout tone="warning">{t("expenses.companyReviewPartial")}</Callout></div> : null}
-  {(row.status === "submitted" || partial) && access.can_manage ? <form className={`${css.form} ${company.decision}`} onSubmit={e => { e.preventDefault(); void approve(true); }}><FieldGroup id="company-review-reason" label={t("expenses.reason")}><textarea required value={reason} maxLength={2000} disabled={disabled || partial} onChange={e => setReason(e.target.value)} /></FieldGroup><div className={company.decisionActions}><div className={css.footer}>{!partial ? <button type="button" className={ui.secondary} disabled={disabled || !reason.trim()} onClick={() => void approve(false)}>{t("expenses.companyReject")}</button> : null}<button type="submit" className={ui.primary} disabled={disabled || !reason.trim()}><Check size={17} />{t(partial ? "expenses.companyRetryReview" : "expenses.companyApprove")}</button></div><small>{t("expenses.companyNextItemHelp")}</small></div></form> : row.review_reason ? <p className={company.reviewResult}>{t("expenses.reviewResult")}: {row.review_reason}</p> : null}
+  {row.status === "submitted" && !partial && missing.length ? <div className={company.reviewResult} aria-live="polite"><strong>{t("expenses.companyMissingDecisions")}</strong><ul>{missing.map(key => <li key={key}>{t(`expenses.${key}`)}</li>)}</ul></div> : null}
+  {(row.status === "submitted" || partial) && access.can_manage ? <form className={`${css.form} ${company.decision}`} onSubmit={e => { e.preventDefault(); void approve(true); }}><FieldGroup id="company-review-reason" label={t("expenses.reason")}><textarea required value={reason} maxLength={2000} disabled={disabled || partial} onChange={e => setReason(e.target.value)} /></FieldGroup><div className={company.decisionActions}><div className={css.footer}>{!partial ? <button type="button" className={ui.secondary} disabled={disabled || !reason.trim()} onClick={() => void approve(false)}>{t("expenses.companyReject")}</button> : null}<button type="submit" className={ui.primary} disabled={disabled || !reason.trim() || (!partial && missing.length > 0)}><Check size={17} />{t(partial ? "expenses.companyRetryReview" : "expenses.companyApprove")}</button></div><small>{t("expenses.companyNextItemHelp")}</small></div></form> : row.review_reason ? <p className={company.reviewResult}>{t("expenses.reviewResult")}: {row.review_reason}</p> : null}
  </div>;
 }

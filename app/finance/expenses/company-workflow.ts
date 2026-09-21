@@ -1,6 +1,7 @@
 import { expenseQueueEntries, type ExpenseRequest } from "./requests";
 import { requestTimeline } from "./request-operations";
 import { pendingExpenseTax, type Expense, type ExpenseLookups } from "./shared";
+import { companyMoneyCandidates } from "./company-money";
 
 export const companyRequests = (requests: ExpenseRequest[]) => requests.filter(r => r.kind === "company_expense_batch");
 export const companyReviewComplete = (item: Expense) => item.status === "rejected" || (item.status === "accepted" && !pendingExpenseTax(item) && !!item.settlement && item.settlement.mode !== "undecided");
@@ -26,7 +27,8 @@ export const companyTimeline = (request: ExpenseRequest) => requestTimeline(requ
 export const companyProgress = (request: ExpenseRequest) => request.items.filter(companyReviewComplete).length;
 export function companyPayee(row: Expense, lookups: ExpenseLookups) {
  const knownId = row.settlement?.payee_id || (!row.personally_paid ? row.supplier_payee_id : null);
- const matches = knownId ? lookups.payees.filter(p => p.id === knownId) : row.personally_paid && row.claimant_id ? lookups.payees.filter(p => p.profile_id === row.claimant_id) : [];
+ const candidates = companyMoneyCandidates(row, lookups, row.personally_paid ? "reimburse" : "supplier_unpaid");
+ const matches = knownId ? candidates.filter(p => p.id === knownId) : row.personally_paid && row.claimant_id ? candidates : [];
  return matches.length === 1 ? matches[0] : null;
 }
 export function noTaxReviewArgs(row: Expense, id: string, reason: string) {
