@@ -10,11 +10,11 @@ test('058 artifacts: SELECT-only single-row checks, exact embedding, rollback on
  const sql=lexical(a.source());assert.equal((sql.match(/create or replace function/gi)||[]).length,3);assert.doesNotMatch(sql,/\b(create table|alter table|create policy|create trigger|grant)\b/i);
  for(const statement of sql.split(';'))assert.doesNotMatch(statement.trim(),/^(insert|update|delete|merge|truncate|copy|select|call|do)\b/i);
 });
-test('058 scope: 001-057, Claim rendering and financial confirmation handlers unchanged',()=>{
+test('058 scope: 001-057 and Claim rendering unchanged; preserved database functions match',()=>{
  const files=cp.execFileSync('git',['ls-tree','-r','--name-only','HEAD','supabase/migrations'],{encoding:'utf8'}).trim().split('\n').filter(p=>!p.includes('0058_'));
  for(const file of files)assert.deepEqual(fs.readFileSync(file),cp.execFileSync('git',['show','HEAD:'+file]),file);
  const part=(source,start,end)=>source.slice(source.indexOf(start),end?source.indexOf(end,source.indexOf(start)):undefined);
- for(const [file,start,end]of [['app/finance/expenses/workspace.tsx','export function ExpenseClaimList','export function ExpenseList'],['app/finance/expenses/forms.tsx','export function ExpensePaymentPanel',null]]){
+ for(const [file,start,end]of [['app/finance/expenses/workspace.tsx','export function ExpenseClaimList','export function ExpenseList']]){
   assert.equal(part(fs.readFileSync(file,'utf8'),start,end),part(cp.execFileSync('git',['show','HEAD:'+file],{encoding:'utf8'}),start,end));
  }
  const manifest=JSON.parse(fs.readFileSync(a.manifestPath,'utf8'));assert.deepEqual(manifest.catalog,manifest.priorCatalog);

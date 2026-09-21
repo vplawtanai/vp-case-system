@@ -14,6 +14,7 @@ import { companyCategories, companyCategoryGroups } from "./company-categories";
 import { companyPayee } from "./company-workflow";
 import { companyHistoricalMoney, companyUnpaidFlow, companyMoneyCandidates, companyMoneyModes, recommendedMoneyMode, supplierCandidates } from "./company-money";
 import { CompanyPayeeSetup } from "./company-payee";
+import { expenseAccountBlocked, expenseAccountIssue } from "./presentation";
 import css from "./expenses.module.css";
 import moneyCss from "./company-money.module.css";
 
@@ -98,9 +99,11 @@ export function ExpenseFactsForm({ row, claim, access, accounts, lookups, run, b
  </form>;
 }
 
-export function AccountSelect({ accounts, value, onChange, disabled }: { accounts: ExpenseAccount[]; value: string; onChange: (value: string) => void; disabled?: boolean }) {
+export function AccountSelect({ accounts, value, onChange, disabled, showReadiness = false }: { accounts: ExpenseAccount[]; value: string; onChange: (value: string) => void; disabled?: boolean; showReadiness?: boolean }) {
  const { t, locale } = useI18n(), a = accounts.find(a => a.id === value);
- return <FieldGroup id="expense-payment-account" label={t("expenses.account")} help={a ? a.can_view_balance ? `${t("expenses.balance")}: ${a.balance == null ? t("expenses.unavailable") : a.balance.toLocaleString(locale, { minimumFractionDigits: 2 }) + " THB"}` : t("expenses.balancePrivate") : undefined}><select required disabled={disabled} value={value} onChange={e => onChange(e.target.value)}><option value="">{t("expenses.choose")}</option>{accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></FieldGroup>;
+ const issue = a && showReadiness ? expenseAccountIssue(a) : null;
+ const balance = a ? a.can_view_balance ? `${t("expenses.balance")}: ${a.balance == null ? t("expenses.unavailable") : a.balance.toLocaleString(locale, { minimumFractionDigits: 2 }) + " THB"}` : t("expenses.balancePrivate") : "";
+ return <FieldGroup id="expense-payment-account" label={t("expenses.account")} help={[issue ? t(`expenses.${issue}`) : "", balance].filter(Boolean).join(" · ")}><select required disabled={disabled} value={value} onChange={e => onChange(e.target.value)}><option value="">{t("expenses.choose")}</option>{accounts.map(a => <option key={a.id} value={a.id} disabled={showReadiness && expenseAccountBlocked(a)}>{a.name}{showReadiness && expenseAccountIssue(a) ? ` · ${t(`expenses.${expenseAccountIssue(a)}`)}` : ""}</option>)}</select></FieldGroup>;
 }
 type ReviewPlan = { onPlan: (args: Record<string, unknown>) => void; reason: string };
 export function ExpenseTaxForm({ row, run, busy, secondary = false, plan }: { row: Expense; run: ExpenseRun; busy: boolean; secondary?: boolean; plan?: ReviewPlan }) {
@@ -142,7 +145,7 @@ export function ExpenseSettlementForm({ row, lookups, run, busy, companyReview =
    {!fixedUnpaid ? <FieldGroup id="expense-settlement-mode" label={t(declaredPaid ? "expenses.companyPaidChannel" : companyReview ? "expenses.companyMoneyDecision" : "expenses.payment")}><select value={mode} onChange={e => setMode(e.target.value as SettlementMode)}>{modes.map(v => <option key={v} value={v}>{t(declaredPaid && v === "undecided" ? "expenses.choose" : `expenses.${v}`)}</option>)}</select></FieldGroup> : null}
    {(companyReview ? payable : mode !== "no_reimbursement" && mode !== "undecided") ? <FieldGroup id="settlement-payee" label={t(companyReview ? mode === "reimburse" ? "expenses.companyReimbursementPayee" : "expenses.companySupplierPayee" : "expenses.payee")}>{knownPayee ? <input readOnly value={knownPayee.legal_name} /> : <select required={payable} value={payee} onChange={e => setPayee(e.target.value)}><option value="">{t("expenses.choose")}</option>{candidates.map(p => <option key={p.id} value={p.id}>{p.legal_name}</option>)}</select>}</FieldGroup> : null}
    {mode === "reimburse" ? <FieldGroup id="settlement-amount" label={t("expenses.settlementAmount")}><input type="number" min="0.01" max={row.gross_amount} step="0.01" required value={amount} onChange={e => setAmount(e.target.value)} /></FieldGroup> : null}
-   {payable ? <FieldGroup id="settlement-due" label={t("expenses.due")}><input type="date" value={due} onChange={e => setDue(e.target.value)} /></FieldGroup> : null}
+   {payable ? <FieldGroup id="settlement-due" label={t(mode === "supplier_unpaid" ? "expenses.dueOptional" : "expenses.due")}><input type="date" value={due} onChange={e => setDue(e.target.value)} /></FieldGroup> : null}
    {!plan ? <div className={css.span}><FieldGroup id="settlement-reason" label={t("expenses.reason")}><textarea required maxLength={2000} value={reason} onChange={e => setReason(e.target.value)} /></FieldGroup></div> : null}
   </div></fieldset>{companyReview && payable && !knownPayee && !candidates.some(p => p.id === payee) ? <CompanyPayeeSetup row={row} mode={mode} lookups={parties} disabled={busy} onSaved={(rows, selected) => { setUpdatedPayees(rows); setPayee(selected); onPayees?.(rows); }} /> : null}<Callout tone="info">{t(mode === "no_reimbursement" ? "expenses.noReimbursementHelp" : companyReview && !payable ? "expenses.companyChannelReviewHelp" : "expenses.obligationHelp")}</Callout>
   {!plan ? <div className={css.footer}><button className={companyReview ? ui.secondary : ui.primary} disabled={busy || mode === "undecided"} type="submit"><Check size={17} aria-hidden="true" />{t("expenses.saveSettlement")}</button></div> : null}
@@ -150,20 +153,24 @@ export function ExpenseSettlementForm({ row, lookups, run, busy, companyReview =
 }
 export function ExpensePaymentPanel({ row, access, accounts, run, busy }: { row: Expense; access: ExpenseAccess; accounts: ExpenseAccount[]; run: ExpenseRun; busy: boolean }) {
  const { t, locale } = useI18n(), p = row.payout, [id] = useState(() => crypto.randomUUID());
+ const companyExpense = row.origin === "company_purchase", alreadyPaid = companyExpense && row.creator_payment_fact === "company_paid";
  const [account, setAccount] = useState(p?.bank_account_id || p?.cash_location_id || ""), [paidOn, setPaidOn] = useState(p?.paid_on || bangkokToday());
  const [withhold, setWithhold] = useState(false), [ack, setAck] = useState(false), [cancelAck, setCancelAck] = useState(false);
  const money = (v: number) => `${v.toLocaleString(locale, { minimumFractionDigits: 2 })} THB`;
- const available = accounts.filter(a => a.can_record && (row.settlement?.mode !== "company_bank" || a.kind === "bank") && (row.settlement?.mode !== "company_cash" || a.kind === "cash"));
+ const available = accounts.filter(a => (companyExpense || a.can_record) && (row.settlement?.mode !== "company_bank" || a.kind === "bank") && (row.settlement?.mode !== "company_cash" || a.kind === "cash"));
+ const selectedAccount = available.find(a => a.id === account);
+ const blockedAccount = companyExpense && (!selectedAccount || expenseAccountBlocked(selectedAccount));
  if (p?.status === "confirmed") return <Callout tone="success">{t("expenses.paid")}: {money(p.net)}<br />{t("expenses.wht")}: {money(p.wht)}</Callout>;
  if (row.obligation?.waived || !row.settlement || ["undecided", "no_reimbursement"].includes(row.settlement.mode)) return null;
  return <section className={css.paymentPanel} id="payment"><h3><Wallet size={18} aria-hidden="true" /> {t("expenses.paymentReview")}</h3>
   {(!p || p.status === "cancelled") && access.can_manage ? <form className={css.form} onSubmit={async e => { e.preventDefault(); const a = available.find(a => a.id === account); await run("prepare_finance_expense_payout", { p_id: id, p_expense: row.id, p_version: null, p_paid_on: paidOn, p_bank: a?.bank_account_id || null, p_cash: a?.cash_location_id || null, p_actual_wht: withhold, p_note: "" }); }}>
-   <AccountSelect accounts={available} value={account} onChange={setAccount} disabled={busy} />
+   <AccountSelect accounts={available} value={account} onChange={setAccount} disabled={busy} showReadiness={companyExpense} />
    <FieldGroup id="payout-date" label={t("expenses.paidOn")}><input type="date" required min={row.expense_date} max={bangkokToday()} value={paidOn} disabled={busy} onChange={e => setPaidOn(e.target.value)} /></FieldGroup>
    {row.tax_review?.wht_state === "withhold" && !row.personally_paid ? <label className={css.check}><input type="checkbox" checked={withhold} disabled={busy} onChange={e => setWithhold(e.target.checked)} /><span>{t("expenses.actualWithholding")}</span></label> : null}
-   <button className={ui.primary} type="submit" disabled={busy || !account}><Save size={17} aria-hidden="true" />{t("expenses.preparePayment")}</button>
+   <button className={ui.primary} type="submit" disabled={busy || !account || blockedAccount}><Save size={17} aria-hidden="true" />{t(alreadyPaid ? "expenses.recordPaidOutflow" : "expenses.preparePayment")}</button>
   </form> : null}
   {p?.status === "draft" ? <><dl className={css.facts}><div><dt>{t("expenses.account")}</dt><dd>{accounts.find(a => a.id === (p.bank_account_id || p.cash_location_id))?.name || t("expenses.optional")}</dd></div><div><dt>{t("expenses.paidOn")}</dt><dd>{p.paid_on}</dd></div><div><dt>{t("expenses.cashNet")}</dt><dd><strong>{money(p.net)}</strong></dd></div><div><dt>{t("expenses.wht")}</dt><dd>{money(p.wht)}</dd></div>{p.destination ? <div className={css.span}><dt>{t("expenses.payee")}</dt><dd>{p.destination.account_name}<br />{p.destination.bank_name} {p.destination.account_number}</dd></div> : null}</dl>
+   {companyExpense && (!p.can_confirm || !selectedAccount || expenseAccountIssue(selectedAccount)) ? <Callout tone="warning">{t(`expenses.${!p.can_confirm ? "accountConfirmDenied" : selectedAccount ? expenseAccountIssue(selectedAccount) || "accountNotReady" : "accountNotReady"}`)}</Callout> : null}
    {p.can_confirm ? <div className={css.form}><label className={css.check}><input type="checkbox" checked={ack} disabled={busy} onChange={e => setAck(e.target.checked)} /><span>{t("expenses.paymentAck")}</span></label><button type="button" className={ui.primary} disabled={busy || !ack} onClick={() => void run("confirm_finance_payout", { p_id: p.id, p_expected_version: p.version, p_expected_payee_version: p.payee_version, p_expected_destination_id: p.destination?.id || null, p_acknowledged: ack })}><Send size={17} aria-hidden="true" />{t("expenses.confirmPayment")}</button></div> : null}
    {p.can_cancel ? <details className={css.disclosure}><summary>{t("expenses.cancelPayment")}</summary><div className={css.form}><label className={css.check}><input type="checkbox" checked={cancelAck} disabled={busy} onChange={e => setCancelAck(e.target.checked)} /><span>{t("expenses.cancelAck")}</span></label><button type="button" className={ui.secondary} disabled={busy || !cancelAck} onClick={() => void run("cancel_finance_payout", { p_id: p.id, p_expected_version: p.version, p_acknowledged: cancelAck })}>{t("expenses.cancelPayment")}</button></div></details> : null}
   </> : null}

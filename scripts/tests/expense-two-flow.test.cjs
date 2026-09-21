@@ -48,7 +48,7 @@ test('Two-flow UI: unpaid Review fixes the existing supplier mode; paid and hist
 test('Two-flow UI: paid Review reuses controlled account/payment panel only after settlement, even with tax pending',()=>{
  for(const locale of ['th','en']){
   const row=expense(10,{status:'accepted',creator_payment_fact:'company_paid',tax_review:null,settlement:{id:id(99),mode:'company_bank',payee_id:null,amount:100,reason:'Reviewed'}});
-  const html=review.render(locale,{}, {...props,row},'CompanyItemReview');assert.match(html,/expense-payment-account/);assert.ok(html.includes(translate(locale,'expenses.preparePayment')));assert.ok(html.includes(translate(locale,'expenses.pending')));
+  const html=review.render(locale,{}, {...props,row},'CompanyItemReview');assert.match(html,/expense-payment-account/);assert.ok(html.includes(translate(locale,'expenses.recordPaidOutflow')));assert.ok(html.includes(translate(locale,'expenses.pending')));
   const unpaid=review.render(locale,{}, {...props,row:{...row,creator_payment_fact:'unpaid',settlement:{...row.settlement,mode:'supplier_unpaid'}}},'CompanyItemReview');assert.doesNotMatch(unpaid,/expense-payment-account/);
  }
 });

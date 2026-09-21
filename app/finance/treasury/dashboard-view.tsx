@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowDownLeft, ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpRight, Banknote, CircleAlert, Landmark, MoreHorizontal, Plus, RotateCcw, Wallet } from "lucide-react";
 import DetailModal from "../../components/DetailModal";
@@ -9,6 +9,8 @@ import ui from "../../components/ui/vp-ui.module.css";
 import { useI18n } from "../../../lib/i18n/provider";
 import { emptyMovementFilters, filterMovements, movementDate, movementSource, treasuryOverview, type CurrencyTotal } from "./dashboard";
 import { locationKey, locationName, openingStart, sourceHref, type CashMovement, type Location, type Opening, type TreasuryData, type TreasurySource } from "./shared";
+import { readExpenseMovementLabels } from "./movement-label-data";
+import type { ExpenseMovementLabel } from "./movement-labels";
 import styles from "./treasury.module.css";
 import { FinanceEvidence } from "../FinanceEvidence";
 
@@ -23,6 +25,16 @@ type Props = {
 export function TreasuryDashboard({ data, offset, loading, busy, onPage, onOpening, onMaterialize, isAdmin = false }: Props) {
  const { t, locale, date } = useI18n(), overview = treasuryOverview(data);
  const [filters, setFilters] = useState(emptyMovementFilters), [detail, setDetail] = useState<CashMovement | null>(null);
+ const [expenseLabels, setExpenseLabels] = useState<{ rows: CashMovement[]; labels: Record<string, ExpenseMovementLabel> } | null>(null);
+ useEffect(() => {
+  let active = true;
+  void readExpenseMovementLabels(data.transactions).then(labels => { if (active) setExpenseLabels({ rows: data.transactions, labels }); }).catch(() => { if (active) setExpenseLabels({ rows: data.transactions, labels: {} }); });
+  return () => { active = false; };
+ }, [data.transactions]);
+ const description = (row: CashMovement) => {
+  const label = expenseLabels?.rows === data.transactions ? expenseLabels.labels[row.id] : null;
+  return label ? `${t(`treasury.${label.key}`)} - ${label.description}` : row.source_payout_id && row.description === "Expense payout" ? t("treasury.expenseOutflow") : row.description;
+ };
  const movementHeading = useRef<HTMLHeadingElement>(null);
  const visible = filterMovements(data.transactions, filters);
  const money = (value: number, currency: string) => `${value.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
@@ -97,7 +109,7 @@ export function TreasuryDashboard({ data, offset, loading, busy, onPage, onOpeni
      <td data-label={t("treasury.date")}>{date(movementDate(c))}</td>
      <td data-label={t("treasury.account")}>{locationName(accountFor(c), locale)}</td>
      <td data-label={t("treasury.type")}><span className={styles.direction} data-direction={c.direction}>{c.direction === "inflow" ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}{t(`treasury.${c.direction}`)}</span><small><StatusBadge status={c.status} label={t(`treasury.${c.status}`)} /></small></td>
-     <td data-label={t("treasury.entry")}>{source ? <><Link href={sourceHref(source)} className={styles.reference}>{source.reference}</Link><small>{t(`treasury.${source.source_type}`)}</small></> : <><strong>{reference(c)}</strong>{c.description ? <small>{c.description}</small> : null}</>}</td>
+     <td data-label={t("treasury.entry")}>{source ? <><Link href={sourceHref(source)} className={styles.reference}>{source.reference}</Link><small>{t(`treasury.${source.source_type}`)}</small></> : <><strong>{reference(c)}</strong>{description(c) ? <small>{description(c)}</small> : null}</>}</td>
      <td data-label={t("treasury.inflow")} className={`${styles.money} ${styles.inflow}`}>{c.direction === "inflow" ? money(c.cash_amount, c.currency) : "-"}</td>
      <td data-label={t("treasury.outflow")} className={styles.money}>{c.direction === "outflow" ? money(c.cash_amount, c.currency) : "-"}</td>
      <td className={styles.rowActions}><button className={ui.secondary} type="button" title={t("treasury.openMovement", { reference: reference(c) })} aria-label={t("treasury.openMovement", { reference: reference(c) })} onClick={() => setDetail(c)}><MoreHorizontal size={18} /></button></td>
@@ -114,7 +126,7 @@ export function TreasuryDashboard({ data, offset, loading, busy, onPage, onOpeni
     { key: "reference", label: t("treasury.reference"), value: reference(detail) }, { key: "date", label: t("treasury.date"), value: date(movementDate(detail)) },
     { key: "account", label: t("treasury.account"), value: locationName(accountFor(detail), locale) }, { key: "cash", label: t(`treasury.${detail.direction}`), value: money(detail.cash_amount, detail.currency) },
     { key: "status", label: t("treasury.status"), value: <StatusBadge status={detail.status} label={t(`treasury.${detail.status}`)} /> },
-   ]} /><p>{detail.description}</p><FinanceEvidence title={t("treasury.technical")} raw={detail} isAdmin={isAdmin}><ReadOnlyGrid items={[{ key: "date", label: t("treasury.date"), value: date(movementDate(detail)) }, { key: "amount", label: t("treasury.amount"), value: money(detail.cash_amount, detail.currency) }, { key: "account", label: t("treasury.account"), value: locationName(accountFor(detail), locale) }]} /></FinanceEvidence>
+   ]} /><p>{description(detail)}</p><FinanceEvidence title={t("treasury.technical")} raw={detail} isAdmin={isAdmin}><ReadOnlyGrid items={[{ key: "date", label: t("treasury.date"), value: date(movementDate(detail)) }, { key: "amount", label: t("treasury.amount"), value: money(detail.cash_amount, detail.currency) }, { key: "account", label: t("treasury.account"), value: locationName(accountFor(detail), locale) }]} /></FinanceEvidence>
   </> : null}</DetailModal>
  </>;
 }

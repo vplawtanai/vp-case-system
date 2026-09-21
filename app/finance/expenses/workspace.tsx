@@ -20,11 +20,14 @@ import { expenseQueueEntries, type ExpenseRequest } from "./requests";
 import { expenseCategoryLabel } from "./categories";
 import { claimWorkflowTime, expenseWorkflowTime, type QueueOrder } from "../workflow-time";
 import { QueueSort, WorkflowDate } from "../workflow-time-ui";
+import { companyPayee } from "./company-workflow";
+import { expenseStatusTone } from "./presentation";
+import { ExpenseActivity } from "./audit-view";
 import css from "./expenses.module.css";
 
 export function ExpenseBadge({ state }: { state: string }) {
  const { t } = useI18n();
- const tone = ["accepted", "paid", "confirmed", "eligible", "none"].includes(state) ? "good" : ["rejected", "ineligible"].includes(state) ? "bad" : ["submitted", "unpaid", "pending", "undecided"].includes(state) ? "warn" : "info";
+ const tone = expenseStatusTone(state);
  return <span className={css.badge} data-tone={tone}>{t(`expenses.${state}`)}</span>;
 }
 export function ExpenseWorkspace({ id, claims = false, initialTaxFilter = false, fixture, fixtureLookups }: { id?: string; claims?: boolean; initialTaxFilter?: boolean; fixture?: ExpenseData; fixtureLookups?: ExpenseLookups }) {
@@ -135,6 +138,7 @@ function ExpenseDetail({ data, row, lookups, run, busy }: { data: ExpenseData; r
  const [dirty, setDirty] = useState(false);
  const { t, locale, date } = useI18n(), [reason, setReason] = useState(""), [waiveReason, setWaiveReason] = useState(""), [waiveAck, setWaiveAck] = useState(false);
  const access = data.access, tax = row.tax_review, money = (v: number | null | undefined) => v == null ? t("expenses.pending") : `${v.toLocaleString(locale, { minimumFractionDigits: 2 })} THB`;
+ const knownPayee = companyPayee(row, lookups);
  const editable = row.status === "draft" && row.created_by === access.user_id && !row.request_id;
  return <>{row.request_id && row.status === "draft" ? <Callout tone="info">{t(row.request_active === false ? "expenses.removedRequestItem" : "expenses.requestDraftHelp")} <Link href={`${row.origin === "employee_claim" ? "/finance/expenses/claims" : "/finance/expenses"}?request=${row.request_id}`}>{t("expenses.openRequest")}</Link></Callout> : null}<div className={css.actions}><ExpenseBadge state={row.status} /><ExpenseBadge state={row.origin} /></div><div className={css.columns}><div className={css.main}>
   <section className={css.section}>{editable ? <><ExpenseFactsForm row={row} claim={row.origin === "employee_claim"} access={access} accounts={data.accounts} lookups={lookups} run={run} busy={busy} onDirty={setDirty} /><div className={css.footer}>{dirty ? <span role="status">{t("expenses.saveBeforeSubmit")}</span> : null}<button className={ui.primary} type="button" disabled={busy || dirty} onClick={() => void run("submit_finance_expense", { p_id: row.id, p_version: row.version })}><SendIcon />{t("expenses.submit")}</button></div></> : <><h2>{t("expenses.facts")}</h2><p className={css.muted}>{t("expenses.immutableFacts")}</p><dl className={css.facts}>
@@ -149,9 +153,9 @@ function ExpenseDetail({ data, row, lookups, run, busy }: { data: ExpenseData; r
  </div><aside className={css.aside}><h2>{t("expenses.amount")}</h2><div className={css.sum}><div><span>{t("expenses.amount")}</span><strong>{money(row.gross_amount)}</strong></div><div><span>{t("expenses.vatAmount")}</span><strong>{tax?.vat_state === "none" ? money(0) : money(tax?.vat_amount)}</strong></div><div><span>{t("expenses.eligibility")}</span><ExpenseBadge state={tax?.eligibility || "pending"} /></div><div><span>{t("expenses.wht")}</span><strong>{row.payout ? money(row.payout.wht) : tax?.wht_state === "none" ? money(0) : money(tax?.wht_amount)}</strong></div><div className={css.total}><span>{t(row.obligation ? "expenses.settlementAmount" : "expenses.amount")}</span><strong>{money(row.obligation?.gross_amount ?? row.gross_amount)}</strong></div></div>
   {tax?.wht_exception ? <div className={css.reviewBand}><p>{t("expenses.whtException")}</p></div> : null}
   <ExpensePaymentPanel row={row} access={access} accounts={data.accounts} run={run} busy={busy} />
-  {access.can_manage ? <Link className={ui.secondary} href={`/finance/payouts/new${row.settlement?.payee_id ? `?payee=${row.settlement.payee_id}` : ""}`}>{t("expenses.managePayee")}<ArrowRight size={16} /></Link> : null}
+  {knownPayee ? <dl className={css.facts}><div className={css.span}><dt>{t("expenses.payee")}</dt><dd>{knownPayee.legal_name}</dd></div></dl> : access.can_manage ? <Link className={ui.secondary} href={`/finance/payouts/new${row.settlement?.payee_id ? `?payee=${row.settlement.payee_id}` : ""}`}>{t("expenses.managePayee")}<ArrowRight size={16} /></Link> : null}
  </aside></div>
- <section className={css.section}><h2>{t("expenses.audit")}</h2>{row.audit.length ? <ul className={css.audit}>{row.audit.map(a => <li key={a.id}><div>{t(`expenses.${a.event_type === "saved" ? "savedEvent" : a.event_type}`)}<small>{a.actor_name}</small>{access.is_admin && a.evidence_json ? <details className={css.disclosure}><summary>{t("expenses.raw")}</summary><pre className={css.raw}>{JSON.stringify(a.evidence_json, null, 2)}</pre></details> : null}</div><time>{date(a.created_at, true)}</time></li>)}</ul> : <p className={css.muted}>{t("expenses.noHistory")}</p>}</section>
+ <ExpenseActivity row={row} isAdmin={access.is_admin} />
  </>;
 }
 function SendIcon() { return <ArrowRight size={17} aria-hidden="true" />; }

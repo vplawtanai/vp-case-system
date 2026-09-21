@@ -7,7 +7,7 @@ module.exports=async({page,url,out,translate,id})=>{
   const t=k=>translate(locale,'expenses.'+k);await page.setViewportSize({width,height:950});
   const fits=async()=>{assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);assert.equal(await page.getByRole('dialog').last().evaluate(e=>e.scrollWidth>e.clientWidth+1),false);};
   const openCreate=async()=>{await page.goto(`${url}/finance/expenses?locale=${locale}`);await page.getByRole('button',{name:t('new'),exact:true}).click();await page.locator('#expense-category').waitFor();};
-  const fill=async(description)=>{await page.locator('#expense-category').selectOption('company.travel');await page.locator('#expense-gross_amount').fill('100');await page.locator('#expense-description').fill(description);};
+  const fill=async(description)=>{await page.waitForFunction(()=>document.activeElement?.id==='expense-expense_date');await page.locator('#expense-category').selectOption('company.travel');await page.locator('#expense-gross_amount').fill('100');await page.locator('#expense-description').fill(description);assert.equal(await page.locator('#expense-gross_amount').inputValue(),'100');};
   await openCreate();await fill('Synthetic incomplete money');const dialog=page.getByRole('dialog');
   assert.equal(await dialog.getByRole('radio').count(),2);assert.equal(await page.locator('#expense-handling').count(),0);
   await dialog.getByRole('button',{name:t('addThisItem'),exact:true}).click();assert.ok(await dialog.getByRole('button',{name:t('sendForReview'),exact:true}).isDisabled());assert.ok(await dialog.getByRole('button',{name:t('saveForLater'),exact:true}).isEnabled());
@@ -38,7 +38,7 @@ module.exports=async({page,url,out,translate,id})=>{
   assert.ok((await page.evaluate(()=>window.writes)).every(w=>['save_finance_expense_request','submit_finance_expense_request','review_finance_expense','review_finance_expense_tax','decide_finance_expense_settlement'].includes(w)));scenarios++;
   assert.deepEqual(await page.evaluate(()=>window.fixtureCash),[]);
   await page.locator(`[aria-controls="company-item-${lines[0].id}"]`).click();await page.locator('#expense-payment-account').selectOption(id(2));
-  await page.getByRole('button',{name:t('preparePayment'),exact:true}).click();await page.getByLabel(t('paymentAck')).waitFor();
+  await page.getByRole('button',{name:t('recordPaidOutflow'),exact:true}).click();await page.getByLabel(t('paymentAck')).waitFor();
   assert.deepEqual(await page.evaluate(()=>window.fixtureCash),[]);assert.ok(await page.getByRole('button',{name:t('confirmPayment'),exact:true}).isDisabled());
   await page.getByLabel(t('paymentAck')).check();await fits();await page.screenshot({path:out+`/two-flow-confirm-paid-${locale}-${width}.png`});
   await page.getByRole('button',{name:t('confirmPayment'),exact:true}).click();await page.waitForFunction(()=>window.fixtureCash.length===1);assert.equal((await page.evaluate(()=>window.fixtureCash))[0].amount,100);scenarios++;

@@ -1,4 +1,7 @@
 export const treasuryMessages = {
+ "treasury.companyExpenseOutflow": { th: "ค่าใช้จ่ายบริษัท", en: "Company expense" },
+ "treasury.claimOutflow": { th: "คืนเงินค่าใช้จ่าย", en: "Expense reimbursement" },
+ "treasury.expenseOutflow": { th: "เงินจ่ายค่าใช้จ่าย", en: "Expense payment" },
  "treasury.relationship": { th: "เงินรับรายเดือนกับยอดคงเหลือ", en: "Monthly receipts and current balance" },
  "treasury.monthlyCash": { th: "เงินรับจริงเดือนนี้", en: "Cash received this month" },
  "treasury.currentStock": { th: "ยอดเงินตามระบบปัจจุบัน", en: "Current known system balance" },

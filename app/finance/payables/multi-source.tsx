@@ -8,6 +8,7 @@ import { supabase } from "../../../lib/supabase";
 import { useI18n } from "../../../lib/i18n/provider";
 import { PayableGroups } from "./groups";
 import { payableQueueSummary, type PayableGroup } from "./shared";
+import { ExpensePayableDetail } from "./expense-detail";
 import { ExpenseBadge } from "../expenses/workspace";
 import type { ExpenseObligation } from "../expenses/shared";
 import css from "../expenses/expenses.module.css";
@@ -56,17 +57,18 @@ export function MultiSourcePayables({ canReadRevenue, canReadExpense, isAdmin, f
   {error ? <Callout tone="negative" role="alert">{t("expenses.failed")}</Callout> : loading ? <p role="status">{t("expenses.loading")}</p> : <>
    {entries.map((entry, index) => <section key={entry.key} data-payable-queue={entry.key}>
     {index === 0 || entries[index - 1].source !== entry.source ? <PayableSourceHeading source={entry.source} /> : null}
-    {entry.source === "revenue_distribution" ? <PayableGroups groups={[entry.group]} isAdmin={isAdmin} /> : <ExpenseObligationQueue rows={entry.rows} showHeading={false} />}
+    {entry.source === "revenue_distribution" ? <PayableGroups groups={[entry.group]} isAdmin={isAdmin} /> : <ExpenseObligationQueue rows={entry.rows} showHeading={false} isAdmin={isAdmin} />}
    </section>)}
    {!expenses.length && !revenue.length ? <div className={css.empty}><strong>{t("expenses.empty")}</strong><p>{t("expenses.emptyHelp")}</p></div> : null}
   </>}
  </div></PageShell>;
 }
-export function ExpenseObligationQueue({ rows, showHeading = true }: { rows: ExpenseObligation[]; showHeading?: boolean }) {
+export function ExpenseObligationQueue({ rows, showHeading = true, isAdmin = false }: { rows: ExpenseObligation[]; showHeading?: boolean; isAdmin?: boolean }) {
  const { t, locale, date } = useI18n(), [selectedId, setSelected] = useState(rows[0]?.id);
+ const [detailId, setDetail] = useState<string | null>(null), detail = rows.find(r => r.id === detailId);
  const selected = rows.find(r => r.id === selectedId) || rows[0], money = (value: number) => `${value.toLocaleString(locale, { minimumFractionDigits: 2 })} THB`;
  if (!selected) return null;
- return <section>{showHeading ? <PayableSourceHeading source={rows[0].source_type} /> : null}<div className={css.queue}><div className={css.queueList}>{rows.map(r => <article key={`${r.source_type}:${r.id}`} className={`${css.queueRow} ${selected?.id === r.id ? css.selected : ""}`}><div className={styles.identity}><RecipientAvatar kind={r.source_type === "employee_reimbursement" ? "person" : "supplier"} /><div><h3 className={styles.queueName}>{r.payee_name}</h3><PayableSourceBadge source={r.source_type} /><p>{r.description}</p><small className={css.workflowDate}><WorkflowDate value={{ event: "readyToPay", at: r.created_at }} /></small></div></div><div><strong>{money(r.gross_amount)}</strong><p><button type="button" className={ui.secondary} aria-pressed={selected?.id === r.id} onClick={() => setSelected(r.id)}>{t("expenses.view")}</button></p></div></article>)}</div>
+ return <section>{showHeading ? <PayableSourceHeading source={rows[0].source_type} /> : null}<div className={css.queue}><div className={css.queueList}>{rows.map(r => <article key={`${r.source_type}:${r.id}`} className={`${css.queueRow} ${selected?.id === r.id ? css.selected : ""}`}><div className={styles.identity}><RecipientAvatar kind={r.source_type === "employee_reimbursement" ? "person" : "supplier"} /><div><h3 className={styles.queueName}>{r.payee_name}</h3><PayableSourceBadge source={r.source_type} /><p>{r.description}</p><small className={css.workflowDate}><WorkflowDate value={{ event: "readyToPay", at: r.created_at }} /></small></div></div><div><strong>{money(r.gross_amount)}</strong><p><button type="button" className={ui.secondary} aria-haspopup="dialog" onClick={() => { setSelected(r.id); setDetail(r.id); }}>{t("expenses.view")}</button></p></div></article>)}</div>
   {selected ? <aside className={css.queueDetail} aria-label={t(`expenses.${selected.source_type}`)}><h3>{t("expenses.paymentReview")}</h3><ExpenseBadge state="unpaid" /><dl className={css.facts}><div className={css.span}><dt>{t("expenses.payee")}</dt><dd>{selected.payee_name}</dd></div><div className={css.span}><dt>{t("expenses.description")}</dt><dd>{selected.description}</dd></div><div><dt>{t("expenses.settlementAmount")}</dt><dd><strong>{money(selected.gross_amount)}</strong></dd></div><div><dt>{t("expenses.due")}</dt><dd>{selected.due_on ? date(selected.due_on) : t("expenses.optional")}</dd></div></dl><Link className={ui.primary} href={`/finance/expenses/${selected.expense_id}#payment`}>{t("expenses.preparePayment")}<ArrowRight size={17} /></Link><p className={css.muted}>{t("expenses.obligationHelp")}</p></aside> : null}
- </div></section>;
+ </div>{detail ? <ExpensePayableDetail key={detail.id} obligation={detail} isAdmin={isAdmin} onClose={() => setDetail(null)} /> : null}</section>;
 }
