@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Copy, Pencil, Plus, Save, Send, Trash2 } from "lucide-react";
 import DetailModal from "../../components/DetailModal";
 import { Callout, FieldGroup } from "../../components/ui/patterns";
@@ -13,6 +13,8 @@ import css from "./expenses.module.css";
 import company from "./company.module.css";
 import { readExpenseRequest } from "./data";
 import { hasReimbursement } from "./request-operations";
+import { creatorPaymentLabel } from "./company-money";
+import { companyDeclarationsMatch } from "./company-declarations";
 
 type Props = { request?: ExpenseRequest; claim: boolean; access: ExpenseAccess; accounts: ExpenseAccount[]; lookups: ExpenseLookups; run: ExpenseRun; busy: boolean; error: string; onClose: () => void; onSaved: (id: string, request: ExpenseRequest) => void };
 export function requestItemFromExpense(row: Expense): RequestItemInput {
@@ -36,6 +38,16 @@ export function ExpenseRequestModal({ request, claim, access, accounts, lookups,
  const creator = (savedDraft || request)?.requester_name || lookups.people.find(p => p.id === access.user_id)?.name || t("expenses.currentUser");
  const reimbursement = hasReimbursement(claim, items.map(i => i.input));
  const edited = items.find(i => i.id === editing);
+ const editor = useRef<HTMLElement>(null);
+ useEffect(() => {
+  if (claim || !editing) return;
+  const frame = requestAnimationFrame(() => {
+   const field = editor.current?.querySelector<HTMLInputElement>("input:not([disabled]):not([type=hidden])");
+   field?.focus({ preventScroll: true });
+   field?.scrollIntoView({ block: "nearest", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+  });
+  return () => cancelAnimationFrame(frame);
+ }, [claim, editing]);
  const money = (v: number) => `${v.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} THB`;
  const total = (key: string) => items.reduce((n, item) => n + Math.round(Number(item.input[key] || 0) * 100), 0) / 100;
  const close = () => { if (busy || lock.current) return; if (dirty || editorDirty || checkpoint) setConfirmClose(true); else onClose(); };
@@ -52,12 +64,14 @@ export function ExpenseRequestModal({ request, claim, access, accounts, lookups,
    }
    const fresh = await readExpenseRequest(id);
    setSavedDraft(fresh);
+   if (!claim && !companyDeclarationsMatch(items, fresh)) { setLocalError("companyDeclarationMismatch"); return; }
    if (!submit || fresh.status === "submitted") { onSaved(id, fresh); return; }
    // Another tab may have edited the saved Draft. Do not submit an unseen revision.
    if (fresh.version !== Number(operation.current.args.p_version ?? 0) + 1) { setLocalError("stale"); return; }
    if (await run("submit_finance_expense_request", { p_id: id, p_version: fresh.version })) {
     const submitted = await readExpenseRequest(id);
     if (submitted.status !== "submitted") throw new Error("request not submitted");
+    if (!claim && !companyDeclarationsMatch(items, submitted)) { setLocalError("companyDeclarationMismatch"); return; }
     onSaved(id, submitted);
    }
   } catch { setLocalError("requestRetry"); }
@@ -74,16 +88,16 @@ export function ExpenseRequestModal({ request, claim, access, accounts, lookups,
      <dl className={css.requestTotals} aria-live="polite"><div><dt>{t("expenses.itemCount")}</dt><dd>{t("expenses.count", { count: items.length })}</dd></div><div><dt>{t("expenses.expenseTotal")}</dt><dd>{money(total("gross_amount"))}</dd></div>{reimbursement ? <div><dt>{t(claim ? "expenses.requestedTotal" : "expenses.staffRequestedTotal")}</dt><dd>{money(total("reimbursement_requested"))}</dd></div> : null}</dl>
     </section>
     <div className={css.requestItems}>{items.map((item, index) => <article key={item.id} className={css.requestItem} data-request-item={item.id}>
-     <div><strong>{t("expenses.itemNumber", { count: index + 1 })}</strong><p>{date(String(item.input.expense_date))} · {expenseCategoryLabel(String(item.input.category), locale)}</p><p>{String(item.input.description)}</p></div>
+     <div><strong>{t("expenses.itemNumber", { count: index + 1 })}</strong><p>{date(String(item.input.expense_date))} · {expenseCategoryLabel(String(item.input.category), locale)}</p><p>{String(item.input.description)}</p>{!claim ? <small className={css.muted} data-payment-declaration>{item.input.creator_payment_fact === "personal_paid" ? t("expenses.companyPersonalSummary", { name: lookups.people.find(p => p.id === item.input.claimant_id)?.name || t("expenses.companyMissingPayee"), amount: money(Number(item.input.reimbursement_requested)) }) : t(`expenses.${item.input.creator_payment_fact === "unknown" ? "companyAwaitFinance" : creatorPaymentLabel(editorRow(item, false))}`)}</small> : null}</div>
      <div className={css.itemAmount}><strong>{money(Number(item.input.gross_amount))}</strong>{hasReimbursement(claim, [item.input]) ? <small>{t("expenses.requested")}: {money(Number(item.input.reimbursement_requested || 0))}</small> : null}</div>
      <div className={css.actions}>{["editItem", "copyItem", "removeItem"].map((action, n) => { const Icon = [Pencil, Copy, Trash2][n]; return <button type="button" key={action} className={ui.secondary} title={t(`expenses.${action}`)} aria-label={t(`expenses.${action}`)} disabled={blocked || !!editing || (n === 1 && items.length >= 100)} onClick={() => {
       if (n === 0) setEditing(item.id);
-      if (n === 1) { const copy = { ...item, id: crypto.randomUUID(), version: null, input: { ...item.input } }; setItems(old => [...old, copy]); setDirty(true); }
+      if (n === 1) { const copy = { ...item, id: crypto.randomUUID(), version: null, input: { ...item.input } }; setItems(old => [...old, copy]); setDirty(true); if (!claim) setEditing(copy.id); }
       if (n === 2) { setItems(old => old.filter(x => x.id !== item.id)); setDirty(true); }
      }}><Icon size={16} /></button>; })}</div>
     </article>)}</div>
     <button type="button" className={`${ui.secondary} ${css.addRequestItem}`} disabled={blocked || !!editing || items.length >= 100} onClick={() => setEditing(crypto.randomUUID())}><Plus size={17} />{t("expenses.addItem")}</button>
-    {editing ? <section className={`${css.itemEditor} ${claim ? "" : company.createEditor}`} aria-label={t("expenses.editItem")}>
+    {editing ? <section ref={editor} className={`${css.itemEditor} ${claim ? "" : company.createEditor}`} aria-label={t("expenses.editItem")}>
      <ExpenseFactsForm key={editing} itemNumber={edited ? items.indexOf(edited) + 1 : items.length + 1} row={edited ? editorRow(edited, claim) : undefined} claim={claim} access={access} accounts={accounts} lookups={lookups} run={run} busy={busy} onDirty={setEditorDirty} onCapture={input => {
       const next = { id: editing, version: edited?.version ?? null, input };
       setItems(old => edited ? old.map(i => i.id === editing ? next : i) : [...old, next]); setEditing(null); setEditorDirty(false); setDirty(true);

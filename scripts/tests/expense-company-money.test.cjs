@@ -10,7 +10,7 @@ const review=workspaceFixture('app/finance/expenses/company-review.tsx',['Compan
 const props={row,access:{...f.data.access,creator_payment_fact_supported:true},accounts:f.data.accounts,lookups:f.lookups,run:()=>{throw Error('No writes');},busy:false};
 test('Four declared facts are independently readable; NULL does not infer from category, account, supplier or confirmed payout',()=>{
  for(const [fact,key]of [['unpaid','companyUnpaid'],['company_paid','handlingCompanyPaid'],['personal_paid','companyPersonalPaid'],['unknown','companyPaymentUnknown']])assert.equal(creatorPaymentLabel({...row,creator_payment_fact:fact}),key);
- assert.equal(creatorPaymentLabel({...row,creator_payment_fact:null,personally_paid:true,payout:{status:'confirmed'}}),'companyPaymentUnknown');
+ assert.equal(creatorPaymentLabel({...row,creator_payment_fact:null,personally_paid:true,payout:{status:'confirmed'}}),'companyDeclarationUnavailable');
  assert.equal(recommendedMoneyMode(row),'supplier_unpaid');assert.equal(recommendedMoneyMode({...row,creator_payment_fact:'unknown'}),'undecided');
  assert.equal(recommendedMoneyMode({...row,personally_paid:true,creator_payment_fact:'personal_paid'}),'reimburse');
  assert.deepEqual(companyMoneyModes({...row,creator_payment_fact:'company_paid'}),['undecided','company_bank','company_cash']);

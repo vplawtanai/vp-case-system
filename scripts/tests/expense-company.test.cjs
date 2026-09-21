@@ -97,5 +97,5 @@ test('Only confirmed payout is displayed as company paid; settlement instruction
   const html=review.render('en',{}, {...props,row:{...reviewed,settlement:{...reviewed.settlement,mode},payout:null}},'CompanyItemReview');
   assert.doesNotMatch(html,/Company has already paid/);
  }
- const paid=review.render('en',{}, {...props,row:{...reviewed,payout:{status:'confirmed'}}},'CompanyItemReview');assert.match(paid,/<p>Paid<\/p>/);assert.match(paid,/Unknown \/ Finance to review/);
+ const paid=review.render('en',{}, {...props,row:{...reviewed,payout:{status:'confirmed'}}},'CompanyItemReview');assert.match(paid,/<p>Paid<\/p>/);assert.match(paid,/Creator declaration is unavailable/);
 });

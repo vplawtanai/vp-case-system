@@ -1,5 +1,10 @@
 import type { MessageCatalog } from "../core";
 const copy: Record<string, [string, string]> = {
+ companyDeclarationUnavailable: ["ไม่มีข้อมูลที่ผู้บันทึกแจ้งในรายการนี้", "Creator declaration is unavailable for this item"],
+ companyDeclarationMismatch: ["ข้อมูลที่อ่านกลับไม่ตรงกับรายการที่บันทึก จึงหยุดขั้นตอนถัดไปไว้ กรุณาปิดแล้วเปิดคำขอเดิมเพื่อตรวจสอบ ไม่ต้องสร้างคำขอซ้ำ", "The saved declarations could not be verified, so the next step has been stopped. Reopen this request to check it; do not create a duplicate."],
+ companyAwaitFinance: ["รอฝ่ายการเงินตรวจ", "Awaiting Finance review"],
+ companyPersonalSummary: ["สำรองจ่ายโดย {name} · ขอคืน {amount}", "Paid first by {name} · Requested {amount}"],
+ companyTaxDecision: ["ผลตรวจภาษีของฝ่ายการเงิน", "Finance tax decision"],
  companyUnpaid: ["ยังไม่ได้จ่าย", "Not paid yet"],
  companyCreatorDeclaration: ["ข้อมูลที่ผู้บันทึกแจ้ง", "Creator's declaration"],
  companyMoneyDecision: ["ผลตรวจการจ่ายเงิน", "Finance money decision"],

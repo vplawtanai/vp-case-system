@@ -24,7 +24,7 @@ if(!claim&&scenario){
 }
 window.fixtureRequests=requests;
 export async function readExpenses(){return {...f.data,rows:[]};}export async function readExpenseLookups(){return f.lookups;}export async function readExpenseRequests(){return structuredClone(requests);}
-export async function readExpenseRequest(id){if(window.failRead){window.failRead=false;throw Error('Local read failed');}const r=requests.find(r=>r.id===id);if(window.editDuringRead){window.editDuringRead=false;r.version++;r.note='Another tab edit';}return structuredClone(r);}
+export async function readExpenseRequest(id){if(window.failRead){window.failRead=false;throw Error('Local read failed');}const r=requests.find(r=>r.id===id);if(window.editDuringRead){window.editDuringRead=false;r.version++;r.note='Another tab edit';}const result=structuredClone(r);result.items.forEach(i=>{i.claimant_id=i.claimant_id||null;});if(window.omitDeclaration)delete result.items[0].creator_payment_fact;return result;}
 const operations=new Set();
 export const supabase={async rpc(name,args){window.calls.push({name,args:structuredClone(args)});await new Promise(r=>setTimeout(r,80));
  if(name==='get_finance_expense_parties')return{data:structuredClone(f.lookups)};
@@ -175,15 +175,44 @@ async function main(){
   }
   for(const width of [390,1440]){
    const t=k=>translate('th','expenses.'+k);await page.setViewportSize({width,height:950});await page.goto(`${url}/finance/expenses?locale=th`);await page.getByRole('button',{name:t('new'),exact:true}).first().click();let dialog=page.getByRole('dialog');
-   for(const value of ['unpaid','company_paid','personal','unknown']){
-    if(value!=='unpaid')await dialog.getByRole('button',{name:t('addItem'),exact:true}).click();await dialog.locator('#expense-expense_date').fill('2026-09-03');await dialog.locator('#expense-category').selectOption('company.travel');await dialog.locator('#expense-gross_amount').fill('100');await dialog.locator('#expense-description').fill('Synthetic '+value);await dialog.locator('#expense-handling').selectOption(value);
-    if(value==='personal'){await dialog.locator('#expense-claimant_id').selectOption(id(1));await dialog.locator('#expense-reimbursement_requested').fill('75');}else assert.equal(await dialog.locator('#expense-claimant_id').count(),0);
+   await page.emulateMedia({reducedMotion:width===390?'reduce':'no-preference'});
+   await page.evaluate(()=>{window.scrollCalls=[];const original=Element.prototype.scrollIntoView;Element.prototype.scrollIntoView=function(options){window.scrollCalls.push(options);return original.call(this,options);};});
+   const values=['unpaid','company_paid','personal','unknown'],awareness=['no','yes','unknown','no'];
+   for(const [index,value] of values.entries()){
+    if(index)await dialog.getByRole('button',{name:t('addItem'),exact:true}).click();await page.waitForFunction(()=>document.activeElement?.id==='expense-expense_date');await dialog.locator('#expense-expense_date').fill('2026-09-03');await dialog.locator('#expense-category').selectOption('company.travel');await dialog.locator('#expense-gross_amount').fill(String((index+1)*100));await dialog.locator('#expense-description').fill('Synthetic '+value);await dialog.locator('#expense-handling').selectOption(value);
+    if(value==='personal'){await dialog.locator('#expense-claimant_id').selectOption(id(1));await dialog.locator('#expense-reimbursement_requested').fill('200');}else assert.equal(await dialog.locator('#expense-claimant_id').count(),0);
+    await dialog.locator('summary').filter({hasText:t('taxIfKnown')}).click();await dialog.locator('#expense-vat_awareness').selectOption(awareness[index]);await dialog.locator('#expense-wht_awareness').selectOption(awareness[index]);
     assert.equal(await dialog.locator('#expense-paid-on').count(),0);await fits();await dialog.getByRole('button',{name:t('addThisItem'),exact:true}).click();
    }
+   const cards=dialog.locator('[data-request-item]');assert.equal(await cards.count(),4);
+   assert.deepEqual(await cards.locator('[data-payment-declaration]').allTextContents(),[t('companyUnpaid'),t('handlingCompanyPaid'),translate('th','expenses.companyPersonalSummary',{name:f.lookups.people[0].name,amount:'200.00 THB'}),t('companyAwaitFinance')]);
+   for(const [index,value]of values.entries()){
+    await cards.nth(index).getByRole('button',{name:t('editItem'),exact:true}).click();await page.waitForFunction(()=>document.activeElement?.id==='expense-expense_date');
+    await page.waitForFunction(()=>{const b=document.querySelector('#expense-expense_date').getBoundingClientRect();return b.top>=0&&b.bottom<=innerHeight;});
+    assert.equal(await dialog.locator('#expense-handling').inputValue(),value);assert.equal(await dialog.locator('#expense-vat_awareness').inputValue(),awareness[index]);assert.equal(await dialog.locator('#expense-wht_awareness').inputValue(),awareness[index]);
+    if(value==='personal'){assert.equal(await dialog.locator('#expense-claimant_id').inputValue(),id(1));assert.equal(await dialog.locator('#expense-reimbursement_requested').inputValue(),'200');}
+    const scrollCount=await page.evaluate(()=>window.scrollCalls.length);await dialog.locator('#expense-description').fill('Synthetic edited '+value);assert.equal(await page.evaluate(()=>window.scrollCalls.length),scrollCount,'No scroll hijack while editing');
+    await dialog.getByRole('button',{name:t('saveItemChanges'),exact:true}).click();
+   }
+   await cards.first().getByRole('button',{name:t('copyItem'),exact:true}).click();await page.waitForFunction(()=>document.activeElement?.id==='expense-expense_date');assert.equal(await dialog.locator('#expense-handling').inputValue(),'unpaid');await dialog.getByRole('button',{name:t('saveItemChanges'),exact:true}).click();await cards.last().getByRole('button',{name:t('removeItem'),exact:true}).click();
+   assert.equal(await cards.count(),4);assert.ok((await dialog.innerText()).includes('1,000.00 THB'));
+   assert.ok((await page.evaluate(()=>window.scrollCalls)).every(s=>s.behavior===(width===390?'instant':'smooth')));
+   await dialog.locator('[data-payment-declaration]').first().scrollIntoViewIfNeeded();await page.screenshot({path:out+`/declarations-cards-${width}.png`});
+   // Missing stored declaration must stop before Submit, without repairing or copying local data into the read model.
+   if(width===390){await page.evaluate(()=>{window.omitDeclaration=true;});await dialog.getByRole('button',{name:t('sendForReview'),exact:true}).click();await dialog.getByRole('alert').waitFor();assert.ok((await dialog.getByRole('alert').innerText()).includes(t('companyDeclarationMismatch')));assert.deepEqual(await page.evaluate(()=>window.writes),['save_finance_expense_request']);await page.evaluate(()=>{window.omitDeclaration=false;});}
    await dialog.getByRole('button',{name:t('sendForReview'),exact:true}).click();await page.waitForFunction(()=>window.writes.length===2);const payload=(await page.evaluate(()=>window.calls)).find(c=>c.name==='save_finance_expense_request').args;
    assert.deepEqual(payload.p_items.map(i=>i.input.creator_payment_fact),['unpaid','company_paid','personal_paid','unknown']);assert.deepEqual(await page.evaluate(()=>window.writes),['save_finance_expense_request','submit_finance_expense_request']);
+   await dialog.locator('[aria-controls^="company-item-"]').first().waitFor();
+   for(const [index,value]of values.entries()){
+    const toggle=dialog.locator('[aria-controls^="company-item-"]').nth(index);if(await toggle.getAttribute('aria-expanded')!=='true')await toggle.click();const active=dialog.locator('[id^="company-item-"]');
+    assert.ok((await active.innerText()).includes(t(['companyUnpaid','handlingCompanyPaid','companyPersonalPaid','companyPaymentUnknown'][index])));
+    assert.ok((await active.locator('[data-creator-tax]').innerText()).includes(t(awareness[index])));assert.ok((await active.locator('[data-finance-tax]').innerText()).includes(t('pending')));
+    assert.ok(await dialog.getByRole('button',{name:t('companyApprove'),exact:true}).isDisabled());
+    if(value==='personal')assert.ok((await active.innerText()).includes('200.00 THB'));
+    await fits();if(index===0)await page.screenshot({path:out+`/declarations-review-${width}.png`});
+   }
    await page.goto(`${url}/finance/expenses?locale=th&schema=056`);await page.getByRole('button',{name:t('new'),exact:true}).first().click();dialog=page.getByRole('dialog');assert.equal(await dialog.locator('#expense-handling option[value=company_paid],#expense-handling option[value=unpaid]').count(),0);assert.deepEqual(await page.evaluate(()=>window.writes),[]);
-   scenarios++;console.log('PASS capture and pre-057 gate',width);
+   scenarios++;console.log('PASS four declarations, edit/duplicate/add focus, Submit/read-back guard, Review and pre-057 gate',width);
   }
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,scenarios,artifacts:out,externalRequests:0}));
  }finally{if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));}

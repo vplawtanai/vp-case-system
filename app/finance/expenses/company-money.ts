@@ -1,6 +1,6 @@
 import type { Expense, ExpenseLookups, SettlementMode } from "./shared";
 
-export const creatorPaymentLabel = (row: Expense) => ({ unpaid: "companyUnpaid", company_paid: "handlingCompanyPaid", personal_paid: "companyPersonalPaid", unknown: "companyPaymentUnknown" }[row.creator_payment_fact || "unknown"]);
+export const creatorPaymentLabel = (row: Pick<Expense, "creator_payment_fact">) => row.creator_payment_fact == null ? "companyDeclarationUnavailable" : ({ unpaid: "companyUnpaid", company_paid: "handlingCompanyPaid", personal_paid: "companyPersonalPaid", unknown: "companyPaymentUnknown" }[row.creator_payment_fact]);
 // 051 guarantees external => profile_id NULL; internal => profile_id = active person identity.
 export const supplierCandidates = (lookups: ExpenseLookups) => lookups.payees.filter(p => p.profile_id === null);
 export function companyMoneyModes(row: Expense): SettlementMode[] {
