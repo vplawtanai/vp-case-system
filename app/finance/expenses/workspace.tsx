@@ -58,7 +58,7 @@ export function ExpenseWorkspace({ id, claims = false, initialTaxFilter = false,
   finally { lock.current = false; setBusy(false); }
  };
  const access = data?.access, record = data?.record, creating = id === "new";
- const canCreate = claims ? access?.can_claim : access?.can_manage || access?.can_record;
+ const canCreate = claims ? access?.can_claim : access?.company_declaration_without_account_supported ? access.can_create_company === true : access?.can_manage || access?.can_record;
  const openCreate = () => { if (!canCreate || loading || busy) return; setError(""); setNotice(""); setCreateOpen(true); };
  const title = id && id !== "new" ? claims ? "claimReview" : "financeReview" : claims ? "claims" : "companyTitle";
  const selectedRequest = data?.requests?.find(r => r.id === requestId && r.kind === (claims ? "employee_claim" : "company_expense_batch"));
@@ -77,7 +77,7 @@ export function ExpenseWorkspace({ id, claims = false, initialTaxFilter = false,
     </> : <Callout tone="warning">{t("expenses.denied")}</Callout>}
   </> : null}
   {(createOpen || editRequestId) && !id && data && access ? data.requests ? <ExpenseRequestModal request={data.requests.find(r => r.id === editRequestId)} claim={editRequestId ? data.requests.find(r => r.id === editRequestId)?.kind === "employee_claim" : claims} access={access} accounts={data.accounts} lookups={lookups} run={run} busy={busy} error={error} onClose={() => { setCreateOpen(false); setEditRequestId(null); setError(""); }} onSaved={(saved, request) => { setData(old => old ? { ...old, requests: [...(old.requests || []).filter(r => r.id !== saved), request] } : old); setCreateOpen(false); setEditRequestId(null); setError(""); setRequestId(saved); }} /> : <ExpenseCreateModal claim={claims} access={access} accounts={data.accounts} lookups={lookups} run={run} busy={busy} error={error} onClose={() => { setCreateOpen(false); setError(""); }} onSaved={() => setCreateOpen(false)} /> : null}
-  {selectedRequest && !editRequestId && data && access ? claims ? <ExpenseRequestReview request={selectedRequest} access={access} busy={busy} error={error} run={run} onClose={() => { setRequestId(null); setError(""); }} onEdit={() => setEditRequestId(requestId)} renderItem={row => <ExpenseDetail key={`${row.id}:${row.version}:${row.tax_review?.id}:${row.settlement?.id}:${row.payout?.version}:${row.obligation?.waived}`} data={data} row={row} lookups={lookups} run={run} busy={busy} />} /> : <CompanyRequestReview key={selectedRequest.id} request={selectedRequest} access={access} lookups={lookups} busy={busy} error={error} run={run} onClose={() => { setRequestId(null); setError(""); }} onEdit={() => setEditRequestId(requestId)} /> : null}
+  {selectedRequest && !editRequestId && data && access ? claims ? <ExpenseRequestReview request={selectedRequest} access={access} busy={busy} error={error} run={run} onClose={() => { setRequestId(null); setError(""); }} onEdit={() => setEditRequestId(requestId)} renderItem={row => <ExpenseDetail key={`${row.id}:${row.version}:${row.tax_review?.id}:${row.settlement?.id}:${row.payout?.version}:${row.obligation?.waived}`} data={data} row={row} lookups={lookups} run={run} busy={busy} />} /> : <CompanyRequestReview key={selectedRequest.id} request={selectedRequest} access={access} accounts={data.accounts} lookups={lookups} busy={busy} error={error} run={run} onClose={() => { setRequestId(null); setError(""); }} onEdit={() => setEditRequestId(requestId)} /> : null}
  </div></PageShell>;
 }
 

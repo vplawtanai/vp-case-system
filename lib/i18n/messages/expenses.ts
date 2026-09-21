@@ -1,5 +1,12 @@
 import type { MessageCatalog } from "../core";
 const copy: Record<string, [string, string]> = {
+ companyPaymentStatus: ["สถานะการจ่ายของรายการ", "Item payment status"],
+ companyPaidChannel: ["ช่องทางที่บริษัทจ่าย", "Company payment channel"],
+ companyNeedPaidChannel: ["ระบุว่าบริษัทจ่ายผ่านบัญชีธนาคารหรือเงินสด", "Specify whether the company paid by bank or cash"],
+ companyMoneyIncomplete: ["ระบุสถานะการจ่ายของแต่ละรายการก่อนส่งตรวจ หากข้อมูลยังไม่ครบ ให้บันทึกไว้ทำต่อ", "Choose each item's payment status before submitting. Save for later while information is incomplete."],
+ companyPersonalClaimHelp: ["หากเป็นเงินส่วนตัวของพนักงาน/ทนาย ให้ใช้เมนูเบิกค่าใช้จ่าย", "For an employee's or lawyer's personal payment, use Expense claims."],
+ companyUnpaidReview: ["ตรวจผู้ขายและกำหนดจ่าย", "Review supplier and due date"],
+ companyUnpaidReviewHelp: ["ผู้บันทึกแจ้งว่ายังไม่ได้จ่าย ตรวจผู้ขายที่ต้องจ่ายก่อนอนุมัติ โดยยังไม่บันทึกเงินออก", "The creator reports an unpaid expense. Check the supplier before approval; no cash outflow is recorded."],
  companySupplierTaxOptional: ["เลขประจำตัวผู้เสียภาษี (ถ้าทราบ)", "Tax ID (if known)"],
  companySupplierBankOptional: ["ข้อมูลรับเงิน (ถ้ามี)", "Payment details (optional)"],
  companySupplierExists: ["พบผู้ขายนี้ในระบบแล้ว", "A matching supplier already exists"],

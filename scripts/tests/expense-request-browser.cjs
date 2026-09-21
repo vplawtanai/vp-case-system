@@ -10,11 +10,16 @@ const adapter=write('adapter.js',`
 const f=${JSON.stringify(f)},seed=${JSON.stringify(expense(10))},tax=${JSON.stringify(tax)},obligation=${JSON.stringify(obligation(40,id(10)))};
 const params=new URLSearchParams(location.search),scenario=params.get('scenario'),claim=location.pathname.includes('/claims'),creator=params.get('role')==='creator';let requests=[];window.calls=[];window.writes=[];
 f.data.access.creator_payment_fact_supported=params.get('schema')!=='056';
+f.data.access.company_declaration_without_account_supported=!['056','057'].includes(params.get('schema'));
 if(creator)f.data.access={...f.data.access,can_manage:false,can_tax_review:false,can_record:false,can_confirm:false,can_view_all:false,is_admin:false};
+f.data.access.can_create_company=f.data.access.can_manage||f.data.access.can_claim||f.data.access.can_record;
+if(creator){f.data.accounts=[];f.lookups.payees=[];}
+window.fixtureCash=[];
 const makeItem=(i,input={})=>({...seed,id:'00000000-0056-4000-8000-00000000000'+i,origin:claim?'employee_claim':'company_purchase',created_by:f.data.access.user_id,request_id:'00000000-0056-4000-8000-000000000900',request_active:true,version:2,status:'draft',audit:[],submitted_at:null,review_reason:null,gross_amount:i===1?300:120,description:'Synthetic item '+i,personally_paid:claim,reimbursement_requested:claim?(i===1?300:120):0,...input});
 if(scenario){const status=scenario==='draft'?'draft':scenario==='submitted'?'submitted':scenario==='rejected'?'rejected':'accepted',at='2026-09-19T04:00:00Z';requests=[{id:'00000000-0056-4000-8000-000000000900',kind:claim?'employee_claim':'company_expense_batch',status:scenario==='draft'?'draft':'submitted',version:2,note:'',created_at:'2026-09-18T01:00:00Z',submitted_at:scenario==='draft'?null:at,created_by:f.data.access.user_id,requester_name:'Synthetic staff',audit:[],items:[1,2].map(i=>makeItem(i,{status,submitted_at:scenario==='draft'?null:at,review_reason:status==='rejected'?'Synthetic rejection reason':null,tax_review:scenario==='waiting'||scenario==='paid'?tax:null,settlement:scenario==='waiting'||scenario==='paid'?{id:'settlement-'+i,mode:'supplier_unpaid',amount:300,payee_id:obligation.payee_id,reason:'Synthetic decision'}:null,obligation:scenario==='waiting'||scenario==='paid'?{...obligation,id:'obligation-'+i,settled:scenario==='paid',created_at:'2026-09-19T06:00:00Z'}:null,payout:scenario==='paid'?{id:'paid-'+i,status:'confirmed',gross:300,net:300,wht:0,paid_on:'2026-09-20'}:null,audit:[...(status==='accepted'||status==='rejected'?[{id:'review-'+i,event_type:status,created_at:'2026-09-19T05:00:00Z',actor_name:'Finance',evidence_json:null}]:[]),...(scenario==='paid'?[{id:'payment-'+i,event_type:'payment_confirmed',created_at:'2026-09-20T05:00:00Z',actor_name:'Finance',evidence_json:null}]:[])]}))}];}
 if(!claim&&scenario){
  const r=requests[0];
+ r.items.forEach(i=>{i.creator_payment_fact='unpaid';});
  if(['no-tax','partial','reimbursement','exception','company-paid','unknown','missing-supplier','missing-payer','wht'].includes(scenario))r.items.forEach(i=>{i.status='submitted';i.vat_awareness=scenario==='exception'?'yes':'no';i.wht_awareness=scenario==='wht'?'yes':'no';i.tax_review=null;i.settlement=null;i.obligation=null;i.audit=[];i.creator_payment_fact=scenario==='company-paid'?'company_paid':scenario==='unknown'?'unknown':'unpaid';});
  if(scenario==='partial'){r.items[0].status='accepted';r.items[0].tax_review=tax;r.items[0].settlement={id:'settlement-1',mode:'supplier_unpaid',amount:300,payee_id:seed.supplier_payee_id,reason:'Reviewed'};r.items[0].obligation={...obligation,gross_amount:300};}
  if(['reimbursement','missing-payer'].includes(scenario))r.items.forEach(i=>{i.creator_payment_fact='personal_paid';i.personally_paid=true;i.claimant_id=f.data.access.user_id;i.claimant_name='Synthetic personal payer';i.reimbursement_requested=i.gross_amount;});
@@ -51,6 +56,15 @@ export const supabase={async rpc(name,args){window.calls.push({name,args:structu
   if(i.settlement?.id===args.p_id)return{data:args.p_id};if(i.status!=='accepted'||i.settlement)throw Error('Settlement fixture guard');i.settlement={id:args.p_id,mode:args.p_mode,payee_id:args.p_payee,amount:args.p_amount,reason:args.p_reason};
   if(['supplier_unpaid','reimburse'].includes(args.p_mode))i.obligation={...obligation,id:args.p_id,gross_amount:args.p_amount,payee_id:args.p_payee};window.writes.push(name);if(window.loseSettlementResponse){window.loseSettlementResponse=false;return{error:{message:'Network lost'}};}return{data:args.p_id};
  }
+ if(name==='prepare_finance_expense_payout'){
+  const i=requests.flatMap(r=>r.items).find(i=>i.id===args.p_expense),account=f.data.accounts.find(a=>a.id===(args.p_bank||args.p_cash));
+  if(!account?.can_record||!i?.settlement||i.settlement.mode!=='company_bank'||i.obligation)throw Error('Local payment guard');
+  i.payout={id:args.p_id,status:'draft',version:1,paid_on:args.p_paid_on,bank_account_id:args.p_bank,cash_location_id:args.p_cash,gross:i.gross_amount,wht:0,net:i.gross_amount,payee_id:null,payee_version:null,destination:null,can_confirm:account.can_confirm,can_cancel:true};window.writes.push(name);return{data:args.p_id};
+ }
+ if(name==='confirm_finance_payout'){
+  const i=requests.flatMap(r=>r.items).find(i=>i.payout?.id===args.p_id);if(!i?.payout?.can_confirm||!args.p_acknowledged)throw Error('Local confirmation guard');
+  if(i.payout.status==='confirmed')return{data:args.p_id};i.payout.status='confirmed';i.payout.version++;window.fixtureCash.push({payout:args.p_id,amount:i.payout.net});window.writes.push(name);return{data:args.p_id};
+ }
  throw Error('Forbidden local RPC '+name);}};
 `);
 const navigation=write('navigation.js',`export const useRouter=()=>({push(){throw Error('Unexpected navigation')}});export const usePathname=()=>location.pathname;export const useSearchParams=()=>new URLSearchParams(location.search);`);
@@ -59,13 +73,17 @@ const loader=write('loader.cjs',`module.exports=function(source){if(this.resourc
 const entry=write('entry.tsx',`import React from'react';import{createRoot}from'react-dom/client';import{UiLocaleProvider}from'${root}/lib/i18n/provider.tsx';import{ExpenseWorkspace}from'${root}/app/finance/expenses/workspace.tsx';createRoot(document.getElementById('root')).render(<UiLocaleProvider initialLocale={new URLSearchParams(location.search).get('locale')} pathname="/finance/expenses"><main style={{maxWidth:1200,margin:'0 auto',padding:20}}><ExpenseWorkspace claims={location.pathname.includes('/claims')}/></main></UiLocaleProvider>);`);
 async function main(){
  await new Promise((resolve,reject)=>require('next/dist/compiled/webpack/webpack').webpack({mode:'development',context:root,entry,output:{path:out,filename:'bundle.js'},resolve:{extensions:['.tsx','.ts','.js'],modules:[root+'/node_modules'],alias:{'next/navigation':navigation,'next/link':link,[root+'/lib/supabase']:adapter,[root+'/app/finance/expenses/data']:adapter}},module:{rules:[{test:/\.(tsx?|css|js)$/,exclude:/node_modules/,use:loader}]},devtool:false},(e,s)=>e||s.hasErrors()?reject(e||Error(s.toString({all:false,errors:true}))):resolve()));
- const css=['app/components/ui/vp-ui.module.css','app/components/DetailModal.module.css','app/finance/expenses/expenses.module.css','app/finance/expenses/company.module.css','app/finance/payouts/payout.module.css'].map(file=>{const prefix=path.basename(file).replaceAll('.','_')+'_';return fs.readFileSync(root+'/'+file,'utf8').replace(/\.([A-Za-z_][A-Za-z_0-9-]*)/g,(_,key)=>'.'+prefix+key).replace(/:global\(([^)]+)\)/g,'$1');}).join('\n');
+ const css=['app/components/ui/vp-ui.module.css','app/components/DetailModal.module.css','app/finance/expenses/expenses.module.css','app/finance/expenses/company.module.css','app/finance/expenses/company-money.module.css','app/finance/payouts/payout.module.css'].map(file=>{const prefix=path.basename(file).replaceAll('.','_')+'_';return fs.readFileSync(root+'/'+file,'utf8').replace(/\.([A-Za-z_][A-Za-z_0-9-]*)/g,(_,key)=>'.'+prefix+key).replace(/:global\(([^)]+)\)/g,'$1');}).join('\n');
  const server=http.createServer((req,res)=>{if(req.url==='/bundle.js'){res.setHeader('Content-Type','text/javascript');return res.end(fs.readFileSync(out+'/bundle.js'));}res.setHeader('Content-Type','text/html');res.end(`<!doctype html><html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;color:#182b45}button,input,select,textarea{font-family:inherit}${css}</style><div id="root"></div><script src="/bundle.js"></script></html>`);});
  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});let browser;
  try{
   const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'/Users/paolawyer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
   const page=await browser.newPage(),errors=[],external=[];page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>{if(new URL(r.request().url()).hostname==='127.0.0.1')return r.continue();external.push(r.request().url());return r.abort();});
   require('./receipt-render-fixture.cjs');const {translate}=require('../../lib/i18n/catalog.ts'),url='http://127.0.0.1:'+server.address().port;
+  if(process.argv.includes('--two-flow')){
+   const scenarios=await require('./expense-two-flow-browser.cjs')({page,url,out,translate,id});
+   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,scenarios,artifacts:out,externalRequests:0}));return;
+  }
   if(process.argv.includes('--supplier')){
    const scenarios=await require('./expense-supplier-browser.cjs')({page,url,out,translate,id});
    assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,scenarios,artifacts:out,externalRequests:0}));return;
@@ -82,7 +100,7 @@ async function main(){
    await fits();await page.screenshot({path:out+`/create-empty-${claim?'claim':'company'}-${locale}-${width}.png`});
    for(let i=0;i<2;i++){
     if(i)await dialog.getByRole('button',{name:t('addItem'),exact:true}).click();assert.equal(await dialog.locator('form').count(),1);
-    await page.locator('#expense-expense_date').fill('2026-09-03');await page.locator('#expense-category').selectOption(claim?'ค่าเดินทาง':'company.travel');await page.locator('#expense-gross_amount').fill(String(i?120:300));await page.locator('#expense-description').fill('Synthetic item '+(i+1));await dialog.getByRole('button',{name:t('addThisItem'),exact:true}).click();
+    await page.locator('#expense-expense_date').fill('2026-09-03');await page.locator('#expense-category').selectOption(claim?'ค่าเดินทาง':'company.travel');await page.locator('#expense-gross_amount').fill(String(i?120:300));await page.locator('#expense-description').fill('Synthetic item '+(i+1));if(!claim)await dialog.locator('input[type=radio][value=unpaid]').check();await dialog.getByRole('button',{name:t('addThisItem'),exact:true}).click();
    }
    assert.equal(await dialog.locator('form').count(),0);assert.equal(await page.locator('[data-request-item]').count(),2);assert.ok((await dialog.innerText()).includes('420.00 THB'));
    assert.equal((await dialog.innerText()).includes(t('requestedTotal')),claim);
@@ -133,7 +151,7 @@ async function main(){
    await page.screenshot({path:out+`/company-review-${scenario}-${width}.png`});
    if(scenario==='no-tax'){
     assert.ok((await dialog.innerText()).includes('0 / 2'));await dialog.getByLabel(t('companyNoTaxAck')).check();await dialog.locator('#company-review-reason').fill('Explicit local no-tax review');
-    await dialog.locator('#expense-settlement-mode').selectOption('supplier_unpaid');
+    assert.equal(await dialog.locator('#expense-settlement-mode').count(),0);
     assert.equal(await dialog.locator('#settlement-payee').getAttribute('readonly'),'');assert.equal(await dialog.getByRole('link',{name:t('managePayee'),exact:true}).count(),0);
     await dialog.getByRole('button',{name:t('companyApprove'),exact:true}).focus();assert.ok(await dialog.getByRole('button',{name:t('companyApprove'),exact:true}).evaluate(e=>document.activeElement===e));await page.screenshot({path:out+`/company-review-actions-${width}.png`,fullPage:true});
     await page.evaluate(key=>{window[key]=true;},width===390?'failTax':'loseTaxResponse');await dialog.getByRole('button',{name:t('companyApprove'),exact:true}).click();await dialog.getByRole('button',{name:t('companyRetryReview'),exact:true}).waitFor();
@@ -144,7 +162,7 @@ async function main(){
     assert.deepEqual(writes,['review_finance_expense','review_finance_expense_tax','decide_finance_expense_settlement','review_finance_expense']);
     await fits();await page.screenshot({path:out+`/company-complete-${width}.png`,fullPage:true});
    }else if(scenario==='exception'){
-    await dialog.locator('#tax-vat_state').selectOption('exists');await dialog.locator('#tax-vat_base').fill('280.37');await dialog.locator('#tax-vat_rate').fill('7');await dialog.locator('#tax-eligibility').selectOption('ineligible');await dialog.locator('#tax-wht_state').selectOption('none');await dialog.locator('#expense-settlement-mode').selectOption('supplier_unpaid');await dialog.locator('#company-review-reason').fill('Local VAT ineligible review');
+    await dialog.locator('#tax-vat_state').selectOption('exists');await dialog.locator('#tax-vat_base').fill('280.37');await dialog.locator('#tax-vat_rate').fill('7');await dialog.locator('#tax-eligibility').selectOption('ineligible');await dialog.locator('#tax-wht_state').selectOption('none');assert.equal(await dialog.locator('#expense-settlement-mode').count(),0);await dialog.locator('#company-review-reason').fill('Local VAT ineligible review');
     await fits();await page.screenshot({path:out+`/company-vat-controls-${width}.png`,fullPage:true});await dialog.getByRole('button',{name:t('companyApprove'),exact:true}).click();await page.waitForFunction(()=>document.querySelector('[id^="company-item-"]')?.id.endsWith('002'));
     const calls=await page.evaluate(()=>window.calls);assert.deepEqual(calls.map(c=>c.name),['review_finance_expense','review_finance_expense_tax','decide_finance_expense_settlement']);assert.equal(calls[1].args.p_input.eligibility,'ineligible');assert.equal(calls[1].args.p_input.vat_base,280.37);
    }else if(scenario==='reimbursement'){
@@ -155,7 +173,7 @@ async function main(){
    console.log('PASS Company state',width,scenario);scenarios++;
   }
   await page.setViewportSize({width:1440,height:950});await page.goto(`${url}/finance/expenses?locale=en&scenario=no-tax`);await page.locator('[data-request-row] button').click();
-  for(const label of ['Money handling for this item','Approve item','Reject item','I have verified that this item has no VAT and no withholding tax.'])assert.ok((await page.getByRole('dialog').innerText()).includes(label),label);
+  for(const label of ['Review supplier and due date','Approve item','Reject item','I have verified that this item has no VAT and no withholding tax.'])assert.ok((await page.getByRole('dialog').innerText()).includes(label),label);
   await fits();assert.deepEqual(await page.evaluate(()=>window.writes),[]);scenarios++;console.log('PASS Company EN review smoke');
   for(const width of [390,1440])for(const scenario of ['company-paid','unknown','missing-supplier','missing-payer','wht']){
    const t=k=>translate('th','expenses.'+k);await page.setViewportSize({width,height:950});await page.goto(`${url}/finance/expenses?locale=th&scenario=${scenario}`);await page.locator('[data-request-row] button').click();const dialog=page.getByRole('dialog');await dialog.waitFor();
@@ -183,7 +201,8 @@ async function main(){
    console.log('PASS money path',width,scenario);scenarios++;
   }
   for(const width of [390,1440]){
-   const t=k=>translate('th','expenses.'+k);await page.setViewportSize({width,height:950});await page.goto(`${url}/finance/expenses?locale=th`);await page.getByRole('button',{name:t('new'),exact:true}).first().click();let dialog=page.getByRole('dialog');
+   // Historical 057 backend compatibility; the 058-only two-choice path has its own suite.
+   const t=k=>translate('th','expenses.'+k);await page.setViewportSize({width,height:950});await page.goto(`${url}/finance/expenses?locale=th&schema=057`);await page.getByRole('button',{name:t('new'),exact:true}).first().click();let dialog=page.getByRole('dialog');
    await page.emulateMedia({reducedMotion:width===390?'reduce':'no-preference'});
    await page.evaluate(()=>{window.scrollCalls=[];const original=Element.prototype.scrollIntoView;Element.prototype.scrollIntoView=function(options){window.scrollCalls.push(options);return original.call(this,options);};});
    const values=['unpaid','company_paid','personal','unknown'],awareness=['no','yes','unknown','no'];

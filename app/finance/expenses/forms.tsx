@@ -2,6 +2,7 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Check, Plus, Save, Send, Wallet } from "lucide-react";
 import { Callout, FieldGroup } from "../../components/ui/patterns";
 import ui from "../../components/ui/vp-ui.module.css";
@@ -11,18 +12,21 @@ import { type Expense, type ExpenseAccess, type ExpenseAccount, type ExpenseLook
 import { expenseCategoryOptions, expenseCategoryLabel, expenseCategoryChoice } from "./categories";
 import { companyCategories, companyCategoryGroups } from "./company-categories";
 import { companyPayee } from "./company-workflow";
-import { companyMoneyCandidates, companyMoneyModes, recommendedMoneyMode, supplierCandidates } from "./company-money";
+import { companyHistoricalMoney, companyUnpaidFlow, companyMoneyCandidates, companyMoneyModes, recommendedMoneyMode, supplierCandidates } from "./company-money";
 import { CompanyPayeeSetup } from "./company-payee";
 import css from "./expenses.module.css";
+import moneyCss from "./company-money.module.css";
 
 export type ExpenseRun = (rpc: string, args: Record<string, unknown>) => Promise<string | null>;
 export function ExpenseFactsForm({ row, claim, access, accounts, lookups, run, busy, onDirty, onSaved, actionContainer, onCapture, itemNumber }: { row?: Expense; claim: boolean; access: ExpenseAccess; accounts: ExpenseAccount[]; lookups: ExpenseLookups; run: ExpenseRun; busy: boolean; onDirty?: (dirty: boolean) => void; onSaved?: (id: string) => void; actionContainer?: HTMLElement | null; onCapture?: (input: Record<string, unknown>) => void; itemNumber?: number }) {
  const { t, locale } = useI18n(), router = useRouter();
  const companyCapture = !claim && !!onCapture;
  const paymentFacts = companyCapture && access.creator_payment_fact_supported === true;
+ const declarationOnly = paymentFacts && access.company_declaration_without_account_supported === true;
+ const twoFlows = declarationOnly && !companyHistoricalMoney(row);
  const formId = useId();
  const [id] = useState(() => row?.id || crypto.randomUUID());
- const [handling, setHandling] = useState(paymentFacts && row?.creator_payment_fact ? row.creator_payment_fact === "personal_paid" ? "personal" : row.creator_payment_fact : !onCapture && !claim && !access.can_manage ? "company_paid" : row?.personally_paid ? "personal" : !companyCapture && row?.supplier_payee_id ? "unpaid" : "unknown");
+ const [handling, setHandling] = useState(twoFlows ? ["company_paid", "unpaid"].includes(row?.creator_payment_fact || "") ? row!.creator_payment_fact! : "" : paymentFacts && row?.creator_payment_fact ? row.creator_payment_fact === "personal_paid" ? "personal" : row.creator_payment_fact : !onCapture && !claim && !access.can_manage ? "company_paid" : row?.personally_paid ? "personal" : !companyCapture && row?.supplier_payee_id ? "unpaid" : "unknown");
  const immediate = !onCapture && !claim && handling === "company_paid";
  const [categoryChoice, setCategoryChoice] = useState(() => expenseCategoryChoice(row?.category || ""));
  const [customCategory, setCustomCategory] = useState(() => expenseCategoryChoice(row?.category || "") === "Other" ? row?.category || "" : "");
@@ -30,7 +34,7 @@ export function ExpenseFactsForm({ row, claim, access, accounts, lookups, run, b
  const [related, setRelated] = useState(!!(row?.client_id || row?.case_id || row?.advisory_matter_id));
  const [reducedRequest, setReducedRequest] = useState(!!row && row.reimbursement_requested < row.gross_amount);
  const [account, setAccount] = useState(row?.request_entry_account?.bank_account_id || row?.request_entry_account?.cash_location_id || ""), [paidOn, setPaidOn] = useState(bangkokToday), [ack, setAck] = useState(false);
- const [form, setForm] = useState({ expense_date: row?.expense_date || bangkokToday(), category: row?.category || "", description: row?.description || "", gross_amount: row ? String(row.gross_amount) : "", vendor_name: row?.vendor_name || "", supplier_payee_id: row?.supplier_payee_id || "", claimant_id: row?.claimant_id || "", client_id: row?.client_id || "", case_id: row?.case_id ? String(row.case_id) : "", advisory_matter_id: row?.advisory_matter_id || "", note: row?.note || "", personally_paid: row?.personally_paid ?? claim, reimbursement_requested: row ? String(row.reimbursement_requested) : "", vat_awareness: row?.vat_awareness || "unknown", wht_awareness: row?.wht_awareness || "unknown" });
+ const [form, setForm] = useState({ expense_date: row?.expense_date || bangkokToday(), category: row?.category || "", description: row?.description || "", gross_amount: row ? String(row.gross_amount) : "", vendor_name: row?.vendor_name || "", supplier_payee_id: row?.supplier_payee_id || "", claimant_id: twoFlows ? "" : row?.claimant_id || "", client_id: row?.client_id || "", case_id: row?.case_id ? String(row.case_id) : "", advisory_matter_id: row?.advisory_matter_id || "", note: row?.note || "", personally_paid: twoFlows ? false : row?.personally_paid ?? claim, reimbursement_requested: twoFlows ? "" : row ? String(row.reimbursement_requested) : "", vat_awareness: row?.vat_awareness || "unknown", wht_awareness: row?.wht_awareness || "unknown" });
  const set = (key: keyof typeof form, value: string | boolean) => setForm(old => {
   if (key === "client_id") return { ...old, client_id: String(value), case_id: "", advisory_matter_id: "" };
   if (key === "case_id") return { ...old, case_id: String(value), advisory_matter_id: "", client_id: lookups.cases.find(c => String(c.id) === value)?.client_id || old.client_id };
@@ -46,9 +50,9 @@ export function ExpenseFactsForm({ row, claim, access, accounts, lookups, run, b
  }
  async function save(event: React.FormEvent) {
   event.preventDefault(); if (busy) return;
-  const a = accounts.find(a => a.id === account);
+  const a = declarationOnly ? undefined : accounts.find(a => a.id === account);
   const input = { ...form, origin: claim ? "employee_claim" : "company_purchase", currency: "THB", gross_amount: Number(form.gross_amount), reimbursement_requested: form.personally_paid && !immediate ? Number(form.reimbursement_requested) : 0, bank_account_id: a?.bank_account_id || null, cash_location_id: a?.cash_location_id || null };
-  if (paymentFacts) Object.assign(input, { creator_payment_fact: handling === "personal" ? "personal_paid" : handling });
+  if (paymentFacts) Object.assign(input, { creator_payment_fact: handling === "personal" ? "personal_paid" : handling || null });
   if (onCapture) { onCapture(input); onDirty?.(false); return; }
   const result = immediate ? await run("record_finance_paid_expense", { p_id: id, p_input: input, p_bank: a?.bank_account_id || null, p_cash: a?.cash_location_id || null, p_paid_on: paidOn, p_acknowledged: ack }) : await run("save_finance_expense", { p_id: id, p_version: row?.version ?? null, p_input: input });
   if (result) { onDirty?.(false); if (onSaved) onSaved(result); else router.push(expenseHref({ id: result, origin: claim ? "employee_claim" : "company_purchase" })); }
@@ -60,7 +64,7 @@ export function ExpenseFactsForm({ row, claim, access, accounts, lookups, run, b
   {categoryChoice === "Other" ? <div className={css.span}><FieldGroup id="expense-custom-category" label={t("finance.legacy.fields.customCategory")}><input required maxLength={150} value={form.category} onChange={e => { setCustomCategory(e.target.value); set("category", e.target.value); }} /></FieldGroup></div> : null}
   {companyCapture ? field("vendor_name", "companyVendor") : null}
   {field("gross_amount", "amount", "number", true)}
-  {!claim ? <FieldGroup id="expense-handling" label={t(companyCapture ? "expenses.companyPaymentQuestion" : "expenses.paymentFacts")}><select value={handling} onChange={e => changeHandling(e.target.value)}>
+  {twoFlows ? <fieldset className={moneyCss.choices}><legend>{t("expenses.companyPaymentStatus")}</legend><div>{["company_paid", "unpaid"].map(value => <label key={value}><input type="radio" name={`${formId}-payment-status`} value={value} checked={handling === value} onChange={() => changeHandling(value)} /><span>{t(value === "company_paid" ? "expenses.handlingCompanyPaid" : "expenses.companyUnpaid")}</span></label>)}</div></fieldset> : !claim ? <FieldGroup id="expense-handling" label={t(companyCapture ? "expenses.companyPaymentQuestion" : "expenses.paymentFacts")}><select value={handling} onChange={e => changeHandling(e.target.value)}>
    {access.can_manage || onCapture ? <option value="unknown">{t(companyCapture ? "expenses.companyPaymentUnknown" : "expenses.handlingUnknown")}</option> : null}
    {(access.can_manage && !companyCapture) || paymentFacts ? <option value="unpaid">{t(companyCapture ? "expenses.companyUnpaid" : "expenses.handlingUnpaid")}</option> : null}
    {paymentFacts ? <option value="company_paid">{t("expenses.handlingCompanyPaid")}</option> : null}
@@ -70,7 +74,8 @@ export function ExpenseFactsForm({ row, claim, access, accounts, lookups, run, b
   <div className={css.span}>{field("description", "description", "text", true)}</div>
  </div>
  {companyCapture ? <p className={css.muted}>{t(paymentFacts ? "expenses.companyDeclarationOnly" : "expenses.companyPaymentGate")}</p> : null}
- {onCapture && !claim && !access.can_manage ? <AccountSelect accounts={accounts.filter(a => a.can_record)} value={account} onChange={setAccount} disabled={busy} /> : null}
+ {twoFlows ? <p className={css.muted}>{t("expenses.companyPersonalClaimHelp")} <Link href="/finance/expenses/claims">{t("expenses.claims")}</Link></p> : null}
+ {onCapture && !claim && !access.can_manage && !declarationOnly ? <AccountSelect accounts={accounts.filter(a => a.can_record)} value={account} onChange={setAccount} disabled={busy} /> : null}
  {!claim && handling === "unpaid" ? <div className={css.formGrid}>{!companyCapture ? field("vendor_name", "vendor") : null}{access.can_manage ? select("supplier_payee_id", "supplierKnown", (companyCapture ? supplierCandidates(lookups) : lookups.payees).map(p => ({ id: p.id, name: p.legal_name }))) : null}</div> : null}
  {!immediate && (claim || form.personally_paid) ? <div className={css.requestFields}>
   {!claim ? select("claimant_id", "claimant", lookups.people, true) : null}
@@ -122,6 +127,8 @@ export function ExpenseSettlementForm({ row, lookups, run, busy, companyReview =
  const [updatedPayees, setUpdatedPayees] = useState<ExpenseLookups["payees"] | null>(null);
  const parties = updatedPayees ? { ...lookups, payees: updatedPayees } : lookups;
  const knownPayee = companyReview ? companyPayee(row, parties) : null;
+ const fixedUnpaid = companyReview && companyUnpaidFlow(row);
+ const declaredPaid = companyReview && row.creator_payment_fact === "company_paid" && !row.personally_paid;
  const [mode, setMode] = useState<SettlementMode>(() => companyReview ? recommendedMoneyMode(row) : "undecided"), [amount, setAmount] = useState(String(row.personally_paid ? row.reimbursement_requested : row.gross_amount));
  const [payee, setPayee] = useState(companyReview ? knownPayee?.id || "" : row.personally_paid ? lookups.payees.find(p => p.profile_id === row.claimant_id)?.id || "" : row.supplier_payee_id || ""), [due, setDue] = useState(""), [reason, setReason] = useState("");
  const modes = companyReview ? companyMoneyModes(row) : row.personally_paid ? ["undecided", "reimburse", "no_reimbursement"] : ["undecided", "company_bank", "company_cash", "supplier_unpaid"];
@@ -131,8 +138,8 @@ export function ExpenseSettlementForm({ row, lookups, run, busy, companyReview =
  const args = useMemo(() => ({ p_id: id, p_expense: row.id, p_mode: mode, p_payee: companyReview && !payable ? null : payable || mode === "company_bank" || mode === "company_cash" ? payee || null : null, p_amount: mode === "no_reimbursement" ? 0 : mode === "reimburse" ? Number(amount) : row.gross_amount, p_due_on: due || null, p_reason: reviewReason }), [id, row.id, row.gross_amount, mode, payable, payee, amount, due, reviewReason, companyReview]);
  useEffect(() => { onPlan?.(args); }, [args, onPlan]);
  return <form className={css.form} data-review-plan={plan ? "settlement" : undefined} onSubmit={async e => { e.preventDefault(); if (!plan) await run("decide_finance_expense_settlement", args); }}>
-  <fieldset disabled={busy}><legend>{t(companyReview ? "expenses.companyMoneyDecision" : "expenses.settlement")}</legend>{companyReview ? <p className={css.muted}>{t(row.creator_payment_fact === "company_paid" ? "expenses.companyPaidReviewHelp" : "expenses.companyMoneyReviewHelp")}</p> : null}<div className={css.formGrid}>
-   <FieldGroup id="expense-settlement-mode" label={t(companyReview ? "expenses.companyMoneyDecision" : "expenses.payment")}><select value={mode} onChange={e => setMode(e.target.value as SettlementMode)}>{modes.map(v => <option key={v} value={v}>{t(`expenses.${v}`)}</option>)}</select></FieldGroup>
+  <fieldset disabled={busy}><legend>{t(fixedUnpaid ? "expenses.companyUnpaidReview" : declaredPaid ? "expenses.companyPaidChannel" : companyReview ? "expenses.companyMoneyDecision" : "expenses.settlement")}</legend>{companyReview ? <p className={css.muted}>{t(fixedUnpaid ? "expenses.companyUnpaidReviewHelp" : row.creator_payment_fact === "company_paid" ? "expenses.companyPaidReviewHelp" : "expenses.companyMoneyReviewHelp")}</p> : null}<div className={css.formGrid}>
+   {!fixedUnpaid ? <FieldGroup id="expense-settlement-mode" label={t(declaredPaid ? "expenses.companyPaidChannel" : companyReview ? "expenses.companyMoneyDecision" : "expenses.payment")}><select value={mode} onChange={e => setMode(e.target.value as SettlementMode)}>{modes.map(v => <option key={v} value={v}>{t(declaredPaid && v === "undecided" ? "expenses.choose" : `expenses.${v}`)}</option>)}</select></FieldGroup> : null}
    {(companyReview ? payable : mode !== "no_reimbursement" && mode !== "undecided") ? <FieldGroup id="settlement-payee" label={t(companyReview ? mode === "reimburse" ? "expenses.companyReimbursementPayee" : "expenses.companySupplierPayee" : "expenses.payee")}>{knownPayee ? <input readOnly value={knownPayee.legal_name} /> : <select required={payable} value={payee} onChange={e => setPayee(e.target.value)}><option value="">{t("expenses.choose")}</option>{candidates.map(p => <option key={p.id} value={p.id}>{p.legal_name}</option>)}</select>}</FieldGroup> : null}
    {mode === "reimburse" ? <FieldGroup id="settlement-amount" label={t("expenses.settlementAmount")}><input type="number" min="0.01" max={row.gross_amount} step="0.01" required value={amount} onChange={e => setAmount(e.target.value)} /></FieldGroup> : null}
    {payable ? <FieldGroup id="settlement-due" label={t("expenses.due")}><input type="date" value={due} onChange={e => setDue(e.target.value)} /></FieldGroup> : null}

@@ -7,14 +7,14 @@ const f=fixture('list'),row=expense(10,{status:'submitted',creator_payment_fact:
 const money={p_mode:'supplier_unpaid',p_payee:id(4),p_amount:10700},missing=(r=row,m=money,t=tax)=>companyApprovalMissing(r,m,t,'Reviewed',f.lookups);
 const forms=workspaceFixture('app/finance/expenses/forms.tsx',['ExpenseFactsForm','ExpenseSettlementForm']);
 const review=workspaceFixture('app/finance/expenses/company-review.tsx',['CompanyItemReview']);
-const props={row,access:{...f.data.access,creator_payment_fact_supported:true},accounts:f.data.accounts,lookups:f.lookups,run:()=>{throw Error('No writes');},busy:false};
+const props={row,access:{...f.data.access,creator_payment_fact_supported:true,company_declaration_without_account_supported:true,can_create_company:true},accounts:f.data.accounts,lookups:f.lookups,run:()=>{throw Error('No writes');},busy:false};
 test('Four declared facts are independently readable; NULL does not infer from category, account, supplier or confirmed payout',()=>{
  for(const [fact,key]of [['unpaid','companyUnpaid'],['company_paid','handlingCompanyPaid'],['personal_paid','companyPersonalPaid'],['unknown','companyPaymentUnknown']])assert.equal(creatorPaymentLabel({...row,creator_payment_fact:fact}),key);
  assert.equal(creatorPaymentLabel({...row,creator_payment_fact:null,personally_paid:true,payout:{status:'confirmed'}}),'companyDeclarationUnavailable');
  assert.equal(recommendedMoneyMode(row),'supplier_unpaid');assert.equal(recommendedMoneyMode({...row,creator_payment_fact:'unknown'}),'undecided');
  assert.equal(recommendedMoneyMode({...row,personally_paid:true,creator_payment_fact:'personal_paid'}),'reimburse');
  assert.deepEqual(companyMoneyModes({...row,creator_payment_fact:'company_paid'}),['undecided','company_bank','company_cash']);
- assert.ok(missing({...row,creator_payment_fact:'company_paid'}).includes('companyNeedMoney'));
+ assert.ok(missing({...row,creator_payment_fact:'company_paid'}).includes('companyNeedPaidChannel'));
 });
 test('Pam-only regression: stored employees excluded from supplier candidates; exact personal payer required',()=>{
  const pam={id:id(1),profile_id:id(1),legal_name:'Pam'},only={...f.lookups,payees:[pam]};
@@ -41,7 +41,8 @@ test('Readiness: no-tax explicitly acknowledged, money/payee/reason required, VA
 test('TH/EN capture capability gated, declaration read-only and money controls contextual',()=>{
  for(const locale of ['th','en']){
   const html=forms.render(locale,{}, {...props,claim:false,onCapture:()=>{}},'ExpenseFactsForm');
-  for(const value of ['unpaid','company_paid','personal','unknown'])assert.ok(html.includes(`value="${value}"`),value);
+  for(const value of ['unpaid','company_paid'])assert.ok(html.includes(`value="${value}"`),value);
+  assert.doesNotMatch(html,/id="expense-handling"|<option value="personal"/);
   assert.doesNotMatch(html,/expense-paid-on|paymentAck|item_type/);
   const old=forms.render(locale,{}, {...props,access:f.data.access,claim:false,onCapture:()=>{}},'ExpenseFactsForm');assert.doesNotMatch(old,/<option value="(?:unpaid|company_paid)"/);
   const readonly=review.render(locale,{}, {...props,row:{...row,status:'accepted',creator_payment_fact:'company_paid'},access:{...props.access,can_manage:false,can_tax_review:false}},'CompanyItemReview');assert.doesNotMatch(readonly,/<input|<select|<form/);
@@ -55,6 +56,6 @@ test('057 workflow artifacts SELECT-only and exactly embedded; 001-056 and prote
  const dry=fs.readFileSync(a.filenames.dry,'utf8');assert.equal(dry.split('-- BEGIN EMBEDDED MIGRATION 057\n')[1].split('-- END EMBEDDED MIGRATION 057')[0],a.source());assert.match(lexical(dry).trim(),/^begin;/i);assert.match(lexical(dry).trim(),/rollback;$/i);assert.doesNotMatch(lexical(dry),/\bcommit\b/i);
  for(const statement of lexical(a.source()).split(';'))assert.doesNotMatch(statement.trim(),/^(insert|update|delete|merge|truncate|copy|select)\b/i);
  const files=cp.execFileSync('git',['ls-tree','-r','--name-only','HEAD','supabase/migrations'],{encoding:'utf8'}).trim().split('\n');
- files.push(...['company-list.tsx','company-categories.ts','company.module.css','workspace.tsx','request-view.tsx','request-operations.ts','requests.ts','data.ts'].map(p=>'app/finance/expenses/'+p));
+ files.push(...['company-list.tsx','company-categories.ts','company.module.css','request-view.tsx','request-operations.ts','requests.ts','data.ts'].map(p=>'app/finance/expenses/'+p));
  for(const file of files)assert.deepEqual(fs.readFileSync(file),cp.execFileSync('git',['show','HEAD:'+file]),file);
 });

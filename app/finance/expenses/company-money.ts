@@ -3,8 +3,12 @@ import type { Expense, ExpenseLookups, SettlementMode } from "./shared";
 export const creatorPaymentLabel = (row: Pick<Expense, "creator_payment_fact">) => row.creator_payment_fact == null ? "companyDeclarationUnavailable" : ({ unpaid: "companyUnpaid", company_paid: "handlingCompanyPaid", personal_paid: "companyPersonalPaid", unknown: "companyPaymentUnknown" }[row.creator_payment_fact]);
 // 051 guarantees external => profile_id NULL; internal => profile_id = active person identity.
 export const supplierCandidates = (lookups: ExpenseLookups) => lookups.payees.filter(p => p.profile_id === null);
+export const companyUnpaidFlow = (row: Expense) => !row.personally_paid && row.creator_payment_fact === "unpaid";
+export const companyHistoricalMoney = (row?: Expense) => !!row && row.version > 0 && (row.personally_paid || ["personal_paid", "unknown"].includes(row.creator_payment_fact || ""));
+export const companyMoneyIncomplete = (items: { creator_payment_fact?: unknown }[]) => items.some(i => i.creator_payment_fact == null);
 export function companyMoneyModes(row: Expense): SettlementMode[] {
  if (row.personally_paid) return ["undecided", "reimburse", "no_reimbursement"];
+ if (companyUnpaidFlow(row)) return ["supplier_unpaid"];
  return row.creator_payment_fact === "company_paid" ? ["undecided", "company_bank", "company_cash"] : ["undecided", "company_bank", "company_cash", "supplier_unpaid"];
 }
 export function recommendedMoneyMode(row: Expense): SettlementMode {
@@ -22,7 +26,7 @@ export function companyMoneyCandidates(row: Expense, lookups: ExpenseLookups, mo
 export function companyApprovalMissing(row: Expense, money: Record<string, unknown> | null, tax: Record<string, unknown> | null, reason: string, lookups: ExpenseLookups) {
  const missing: string[] = [];
  const mode = row.settlement?.mode || String(money?.p_mode || "undecided");
- if (mode === "undecided" || !companyMoneyModes(row).includes(mode as SettlementMode)) missing.push("companyNeedMoney");
+ if (mode === "undecided" || !companyMoneyModes(row).includes(mode as SettlementMode)) missing.push(row.creator_payment_fact === "company_paid" ? "companyNeedPaidChannel" : "companyNeedMoney");
  if (!row.settlement && ["supplier_unpaid", "reimburse"].includes(mode)) {
   if (!companyMoneyCandidates(row, lookups, mode).some(p => p.id === money?.p_payee)) missing.push(mode === "reimburse" ? "companyNeedPayer" : "companyNeedSupplier");
   const amount = money?.p_amount;
