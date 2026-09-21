@@ -1,5 +1,11 @@
 import type { MessageCatalog } from "../core";
 const copy: Record<string, [string, string]> = {
+ companySupplierTaxOptional: ["เลขประจำตัวผู้เสียภาษี (ถ้าทราบ)", "Tax ID (if known)"],
+ companySupplierBankOptional: ["ข้อมูลรับเงิน (ถ้ามี)", "Payment details (optional)"],
+ companySupplierExists: ["พบผู้ขายนี้ในระบบแล้ว", "A matching supplier already exists"],
+ companyUseSupplier: ["ใช้ข้อมูลเดิม", "Use existing supplier"],
+ companySupplierTaxConflict: ["ชื่อเหมือนกัน แต่เลขผู้เสียภาษีต่างกัน กรุณาตรวจสอบข้อมูลก่อน", "The name matches but the Tax ID differs. Check the identity first."],
+ companySupplierRequired: ["กรุณาระบุชื่อ ประเภทผู้รับ และตรวจเลขผู้เสียภาษีหรือข้อมูลบัญชีที่กรอก", "Enter the name and entity type, and check any Tax ID or bank details provided."],
  companyDeclarationUnavailable: ["ไม่มีข้อมูลที่ผู้บันทึกแจ้งในรายการนี้", "Creator declaration is unavailable for this item"],
  companyDeclarationMismatch: ["ข้อมูลที่อ่านกลับไม่ตรงกับรายการที่บันทึก จึงหยุดขั้นตอนถัดไปไว้ กรุณาปิดแล้วเปิดคำขอเดิมเพื่อตรวจสอบ ไม่ต้องสร้างคำขอซ้ำ", "The saved declarations could not be verified, so the next step has been stopped. Reopen this request to check it; do not create a duplicate."],
  companyAwaitFinance: ["รอฝ่ายการเงินตรวจ", "Awaiting Finance review"],

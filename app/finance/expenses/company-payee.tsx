@@ -2,6 +2,8 @@
 import { useState } from "react";
 import { Plus } from "lucide-react";
 import { PayeeModal } from "../payouts/payee-modal";
+import { payeeNameKey } from "../payouts/payee-matching";
+import { companyMoneyCandidates } from "./company-money";
 import type { Payee } from "../payouts/shared";
 import { supabase } from "../../../lib/supabase";
 import { useI18n } from "../../../lib/i18n/provider";
@@ -16,18 +18,21 @@ export function CompanyPayeeSetup({ row, mode, lookups, disabled, onSaved }: { r
  const person = mode === "reimburse" ? lookups.people.find(p => p.id === row.claimant_id) : null;
  const blocked = mode === "reimburse" ? !person : !!row.supplier_payee_id;
  const internal: Payee | undefined = person ? { id: person.id, profile_id: person.id, kind: "internal", legal_name: person.name, entity_type: "natural_person", tax_id: null, version: null, is_active: true, destination: null } : undefined;
+ const matches = mode === "supplier_unpaid" && row.vendor_name?.trim() ? companyMoneyCandidates(row, lookups, mode).filter(p => payeeNameKey(p.legal_name) === payeeNameKey(row.vendor_name!)) : [];
  async function reload(id: string) {
   setSaved(id); setOpen(false); setError("");
   try {
    const result = await supabase.rpc("get_finance_expense_parties");
-   if (result.error || !Array.isArray(result.data?.payees) || !result.data.payees.some((p: { id: string }) => p.id === id)) throw result.error || new Error("Payee read-back incomplete");
+   if (result.error || !Array.isArray(result.data?.payees) || !companyMoneyCandidates(row, { ...lookups, payees: result.data.payees }, mode).some(p => p.id === id)) throw result.error || new Error("Payee read-back incomplete");
    onSaved(result.data.payees, id); setSaved(null);
+   requestAnimationFrame(() => document.getElementById("settlement-payee")?.focus({ preventScroll: true }));
   } catch (error) { setError(expenseError(error)); }
  }
  return <div className={css.form}>
   <p className={css.muted}>{t(blocked ? "expenses.companyPayeeBlocked" : "expenses.companyPayeeSetupHelp")}</p>
   {error ? <Callout tone="negative" role="alert">{t(`expenses.${error}`)}</Callout> : null}
+  {matches.length && !saved ? <Callout tone="info"><strong>{t("expenses.companySupplierExists")}</strong>{matches.map(p => <div key={p.id}><span>{p.legal_name}</span> <button type="button" className={ui.secondary} disabled={disabled} onClick={() => void reload(p.id)}>{t("expenses.companyUseSupplier")}</button></div>)}</Callout> : null}
   {saved ? <button type="button" className={ui.secondary} disabled={disabled} onClick={() => void reload(saved)}>{t("expenses.refresh")}</button> : !blocked ? <button type="button" className={ui.secondary} disabled={disabled} onClick={() => setOpen(true)}><Plus size={16} />{t(mode === "reimburse" ? "expenses.companySetUpPayer" : "expenses.companyAddSupplier")}</button> : null}
-  {open ? <PayeeModal payee={internal} onClose={() => setOpen(false)} onSaved={id => void reload(id)} /> : null}
+  {open ? <PayeeModal payee={internal} supplierContext={mode === "supplier_unpaid" ? { name: row.vendor_name || "" } : undefined} onClose={() => setOpen(false)} onSaved={id => void reload(id)} /> : null}
  </div>;
 }

@@ -23,11 +23,16 @@ if(!claim&&scenario){
  requests.push({...structuredClone(r),id:'00000000-0056-4000-8000-000000000999',kind:'employee_claim',requester_name:'CLAIM MUST NOT LEAK'});
 }
 window.fixtureRequests=requests;
+if(params.has('supplier')){
+ const mode=params.get('supplier');requests[0].items.forEach(i=>{i.supplier_payee_id=null;i.vendor_name='Synthetic Supplier';});
+ if(mode==='existing')f.lookups.payees.push({id:'00000000-0055-4000-8000-000000000004',profile_id:null,legal_name:'Synthetic Supplier',tax_id:'1234567890123',entity_type:'juristic_person'});
+}
 export async function readExpenses(){return {...f.data,rows:[]};}export async function readExpenseLookups(){return f.lookups;}export async function readExpenseRequests(){return structuredClone(requests);}
 export async function readExpenseRequest(id){if(window.failRead){window.failRead=false;throw Error('Local read failed');}const r=requests.find(r=>r.id===id);if(window.editDuringRead){window.editDuringRead=false;r.version++;r.note='Another tab edit';}const result=structuredClone(r);result.items.forEach(i=>{i.claimant_id=i.claimant_id||null;});if(window.omitDeclaration)delete result.items[0].creator_payment_fact;return result;}
 const operations=new Set();
 export const supabase={async rpc(name,args){window.calls.push({name,args:structuredClone(args)});await new Promise(r=>setTimeout(r,80));
  if(name==='get_finance_expense_parties')return{data:structuredClone(f.lookups)};
+ if(name==='get_finance_payees'){if(window.denyLookup){window.denyLookup=false;return{error:{message:'PAYOUT_PERMISSION_DENIED'}};}return{data:structuredClone(window.supplierRegister||f.lookups.payees.map(p=>({...p,kind:p.profile_id?'internal':'external',entity_type:p.entity_type||'natural_person',tax_id:p.tax_id||null,is_active:true,version:1,destination:null})))};}
  if(name==='save_finance_payee'){if(window.denyPayee){window.denyPayee=false;return{error:{message:'PAYOUT_PERMISSION_DENIED'}};}if(f.lookups.payees.some(p=>p.id===args.p_id))throw Error('Duplicate fixture payee');f.lookups.payees.push({id:args.p_id,profile_id:args.p_profile_id,legal_name:args.p_profile_id?'Synthetic personal payer':args.p_input.legal_name});window.writes.push(name);return{data:args.p_id};}
  if(window.failSave&&name==='save_finance_expense_request'){window.failSave=false;return{error:{message:'EXPENSE_PERMISSION_DENIED'}};}
  if(window.failSubmit&&name==='submit_finance_expense_request'){window.failSubmit=false;return{error:{message:'EXPENSE_PERMISSION_DENIED'}};}
@@ -61,6 +66,10 @@ async function main(){
   const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'/Users/paolawyer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
   const page=await browser.newPage(),errors=[],external=[];page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>{if(new URL(r.request().url()).hostname==='127.0.0.1')return r.continue();external.push(r.request().url());return r.abort();});
   require('./receipt-render-fixture.cjs');const {translate}=require('../../lib/i18n/catalog.ts'),url='http://127.0.0.1:'+server.address().port;
+  if(process.argv.includes('--supplier')){
+   const scenarios=await require('./expense-supplier-browser.cjs')({page,url,out,translate,id});
+   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,scenarios,artifacts:out,externalRequests:0}));return;
+  }
   const fits=async()=>{assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);assert.equal(await page.getByRole('dialog').evaluate(e=>e.scrollWidth>e.clientWidth+1),false);const b=await page.getByRole('dialog').boundingBox();assert.ok(b.x>=0&&b.y>=0&&b.x+b.width<=page.viewportSize().width+1&&b.y+b.height<=page.viewportSize().height+1);};
   let scenarios=0;
   // Direct-submit failure checkpoints, two items, both workflows and changed-label EN smoke.
@@ -170,7 +179,7 @@ async function main(){
    await approve().click();await page.waitForFunction(()=>document.querySelector('[id^="company-item-"]')?.id.endsWith('002'));
    const calls=await page.evaluate(()=>window.calls),m=calls.find(c=>c.name==='decide_finance_expense_settlement').args;
    if(scenario==='company-paid'){assert.equal(m.p_mode,'company_bank');assert.equal(m.p_payee,null);assert.equal(await page.evaluate(()=>window.fixtureRequests[0].items[0].obligation),null);}
-   assert.ok(calls.every(c=>['review_finance_expense','review_finance_expense_tax','decide_finance_expense_settlement','save_finance_payee','get_finance_expense_parties'].includes(c.name)));
+   assert.ok(calls.every(c=>['review_finance_expense','review_finance_expense_tax','decide_finance_expense_settlement','save_finance_payee','get_finance_expense_parties','get_finance_payees'].includes(c.name)));
    console.log('PASS money path',width,scenario);scenarios++;
   }
   for(const width of [390,1440]){
