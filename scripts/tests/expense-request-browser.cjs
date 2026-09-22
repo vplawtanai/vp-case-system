@@ -13,7 +13,12 @@ f.data.access.creator_payment_fact_supported=params.get('schema')!=='056';
 f.data.access.company_declaration_without_account_supported=!['056','057'].includes(params.get('schema'));
 f.data.access.company_tax_calculation_supported=params.has('tax059');
 f.data.access.company_purchase_request_supported=params.has('purchase060');
-if(params.has('purchase060'))f.data.access.company_tax_calculation_supported=true;
+if(params.has('purchase060')){
+ f.data.access.company_tax_calculation_supported=true;
+ f.lookups.clients.push({id:'other-client',name:'Other client'});
+ f.lookups.cases.push({id:56,client_id:'other-client',file_no:'OTHER',title:'Other case'});
+ f.lookups.matters.push({id:'advisory-test',client_id:f.lookups.clients[0].id,matter_no:'ADV-TEST',title:'งานที่ปรึกษาทดสอบ / Synthetic advisory'});
+}
 if(params.has('taxDenied'))f.data.access.can_tax_review=false;
 if(creator)f.data.access={...f.data.access,can_manage:false,can_tax_review:false,can_record:false,can_confirm:false,can_view_all:false,is_admin:false};
 f.data.access.can_create_company=f.data.access.can_manage||f.data.access.can_claim||f.data.access.can_record;
@@ -127,7 +132,7 @@ async function main(){
   const page=await browser.newPage(),errors=[],external=[];page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>{if(new URL(r.request().url()).hostname==='127.0.0.1')return r.continue();external.push(r.request().url());return r.abort();});
   require('./receipt-render-fixture.cjs');const {translate}=require('../../lib/i18n/catalog.ts'),url='http://127.0.0.1:'+server.address().port;
   if(process.argv.includes('--purchase060')){
-   const scenarios=await require('./purchase-request-browser.cjs')({page,url,out,translate});
+   const scenarios=await require('./purchase-request-browser.cjs')({page,url,out,translate}) + await require('./purchase-linkage-browser.cjs')({page,url,out,translate});
    assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,scenarios,artifacts:out,externalRequests:0}));return;
   }
   if(process.argv.includes('--tax059')){

@@ -49,3 +49,8 @@
 }
 
 .controls input:not([type=radio]) { width: 100%; min-width: 0; }
+
+.linkage { display: grid; gap: 16px; margin-top: 20px; }
+.relatedToggle { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.relatedToggle input { width: 18px; height: 18px; margin: 0; flex: 0 0 18px; }
+.linkageSummary p { margin: 4px 0; overflow-wrap: anywhere; }

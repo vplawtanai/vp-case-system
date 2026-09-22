@@ -73,6 +73,28 @@ test('060 historical paid remains readable, calculation and retrospective-WHT/co
  await rejects('select review_finance_expense_tax($1,$2,$3,$4)',[randomUUID(),id,op,previous.input({vat_mode:'none',paid_withholding_ack:true,reason:'Actual payment unchanged'})],/companyWhtExceptionBlock/);
  assert.equal(await scalar('select wht_amount::text from finance_payouts where id=$1',[p]),'0.00');
 });
+test('purchase linkage persists through Draft reopen, submission and approval using existing references',async()=>{
+ await setup();const advisory=randomUUID();
+ const otherClient=randomUUID();await db.query('insert into clients(id,name) values($1,$2)',[otherClient,'Other client']);
+ await db.query('insert into cases(id,client_id) values(6061,$1)',[ids.client]);
+ await db.query('insert into advisory_matters(id,client_id) values($1,$2)',[advisory,ids.client]);
+ for(const context of [{client_id:null,case_id:null,advisory_matter_id:null},{client_id:ids.client,case_id:null,advisory_matter_id:null},{client_id:ids.client,case_id:6061,advisory_matter_id:null},{client_id:ids.client,case_id:null,advisory_matter_id:advisory}]){
+  const r=await requests.save(lines(context),'company_expense_batch');
+  const assertContext=e=>{for(const [key,value]of Object.entries(context))assert.equal(e[key],value);};
+  const draft=await requests.read(r.id);draft.items.forEach(assertContext);
+  await rpc('save_finance_expense_request',[r.id,randomUUID(),draft.version,'company_expense_batch','Weekly synthetic request',r.lines.map((line,i)=>({...line,version:draft.items[i].version}))]);
+  const reopened=await requests.read(r.id);reopened.items.forEach(assertContext);
+  await rpc('submit_finance_expense_request',[r.id,reopened.version]);
+  const submitted=await requests.read(r.id);submitted.items.forEach(assertContext);
+  await approve(submitted.items[0]);const approved=(await requests.read(r.id)).items[0];assertContext(approved);
+  assert.equal(approved.obligation.gross_amount,300);assert.equal(approved.tax_review.wht_amount,8.41);
+ }
+ assert.equal(await scalar('select count(*)::int from finance_cash_transactions'),0);
+ for(const context of [{client_id:otherClient,case_id:6061},{client_id:otherClient,advisory_matter_id:advisory},{client_id:null,case_id:6061},{client_id:null,advisory_matter_id:advisory},{client_id:ids.client,case_id:6061,advisory_matter_id:advisory}])
+  await rejects("select save_finance_expense_request($1,$2,null,'company_expense_batch','',$3)",[randomUUID(),randomUUID(),lines(context)],/Client is required|not both|must belong/);
+ await db.exec('set constraints all immediate');
+});
+
 test('060 exact function/catalog artifacts; unchanged calculator/posting/permissions; rollback restores 059',async()=>{
  const fs=require('node:fs'),a=require('./company-review-modal-artifacts.cjs');await previous.setup();
  const prior=await query(a.functionSql()),catalog=await query(a.catalogSql);await db.exec('savepoint before060');await db.exec(migration('60'));

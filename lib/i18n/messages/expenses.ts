@@ -1,5 +1,7 @@
 import type { MessageCatalog } from "../core";
 const copy: Record<string, [string, string]> = {
+ purchaseRelatedWork: ["เกี่ยวข้องกับลูกค้าหรืองาน", "Related to a client or matter"],
+ purchaseWork: ["เคส / งานที่ปรึกษา", "Case / Advisory matter"],
  purchaseRequestCreate: ["สร้างคำขอซื้อหรือค่าใช้จ่าย", "Create purchase or expense request"],
  purchaseRequestReview: ["ตรวจสอบคำขอซื้อหรือค่าใช้จ่าย", "Review purchase or expense request"],
  purchaseRequestVendor: ["ชื่อผู้รับเงิน / ผู้ขาย / ผู้ให้บริการ", "Recipient / supplier / service provider name"],

@@ -33,7 +33,7 @@ export function PurchaseRequestReview({ request, access, lookups, busy, error, r
  </DetailModal>;
 }
 
-export function PurchaseRequestItemReview({ row, access, run, busy }: ItemProps) {
+export function PurchaseRequestItemReview({ row, access, lookups, run, busy }: ItemProps) {
  const { t, locale, date } = useI18n();
  const [recipient,setRecipient] = useState(row.reviewed_recipient_name || row.vendor_name || "");
  const [tax,setTax] = useState(row.creator_tax || emptyPurchaseTax), [note,setNote] = useState(""), [rejecting,setRejecting] = useState(false);
@@ -56,6 +56,10 @@ export function PurchaseRequestItemReview({ row, access, run, busy }: ItemProps)
   },160);
   return()=>{active=false;clearTimeout(timer);};
  },[input,row.id,reviewable]);
+ const clientName = lookups.clients.find(c => c.id === row.client_id)?.name || row.client_id;
+ const linkedCase = lookups.cases.find(c => c.id === row.case_id);
+ const linkedMatter = lookups.matters.find(m => m.id === row.advisory_matter_id);
+ const workName = linkedCase ? `${linkedCase.file_no} ${linkedCase.title}` : linkedMatter ? `${linkedMatter.matter_no} ${linkedMatter.title}` : row.case_id ?? row.advisory_matter_id;
  const disabled=busy||working||uncertain;
 
  const money=(value:number)=>`${value.toLocaleString(locale,{minimumFractionDigits:2,maximumFractionDigits:2})} THB`;
@@ -73,6 +77,7 @@ export function PurchaseRequestItemReview({ row, access, run, busy }: ItemProps)
  }
  return <div className={css.review} data-purchase-review>
   <section className={css.facts}><div><h3>{row.description}</h3>{!reviewable ? <p>{row.reviewed_recipient_name || row.vendor_name}</p> : null}<p>{date(row.expense_date)} · {expenseCategoryLabel(row.category,locale)}</p></div><div className={css.amount}><span>{t("expenses.amount")}</span><strong>{money(row.declared_gross_amount ?? row.gross_amount)}</strong></div></section>
+  {clientName || workName != null ? <div className={css.linkageSummary} data-purchase-linkage>{clientName ? <p>{t("expenses.client")}: {clientName}</p> : null}{workName != null ? <p>{t("expenses.purchaseWork")}: {workName}</p> : null}</div> : null}
   <div className={css.columns}><div className={css.controls}>
    {reviewable ? <FieldGroup id="purchase-review-recipient" label={t("expenses.purchaseRequestVendor")}><input required maxLength={300} value={recipient} disabled={disabled} onChange={e=>setRecipient(e.target.value)} /></FieldGroup> : null}
    {reviewable ? <PurchaseTaxChoices value={tax} onChange={setTax} disabled={disabled} /> : <dl><dt>{t("expenses.status")}</dt><dd>{t(`expenses.${row.payout?.status === "confirmed" || row.obligation?.settled ? "paid" : row.obligation ? "unpaid" : row.status}`)}</dd></dl>}

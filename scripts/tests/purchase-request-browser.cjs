@@ -8,7 +8,7 @@ module.exports=async({page,url,out,translate})=>{
   const choose=async(vat,wht)=>{await dialog.locator(`input[type=radio][value=${vat}]`).first().check();await dialog.locator(`input[type=radio][value=${wht}]`).last().check();};
   const overflow=async()=>{assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);assert.equal(await dialog.evaluate(e=>e.scrollWidth>e.clientWidth+1),false);};
   await page.goto(`${url}/finance/expenses?purchase060=1&locale=${locale}`);await page.getByRole('button',{name:t('new'),exact:true}).click();await dialog.getByRole('heading',{name:t('purchaseRequestCreate'),exact:true}).waitFor();
-  assert.equal(await dialog.locator('input[type=file],input[type=checkbox],#expense-handling').count(),0);
+  assert.equal(await dialog.locator('input[type=file],#expense-handling').count(),0);
   assert.equal(await dialog.getByText(t('handlingCompanyPaid'),{exact:true}).count(),0);assert.equal(await dialog.getByText(t('companyUnpaid'),{exact:true}).count(),0);
   await dialog.locator('#purchase-category').selectOption('company.supplies');await dialog.locator('#purchase-amount').fill('300');await dialog.locator('#purchase-description').fill('Synthetic purchase request');await dialog.locator('#purchase-vendor').fill('Typed supplier');assert.equal(await dialog.getByRole('combobox',{name:t('supplierKnown'),exact:true}).count(),0);
   await choose('inclusive','withhold');await overflow();await page.screenshot({path:out+`/purchase-create-${locale}-${width}.png`});
