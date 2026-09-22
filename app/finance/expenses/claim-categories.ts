@@ -6,6 +6,7 @@ export type ClaimCategory = { value: string; label: Record<UiLocale, string>; gr
 const travel = { th: "เดินทาง", en: "Travel" }, court = { th: "งานคดี / ราชการ", en: "Cases / Government" }, documents = { th: "เอกสาร / การจัดส่ง", en: "Documents / Delivery" }, operations = { th: "การปฏิบัติงาน", en: "Work expenses" };
 const category = (value: string, en: string, group: ClaimCategory["group"], keywords = ""): ClaimCategory => ({ value, label: { th: value, en }, group, keywords });
 export const claimCategories: readonly ClaimCategory[] = [
+ category("ค่าเดินทาง", "Travel (general)", travel),
  category("ค่าแท็กซี่ / Grab / รถรับจ้าง", "Taxi / Grab / Hired transport", travel),
  category("ค่าโดยสารสาธารณะ", "Public transport", travel),
  category("ค่าน้ำมัน", "Fuel", travel),

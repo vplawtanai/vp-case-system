@@ -156,6 +156,9 @@ async function main(){
   if(process.argv.includes('--linkage-only')){
    const scenarios=await require('./purchase-linkage-browser.cjs')({page,url,out,translate});assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,scenarios,artifacts:out,externalRequests:0}));return;
   }
+  if(process.argv.includes('--optional-description')){
+   const scenarios=await require('./optional-description-browser.cjs')({page,url,out,translate});assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,scenarios,artifacts:out,externalRequests:0}));return;
+  }
   if(process.argv.includes('--linkage-search')){
    const scenarios=await require('./linkage-search-browser.cjs')({page,url,out,translate});assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,scenarios,artifacts:out,externalRequests:0}));return;
   }

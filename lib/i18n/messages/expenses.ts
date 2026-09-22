@@ -1,5 +1,6 @@
 import type { MessageCatalog } from "../core";
 const copy: Record<string, [string, string]> = {
+ additionalDetails: ["รายละเอียดเพิ่มเติม (ถ้ามี)", "Additional details (optional)"],
  claimCategorySearch: ["พิมพ์เพื่อค้นหา...", "Type to search..."],
  claimCategorySelectRequired: ["กรุณาเลือกหมวดรายการจากตัวเลือก", "Select a category from the options."],
  claimCustomCategory: ["ระบุหมวดรายการ", "Specify category"],

@@ -35,7 +35,7 @@ export function ClaimRequestForm({ row, lookups, busy, itemNumber, onCapture, on
   {category === "Other" ? <FieldGroup id="claim-custom-category" label={t("expenses.claimCustomCategory")}><input required pattern={".*\\S.*"} maxLength={150} value={form.category} onChange={e => set("category",e.target.value)} /></FieldGroup> : null}
   <FieldGroup id="claim-vendor" label={t("expenses.claimVendor")}><input maxLength={300} value={form.vendor_name} onChange={e => set("vendor_name",e.target.value)} /></FieldGroup>
   <FieldGroup id="claim-amount" label={t("expenses.claimPersonalAmount")}><input type="number" required min="0.01" step="0.01" value={form.gross_amount} onChange={e => set("gross_amount",e.target.value)} /></FieldGroup>
-  <FieldGroup id="claim-description" className={css.full} label={t("expenses.description")}><input required maxLength={2000} value={form.description} onChange={e => set("description",e.target.value)} /></FieldGroup>
+  <FieldGroup id="claim-description" className={css.full} label={t("expenses.additionalDetails")}><input maxLength={2000} value={form.description} onChange={e => set("description",e.target.value)} /></FieldGroup>
  </div>
  <div className={css.linkage}>
   <label className={css.relatedToggle}><input type="checkbox" checked={related} aria-controls="claim-context" aria-expanded={related} onChange={e => { setRelated(e.target.checked); if (!e.target.checked) setContext({ client_id: "", case_id: null, advisory_matter_id: null }); }} />{t("expenses.purchaseRelatedWork")}</label>

@@ -39,7 +39,7 @@ export function PurchaseRequestForm({ row, lookups, busy, itemNumber, onCapture,
   {category === "Other" ? <FieldGroup id="purchase-custom-category" label={t("finance.legacy.fields.customCategory")}><input required maxLength={150} value={form.category} onChange={e => set("category",e.target.value)} /></FieldGroup> : null}
   <FieldGroup id="purchase-vendor" label={t("expenses.purchaseRequestVendor")}><input required maxLength={300} value={form.vendor_name} onChange={e => set("vendor_name",e.target.value)} /></FieldGroup>
   <FieldGroup id="purchase-amount" label={t("expenses.amount")}><input type="number" required min="0.01" step="0.01" value={form.gross_amount} onChange={e => set("gross_amount",e.target.value)} /></FieldGroup>
-  <FieldGroup id="purchase-description" className={css.full} label={t("expenses.description")}><input required maxLength={2000} value={form.description} onChange={e => set("description",e.target.value)} /></FieldGroup>
+  <FieldGroup id="purchase-description" className={css.full} label={t("expenses.additionalDetails")}><input maxLength={2000} value={form.description} onChange={e => set("description",e.target.value)} /></FieldGroup>
  </div>
  <div className={css.linkage}>
   <label className={css.relatedToggle}><input type="checkbox" checked={related} aria-controls="purchase-context" aria-expanded={related} onChange={e => { setRelated(e.target.checked); if (!e.target.checked) setContext({ client_id: "", case_id: null, advisory_matter_id: null }); }} />{t("expenses.purchaseRelatedWork")}</label>
