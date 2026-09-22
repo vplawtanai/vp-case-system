@@ -1,7 +1,7 @@
 "use client";
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, Pencil, Send } from "lucide-react";
+import { ArrowRight, Pencil, Send, UserRound } from "lucide-react";
 import DetailModal from "../../components/DetailModal";
 import { Callout } from "../../components/ui/patterns";
 import ui from "../../components/ui/vp-ui.module.css";
@@ -12,6 +12,7 @@ import { hasReimbursement, itemStage, requestNextAction, requestStage, requestTi
 import { expenseCategoryLabel } from "./categories";
 import { expenseHref, pendingExpenseTax, type Expense, type ExpenseAccess } from "./shared";
 import type { ExpenseRun } from "./forms";
+import { claimStatus } from "./claim-review";
 import css from "./expenses.module.css";
 
 const stageKey = (stage: string) => stage === "accepted" ? "requestAccepted" : stage === "rejected" ? "requestRejected" : stage;
@@ -20,6 +21,20 @@ export function ExpenseRequestRow({ request, access, onOpen }: { request: Expens
  const { t, locale, date } = useI18n(), totals = requestTotals(request.items);
  const dates = request.items.map(e => e.expense_date).sort(), claim = request.kind === "employee_claim";
  const reviewable = access?.can_manage && request.items.some(e => e.status === "submitted");
+ if (claim) {
+  const money=(v:number)=>`${v.toLocaleString(locale,{minimumFractionDigits:2,maximumFractionDigits:2})} THB`;
+  const approved=request.items.filter(i=>i.settlement);
+  return <tr data-request-row={request.id}>
+   <td data-label={t("expenses.reference")}><strong>{requestReference(request.id)}</strong><small>{request.items.map(i=>i.description).join(" · ")}</small></td>
+   <td data-label={t("expenses.requestClaimant")}><span className={css.actions}><UserRound size={20} aria-hidden="true"/>{request.requester_name}</span></td>
+   <td data-label={t("expenses.itemCount")}>{totals.count}</td>
+   <td data-label={t("expenses.requested")}>{money(totals.requested)}</td>
+   <td data-label={t("expenses.approved")}>{approved.length?money(approved.reduce((n,i)=>n+Math.round(i.settlement!.amount*100),0)/100):t("expenses.awaitingDecision")}</td>
+   <td data-label={t("expenses.status")}><span className={css.badge}>{t(`expenses.${claimStatus(request.items)}`)}</span></td>
+   <td data-label={t("expenses.requestSubmittedAt")}><WorkflowDate value={requestWorkflowTime(request)}/></td>
+   <td data-label={t("expenses.action")}><button type="button" className={reviewable?ui.primary:ui.secondary} onClick={onOpen}>{t(reviewable?"expenses.reviewRequest":"expenses.view")}<ArrowRight size={14}/></button></td>
+  </tr>;
+ }
  return <tr data-request-row={request.id}><td colSpan={7} className={css.requestCell}><div className={css.requestQueueRow}>
   <div><strong>{requestReference(request.id)} · {request.requester_name}</strong><small>{t(claim ? "expenses.claims" : "expenses.newBatch")} · {t("expenses.count", { count: totals.count })}</small><small>{t("expenses.date")}: {date(dates[0])}{dates[0] !== dates.at(-1) ? ` - ${date(dates.at(-1))}` : ""}</small><small>{request.note}</small></div>
   <div><span>{t("expenses.expenseTotal")}</span><strong>{totals.gross.toLocaleString(locale, { minimumFractionDigits: 2 })} THB</strong>{hasReimbursement(claim, request.items) ? <small>{t(claim ? "expenses.requestedTotal" : "expenses.staffRequestedTotal")}: {totals.requested.toLocaleString(locale, { minimumFractionDigits: 2 })} THB</small> : null}</div>

@@ -13,7 +13,8 @@ f.data.access.creator_payment_fact_supported=params.get('schema')!=='056';
 f.data.access.company_declaration_without_account_supported=!['056','057'].includes(params.get('schema'));
 f.data.access.company_tax_calculation_supported=params.has('tax059');
 f.data.access.company_purchase_request_supported=params.has('purchase060');
-if(params.has('purchase060')){
+f.data.access.employee_reimbursement_review_supported=params.has('claim061');
+if(params.has('purchase060')||params.has('claim061')){
  f.data.access.company_tax_calculation_supported=true;
  f.lookups.clients.push({id:'other-client',name:'Other client'});
  f.lookups.cases.push({id:56,client_id:'other-client',file_no:'OTHER',title:'Other case'});
@@ -24,7 +25,7 @@ if(creator)f.data.access={...f.data.access,can_manage:false,can_tax_review:false
 f.data.access.can_create_company=f.data.access.can_manage||f.data.access.can_claim||f.data.access.can_record;
 if(creator){f.data.accounts=[];f.lookups.payees=[];}
 window.fixtureCash=[];
-const makeItem=(i,input={})=>({...seed,id:'00000000-0056-4000-8000-00000000000'+i,origin:claim?'employee_claim':'company_purchase',created_by:f.data.access.user_id,request_id:'00000000-0056-4000-8000-000000000900',request_active:true,version:2,status:'draft',audit:[],submitted_at:null,review_reason:null,gross_amount:i===1?300:120,description:'Synthetic item '+i,personally_paid:claim,reimbursement_requested:claim?(i===1?300:120):0,...input});
+const makeItem=(i,input={})=>({...seed,id:'00000000-0056-4000-8000-00000000000'+i,origin:claim?'employee_claim':'company_purchase',created_by:f.data.access.user_id,request_id:'00000000-0056-4000-8000-000000000900',request_active:true,version:2,status:'draft',audit:[],submitted_at:null,review_reason:null,gross_amount:i===1?300:120,description:'Synthetic item '+i,personally_paid:claim,claimant_id:claim?f.data.access.user_id:null,claimant_name:claim?'Synthetic staff':null,reimbursement_requested:claim?(i===1?300:120):0,...input});
 if(scenario){const status=scenario==='draft'?'draft':scenario==='submitted'?'submitted':scenario==='rejected'?'rejected':'accepted',at='2026-09-19T04:00:00Z';requests=[{id:'00000000-0056-4000-8000-000000000900',kind:claim?'employee_claim':'company_expense_batch',status:scenario==='draft'?'draft':'submitted',version:2,note:'',created_at:'2026-09-18T01:00:00Z',submitted_at:scenario==='draft'?null:at,created_by:f.data.access.user_id,requester_name:'Synthetic staff',audit:[],items:[1,2].map(i=>makeItem(i,{status,submitted_at:scenario==='draft'?null:at,review_reason:status==='rejected'?'Synthetic rejection reason':null,tax_review:scenario==='waiting'||scenario==='paid'?tax:null,settlement:scenario==='waiting'||scenario==='paid'?{id:'settlement-'+i,mode:'supplier_unpaid',amount:300,payee_id:obligation.payee_id,reason:'Synthetic decision'}:null,obligation:scenario==='waiting'||scenario==='paid'?{...obligation,id:'obligation-'+i,settled:scenario==='paid',created_at:'2026-09-19T06:00:00Z'}:null,payout:scenario==='paid'?{id:'paid-'+i,status:'confirmed',gross:300,net:300,wht:0,paid_on:'2026-09-20'}:null,audit:[...(status==='accepted'||status==='rejected'?[{id:'review-'+i,event_type:status,created_at:'2026-09-19T05:00:00Z',actor_name:'Finance',evidence_json:null}]:[]),...(scenario==='paid'?[{id:'payment-'+i,event_type:'payment_confirmed',created_at:'2026-09-20T05:00:00Z',actor_name:'Finance',evidence_json:null}]:[])]}))}];}
 if(!claim&&scenario){
  const r=requests[0];
@@ -81,6 +82,15 @@ export const supabase={from(table){
   return{data:{schema_version:2,declared_amount:i.gross_amount,vat_base:values[0],vat_rate:v.vat_mode==='none'?0:v.vat_rate,vat_amount:values[1],gross:values[2],wht_base:v.wht_state==='withhold'?values[0]:0,wht_rate:v.wht_state==='withhold'?v.wht_rate:0,wht_amount:wht,net:values[2]===null||wht===null?null:values[2]-wht,ready:missing.length===0,missing}};
  }
  if(name==='get_finance_expense_parties')return{data:structuredClone(f.lookups)};
+ if(name==='review_finance_employee_reimbursement'){
+  if(operations.has(args.p_operation))return{data:args.p_expense};
+  const i=requests.flatMap(r=>r.items).find(i=>i.id===args.p_expense);
+  if(!i||i.status!=='submitted'||i.version!==args.p_version)throw Error('Stale claim');
+  i.status=args.p_accept?'accepted':'rejected';i.review_reason=args.p_reason;i.version++;
+  if(args.p_accept){i.settlement={id:args.p_operation,mode:'reimburse',payee_id:f.data.access.user_id,amount:args.p_amount,reason:args.p_reason};i.obligation={...obligation,id:args.p_operation,source_type:'employee_reimbursement',payee_id:f.data.access.user_id,gross_amount:args.p_amount,settled:false};}
+  operations.add(args.p_operation);window.writes.push(name);
+  if(window.loseReviewResponse){window.loseReviewResponse=false;return{error:{message:'Network lost after review'}};}return{data:i.id};
+ }
  if(name==='review_finance_company_purchase_request'){
   if(operations.has(args.p_operation))return{data:args.p_expense};
   const i=requests.flatMap(r=>r.items).find(i=>i.id===args.p_expense);
@@ -98,7 +108,7 @@ export const supabase={from(table){
  if(name==='save_finance_payee'){if(window.denyPayee){window.denyPayee=false;return{error:{message:'PAYOUT_PERMISSION_DENIED'}};}if(f.lookups.payees.some(p=>p.id===args.p_id))throw Error('Duplicate fixture payee');f.lookups.payees.push({id:args.p_id,profile_id:args.p_profile_id,legal_name:args.p_profile_id?'Synthetic personal payer':args.p_input.legal_name});window.writes.push(name);return{data:args.p_id};}
  if(window.failSave&&name==='save_finance_expense_request'){window.failSave=false;return{error:{message:'EXPENSE_PERMISSION_DENIED'}};}
  if(window.failSubmit&&name==='submit_finance_expense_request'){window.failSubmit=false;return{error:{message:'EXPENSE_PERMISSION_DENIED'}};}
- if(name==='save_finance_expense_request'){if(operations.has(args.p_operation))return{data:args.p_id};const old=requests.find(r=>r.id===args.p_id);if(old&&old.version!==args.p_version)throw Error('Stale fixture save');const row={id:args.p_id,kind:args.p_kind,note:args.p_note,status:'draft',version:(old?.version||0)+1,created_at:'2026-09-18T01:00:00Z',submitted_at:null,created_by:f.data.access.user_id,requester_name:'Synthetic staff',audit:[],items:args.p_items.map((i,n)=>makeItem(n+1,{...i.input,id:i.id,request_id:args.p_id,version:(i.version||0)+1}))};requests=[...requests.filter(r=>r.id!==row.id),row];operations.add(args.p_operation);window.writes.push(name);if(window.loseSaveResponse){window.loseSaveResponse=false;return{error:{message:'Network failed after commit'}};}return{data:row.id};}
+ if(name==='save_finance_expense_request'){if(operations.has(args.p_operation))return{data:args.p_id};const old=requests.find(r=>r.id===args.p_id);if(old&&old.version!==args.p_version)throw Error('Stale fixture save');const row={id:args.p_id,kind:args.p_kind,note:args.p_note,status:'draft',version:(old?.version||0)+1,created_at:'2026-09-18T01:00:00Z',submitted_at:null,created_by:f.data.access.user_id,requester_name:'Synthetic staff',audit:[],items:args.p_items.map((i,n)=>makeItem(n+1,{...i.input,id:i.id,request_id:args.p_id,version:(i.version||0)+1}))};requests=[...requests.filter(r=>r.id!==row.id),row];window.fixtureRequests=requests;operations.add(args.p_operation);window.writes.push(name);if(window.loseSaveResponse){window.loseSaveResponse=false;return{error:{message:'Network failed after commit'}};}return{data:row.id};}
  if(name==='submit_finance_expense_request'){const r=requests.find(r=>r.id===args.p_id);if(r.status==='submitted')return{data:r.id};if(r.version!==args.p_version)throw Error('Wrong saved version');r.status='submitted';r.submitted_at='2026-09-20T04:42:00Z';r.version++;r.items.forEach(i=>{i.status='submitted';i.submitted_at=r.submitted_at;i.version++;});window.writes.push(name);if(window.loseSubmitResponse){window.loseSubmitResponse=false;return{error:{message:'Network failed after submit'}};}return{data:r.id};}
  if(name==='review_finance_expense'){const r=requests.find(r=>r.items.some(i=>i.id===args.p_id)),i=r.items.find(i=>i.id===args.p_id);if(i.status!=='submitted'||i.version!==args.p_version)throw Error('Approval fixture guard');i.status=args.p_accept?'accepted':'rejected';i.review_reason=args.p_reason;i.version++;window.writes.push(name);return{data:i.id};}
  if(name==='review_finance_expense_tax'){
@@ -139,6 +149,16 @@ async function main(){
   const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'/Users/paolawyer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
   const page=await browser.newPage(),errors=[],external=[];page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>{if(new URL(r.request().url()).hostname==='127.0.0.1')return r.continue();external.push(r.request().url());return r.abort();});
   require('./receipt-render-fixture.cjs');const {translate}=require('../../lib/i18n/catalog.ts'),url='http://127.0.0.1:'+server.address().port;
+  if(process.argv.includes('--purchase-core')){
+   const scenarios=await require('./purchase-request-browser.cjs')({page,url,out,translate});assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,scenarios,artifacts:out,externalRequests:0}));return;
+  }
+  if(process.argv.includes('--linkage-only')){
+   const scenarios=await require('./purchase-linkage-browser.cjs')({page,url,out,translate});assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,scenarios,artifacts:out,externalRequests:0}));return;
+  }
+  if(process.argv.includes('--claim061')){
+   const scenarios=await require('./employee-reimbursement-browser.cjs')({page,url,out,translate});
+   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,scenarios,artifacts:out,externalRequests:0}));return;
+  }
   if(process.argv.includes('--payment-status')){
    const scenarios=await require('./company-payment-status-browser.cjs')({page,url,out,translate});
    assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,scenarios,artifacts:out,externalRequests:0}));return;

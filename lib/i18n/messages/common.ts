@@ -58,7 +58,7 @@ export const commonMessages = {
   "finance.nav.combined": { th: "ใบเสร็จรับเงิน/ใบกำกับภาษี", en: "Receipt / Tax Invoice" },
   "finance.nav.legacy": { th: "เดิม", en: "Legacy" },
   "finance.nav.legacyLedger": { th: "เงินรับ–จ่ายเดิม", en: "Legacy Ledger" },
-  "finance.nav.expenseClaims": { th: "เบิกค่าใช้จ่าย", en: "Expense Claims" },
+  "finance.nav.expenseClaims": { th: "เบิกคืนค่าใช้จ่าย", en: "Expense Reimbursements" },
   "finance.nav.compensation": { th: "ค่าตอบแทนทนาย (เดิม)", en: "Lawyer Compensation (Legacy)" },
   "finance.list.open": { th: "เปิดดู", en: "Open" },
   "finance.list.customerUnavailable": { th: "ไม่พบชื่อลูกค้า", en: "Client name unavailable" },

@@ -15,6 +15,7 @@ import { readExpenseRequest } from "./data";
 import { hasReimbursement } from "./request-operations";
 import { companyMoneyIncomplete, creatorPaymentLabel } from "./company-money";
 import { companyDeclarationsMatch } from "./company-declarations";
+import { ClaimRequestForm } from "./claim-request-form";
 import { PurchaseRequestForm } from "./purchase-request-form";
 
 type Props = { request?: ExpenseRequest; claim: boolean; access: ExpenseAccess; accounts: ExpenseAccount[]; lookups: ExpenseLookups; run: ExpenseRun; busy: boolean; error: string; onClose: () => void; onSaved: (id: string, request: ExpenseRequest) => void };
@@ -108,7 +109,7 @@ export function ExpenseRequestModal({ request, claim, access, accounts, lookups,
     </article>)}</div>
     <button type="button" className={`${ui.secondary} ${css.addRequestItem}`} disabled={blocked || !!editing || items.length >= 100} onClick={() => setEditing(crypto.randomUUID())}><Plus size={17} />{t("expenses.addItem")}</button>
     {editing ? <section ref={editor} className={`${css.itemEditor} ${claim ? "" : company.createEditor}`} aria-label={t("expenses.editItem")}>
-     {purchase ? <PurchaseRequestForm key={editing} itemNumber={edited ? items.indexOf(edited)+1 : items.length+1} row={edited ? editorRow(edited,false) : undefined} lookups={lookups} busy={busy} onDirty={setEditorDirty} onCapture={capture} /> : <ExpenseFactsForm key={editing} itemNumber={edited ? items.indexOf(edited) + 1 : items.length + 1} row={edited ? editorRow(edited, claim) : undefined} claim={claim} access={access} accounts={accounts} lookups={lookups} run={run} busy={busy} onDirty={setEditorDirty} onCapture={input => {
+     {claim ? <ClaimRequestForm key={editing} itemNumber={edited ? items.indexOf(edited)+1 : items.length+1} row={edited ? editorRow(edited,true) : undefined} lookups={lookups} busy={busy} onDirty={setEditorDirty} onCapture={capture} /> : purchase ? <PurchaseRequestForm key={editing} itemNumber={edited ? items.indexOf(edited)+1 : items.length+1} row={edited ? editorRow(edited,false) : undefined} lookups={lookups} busy={busy} onDirty={setEditorDirty} onCapture={capture} /> : <ExpenseFactsForm key={editing} itemNumber={edited ? items.indexOf(edited) + 1 : items.length + 1} row={edited ? editorRow(edited, claim) : undefined} claim={claim} access={access} accounts={accounts} lookups={lookups} run={run} busy={busy} onDirty={setEditorDirty} onCapture={input => {
       const next = { id: editing, version: edited?.version ?? null, input };
       setItems(old => edited ? old.map(i => i.id === editing ? next : i) : [...old, next]); setEditing(null); setEditorDirty(false); setDirty(true);
      }} />}
