@@ -10,7 +10,7 @@ module.exports=async({page,url,out,translate})=>{
    await page.getByRole('button',{name:t('new'),exact:true}).click();
    const toggle=dialog.getByRole('checkbox',{name:t('purchaseRelatedWork'),exact:true});
    assert.equal(await toggle.isChecked(),false);assert.equal(await dialog.locator('#purchase-context').count(),0);
-   await dialog.locator('#purchase-category').selectOption('company.supplies');await dialog.locator('#purchase-amount').fill('300');await dialog.locator('#purchase-description').fill('Optional linkage fixture');await dialog.locator('#purchase-vendor').fill('Typed recipient');
+   await dialog.locator('#purchase-category').click();await dialog.getByRole('option',{name:locale==='th'?'วัสดุสำนักงาน':'Office supplies',exact:true}).click();await dialog.locator('#purchase-amount').fill('300');await dialog.locator('#purchase-description').fill('Optional linkage fixture');await dialog.locator('#purchase-vendor').fill('Typed recipient');
    let client=null,caseId=null,advisory=null;
    if(mode!=='none'){
     await toggle.check();

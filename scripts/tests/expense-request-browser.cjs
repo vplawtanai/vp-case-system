@@ -156,6 +156,9 @@ async function main(){
   if(process.argv.includes('--linkage-only')){
    const scenarios=await require('./purchase-linkage-browser.cjs')({page,url,out,translate});assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,scenarios,artifacts:out,externalRequests:0}));return;
   }
+  if(process.argv.includes('--purchase-category')){
+   const scenarios=await require('./purchase-category-browser.cjs')({page,url,out,translate});assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,scenarios,artifacts:out,externalRequests:0}));return;
+  }
   if(process.argv.includes('--claim-polish')){
    const scenarios=await require('./claim-create-polish-browser.cjs')({page,url,out,translate});assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,scenarios,artifacts:out,externalRequests:0}));return;
   }
