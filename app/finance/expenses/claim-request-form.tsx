@@ -8,6 +8,7 @@ import { bangkokToday } from "../payouts/review";
 import { expenseCategoryChoice, expenseCategoryLabel } from "./categories";
 import { claimCategories, claimCategoryOptions } from "./claim-categories";
 import { ClaimCategoryCombobox } from "./claim-category-combobox";
+import { RequestLinkageFields } from "./request-linkage-fields";
 import type { Expense, ExpenseLookups } from "./shared";
 import css from "./purchase-request.module.css";
 
@@ -38,9 +39,6 @@ export function ClaimRequestForm({ row, lookups, busy, itemNumber, onCapture, on
  </div>
  <div className={css.linkage}>
   <label className={css.relatedToggle}><input type="checkbox" checked={related} aria-controls="claim-context" aria-expanded={related} onChange={e => { setRelated(e.target.checked); if (!e.target.checked) setContext({ client_id: "", case_id: null, advisory_matter_id: null }); }} />{t("expenses.purchaseRelatedWork")}</label>
-  {related ? <div id="claim-context" className={css.fields}>
-   <FieldGroup id="claim-client" label={t("expenses.client")}><select value={context.client_id} onChange={e => setContext({ client_id: e.target.value, case_id: null, advisory_matter_id: null })}><option value="">{t("expenses.optional")}</option>{lookups.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></FieldGroup>
-   <FieldGroup id="claim-work" label={t("expenses.purchaseWork")}><select value={work} onChange={e => selectWork(e.target.value)}><option value="">{t("expenses.optional")}</option><optgroup label={t("expenses.case")}>{lookups.cases.filter(c => c.client_id && (!context.client_id || c.client_id === context.client_id)).map(c => <option key={c.id} value={`case:${c.id}`}>{c.file_no} {c.title}</option>)}</optgroup><optgroup label={t("expenses.matter")}>{lookups.matters.filter(m => m.client_id && (!context.client_id || m.client_id === context.client_id)).map(m => <option key={m.id} value={`advisory:${m.id}`}>{m.matter_no} {m.title}</option>)}</optgroup></select></FieldGroup>
-  </div> : null}
+  {related ? <RequestLinkageFields prefix="claim" lookups={lookups} clientId={context.client_id} work={work} disabled={busy} onClientChange={value => { onDirty(true);if (value !== context.client_id) setContext({ client_id: value, case_id: null, advisory_matter_id: null }); }} onWorkChange={value => { onDirty(true);selectWork(value); }} /> : null}
  </div><div className={css.actions}><button type="submit" className={ui.secondary}><Check size={17} />{t(row ? "expenses.saveItemChanges" : "expenses.addThisItem")}</button></div></fieldset></form>;
 }

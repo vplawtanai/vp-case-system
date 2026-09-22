@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const assert=require('node:assert/strict');
 module.exports=async({page,url,out,translate})=>{
+ const links=require('./linkage-combobox-helper.cjs')(page.getByRole('dialog'),'claim');
  let scenarios=0;
  for(const [width,locale] of [[390,'th'],[1440,'th'],[1440,'en']]){
   const t=k=>translate(locale,'expenses.'+k),dialog=page.getByRole('dialog');
@@ -14,18 +15,18 @@ module.exports=async({page,url,out,translate})=>{
    let client=null,caseId=null,advisory=null;
    if(mode!=='none'){
     await toggle.check();
-    client=await dialog.locator('#claim-client option').nth(1).getAttribute('value');
+    client=await links.firstClient();
     if(mode==='empty')client=null;
-    else if(mode==='client') await dialog.locator('#claim-client').selectOption(client);
+    else if(mode==='client') await links.choose('client',client);
     else {
-     await dialog.locator('#claim-work').selectOption('case:55');
-     assert.equal(await dialog.locator('#claim-client').inputValue(),client);
-     await dialog.locator('#claim-client').selectOption('other-client');
-     assert.equal(await dialog.locator('#claim-work').inputValue(),'');
-     assert.equal(await dialog.locator('#claim-work option[value="case:55"]').count(),0);
-     await dialog.locator('#claim-client').selectOption(mode==='case'?client:'');
-     await dialog.locator('#claim-work').selectOption(mode==='advisory'?'advisory:advisory-test':'case:55');
-     assert.equal(await dialog.locator('#claim-client').inputValue(),client);
+     await links.choose('work','case:55');
+     assert.equal(await links.value('client'),client);
+     await links.choose('client','other-client');
+     assert.equal(await links.value('work'),'');
+     await links.absent('case:55');
+     await links.choose('client',mode==='case'?client:'');
+     await links.choose('work',mode==='advisory'?'advisory:advisory-test':'case:55');
+     assert.equal(await links.value('client'),client);
      if(mode==='advisory')advisory='advisory-test';else caseId=55;
     }
     if(mode==='cleared'){await toggle.uncheck();client=null;caseId=null;assert.equal(await dialog.locator('#claim-context').count(),0);}
@@ -40,7 +41,7 @@ module.exports=async({page,url,out,translate})=>{
    if(client){assert.match(await dialog.locator('[data-claim-linkage]').innerText(),/Synthetic client/);if(caseId)assert.match(await dialog.locator('[data-claim-linkage]').innerText(),/Synthetic case/);if(advisory)assert.match(await dialog.locator('[data-claim-linkage]').innerText(),/Synthetic advisory/);}
    await dialog.getByRole('button',{name:t('editRequest'),exact:true}).click();await dialog.getByRole('button',{name:t('editItem'),exact:true}).click();
    assert.equal(await toggle.isChecked(),!!client);
-   if(client){assert.equal(await dialog.locator('#claim-client').inputValue(),client);assert.equal(await dialog.locator('#claim-work').inputValue(),caseId?'case:55':advisory?'advisory:advisory-test':'');}
+   if(client){assert.equal(await links.value('client'),client);assert.equal(await links.value('work'),caseId?'case:55':advisory?'advisory:advisory-test':'');}
    if(mode==='advisory'){await dialog.locator('#claim-context').scrollIntoViewIfNeeded();assert.equal(await dialog.evaluate(e=>e.scrollWidth>e.clientWidth+1),false);await page.screenshot({path:out+`/claim-linkage-${locale}-${width}.png`});}
    await dialog.getByRole('button',{name:t('saveItemChanges'),exact:true}).click();await dialog.getByRole('button',{name:t('submitRequest'),exact:true}).click();
    await dialog.locator('#claim-approved').waitFor();assert.equal(await dialog.locator('#claim-approved').inputValue(),'300');
