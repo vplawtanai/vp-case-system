@@ -1,5 +1,8 @@
 import type { MessageCatalog } from "../core";
 const copy: Record<string, [string, string]> = {
+ partiallyPaid: ["จ่ายแล้วบางส่วน", "Partially paid"],
+ partialPaymentProgress: ["จ่ายแล้ว {paid}/{total} รายการ · รอจ่าย {unpaid} รายการ", "Paid {paid}/{total} items · {unpaid} awaiting payment"],
+ actualCashOut: ["เงินจริงออก", "Actual cash outflow"],
  purchaseRelatedWork: ["เกี่ยวข้องกับลูกค้าหรืองาน", "Related to a client or matter"],
  purchaseWork: ["เคส / งานที่ปรึกษา", "Case / Advisory matter"],
  purchaseRequestCreate: ["สร้างคำขอซื้อหรือค่าใช้จ่าย", "Create purchase or expense request"],

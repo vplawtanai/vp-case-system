@@ -38,6 +38,14 @@ if(!claim&&scenario){
 }
 window.fixtureRequests=requests;
 if(params.has('purchase060')&&!params.has('historical'))requests.filter(r=>r.kind==='company_expense_batch').forEach(r=>r.items.forEach(i=>{i.creator_tax={vat_mode:'inclusive',vat_rate:7,wht_state:'withhold',wht_rate:3};}));
+if(params.has('paymentCount')){
+ const paid=Number(params.get('paymentCount'));
+ requests.filter(r=>r.kind==='company_expense_batch').forEach(r=>r.items.forEach((i,n)=>{
+  i.status='accepted';i.gross_amount=3000;i.tax_review={...tax,wht_state:'withhold',wht_amount:90,eligibility:'pending',request_json:{schema_version:2}};
+  i.settlement={id:'settlement-'+n,mode:'supplier_unpaid',amount:3000};i.obligation={...obligation,gross_amount:3000,settled:n<paid,waived:false};
+  i.payout=n<paid?{id:'payout-'+n,status:'confirmed',gross:3000,net:2910,wht:90}:null;
+ }));
+}
 if(params.has('ux')){
  f.data.access.is_admin=params.get('admin')==='1';
  const a=f.data.accounts[0];a.name='KBANK';f.data.accounts.push({...a,id:'ktb',name:'KTB',bank_account_id:'ktb',opening_as_of:null},{...a,id:'handoff',name:'Prepare-only',bank_account_id:'handoff',can_confirm:false},{...a,id:'denied',name:'Read-only account',bank_account_id:'denied',can_record:false});
@@ -131,6 +139,10 @@ async function main(){
   const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'/Users/paolawyer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
   const page=await browser.newPage(),errors=[],external=[];page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>{if(new URL(r.request().url()).hostname==='127.0.0.1')return r.continue();external.push(r.request().url());return r.abort();});
   require('./receipt-render-fixture.cjs');const {translate}=require('../../lib/i18n/catalog.ts'),url='http://127.0.0.1:'+server.address().port;
+  if(process.argv.includes('--payment-status')){
+   const scenarios=await require('./company-payment-status-browser.cjs')({page,url,out,translate});
+   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,scenarios,artifacts:out,externalRequests:0}));return;
+  }
   if(process.argv.includes('--purchase060')){
    const scenarios=await require('./purchase-request-browser.cjs')({page,url,out,translate}) + await require('./purchase-linkage-browser.cjs')({page,url,out,translate});
    assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,scenarios,artifacts:out,externalRequests:0}));return;
