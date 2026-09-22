@@ -1,0 +1,11 @@
+.root { position: relative; min-width: 0; }
+.field { position: relative; }
+.field input { padding-right: 36px !important; }
+.field > svg { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; color: #526781; }
+.list { position: absolute; z-index: 10; top: calc(100% + 4px); left: 0; right: 0; max-height: 280px; overflow-y: auto; overscroll-behavior: contain; background: #fff; border: 1px solid #cad6e4; border-radius: 6px; box-shadow: 0 8px 20px #182d421a; padding: 4px; }
+.group { padding: 10px 8px 5px; font-size: 12px; font-weight: 700; color: #5c6d82; }
+.option { width: 100%; min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 8px; border: 0; border-radius: 4px; background: #fff; color: #182d42; font: inherit; font-size: 14px; line-height: 1.5; text-align: left; cursor: pointer; }
+.option span { min-width: 0; overflow-wrap: anywhere; }
+.option svg { flex: 0 0 16px; }
+.option[aria-selected=true] { color: #075e47; background: #eaf7f1; font-weight: 600; }
+.option[data-active=true], .option:hover { outline: 2px solid #2872cb; outline-offset: -2px; background: #edf5ff; }

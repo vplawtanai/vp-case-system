@@ -37,6 +37,7 @@ if(!claim&&scenario){
  if(scenario==='missing-payer')f.lookups.payees=f.lookups.payees.filter(p=>!p.profile_id);
  requests.push({...structuredClone(r),id:'00000000-0056-4000-8000-000000000999',kind:'employee_claim',requester_name:'CLAIM MUST NOT LEAK'});
 }
+if(params.has('historicalClaim'))requests.forEach(r=>r.items.forEach(i=>{i.category='ค่าเดินทาง';i.note='Preserved historical item note';}));
 window.fixtureRequests=requests;
 if(params.has('purchase060')&&!params.has('historical'))requests.filter(r=>r.kind==='company_expense_batch').forEach(r=>r.items.forEach(i=>{i.creator_tax={vat_mode:'inclusive',vat_rate:7,wht_state:'withhold',wht_rate:3};}));
 if(params.has('paymentCount')){
@@ -142,7 +143,7 @@ const loader=write('loader.cjs',`module.exports=function(source){if(this.resourc
 const entry=write('entry.tsx',`import React from'react';import{createRoot}from'react-dom/client';import{UiLocaleProvider}from'${root}/lib/i18n/provider.tsx';import{ExpenseWorkspace}from'${root}/app/finance/expenses/workspace.tsx';import{ExpenseObligationQueue}from'${root}/app/finance/payables/multi-source.tsx';import{TreasuryDashboard}from'${root}/app/finance/treasury/dashboard-view.tsx';import{uxFixture}from'${adapter}';const path=location.pathname,f=path.includes('payables')||path.includes('treasury')?uxFixture():null,block=()=>{throw Error('Read-only fixture');};createRoot(document.getElementById('root')).render(<UiLocaleProvider initialLocale={new URLSearchParams(location.search).get('locale')} pathname="/finance/expenses"><main style={{maxWidth:1200,margin:'0 auto',padding:20}}>{path.includes('payables')?<ExpenseObligationQueue rows={f.obligations} isAdmin={f.isAdmin}/>:path.includes('treasury')?<TreasuryDashboard data={f.treasury} offset={0} loading={false} busy={false} onPage={block} onOpening={block} onMaterialize={block}/>:<ExpenseWorkspace claims={path.includes('/claims')}/>}</main></UiLocaleProvider>);`);
 async function main(){
  await new Promise((resolve,reject)=>require('next/dist/compiled/webpack/webpack').webpack({mode:'development',context:root,entry,output:{path:out,filename:'bundle.js'},resolve:{extensions:['.tsx','.ts','.js'],modules:[root+'/node_modules'],alias:{'next/navigation':navigation,'next/link':link,[root+'/lib/supabase']:adapter,[root+'/app/finance/expenses/data']:adapter}},module:{rules:[{test:/\.(tsx?|css|js)$/,exclude:/node_modules/,use:loader}]},devtool:false},(e,s)=>e||s.hasErrors()?reject(e||Error(s.toString({all:false,errors:true}))):resolve()));
- const css=['app/components/ui/vp-ui.module.css','app/components/DetailModal.module.css','app/finance/expenses/expenses.module.css','app/finance/expenses/purchase-request.module.css','app/finance/expenses/company.module.css','app/finance/expenses/company-money.module.css','app/finance/payouts/payout.module.css','app/finance/payables/payables.module.css','app/finance/treasury/treasury.module.css'].map(file=>{const prefix=path.basename(file).replaceAll('.','_')+'_';return fs.readFileSync(root+'/'+file,'utf8').replace(/\.([A-Za-z_][A-Za-z_0-9-]*)/g,(_,key)=>'.'+prefix+key).replace(/:global\(([^)]+)\)/g,'$1');}).join('\n');
+ const css=['app/components/ui/vp-ui.module.css','app/components/DetailModal.module.css','app/finance/expenses/expenses.module.css','app/finance/expenses/purchase-request.module.css','app/finance/expenses/claim-category-combobox.module.css','app/finance/expenses/company.module.css','app/finance/expenses/company-money.module.css','app/finance/payouts/payout.module.css','app/finance/payables/payables.module.css','app/finance/treasury/treasury.module.css'].map(file=>{const prefix=path.basename(file).replaceAll('.','_')+'_';return fs.readFileSync(root+'/'+file,'utf8').replace(/\.([A-Za-z_][A-Za-z_0-9-]*)/g,(_,key)=>'.'+prefix+key).replace(/:global\(([^)]+)\)/g,'$1');}).join('\n');
  const server=http.createServer((req,res)=>{if(req.url==='/bundle.js'){res.setHeader('Content-Type','text/javascript');return res.end(fs.readFileSync(out+'/bundle.js'));}res.setHeader('Content-Type','text/html');res.end(`<!doctype html><html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;color:#182b45}button,input,select,textarea{font-family:inherit}${css}</style><div id="root"></div><script src="/bundle.js"></script></html>`);});
  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});let browser;
  try{
@@ -154,6 +155,9 @@ async function main(){
   }
   if(process.argv.includes('--linkage-only')){
    const scenarios=await require('./purchase-linkage-browser.cjs')({page,url,out,translate});assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,scenarios,artifacts:out,externalRequests:0}));return;
+  }
+  if(process.argv.includes('--claim-polish')){
+   const scenarios=await require('./claim-create-polish-browser.cjs')({page,url,out,translate});assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,scenarios,artifacts:out,externalRequests:0}));return;
   }
   if(process.argv.includes('--claim061')){
    const scenarios=await require('./employee-reimbursement-browser.cjs')({page,url,out,translate});

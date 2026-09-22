@@ -10,7 +10,7 @@ module.exports=async({page,url,out,translate})=>{
    await page.getByRole('button',{name:t('newClaim'),exact:true}).first().click();
    const toggle=dialog.getByRole('checkbox',{name:t('purchaseRelatedWork'),exact:true});
    assert.equal(await toggle.isChecked(),false);assert.equal(await dialog.locator('#claim-context').count(),0);
-   await dialog.locator('#claim-category').selectOption('อุปกรณ์สำนักงาน');await dialog.locator('#claim-amount').fill('300');await dialog.locator('#claim-description').fill('Optional linkage fixture');await dialog.locator('#claim-vendor').fill('Typed recipient');
+   await dialog.locator('#claim-category').click();await dialog.getByRole('option',{name:locale==='th'?'ค่าวัสดุ / อุปกรณ์สำนักงาน':'Office supplies / Equipment',exact:true}).click();await dialog.locator('#claim-amount').fill('300');await dialog.locator('#claim-description').fill('Optional linkage fixture');await dialog.locator('#claim-vendor').fill('Typed recipient');
    let client=null,caseId=null,advisory=null;
    if(mode!=='none'){
     await toggle.check();
@@ -69,12 +69,12 @@ module.exports=async({page,url,out,translate})=>{
  const t=k=>translate('th','expenses.'+k),dialog=page.getByRole('dialog');
  await page.goto(`${url}/finance/expenses/claims?claim061=1&locale=th`);
  await page.getByRole('button',{name:t('newClaim'),exact:true}).first().click();
- await dialog.locator('#claim-category').selectOption('ค่าเดินทาง');await dialog.locator('#claim-amount').fill('3000');await dialog.locator('#claim-description').fill('Personal trip');
+ await dialog.locator('#claim-category').click();await dialog.getByRole('option',{name:'ค่าแท็กซี่ / Grab / รถรับจ้าง',exact:true}).click();await dialog.locator('#claim-amount').fill('3000');await dialog.locator('#claim-description').fill('Personal trip');
  await dialog.getByRole('button',{name:t('addThisItem'),exact:true}).click();
  await dialog.getByRole('button',{name:t('copyItem'),exact:true}).click();assert.equal(await dialog.locator('[data-request-item]').count(),2);
  await dialog.getByRole('button',{name:t('editItem'),exact:true}).last().click();await dialog.locator('#claim-amount').fill('850');await dialog.getByRole('button',{name:t('saveItemChanges'),exact:true}).click();
  await dialog.getByRole('button',{name:t('removeItem'),exact:true}).last().click();assert.equal(await dialog.locator('[data-request-item]').count(),1);
- await dialog.getByRole('button',{name:t('addItem'),exact:true}).click();await dialog.locator('#claim-category').selectOption('ค่าเดินทาง');await dialog.locator('#claim-amount').fill('850');await dialog.locator('#claim-description').fill('Second trip');await dialog.getByRole('button',{name:t('addThisItem'),exact:true}).click();
+ await dialog.getByRole('button',{name:t('addItem'),exact:true}).click();await dialog.locator('#claim-category').click();await dialog.getByRole('option',{name:'ค่าแท็กซี่ / Grab / รถรับจ้าง',exact:true}).click();await dialog.locator('#claim-amount').fill('850');await dialog.locator('#claim-description').fill('Second trip');await dialog.getByRole('button',{name:t('addThisItem'),exact:true}).click();
  await dialog.getByRole('button',{name:t('saveForLater'),exact:true}).click();await dialog.getByRole('button',{name:t('editRequest'),exact:true}).click();assert.equal(await dialog.locator('[data-request-item]').count(),2);
  await dialog.getByRole('button',{name:t('submitRequest'),exact:true}).click();await dialog.locator('#claim-approved').waitFor();
  assert.equal(await dialog.locator('#claim-review-item option').count(),2);await dialog.getByRole('button',{name:t('claimApprove'),exact:true}).click();await dialog.locator('#claim-approved').waitFor({state:'hidden'});

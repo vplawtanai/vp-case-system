@@ -1,5 +1,8 @@
 import type { MessageCatalog } from "../core";
 const copy: Record<string, [string, string]> = {
+ claimCategorySearch: ["พิมพ์เพื่อค้นหา...", "Type to search..."],
+ claimCategorySelectRequired: ["กรุณาเลือกหมวดรายการจากตัวเลือก", "Select a category from the options."],
+ claimCustomCategory: ["ระบุหมวดรายการ", "Specify category"],
  claimPaidDate: ["วันที่จ่ายจริง", "Date personally paid"],
  claimVendor: ["ร้านค้า / ผู้ให้บริการ (ถ้ามี)", "Vendor / service provider (optional)"],
  claimPersonalAmount: ["จำนวนเงินที่จ่ายจริงด้วยเงินส่วนตัว", "Amount personally paid"],
