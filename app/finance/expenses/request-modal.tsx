@@ -15,11 +15,12 @@ import { readExpenseRequest } from "./data";
 import { hasReimbursement } from "./request-operations";
 import { companyMoneyIncomplete, creatorPaymentLabel } from "./company-money";
 import { companyDeclarationsMatch } from "./company-declarations";
+import { PurchaseRequestForm } from "./purchase-request-form";
 
 type Props = { request?: ExpenseRequest; claim: boolean; access: ExpenseAccess; accounts: ExpenseAccount[]; lookups: ExpenseLookups; run: ExpenseRun; busy: boolean; error: string; onClose: () => void; onSaved: (id: string, request: ExpenseRequest) => void };
 export function requestItemFromExpense(row: Expense): RequestItemInput {
  const keys = ["expense_date", "category", "description", "gross_amount", "vendor_name", "supplier_payee_id", "claimant_id", "client_id", "case_id", "advisory_matter_id", "note", "personally_paid", "reimbursement_requested", "vat_awareness", "wht_awareness"] as const;
- return { id: row.id, version: row.version, input: { ...Object.fromEntries(keys.map(k => [k, row[k]])), ...row.request_entry_account, ...(row.creator_payment_fact === undefined ? {} : { creator_payment_fact: row.creator_payment_fact }) } };
+ return { id: row.id, version: row.version, input: { ...Object.fromEntries(keys.map(k => [k, row[k]])), ...row.request_entry_account, ...(row.creator_payment_fact === undefined ? {} : { creator_payment_fact: row.creator_payment_fact }), ...(row.creator_tax ? { company_request_version:1,creator_tax:row.creator_tax } : {}) } };
 }
 // Local editor values only: no server event/history is invented for an unsaved line.
 function editorRow(item: RequestItemInput, claim: boolean): Expense {
@@ -27,6 +28,7 @@ function editorRow(item: RequestItemInput, claim: boolean): Expense {
 }
 export function ExpenseRequestModal({ request, claim, access, accounts, lookups, run, busy, error, onClose, onSaved }: Props) {
  const { t, locale, date } = useI18n();
+ const purchase = !claim && access.company_purchase_request_supported === true && (!request || request.items.every(i => i.creator_tax != null));
  const [id] = useState(() => request?.id || crypto.randomUUID());
  const [items, setItems] = useState<RequestItemInput[]>(() => request?.items.map(requestItemFromExpense) || []);
  const [editing, setEditing] = useState<string | null>(() => request ? null : crypto.randomUUID());
@@ -51,6 +53,11 @@ export function ExpenseRequestModal({ request, claim, access, accounts, lookups,
  }, [claim, editing]);
  const money = (v: number) => `${v.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} THB`;
  const total = (key: string) => items.reduce((n, item) => n + Math.round(Number(item.input[key] || 0) * 100), 0) / 100;
+ const capture = (input: Record<string, unknown>) => {
+  if (!editing) return;
+  const next = { id:editing,version:edited?.version ?? null,input };
+  setItems(old => edited ? old.map(i=>i.id===editing?next:i) : [...old,next]);setEditing(null);setEditorDirty(false);setDirty(true);
+ };
  const close = () => { if (busy || lock.current) return; if (dirty || editorDirty || checkpoint) setConfirmClose(true); else onClose(); };
  async function save(submit = false) {
   if (busy || lock.current || editing || !items.length) return;
@@ -80,7 +87,7 @@ export function ExpenseRequestModal({ request, claim, access, accounts, lookups,
   finally { lock.current = false; setWorking(false); }
  }
  return <>
-  <DetailModal open size={claim ? "workflow" : "detail"} title={t(claim ? "expenses.newClaimRequest" : "expenses.companyNewRequest")} onClose={close} closeOnBackdrop={false}
+  <DetailModal open size={claim ? "workflow" : "detail"} title={t(claim ? "expenses.newClaimRequest" : purchase ? "expenses.purchaseRequestCreate" : "expenses.companyNewRequest")} onClose={close} closeOnBackdrop={false}
    footer={<div className={css.createFooter}><button type="button" className={ui.secondary} disabled={busy || working} onClick={close}>{t("common.actions.close")}</button><button type="button" className={ui.secondary} disabled={busy || working || !!editing || !items.length} onClick={() => void save()}><Save size={17} />{t("expenses.saveForLater")}</button><button type="button" className={ui.primary} disabled={busy || working || !!editing || !items.length || moneyIncomplete} onClick={() => void save(true)}><Send size={17} />{t(claim ? "expenses.submitRequest" : "expenses.sendForReview")}</button></div>}>
    <div className={`${css.page} ${claim ? "" : company.create}`}>
     {localError || error ? <Callout tone="negative" role="alert">{t(`expenses.${localError || error}`)} {checkpoint && !localError ? t("expenses.requestRetry") : null}</Callout> : null}
@@ -91,7 +98,7 @@ export function ExpenseRequestModal({ request, claim, access, accounts, lookups,
      <dl className={css.requestTotals} aria-live="polite"><div><dt>{t("expenses.itemCount")}</dt><dd>{t("expenses.count", { count: items.length })}</dd></div><div><dt>{t("expenses.expenseTotal")}</dt><dd>{money(total("gross_amount"))}</dd></div>{reimbursement ? <div><dt>{t(claim ? "expenses.requestedTotal" : "expenses.staffRequestedTotal")}</dt><dd>{money(total("reimbursement_requested"))}</dd></div> : null}</dl>
     </section>
     <div className={css.requestItems}>{items.map((item, index) => <article key={item.id} className={css.requestItem} data-request-item={item.id}>
-     <div><strong>{t("expenses.itemNumber", { count: index + 1 })}</strong><p>{date(String(item.input.expense_date))} · {expenseCategoryLabel(String(item.input.category), locale)}</p><p>{String(item.input.description)}</p>{!claim ? <small className={css.muted} data-payment-declaration>{item.input.creator_payment_fact === "personal_paid" ? t("expenses.companyPersonalSummary", { name: lookups.people.find(p => p.id === item.input.claimant_id)?.name || t("expenses.companyMissingPayee"), amount: money(Number(item.input.reimbursement_requested)) }) : t(`expenses.${item.input.creator_payment_fact === "unknown" ? "companyAwaitFinance" : creatorPaymentLabel(editorRow(item, false))}`)}{item.input.creator_payment_fact === "unpaid" && (item.input.supplier_payee_id || item.input.vendor_name) ? ` · ${lookups.payees.find(p => p.id === item.input.supplier_payee_id)?.legal_name || String(item.input.vendor_name || "")}` : null}</small> : null}</div>
+     <div><strong>{t("expenses.itemNumber", { count: index + 1 })}</strong><p>{date(String(item.input.expense_date))} · {expenseCategoryLabel(String(item.input.category), locale)}</p><p>{String(item.input.description)}</p>{!claim && !purchase ? <small className={css.muted} data-payment-declaration>{item.input.creator_payment_fact === "personal_paid" ? t("expenses.companyPersonalSummary", { name: lookups.people.find(p => p.id === item.input.claimant_id)?.name || t("expenses.companyMissingPayee"), amount: money(Number(item.input.reimbursement_requested)) }) : t(`expenses.${item.input.creator_payment_fact === "unknown" ? "companyAwaitFinance" : creatorPaymentLabel(editorRow(item, false))}`)}{item.input.creator_payment_fact === "unpaid" && (item.input.supplier_payee_id || item.input.vendor_name) ? ` · ${lookups.payees.find(p => p.id === item.input.supplier_payee_id)?.legal_name || String(item.input.vendor_name || "")}` : null}</small> : null}</div>
      <div className={css.itemAmount}><strong>{money(Number(item.input.gross_amount))}</strong>{hasReimbursement(claim, [item.input]) ? <small>{t("expenses.requested")}: {money(Number(item.input.reimbursement_requested || 0))}</small> : null}</div>
      <div className={css.actions}>{["editItem", "copyItem", "removeItem"].map((action, n) => { const Icon = [Pencil, Copy, Trash2][n]; return <button type="button" key={action} className={ui.secondary} title={t(`expenses.${action}`)} aria-label={t(`expenses.${action}`)} disabled={blocked || !!editing || (n === 1 && items.length >= 100)} onClick={() => {
       if (n === 0) setEditing(item.id);
@@ -101,13 +108,13 @@ export function ExpenseRequestModal({ request, claim, access, accounts, lookups,
     </article>)}</div>
     <button type="button" className={`${ui.secondary} ${css.addRequestItem}`} disabled={blocked || !!editing || items.length >= 100} onClick={() => setEditing(crypto.randomUUID())}><Plus size={17} />{t("expenses.addItem")}</button>
     {editing ? <section ref={editor} className={`${css.itemEditor} ${claim ? "" : company.createEditor}`} aria-label={t("expenses.editItem")}>
-     <ExpenseFactsForm key={editing} itemNumber={edited ? items.indexOf(edited) + 1 : items.length + 1} row={edited ? editorRow(edited, claim) : undefined} claim={claim} access={access} accounts={accounts} lookups={lookups} run={run} busy={busy} onDirty={setEditorDirty} onCapture={input => {
+     {purchase ? <PurchaseRequestForm key={editing} itemNumber={edited ? items.indexOf(edited)+1 : items.length+1} row={edited ? editorRow(edited,false) : undefined} lookups={lookups} busy={busy} onDirty={setEditorDirty} onCapture={capture} /> : <ExpenseFactsForm key={editing} itemNumber={edited ? items.indexOf(edited) + 1 : items.length + 1} row={edited ? editorRow(edited, claim) : undefined} claim={claim} access={access} accounts={accounts} lookups={lookups} run={run} busy={busy} onDirty={setEditorDirty} onCapture={input => {
       const next = { id: editing, version: edited?.version ?? null, input };
       setItems(old => edited ? old.map(i => i.id === editing ? next : i) : [...old, next]); setEditing(null); setEditorDirty(false); setDirty(true);
-     }} />
+     }} />}
      <button type="button" className={ui.secondary} disabled={busy} onClick={() => { if (!editorDirty || window.confirm(t("expenses.discardItem"))) { setEditing(null); setEditorDirty(false); } }}>{t("expenses.cancelItem")}</button>
     </section> : null}
-    <details className={css.disclosure}><summary>{t("expenses.requestNote")}</summary><FieldGroup id="expense-request-note" label={t("expenses.note")}><textarea maxLength={2000} value={note} disabled={blocked} onChange={e => { setNote(e.target.value); setDirty(true); }} /></FieldGroup></details>
+    {!purchase ? <details className={css.disclosure}><summary>{t("expenses.requestNote")}</summary><FieldGroup id="expense-request-note" label={t("expenses.note")}><textarea maxLength={2000} value={note} disabled={blocked} onChange={e => { setNote(e.target.value); setDirty(true); }} /></FieldGroup></details> : null}
    </div>
   </DetailModal>
   {confirmClose ? <DetailModal open size="edit" title={t("common.state.unsaved")} onClose={() => setConfirmClose(false)} closeOnBackdrop={false} footer={<div className={css.actions}><button type="button" className={ui.secondary} onClick={() => setConfirmClose(false)}>{t(checkpoint ? "expenses.continueRequest" : "expenses.keepEditing")}</button><button type="button" className={ui.secondary} onClick={onClose}>{t(checkpoint ? "common.actions.close" : "expenses.discardCreate")}</button></div>}><p>{t(checkpoint ? "expenses.requestCloseCheckpoint" : "expenses.discardCreateHelp")}</p></DetailModal> : null}

@@ -164,6 +164,7 @@ export function ExpensePaymentPanel({ row, access, accounts, run, busy }: { row:
  if (p?.status === "confirmed") return <Callout tone="success">{t("expenses.paid")}: {money(p.net)}<br />{t("expenses.wht")}: {money(p.wht)}</Callout>;
  if (row.obligation?.waived || !row.settlement || ["undecided", "no_reimbursement"].includes(row.settlement.mode)) return null;
  return <section className={css.paymentPanel} id="payment"><h3><Wallet size={18} aria-hidden="true" /> {t("expenses.paymentReview")}</h3>
+  {row.reviewed_recipient_name ? <p>{t("expenses.payee")}: {row.reviewed_recipient_name}</p> : null}
   {(!p || p.status === "cancelled") && access.can_manage ? <form className={css.form} onSubmit={async e => { e.preventDefault(); const a = available.find(a => a.id === account); await run("prepare_finance_expense_payout", { p_id: id, p_expense: row.id, p_version: null, p_paid_on: paidOn, p_bank: a?.bank_account_id || null, p_cash: a?.cash_location_id || null, p_actual_wht: row.tax_review?.request_json?.schema_version === 2 ? row.tax_review.wht_state === "withhold" : withhold, p_note: "" }); }}>
    <AccountSelect accounts={available} value={account} onChange={setAccount} disabled={busy} showReadiness={companyExpense} />
    <FieldGroup id="payout-date" label={t("expenses.paidOn")}><input type="date" required min={row.expense_date} max={bangkokToday()} value={paidOn} disabled={busy} onChange={e => setPaidOn(e.target.value)} /></FieldGroup>

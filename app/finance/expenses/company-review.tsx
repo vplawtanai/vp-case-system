@@ -17,9 +17,14 @@ import { expenseStatusTone } from "./presentation";
 import css from "./expenses.module.css";
 import company from "./company.module.css";
 import { CompanyTaxForm, CompanyTaxSummary, type CompanyTaxCalculation } from "./company-tax";
+import { PurchaseRequestReview, PurchaseRequestItemReview } from "./purchase-request-review";
 
 const stageKey = (s: string) => s === "accepted" ? "requestAccepted" : s === "rejected" ? "requestRejected" : s;
-export function CompanyRequestReview({ request, access, accounts = [], lookups, busy, error, run, onClose, onEdit }: { request: ExpenseRequest; access: ExpenseAccess; accounts?: ExpenseAccount[]; lookups: ExpenseLookups; busy: boolean; error: string; run: ExpenseRun; onClose: () => void; onEdit: () => void }) {
+export function CompanyRequestReview(props: Parameters<typeof HistoricalCompanyRequestReview>[0]) {
+ if (props.access.company_purchase_request_supported && props.request.items.length > 0 && props.request.items.every(i => i.creator_tax != null)) return <PurchaseRequestReview {...props} />;
+ return <HistoricalCompanyRequestReview {...props} />;
+}
+function HistoricalCompanyRequestReview({ request, access, accounts = [], lookups, busy, error, run, onClose, onEdit }: { request: ExpenseRequest; access: ExpenseAccess; accounts?: ExpenseAccount[]; lookups: ExpenseLookups; busy: boolean; error: string; run: ExpenseRun; onClose: () => void; onEdit: () => void }) {
  const { t, locale, date } = useI18n(), staff = access.can_manage || access.can_tax_review;
  const [selection, setSelection] = useState(() => ({ id: staff && request.status === "submitted" ? request.items.find(i => !companyReviewComplete(i))?.id || null : null, complete: false }));
  const selected = request.items.find(i => i.id === selection.id);
@@ -54,7 +59,11 @@ export function CompanyRequestReview({ request, access, accounts = [], lookups, 
  </div></DetailModal>;
 }
 
-export function CompanyItemReview({ row, access, accounts = [], lookups, run, busy }: { row: Expense; access: ExpenseAccess; accounts?: ExpenseAccount[]; lookups: ExpenseLookups; run: ExpenseRun; busy: boolean }) {
+export function CompanyItemReview(props: Parameters<typeof HistoricalCompanyItemReview>[0]) {
+ if (props.access.company_purchase_request_supported && props.row.creator_tax) return <PurchaseRequestItemReview {...props} />;
+ return <HistoricalCompanyItemReview {...props} />;
+}
+function HistoricalCompanyItemReview({ row, access, accounts = [], lookups, run, busy }: { row: Expense; access: ExpenseAccess; accounts?: ExpenseAccount[]; lookups: ExpenseLookups; run: ExpenseRun; busy: boolean }) {
  const { t, locale, date } = useI18n();
  const structured = access.company_tax_calculation_supported === true && !row.personally_paid;
  const [calculation, setCalculation] = useState<CompanyTaxCalculation | null>(null), [showNote, setShowNote] = useState(false), [rejecting, setRejecting] = useState(false);

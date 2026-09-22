@@ -1,0 +1,51 @@
+.createForm, .review { min-width: 0; display: grid; gap: 20px; }
+.createForm fieldset, .taxChoices fieldset { min-width: 0; padding: 0; margin: 0; border: 0; }
+.createForm legend, .taxChoices legend { margin-bottom: 12px; font-weight: 700; font-size: 16px; }
+.fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+.full { grid-column: 1 / -1; }
+.taxChoices { display: grid; gap: 22px; }
+.createForm .taxChoices { margin-top: 22px; }
+.taxChoices fieldset + fieldset { padding-top: 6px; }
+.choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.choices label { display: flex; align-items: flex-start; gap: 8px; flex: 1 1 140px; min-width: 0; padding: 12px 10px; border: 1px solid #d3dfec; border-radius: 6px; cursor: pointer; font-size: 14px; line-height: 1.5; }
+.choices label[data-selected=true] { background: #edf5ff; border-color: #2872cb; color: #1556a1; }
+.choices input { flex: 0 0 17px; width: 17px; height: 17px; margin: 2px 0 0; accent-color: #1365c3; }
+.choices label:focus-within { outline: 2px solid #397de0; outline-offset: 2px; }
+.rate { display: grid; grid-template-columns: 1fr 140px; align-items: center; gap: 16px; margin-top: 12px; max-width: 360px; }
+.review input:not([type=radio]), .review select, .review textarea { font: inherit; color: inherit; background: #fff; border: 1px solid #d3dfec; border-radius: 6px; padding: 10px 12px; min-height: 42px; }
+.review input:focus-visible, .review select:focus-visible, .review textarea:focus-visible { outline: 2px solid #397de0; outline-offset: 2px; }
+.facts { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: start; gap: 16px; padding: 18px; background: #f5f8fb; border: 1px solid #e2eaf2; border-radius: 6px; }
+.facts h3 { font-size: 19px; margin: 0 0 6px; }
+.facts p { margin: 4px 0; color: #50647a; overflow-wrap: anywhere; }
+.amount { display: grid; gap: 8px; text-align: right; font-variant-numeric: tabular-nums; }
+.amount strong { font-size: 24px; }
+.columns { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(290px,1fr); gap: 24px; align-items: start; }
+.controls { min-width: 0; display: grid; gap: 22px; }
+.summary { grid-column: 2; grid-row: 1 / span 2; border: 1px solid #dce5ef; border-radius: 6px; background: #f6f9fc; min-width: 0; }
+.summary h3 { margin: 0; padding: 18px; font-size: 18px; }
+.summary dl { margin: 0; }
+.summary dl > div { display: flex; justify-content: space-between; gap: 14px; padding: 14px 18px; align-items: baseline; }
+.summary dt { min-width: 0; }
+.summary dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.summary dl > div:nth-child(3) { border-top: 1px solid #dce5ef; font-weight: 700; }
+.summary dl > div:last-child { background: #eaf7f1; color: #096e4b; font-weight: 700; font-size: 19px; border-radius: 0 0 6px 6px; }
+.summary > p { padding: 0 18px 18px; }
+.note { grid-column: 1; border-top: 1px solid #dce5ef; padding-top: 16px; }
+.note summary { font-weight: 600; cursor: pointer; }
+.note textarea { width: 100%; min-height: 76px; margin-top: 12px; }
+.actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.itemSelect { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.itemSelect select { max-width: 100%; min-width: 0; }
+@media(max-width: 760px) {
+ .columns, .fields { grid-template-columns: minmax(0,1fr); }
+ .summary { grid-column: 1; grid-row: 2; }
+ .note { grid-row: 3; }
+ .facts { grid-template-columns: minmax(0,1fr); padding: 14px; }
+ .amount { text-align: left; }
+ .choices label { flex-basis: 100%; }
+ .summary dl > div { padding: 12px 14px; }
+ .actions > button { flex: 1 1 auto; }
+ .rate { grid-template-columns: minmax(0,1fr) 100px; }
+}
+
+.controls input:not([type=radio]) { width: 100%; min-width: 0; }

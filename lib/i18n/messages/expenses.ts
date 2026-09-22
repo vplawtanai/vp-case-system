@@ -1,5 +1,14 @@
 import type { MessageCatalog } from "../core";
 const copy: Record<string, [string, string]> = {
+ purchaseRequestCreate: ["สร้างคำขอซื้อหรือค่าใช้จ่าย", "Create purchase or expense request"],
+ purchaseRequestReview: ["ตรวจสอบคำขอซื้อหรือค่าใช้จ่าย", "Review purchase or expense request"],
+ purchaseRequestVendor: ["ชื่อผู้รับเงิน / ผู้ขาย / ผู้ให้บริการ", "Recipient / supplier / service provider name"],
+ purchaseRequestDate: ["วันที่รายการ", "Item date"],
+ purchaseRequestSummary: ["สรุปยอด", "Summary"],
+ purchaseRequestNet: ["เงินจ่ายจริง", "Actual payment"],
+ purchaseRequestPayeeRequired: ["กรุณาระบุชื่อผู้รับเงินก่อนอนุมัติ", "Enter the recipient name before approval."],
+ purchaseRequestRetry: ["ยังยืนยันผลไม่ได้ กรุณาลองส่งผลตรวจเดิมอีกครั้ง", "The result is uncertain. Retry the same review decision."],
+ purchaseRequestReviewRequired: ["กรุณาตรวจคำขอพร้อม VAT/WHT ก่อนอนุมัติ", "Review the request and its VAT/WHT choices before approval."],
  companyOptionalNote: ["หมายเหตุ (ถ้ามี)", "Note (optional)"],
  companySaveTax: ["บันทึกผลตรวจภาษี", "Save tax review"],
  companyTaxMoneyFrozen: ["ยอดนี้มีผลชำระหรือรายการรอจ่ายแล้ว จึงเปลี่ยนยอดเงินไม่ได้", "A settlement or payment already exists; its monetary amount cannot be changed."],
@@ -63,7 +72,7 @@ const copy: Record<string, [string, string]> = {
  companyNeedReason: ["เหตุผล / ผลการตรวจ", "Review reason / conclusion"],
  companyTitle: ["ค่าใช้จ่ายบริษัท", "Company expenses"], companySubtitle: ["บันทึกและตรวจสอบค่าใช้จ่ายของบริษัท", "Record and review company expenses."],
  companyNewRequest: ["สร้างคำขอค่าใช้จ่ายบริษัท", "Create company expense request"], companyFacts: ["ข้อมูลรายการ", "Item facts"],
- companyVendor: ["ผู้ขาย / ผู้ให้บริการ (ถ้ามี)", "Vendor / service provider (if applicable)"],
+ companyVendor: ["ชื่อผู้รับเงิน / ผู้ขาย / ผู้ให้บริการ", "Vendor / service provider (if applicable)"],
  companyPaymentQuestion: ["รายการนี้จ่ายเงินแล้วหรือยัง?", "Has this expense been paid?"],
  companyPaymentUnknown: ["ไม่ทราบ / ให้ฝ่ายการเงินตรวจ", "Unknown / Finance to review"], companyPersonalPaid: ["บุคคลสำรองจ่ายแล้ว", "A person has paid first"],
  companyReviewPartial: ["ยังบันทึกผลการตรวจไม่ครบ ข้อมูลที่เลือกยังอยู่ ลองบันทึกขั้นตอนที่เหลืออีกครั้ง หากสถานะเปลี่ยนไป ให้ปิดแล้วเปิดคำขอเดิมเพื่อตรวจสอบ", "Review is not fully saved. Your choices are retained. Retry the remaining steps. If the status has changed, reopen this request to check it."],

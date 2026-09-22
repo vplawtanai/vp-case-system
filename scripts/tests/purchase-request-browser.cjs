@@ -1,0 +1,37 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
+const assert=require('node:assert/strict');
+module.exports=async({page,url,out,translate})=>{
+ let scenarios=0;
+ for(const [width,locale]of [[390,'th'],[1440,'th'],[1440,'en']]){
+  const t=k=>translate(locale,'expenses.'+k),dialog=page.getByRole('dialog');await page.setViewportSize({width,height:1050});
+  const open=async(extra='scenario=no-tax')=>{await page.goto(`${url}/finance/expenses?purchase060=1&locale=${locale}&${extra}`);await page.locator('[data-request-row] button').click();await dialog.waitFor();};
+  const choose=async(vat,wht)=>{await dialog.locator(`input[type=radio][value=${vat}]`).first().check();await dialog.locator(`input[type=radio][value=${wht}]`).last().check();};
+  const overflow=async()=>{assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);assert.equal(await dialog.evaluate(e=>e.scrollWidth>e.clientWidth+1),false);};
+  await page.goto(`${url}/finance/expenses?purchase060=1&locale=${locale}`);await page.getByRole('button',{name:t('new'),exact:true}).click();await dialog.getByRole('heading',{name:t('purchaseRequestCreate'),exact:true}).waitFor();
+  assert.equal(await dialog.locator('input[type=file],input[type=checkbox],#expense-handling').count(),0);
+  assert.equal(await dialog.getByText(t('handlingCompanyPaid'),{exact:true}).count(),0);assert.equal(await dialog.getByText(t('companyUnpaid'),{exact:true}).count(),0);
+  await dialog.locator('#purchase-category').selectOption('company.supplies');await dialog.locator('#purchase-amount').fill('300');await dialog.locator('#purchase-description').fill('Synthetic purchase request');await dialog.locator('#purchase-vendor').fill('Typed supplier');assert.equal(await dialog.getByRole('combobox',{name:t('supplierKnown'),exact:true}).count(),0);
+  await choose('inclusive','withhold');await overflow();await page.screenshot({path:out+`/purchase-create-${locale}-${width}.png`});
+  await dialog.getByRole('button',{name:t('addThisItem'),exact:true}).click();await dialog.getByRole('button',{name:t('sendForReview'),exact:true}).click();await dialog.getByRole('heading',{name:t('purchaseRequestReview'),exact:true}).waitFor();
+  const saved=(await page.evaluate(()=>window.calls)).find(c=>c.name==='save_finance_expense_request').args.p_items[0].input;
+  assert.deepEqual(saved.creator_tax,{vat_mode:'inclusive',vat_rate:7,wht_state:'withhold',wht_rate:3});assert.equal(saved.creator_payment_fact,'unpaid');assert.equal('bank_account_id'in saved,false);
+  await dialog.locator('[data-purchase-summary]').getByText('291.59 THB',{exact:true}).waitFor();assert.equal(await dialog.locator('input[value=inclusive]').isChecked(),true);scenarios++;
+  await open();await dialog.locator('[data-purchase-summary]').getByText('291.59 THB',{exact:true}).waitFor();
+  assert.equal(await dialog.locator('details').getAttribute('open'),null);
+  for(const key of ['eligibility','supplierTaxId','taxReference','taxDate','companyPaidWhtAck','adminTechnical'])assert.equal(await dialog.getByText(t(key),{exact:true}).count(),0);
+  assert.equal(await dialog.locator('input[type=checkbox],input[type=file]').count(),0);await overflow();await page.screenshot({path:out+`/purchase-review-${locale}-${width}.png`});
+  await choose('exclusive','none');await dialog.locator('[data-purchase-summary]').getByText('321.00 THB',{exact:true}).first().waitFor();
+  await dialog.locator('#purchase-review-recipient').fill('Finance corrected supplier');const approve=dialog.getByRole('button',{name:t('companyApprove'),exact:true});await approve.focus();await page.keyboard.press('Enter');await page.waitForFunction(()=>window.writes.includes('review_finance_company_purchase_request'));
+  const calls=await page.evaluate(()=>window.calls),a=calls.find(c=>c.name==='review_finance_company_purchase_request');assert.equal(a.args.p_input.recipient_name,'Finance corrected supplier');assert.equal(a.args.p_reason,'');assert.equal(a.args.p_input.vat_mode,'exclusive');assert.equal(a.args.p_input.wht_state,'none');assert.deepEqual(await page.evaluate(()=>window.fixtureCash),[]);assert.equal(calls.some(c=>c.name==='prepare_finance_expense_payout'||c.name==='confirm_finance_payout'),false);scenarios++;
+  await open();await dialog.getByRole('button',{name:t('companyReject'),exact:true}).click();await dialog.getByText(t('companyRejectReason'),{exact:true}).waitFor();assert.deepEqual(await page.evaluate(()=>window.writes),[]);
+  await dialog.locator('textarea').fill('Synthetic rejection');await dialog.getByRole('button',{name:t('companyReject'),exact:true}).click();await page.waitForFunction(()=>window.writes.includes('review_finance_company_purchase_request'));assert.equal((await page.evaluate(()=>window.calls)).find(c=>c.name==='review_finance_company_purchase_request').args.p_accept,false);scenarios++;
+  await open();await dialog.locator('[data-purchase-summary]').getByText('291.59 THB',{exact:true}).waitFor();await page.evaluate(()=>window.loseReviewResponse=true);await dialog.getByRole('button',{name:t('companyApprove'),exact:true}).click();await dialog.getByText(t('purchaseRequestRetry'),{exact:true}).waitFor();await dialog.getByRole('button',{name:t('companyRetryReview'),exact:true}).click();await page.waitForFunction(()=>window.calls.filter(c=>c.name==='review_finance_company_purchase_request').length===2);
+  const retries=(await page.evaluate(()=>window.calls)).filter(c=>c.name==='review_finance_company_purchase_request');assert.deepEqual(retries[0].args,retries[1].args);assert.equal((await page.evaluate(()=>window.writes)).filter(n=>n==='review_finance_company_purchase_request').length,1);scenarios++;
+  await open('scenario=missing-supplier');await dialog.locator('#purchase-review-recipient').fill('');await dialog.getByText(t('purchaseRequestPayeeRequired'),{exact:true}).waitFor();assert.ok(await dialog.getByRole('button',{name:t('companyApprove'),exact:true}).isDisabled());scenarios++;
+  await open('scenario=no-tax&taxDenied=1');assert.ok(await dialog.getByRole('button',{name:t('companyApprove'),exact:true}).isDisabled());await dialog.getByRole('button',{name:t('companyReject'),exact:true}).click();await dialog.locator('textarea').fill('Rejected without tax-review permission');await dialog.getByRole('button',{name:t('companyReject'),exact:true}).click();await page.waitForFunction(()=>window.writes.includes('review_finance_company_purchase_request'));scenarios++;
+  await open();await dialog.locator('[data-purchase-summary]').getByText('291.59 THB',{exact:true}).waitFor();await page.evaluate(()=>window.failPreview=true);await choose('exclusive','withhold');await dialog.getByText(t('companyTaxPreviewFailed'),{exact:true}).waitFor();assert.ok(await dialog.getByRole('button',{name:t('companyApprove'),exact:true}).isDisabled());assert.deepEqual(await page.evaluate(()=>window.writes),[]);scenarios++;
+  await open('scenario=company-paid&historical=1');assert.equal(await dialog.locator('[data-purchase-review]').count(),0);await dialog.getByText(t('handlingCompanyPaid'),{exact:true}).first().waitFor();scenarios++;
+  console.log('PASS purchase request',locale,width);
+ }
+ return scenarios;
+};
