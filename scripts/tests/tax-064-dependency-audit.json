@@ -1,0 +1,762 @@
+{
+  "status": "STOP_SCOPED_SECURITY_EVIDENCE_GAP",
+  "capture_sha256": "874e1058f0bea6b1cfce975adfd49be68983437c58510ebce89472cc00c4013c",
+  "candidate_sha256": "0266aeced8c08a5066de62a261cc787a7686e0cba7210ef476ac59ea4d96f297",
+  "candidate_changed": false,
+  "broader_unresolved_differences": 490,
+  "original_report": "scripts/tests/tax-064-reconciliation.json",
+  "changed_existing_functions": [
+    "tax_position_source(text,uuid) renamed then wrapped"
+  ],
+  "new_functions": [
+    "tax_position_source_before_external_input(text,uuid)",
+    "save_finance_external_input_vat(uuid,jsonb,boolean)",
+    "review_finance_external_input_vat(uuid,uuid,uuid,text,text,boolean)",
+    "get_finance_tax_input_evidence(date)"
+  ],
+  "new_tables": [
+    "finance_external_input_vat",
+    "finance_external_input_vat_reviews"
+  ],
+  "changed_tables": [
+    "finance_tax_source_revisions",
+    "finance_tax_position_facts"
+  ],
+  "runtime_existing_functions": [
+    {
+      "signature": "current_user_can_manage_finance_tax_invoices()",
+      "repository_evidence": "039",
+      "definition_security_config_match": true,
+      "expected_fixture_acl": "{postgres=X/postgres,authenticated=X/postgres}",
+      "current_acl": "{postgres=X/postgres,service_role=X/postgres,authenticated=X/postgres}",
+      "privilege_classification": "B",
+      "privilege_reason": "063 verifies selected application-role EXECUTE access, not raw ACL/service_role grant provenance. Repository DDL neither grants nor revokes service_role; current default ACL is current-state evidence only."
+    },
+    {
+      "signature": "tax_position_can_manage()",
+      "repository_evidence": "050",
+      "definition_security_config_match": true,
+      "expected_fixture_acl": "{postgres=X/postgres,authenticated=X/postgres}",
+      "current_acl": "{postgres=X/postgres,service_role=X/postgres,authenticated=X/postgres}",
+      "privilege_classification": "B",
+      "privilege_reason": "063 verifies selected application-role EXECUTE access, not raw ACL/service_role grant provenance. Repository DDL neither grants nor revokes service_role; current default ACL is current-state evidence only."
+    },
+    {
+      "signature": "tax_position_can_view()",
+      "repository_evidence": "050",
+      "definition_security_config_match": true,
+      "expected_fixture_acl": "{postgres=X/postgres,authenticated=X/postgres}",
+      "current_acl": "{postgres=X/postgres,service_role=X/postgres,authenticated=X/postgres}",
+      "privilege_classification": "B",
+      "privilege_reason": "063 verifies selected application-role EXECUTE access, not raw ACL/service_role grant provenance. Repository DDL neither grants nor revokes service_role; current default ACL is current-state evidence only."
+    },
+    {
+      "signature": "tax_position_immutable()",
+      "repository_evidence": "050",
+      "definition_security_config_match": true,
+      "expected_fixture_acl": "{postgres=X/postgres}",
+      "current_acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "privilege_classification": "B",
+      "privilege_reason": "063 verifies selected application-role EXECUTE access, not raw ACL/service_role grant provenance. Repository DDL neither grants nor revokes service_role; current default ACL is current-state evidence only."
+    },
+    {
+      "signature": "tax_position_source(text,uuid)",
+      "repository_evidence": "055 replaces projection; 063 accepted body hash",
+      "definition_security_config_match": true,
+      "expected_fixture_acl": "{postgres=X/postgres}",
+      "current_acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "privilege_classification": "B",
+      "privilege_reason": "063 verifies selected application-role EXECUTE access, not raw ACL/service_role grant provenance. Repository DDL neither grants nor revokes service_role; current default ACL is current-state evidence only."
+    },
+    {
+      "signature": "tax_position_source_before_expense(text,uuid)",
+      "repository_evidence": "050 projection renamed by 055",
+      "definition_security_config_match": true,
+      "expected_fixture_acl": "{postgres=X/postgres}",
+      "current_acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "privilege_classification": "B",
+      "privilege_reason": "063 verifies selected application-role EXECUTE access, not raw ACL/service_role grant provenance. Repository DDL neither grants nor revokes service_role; current default ACL is current-state evidence only."
+    },
+    {
+      "signature": "tax_position_sync(text,uuid,text)",
+      "repository_evidence": "050",
+      "definition_security_config_match": true,
+      "expected_fixture_acl": "{postgres=X/postgres}",
+      "current_acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "privilege_classification": "B",
+      "privilege_reason": "063 verifies selected application-role EXECUTE access, not raw ACL/service_role grant provenance. Repository DDL neither grants nor revokes service_role; current default ACL is current-state evidence only."
+    }
+  ],
+  "call_edges": [
+    {
+      "caller": "tax_position_source",
+      "callee": "tax_position_source_before_expense"
+    },
+    {
+      "caller": "tax_position_sync",
+      "callee": "tax_position_source"
+    },
+    {
+      "caller": "tax_position_can_manage",
+      "callee": "current_user_can_manage_finance_tax_invoices"
+    }
+  ],
+  "platform_dependencies": [
+    "auth.uid() identity",
+    "user_profiles(id,active,role,can_view_finance_tax_invoices,can_manage_finance_tax_invoices,can_issue_finance_tax_invoices)",
+    "PostgreSQL FK/sequence/default and advisory-lock semantics"
+  ],
+  "runtime_existing_tables": [
+    {
+      "name": "finance_direct_money_receipts",
+      "new_path_writes": false,
+      "ddl_touched": false,
+      "current_security": {
+        "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}",
+        "rls": true,
+        "name": "finance_direct_money_receipts",
+        "owner": "postgres",
+        "force_rls": false
+      },
+      "current_policies": [
+        {
+          "cmd": "SELECT",
+          "qual": "current_user_can_view_finance_payments()",
+          "roles": [
+            "authenticated"
+          ],
+          "tablename": "finance_direct_money_receipts",
+          "permissive": "PERMISSIVE",
+          "policyname": "direct_money_read",
+          "schemaname": "public",
+          "with_check": null
+        }
+      ],
+      "current_triggers": [
+        "CREATE TRIGGER direct_money_immutable BEFORE INSERT OR DELETE OR UPDATE ON public.finance_direct_money_receipts FOR EACH ROW EXECUTE FUNCTION direct_money_guard()",
+        "CREATE CONSTRAINT TRIGGER direct_money_integrity AFTER INSERT OR UPDATE ON public.finance_direct_money_receipts DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION direct_money_integrity()",
+        "CREATE TRIGGER direct_money_no_truncate BEFORE TRUNCATE ON public.finance_direct_money_receipts FOR EACH STATEMENT EXECUTE FUNCTION direct_money_guard()",
+        "CREATE CONSTRAINT TRIGGER tax_position_direct AFTER UPDATE ON public.finance_direct_money_receipts DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (((old.status IS DISTINCT FROM new.status) OR (old.classification_json IS DISTINCT FROM new.classification_json))) EXECUTE FUNCTION tax_position_source_changed()",
+        "CREATE TRIGGER treasury_confirm_direct AFTER UPDATE OF status ON public.finance_direct_money_receipts FOR EACH ROW EXECUTE FUNCTION treasury_confirm_direct()",
+        "CREATE TRIGGER treasury_direct_input_location BEFORE INSERT OR UPDATE OF input_json ON public.finance_direct_money_receipts FOR EACH ROW EXECUTE FUNCTION treasury_direct_input_location()",
+        "CREATE TRIGGER treasury_direct_reversal BEFORE UPDATE OF status ON public.finance_direct_money_receipts FOR EACH ROW EXECUTE FUNCTION treasury_source_reversal_guard()"
+      ],
+      "compared_to_repository_fixture": true,
+      "changed_fields": [
+        "acl"
+      ],
+      "classification": "B",
+      "reason": "Raw ACL provenance is outside accepted 063 evidence; retain full difference. Source-provider schema differences require referenced-field/repository reconciliation; no blanket approval."
+    },
+    {
+      "name": "finance_expense_tax_reviews",
+      "new_path_writes": false,
+      "ddl_touched": false,
+      "current_security": {
+        "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+        "rls": true,
+        "name": "finance_expense_tax_reviews",
+        "owner": "postgres",
+        "force_rls": false
+      },
+      "current_policies": [],
+      "current_triggers": [
+        "CREATE TRIGGER expense_history_immutable BEFORE DELETE OR UPDATE ON public.finance_expense_tax_reviews FOR EACH ROW EXECUTE FUNCTION expense_immutable()",
+        "CREATE CONSTRAINT TRIGGER expense_integrity AFTER INSERT OR UPDATE ON public.finance_expense_tax_reviews DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION expense_integrity()",
+        "CREATE TRIGGER expense_no_truncate BEFORE TRUNCATE ON public.finance_expense_tax_reviews FOR EACH STATEMENT EXECUTE FUNCTION expense_immutable()"
+      ],
+      "compared_to_repository_fixture": true,
+      "changed_fields": [
+        "acl"
+      ],
+      "classification": "B",
+      "reason": "Raw ACL provenance is outside accepted 063 evidence; retain full difference. Source-provider schema differences require referenced-field/repository reconciliation; no blanket approval."
+    },
+    {
+      "name": "finance_expenses",
+      "new_path_writes": false,
+      "ddl_touched": false,
+      "current_security": {
+        "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+        "rls": true,
+        "name": "finance_expenses",
+        "owner": "postgres",
+        "force_rls": false
+      },
+      "current_policies": [],
+      "current_triggers": [
+        "CREATE TRIGGER expense_history_immutable BEFORE DELETE OR UPDATE ON public.finance_expenses FOR EACH ROW EXECUTE FUNCTION expense_immutable()",
+        "CREATE CONSTRAINT TRIGGER expense_integrity AFTER INSERT OR UPDATE ON public.finance_expenses DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION expense_integrity()",
+        "CREATE TRIGGER expense_no_truncate BEFORE TRUNCATE ON public.finance_expenses FOR EACH STATEMENT EXECUTE FUNCTION expense_immutable()",
+        "CREATE TRIGGER expense_request_submission_time BEFORE UPDATE ON public.finance_expenses FOR EACH ROW EXECUTE FUNCTION expense_request_guard()"
+      ],
+      "compared_to_repository_fixture": true,
+      "changed_fields": [
+        "acl"
+      ],
+      "classification": "B",
+      "reason": "Raw ACL provenance is outside accepted 063 evidence; retain full difference. Source-provider schema differences require referenced-field/repository reconciliation; no blanket approval."
+    },
+    {
+      "name": "finance_payment_evidence",
+      "new_path_writes": false,
+      "ddl_touched": false,
+      "current_security": {
+        "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}",
+        "rls": true,
+        "name": "finance_payment_evidence",
+        "owner": "postgres",
+        "force_rls": false
+      },
+      "current_policies": [
+        {
+          "cmd": "SELECT",
+          "qual": "current_user_can_view_finance_payments()",
+          "roles": [
+            "public"
+          ],
+          "tablename": "finance_payment_evidence",
+          "permissive": "PERMISSIVE",
+          "policyname": "finance managers select payment evidence",
+          "schemaname": "public",
+          "with_check": null
+        }
+      ],
+      "current_triggers": [
+        "CREATE TRIGGER finance_payment_evidence_mutation_guard BEFORE INSERT OR DELETE OR UPDATE ON public.finance_payment_evidence FOR EACH ROW EXECUTE FUNCTION guard_finance_payment_child_mutation()"
+      ],
+      "compared_to_repository_fixture": true,
+      "changed_fields": [
+        "acl",
+        "rls",
+        "indexes",
+        "policies",
+        "triggers"
+      ],
+      "classification": "B",
+      "reason": "Raw ACL provenance is outside accepted 063 evidence; retain full difference. Source-provider schema differences require referenced-field/repository reconciliation; no blanket approval."
+    },
+    {
+      "name": "finance_payment_wht_components",
+      "new_path_writes": false,
+      "ddl_touched": false,
+      "current_security": {
+        "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}",
+        "rls": true,
+        "name": "finance_payment_wht_components",
+        "owner": "postgres",
+        "force_rls": false
+      },
+      "current_policies": [
+        {
+          "cmd": "SELECT",
+          "qual": "current_user_can_view_finance_payments()",
+          "roles": [
+            "authenticated"
+          ],
+          "tablename": "finance_payment_wht_components",
+          "permissive": "PERMISSIVE",
+          "policyname": "payment viewers read wht components",
+          "schemaname": "public",
+          "with_check": null
+        }
+      ],
+      "current_triggers": [
+        "CREATE TRIGGER finance_payment_wht_component_draft_guard BEFORE INSERT OR DELETE OR UPDATE ON public.finance_payment_wht_components FOR EACH ROW EXECUTE FUNCTION guard_finance_payment_child_mutation()",
+        "CREATE TRIGGER money_allocation_wht_guard BEFORE INSERT OR DELETE OR UPDATE ON public.finance_payment_wht_components FOR EACH ROW EXECUTE FUNCTION guard_money_allocation_source()",
+        "CREATE TRIGGER vp_distribution_source_no_truncate BEFORE TRUNCATE ON public.finance_payment_wht_components FOR EACH STATEMENT EXECUTE FUNCTION guard_vp_distribution_source()",
+        "CREATE TRIGGER vp_distribution_wht_guard BEFORE INSERT OR DELETE OR UPDATE ON public.finance_payment_wht_components FOR EACH ROW EXECUTE FUNCTION guard_vp_distribution_source()"
+      ],
+      "compared_to_repository_fixture": true,
+      "changed_fields": [
+        "acl"
+      ],
+      "classification": "B",
+      "reason": "Raw ACL provenance is outside accepted 063 evidence; retain full difference. Source-provider schema differences require referenced-field/repository reconciliation; no blanket approval."
+    },
+    {
+      "name": "finance_payments",
+      "new_path_writes": false,
+      "ddl_touched": false,
+      "current_security": {
+        "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}",
+        "rls": true,
+        "name": "finance_payments",
+        "owner": "postgres",
+        "force_rls": false
+      },
+      "current_policies": [
+        {
+          "cmd": "SELECT",
+          "qual": "current_user_can_view_finance_payments()",
+          "roles": [
+            "public"
+          ],
+          "tablename": "finance_payments",
+          "permissive": "PERMISSIVE",
+          "policyname": "finance managers select payments",
+          "schemaname": "public",
+          "with_check": null
+        }
+      ],
+      "current_triggers": [
+        "CREATE CONSTRAINT TRIGGER finance_payment_integrity_after_header AFTER INSERT OR DELETE OR UPDATE ON public.finance_payments DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION enforce_finance_payment_integrity()",
+        "CREATE TRIGGER finance_payment_lifecycle_guard BEFORE INSERT OR DELETE OR UPDATE ON public.finance_payments FOR EACH ROW EXECUTE FUNCTION enforce_finance_payment_lifecycle()",
+        "CREATE TRIGGER finance_payment_structured_wht_before_write BEFORE INSERT OR UPDATE ON public.finance_payments FOR EACH ROW EXECUTE FUNCTION guard_finance_payment_wht_confirmation()",
+        "CREATE TRIGGER money_allocation_payment_guard BEFORE DELETE OR UPDATE ON public.finance_payments FOR EACH ROW EXECUTE FUNCTION guard_money_allocation_source()",
+        "CREATE TRIGGER tax_invoice_payment_guard BEFORE UPDATE ON public.finance_payments FOR EACH ROW EXECUTE FUNCTION guard_finance_tax_invoice_upstream()",
+        "CREATE CONSTRAINT TRIGGER tax_position_payment AFTER UPDATE ON public.finance_payments DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN ((old.status IS DISTINCT FROM new.status)) EXECUTE FUNCTION tax_position_source_changed()",
+        "CREATE TRIGGER treasury_payment_reversal BEFORE UPDATE OF status ON public.finance_payments FOR EACH ROW EXECUTE FUNCTION treasury_source_reversal_guard()",
+        "CREATE TRIGGER vp_distribution_payment_guard BEFORE DELETE OR UPDATE ON public.finance_payments FOR EACH ROW EXECUTE FUNCTION guard_vp_distribution_source()",
+        "CREATE TRIGGER vp_distribution_source_no_truncate BEFORE TRUNCATE ON public.finance_payments FOR EACH STATEMENT EXECUTE FUNCTION guard_vp_distribution_source()"
+      ],
+      "compared_to_repository_fixture": true,
+      "changed_fields": [
+        "acl",
+        "rls",
+        "indexes",
+        "policies",
+        "triggers",
+        "constraints"
+      ],
+      "classification": "B",
+      "reason": "Raw ACL provenance is outside accepted 063 evidence; retain full difference. Source-provider schema differences require referenced-field/repository reconciliation; no blanket approval."
+    },
+    {
+      "name": "finance_tax_correction_documents",
+      "new_path_writes": false,
+      "ddl_touched": false,
+      "current_security": {
+        "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}",
+        "rls": true,
+        "name": "finance_tax_correction_documents",
+        "owner": "postgres",
+        "force_rls": false
+      },
+      "current_policies": [
+        {
+          "cmd": "SELECT",
+          "qual": "(EXISTS ( SELECT 1\n   FROM finance_tax_document_corrections c\n  WHERE (c.id = finance_tax_correction_documents.id)))",
+          "roles": [
+            "authenticated"
+          ],
+          "tablename": "finance_tax_correction_documents",
+          "permissive": "PERMISSIVE",
+          "policyname": "tax_correction_document_read",
+          "schemaname": "public",
+          "with_check": null
+        }
+      ],
+      "current_triggers": [
+        "CREATE TRIGGER tax_correction_history BEFORE DELETE OR UPDATE ON public.finance_tax_correction_documents FOR EACH ROW EXECUTE FUNCTION tax_correction_immutable()",
+        "CREATE CONSTRAINT TRIGGER tax_correction_integrity AFTER INSERT ON public.finance_tax_correction_documents DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION validate_tax_correction_document()",
+        "CREATE CONSTRAINT TRIGGER tax_position_correction AFTER INSERT ON public.finance_tax_correction_documents DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION tax_position_source_changed()"
+      ],
+      "compared_to_repository_fixture": true,
+      "changed_fields": [
+        "acl"
+      ],
+      "classification": "B",
+      "reason": "Raw ACL provenance is outside accepted 063 evidence; retain full difference. Source-provider schema differences require referenced-field/repository reconciliation; no blanket approval."
+    },
+    {
+      "name": "finance_tax_correction_lines",
+      "new_path_writes": false,
+      "ddl_touched": false,
+      "current_security": {
+        "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}",
+        "rls": true,
+        "name": "finance_tax_correction_lines",
+        "owner": "postgres",
+        "force_rls": false
+      },
+      "current_policies": [
+        {
+          "cmd": "SELECT",
+          "qual": "(EXISTS ( SELECT 1\n   FROM finance_tax_document_corrections c\n  WHERE (c.id = finance_tax_correction_lines.correction_id)))",
+          "roles": [
+            "authenticated"
+          ],
+          "tablename": "finance_tax_correction_lines",
+          "permissive": "PERMISSIVE",
+          "policyname": "tax_correction_line_read",
+          "schemaname": "public",
+          "with_check": null
+        }
+      ],
+      "current_triggers": [
+        "CREATE TRIGGER tax_correction_history BEFORE DELETE OR UPDATE ON public.finance_tax_correction_lines FOR EACH ROW EXECUTE FUNCTION tax_correction_immutable()",
+        "CREATE CONSTRAINT TRIGGER tax_correction_integrity AFTER INSERT ON public.finance_tax_correction_lines DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION validate_tax_correction_document()"
+      ],
+      "compared_to_repository_fixture": true,
+      "changed_fields": [
+        "acl"
+      ],
+      "classification": "B",
+      "reason": "Raw ACL provenance is outside accepted 063 evidence; retain full difference. Source-provider schema differences require referenced-field/repository reconciliation; no blanket approval."
+    },
+    {
+      "name": "finance_tax_document_corrections",
+      "new_path_writes": false,
+      "ddl_touched": false,
+      "current_security": {
+        "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}",
+        "rls": true,
+        "name": "finance_tax_document_corrections",
+        "owner": "postgres",
+        "force_rls": false
+      },
+      "current_policies": [
+        {
+          "cmd": "SELECT",
+          "qual": "tax_correction_authorized((original_combined_document_id IS NOT NULL), 'view'::text)",
+          "roles": [
+            "authenticated"
+          ],
+          "tablename": "finance_tax_document_corrections",
+          "permissive": "PERMISSIVE",
+          "policyname": "tax_correction_read",
+          "schemaname": "public",
+          "with_check": null
+        }
+      ],
+      "current_triggers": [
+        "CREATE TRIGGER money_allocation_correction_guard BEFORE INSERT OR UPDATE ON public.finance_tax_document_corrections FOR EACH ROW EXECUTE FUNCTION guard_money_allocation_source()",
+        "CREATE TRIGGER tax_correction_history BEFORE DELETE OR UPDATE ON public.finance_tax_document_corrections FOR EACH ROW EXECUTE FUNCTION tax_correction_immutable()",
+        "CREATE CONSTRAINT TRIGGER tax_correction_integrity AFTER INSERT OR UPDATE ON public.finance_tax_document_corrections DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION validate_tax_correction_document()",
+        "CREATE TRIGGER vp_distribution_correction_guard BEFORE INSERT OR DELETE OR UPDATE ON public.finance_tax_document_corrections FOR EACH ROW EXECUTE FUNCTION guard_vp_distribution_source()",
+        "CREATE TRIGGER vp_distribution_source_no_truncate BEFORE TRUNCATE ON public.finance_tax_document_corrections FOR EACH STATEMENT EXECUTE FUNCTION guard_vp_distribution_source()"
+      ],
+      "compared_to_repository_fixture": true,
+      "changed_fields": [
+        "acl"
+      ],
+      "classification": "B",
+      "reason": "Raw ACL provenance is outside accepted 063 evidence; retain full difference. Source-provider schema differences require referenced-field/repository reconciliation; no blanket approval."
+    },
+    {
+      "name": "finance_tax_invoice_items",
+      "new_path_writes": false,
+      "ddl_touched": false,
+      "current_security": {
+        "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}",
+        "rls": true,
+        "name": "finance_tax_invoice_items",
+        "owner": "postgres",
+        "force_rls": false
+      },
+      "current_policies": [
+        {
+          "cmd": "SELECT",
+          "qual": "current_user_can_view_finance_tax_invoices()",
+          "roles": [
+            "authenticated"
+          ],
+          "tablename": "finance_tax_invoice_items",
+          "permissive": "PERMISSIVE",
+          "policyname": "tax_invoice_read",
+          "schemaname": "public",
+          "with_check": null
+        }
+      ],
+      "current_triggers": [
+        "CREATE TRIGGER tax_invoice_history BEFORE DELETE OR UPDATE ON public.finance_tax_invoice_items FOR EACH ROW EXECUTE FUNCTION protect_finance_tax_invoice_history()",
+        "CREATE CONSTRAINT TRIGGER tax_invoice_integrity AFTER INSERT OR UPDATE ON public.finance_tax_invoice_items DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION validate_finance_tax_invoice_integrity()"
+      ],
+      "compared_to_repository_fixture": true,
+      "changed_fields": [
+        "acl"
+      ],
+      "classification": "B",
+      "reason": "Raw ACL provenance is outside accepted 063 evidence; retain full difference. Source-provider schema differences require referenced-field/repository reconciliation; no blanket approval."
+    },
+    {
+      "name": "finance_tax_invoices",
+      "new_path_writes": false,
+      "ddl_touched": false,
+      "current_security": {
+        "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}",
+        "rls": true,
+        "name": "finance_tax_invoices",
+        "owner": "postgres",
+        "force_rls": false
+      },
+      "current_policies": [
+        {
+          "cmd": "SELECT",
+          "qual": "current_user_can_view_finance_tax_invoices()",
+          "roles": [
+            "authenticated"
+          ],
+          "tablename": "finance_tax_invoices",
+          "permissive": "PERMISSIVE",
+          "policyname": "tax_invoice_read",
+          "schemaname": "public",
+          "with_check": null
+        }
+      ],
+      "current_triggers": [
+        "CREATE CONSTRAINT TRIGGER combined_integrity AFTER INSERT OR UPDATE ON public.finance_tax_invoices DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION validate_finance_combined_document()",
+        "CREATE TRIGGER tax_invoice_history BEFORE DELETE OR UPDATE ON public.finance_tax_invoices FOR EACH ROW EXECUTE FUNCTION protect_finance_tax_invoice_history()",
+        "CREATE CONSTRAINT TRIGGER tax_invoice_integrity AFTER INSERT OR UPDATE ON public.finance_tax_invoices DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION validate_finance_tax_invoice_integrity()",
+        "CREATE CONSTRAINT TRIGGER tax_position_invoice AFTER UPDATE ON public.finance_tax_invoices DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN ((old.status IS DISTINCT FROM new.status)) EXECUTE FUNCTION tax_position_source_changed()"
+      ],
+      "compared_to_repository_fixture": true,
+      "changed_fields": [
+        "acl"
+      ],
+      "classification": "B",
+      "reason": "Raw ACL provenance is outside accepted 063 evidence; retain full difference. Source-provider schema differences require referenced-field/repository reconciliation; no blanket approval."
+    },
+    {
+      "name": "finance_tax_periods",
+      "new_path_writes": true,
+      "ddl_touched": false,
+      "current_security": {
+        "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}",
+        "rls": true,
+        "name": "finance_tax_periods",
+        "owner": "postgres",
+        "force_rls": false
+      },
+      "current_policies": [
+        {
+          "cmd": "SELECT",
+          "qual": "tax_position_can_view()",
+          "roles": [
+            "authenticated"
+          ],
+          "tablename": "finance_tax_periods",
+          "permissive": "PERMISSIVE",
+          "policyname": "tax_position_read",
+          "schemaname": "public",
+          "with_check": null
+        }
+      ],
+      "current_triggers": [
+        "CREATE TRIGGER tax_position_no_truncate BEFORE TRUNCATE ON public.finance_tax_periods FOR EACH STATEMENT EXECUTE FUNCTION tax_position_immutable()"
+      ],
+      "compared_to_repository_fixture": true,
+      "changed_fields": [
+        "acl"
+      ],
+      "classification": "B",
+      "reason": "Raw ACL provenance is outside accepted 063 evidence; retain full difference. Source-provider schema differences require referenced-field/repository reconciliation; no blanket approval."
+    },
+    {
+      "name": "finance_tax_point_events",
+      "new_path_writes": false,
+      "ddl_touched": false,
+      "current_security": {
+        "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}",
+        "rls": true,
+        "name": "finance_tax_point_events",
+        "owner": "postgres",
+        "force_rls": false
+      },
+      "current_policies": [
+        {
+          "cmd": "SELECT",
+          "qual": "current_user_can_view_finance_tax_invoices()",
+          "roles": [
+            "authenticated"
+          ],
+          "tablename": "finance_tax_point_events",
+          "permissive": "PERMISSIVE",
+          "policyname": "tax_invoice_read",
+          "schemaname": "public",
+          "with_check": null
+        }
+      ],
+      "current_triggers": [
+        "CREATE TRIGGER tax_invoice_history BEFORE DELETE OR UPDATE ON public.finance_tax_point_events FOR EACH ROW EXECUTE FUNCTION protect_finance_tax_invoice_history()",
+        "CREATE CONSTRAINT TRIGGER tax_invoice_integrity AFTER INSERT OR UPDATE ON public.finance_tax_point_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION validate_finance_tax_invoice_integrity()"
+      ],
+      "compared_to_repository_fixture": true,
+      "changed_fields": [
+        "acl"
+      ],
+      "classification": "B",
+      "reason": "Raw ACL provenance is outside accepted 063 evidence; retain full difference. Source-provider schema differences require referenced-field/repository reconciliation; no blanket approval."
+    },
+    {
+      "name": "finance_tax_position_audit",
+      "new_path_writes": true,
+      "ddl_touched": false,
+      "current_security": {
+        "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}",
+        "rls": true,
+        "name": "finance_tax_position_audit",
+        "owner": "postgres",
+        "force_rls": false
+      },
+      "current_policies": [
+        {
+          "cmd": "SELECT",
+          "qual": "tax_position_can_view()",
+          "roles": [
+            "authenticated"
+          ],
+          "tablename": "finance_tax_position_audit",
+          "permissive": "PERMISSIVE",
+          "policyname": "tax_position_read",
+          "schemaname": "public",
+          "with_check": null
+        }
+      ],
+      "current_triggers": [
+        "CREATE TRIGGER tax_position_no_rewrite BEFORE DELETE OR UPDATE ON public.finance_tax_position_audit FOR EACH ROW EXECUTE FUNCTION tax_position_immutable()",
+        "CREATE TRIGGER tax_position_no_truncate BEFORE TRUNCATE ON public.finance_tax_position_audit FOR EACH STATEMENT EXECUTE FUNCTION tax_position_immutable()"
+      ],
+      "compared_to_repository_fixture": true,
+      "changed_fields": [
+        "acl"
+      ],
+      "classification": "B",
+      "reason": "Raw ACL provenance is outside accepted 063 evidence; retain full difference. Source-provider schema differences require referenced-field/repository reconciliation; no blanket approval."
+    },
+    {
+      "name": "finance_tax_position_facts",
+      "new_path_writes": true,
+      "ddl_touched": true,
+      "current_security": {
+        "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}",
+        "rls": true,
+        "name": "finance_tax_position_facts",
+        "owner": "postgres",
+        "force_rls": false
+      },
+      "current_policies": [
+        {
+          "cmd": "SELECT",
+          "qual": "tax_position_can_view()",
+          "roles": [
+            "authenticated"
+          ],
+          "tablename": "finance_tax_position_facts",
+          "permissive": "PERMISSIVE",
+          "policyname": "tax_position_read",
+          "schemaname": "public",
+          "with_check": null
+        }
+      ],
+      "current_triggers": [
+        "CREATE TRIGGER tax_position_no_rewrite BEFORE DELETE OR UPDATE ON public.finance_tax_position_facts FOR EACH ROW EXECUTE FUNCTION tax_position_immutable()",
+        "CREATE TRIGGER tax_position_no_truncate BEFORE TRUNCATE ON public.finance_tax_position_facts FOR EACH STATEMENT EXECUTE FUNCTION tax_position_immutable()"
+      ],
+      "compared_to_repository_fixture": true,
+      "changed_fields": [
+        "acl"
+      ],
+      "classification": "B",
+      "reason": "Raw ACL provenance is outside accepted 063 evidence; retain full difference. Source-provider schema differences require referenced-field/repository reconciliation; no blanket approval."
+    },
+    {
+      "name": "finance_tax_source_revisions",
+      "new_path_writes": true,
+      "ddl_touched": true,
+      "current_security": {
+        "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}",
+        "rls": true,
+        "name": "finance_tax_source_revisions",
+        "owner": "postgres",
+        "force_rls": false
+      },
+      "current_policies": [
+        {
+          "cmd": "SELECT",
+          "qual": "tax_position_can_view()",
+          "roles": [
+            "authenticated"
+          ],
+          "tablename": "finance_tax_source_revisions",
+          "permissive": "PERMISSIVE",
+          "policyname": "tax_position_read",
+          "schemaname": "public",
+          "with_check": null
+        }
+      ],
+      "current_triggers": [
+        "CREATE TRIGGER tax_position_no_rewrite BEFORE DELETE OR UPDATE ON public.finance_tax_source_revisions FOR EACH ROW EXECUTE FUNCTION tax_position_immutable()",
+        "CREATE TRIGGER tax_position_no_truncate BEFORE TRUNCATE ON public.finance_tax_source_revisions FOR EACH STATEMENT EXECUTE FUNCTION tax_position_immutable()"
+      ],
+      "compared_to_repository_fixture": true,
+      "changed_fields": [
+        "acl"
+      ],
+      "classification": "B",
+      "reason": "Raw ACL provenance is outside accepted 063 evidence; retain full difference. Source-provider schema differences require referenced-field/repository reconciliation; no blanket approval."
+    },
+    {
+      "name": "user_profiles",
+      "classification": "B",
+      "reason": "Capture omitted full user_profiles columns/constraints. Its id FK and active/role/tax permission fields are required; only relation security was captured."
+    }
+  ],
+  "new_path_write_tables": [
+    "finance_tax_source_revisions",
+    "finance_tax_position_facts",
+    "finance_tax_periods",
+    "finance_tax_position_audit"
+  ],
+  "protected_finance_tables": [
+    "finance_expenses",
+    "finance_expense_tax_reviews",
+    "finance_expense_requests",
+    "finance_expense_request_items",
+    "finance_expense_audit",
+    "finance_expense_settlements",
+    "finance_expense_obligations",
+    "finance_expense_obligation_waivers",
+    "finance_payouts",
+    "finance_payout_allocations",
+    "finance_payout_audit",
+    "finance_outgoing_wht_obligations",
+    "finance_cash_transactions",
+    "finance_cash_transaction_audit_events",
+    "finance_tax_filings",
+    "finance_tax_filing_allocations",
+    "finance_tax_filing_audit",
+    "finance_tax_remittances",
+    "finance_tax_remittance_audit"
+  ],
+  "affected_tax_readers": [
+    "tax_filing_monthly_facts(date)",
+    "tax_filing_monthly_facts_before_expense(date)",
+    "tax_filing_pool(date,text)",
+    "get_finance_tax_filings(date)",
+    "get_finance_tax_position()"
+  ],
+  "special_functions": [
+    {
+      "name": "current_user_can_manage_finance_billable_charges",
+      "called_by_064": false,
+      "blocking": false,
+      "disposition": "Broader unresolved evidence only. Projection reads stored rows, not these mutation/permission functions; SELECT does not fire their DML triggers."
+    },
+    {
+      "name": "current_user_can_manage_finance_quotations",
+      "called_by_064": false,
+      "blocking": false,
+      "disposition": "Broader unresolved evidence only. Projection reads stored rows, not these mutation/permission functions; SELECT does not fire their DML triggers."
+    },
+    {
+      "name": "validate_finance_invoice_integrity",
+      "called_by_064": false,
+      "blocking": false,
+      "disposition": "Broader unresolved evidence only. Projection reads stored rows, not these mutation/permission functions; SELECT does not fire their DML triggers."
+    }
+  ],
+  "targets_absent": true,
+  "narrow_blocker": {
+    "objects": [
+      "tax_position_source(text,uuid)",
+      "finance_tax_source_revisions",
+      "finance_tax_position_facts"
+    ],
+    "reason": "These are directly renamed/wrapped or ALTERed by 064. Their service_role ACLs are not covered by accepted 063 or explicit repository grants. Current default privileges explain inheritance but do not establish prior accepted authorization.",
+    "not_proof_of_unauthorized_change": true
+  },
+  "gate_regenerated": false,
+  "production_actions": []
+}

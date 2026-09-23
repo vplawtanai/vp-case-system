@@ -1,0 +1,21 @@
+import type { MessageCatalog } from "../core";
+const copy: Record<string,[string,string]> = {
+ vatForm:["ภ.พ.30 · VAT","P.P.30 · VAT"],wht_natural:["ภ.ง.ด.3 · บุคคลธรรมดา","P.N.D.3 · Natural persons"],wht_juristic:["ภ.ง.ด.53 · นิติบุคคล","P.N.D.53 · Juristic persons"],
+ gross:["ยอดก่อนหัก WHT","Gross amount"],cash:["เงินจริงออก","Actual cash paid"],expenseSource:["ค่าใช้จ่ายต้นทาง","Source expense"],paymentSource:["รายการจ่ายเงินจริง","Actual payout"],whtClassification:["มีรายการหักจริงที่ยังต้องตรวจประเภทผู้รับและหลักฐานก่อนยื่น","Actual withholding includes sources needing recipient classification and evidence review before filing"],
+ title:["ภาษีและการนำส่ง","Tax filing & remittance"], subtitle:["สรุปภาษีจากรายการต้นทาง ตรวจเอกสาร ยื่นแบบ และติดตามการนำส่ง","Review source tax facts, file returns and track remittance"],
+ month:["เดือนนี้","This month"],history:["ประวัติรายเดือน","Monthly history"],year:["สรุปรายปี","Year summary"],
+ output:["VAT ขาย","Output VAT"],input:["VAT ซื้อที่ใช้เครดิตได้","Eligible Input VAT"],pending:["VAT ซื้อรอตรวจ","Input VAT pending review"],net:["VAT สุทธินำส่ง","Net VAT payable"],estimate:["VAT สุทธิ (ประมาณการ)","Estimated net VAT"],
+ credit:["เครดิต WHT ที่ลูกค้าหัก VP","WHT credit withheld by customers"],creditHelp:["เป็นเครดิตภาษี ไม่ใช่ภาษีที่ VP ต้องนำส่งเดือนนี้","Tax credit, separate from tax VP must remit this month"],
+ outgoing:["WHT ขาออกนำส่ง","Outgoing WHT"],due:["กำหนดยื่นออนไลน์","Online filing deadline"],dueUnknown:["รอยืนยันปฏิทินภาษี","Tax calendar review required"],
+ review:["รอตรวจ","Awaiting review"],ready:["พร้อมยื่น","Ready to file"],filed:["ยื่นแล้ว","Filed"],paid:["ชำระแล้ว","Paid"],complete:["ยื่นครบแล้ว","All forms filed"],outstanding:["รอยื่น","Awaiting filing"],future:["ยังไม่ถึงรอบ","Upcoming"],
+ details:["ดูรายละเอียด","View details"],filing:["จัดการยื่น / นำส่ง","Filing / remittance"],sources:["รายการต้นทาง","Source evidence"],count:["{count} รายการ","{count} items"],
+ unknown:["ยังสรุปไม่ได้","Not available"],incomplete:["VAT สุทธิเป็นเพียงประมาณการ การยื่นยังต้องผ่านการตรวจความครบถ้วนของภาษีซื้อ","Estimated net VAT only. Filing still requires complete Input VAT review."],
+ unavailable:["โหลดข้อมูลภาษีไม่ครบ กรุณาลองใหม่ หรือตรวจว่าฐานข้อมูลพร้อมใช้งานแล้ว","Tax data could not be fully loaded. Retry or check backend availability."],
+ add:["+ เพิ่มเอกสารภาษีซื้ออื่น","+ Add other Input VAT evidence"],external:["เอกสารภาษีซื้ออื่น","Other Input VAT evidence"],funding:["บุคคลอื่นชำระแทน — ไม่ขอคืนเงิน","Paid by another person — no reimbursement"],noCash:["บันทึกเฉพาะเอกสารภาษี ไม่สร้างรายการรอจ่าย การเบิกคืน หรือเงินออก","Tax evidence only; creates no payable, reimbursement or cash movement"],
+ vendor:["ผู้ขาย / ผู้ให้บริการ","Vendor / provider"],invoiceDate:["วันที่ใบกำกับภาษี","Tax invoice date"],invoiceNumber:["เลขที่ใบกำกับภาษี","Tax invoice number"],base:["ฐานภาษี","Tax base"],vat:["VAT","VAT"],note:["ที่มา / หมายเหตุ","Source / note"],
+ pendingEvidence:["รอตรวจ","Pending review"],eligible:["ใช้เครดิตได้","Eligible"],ineligible:["ใช้ไม่ได้","Ineligible"],reason:["เหตุผลการตรวจ","Review reason"],ack:["ยืนยันข้อมูลและไม่มีการขอคืนเงินหรือเงินบริษัทออกจากรายการนี้","I confirm the evidence, no reimbursement and no company cash outflow"],
+ save:["บันทึกเอกสาร","Save evidence"],saveReview:["บันทึกผลตรวจ","Save review"],failed:["บันทึกไม่สำเร็จหรือยังยืนยันผลไม่ได้ โปรดลองด้วยข้อมูลเดิม","Unable to confirm the save. Retry with the same information."],
+ filedCount:["ยื่นครบ {count}/12 เดือน","{count}/12 months fully filed"],owedCount:["รอยื่น {count} เดือน","{count} months outstanding"],yearNote:["ยอดรวมจาก 12 เดือน ยอดที่ข้อมูลยังไม่ครบจะแสดงว่ายังสรุปไม่ได้ สถานะยื่นครบไม่ได้หมายความว่าชำระแล้ว","Totals use 12 monthly periods. Incomplete amounts remain unavailable. Filed does not mean paid."],
+ ef:["เปิด e-Filing","Open e-Filing"],empty:["ไม่มีรายการ","No items"],remaining:["ตรวจเอกสารก่อนยื่น","Review evidence before filing"],
+};
+export const taxHomeMessages:MessageCatalog=Object.fromEntries(Object.entries(copy).map(([k,[th,en]])=>[`taxHome.${k}`,{th,en}]));

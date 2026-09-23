@@ -10,8 +10,7 @@ import { supabase } from "../../../lib/supabase";
 import { useI18n } from "../../../lib/i18n/provider";
 import { QuotationGuard } from "../quotations/shared";
 import FinanceSubNav from "../FinanceSubNav";
-import TaxModuleNav from "./module-nav";
-import TaxDashboard from "./dashboard";
+import TaxHome from "./tax-home";
 import { sourceLabel, taxErrorKey, type TaxFact, type TaxPositionData, type TaxSource } from "./shared";
 import styles from "./tax-position.module.css";
 import { FinanceEvidence } from "../FinanceEvidence";
@@ -19,7 +18,7 @@ import { FinanceEvidence } from "../FinanceEvidence";
 type Action = { kind: "source"; row: TaxSource } | { kind: "evidence"; row: TaxFact };
 export default function TaxPositionPage() {
  return <QuotationGuard canAccess={a => a.permissions.canViewFinanceTaxInvoices || a.profile?.role === "partner"}>
-  {a => <><FinanceSubNav activePage="tax-position" permissions={a.permissions} /><TaxModuleNav active="overview" /><TaxDashboard permissions={a.permissions} /></>}
+  {a => <><FinanceSubNav activePage="tax-position" permissions={a.permissions} /><TaxHome permissions={a.permissions} /></>}
  </QuotationGuard>;
 }
 export function TaxPositionWorkspace({ isAdmin = false }: { isAdmin?: boolean }) {

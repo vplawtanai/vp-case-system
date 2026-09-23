@@ -1,0 +1,144 @@
+{
+  "scope": [
+    "tax_position_source(text,uuid)",
+    "finance_tax_source_revisions",
+    "finance_tax_position_facts",
+    "finance_external_input_vat",
+    "finance_external_input_vat_reviews"
+  ],
+  "candidate_sha256": "6f5e5d1d97d3fbca03f6866038437fe355e5e4e2f4c15051aad029953828a85e",
+  "candidate_changed": true,
+  "original_candidate_sha256": "0266aeced8c08a5066de62a261cc787a7686e0cba7210ef476ac59ea4d96f297",
+  "historical_default_privileges": "Not provable for 050/055 creation time. Captured current defaults are compatible with the observed grants. No historical acceptance proof is required for ACLs 064 leaves unchanged.",
+  "table_results": [
+    {
+      "name": "finance_tax_source_revisions",
+      "classification": "A_PREEXISTING_POSTURE_FREEZE_AND_PRESERVE",
+      "security": {
+        "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}",
+        "rls": true,
+        "name": "finance_tax_source_revisions",
+        "owner": "postgres",
+        "force_rls": false
+      },
+      "policies": [
+        {
+          "cmd": "SELECT",
+          "qual": "tax_position_can_view()",
+          "roles": [
+            "authenticated"
+          ],
+          "tablename": "finance_tax_source_revisions",
+          "permissive": "PERMISSIVE",
+          "policyname": "tax_position_read",
+          "schemaname": "public",
+          "with_check": null
+        }
+      ],
+      "candidate_changes": "CHECK constraint only; no object recreation, owner/ACL/RLS/policy change",
+      "acl_can_change_by_064": false,
+      "capture_acl_access": {
+        "postgres": "owner/full",
+        "service_role": "all table privileges",
+        "authenticated": "SELECT subject to tax_position_can_view() RLS",
+        "anon": "none",
+        "PUBLIC": "none"
+      },
+      "required_gate": "Freeze raw relacl/owner/RLS/policies before migration; compare exact pre/post values. Validate has_table_privilege, schema USAGE and role/RLS behavior separately."
+    },
+    {
+      "name": "finance_tax_position_facts",
+      "classification": "A_PREEXISTING_POSTURE_FREEZE_AND_PRESERVE",
+      "security": {
+        "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}",
+        "rls": true,
+        "name": "finance_tax_position_facts",
+        "owner": "postgres",
+        "force_rls": false
+      },
+      "policies": [
+        {
+          "cmd": "SELECT",
+          "qual": "tax_position_can_view()",
+          "roles": [
+            "authenticated"
+          ],
+          "tablename": "finance_tax_position_facts",
+          "permissive": "PERMISSIVE",
+          "policyname": "tax_position_read",
+          "schemaname": "public",
+          "with_check": null
+        }
+      ],
+      "candidate_changes": "CHECK constraint only; no object recreation, owner/ACL/RLS/policy change",
+      "acl_can_change_by_064": false,
+      "capture_acl_access": {
+        "postgres": "owner/full",
+        "service_role": "all table privileges",
+        "authenticated": "SELECT subject to tax_position_can_view() RLS",
+        "anon": "none",
+        "PUBLIC": "none"
+      },
+      "required_gate": "Freeze raw relacl/owner/RLS/policies before migration; compare exact pre/post values. Validate has_table_privilege, schema USAGE and role/RLS behavior separately."
+    }
+  ],
+  "function_result": {
+    "signature": "tax_position_source(text,uuid)",
+    "current_owner": "postgres",
+    "current_acl": "{postgres=X/postgres,service_role=X/postgres}",
+    "classification": "B_RENAMED_ORIGINAL_PLUS_NEW_OBJECT",
+    "acl_can_change_by_064": true,
+    "original_alias": "Rename preserves original OID/owner/ACL; subsequent revokes for PUBLIC/anon/authenticated are no-ops against captured ACL.",
+    "replacement": "New OID with explicit postgres owner and service_role EXECUTE; not inherited from alias or default privileges.",
+    "explicit_current_contract": "SECURITY DEFINER; search_path=public; PUBLIC/anon/authenticated EXECUTE revoked.",
+    "missing_explicit_contract": [],
+    "expected_contract": {
+      "owner": "postgres",
+      "security_definer": true,
+      "search_path": [
+        "public"
+      ],
+      "postgres_execute": true,
+      "service_role_execute": true,
+      "authenticated_execute": false,
+      "anon_execute": false,
+      "PUBLIC_execute": false
+    }
+  },
+  "new_table_results": [
+    {
+      "name": "finance_external_input_vat",
+      "expected_owner": "postgres",
+      "owner_pinned_by_candidate": true,
+      "rls_enabled": true,
+      "force_rls": false,
+      "policies": [],
+      "authenticated_direct_access": "explicitly revoked",
+      "anon_direct_access": "explicitly revoked",
+      "PUBLIC_direct_access": "explicitly revoked",
+      "expected_service_role_access": "SELECT and INSERT only for append-only evidence; all other service table privileges revoked explicitly; RLS bypass checked by gate",
+      "service_role_access_pinned_by_candidate": true,
+      "default_privileges": "Not relied on: service grants are revoked before explicit SELECT/INSERT grant."
+    },
+    {
+      "name": "finance_external_input_vat_reviews",
+      "expected_owner": "postgres",
+      "owner_pinned_by_candidate": true,
+      "rls_enabled": true,
+      "force_rls": false,
+      "policies": [],
+      "authenticated_direct_access": "explicitly revoked",
+      "anon_direct_access": "explicitly revoked",
+      "PUBLIC_direct_access": "explicitly revoked",
+      "expected_service_role_access": "SELECT and INSERT only for append-only evidence; all other service table privileges revoked explicitly; RLS bypass checked by gate",
+      "service_role_access_pinned_by_candidate": true,
+      "default_privileges": "Not relied on: service grants are revoked before explicit SELECT/INSERT grant."
+    }
+  ],
+  "effective_access_limit": "Captured ACL and policy results are established. Live has_*_privilege, schema USAGE and role BYPASSRLS attributes were not captured or executed here; no end-to-end Production permission PASS is claimed.",
+  "genuine_candidate_security_contract_defect": false,
+  "existing_acl_drift_blocks_064": false,
+  "replacement_preflight_ready": true,
+  "stop_reason": "Security contract fixed under explicit authorization. Regenerated gates remain subject to MANUAL PRODUCTION GATE; no Production execution.",
+  "production_actions": []
+}

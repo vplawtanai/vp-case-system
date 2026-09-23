@@ -1,5 +1,5 @@
 export type TaxSource = {
- source_type: "payment" | "direct_money_receipt" | "tax_invoice" | "tax_correction" | "expense";
+ source_type: "payment" | "direct_money_receipt" | "tax_invoice" | "tax_correction" | "expense" | "external_input_vat";
  source_id: string; reference: string | null; effective_on: string; currency: string;
  payer: { name?: string | null }; warnings: string[];
  lines: { kind: string; base: number | null; rate: number | null; tax: number }[];

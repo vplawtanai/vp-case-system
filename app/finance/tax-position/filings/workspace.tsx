@@ -10,7 +10,7 @@ import { useI18n } from "../../../../lib/i18n/provider";
 import type { UserPermissions } from "../../../../lib/permissions";
 import { currentBangkokMonth, readMonthlyTaxSources, shiftMonth, summarizeMonthlyTaxFacts, type MonthlyTaxFacts } from "../dashboard-data";
 import { locationKey, locationName, openingStart } from "../../treasury/shared";
-import { activeFiling, filingBaseAmount, filingCoverage, filingErrorKey, filingState, summarizeFilings, type Filing, type FilingData, type FilingPool } from "./shared";
+import { activeFiling, filingBaseAmount, filingCoverage, filingErrorKey, filingState, summarizeFilings, type Filing, type FilingData, type FilingPool, type FilingType } from "./shared";
 import { VatFilingReview } from "./vat-review";
 import { FilingTechnicalEvidence } from "./technical-evidence";
 import { FinanceEvidence } from "../../FinanceEvidence";
@@ -18,13 +18,14 @@ import { DeadlineReview, type DeadlineSelection } from "./deadline-review";
 import styles from "./filings.module.css";
 
 type Selection = { pool: FilingPool; filing?: Filing; mode: "review" | "file" | "payment" | "cancel" | "cancelPayment"; readonly?: boolean };
-export function TaxFilingWorkspace({ permissions }: { permissions: UserPermissions }) {
+export function TaxFilingWorkspace({ permissions, initialMonth, initialType, onExit }: { permissions: UserPermissions; initialMonth?: string; initialType?: FilingType; onExit?: () => void }) {
  const { t, locale, date } = useI18n(), tr = (k: string, values?: Record<string, string | number>) => t(`taxFiling.${k}`, values);
- const [month, setMonth] = useState(currentBangkokMonth), [data, setData] = useState<FilingData | null>(null), [loading, setLoading] = useState(true), [busy, setBusy] = useState(false);
+ const [month, setMonth] = useState(initialMonth || currentBangkokMonth()), [data, setData] = useState<FilingData | null>(null), [loading, setLoading] = useState(true), [busy, setBusy] = useState(false);
  const [monthlyFacts, setMonthlyFacts] = useState<MonthlyTaxFacts | null>(null);
  const { canViewFinancePayments, canViewFinanceTaxInvoices, canViewFinanceReceipts } = permissions;
  const [error, setError] = useState<string | null>(null), [saved, setSaved] = useState(false), [selection, setSelection] = useState<Selection | null>(null);
  const [deadline, setDeadline] = useState<DeadlineSelection | null>(null), [externalDate, setExternalDate] = useState(""), [reference, setReference] = useState(""), [evidence, setEvidence] = useState(""), [ack, setAck] = useState(false), [accountKey, setAccountKey] = useState("");
+ const initialOpened = useRef(false);
  const sequence = useRef(0), lock = useRef(false), requestId = useRef(""), form = useRef<HTMLFormElement>(null), queuedHistory = useRef<string | null>(null);
  const load = useCallback(async () => {
   const n = ++sequence.current; setLoading(true); setData(null); setMonthlyFacts(null);
@@ -34,11 +35,12 @@ export function TaxFilingWorkspace({ permissions }: { permissions: UserPermissio
    const sources = await readMonthlyTaxSources(supabase, { canViewFinancePayments, canViewFinanceTaxInvoices, canViewFinanceReceipts } as UserPermissions, month);
    if (n === sequence.current) {
     const next = result.data as FilingData; setData(next); setMonthlyFacts(summarizeMonthlyTaxFacts(sources, month));
+    if (initialType && !initialOpened.current) { const pool = next.pools.find(p => p.filing_type === initialType); if (pool) { initialOpened.current = true; requestId.current = crypto.randomUUID(); setSelection({ pool, filing: activeFiling(next, initialType), mode: "review" }); } }
     if (queuedHistory.current) { const f = next.filings.find(f => f.id === queuedHistory.current); queuedHistory.current = null; if (f) setSelection({ pool: f.source_snapshot_json, filing: f, mode: "review", readonly: true }); }
    }
   } catch (e) { if (n === sequence.current) setError(filingErrorKey(e)); }
   finally { if (n === sequence.current) setLoading(false); }
- }, [month, canViewFinancePayments, canViewFinanceTaxInvoices, canViewFinanceReceipts]);
+ }, [month, canViewFinancePayments, canViewFinanceTaxInvoices, canViewFinanceReceipts, initialType]);
  const invalidate = useCallback(() => { sequence.current++; }, []);
  useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => { clearTimeout(timer); invalidate(); }; }, [load, invalidate]);
  const money = (value: number | null | undefined) => value == null ? tr("unknown") : `${value.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} THB`;
@@ -61,10 +63,10 @@ export function TaxFilingWorkspace({ permissions }: { permissions: UserPermissio
  function open(pool: FilingPool, filing?: Filing, mode: Selection["mode"] = "review", readonly = false) {
   requestId.current = crypto.randomUUID(); setSelection({ pool, filing, mode, readonly }); setDeadline(null); setExternalDate(""); setReference(""); setEvidence(""); setAccountKey(""); setAck(false); setError(null); setSaved(false);
  }
- function close() { if (!lock.current) { setSelection(null); setError(null); } }
+ function close() { if (!lock.current) { setSelection(null); setError(null); onExit?.(); } }
  async function execute(name: string, args: Record<string, unknown>) {
   if (lock.current) return; lock.current = true; setBusy(true); setError(null); setSaved(false);
-  try { const result = await supabase.rpc(name, args); if (result.error) throw result.error; setSelection(null); setSaved(true); await load(); }
+  try { const result = await supabase.rpc(name, args); if (result.error) throw result.error; setSelection(null); setSaved(true); await load(); onExit?.(); }
   catch (e) { setError(filingErrorKey(e)); }
   finally { lock.current = false; setBusy(false); }
  }
@@ -85,6 +87,7 @@ export function TaxFilingWorkspace({ permissions }: { permissions: UserPermissio
   <FieldGroup id="filing-reference" label={tr("reference")}><input required maxLength={300} value={reference} onChange={e => setReference(e.target.value)} /></FieldGroup>
   <FieldGroup id="filing-evidence" label={tr("evidence")}><textarea required maxLength={2000} value={evidence} onChange={e => setEvidence(e.target.value)} /></FieldGroup></>;
  return <PageShell className={styles.page}>
+  {!initialType ? <>
   <header className={styles.header}><div><h1>{tr("title")}</h1><p>{tr("subtitle")}</p></div><div className={styles.periodControl}><label htmlFor="filing-period">{tr("period")}</label><div className={styles.month}>
    <button type="button" className={ui.secondary} disabled={busy} title={t("taxDashboard.previousMonth")} aria-label={t("taxDashboard.previousMonth")} onClick={() => changeMonth(shiftMonth(month, -1))}><ChevronLeft size={18} /></button>
    <select id="filing-period" aria-label={tr("period")} value={month} disabled={busy} onChange={e => changeMonth(e.target.value)}>{months.map(m => <option key={m} value={m}>{monthName(m)}</option>)}</select>
@@ -132,6 +135,7 @@ export function TaxFilingWorkspace({ permissions }: { permissions: UserPermissio
     </tr>)}</tbody></table>}
    </section></div>
   </> : null}
+  </> : loading ? <p role="status">{t("common.state.loading")}</p> : error && !selection ? <Callout tone="negative">{tr(error)}<button type="button" onClick={close}>{t("common.actions.close")}</button></Callout> : null}
   <DetailModal open={!!selection} title={vatReview ? tr("vatReviewTitle") : selection ? `${tr(paymentMode ? "paymentReview" : cancellation ? "cancelDraft" : "review")} · ${tr(selection.pool.filing_type)}` : tr("review")} subtitle={vatReview && selection ? `${tr("period")} ${monthName(selection.pool.period_month)}` : undefined} size="edit" onClose={close} closeOnBackdrop={!busy}>
    {selection && data ? <form ref={form} className={styles.form} onSubmit={submit} noValidate><fieldset disabled={busy}>
     {vatReview ? <VatFilingReview pool={f?.source_snapshot_json || selection.pool} monthlyFacts={reviewMonthMatches ? monthlyFacts : null} outgoingWht={reviewMonthMatches ? summary?.outgoing ?? null : null} /> : <ReadOnlyGrid items={[{ key: "period", label: tr("period"), value: monthName(selection.pool.period_month) }, { key: "amount", label: tr("amount"), value: money(f ? f.tax_amount : selection.pool.tax_amount) },

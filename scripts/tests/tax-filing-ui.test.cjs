@@ -13,9 +13,9 @@ test('052 UI filed is not paid, zero is not paid-zero, immutable history and err
  assert.equal(filingState({status:'draft',source_changed:true},p),'source_changed');for(const code of ['SOURCE_CHANGED','ACCOUNT_CHANGED','STALE'])assert.equal(filingErrorKey({message:'TAX_FILING_'+code}),'changed');
  for(const [k,v]of Object.entries(taxFilingMessages))for(const lang of ['th','en'])assert.ok(v[lang]?.trim(),k+lang);
 });
-test('052 UI scope: only controlled RPCs; legacy untyped filing action removed; dashboard retained',()=>{
+test('052 UI scope: only controlled RPCs; legacy untyped filing action removed; period home reuses controlled filing actions',()=>{
  const page=fs.readFileSync('app/finance/tax-position/page.tsx','utf8'),ui=fs.readFileSync('app/finance/tax-position/filings/workspace.tsx','utf8');
- assert.match(page,/<TaxDashboard/);assert.match(page,/record_finance_incoming_wht_evidence/);assert.doesNotMatch(page,/transition_finance_tax_period/);
+ assert.match(page,/<TaxHome/);assert.match(page,/record_finance_incoming_wht_evidence/);assert.doesNotMatch(page,/transition_finance_tax_period/);
  assert.doesNotMatch(ui,/supabase\.from\(|\.insert\(|\.update\(|\.delete\(/);assert.match(ui,/get_finance_tax_filings/);assert.match(ui,/<FinanceEvidence title=\{tr\("technical"\)\}/);
 });
 test('Filing page presents review-first sections and honest empty history in TH/EN',()=>{
