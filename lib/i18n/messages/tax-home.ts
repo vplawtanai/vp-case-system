@@ -16,7 +16,7 @@ const copy: Record<string,[string,string]> = {
  output:["VAT ขาย","Output VAT"],input:["VAT ซื้อที่ใช้เครดิตได้","Eligible Input VAT"],pending:["VAT ซื้อรอตรวจ","Input VAT pending review"],net:["VAT สุทธิ","Net VAT"],estimate:["VAT สุทธิ (ประมาณการ)","Estimated net VAT"],
  credit:["เครดิต WHT ที่ลูกค้าหัก VP","WHT credit withheld by customers"],creditHelp:["เป็นเครดิตภาษี ไม่ใช่ภาษีที่ VP ต้องนำส่งเดือนนี้","Tax credit, separate from tax VP must remit this month"],
  outgoing:["WHT ขาออกนำส่ง","Outgoing WHT"],due:["ยื่นออนไลน์ภายใน","File online by"],dueUnknown:["รอยืนยันปฏิทินภาษี","Tax calendar review required"],
- review:["รอตรวจ","Awaiting review"],ready:["พร้อมยื่น","Ready to file"],filed:["ยื่นแล้ว","Filed"],paid:["ชำระแล้ว","Paid"],complete:["ยื่นครบแล้ว","All forms filed"],outstanding:["รอยื่น","Awaiting filing"],future:["ยังไม่ถึงรอบ","Upcoming"],
+ review:["รอตรวจ","Awaiting review"],dataReady:["ข้อมูลพร้อม","Data ready"],ready:["พร้อมยื่น","Ready to file"],filed:["ยื่นแล้ว","Filed"],paid:["ชำระแล้ว","Paid"],complete:["ยื่นครบแล้ว","All forms filed"],outstanding:["รอยื่น","Awaiting filing"],future:["ยังไม่ถึงรอบ","Upcoming"],
  details:["ดูรายละเอียด","View details"],filing:["จัดการยื่น / นำส่ง","Filing / remittance"],sources:["รายการต้นทาง","Source evidence"],count:["{count} รายการ","{count} items"],
  unknown:["ยังสรุปไม่ได้","Not available"],incomplete:["ยังมีหลักฐาน VAT ซื้อที่ไม่ชัดเจน กรุณาระบุข้อมูลให้ครบก่อนสรุป VAT สุทธิ","Explicit Input VAT evidence is unresolved. Complete that evidence to determine net VAT."],
  unavailable:["โหลดข้อมูลภาษีไม่ครบ กรุณาลองใหม่ หรือตรวจว่าฐานข้อมูลพร้อมใช้งานแล้ว","Tax data could not be fully loaded. Retry or check backend availability."],

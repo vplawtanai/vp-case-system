@@ -35,7 +35,7 @@ test('visual views retain frozen filing values, negative net VAT and unknown amo
  d.filing.filings=[];d.filing.pools[0].monthly_facts.reviewed_input_vat=null;
  assert.equal(taxMonthSummary(d).estimate,null);assert.equal(taxYearSummary([d]).net,null,'Unavailable totals remain unavailable, not zero');
 });
-const {taxPeriodForFilingMonth,filingMonthForTaxPeriod,taxPeriodsForView,filingYearView,filingObligationsForDisplay}=require('../../app/finance/tax-position/filing-period-view.ts');
+const {taxPeriodForFilingMonth,filingMonthForTaxPeriod,taxPeriodsForView,filingYearView,filingObligationsForDisplay,filingObligationDisplay}=require('../../app/finance/tax-position/filing-period-view.ts');
 const {readTaxMonth}=require('../../app/finance/tax-position/period-data.ts');
 test('filing September 2569 reads August; filing October 2569 reads September; deadlines remain calendar-owned',async()=>{
  for(const [filingMonth,taxPeriod,deadline] of [['2026-09','2026-08','2026-09-21'],['2026-10','2026-09','2026-10-20']]){
@@ -76,4 +76,38 @@ test('each resolved WHT form has independent actions; unknown classification/evi
  view=filingObligationsForDisplay(d);assert.equal(view.whtNeedsReview,true);assert.deepEqual(view.pools.map(p=>p.filing_type),['vat']);
  d.filing.pools[1].issues=[{code:'source_evidence_incomplete',count:1}];d.filing.pools[1].review_sources[0].entity_type='natural_person';
  view=filingObligationsForDisplay(d);assert.equal(view.whtNeedsReview,true);assert.deepEqual(view.pools.map(p=>p.filing_type),['vat'],'Incomplete evidence must not expose WHT filing actions');
+});
+
+test('display readiness requires confirmed per-form deadline evidence, preserving frozen deadlines and filing lifecycle',async()=>{
+ const d=await data(),pool={...d.filing.pools[0],ready:true};
+ const calendar={schema_version:1,period_month:'2026-09-01',filing_type:'vat',channel:'online',status:'calculated',due_date:'2026-10-20',rule:{reference:'Synthetic calendar'}};
+ for(const deadline of [undefined,{...calendar,status:'review_required',due_date:null},{...calendar,status:'review_required'},{...calendar,due_date:null}]){
+  assert.equal(filingObligationDisplay(pool,undefined,deadline).state,'dataReady','Complete amounts alone, or an unconfirmed date, never mean ready to file');
+ }
+ assert.equal(filingObligationDisplay(pool,undefined,calendar).state,'ready');
+ const filing={filing_type:'vat',status:'draft',source_changed:false,due_date:'2026-10-23',deadline_snapshot_json:{...calendar,status:'admin_override',due_date:'2026-10-23'}};
+ assert.deepEqual(filingObligationDisplay(pool,filing,{...calendar,status:'review_required',due_date:null}),{state:'ready',due:'2026-10-23'},'An already confirmed frozen override stays authoritative');
+ assert.equal(filingObligationDisplay(pool,{...filing,deadline_snapshot_json:{...calendar,status:'review_required'}},calendar).state,'dataReady','A live date does not replace an unresolved frozen online snapshot');
+ assert.equal(filingObligationDisplay(pool,{...filing,due_date:null},calendar).state,'dataReady');
+ assert.equal(filingObligationDisplay(pool,{...filing,deadline_snapshot_json:{...calendar,channel:'paper'}},{...calendar,status:'review_required',due_date:null}).state,'dataReady','An online card cannot borrow its confirmation from the paper calendar');
+ assert.equal(filingObligationDisplay({...pool,ready:false},undefined,calendar).state,'review');
+ assert.equal(filingObligationDisplay(pool,{...filing,source_changed:true},calendar).state,'review');
+ assert.equal(filingObligationDisplay(pool,{...filing,status:'filed'},undefined).state,'filed');
+ assert.equal(filingObligationDisplay(pool,{...filing,status:'filed',remittance:{status:'confirmed'}},undefined).state,'paid');
+ const before=structuredClone({pool,filing,calendar});filingObligationDisplay(pool,filing,calendar);assert.deepEqual({pool,filing,calendar},before,'Labels must not mutate calendar or lifecycle records');
+});
+
+for(const locale of ['th','en'])test(`Tax readiness ${locale}: VAT and each WHT card/action use their own calendar confirmation`,async()=>{
+ const {workspaceFixture}=require('./i18n-workspace-fixture.cjs'),React=require('react');
+ const home=workspaceFixture('app/finance/tax-position/tax-home.tsx',[],{'../../components/DetailModal':{default:({children})=>React.createElement('div',null,children)}});
+ const d=await data();d.filing.pools.forEach(p=>p.ready=true);
+ Object.assign(d.filing.pools[0].monthly_facts,{input_contract:'authoritative_input_v1',input_vat:70,input_vat_complete:true,net_vat:630});
+ const calendar=type=>({schema_version:1,period_month:'2026-09-01',filing_type:type,channel:'online',status:'calculated',due_date:'2026-10-20',rule:{reference:'Synthetic calendar'}});
+ d.deadlines={vat:{...calendar('vat'),status:'review_required',due_date:null},wht_natural:calendar('wht_natural'),wht_juristic:{...calendar('wht_juristic'),status:'review_required',due_date:null}};
+ const render=()=>home.render(locale,{'TaxHome.month':'2026-10','TaxHome.months':[d],'TaxHome.loading':false},{permissions:buildPermissions({role:'admin'})});
+ const dataReady=locale==='th'?'ข้อมูลพร้อม':'Data ready',ready=locale==='th'?'พร้อมยื่น':'Ready to file';
+ let html=render();assert.equal(html.split('>'+dataReady+'</span>').length-1,4,'Unconfirmed VAT and PND53 each show Data ready on their card and action row');
+ assert.equal(html.split('>'+ready+'</span>').length-1,2,'Confirmed PND3 alone shows Ready to file on both surfaces');
+ d.deadlines.vat=calendar('vat');d.deadlines.wht_juristic=calendar('wht_juristic');
+ html=render();assert.equal(html.split('>'+ready+'</span>').length-1,6);assert.doesNotMatch(html,new RegExp(dataReady));
 });

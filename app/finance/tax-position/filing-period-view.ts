@@ -1,6 +1,19 @@
-import { activeFiling, filingCoverage } from "./filings/shared";
+import { activeFiling, filingCoverage, type Filing, type FilingPool } from "./filings/shared";
+import type { DeadlineEvidence } from "./filings/deadline-review";
 import { currentBangkokMonth, shiftMonth } from "./dashboard-data";
 import { taxMonthSummary, type TaxMonth } from "./period-data";
+
+// Display only: use the same current/frozen online deadline shown on each card.
+// Readiness labels do not advance a filing or confirm its Tax Calendar evidence.
+export function filingObligationDisplay(pool: FilingPool, filing: Filing | undefined, calendar: DeadlineEvidence | undefined) {
+ const frozen = filing?.deadline_snapshot_json?.channel === "online";
+ const deadline = frozen ? filing.deadline_snapshot_json : calendar;
+ const due = frozen ? filing.due_date : calendar?.due_date;
+ const confirmed = !!due && (deadline?.status === "calculated" || deadline?.status === "admin_override");
+ const state = filing?.status === "filed" ? filing.remittance?.status === "confirmed" ? "paid" : "filed"
+  : !pool.ready || filing?.source_changed ? "review" : confirmed ? "ready" : "dataReady";
+ return { state, due };
+}
 
 // The existing Tax Calendar (054 tax_filing_deadline) starts the filing cycle
 // one month after period_month. This translates the selector, not the deadline:

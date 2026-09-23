@@ -10,7 +10,7 @@ import DetailModal from "../../components/DetailModal";
 import ui from "../../components/ui/vp-ui.module.css";
 import { currentBangkokMonth, shiftMonth } from "./dashboard-data";
 import { externalVatStatus, readTaxMonth, taxMonthSummary, taxYearSummary, withholdingTrace, type ExternalVat, type InputEvidence, type TaxMonth } from "./period-data";
-import { filingObligationsForDisplay, filingYearView, taxPeriodForFilingMonth, taxPeriodsForView } from "./filing-period-view";
+import { filingObligationDisplay, filingObligationsForDisplay, filingYearView, taxPeriodForFilingMonth, taxPeriodsForView } from "./filing-period-view";
 import { activeFiling, filingCoverage, type FilingType } from "./filings/shared";
 import { TaxFilingWorkspace } from "./filings/workspace";
 import { ExternalInputForm } from "./external-input";
@@ -62,7 +62,7 @@ export default function TaxHome({permissions}:{permissions:UserPermissions}) {
    <section className={css.obligations} aria-labelledby="tax-month-summary">
     <div className={css.sectionHead}><h2 id="tax-month-summary">{tr("monthlySummary")}</h2><span>{monthName(month)}</span></div>
     <div className={css.cards}>
-     {displayObligations.pools.filter(p=>p.filing_type==="vat").map(p=>{const f=activeFiling(data.filing,p.filing_type);const state=f?.status==="filed"?f.remittance?.status==="confirmed"?"paid":"filed":!p.ready||f?.source_changed?"review":"ready";const due=f?.deadline_snapshot_json?.channel==="online"?f.due_date:data.deadlines[p.filing_type]?.due_date;
+     {displayObligations.pools.filter(p=>p.filing_type==="vat").map(p=>{const f=activeFiling(data.filing,p.filing_type);const {state,due}=filingObligationDisplay(p,f,data.deadlines[p.filing_type]);
       return <article className={`${css.card} ${css.vatCard}`} key={p.filing_type} data-tax-form={p.filing_type}>
        <div className={css.cardHead}><span className={css.cardTitle}><span className={css.icon}><FileText size={22}/></span><div><h3>{tr("vatForm")}</h3><p className={css.taxPeriod}>{tr("taxPeriod")}: {monthName(p.period_month.slice(0,7))}</p></div></span><StatusBadge status={state==="paid"||state==="filed"?"confirmed":"pending"} label={tr(state)}/></div>
        <div className={css.heroAmount}><strong className={css.amount}>{money(summary.net??summary.estimate)}</strong><p>{tr(summary.net===null?"estimate":"net")}</p></div>
@@ -75,7 +75,7 @@ export default function TaxHome({permissions}:{permissions:UserPermissions}) {
       <div className={css.cardHead}><span className={css.cardTitle}><span className={css.icon}><ArrowDownToLine size={22}/></span><div><h3>{tr("outgoing")}</h3><p className={css.taxPeriod}>{tr("taxPeriod")}: {monthName(data.month)}</p></div></span><span className={css.muted}>{tr("count",{count:summary.whtSources.length})}</span></div>
       <div className={css.heroAmount}><strong className={css.amount}>{money(summary.outgoing)}</strong><p>{tr("actualWithholding")}</p></div>
       {displayObligations.whtNeedsReview?<div className={css.reviewNotice}><Clock3 size={17}/><p>{tr("whtClassification")}</p></div>:null}
-      <div className={css.whtForms}>{displayObligations.pools.filter(p=>p.filing_type!=="vat").map(p=>{const f=activeFiling(data.filing,p.filing_type);const state=f?.status==="filed"?f.remittance?.status==="confirmed"?"paid":"filed":!p.ready||f?.source_changed?"review":"ready";const due=f?.deadline_snapshot_json?.channel==="online"?f.due_date:data.deadlines[p.filing_type]?.due_date;
+      <div className={css.whtForms}>{displayObligations.pools.filter(p=>p.filing_type!=="vat").map(p=>{const f=activeFiling(data.filing,p.filing_type);const {state,due}=filingObligationDisplay(p,f,data.deadlines[p.filing_type]);
        return <section key={p.filing_type} data-tax-form={p.filing_type} className={css.whtForm}><div className={css.cardHead}><h4>{tr(p.filing_type)}</h4><StatusBadge status={state==="paid"||state==="filed"?"confirmed":"pending"} label={tr(state)}/></div><div className={css.cardHead}><span>{tr("count",{count:filingCoverage(p).source_count})}</span><strong>{money(f?.status==="filed"?f.tax_amount:p.tax_amount)}</strong></div><div className={css.whtFormFoot}><p>{tr("remitBy")}<strong>{due?date(due):tr("dueUnknown")}</strong></p><button className={css.textButton} onClick={()=>setFiling(p.filing_type)}>{tr("filing")}<ArrowRight size={14}/></button></div></section>;
       })}</div>
       {!summary.whtSources.length?<p className={css.muted}>{tr("empty")}</p>:null}
@@ -90,7 +90,7 @@ export default function TaxHome({permissions}:{permissions:UserPermissions}) {
      {data.inputs.can_manage?<button className={css.actionButton} onClick={()=>setExternal("new")}>{tr("add")}</button>:null}
     </div>
     <section className={css.filingPanel} aria-labelledby="tax-filing-actions"><h3 id="tax-filing-actions">{tr("filingActions")}</h3>
-     {displayObligations.pools.map(p=>{const f=activeFiling(data.filing,p.filing_type),isVat=p.filing_type==="vat";const state=f?.status==="filed"?f.remittance?.status==="confirmed"?"paid":"filed":!p.ready||f?.source_changed?"review":"ready";const due=f?.deadline_snapshot_json?.channel==="online"?f.due_date:data.deadlines[p.filing_type]?.due_date;return <article key={p.filing_type} className={css.filingObligation} data-filing-action={p.filing_type}>
+     {displayObligations.pools.map(p=>{const f=activeFiling(data.filing,p.filing_type),isVat=p.filing_type==="vat";const {state,due}=filingObligationDisplay(p,f,data.deadlines[p.filing_type]);return <article key={p.filing_type} className={css.filingObligation} data-filing-action={p.filing_type}>
       <div className={css.cardHead}><h4>{tr(isVat?"vatForm":p.filing_type)}</h4><StatusBadge status={state==="paid"||state==="filed"?"confirmed":"pending"} label={tr(state)}/></div>
       <p>{tr("taxPeriod")}: {monthName(p.period_month.slice(0,7))}</p>
       <div className={css.obligationFacts}><strong>{money(isVat?summary.net??summary.estimate:f?.status==="filed"?f.tax_amount:p.tax_amount)}</strong><p>{tr(isVat?"due":"remitBy")}<strong>{due?date(due):tr("dueUnknown")}</strong></p></div>
