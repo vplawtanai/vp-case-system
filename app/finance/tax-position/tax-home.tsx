@@ -9,7 +9,7 @@ import { Callout, PageShell, StatusBadge } from "../../components/ui/patterns";
 import DetailModal from "../../components/DetailModal";
 import ui from "../../components/ui/vp-ui.module.css";
 import { currentBangkokMonth, shiftMonth } from "./dashboard-data";
-import { readTaxMonth, taxMonthSummary, taxYearSummary, withholdingTrace, type ExternalVat, type InputEvidence, type TaxMonth } from "./period-data";
+import { externalVatStatus, readTaxMonth, taxMonthSummary, taxYearSummary, withholdingTrace, type ExternalVat, type InputEvidence, type TaxMonth } from "./period-data";
 import { filingObligationsForDisplay, filingYearView, taxPeriodForFilingMonth, taxPeriodsForView } from "./filing-period-view";
 import { activeFiling, filingCoverage, type FilingType } from "./filings/shared";
 import { TaxFilingWorkspace } from "./filings/workspace";
@@ -33,7 +33,7 @@ export default function TaxHome({permissions}:{permissions:UserPermissions}) {
  },[readPeriod,permissions,reload]);
  const data=months?.find(m=>m.month===taxPeriod),summary=data?taxMonthSummary(data,taxPeriodForFilingMonth(currentBangkokMonth())):null;
  const inputExpenses=data?.inputs.expenses.filter(e=>source!=="pendingInput"||e.status==="pending")||[];
- const inputExternal=data?.inputs.external.filter(e=>source!=="pendingInput"||!e.review||e.review.status==="pending")||[];
+ const inputExternal=data?.inputs.external.filter(e=>source!=="pendingInput"||externalVatStatus(e)==="pending")||[];
  const annual=months&&view!=="month"?taxYearSummary(months.filter(m=>m.month.startsWith(`${year}-`))):null;
  const filingYear=months&&view!=="month"?filingYearView(months,year):null;
  const displayObligations=data?filingObligationsForDisplay(data):null;
@@ -66,7 +66,7 @@ export default function TaxHome({permissions}:{permissions:UserPermissions}) {
       return <article className={`${css.card} ${css.vatCard}`} key={p.filing_type} data-tax-form={p.filing_type}>
        <div className={css.cardHead}><span className={css.cardTitle}><span className={css.icon}><FileText size={22}/></span><div><h3>{tr("vatForm")}</h3><p className={css.taxPeriod}>{tr("taxPeriod")}: {monthName(p.period_month.slice(0,7))}</p></div></span><StatusBadge status={state==="paid"||state==="filed"?"confirmed":"pending"} label={tr(state)}/></div>
        <div className={css.heroAmount}><strong className={css.amount}>{money(summary.net??summary.estimate)}</strong><p>{tr(summary.net===null?"estimate":"net")}</p></div>
-       <dl className={css.facts}>{[["output",summary.output],["input",summary.input],["pending",summary.pendingVat]].map(([key,value])=><div key={String(key)}><dt>{tr(String(key))}</dt><dd>{money(value as number|null)}</dd></div>)}</dl>
+       <dl className={css.facts}>{[["output",summary.output],["input",summary.input],...(summary.pendingCount>0?[["pending",summary.pendingVat]]:[])].map(([key,value])=><div key={String(key)}><dt>{tr(String(key))}</dt><dd>{money(value as number|null)}</dd></div>)}</dl>
        <div className={css.deadline}><CalendarDays size={16}/><div><span>{tr("due")}</span><strong>{due?date(due):tr("dueUnknown")}</strong></div></div>
        <div className={css.actions}><button className={css.actionButton} onClick={()=>setFiling(p.filing_type)}>{tr("filing")}<ArrowRight size={15}/></button><button type="button" className={css.textButton} onClick={()=>setSource("vat")}>{tr("sources")}</button></div>
       </article>;
@@ -85,7 +85,7 @@ export default function TaxHome({permissions}:{permissions:UserPermissions}) {
    </section>
    <section className={css.credit}><span className={css.icon}><ShieldCheck size={22}/></span><div className={css.creditCopy}><h3>{tr("credit")}</h3><p>{tr("creditHelp")}</p></div><strong data-metric>{money(summary.incoming)}</strong><button className={css.textButton} onClick={()=>setSource("credit")}>{tr("details")}<ChevronRight size={16}/></button></section>
    <section aria-labelledby="tax-attention"><div className={css.sectionHead}><h2 id="tax-attention">{tr("attention")}</h2></div><div className={css.attentionGrid}>
-    <div className={css.evidencePanel}><h3><FileText size={18}/>{tr("remaining")}</h3><button className={css.reviewRow} onClick={()=>setSource("pendingInput")}><span className={css.reviewIcon}><Clock3 size={19}/></span><span><strong>{tr("pending")} · {tr("count",{count:summary.pendingCount})}</strong><small>{money(summary.pendingVat)}</small></span><ChevronRight size={17}/></button>
+    <div className={css.evidencePanel}><h3><FileText size={18}/>{tr("remaining")}</h3>{summary.pendingCount>0?<button className={css.reviewRow} onClick={()=>setSource("pendingInput")}><span className={css.reviewIcon}><Clock3 size={19}/></span><span><strong>{tr("pending")} · {tr("count",{count:summary.pendingCount})}</strong><small>{money(summary.pendingVat)}</small></span><ChevronRight size={17}/></button>:null}
      <button className={css.textButton} onClick={()=>setSource("input")}>{tr("inputEvidence")}</button>
      {data.inputs.can_manage?<button className={css.actionButton} onClick={()=>setExternal("new")}>{tr("add")}</button>:null}
     </div>
@@ -120,8 +120,8 @@ export default function TaxHome({permissions}:{permissions:UserPermissions}) {
   </>:null}
   {source&&!expenseInput&&data&&summary?<DetailModal open title={tr(source==="credit"?"credit":source==="pendingInput"?"pending":source==="input"?"inputEvidence":"sources")} size="workflow" onClose={()=>setSource(null)}><div className={css.sourceList}>
    {source==="wht"?summary.whtSources.map(s=>{const trace=withholdingTrace(s);const f=data.filing.filings.find(f=>f.status==="filed"&&filingCoverage(f.source_snapshot_json).sources.some(x=>x.id===s.id));return <article key={s.id}><strong>{s.payee_name} · {trace.title}</strong><p>{date(s.date)} · {tr("gross")} {money(trace.gross)} · WHT {money(s.amount)} · {tr("cash")} {money(trace.cash)}</p><p>{tr(f?.remittance?.status==="confirmed"?"paid":f?"filed":"outstanding")}</p>{trace.expenseId?<Link href={`/finance/expenses/${trace.claim?"claims/":""}${trace.expenseId}`}>{tr("expenseSource")}</Link>:null} · <Link href={`/finance/payouts/${s.source_id}`}>{tr("paymentSource")}</Link></article>;}):source==="credit"?summary.credits.map(c=><article key={c.key}><strong>{c.reference}</strong><p>{tr("base")} {money(c.base)} · {c.rate===null?"—":`${c.rate}%`} · {money(c.amount)} · {t(`taxPosition.${c.evidence}`)}</p><Link href={c.source==="payment"?`/finance/payments/${c.sourceId}`:`/finance/direct-money/${c.sourceId}`}>{tr("details")}</Link></article>):source==="vat"?summary.movements.filter(m=>m.vat!==null).map(m=><article key={m.key}><strong>{m.reference}</strong><p>{date(m.date)} · {m.payer} · VAT {money(m.vat)}</p><Link href={m.href}>{tr("details")}</Link></article>):<>
-    {inputExpenses.map(e=><article key={e.id}><strong>{e.vendor||tr("sources")} · {e.reference||"—"}</strong><p>{date(e.invoice_date)} · {tr("base")} {money(e.tax_base)} · VAT {money(e.vat_amount)} · {tr(e.status==="pending"?"pendingEvidence":e.status)}</p>{data.inputs.can_manage?<button className={ui.secondary} onClick={()=>setExpenseInput(e)}>{tr("reviewInput")}</button>:<Link href={`/finance/expenses${e.origin==="employee_claim"?"/claims":""}/${e.id}`}>{tr("details")}</Link>}</article>)}
-    {inputExternal.map(e=><article key={e.id}><strong>{e.vendor} · {e.invoice_number}</strong><p>{date(e.invoice_date)} · {tr("base")} {money(e.tax_base)} · VAT {money(e.vat_amount)}</p><p>{tr(e.review?.status==="eligible"?"eligible":e.review?.status==="ineligible"?"ineligible":"pendingEvidence")} · {tr("funding")}</p><p>{e.note}</p>{e.review?<p>{e.review.reason}</p>:null}{data.inputs.can_manage?<button className={ui.secondary} onClick={()=>{setSource(null);setExternal(e);}}>{tr("saveReview")}</button>:null}</article>)}
+    {inputExpenses.map(e=><article key={e.id}><strong>{e.vendor||tr("sources")} · {e.reference||"—"}</strong><p>{date(e.invoice_date)} · {tr("base")} {money(e.tax_base)} · VAT {money(e.vat_amount)} · {tr(e.status==="pending"?"pendingEvidence":e.status)}</p>{data.inputs.can_manage?<button className={ui.secondary} onClick={()=>setExpenseInput(e)}>{tr(e.status==="pending"?"reviewInput":"correctInput")}</button>:<Link href={`/finance/expenses${e.origin==="employee_claim"?"/claims":""}/${e.id}`}>{tr("details")}</Link>}</article>)}
+    {inputExternal.map(e=><article key={e.id}><strong>{e.vendor} · {e.invoice_number}</strong><p>{date(e.invoice_date)} · {tr("base")} {money(e.tax_base)} · VAT {money(e.vat_amount)}</p><p>{tr(externalVatStatus(e)==="pending"?"pendingEvidence":externalVatStatus(e))} · {tr("funding")}</p><p>{e.note}</p>{e.review?<p>{e.review.reason}</p>:null}{data.inputs.can_manage?<button className={ui.secondary} onClick={()=>{setSource(null);setExternal(e);}}>{tr(externalVatStatus(e)==="pending"?"reviewInput":"correctInput")}</button>:null}</article>)}
    </>}
    {(source==="input"||source==="pendingInput")&&!inputExpenses.length&&!inputExternal.length?<p>{tr("empty")}</p>:null}
   </div></DetailModal>:null}

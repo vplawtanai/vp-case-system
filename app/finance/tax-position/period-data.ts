@@ -3,7 +3,9 @@ import type { UserPermissions } from "../../../lib/permissions";
 import { currentBangkokMonth, readMonthlyTaxSources, summarizeDashboard, type DashboardData } from "./dashboard-data";
 import { activeFiling, filingCoverage, filingInput, filingMonthlyFacts, type FilingData, type FilingSource, type FilingType } from "./filings/shared";
 import type { DeadlineEvidence } from "./filings/deadline-review";
-export type ExternalVat = { id: string; vendor: string; invoice_date: string; invoice_number: string; tax_base: number; vat_amount: number; note: string; funding_source: string; review: { id: string; status: "pending" | "eligible" | "ineligible"; reason: string } | null };
+export type ExternalVat = { id: string; vendor: string; invoice_date: string; invoice_number: string; tax_base: number; vat_amount: number; note: string; funding_source: string; status?: "pending" | "eligible" | "ineligible"; review: { id: string; status: "pending" | "eligible" | "ineligible"; reason: string } | null };
+// Keep reads compatible with the applied 064 response until candidate 065 is released.
+export const externalVatStatus = (row: ExternalVat) => row.status ?? row.review?.status ?? "pending";
 export type InputEvidence = { can_manage: boolean; external: ExternalVat[]; expenses: { id: string; origin: string; vendor: string | null; reference: string | null; invoice_date: string; tax_base: number | null; vat_amount: number | null; status: string }[] };
 export type TaxMonth = { month: string; filing: FilingData; inputs: InputEvidence; sources: DashboardData; deadlines: Partial<Record<FilingType, DeadlineEvidence>> };
 export async function readTaxMonth(client: SupabaseClient, permissions: UserPermissions, month: string): Promise<TaxMonth> {
@@ -20,8 +22,8 @@ export async function readTaxMonth(client: SupabaseClient, permissions: UserPerm
 export function taxMonthSummary(data: TaxMonth, current = currentBangkokMonth()) {
  const raw = summarizeDashboard(data.sources, data.month), vat = data.filing.pools.find(p => p.filing_type === "vat");
  const output = vat ? filingMonthlyFacts(vat, { outputVat: raw.outputVat, incomingWht: raw.wht })?.outputVat ?? null : raw.outputVat;
- const input = vat && vat.schema_version === 2 ? vat.monthly_facts.reviewed_input_vat ?? null : null;
- const pending = [...data.inputs.expenses.filter(e => e.status === "pending"), ...data.inputs.external.filter(e => !e.review || e.review.status === "pending")];
+ const input = vat && vat.schema_version === 2 ? (vat.monthly_facts.input_contract ? vat.monthly_facts.input_vat : vat.monthly_facts.reviewed_input_vat) ?? null : null;
+ const pending = [...data.inputs.expenses.filter(e => e.status === "pending"), ...data.inputs.external.filter(e => externalVatStatus(e) === "pending")];
  const pendingVat = pending.every(e => e.vat_amount !== null) ? sum(pending.map(e => e.vat_amount!)) : null;
  const obligations = data.filing.pools.filter(p => p.filing_type === "vat" || filingCoverage(p).source_count > 0 || p.issues.length > 0 || activeFiling(data.filing,p.filing_type));
  const filed = obligations.length > 0 && obligations.every(p => activeFiling(data.filing,p.filing_type)?.status === "filed");
@@ -31,7 +33,9 @@ export function taxMonthSummary(data: TaxMonth, current = currentBangkokMonth())
  const outgoing = sum(whtSources.map(s => s.amount));
  const unclassified = whtSources.filter(s => !["natural_person","juristic_person"].includes(s.entity_type || ""));
  const vatFiling = activeFiling(data.filing,"vat");
- const net = vatFiling?.status === "filed" ? vatFiling.tax_amount : vat?.tax_amount ?? null;
+ const currentNet = vat?.schema_version === 2 && vat.monthly_facts.input_contract ? vat.monthly_facts.net_vat : vat?.tax_amount ?? null;
+ const frozen = vatFiling?.source_snapshot_json;
+ const net = vatFiling?.status === "filed" ? frozen?.schema_version === 2 && frozen.monthly_facts.input_contract ? frozen.monthly_facts.net_vat : vatFiling.tax_amount : currentNet;
  return { output, input, pendingVat, pendingCount: pending.length, incoming: raw.wht, outgoing, net, whtSources, unclassified,
   estimate: output !== null && input !== null ? sum([output, -input]) : null,
   incomplete: !vat || !filingInput(vat).input_vat_complete, obligations, movements: raw.movements, credits: raw.credits,
