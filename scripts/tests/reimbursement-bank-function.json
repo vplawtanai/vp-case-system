@@ -1,0 +1,16 @@
+{
+  "sha256": "36f4fe9301d8212771429315fc68c052eb67a1e0aadf1d8688ed050996c3b41e",
+  "function": {
+    "name": "confirm_finance_expense_payout",
+    "signature": "public.confirm_finance_expense_payout(uuid, integer, integer, uuid, boolean)",
+    "hash": "4ad6b78093966996ec267021b4816705",
+    "security_definer": true,
+    "volatility": "v",
+    "config": [
+      "search_path=public"
+    ],
+    "authenticated_execute": true,
+    "anon_execute": false,
+    "public_execute": false
+  }
+}
