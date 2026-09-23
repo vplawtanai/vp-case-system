@@ -10,25 +10,22 @@ import type { Expense, ExpenseAccess, ExpenseLookups } from "./shared";
 import type { ExpenseRequest } from "./requests";
 import type { ExpenseRun } from "./forms";
 import type { CompanyTaxCalculation } from "./company-tax";
-import { companyReviewComplete } from "./company-workflow";
+import { ItemNavigator, useReviewSelection } from "./item-navigator";
 import { expenseCategoryLabel } from "./categories";
 import { PurchaseTaxChoices, emptyPurchaseTax } from "./purchase-tax-choices";
-import { CompanyItemPayment } from "./company-item-payment";
 import { companyItemPaymentStatus } from "./company-payment-status";
+import { CompanyItemPayment } from "./company-item-payment";
 import css from "./purchase-request.module.css";
 
 type ItemProps = { row: Expense; access: ExpenseAccess; lookups: ExpenseLookups; run: ExpenseRun; busy: boolean };
 export function PurchaseRequestReview({ request, access, lookups, busy, error, run, onClose, onEdit }: Omit<ItemProps,"row"> & { request: ExpenseRequest; error: string; onClose: () => void; onEdit: () => void }) {
  const { t } = useI18n();
- const [selection, setSelection] = useState(() => ({ id:request.items.find(i => !companyReviewComplete(i))?.id || request.items[0]?.id, complete:false }));
- const item = request.items.find(i => i.id === selection.id);
- const active = item && !selection.complete && companyReviewComplete(item) && !busy && !error ? request.items.find(i => !companyReviewComplete(i)) || item : item;
- const focus = useRef<HTMLDivElement>(null), previous = useRef(active?.id);
- useEffect(() => { if (previous.current !== active?.id) focus.current?.focus();previous.current = active?.id; },[active?.id]);
+ const { selected: active, select } = useReviewSelection(request.items, busy, error);
  return <DetailModal open size="workflow" title={t("expenses.purchaseRequestReview")} closeOnBackdrop={false} onClose={() => { if (!busy) onClose(); }}>
-  <div className={css.review} ref={focus} tabIndex={-1}>
+  <div className={css.review}>
    {error ? <Callout tone="negative" role="alert">{t(`expenses.${error}`)}</Callout> : null}
-   {request.items.length > 1 ? <div className={css.itemSelect}><label htmlFor="purchase-review-item">{t("expenses.requestItems")}</label><select id="purchase-review-item" disabled={busy} value={active?.id || ""} onChange={e => setSelection({ id:e.target.value,complete:companyReviewComplete(request.items.find(i => i.id === e.target.value)!) })}>{request.items.map((i,n) => <option key={i.id} value={i.id}>{t("expenses.itemNumber",{ count:n+1 })}: {i.description}{companyItemPaymentStatus(i) ? ` · ${t(`expenses.${companyItemPaymentStatus(i)}`)}` : ""}</option>)}</select></div> : null}
+   <ItemNavigator items={request.items} selected={active?.id} busy={busy} onSelect={select}/>
+
    {active ? <PurchaseRequestItemReview key={active.id} row={active} access={access} lookups={lookups} busy={busy} run={run} /> : null}
    {request.status === "draft" ? <div className={css.actions}>{request.created_by === access.user_id ? <button type="button" className={ui.secondary} disabled={busy} onClick={onEdit}><Pencil size={17} />{t("expenses.editRequest")}</button> : null}{request.created_by === access.user_id || access.can_manage ? <button type="button" className={ui.primary} disabled={busy} onClick={() => void run("submit_finance_expense_request",{p_id:request.id,p_version:request.version})}><Send size={17} />{t("expenses.sendForReview")}</button> : null}</div> : null}
   </div>

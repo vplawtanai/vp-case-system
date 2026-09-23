@@ -10,6 +10,7 @@ import type { Expense, ExpenseAccess, ExpenseAccount, ExpenseLookups } from "./s
 import type { ExpenseRequest } from "./requests";
 import { expenseCategoryLabel } from "./categories";
 import { expenseStatusTone } from "./presentation";
+import { ItemNavigator, useReviewSelection } from "./item-navigator";
 import badges from "./expenses.module.css";
 import css from "./purchase-request.module.css";
 
@@ -24,13 +25,12 @@ export function claimStatus(items: Expense[]) {
  return "claimAwaitingRefund";
 }
 export function ClaimRequestReview({ request, error, onClose, onEdit, ...props }: Props & { request: ExpenseRequest; error: string; onClose: () => void; onEdit: () => void }) {
- const { t, locale } = useI18n();
- const [selected, setSelected] = useState(request.items.find(i => i.status === "submitted")?.id || request.items[0]?.id);
- const item = request.items.find(i => i.id === selected) || request.items[0];
+ const { t } = useI18n();
+ const { selected: item, select } = useReviewSelection(request.items, props.busy, error);
  return <DetailModal open size="workflow" title={t("expenses.claimReview")} closeOnBackdrop={false} onClose={() => { if (!props.busy) onClose(); }}>
   <div className={css.review}>
    {error ? <Callout tone="negative" role="alert">{t(`expenses.${error}`)}</Callout> : null}
-   <div className={css.itemSelect}><label htmlFor="claim-review-item">{t("expenses.requestItems")}</label><select id="claim-review-item" disabled={props.busy} value={item?.id || ""} onChange={e => setSelected(e.target.value)}>{request.items.map((i,n) => <option key={i.id} value={i.id}>{t("expenses.itemNumber",{count:n+1})}: {i.description || expenseCategoryLabel(i.category,locale)} · {t(`expenses.${claimStatus([i])}`)}</option>)}</select></div>
+   <ItemNavigator items={request.items} selected={item?.id} claim busy={props.busy} onSelect={select}/>
    {item ? <ClaimItemReview key={item.id} row={item} {...props} /> : null}
    {request.status === "draft" ? <div className={css.actions}>{request.created_by === props.access.user_id ? <button className={ui.secondary} disabled={props.busy} onClick={onEdit}><Pencil size={17}/>{t("expenses.editRequest")}</button> : null}{request.created_by === props.access.user_id || props.access.can_manage ? <button className={ui.primary} disabled={props.busy} onClick={() => void props.run("submit_finance_expense_request",{p_id:request.id,p_version:request.version})}><Send size={17}/>{t("expenses.submitRequest")}</button> : null}</div> : null}
   </div>

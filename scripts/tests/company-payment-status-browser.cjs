@@ -8,14 +8,14 @@ module.exports=async({page,url,out,translate})=>{
    await page.goto(`${url}/finance/expenses?purchase060=1&scenario=no-tax&paymentCount=${paid}&locale=${locale}`);
    const row=page.locator('[data-request-row]');await row.waitFor();
    await row.getByText(t(['unpaid','partiallyPaid','paid'][paid]),{exact:true}).waitFor();
-   assert.equal(await row.locator('[data-payment-progress]').count(),paid===1?1:0);
-   if(paid===1)assert.equal(await row.locator('[data-payment-progress]').innerText(),translate(locale,'expenses.partialPaymentProgress',{paid:1,total:2,unpaid:1}));
+   assert.equal(await row.locator('[data-payment-progress]').count(),1);
+   if(paid===1)assert.equal(await row.locator('[data-payment-progress]').innerText(),t('paid')+' 1 · '+t('unpaid')+' 1');
    assert.equal(await page.locator('article').count(),4);
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
    if(paid===1)await page.screenshot({path:out+`/partial-list-${locale}-${width}.png`});
    await row.getByRole('button').click();const dialog=page.getByRole('dialog');await dialog.waitFor();
    for(let i=0;i<2;i++){
-    await dialog.locator('#purchase-review-item').selectOption({index:i});
+    await dialog.locator('[data-review-item]').nth(i).click();
     const status=i<paid?'paid':'unpaid';await dialog.locator(`[data-item-payment=${status}]`).waitFor();
     assert.equal(await dialog.locator('[data-paid-facts]').count(),i<paid?1:0);
     if(i<paid){assert.match(await dialog.locator('[data-paid-facts]').innerText(),/2,910\.00/);assert.match(await dialog.locator('[data-paid-facts]').innerText(),/WHT: 90\.00/);}

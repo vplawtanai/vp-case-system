@@ -1,5 +1,12 @@
 import type { MessageCatalog } from "../core";
 const copy: Record<string, [string, string]> = {
+ reviewItemsTitle: ["รายการในคำขอนี้ {count} รายการ", "Items in this request ({count})"],
+ reviewCount: ["ตรวจแล้ว {count}/{total} รายการ", "Reviewed {count}/{total} items"],
+ reviewAllDone: ["ตรวจครบ {count}/{total} รายการ", "All {count}/{total} items reviewed"],
+ reviewCompanyApproved: ["อนุมัติแล้ว", "Approved"],
+ reviewApproved: ["อนุมัติ", "Approved"],
+ reviewClaimApproved: ["อนุมัติคืน", "Reimbursement approved"],
+ reviewCurrent: ["กำลังตรวจ", "Reviewing"],
  additionalDetails: ["รายละเอียดเพิ่มเติม (ถ้ามี)", "Additional details (optional)"],
  claimCategorySearch: ["พิมพ์เพื่อค้นหา...", "Type to search..."],
  claimCategorySelectRequired: ["กรุณาเลือกหมวดรายการจากตัวเลือก", "Select a category from the options."],
