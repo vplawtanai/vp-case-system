@@ -26,3 +26,12 @@ test('064 history and annual totals use twelve periods, preserve frozen filings,
  assert.equal(taxYearSummary(rows.slice(1)).output,null,'Partial year cannot silently become a full-year total');
  const future=await data('2099-01');future.filing=snapshotFixture();future.inputs={external:[],expenses:[]};assert.equal(taxMonthSummary(future,'2026-09').status,'future');
 });
+test('visual views retain frozen filing values, negative net VAT and unknown amounts without mutating source data',async()=>{
+ const d=await data();d.filing.filings=[{filing_type:'vat',status:'filed',tax_amount:-70,remittance:{status:'confirmed'}}];
+ const before=structuredClone(d),month=taxMonthSummary(d),year=taxYearSummary(Array.from({length:12},(_,i)=>({...d,month:`2026-${String(i+1).padStart(2,'0')}`})));
+ assert.equal(month.net,-70);assert.equal(month.estimate,630,'An estimate must not replace a filed amount');assert.equal(year.net,-840);
+ assert.equal(month.incoming,560.19,'Customer WHT stays separate from outgoing tax');assert.equal(month.outgoing,186.24);
+ assert.deepEqual(d,before,'Month/history/year presentation must never modify existing evidence');
+ d.filing.filings=[];d.filing.pools[0].monthly_facts.reviewed_input_vat=null;
+ assert.equal(taxMonthSummary(d).estimate,null);assert.equal(taxYearSummary([d]).net,null,'Unavailable totals remain unavailable, not zero');
+});

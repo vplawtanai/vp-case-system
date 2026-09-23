@@ -1,5 +1,9 @@
 import type { MessageCatalog } from "../core";
 const copy: Record<string,[string,string]> = {
+ refresh:["รีเฟรชข้อมูล","Refresh"],periodYear:["ปีภาษี","Tax year"],periodMonth:["เดือน","Month"],
+ monthlySummary:["สรุปภาษีที่ต้องยื่นและนำส่ง","Tax filing & remittance summary"],annualSummary:["ภาพรวมทั้งปี","Annual overview"],currency:["หน่วย: THB","Currency: THB"],
+ attention:["งานที่ต้องทำ","Requires attention"],filingActions:["การดำเนินการ","Filing actions"],efHelp:["ยื่นแบบผ่านเว็บไซต์กรมสรรพากร และบันทึกผลในระบบ","File through the Revenue Department website, then record the result here."],
+ actualWithholding:["ยอดหัก ณ ที่จ่ายจริงจากรายการต้นทาง","Actual withholding from source transactions"],filingState:["สถานะการยื่น","Filing status"],filingOverview:["สถานะการยื่นรายเดือน","Monthly filing overview"],monthsUnit:["เดือน","months"],monthlyTrend:["กราฟยอดภาษีรายเดือน","Monthly tax amounts"],
  vatForm:["ภ.พ.30 · VAT","P.P.30 · VAT"],wht_natural:["ภ.ง.ด.3 · บุคคลธรรมดา","P.N.D.3 · Natural persons"],wht_juristic:["ภ.ง.ด.53 · นิติบุคคล","P.N.D.53 · Juristic persons"],
  gross:["ยอดก่อนหัก WHT","Gross amount"],cash:["เงินจริงออก","Actual cash paid"],expenseSource:["ค่าใช้จ่ายต้นทาง","Source expense"],paymentSource:["รายการจ่ายเงินจริง","Actual payout"],whtClassification:["มีรายการหักจริงที่ยังต้องตรวจประเภทผู้รับและหลักฐานก่อนยื่น","Actual withholding includes sources needing recipient classification and evidence review before filing"],
  title:["ภาษีและการนำส่ง","Tax filing & remittance"], subtitle:["สรุปภาษีจากรายการต้นทาง ตรวจเอกสาร ยื่นแบบ และติดตามการนำส่ง","Review source tax facts, file returns and track remittance"],
