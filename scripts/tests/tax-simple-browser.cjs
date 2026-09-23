@@ -25,9 +25,17 @@ async function main(){
  try{
   const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'/Users/paolawyer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
   const page=await browser.newPage(),errors=[],external=[];page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>{if(new URL(r.request().url()).hostname==='127.0.0.1')return r.continue();external.push(r.request().url());return r.abort();});
+  // Intercept the new tab locally: verify navigation without contacting the tax portal.
+  await page.context().route('https://efiling.rd.go.th/**',r=>r.fulfill({status:200,contentType:'text/html',body:'<!doctype html><title>Synthetic e-Filing navigation target</title>'}));
   require('./receipt-render-fixture.cjs');const {translate}=require('../../lib/i18n/catalog.ts'),url='http://127.0.0.1:'+server.address().port+'/finance/tax-position';
   const count=name=>page.evaluate(name=>window.calls.filter(c=>c.name===name).length,name);
   async function geometry(){assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);assert.deepEqual(await page.locator('main button,main select,main dd,main [data-metric]').evaluateAll(nodes=>nodes.filter(n=>n.scrollWidth>n.clientWidth+1).map(n=>n.textContent)),[]);}
+  async function verifyPortalNavigation(link){
+   assert.equal(await link.getAttribute('href'),'https://efiling.rd.go.th/');assert.equal(await link.getAttribute('target'),'_blank');assert.match(await link.getAttribute('rel'),/noreferrer/);
+   const before=await page.evaluate(()=>JSON.stringify({data:window.data,inputs:window.inputs,writes:window.calls.filter(c=>!c.name.startsWith('get_'))}));
+   const [portal]=await Promise.all([page.waitForEvent('popup'),link.click()]);await portal.waitForLoadState('domcontentloaded');assert.equal(portal.url(),'https://efiling.rd.go.th/');await portal.close();
+   assert.equal(await page.evaluate(()=>JSON.stringify({data:window.data,inputs:window.inputs,writes:window.calls.filter(c=>!c.name.startsWith('get_'))})),before,'Opening e-Filing must not change filing state or call a mutation RPC');
+  }
   for(const width of [1440,1024,768,390])for(const locale of ['th','en']){
    const t=k=>translate(locale,'taxHome.'+k),f=k=>translate(locale,'taxFiling.'+k);
    await page.setViewportSize({width,height:1000});await page.goto(url+'?calculated&future');await page.locator('button[lang='+locale+']').first().click();
@@ -37,6 +45,7 @@ async function main(){
    await page.locator('[data-tax-summary=wht]').getByText(taxPeriodText('2026-08'),{exact:true}).waitFor();
    assert.ok(await page.evaluate(()=>window.calls.filter(c=>['get_finance_tax_filings','get_finance_tax_input_evidence','get_finance_tax_deadline'].includes(c.name)).every(c=>c.p.p_month==='2026-08-01')),'September selector must read August tax period through every existing RPC');
    for(const type of ['vat','wht_natural','wht_juristic']){const action=page.locator('[data-filing-action='+type+']');await action.getByText(taxPeriodText('2026-08'),{exact:true}).waitFor();assert.equal(await action.getByRole('link').getAttribute('href'),'https://efiling.rd.go.th/');}
+   if(width===1440){for(const type of ['wht_natural','wht_juristic'])await verifyPortalNavigation(page.locator('[data-filing-action='+type+']').getByRole('link'));await page.locator('[aria-labelledby=tax-filing-actions]').screenshot({path:out+`/wht-classified-${locale}-${width}.png`});}
    await geometry();await page.screenshot({path:out+`/filing-september-${locale}-${width}.png`,fullPage:true});
    await page.getByLabel(t('filingMonth'),{exact:true}).selectOption('2026-10');
    await page.locator('[data-tax-form=vat]').getByText(taxPeriodText('2026-09'),{exact:true}).waitFor();
@@ -67,9 +76,16 @@ async function main(){
    await page.getByRole('button',{name:translate(locale,'taxDashboard.previousMonth'),exact:true}).press('Enter');assert.equal(await period.inputValue(),'2026-09');
    console.log('PASS month/history/year, evidence review/no cash, filing reuse',locale,width);
   }
+  for(const width of [1440,390])for(const locale of ['th','en']){
+   const t=k=>translate(locale,'taxHome.'+k);await page.setViewportSize({width,height:1000});await page.goto(url+'?calculated&future&unclassified');await page.locator('button[lang='+locale+']').first().click();
+   await page.locator('[data-tax-form=vat]').waitFor();await page.getByLabel(t('filingMonth'),{exact:true}).selectOption('2026-09');const review=page.locator('[data-filing-action=wht-review]');await review.getByText(t('whtClassification'),{exact:true}).waitFor();
+   assert.equal(await page.locator('[data-filing-action=wht_natural],[data-filing-action=wht_juristic]').count(),0,'Portal access must not classify WHT');assert.equal(await review.getByRole('button',{name:t('manageRemittance'),exact:true}).count(),0);
+   await verifyPortalNavigation(review.getByRole('link'));await review.getByRole('button',{name:t('classify'),exact:true}).click();await page.getByRole('dialog').waitFor();await page.keyboard.press('Escape');await page.getByRole('dialog').waitFor({state:'hidden'});
+   await geometry();await page.locator('[aria-labelledby=tax-filing-actions]').screenshot({path:out+`/wht-unresolved-${locale}-${width}.png`});
+  }
   await page.setViewportSize({width:1440,height:1000});await page.goto(url+'?calculated&future&unclassified');
   await page.locator('[data-tax-form=vat]').waitFor();await page.getByLabel('กำหนดยื่นเดือน',{exact:true}).selectOption('2026-09');await page.getByText('90.00 THB',{exact:true}).waitFor();
-  assert.equal(await page.locator('[data-filing-action^=wht] a').count(),0);await page.getByRole('button',{name:'ตรวจและจัดประเภท',exact:true}).click();await page.getByRole('dialog').waitFor();await page.keyboard.press('Escape');await page.getByRole('dialog').waitFor({state:'hidden'});
+  assert.equal(await page.locator('[data-filing-action^=wht] a').count(),1);await page.getByRole('button',{name:'ตรวจและจัดประเภท',exact:true}).click();await page.getByRole('dialog').waitFor();await page.keyboard.press('Escape');await page.getByRole('dialog').waitFor({state:'hidden'});
   assert.equal(await page.locator('[data-tax-form^=wht]').count(),0,'Unclassified WHT must not become a filing type');await page.locator('[data-filing-action=wht-review]').getByText(translate('th','taxHome.whtClassification'),{exact:true}).waitFor();await geometry();await page.screenshot({path:out+'/month-unclassified-th-1440.png',fullPage:true});
   await page.evaluate(()=>{window.data.pools[0].tax_amount=0;window.data.pools[0].ready=true;window.data.pools[0].monthly_facts.input_vat_complete=true;window.data.pools[0].monthly_facts.output_vat=0;window.data.pools.slice(1).forEach(p=>Object.assign(p,{sources:[],review_sources:[],source_count:0,issues:[]}));window.inputs.expenses=[];});
   await page.getByLabel('ปีที่ยื่น / นำส่ง',{exact:true}).selectOption('2099');await page.getByRole('button',{name:'ประวัติรายเดือน',exact:true}).click();await page.locator('tbody tr').nth(11).waitFor();assert.equal(await page.locator('[data-period-state=future]').count(),12,'Future status is preserved, not relabeled outstanding');
