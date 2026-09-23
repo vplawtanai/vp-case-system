@@ -169,3 +169,24 @@
  .whtForms:has(>section:nth-child(2)) { grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
  .whtFormFoot { flex-wrap:wrap; gap:6px; }
 }
+
+/* Filing-month labels clarify the period without changing the approved card layout. */
+.periodControlGroup { display:grid; gap:5px; min-width:0; }
+.periodLabel { font-size:12px; color:#60748a; }
+.toolbar { align-items:flex-end; }
+.cardTitle .taxPeriod { margin-top:3px; font-size:12px; color:#60748a; font-weight:400; }
+.table tbody th .historyPeriod { display:block; margin:4px 0 0; font-size:11px; font-weight:400; color:#60748a; }
+.periodBasis { font-size:12px; color:#60748a; margin-bottom:12px !important; }
+.tilePeriod { font-size:10px; line-height:1.4; color:#60748a; text-align:left; }
+.chartPeriod { display:block; margin-top:3px; font-size:11px; font-weight:400; color:#60748a; }
+@media(max-width:760px) {
+ .tabs { gap:12px; }.tabs button { font-size:12px; }
+ .cardTitle .taxPeriod { font-size:11px; }
+}
+
+.attentionGrid { align-items:start; }
+.filingObligation { border-top:1px solid #e1e8f1; padding-top:12px; width:100%; display:grid; gap:8px; }
+.filingObligation .efiling { font-size:12px; padding:8px 10px; min-height:36px; }
+.filingObligation .actions { gap:8px; }
+.obligationFacts { display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:8px; font-size:13px; }
+.obligationFacts>p { font-size:11px; }.obligationFacts>p strong { display:block; color:#2f4867; font-weight:500; }

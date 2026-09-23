@@ -35,3 +35,45 @@ test('visual views retain frozen filing values, negative net VAT and unknown amo
  d.filing.filings=[];d.filing.pools[0].monthly_facts.reviewed_input_vat=null;
  assert.equal(taxMonthSummary(d).estimate,null);assert.equal(taxYearSummary([d]).net,null,'Unavailable totals remain unavailable, not zero');
 });
+const {taxPeriodForFilingMonth,filingMonthForTaxPeriod,taxPeriodsForView,filingYearView,filingObligationsForDisplay}=require('../../app/finance/tax-position/filing-period-view.ts');
+const {readTaxMonth}=require('../../app/finance/tax-position/period-data.ts');
+test('filing September 2569 reads August; filing October 2569 reads September; deadlines remain calendar-owned',async()=>{
+ for(const [filingMonth,taxPeriod,deadline] of [['2026-09','2026-08','2026-09-21'],['2026-10','2026-09','2026-10-20']]){
+  assert.equal(taxPeriodForFilingMonth(filingMonth),taxPeriod);assert.equal(filingMonthForTaxPeriod(taxPeriod),filingMonth);
+  assert.deepEqual(taxPeriodsForView(filingMonth),[taxPeriod]);
+  const calls=[],base=adapter(monthlyFixture());
+  const client={from:base.client.from,async rpc(name,args){calls.push({name,args});if(name==='get_finance_tax_filings'){const result=snapshotFixture(true);result.period_month=args.p_month;result.pools.forEach(p=>p.period_month=args.p_month);return{data:result};}if(name==='get_finance_tax_input_evidence')return{data:{external:[],expenses:[],can_manage:true}};if(name==='get_finance_tax_deadline')return{data:{schema_version:1,period_month:args.p_month,filing_type:args.p_type,channel:'online',status:'calculated',due_date:deadline,rule:{reference:'SYNTHETIC reviewed calendar'}}};throw Error(name);}};
+  const row=await readTaxMonth(client,buildPermissions({role:'admin'}),taxPeriodForFilingMonth(filingMonth));
+  assert.equal(row.filing.period_month,taxPeriod+'-01');assert.equal(row.deadlines.vat.due_date,deadline);assert.equal(row.deadlines.wht_juristic.due_date,deadline);
+  assert.ok(calls.every(c=>c.args.p_month===taxPeriod+'-01'),'All existing RPCs must receive the actual tax period');
+  assert.ok(base.calls.filter(c=>c.filters?.some(f=>f[0]==='gte')).every(c=>c.filters.find(f=>f[0]==='gte')[2]===taxPeriod+'-01'),'Source reads use the same period');
+ }
+ assert.equal(taxPeriodForFilingMonth('2026-01'),'2025-12');assert.equal(filingMonthForTaxPeriod('2025-12'),'2026-01');
+ assert.throws(()=>taxPeriodForFilingMonth('2026-13'));
+});
+test('operational filing year uses previous December–November without shifting January–December monetary totals',async()=>{
+ const periods=await Promise.all(taxPeriodsForView('2026').map(m=>data(m)));
+ assert.equal(filingYearView(periods.slice(1),'2026','2026-09'),null,'Incomplete data during tab/year navigation waits for the read');
+ assert.equal(filingYearView(periods,'2027','2026-09'),null);
+ assert.equal(periods.length,13);assert.equal(periods[0].month,'2025-12');assert.equal(periods[12].month,'2026-12');
+ const januaryToDecember=periods.filter(p=>p.month.startsWith('2026-')),before=taxYearSummary(januaryToDecember);
+ periods[0].filing.pools[0].monthly_facts.output_vat=99000;
+ periods[0].filing.filings=periods[0].filing.pools.map(p=>({filing_type:p.filing_type,status:'filed',tax_amount:10,remittance:null}));
+ const operational=filingYearView(periods,'2026','2026-09');
+ assert.deepEqual([operational.rows[0].filingMonth,operational.rows[0].taxPeriod],['2026-01','2025-12']);
+ assert.deepEqual([operational.rows[11].filingMonth,operational.rows[11].taxPeriod],['2026-12','2026-11']);
+ assert.equal(operational.complete,1);assert.equal(operational.rows[0].net,10);
+ assert.deepEqual(taxYearSummary(periods.filter(p=>p.month.startsWith('2026-'))),before,'Existing annual monetary totals and chart periods do not change');
+ const future=await data('2026-09');future.sources=(await data('2099-01')).sources;future.inputs={external:[],expenses:[]};future.filing=snapshotFixture();
+ periods[9]=future;assert.equal(filingYearView(periods,'2026','2026-09').rows[9].status,'future','October is a future filing month even when its September period is current');
+});
+test('each resolved WHT form has independent actions; unknown classification/evidence stays in review',async()=>{
+ const d=await data();let view=filingObligationsForDisplay(d);
+ assert.deepEqual(view.pools.map(p=>p.filing_type),['vat','wht_natural','wht_juristic']);assert.equal(view.whtNeedsReview,false);
+ d.filing.filings=[{filing_type:'vat',status:'filed',tax_amount:630,remittance:{status:'confirmed'}}];
+ assert.equal(d.filing.filings.some(f=>f.filing_type==='wht_natural'),false,'A VAT filing never represents WHT filing');
+ d.filing.pools.slice(1).forEach(p=>{p.ready=false;p.issues=[{code:'unclassified_wht',count:1}];p.review_sources=[{...p.sources[0],entity_type:undefined}];p.sources=[];p.source_count=0;});
+ view=filingObligationsForDisplay(d);assert.equal(view.whtNeedsReview,true);assert.deepEqual(view.pools.map(p=>p.filing_type),['vat']);
+ d.filing.pools[1].issues=[{code:'source_evidence_incomplete',count:1}];d.filing.pools[1].review_sources[0].entity_type='natural_person';
+ view=filingObligationsForDisplay(d);assert.equal(view.whtNeedsReview,true);assert.deepEqual(view.pools.map(p=>p.filing_type),['vat'],'Incomplete evidence must not expose WHT filing actions');
+});
