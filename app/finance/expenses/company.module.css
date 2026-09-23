@@ -14,3 +14,13 @@
 @media(max-width:800px){.table th{width:auto}.table td{padding-block:6px}.review{grid-template-columns:1fr;gap:18px}.review>section{padding:0 0 18px;border-right:0;border-bottom:1px solid #e3eaf2}.review>section:nth-child(3){padding-bottom:18px}.review .decision{grid-template-columns:1fr}.review form>fieldset>div{grid-template-columns:repeat(2,minmax(0,1fr))}.review dl>div{grid-template-columns:minmax(90px,.7fr) minmax(0,1.3fr)}.itemStatus{gap:10px}.filters{padding-block:16px}}
 @media(max-width:480px){.stats>article{padding:14px 12px;gap:10px}.stats strong{font-size:22px;margin:6px 0}.stats small{font-size:13px}.itemCount{font-size:14px}.itemCard{padding:0 12px}.itemToggle{align-items:stretch;gap:12px}.itemStatus{justify-content:flex-start}.itemStatus>svg{margin-left:auto}.review form>fieldset>div{grid-template-columns:1fr}.createEditor{padding:14px}.createSummary{padding:4px 14px}.createSummary dl{gap:14px}.createSummary dl>div+div{padding-left:14px}.createSummary dd{font-size:18px}.createSummary dl>div{flex:1;min-width:0}}
 @media(max-width:800px){.review.structuredReview,.structuredReview .taxReview{grid-template-columns:1fr}.structuredReview .taxReview>fieldset>div{grid-template-columns:1fr}.taxReview>fieldset{grid-row:auto}.taxReview>.taxSummary,.taxReview>small{grid-column:1}.structuredReview>section:nth-child(3){border-top:0}}
+
+.table td { padding-block: 12px; }
+.table th:nth-child(1) { width: 16%; }
+.table th:nth-child(2) { width: 11%; }
+.table th:nth-child(3) { width: 8%; }
+.table th:nth-child(4) { width: 15%; }
+.table th:nth-child(5) { width: 22%; }
+.table th:nth-child(6) { width: 13%; }
+.table th:nth-child(7) { width: 15%; }
+@media(max-width:800px) { .table td { padding-block: 5px; } }

@@ -8,8 +8,9 @@ module.exports=async({page,url,out,translate})=>{
   await page.setViewportSize({width,height:1050});
   for(const states of ['pending,pending,pending','approved,pending,pending','approved,reject,pending','approved,reject,approved','paid,approved,reject','paid,paid,reject']){
    await page.goto(base+'&states='+states);const row=page.locator('[data-request-row]').first();await row.waitFor();
+   const cell=row.locator('[data-request-status]');assert.ok((await cell.boundingBox()).height<=46,'two-line status');
    const split=states.split(','),reviewed=split.filter(s=>s!=='pending').length;
-   assert.ok((await row.locator('[data-review-progress]').innerText()).includes(t(reviewed===3?'reviewAllDone':'reviewCount',{count:reviewed,total:3})));
+   assert.ok((await row.locator('[data-review-progress]').innerText()).includes(t(reviewed===3&&!claim?'reviewCompactDone':'reviewCompactCount',{count:reviewed,total:3})));
    if(reviewed===3)assert.ok(!(await row.innerText()).includes(t('claimPending')));
    await row.getByRole('button').click();await dialog.locator('[data-review-item]').first().waitFor();
    assert.equal(await dialog.locator('[data-review-item]').count(),3);assert.equal(await dialog.locator('select[id$="review-item"]').count(),0);
@@ -21,6 +22,17 @@ module.exports=async({page,url,out,translate})=>{
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
    if(states==='approved,reject,pending')await page.screenshot({path:out+`/navigator-${claim?'claim':'company'}-${locale}-${width}.png`,fullPage:true});
    scenarios++;
+  }
+  for(const count of [1,2,4]){
+   await page.goto(base+'&navItems='+count+'&longTitles=1');const row=page.locator('[data-request-row]').first();await row.waitFor();
+   const status=row.locator('[data-request-status]');assert.ok((await status.boundingBox()).height<=46,'status has at most two text lines');
+   assert.equal(await status.locator('[data-tone]').count(),1);
+   await row.getByRole('button').click();assert.equal(await dialog.locator('[data-review-item]').count(),count);
+   assert.equal(await dialog.evaluate(e=>e.scrollWidth>e.clientWidth+1),false);
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+   await dialog.locator('[data-review-item]').last().click();
+   assert.equal(await dialog.locator('[data-review-item]').last().getAttribute('aria-current'),'true');
+   await page.screenshot({path:out+`/polish-${claim?'claim':'company'}-${locale}-${width}-${count}.png`,fullPage:true});scenarios++;
   }
   await page.goto(base.replace('scenario=submitted','scenario=draft'));await page.locator('[data-request-row]').first().getByRole('button').click();
   await dialog.getByRole('button',{name:t(claim?'submitRequest':'sendForReview'),exact:true}).click();

@@ -49,7 +49,7 @@ if(params.has('paymentCount')){
  }));
 }
 if(params.has('navigator')){
- const r=requests[0];r.items=[1,2,3].map(n=>({...structuredClone(r.items[0]),id:'nav-'+n,description:'Synthetic item '+n,status:r.status==='draft'?'draft':'submitted',tax_review:null,settlement:null,obligation:null,payout:null,vendor_name:'Synthetic vendor'}));
+ const r=requests[0];r.items=Array.from({length:Number(params.get('navItems')||3)},(_,n)=>n+1).map(n=>({...structuredClone(r.items[0]),id:'nav-'+n,description:params.has('longTitles')?'รายละเอียดค่าเดินทางไปศาลและพบลูกค้า Long expense description for review item '+n:'Synthetic item '+n,status:r.status==='draft'?'draft':'submitted',tax_review:null,settlement:null,obligation:null,payout:null,vendor_name:'Synthetic vendor'}));
  const states=(params.get('states')||'pending,pending,pending').split(',');
  r.items.forEach((i,n)=>{const state=states[n];if(state==='reject')i.status='rejected';if(['approved','paid'].includes(state)){i.status='accepted';i.tax_review=tax;i.settlement={mode:claim?'reimburse':'supplier_unpaid',amount:i.gross_amount};i.obligation={...obligation,settled:state==='paid',waived:false};if(state==='paid')i.payout={status:'confirmed',gross:i.gross_amount,net:i.gross_amount-9,wht:9};}});
 }

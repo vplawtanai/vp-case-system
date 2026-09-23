@@ -1,5 +1,7 @@
 import type { MessageCatalog } from "../core";
 const copy: Record<string, [string, string]> = {
+ reviewCompactCount: ["{count}/{total} รายการ", "{count}/{total} items"],
+ reviewCompactDone: ["ตรวจครบ {count}/{total}", "Reviewed {count}/{total}"],
  reviewItemsTitle: ["รายการในคำขอนี้ {count} รายการ", "Items in this request ({count})"],
  reviewCount: ["ตรวจแล้ว {count}/{total} รายการ", "Reviewed {count}/{total} items"],
  reviewAllDone: ["ตรวจครบ {count}/{total} รายการ", "All {count}/{total} items reviewed"],

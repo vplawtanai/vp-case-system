@@ -39,3 +39,18 @@
 @container (max-width:420px){.categoryField>p{display:block}}
 .form .createFields{display:grid;gap:18px}.createFields .paymentPanel{margin-top:0}.createFields .muted{margin:0;line-height:1.65}.requestFields{display:grid;gap:10px;border-top:1px solid var(--expense-border);padding-top:16px}.optionalFields{display:grid;gap:14px}.optionalFields .disclosure{padding:12px 0 0}.optionalFields .disclosure summary{min-height:34px;line-height:1.6}.optionalFields>.check{font-size:14px;min-height:34px;align-items:center!important}
 @media(max-width:480px){.heading .actions button[aria-haspopup=dialog]{flex:1}.createFooter>button,.createFooter>div{flex:1}.createFooter>div button{width:100%}}
+
+/* Shared request-list presentation; status stays two compact lines. */
+.table.claimTable td { vertical-align: middle; padding-block: 12px; }
+.table.claimTable th:nth-child(1) { width: 19%; }
+.table.claimTable th:nth-child(2) { width: 10%; }
+.table.claimTable th:nth-child(3) { width: 5%; }
+.table.claimTable th:nth-child(4), .table.claimTable th:nth-child(5) { width: 12%; }
+.table.claimTable th:nth-child(6) { width: 23%; }
+.table.claimTable th:nth-child(7) { width: 10%; }
+.table.claimTable th:nth-child(8) { width: 9%; }
+@media(max-width:800px) {
+ .table.claimTable td { padding-block: 5px; }
+ .table td.requestStatusCell { grid-template-columns: minmax(0,1fr); gap: 0; }
+ .table td.requestStatusCell:before { display: none; }
+}
