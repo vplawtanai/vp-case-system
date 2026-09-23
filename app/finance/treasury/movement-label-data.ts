@@ -1,3 +1,4 @@
+import { requestReference } from "../expenses/requests";
 import { readExpenseRequests, readExpenses } from "../expenses/data";
 import { supabase } from "../../../lib/supabase";
 import { frozenExpenseMovementLabel, type ExpenseMovementLabel, type FrozenExpensePayout } from "./movement-labels";
@@ -15,17 +16,21 @@ export async function readExpenseMovementLabels(rows: CashMovement[]): Promise<R
   readExpenses(null, true).then(data => data.rows),
  ]);
  const payouts = new Map<string, FrozenExpensePayout>();
+ const requestIds = new Map<string, string>();
  for (const source of sources) {
   if (source.status !== "fulfilled") continue;
   for (const expense of source.value) {
    const payout = expense.payout;
    if (!payout || payout.status !== "confirmed" || !ids.includes(payout.id)) continue;
+   if (expense.request_id) requestIds.set(payout.id, expense.request_id);
    const evidence = expense.audit.find(event => event.event_type === "payment_confirmed")?.evidence_json;
    if (evidence) payouts.set(payout.id, { id: payout.id, status: payout.status, source_model: "expense_v1", confirmed_snapshot_json: evidence });
   }
  }
  const labels = Object.fromEntries(rows.flatMap(row => {
   const label = frozenExpenseMovementLabel(row, payouts.get(row.source_payout_id || ""));
+  const requestId = requestIds.get(row.source_payout_id || "");
+  if (label && !label.requestId && requestId) { label.requestId = requestId; label.request = requestReference(requestId); }
   return label ? [[row.id, label]] : [];
  }));
  const values = Object.values(labels);
