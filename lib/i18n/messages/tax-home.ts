@@ -1,5 +1,6 @@
 import type { MessageCatalog } from "../core";
 const copy: Record<string,[string,string]> = {
+ inputEvidence:["เอกสารภาษีซื้อ","Input VAT evidence"],reviewInput:["ตรวจ VAT ซื้อ","Review Input VAT"],inputReviewHelp:["ตรวจสิทธิภาษีซื้อจากรายการต้นทาง การบันทึกนี้ไม่เปลี่ยนยอดอนุมัติ การจ่ายเงิน หรือ WHT","Review Input VAT eligibility on the source expense. Saving does not change approval, payment or WHT."],
  remitBy:["นำส่งภายใน","Remit by"],manageFiling:["จัดการยื่น","Manage filing"],manageRemittance:["จัดการนำส่ง","Manage remittance"],classify:["ตรวจและจัดประเภท","Review & classify"],
  filingMonth:["กำหนดยื่นเดือน","Filing month"],filingYear:["ปีที่ยื่น / นำส่ง","Filing year"],taxPeriod:["รอบภาษี","Tax period"],
  taxPeriodYear:["รอบภาษี ม.ค.–ธ.ค. {year}","Tax periods Jan–Dec {year}"],annualMoneyBasis:["ยอดเงินตามรอบภาษี ม.ค.–ธ.ค. {year} · สถานะตามกำหนดยื่นในปีที่เลือก","Amounts use tax periods Jan–Dec {year} · Statuses use filing months in the selected year"],

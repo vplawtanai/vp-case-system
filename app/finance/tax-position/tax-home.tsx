@@ -9,18 +9,20 @@ import { Callout, PageShell, StatusBadge } from "../../components/ui/patterns";
 import DetailModal from "../../components/DetailModal";
 import ui from "../../components/ui/vp-ui.module.css";
 import { currentBangkokMonth, shiftMonth } from "./dashboard-data";
-import { readTaxMonth, taxMonthSummary, taxYearSummary, withholdingTrace, type ExternalVat, type TaxMonth } from "./period-data";
+import { readTaxMonth, taxMonthSummary, taxYearSummary, withholdingTrace, type ExternalVat, type InputEvidence, type TaxMonth } from "./period-data";
 import { filingObligationsForDisplay, filingYearView, taxPeriodForFilingMonth, taxPeriodsForView } from "./filing-period-view";
 import { activeFiling, filingCoverage, type FilingType } from "./filings/shared";
 import { TaxFilingWorkspace } from "./filings/workspace";
 import { ExternalInputForm } from "./external-input";
+import { ExpenseInputReview } from "./expense-input";
 import css from "./tax-home.module.css";
 
 export default function TaxHome({permissions}:{permissions:UserPermissions}) {
  const {t,locale,date}=useI18n(),tr=(k:string,v?:Record<string,string|number>)=>t(`taxHome.${k}`,v);
  const [view,setView]=useState("month"),[month,setMonth]=useState(currentBangkokMonth),[reload,setReload]=useState(0);
  const [months,setMonths]=useState<TaxMonth[]|null>(null),[error,setError]=useState(false),[loading,setLoading]=useState(true);
- const [source,setSource]=useState<"vat"|"credit"|"input"|"wht"|null>(null),[filing,setFiling]=useState<FilingType|null>(null),[external,setExternal]=useState<ExternalVat|"new"|null>(null);
+ const [source,setSource]=useState<"vat"|"credit"|"input"|"pendingInput"|"wht"|null>(null),[filing,setFiling]=useState<FilingType|null>(null),[external,setExternal]=useState<ExternalVat|"new"|null>(null);
+ const [expenseInput,setExpenseInput]=useState<InputEvidence["expenses"][number]|null>(null);
  const year=month.slice(0,4),taxPeriod=taxPeriodForFilingMonth(month),readPeriod=view==="month"?month:year;
  useEffect(()=>{let active=true;const timer=setTimeout(async()=>{setLoading(true);setError(false);setMonths(null);
   try{const periods=taxPeriodsForView(readPeriod);const next:TaxMonth[]=[];
@@ -30,6 +32,8 @@ export default function TaxHome({permissions}:{permissions:UserPermissions}) {
   }catch{if(active)setError(true);}finally{if(active)setLoading(false);}},0);return()=>{active=false;clearTimeout(timer);};
  },[readPeriod,permissions,reload]);
  const data=months?.find(m=>m.month===taxPeriod),summary=data?taxMonthSummary(data,taxPeriodForFilingMonth(currentBangkokMonth())):null;
+ const inputExpenses=data?.inputs.expenses.filter(e=>source!=="pendingInput"||e.status==="pending")||[];
+ const inputExternal=data?.inputs.external.filter(e=>source!=="pendingInput"||!e.review||e.review.status==="pending")||[];
  const annual=months&&view!=="month"?taxYearSummary(months.filter(m=>m.month.startsWith(`${year}-`))):null;
  const filingYear=months&&view!=="month"?filingYearView(months,year):null;
  const displayObligations=data?filingObligationsForDisplay(data):null;
@@ -81,7 +85,8 @@ export default function TaxHome({permissions}:{permissions:UserPermissions}) {
    </section>
    <section className={css.credit}><span className={css.icon}><ShieldCheck size={22}/></span><div className={css.creditCopy}><h3>{tr("credit")}</h3><p>{tr("creditHelp")}</p></div><strong data-metric>{money(summary.incoming)}</strong><button className={css.textButton} onClick={()=>setSource("credit")}>{tr("details")}<ChevronRight size={16}/></button></section>
    <section aria-labelledby="tax-attention"><div className={css.sectionHead}><h2 id="tax-attention">{tr("attention")}</h2></div><div className={css.attentionGrid}>
-    <div className={css.evidencePanel}><h3><FileText size={18}/>{tr("remaining")}</h3><button className={css.reviewRow} onClick={()=>setSource("input")}><span className={css.reviewIcon}><Clock3 size={19}/></span><span><strong>{tr("pending")} · {tr("count",{count:summary.pendingCount})}</strong><small>{money(summary.pendingVat)}</small></span><ChevronRight size={17}/></button>
+    <div className={css.evidencePanel}><h3><FileText size={18}/>{tr("remaining")}</h3><button className={css.reviewRow} onClick={()=>setSource("pendingInput")}><span className={css.reviewIcon}><Clock3 size={19}/></span><span><strong>{tr("pending")} · {tr("count",{count:summary.pendingCount})}</strong><small>{money(summary.pendingVat)}</small></span><ChevronRight size={17}/></button>
+     <button className={css.textButton} onClick={()=>setSource("input")}>{tr("inputEvidence")}</button>
      {data.inputs.can_manage?<button className={css.actionButton} onClick={()=>setExternal("new")}>{tr("add")}</button>:null}
     </div>
     <section className={css.filingPanel} aria-labelledby="tax-filing-actions"><h3 id="tax-filing-actions">{tr("filingActions")}</h3>
@@ -113,15 +118,16 @@ export default function TaxHome({permissions}:{permissions:UserPermissions}) {
    <section className={css.yearPanel}><div className={css.sectionHead}><h2>{tr("monthlyTrend")}<span className={css.chartPeriod}>{tr("taxPeriodYear",{year:yearLabel(year)})}</span></h2><div className={css.chartLegend}><span><i/>{tr("net")}</span><span><i/>{tr("outgoing")}</span></div></div><TaxYearChart rows={annual.rows} money={money} monthLabel={m=>monthLabel(m,"short")} labels={[tr("net"),tr("outgoing")]} unknown={tr("unknown")}/></section>
    <div className={css.note}><Info size={17}/><p>{tr("yearNote")}</p></div>
   </>:null}
-  {source&&data&&summary?<DetailModal open title={tr(source==="credit"?"credit":source==="input"?"input":"sources")} size="workflow" onClose={()=>setSource(null)}><div className={css.sourceList}>
+  {source&&!expenseInput&&data&&summary?<DetailModal open title={tr(source==="credit"?"credit":source==="pendingInput"?"pending":source==="input"?"inputEvidence":"sources")} size="workflow" onClose={()=>setSource(null)}><div className={css.sourceList}>
    {source==="wht"?summary.whtSources.map(s=>{const trace=withholdingTrace(s);const f=data.filing.filings.find(f=>f.status==="filed"&&filingCoverage(f.source_snapshot_json).sources.some(x=>x.id===s.id));return <article key={s.id}><strong>{s.payee_name} · {trace.title}</strong><p>{date(s.date)} · {tr("gross")} {money(trace.gross)} · WHT {money(s.amount)} · {tr("cash")} {money(trace.cash)}</p><p>{tr(f?.remittance?.status==="confirmed"?"paid":f?"filed":"outstanding")}</p>{trace.expenseId?<Link href={`/finance/expenses/${trace.claim?"claims/":""}${trace.expenseId}`}>{tr("expenseSource")}</Link>:null} · <Link href={`/finance/payouts/${s.source_id}`}>{tr("paymentSource")}</Link></article>;}):source==="credit"?summary.credits.map(c=><article key={c.key}><strong>{c.reference}</strong><p>{tr("base")} {money(c.base)} · {c.rate===null?"—":`${c.rate}%`} · {money(c.amount)} · {t(`taxPosition.${c.evidence}`)}</p><Link href={c.source==="payment"?`/finance/payments/${c.sourceId}`:`/finance/direct-money/${c.sourceId}`}>{tr("details")}</Link></article>):source==="vat"?summary.movements.filter(m=>m.vat!==null).map(m=><article key={m.key}><strong>{m.reference}</strong><p>{date(m.date)} · {m.payer} · VAT {money(m.vat)}</p><Link href={m.href}>{tr("details")}</Link></article>):<>
-    {data.inputs.expenses.map(e=><article key={e.id}><strong>{e.vendor||tr("sources")} · {e.reference||"—"}</strong><p>{date(e.invoice_date)} · {tr("base")} {money(e.tax_base)} · VAT {money(e.vat_amount)} · {tr(e.status==="pending"?"pendingEvidence":e.status)}</p><Link href={`/finance/expenses${e.origin==="employee_claim"?"/claims":""}/${e.id}`}>{tr("details")}</Link></article>)}
-    {data.inputs.external.map(e=><article key={e.id}><strong>{e.vendor} · {e.invoice_number}</strong><p>{date(e.invoice_date)} · {tr("base")} {money(e.tax_base)} · VAT {money(e.vat_amount)}</p><p>{tr(e.review?.status==="eligible"?"eligible":e.review?.status==="ineligible"?"ineligible":"pendingEvidence")} · {tr("funding")}</p><p>{e.note}</p>{e.review?<p>{e.review.reason}</p>:null}{data.inputs.can_manage?<button className={ui.secondary} onClick={()=>{setSource(null);setExternal(e);}}>{tr("saveReview")}</button>:null}</article>)}
+    {inputExpenses.map(e=><article key={e.id}><strong>{e.vendor||tr("sources")} · {e.reference||"—"}</strong><p>{date(e.invoice_date)} · {tr("base")} {money(e.tax_base)} · VAT {money(e.vat_amount)} · {tr(e.status==="pending"?"pendingEvidence":e.status)}</p>{data.inputs.can_manage?<button className={ui.secondary} onClick={()=>setExpenseInput(e)}>{tr("reviewInput")}</button>:<Link href={`/finance/expenses${e.origin==="employee_claim"?"/claims":""}/${e.id}`}>{tr("details")}</Link>}</article>)}
+    {inputExternal.map(e=><article key={e.id}><strong>{e.vendor} · {e.invoice_number}</strong><p>{date(e.invoice_date)} · {tr("base")} {money(e.tax_base)} · VAT {money(e.vat_amount)}</p><p>{tr(e.review?.status==="eligible"?"eligible":e.review?.status==="ineligible"?"ineligible":"pendingEvidence")} · {tr("funding")}</p><p>{e.note}</p>{e.review?<p>{e.review.reason}</p>:null}{data.inputs.can_manage?<button className={ui.secondary} onClick={()=>{setSource(null);setExternal(e);}}>{tr("saveReview")}</button>:null}</article>)}
    </>}
-   {source==="input"&&!data.inputs.expenses.length&&!data.inputs.external.length?<p>{tr("empty")}</p>:null}
+   {(source==="input"||source==="pendingInput")&&!inputExpenses.length&&!inputExternal.length?<p>{tr("empty")}</p>:null}
   </div></DetailModal>:null}
   {filing?<TaxFilingWorkspace permissions={permissions} initialMonth={taxPeriod} initialType={filing} onExit={()=>{setFiling(null);refresh();}}/>:null}
   {external?<ExternalInputForm row={external==="new"?undefined:external} onClose={()=>setExternal(null)} onSaved={()=>{setExternal(null);setSource(null);refresh();}}/>:null}
+  {expenseInput?<ExpenseInputReview source={expenseInput} onClose={()=>setExpenseInput(null)} onSaved={()=>{setExpenseInput(null);setSource(null);refresh();}}/>:null}
  </div></PageShell>;
 }
 
