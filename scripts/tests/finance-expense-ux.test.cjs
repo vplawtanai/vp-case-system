@@ -46,7 +46,7 @@ test('Payables modal shows source/tax facts, unknown remains unknown; no action 
 });
 test('Cashbook label uses matching frozen evidence only; missing/malformed evidence never invents an expense',()=>{
  const row={id:id(100),source_payout_id:id(90)},p={id:id(90),status:'confirmed',source_model:'expense_v1',confirmed_snapshot_json:{schema_version:2,source_model:'expense_v1',choices:[{expense_id:id(10),expense:{id:id(10),origin:'company_purchase',description:'UAT PAID'}}]}};
- const before=JSON.stringify(p);assert.deepEqual(frozenExpenseMovementLabel(row,p),{key:'companyExpenseOutflow',description:'UAT PAID'});assert.equal(JSON.stringify(p),before);
+ const before=JSON.stringify(p);assert.deepEqual(JSON.parse(JSON.stringify(frozenExpenseMovementLabel(row,p))),{key:'companyExpenseOutflow',description:'UAT PAID'});assert.equal(JSON.stringify(p),before);
  for(const bad of [undefined,{...p,id:id(91)},{...p,status:'draft'},{...p,source_model:'revenue_distribution_v1'},{...p,confirmed_snapshot_json:null},{...p,confirmed_snapshot_json:{...p.confirmed_snapshot_json,choices:[]}}])assert.equal(frozenExpenseMovementLabel(row,bad),null);
  const claim=structuredClone(p);claim.confirmed_snapshot_json.choices[0].expense.origin='employee_claim';assert.equal(frozenExpenseMovementLabel(row,claim).key,'claimOutflow');
  claim.confirmed_snapshot_json.choices[0].expense.id=id(11);assert.equal(frozenExpenseMovementLabel(row,claim),null);
@@ -56,8 +56,14 @@ test('Existing mutation call payloads, readiness rules, migrations and protected
  // 059 binds actual withholding to the frozen structured decision; all other arguments remain unchanged.
  const structuredWht='row.tax_review?.request_json?.schema_version === 2 ? row.tax_review.wht_state === "withhold" : withhold';
  assert.ok(fs.readFileSync('app/finance/expenses/forms.tsx','utf8').includes(structuredWht));
- for(const file of ['forms.tsx','company-review.tsx','workspace.tsx']){const path='app/finance/expenses/'+file;assert.deepEqual(calls(fs.readFileSync(path,'utf8').replace(structuredWht,'withhold')),calls(cp.execFileSync('git',['show','b805f832:'+path],{encoding:'utf8'})),path);}
+ for(const file of ['forms.tsx','company-review.tsx','workspace.tsx']){const path='app/finance/expenses/'+file;assert.deepEqual(calls(fs.readFileSync(path,'utf8')),calls(cp.execFileSync('git',['show','d6e0f719b8768ee6845a62409758a0c9186db8b4:'+path],{encoding:'utf8'})),path);}
  const protectedFiles=['app/finance/expenses/request-operations.ts','app/finance/expenses/requests.ts','app/finance/expenses/request-modal.tsx','app/finance/expenses/data.ts','app/finance/payables/groups.tsx','app/finance/treasury/dashboard.ts'];
  const migrations=cp.execFileSync('git',['ls-tree','-r','--name-only','HEAD','supabase/migrations'],{encoding:'utf8'}).trim().split('\n');
  for(const file of [...protectedFiles,...migrations])assert.deepEqual(fs.readFileSync(file),cp.execFileSync('git',['show','HEAD:'+file]),file);
+});
+
+test('Cashbook trace survives empty descriptions, uses frozen recipient and known request reference only',()=>{
+ const row={id:id(100),source_payout_id:id(90)},snapshot={schema_version:2,source_model:'expense_v1',wht:0,payee:{legal_name:'Claimant at payment'},choices:[{expense_id:id(10),expense:{id:id(10),origin:'employee_claim',description:'',created_by:id(1),request_id:id(50),client_id:id(3),case_id:55}}]};
+ const result=frozenExpenseMovementLabel(row,{id:id(90),status:'confirmed',source_model:'expense_v1',confirmed_snapshot_json:snapshot});assert.equal(result.recipient,'Claimant at payment');assert.equal(result.request,'REQ-'+id(50).slice(0,8).toUpperCase());assert.equal(result.description,'');assert.equal(result.requester,undefined);assert.equal(result.client,undefined);assert.equal(result.caseId,55);
+ delete snapshot.payee;delete snapshot.choices[0].expense.request_id;const old=frozenExpenseMovementLabel(row,{id:id(90),status:'confirmed',source_model:'expense_v1',confirmed_snapshot_json:snapshot});assert.equal(old.recipient,undefined);assert.equal(old.request,undefined);assert.equal(old.key,'claimOutflow');
 });

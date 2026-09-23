@@ -61,7 +61,7 @@ module.exports=async({page,url,out,translate})=>{
  }
  for(const [width,locale] of [[390,'th'],[1440,'th'],[1440,'en']])for(const [scenario,status] of [['submitted','claimPending'],['waiting','claimAwaitingRefund'],['paid','claimRefunded'],['rejected','claimRejected']]){
   await page.setViewportSize({width,height:1050});await page.goto(`${url}/finance/expenses/claims?claim061=1&locale=${locale}&scenario=${scenario}`);
-  const row=page.locator('[data-request-row]');await row.waitFor();assert.ok((await row.innerText()).includes(translate(locale,'expenses.'+status)));
+  const row=page.locator('[data-request-row]');await row.waitFor();assert.ok((await row.innerText()).includes(translate(locale,'expenses.'+status)));assert.equal(await row.locator('[data-tone]').getAttribute('data-tone'),({claimPending:'warn',claimAwaitingRefund:'payable',claimRefunded:'good',claimRejected:'bad'})[status]);assert.equal(await page.locator('[data-claim-summary] article').count(),4);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
   assert.ok((await row.locator('button').boundingBox()).width>=70);
   if(scenario==='submitted')await page.screenshot({path:out+`/claim-list-${locale}-${width}.png`,fullPage:true});scenarios++;

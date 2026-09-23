@@ -31,9 +31,10 @@ export function TreasuryDashboard({ data, offset, loading, busy, onPage, onOpeni
   void readExpenseMovementLabels(data.transactions).then(labels => { if (active) setExpenseLabels({ rows: data.transactions, labels }); }).catch(() => { if (active) setExpenseLabels({ rows: data.transactions, labels: {} }); });
   return () => { active = false; };
  }, [data.transactions]);
+ const trace = (row: CashMovement) => expenseLabels?.rows === data.transactions ? expenseLabels.labels[row.id] : undefined;
  const description = (row: CashMovement) => {
   const label = expenseLabels?.rows === data.transactions ? expenseLabels.labels[row.id] : null;
-  return label ? `${t(`treasury.${label.key}`)} - ${label.description}` : row.source_payout_id && row.description === "Expense payout" ? t("treasury.expenseOutflow") : row.description;
+  return label ? [t(`treasury.${label.key}`), label.recipient ? `${t("treasury.recipient")}: ${label.recipient}` : label.description].filter(Boolean).join(" · ") : row.source_payout_id && row.description === "Expense payout" ? t("treasury.expenseOutflow") : row.description;
  };
  const movementHeading = useRef<HTMLHeadingElement>(null);
  const visible = filterMovements(data.transactions, filters);
@@ -105,11 +106,11 @@ export function TreasuryDashboard({ data, offset, loading, busy, onPage, onOpeni
    <p className={styles.muted}>{t("treasury.pageScope", { page: offset / 50 + 1, count: data.transactions.length })}</p>
    {!visible.length ? <EmptyState>{t(data.transactions.length ? "treasury.noMatches" : "treasury.empty")}</EmptyState> : <table className={`${styles.table} ${styles.movementTable}`}><thead><tr>
     {["date", "account", "type", "entry", "inflow", "outflow", "actions"].map(key => <th scope="col" key={key}>{key === "actions" ? <span className={styles.srOnly}>{t(`treasury.${key}`)}</span> : t(`treasury.${key}`)}</th>)}</tr></thead>
-    <tbody>{visible.map(c => { const source = movementSource(c); return <tr key={c.id} data-movement={c.id}>
+    <tbody>{visible.map(c => { const source = movementSource(c), context = trace(c); return <tr key={c.id} data-movement={c.id}>
      <td data-label={t("treasury.date")}>{date(movementDate(c))}</td>
      <td data-label={t("treasury.account")}>{locationName(accountFor(c), locale)}</td>
      <td data-label={t("treasury.type")}><span className={styles.direction} data-direction={c.direction}>{c.direction === "inflow" ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}{t(`treasury.${c.direction}`)}</span><small><StatusBadge status={c.status} label={t(`treasury.${c.status}`)} /></small></td>
-     <td data-label={t("treasury.entry")}>{source ? <><Link href={sourceHref(source)} className={styles.reference}>{source.reference}</Link><small>{t(`treasury.${source.source_type}`)}</small></> : <><strong>{reference(c)}</strong>{description(c) ? <small>{description(c)}</small> : null}</>}</td>
+     <td data-label={t("treasury.entry")}>{source ? <><Link href={sourceHref(source)} className={styles.reference}>{source.reference}</Link><small>{t(`treasury.${source.source_type}`)}</small></> : <><strong>{reference(c)}</strong>{description(c) ? <small>{description(c)}</small> : null}{context?.request || context?.requester ? <small>{[context.request ? `${t("treasury.request")}: ${context.request}` : "", context.requester ? `${t("treasury.requester")}: ${context.requester}` : ""].filter(Boolean).join(" · ")}</small> : null}</>}</td>
      <td data-label={t("treasury.inflow")} className={`${styles.money} ${styles.inflow}`}>{c.direction === "inflow" ? money(c.cash_amount, c.currency) : "-"}</td>
      <td data-label={t("treasury.outflow")} className={styles.money}>{c.direction === "outflow" ? money(c.cash_amount, c.currency) : "-"}</td>
      <td className={styles.rowActions}><button className={ui.secondary} type="button" title={t("treasury.openMovement", { reference: reference(c) })} aria-label={t("treasury.openMovement", { reference: reference(c) })} onClick={() => setDetail(c)}><MoreHorizontal size={18} /></button></td>
@@ -126,7 +127,12 @@ export function TreasuryDashboard({ data, offset, loading, busy, onPage, onOpeni
     { key: "reference", label: t("treasury.reference"), value: reference(detail) }, { key: "date", label: t("treasury.date"), value: date(movementDate(detail)) },
     { key: "account", label: t("treasury.account"), value: locationName(accountFor(detail), locale) }, { key: "cash", label: t(`treasury.${detail.direction}`), value: money(detail.cash_amount, detail.currency) },
     { key: "status", label: t("treasury.status"), value: <StatusBadge status={detail.status} label={t(`treasury.${detail.status}`)} /> },
-   ]} /><p>{description(detail)}</p><FinanceEvidence title={t("treasury.technical")} raw={detail} isAdmin={isAdmin}><ReadOnlyGrid items={[{ key: "date", label: t("treasury.date"), value: date(movementDate(detail)) }, { key: "amount", label: t("treasury.amount"), value: money(detail.cash_amount, detail.currency) }, { key: "account", label: t("treasury.account"), value: locationName(accountFor(detail), locale) }]} /></FinanceEvidence>
+   ]} /><p>{description(detail)}</p>{trace(detail) ? <ReadOnlyGrid items={[
+    { key: "source", label: t("treasury.source"), value: t(`treasury.${trace(detail)!.key}`) },
+    ...(["recipient", "request", "requester", "client", "matter"] as const).flatMap(key => trace(detail)?.[key] ? [{ key, label: t(`treasury.${key}`), value: trace(detail)![key] }] : []),
+    ...(trace(detail)?.wht !== undefined && trace(detail)!.wht! > 0 ? [{ key: "wht", label: t("treasury.wht"), value: money(trace(detail)!.wht!, detail.currency) }] : []),
+    ...(trace(detail)?.description ? [{ key: "description", label: t("treasury.description"), value: trace(detail)!.description }] : []),
+   ]} /> : null}<FinanceEvidence title={t("treasury.technical")} raw={detail} isAdmin={isAdmin}><ReadOnlyGrid items={[{ key: "date", label: t("treasury.date"), value: date(movementDate(detail)) }, { key: "amount", label: t("treasury.amount"), value: money(detail.cash_amount, detail.currency) }, { key: "account", label: t("treasury.account"), value: locationName(accountFor(detail), locale) }]} /></FinanceEvidence>
   </> : null}</DetailModal>
  </>;
 }

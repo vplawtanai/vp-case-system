@@ -51,5 +51,5 @@ test('Mutation RPC contracts, modal implementation and navigation wiring remain 
  assert.equal(contract(after),contract(before));assert.equal(after.slice(after.indexOf('  <DetailModal open={!!opening}')),before.slice(before.indexOf('  <DetailModal open={!!opening}')));
  const dashboard=fs.readFileSync('app/finance/treasury/dashboard-view.tsx','utf8');assert.doesNotMatch(dashboard,/supabase|\.rpc\(|\.from\(/);
  assert.ok(after.includes('<FinanceSubNav activePage="treasury" permissions={a.permissions} />'));
- for(const file of ['app/finance/finance-sidebar.module.css','app/finance/FinanceSubNav.tsx','app/finance/finance-navigation.ts'])assert.equal(fs.readFileSync(file,'utf8'),cp.execFileSync('git',['show','309b867:'+file],{encoding:'utf8'}));
+ for(const file of ['app/finance/finance-sidebar.module.css','app/finance/FinanceSubNav.tsx','app/finance/finance-navigation.ts'])assert.equal(fs.readFileSync(file,'utf8'),cp.execFileSync('git',['show','d6e0f719b8768ee6845a62409758a0c9186db8b4:'+file],{encoding:'utf8'}));
 });

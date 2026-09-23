@@ -89,10 +89,21 @@ export function ExpenseClaimList({ rows, access, requests = [], onRequest = () =
  const { t, locale, date } = useI18n();
  const [search, setSearch] = useState(""), [status, setStatus] = useState("all"), [page, setPage] = useState(0);
  const [order, setOrder] = useState<QueueOrder>("newest");
+ const groups = [...requests.filter(r => r.kind === "employee_claim").map(r => r.items), ...rows.filter(r => r.request_active !== false && !requests.some(request => request.id === r.request_id)).map(r => [r])];
+ const summary = ["claimPending", "claimAwaitingRefund", "claimRefunded", "claimRejected"].map(state => {
+  const matching = groups.filter(items => claimStatus(items) === state);
+  const items = matching.flat();
+  const amount = items.reduce((n, item) => n + Math.round((state === "claimPending" || state === "claimRejected" ? item.reimbursement_requested : item.settlement?.amount ?? item.obligation?.gross_amount ?? 0) * 100), 0) / 100;
+  return { state, count: matching.length, items: items.length, amount };
+ });
  const filtered = expenseQueueEntries(rows, requests, { claims: true, status, search, locale, order, viewAll });
  const visible = filtered.slice(page * 10, page * 10 + 10);
  const money = (value: number, currency: string) => `${value.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
  return <>
+  <div className={css.stats} data-claim-summary>{summary.map(s => <article className={css.stat} key={s.state}>
+   <span className={css.icon}>{s.state === "claimPending" ? <Clock size={26}/> : s.state === "claimAwaitingRefund" ? <Wallet size={26}/> : s.state === "claimRefunded" ? <CircleCheck size={26}/> : <FileText size={26}/>}</span>
+   <div><span className={css.badge} data-tone={expenseStatusTone(s.state)}>{t(`expenses.${s.state}`)}</span><strong>{t("expenses.companyRequestCount",{count:s.count})}</strong><small>{t("expenses.count",{count:s.items})} · {money(s.amount,"THB")}</small></div>
+  </article>)}</div>
   <div className={css.filters}><FieldGroup id="claim-search" label={t("expenses.claimSearch")}><input type="search" value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} /></FieldGroup><FieldGroup id="claim-status" label={t("expenses.status")}><select value={status} onChange={e => { setStatus(e.target.value); setPage(0); }}>{["all", "draft", "submitted", "accepted", "rejected", "unpaid", "paid"].map(s => <option key={s} value={s}>{t(`expenses.${({submitted:"claimPending",unpaid:"claimAwaitingRefund",paid:"claimRefunded",rejected:"claimRejected"} as Record<string,string>)[s] || s}`)}</option>)}</select></FieldGroup><QueueSort id="claim-queue-order" value={order} newest="newestSubmitted" onChange={v => { setOrder(v); setPage(0); }} /></div>
   <section aria-label={t(viewAll ? "expenses.allClaims" : "expenses.ownClaims")}><div className={css.sectionHead}><h2>{t(viewAll ? "expenses.allClaims" : "expenses.ownClaims")} <span>({filtered.length})</span></h2></div>
    {visible.length ? <table className={`${css.table} ${css.claimTable}`}><thead><tr>{["reference", "requestClaimant", "itemCount", "requested", "approved", "status", "requestSubmittedAt", "action"].map(k => <th key={k}>{t(`expenses.${k}`)}</th>)}</tr></thead><tbody>{visible.map(entry => { if (entry.request) return <ExpenseRequestRow access={access} key={entry.id} request={entry.request} onOpen={() => onRequest(entry.id)} />; const row = entry.expense; return <tr key={row.id}>

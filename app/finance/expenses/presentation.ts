@@ -1,10 +1,10 @@
 import type { ExpenseAccount } from "./shared";
 
 export function expenseStatusTone(state: string) {
- if (["unpaid", "open"].includes(state)) return "payable";
- if (["accepted", "paid", "confirmed", "eligible", "none", "settled"].includes(state)) return "good";
- if (["rejected", "ineligible"].includes(state)) return "bad";
- if (["review", "submitted", "pending", "undecided"].includes(state)) return "warn";
+ if (["unpaid", "open", "claimAwaitingRefund"].includes(state)) return "payable";
+ if (["accepted", "paid", "confirmed", "eligible", "none", "settled", "claimRefunded"].includes(state)) return "good";
+ if (["rejected", "ineligible", "claimRejected"].includes(state)) return "bad";
+ if (["review", "submitted", "pending", "undecided", "claimPending"].includes(state)) return "warn";
  return "info";
 }
 

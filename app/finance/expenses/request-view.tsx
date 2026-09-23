@@ -12,6 +12,7 @@ import { hasReimbursement, itemStage, requestNextAction, requestStage, requestTi
 import { expenseCategoryLabel } from "./categories";
 import { expenseHref, pendingExpenseTax, type Expense, type ExpenseAccess } from "./shared";
 import type { ExpenseRun } from "./forms";
+import { expenseStatusTone } from "./presentation";
 import { claimStatus } from "./claim-review";
 import css from "./expenses.module.css";
 
@@ -25,12 +26,12 @@ export function ExpenseRequestRow({ request, access, onOpen }: { request: Expens
   const money=(v:number)=>`${v.toLocaleString(locale,{minimumFractionDigits:2,maximumFractionDigits:2})} THB`;
   const approved=request.items.filter(i=>i.settlement);
   return <tr data-request-row={request.id}>
-   <td data-label={t("expenses.reference")}><strong>{requestReference(request.id)}</strong><small>{request.items.map(i=>i.description).join(" · ")}</small></td>
+   <td data-label={t("expenses.reference")}><strong>{requestReference(request.id)}</strong><small>{request.items.map(i=>i.description || expenseCategoryLabel(i.category,locale)).join(" · ")}</small></td>
    <td data-label={t("expenses.requestClaimant")}><span className={css.actions}><UserRound size={20} aria-hidden="true"/>{request.requester_name}</span></td>
    <td data-label={t("expenses.itemCount")}>{totals.count}</td>
    <td data-label={t("expenses.requested")}>{money(totals.requested)}</td>
    <td data-label={t("expenses.approved")}>{approved.length?money(approved.reduce((n,i)=>n+Math.round(i.settlement!.amount*100),0)/100):t("expenses.awaitingDecision")}</td>
-   <td data-label={t("expenses.status")}><span className={css.badge}>{t(`expenses.${claimStatus(request.items)}`)}</span></td>
+   <td data-label={t("expenses.status")}><span className={css.badge} data-tone={expenseStatusTone(claimStatus(request.items))}>{t(`expenses.${claimStatus(request.items)}`)}</span></td>
    <td data-label={t("expenses.requestSubmittedAt")}><WorkflowDate value={requestWorkflowTime(request)}/></td>
    <td data-label={t("expenses.action")}><button type="button" className={reviewable?ui.primary:ui.secondary} onClick={onOpen}>{t(reviewable?"expenses.reviewRequest":"expenses.view")}<ArrowRight size={14}/></button></td>
   </tr>;

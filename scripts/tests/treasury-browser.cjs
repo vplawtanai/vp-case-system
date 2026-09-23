@@ -12,7 +12,11 @@ const adapter=write('adapter.js',`
 window.calls=[];window.fail=null;window.data={can_manage:!location.search.includes('readonly'),accounts:${JSON.stringify(accounts)},transactions:[],openings:[],pending_sources:location.search.includes('readonly')?[]:[${JSON.stringify(source)}],has_next:false};
 if(location.search.includes('dashboard'))window.data=${JSON.stringify(dashboardFixture)};
 if(location.search.includes('payment'))Object.assign(window.data.pending_sources[0],{source_type:'payment',source_id:'${id(4)}',cash_amount:19160,wht_amount:840,reference:'SYNTHETIC-PAYMENT'});
-export const supabase={auth:{async getUser(){return{data:{user:{id:'synthetic'}}}},async signOut(){throw Error('Blocked')}},from(name){if(name!=='user_profiles')throw Error('Unexpected table');return{select(){return this},eq(){return this},async single(){return{data:{role:location.search.includes('readonly')?'partner':'admin'}}}}},async rpc(name,p){window.calls.push({name,p});await new Promise(r=>setTimeout(r,60));const d=window.data;
+if(location.search.includes('trace'))window.data.transactions=[0,1,2].map(i=>({id:'trace-'+i,source_payout_id:'payout-'+i,bank_account_id:window.data.accounts[0].bank_account_id,cash_location_id:null,occurred_at:'2026-09-23T04:00:00Z',cash_amount:500,currency:'THB',direction:'outflow',transaction_type:'other',status:'confirmed',reference_no:'MOV-'+i,description:'Expense payout'}));
+export const supabase={auth:{async getUser(){return{data:{user:{id:'synthetic'}}}},async signOut(){throw Error('Blocked')}},from(name){return{select(){return this},in(){return this},eq(){return this},async single(){return{data:{role:location.search.includes('readonly')?'partner':'admin'}}},then(resolve){const tables={
+ finance_payouts:[0,1].map(i=>({id:'payout-'+i,status:'confirmed',source_model:'expense_v1',confirmed_snapshot_json:{schema_version:2,source_model:'expense_v1',wht:i?0:15,payee:{legal_name:i?'Synthetic claimant':'Big C'},choices:[{expense_id:'expense-'+i,expense:{id:'expense-'+i,origin:i?'employee_claim':'company_purchase',description:'',request_id:i?'22222222-0000-4000-8000-000000000001':'11111111-0000-4000-8000-000000000001',created_by:'requester',client_id:'client',case_id:55}}]}})),
+ user_profiles:[{id:'requester',staff_name:'Synthetic requester'}],clients:[{id:'client',name:'Synthetic client'}],cases:[{id:55,file_no:'CASE-55',title:'Synthetic case'}],advisory_matters:[]};return Promise.resolve({data:tables[name]||[]}).then(resolve);}}},async rpc(name,p){window.calls.push({name,p});await new Promise(r=>setTimeout(r,60));const d=window.data;
+ if(name==='get_finance_expense_access')return {data:{is_admin:!location.search.includes('readonly')}};
  if(name==='get_finance_treasury')return {data:structuredClone(d)};
  if(name==='get_finance_treasury_month_flow')return {data:{period_month:p.p_month,currency:'THB',cash:46419.81,receipt_count:5,pre_cutoff:16859.81,represented:29560,pending:0,unresolved:0}};
  if(!d.can_manage)throw Error('Forbidden fixture mutation');if(window.fail){const message=window.fail;window.fail=null;return {error:{message}};}
@@ -55,6 +59,15 @@ async function main(){
   const calls=name=>page.evaluate(name=>window.calls.filter(c=>c.name===name).length,name);
   async function geometry(){assert.deepEqual(await page.evaluate(()=>({overflow:document.documentElement.scrollWidth>innerWidth+1,
    outside:[...document.querySelectorAll('input,select,textarea,button')].filter(e=>e.offsetParent!==null&&e.getBoundingClientRect().right>innerWidth+1).map(e=>e.outerHTML)})),{overflow:false,outside:[]});}
+  if(process.argv.includes('--trace-only')){
+   for(const[width,locale]of[[390,'th'],[1440,'th'],[1440,'en']]){
+    const t=k=>translate(locale,'treasury.'+k);await page.setViewportSize({width,height:1100});await page.goto(url+'?trace');await page.locator('button[lang='+locale+']').first().click();
+    await page.locator('[data-movement="trace-0"]').getByText(/Big C/).waitFor();const company=await page.locator('[data-movement="trace-0"]').innerText(),claim=await page.locator('[data-movement="trace-1"]').innerText();assert.ok(company.includes(t('companyExpenseOutflow'))&&company.includes('REQ-11111111')&&company.includes('Synthetic requester'));assert.ok(claim.includes(t('claimOutflow'))&&claim.includes('Synthetic claimant')&&claim.includes('REQ-22222222'));
+    assert.ok((await page.locator('[data-movement="trace-2"]').innerText()).includes(t('expenseOutflow')));await geometry();await page.screenshot({path:out+'/trace-'+locale+'-'+width+'.png',fullPage:true});
+    await page.locator('[data-movement="trace-0"] button').click();const dialog=page.getByRole('dialog');assert.ok((await dialog.innerText()).includes('Synthetic client'));assert.ok((await dialog.innerText()).includes('CASE-55'));assert.ok((await dialog.innerText()).includes('15.00 THB'));assert.ok((await dialog.innerText()).includes('REQ-11111111'));assert.ok(!(await dialog.innerText()).includes('11111111-0000'));await geometry();
+   }
+   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log(JSON.stringify({pass:true,scenarios:3,artifacts:out}));return;
+  }
   for(const width of [1440,1024,768,390])for(const locale of ['th','en']){
    const t=k=>translate(locale,'treasury.'+k);await page.setViewportSize({width,height:1100});await page.goto(url+'?dashboard');await page.locator('button[lang='+locale+']').first().click();
    await page.locator('[data-treasury-summary]').waitFor();assert.ok((await page.locator('[data-summary=known]').innerText()).includes('49,560.00'));
