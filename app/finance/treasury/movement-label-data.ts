@@ -1,3 +1,4 @@
+import { readExpenseRequests, readExpenses } from "../expenses/data";
 import { supabase } from "../../../lib/supabase";
 import { frozenExpenseMovementLabel, type ExpenseMovementLabel, type FrozenExpensePayout } from "./movement-labels";
 import type { CashMovement } from "./shared";
@@ -5,10 +6,24 @@ import type { CashMovement } from "./shared";
 export async function readExpenseMovementLabels(rows: CashMovement[]): Promise<Record<string, ExpenseMovementLabel>> {
  const ids = [...new Set(rows.flatMap(row => row.source_payout_id ? [row.source_payout_id] : []))];
  if (!ids.length) return {};
- // Existing payout RLS applies; missing or inaccessible source evidence uses the generic display label.
- const result = await supabase.from("finance_payouts").select("id,status,source_model,confirmed_snapshot_json").in("id", ids).eq("source_model", "expense_v1").eq("status", "confirmed");
- if (result.error || !Array.isArray(result.data)) return {};
- const payouts = new Map((result.data as FrozenExpensePayout[]).map(payout => [payout.id, payout]));
+ // The payout table denies direct authenticated reads. Existing expense RPCs expose
+ // confirmed audit evidence only to authorized readers; never broaden that access.
+ const sources = await Promise.allSettled([
+  readExpenseRequests(false).then(requests => requests?.flatMap(request => request.items) || []),
+  readExpenseRequests(true).then(requests => requests?.flatMap(request => request.items) || []),
+  readExpenses(null, false).then(data => data.rows),
+  readExpenses(null, true).then(data => data.rows),
+ ]);
+ const payouts = new Map<string, FrozenExpensePayout>();
+ for (const source of sources) {
+  if (source.status !== "fulfilled") continue;
+  for (const expense of source.value) {
+   const payout = expense.payout;
+   if (!payout || payout.status !== "confirmed" || !ids.includes(payout.id)) continue;
+   const evidence = expense.audit.find(event => event.event_type === "payment_confirmed")?.evidence_json;
+   if (evidence) payouts.set(payout.id, { id: payout.id, status: payout.status, source_model: "expense_v1", confirmed_snapshot_json: evidence });
+  }
+ }
  const labels = Object.fromEntries(rows.flatMap(row => {
   const label = frozenExpenseMovementLabel(row, payouts.get(row.source_payout_id || ""));
   return label ? [[row.id, label]] : [];
