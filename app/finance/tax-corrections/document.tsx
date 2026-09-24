@@ -9,7 +9,7 @@ import theme from "../../components/DocumentTheme.module.css";
 
 export function correctionTaxProjection(c: CorrectionRow, document: CorrectionDocumentRow | null) {
   const s = document?.issued_snapshot_json || c.draft_snapshot_json, tax = taxObject(s.tax), metadata = taxObject(tax.document);
-  const row: TaxInvoice = { id: c.original_tax_invoice_id, payment_id: taxText(taxObject(tax.payment).id), invoice_id: taxText(taxObject(tax.invoice).id), status: "issued",
+  const row: TaxInvoice = { id: c.original_tax_invoice_id, payment_id: tax.schema_version === 3 ? null : taxText(taxObject(tax.payment).id), invoice_id: tax.schema_version === 3 ? null : taxText(taxObject(tax.invoice).id), direct_money_receipt_id: tax.schema_version === 3 ? taxText(taxObject(tax.source).id) : null, status: "issued",
     tax_invoice_no: taxText(metadata.tax_invoice_no), issue_date: taxText(tax.issue_date), issued_at: taxText(metadata.issued_at),
     issued_snapshot_json: tax, source_snapshot_json: tax, draft_snapshot_json: null, decisions_json: {}, created_at: "", updated_at: "", cancel_reason: null,
     combined_document_id: c.original_combined_document_id };
@@ -32,7 +32,7 @@ export function TaxCorrectionDocument({ correction, document, logoUrl, replaceme
   if (isCopy || replacement) {
     if (correction.original_combined_document_id) {
       const receipt = taxObject(s.receipt), r = taxObject(receipt.receipt);
-      const paired = { id: correction.original_combined_document_id, payment_id: row.payment_id, receipt_id: taxText(r.id), tax_invoice_id: row.id,
+      const paired = { id: correction.original_combined_document_id, payment_id: row.payment_id, direct_money_receipt_id: row.direct_money_receipt_id, receipt_id: taxText(r.id), tax_invoice_id: row.id,
         status: "issued" as const, combined_no: row.tax_invoice_no, issue_date: row.issue_date, issued_at: row.issued_at, updated_at: "",
         source_snapshot_json: null, draft_snapshot_json: null, issued_snapshot_json: { schema_version: 1, document_kind: "receipt_tax_invoice",
           combined_document_id: correction.original_combined_document_id, combined_no: row.tax_invoice_no, receipt, tax_invoice: s.tax } };

@@ -1,3 +1,4 @@
+import { directDocumentEvidence } from "../document-decision/source";
 import { documentLogoEvidence, type DocumentLogoEvidence } from "../../../lib/documentLogo";
 import { normalizeDocumentIdentity, type DocumentIdentity } from "../../../lib/documentIdentity";
 import type { DocumentLine } from "../document-decision/shared";
@@ -10,13 +11,13 @@ export type TaxDecisions = {
   identity_evidence?: string; no_earlier_event?: boolean; external_coverage_checked?: boolean;
 };
 export type TaxInvoice = {
-  id: string; payment_id: string; invoice_id: string; status: "draft" | "issued" | "cancelled";
+  id: string; payment_id: string | null; invoice_id: string | null; direct_money_receipt_id?: string | null; status: "draft" | "issued" | "cancelled";
   tax_invoice_no: string | null; issue_date: string; source_snapshot_json: unknown; decisions_json: TaxDecisions;
   draft_snapshot_json: unknown; issued_snapshot_json: unknown; issued_at: string | null;
   created_at: string; updated_at: string; cancel_reason: string | null;
   combined_document_id?: string | null;
 };
-export const taxInvoiceSelect = "id,payment_id,invoice_id,status,tax_invoice_no,issue_date,source_snapshot_json,decisions_json,draft_snapshot_json,issued_snapshot_json,issued_at,created_at,updated_at,cancel_reason,combined_document_id";
+export const taxInvoiceSelect = "id,payment_id,invoice_id,direct_money_receipt_id,status,tax_invoice_no,issue_date,source_snapshot_json,decisions_json,draft_snapshot_json,issued_snapshot_json,issued_at,created_at,updated_at,cancel_reason,combined_document_id";
 export type TaxEligibility = { can_prepare: boolean; blockers: string[]; existing_id?: string; existing_status?: string; existing_number?: string | null };
 export const taxStatusLabels = { draft: translate("th", "status.draft"), issued: translate("th", "finance.taxInvoice.ui.statusIssued"), cancelled: translate("th", "finance.taxInvoice.ui.statusCancelled") };
 export function taxStatusLabel(status: TaxInvoice["status"], locale: UiLocale = "th") {
@@ -79,7 +80,7 @@ export function taxDate(date: string) {
 export type TaxDocument = {
   identity: DocumentIdentity; logo: DocumentLogoEvidence; customer: Record<string, unknown>; description: string;
   beforeVat: number; vat: number; gross: number; cash: number; wht: number; vatRate: number;
-  invoiceNumber: string; paymentReference: string; receiptNumber: string; taxPointDate: string; issueDate: string;
+  sourceType?: "direct_money_receipt"; invoiceNumber: string; paymentReference: string; receiptNumber: string; taxPointDate: string; issueDate: string;
   number: string; treatment: string; status: TaxInvoice["status"];
   lines: DocumentLine[]; documentLines: DocumentLine[]; settlement: number; nonTax: number;
 };
@@ -88,14 +89,16 @@ export function taxPresentation(row: TaxInvoice): { ok: true; value: TaxDocument
   try {
     const issued = row.status === "issued";
     const s = taxObject(issued ? row.issued_snapshot_json : row.draft_snapshot_json);
-    if (![1, 2].includes(Number(s.schema_version)) || s.document_kind !== "tax_invoice" || !Object.hasOwn(taxStatusLabels, row.status)) throw new Error("schema");
-    const seller = taxObject(s.seller), item = taxObject(s.invoice_item), invoice = taxObject(s.invoice), payment = taxObject(s.payment), point = taxObject(s.tax_point);
+    const direct = s.schema_version === 3 ? directDocumentEvidence(s, row) : null;
+    if (!!row.direct_money_receipt_id !== !!direct || (direct && row.invoice_id !== null)) throw new Error("source version");
+    if (![1, 2, 3].includes(Number(s.schema_version)) || s.document_kind !== "tax_invoice" || !Object.hasOwn(taxStatusLabels, row.status)) throw new Error("schema");
+    const seller = taxObject(s.seller), item = direct ? direct.taxLines[0] : taxObject(s.invoice_item), invoice = direct ? null : taxObject(s.invoice), payment = direct?.money ?? taxObject(s.payment), point = taxObject(s.tax_point);
     const customer = taxObject(s.customer), logo = documentLogoEvidence(seller.logo_asset);
-    const items = s.schema_version === 2 ? (s.invoice_items as unknown[]).map(taxObject) : [item];
-    const documentItems = s.schema_version === 2 ? (s.document_lines as unknown[]).map(taxObject) : [item];
+    const items = direct ? direct.taxLines : s.schema_version === 2 ? (s.invoice_items as unknown[]).map(taxObject) : [item];
+    const documentItems = direct ? direct.lines : s.schema_version === 2 ? (s.document_lines as unknown[]).map(taxObject) : [item];
     if (!items.length || !documentItems.length || new Set(items.map(i => i.id)).size !== items.length || new Set(documentItems.map(i => i.id)).size !== documentItems.length) throw new Error("items");
     for (const line of documentItems) {
-      if (line.invoice_id !== row.invoice_id || !taxText(line.description) || moneyValue(line.amount_before_vat) + moneyValue(line.vat_amount) !== moneyValue(line.line_total)) throw new Error("line");
+      if ((!direct && line.invoice_id !== row.invoice_id) || !taxText(line.description) || moneyValue(line.amount_before_vat) + moneyValue(line.vat_amount) !== moneyValue(line.line_total)) throw new Error("line");
     }
     if (s.schema_version === 2) {
       const relevant = documentItems.filter(i => ["standard_rate", "zero_rated"].includes(taxText(taxObject(i.resolved_vat_treatment).treatment)));
@@ -106,15 +109,14 @@ export function taxPresentation(row: TaxInvoice): { ok: true; value: TaxDocument
     const settlement = sum(documentItems, "line_total");
     const cash = moneyValue(payment.cash_amount), wht = moneyValue(payment.wht_amount);
     if (beforeVat + vat !== gross || cash + wht !== settlement || moneyValue(payment.settlement_amount) !== settlement
-      || moneyValue(invoice.total_amount) !== settlement || moneyValue(invoice.amount_before_vat) !== sum(documentItems, "amount_before_vat") || moneyValue(invoice.vat_amount) !== sum(documentItems, "vat_amount")
-      || invoice.id !== row.invoice_id || payment.id !== row.payment_id || item.invoice_id !== row.invoice_id
-      || taxText(invoice.currency) !== "THB" || taxText(payment.currency) !== "THB" || !taxText(item.description)) throw new Error("source");
+      || (!direct && (!invoice || moneyValue(invoice.total_amount) !== settlement || moneyValue(invoice.amount_before_vat) !== sum(documentItems, "amount_before_vat") || moneyValue(invoice.vat_amount) !== sum(documentItems, "vat_amount")
+      || invoice.id !== row.invoice_id || payment.id !== row.payment_id || item.invoice_id !== row.invoice_id || taxText(invoice.currency) !== "THB")) || taxText(payment.currency) !== "THB" || !taxText(item.description)) throw new Error("source");
     if (!Number.isFinite(Number(item.vat_rate)) || Number(item.vat_rate) < 0 || typeof item.vat_applicable !== "boolean") throw new Error("VAT evidence");
     const document = issued ? taxObject(s.document) : null;
     if (issued && (!row.tax_invoice_no || !row.issued_at || document?.id !== row.id || document?.tax_invoice_no !== row.tax_invoice_no
       || document?.issue_date !== row.issue_date || Date.parse(taxText(document?.issued_at)) !== Date.parse(row.issued_at)
       || !taxText(customer.name) || !taxText(customer.address) || typeof customer.vat_registered !== "boolean"
-      || !["standard_rated", "zero_rated"].includes(taxText(s.tax_treatment)) || point.no_earlier_event_acknowledged !== true
+      || (!direct && !["standard_rated", "zero_rated"].includes(taxText(s.tax_treatment))) || point.no_earlier_event_acknowledged !== true
       || s.external_coverage_checked !== true || !taxText(point.approved_at) || !taxText(point.approved_by_user_id)
       || seller.vat_registered !== true || seller.branch_type !== "head_office" || seller.branch_code !== "00000"
       || !/^\d{13}$/.test(taxText(seller.tax_id))
@@ -125,7 +127,7 @@ export function taxPresentation(row: TaxInvoice): { ok: true; value: TaxDocument
     if (!taxDate(issueDate) || !taxDate(taxPointDate) || issueDate !== row.issue_date || taxPointDate !== payment.received_on) throw new Error("date");
     const identity = normalizeDocumentIdentity({ ...seller, branch_th: seller.branch_label_th, branch_en: seller.branch_label_en, logo_storage_path: logo.path });
     return { ok: true, value: { identity, logo, customer, description: taxText(item.description), beforeVat, vat, gross, cash, wht,
-      vatRate: Number(item.vat_rate), invoiceNumber: taxText(invoice.invoice_no), paymentReference: taxText(payment.internal_reference) || row.payment_id.slice(0, 8).toUpperCase(),
+      vatRate: Number(item.vat_rate), ...(direct ? { sourceType: "direct_money_receipt" as const } : {}), invoiceNumber: direct ? taxText(payment.internal_reference) : taxText(invoice?.invoice_no), paymentReference: taxText(payment.internal_reference) || (row.direct_money_receipt_id || row.payment_id || "").slice(0, 8).toUpperCase(),
       receiptNumber: s.receipt_reference ? taxText(taxObject(s.receipt_reference).receipt_no) : "", taxPointDate, issueDate,
       number: row.tax_invoice_no || "", treatment: taxText(s.tax_treatment), status: row.status,
       lines: items as DocumentLine[], documentLines: documentItems as DocumentLine[], settlement, nonTax: settlement - gross } };

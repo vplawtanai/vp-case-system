@@ -10,8 +10,8 @@ import { taxObject, taxText } from "../tax-invoices/shared";
 import type { CombinedDocument } from "./shared";
 import styles from "../finance-record-list.module.css";
 
-type CombinedListRow = Pick<CombinedDocument, "id" | "payment_id" | "status" | "combined_no" | "issue_date" | "draft_snapshot_json" | "issued_snapshot_json">;
-const combinedListSelect = "id,payment_id,status,combined_no,issue_date,draft_snapshot_json,issued_snapshot_json";
+type CombinedListRow = Pick<CombinedDocument, "id" | "payment_id" | "direct_money_receipt_id" | "status" | "combined_no" | "issue_date" | "draft_snapshot_json" | "issued_snapshot_json">;
+const combinedListSelect = "id,payment_id,direct_money_receipt_id,status,combined_no,issue_date,draft_snapshot_json,issued_snapshot_json";
 
 export default function CombinedDocumentsPage() {
   const { t } = useI18n();
@@ -22,10 +22,10 @@ function combinedListFacts(row: CombinedListRow) {
   try {
     // Issued navigation summaries use frozen evidence, never mutable Draft/customer data.
     const snapshot = row.status === "issued" ? taxObject(taxObject(row.issued_snapshot_json).tax_invoice) : taxObject(row.draft_snapshot_json);
-    const customer = taxObject(snapshot.customer), payment = taxObject(snapshot.payment);
+    const customer = taxObject(snapshot.customer), payment = taxObject(row.direct_money_receipt_id ? snapshot.money : snapshot.payment);
     const amount = payment.settlement_amount, currency = taxText(payment.currency);
-    if (payment.id !== row.payment_id || !currency || !/^[0-9]+(?:\.[0-9]{1,2})?$/.test(String(amount)) || !Number.isFinite(Number(amount))) return null;
-    return { customerName: taxText(customer.name), paymentReference: taxText(payment.internal_reference) || row.payment_id.slice(0, 8).toUpperCase(), receivedOn: taxText(payment.received_on), settlement: amount as string | number, currency };
+    if (payment.id !== (row.direct_money_receipt_id || row.payment_id) || !currency || !/^[0-9]+(?:\.[0-9]{1,2})?$/.test(String(amount)) || !Number.isFinite(Number(amount))) return null;
+    return { customerName: taxText(customer.name), paymentReference: taxText(payment.internal_reference) || (row.direct_money_receipt_id || row.payment_id || "").slice(0, 8).toUpperCase(), receivedOn: taxText(payment.received_on), settlement: amount as string | number, currency };
   } catch { return null; }
 }
 
@@ -67,7 +67,7 @@ function CombinedList() {
         return <tr key={row.id}>
           <td data-label={headings[0]}><strong>{row.combined_no || t("finance.taxInvoice.ui.draftReference", { reference: row.id.slice(0, 8).toUpperCase() })}</strong></td>
           <td data-label={headings[1]}>{facts?.customerName || t("finance.receipt.evidenceMissing")}</td>
-          <td data-label={headings[2]}>{facts?.paymentReference || row.payment_id.slice(0, 8).toUpperCase()}</td>
+          <td data-label={headings[2]}>{facts?.paymentReference || (row.direct_money_receipt_id || row.payment_id || "").slice(0, 8).toUpperCase()}</td>
           <td data-label={headings[3]}>{date(row.issue_date)}{facts?.receivedOn ? <small>{t("finance.receipt.receivedOn")}: {date(facts.receivedOn)}</small> : null}</td>
           <td data-label={headings[4]} className={styles.numeric}>{facts ? money(facts.settlement, facts.currency) : t("finance.receipt.evidenceMissing")}</td>
           <td data-label={headings[5]}><span className={styles.status}>{statuses[row.status] || t("finance.receipt.invalidStatus")}</span></td>

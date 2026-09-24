@@ -18,7 +18,7 @@ export function useTaxInvoice(id: string) {
       const result = await supabase.from("finance_tax_invoices").select(taxInvoiceSelect).eq("id", id).single();
       if (result.error || !result.data) throw result.error || new Error("not found");
       const value = result.data as TaxInvoice;
-      const eligibility = value.status === "draft" ? await supabase.rpc("get_finance_tax_invoice_eligibility", { p_payment_id: value.payment_id }) : null;
+      const eligibility = value.status === "draft" ? (value.direct_money_receipt_id ? await supabase.rpc("get_finance_received_document_decision", { p_source_type: "direct_money_receipt", p_source_id: value.direct_money_receipt_id }) : await supabase.rpc("get_finance_tax_invoice_eligibility", { p_payment_id: value.payment_id })) : null;
       if (eligibility?.error) throw eligibility.error;
       if (generation.current !== current) return;
       setRow(value); setBlockers((eligibility?.data as TaxEligibility | null)?.blockers || []);

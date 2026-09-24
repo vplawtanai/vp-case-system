@@ -12,7 +12,7 @@ export type DirectRow = Pick<DirectRecord, "id" | "status" | "received_on" | "cu
 };
 export type WhtRow = { id: string; payment_id: string; base_amount: Amount; rate_percent: Amount; calculated_wht_amount: Amount };
 export type MoneyData = { payments: PaymentRow[]; direct: DirectRow[]; components: WhtRow[]; certificates: { id: string; payment_id: string }[] };
-export type TaxDocument = { id: string; payment_id: string; status: string; tax_invoice_no: string; items: { id: string; amount_before_vat: Amount; vat_amount: Amount; total_amount: Amount }[]; point: { occurred_on: string; approved_at: string | null } };
+export type TaxDocument = { id: string; payment_id: string | null; direct_money_receipt_id?: string | null; status: string; tax_invoice_no: string; items: { id: string; amount_before_vat: Amount; vat_amount: Amount; total_amount: Amount }[]; point: { occurred_on: string; approved_at: string | null } };
 export type Correction = { id: string; correction_mode: string; status: string; adjustment_date: string; lines: { id: string; base_change: Amount; vat_change: Amount }[] };
 export type DashboardData = { money: MoneyData | null; taxes: { documents: TaxDocument[]; corrections: Correction[] } | null; treasury: TreasuryData | null; payables: PayableGroup[] | null; register: TaxPositionData | null };
 export type MonthlyTaxSources = Pick<DashboardData, "money" | "taxes">;
@@ -86,7 +86,7 @@ export async function readMonthlyTaxSources(client: SupabaseClient, permissions:
  // partial permission-filtered correction set as a complete VAT total.
  const taxes = await optional(permissions.canViewFinanceTaxInvoices && permissions.canViewFinanceReceipts, async () => {
   const points = await monthly<{ id: string; tax_invoice_id: string; occurred_on: string; approved_at: string | null }>("finance_tax_point_events", "id,tax_invoice_id,occurred_on,approved_at", "occurred_on");
-  const docs = await byIds<Omit<TaxDocument, "items" | "point">>(client, "finance_tax_invoices", "id,payment_id,status,tax_invoice_no", "id", points.map(p => p.tax_invoice_id));
+  const docs = await byIds<Omit<TaxDocument, "items" | "point">>(client, "finance_tax_invoices", "id,payment_id,direct_money_receipt_id,status,tax_invoice_no", "id", points.map(p => p.tax_invoice_id));
   const items = await byIds<TaxDocument["items"][number] & { tax_invoice_id: string }>(client, "finance_tax_invoice_items", "id,tax_invoice_id,amount_before_vat,vat_amount,total_amount", "tax_invoice_id", docs.map(d => d.id));
   const corrections = await monthly<Omit<Correction, "lines">>("finance_tax_document_corrections", "id,correction_mode,status,adjustment_date", "adjustment_date");
   const lines = await byIds<Correction["lines"][number] & { correction_id: string }>(client, "finance_tax_correction_lines", "id,correction_id,base_change,vat_change", "correction_id", corrections.map(c => c.id));
@@ -166,7 +166,7 @@ export function summarizeDashboard(data: DashboardData, month: string) {
  }
  const receiptCount = movements.length, cash = data.money ? total(movements.map(m => m.cash!)) : null;
  for (const doc of unique(data.taxes?.documents || [])) {
-  if (doc.status !== "issued" || !doc.point.approved_at || !inMonth(doc.point.occurred_on)) continue;
+  if (doc.direct_money_receipt_id || doc.status !== "issued" || !doc.point.approved_at || !inMonth(doc.point.occurred_on)) continue;
   if (!doc.items.length) throw new Error("Issued tax document missing items");
   const items = unique(doc.items), value = total(items.map(i => i.vat_amount)); vat.push(value);
   const payment = movements.find(m => m.source === "payment" && m.id === doc.payment_id);

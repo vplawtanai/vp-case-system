@@ -1,4 +1,5 @@
 "use client";
+import { documentSource } from "../document-decision/source";
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { useI18n } from "../../../lib/i18n/provider";
@@ -58,7 +59,7 @@ export function TaxInvoiceEditor({ row, permissions, logoUrl, blockers, reload, 
     finally { lock.current = false; setBusy(false); }
   }
   return <>
-    <section className={`${styles.section} ${styles.noPrint}`}><div className={styles.actions}><Link className={styles.button} href={`/finance/payments/${row.payment_id}`}>{t("finance.taxInvoice.ui.sourcePayment")}</Link><Link className={styles.button} href={`/finance/invoices/${row.invoice_id}`}>{d.invoiceNumber}</Link><Link className={styles.button} href={combined ? `/finance/combined-documents/${combined.id}/preview` : `/finance/tax-invoices/${row.id}/preview`}>{t("common.actions.previewPrint")}</Link></div></section>
+    <section className={`${styles.section} ${styles.noPrint}`}><div className={styles.actions}><Link className={styles.button} href={documentSource(row).href}>{t(row.direct_money_receipt_id ? "directMoney.documentSource" : "finance.taxInvoice.ui.sourcePayment")}</Link>{row.invoice_id ? <Link className={styles.button} href={`/finance/invoices/${row.invoice_id}`}>{d.invoiceNumber}</Link> : null}<Link className={styles.button} href={combined ? `/finance/combined-documents/${combined.id}/preview` : `/finance/tax-invoices/${row.id}/preview`}>{t("common.actions.previewPrint")}</Link></div></section>
     <section className={`${styles.section} ${styles.noPrint}`}><h2>{t("finance.taxInvoice.ui.sourceTax")}</h2><dl className={styles.facts}><div><dt>{t("finance.taxInvoice.ui.beforeVat")}</dt><dd>{taxMoney(d.beforeVat)} THB</dd></div><div><dt>VAT</dt><dd>{taxMoney(d.vat)} THB</dd></div><div><dt>{combined ? t("finance.taxInvoice.ui.settlement") : t("finance.taxInvoice.ui.gross")}</dt><dd>{taxMoney(combined ? d.settlement : d.gross)} THB</dd></div><div><dt>{t("finance.taxInvoice.ui.actualReceived")}</dt><dd>{taxMoney(d.cash)} THB</dd></div><div><dt>{t("finance.taxInvoice.ui.wht")}</dt><dd>{taxMoney(d.wht)} THB</dd></div></dl></section>
     {draft ? <>
       <fieldset className={`${styles.section} ${styles.noPrint}`} disabled={!editable || busy}><legend>{t("finance.taxInvoice.ui.buyerVat")}</legend><div className={styles.grid}>

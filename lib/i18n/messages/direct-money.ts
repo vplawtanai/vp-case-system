@@ -1,6 +1,10 @@
 import type { MessageCatalog } from "../core";
 
 const copy: Record<string, [string, string]> = {
+  documentCustomerRequired: ["ข้อมูลลูกค้าในรายการต้นทางไม่ครบถ้วน จึงยังจัดทำเอกสารไม่ได้", "The source lacks the customer identity required to prepare this document."],
+  documentClassificationRequired: ["ตรวจสอบประเภทรายรับและข้อมูล VAT ที่รายการรับเงินก่อนจัดทำเอกสาร", "Resolve the income classification and VAT evidence on the receipt of money before preparing documents."],
+  prepareDocument: ["จัดทำเอกสารรับเงิน", "Prepare receipt documents"],
+  documentSource: ["รายการรับเงินต้นทาง", "Source receipt of money"],
   title: ["เงินรับโดยตรง", "Direct Money Receipt"], source: ["ไม่มีเอกสารต้นทาง", "No source document"],
   create: ["บันทึกเงินรับโดยตรง", "Record Direct Money Receipt"], invoiceBacked: ["จากใบแจ้งหนี้", "Invoice-backed"],
   classify: ["ระบุลักษณะเงิน", "Classify money"], classified: ["บันทึกลักษณะเงิน", "Classification recorded"],

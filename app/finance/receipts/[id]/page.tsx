@@ -1,4 +1,5 @@
 "use client";
+import { documentSource } from "../../document-decision/source";
 import { useI18n } from "../../../../lib/i18n/provider";
 import { FinanceDocumentNextAction } from "../../document-decision/next-action";
 
@@ -62,7 +63,7 @@ function ReceiptWorkspace({ id, permissions }: { id: string; permissions: UserPe
   return <>
     <header className={`${styles.heading} ${styles.noPrint}`}>
       <div><Link className={styles.link} href="/finance/receipts">{t("finance.receipt.allReceipts")}</Link><h1>{document?.receipt.number || receipt.receipt_no || t("finance.receipt.draft")}</h1><span className={styles.status}>{receiptStatusLabel(receipt.status, locale)}</span></div>
-      <div className={styles.actions}><Link className={styles.button} href={`/finance/payments/${receipt.payment_id}`}>{t("finance.receipt.payment")}</Link><button type="button" className={styles.button} disabled={busy} onClick={() => { clearReview(); void reload(); }}>{t("finance.receipt.reload")}</button></div>
+      <div className={styles.actions}><Link className={styles.button} href={documentSource(receipt).href}>{t(receipt.direct_money_receipt_id ? "directMoney.documentSource" : "finance.receipt.payment")}</Link><button type="button" className={styles.button} disabled={busy} onClick={() => { clearReview(); void reload(); }}>{t("finance.receipt.reload")}</button></div>
     </header>
     {error || loadError ? <p role="alert" className={styles.error}>{error ? safeReceiptError(error, locale) : loadError}</p> : null}
     {message ? <p role="status" className={styles.notice}>{t(message)}</p> : null}
@@ -78,9 +79,9 @@ function ReceiptWorkspace({ id, permissions }: { id: string; permissions: UserPe
         {document.payment.receivingAccountReference ? <div><dt>{t("finance.receipt.receivingDetails")}</dt><dd>{document.payment.receivingAccountReference}</dd></div> : null}
       </dl></section>
       <section className={styles.section}><h2>{t("finance.receipt.parties")}</h2><dl className={styles.facts}><div><dt>{t("finance.receipt.recipient")}</dt><dd>{document.identity.companyNameTh}<br />{document.identity.addressTh || document.identity.addressEn}<br />{document.identity.taxId}<br />{document.identity.branchTh || document.identity.branchEn}</dd></div><div><dt>{t("finance.receipt.payer")}</dt><dd>{document.customer.name}<br />{document.customer.address}{document.customer.taxId ? <><br />{document.customer.taxId}</> : null}{document.customer.branch ? <><br />{document.customer.branch}</> : null}</dd></div></dl></section>
-      <section className={styles.section}><h2>{t("finance.receipt.invoiceReferences")}</h2><table className={styles.table}><thead><tr><th>{t("finance.receipt.invoiceItems")}</th><th>{t("finance.taxInvoice.ui.actualReceived")}</th><th>{t("finance.receipt.wht")}</th><th>{t("finance.receipt.settlement")}</th></tr></thead><tbody>{document.invoices.map((invoice) => <tr key={invoice.id}><td data-label={t("finance.receipt.invoiceItems")}>{invoice.number}<p>{invoice.description}</p></td><td data-label={t("finance.taxInvoice.ui.actualReceived")}>{receiptMoney(invoice.cash, invoice.currency)}</td><td data-label={t("finance.receipt.wht")}>{receiptMoney(invoice.wht, invoice.currency)}</td><td data-label={t("finance.receipt.settlement")}>{receiptMoney(invoice.settlement, invoice.currency)}</td></tr>)}</tbody></table></section>
+      <section className={styles.section}><h2>{t(document.sourceType ? "directMoney.documentSource" : "finance.receipt.invoiceReferences")}</h2><table className={styles.table}><thead><tr><th>{t(document.sourceType ? "directMoney.documentSource" : "finance.receipt.invoiceItems")}</th><th>{t("finance.taxInvoice.ui.actualReceived")}</th><th>{t("finance.receipt.wht")}</th><th>{t("finance.receipt.settlement")}</th></tr></thead><tbody>{document.invoices.map((invoice) => <tr key={invoice.id}><td data-label={t(document.sourceType ? "directMoney.documentSource" : "finance.receipt.invoiceItems")}>{invoice.number}<p>{invoice.description}</p></td><td data-label={t("finance.taxInvoice.ui.actualReceived")}>{receiptMoney(invoice.cash, invoice.currency)}</td><td data-label={t("finance.receipt.wht")}>{receiptMoney(invoice.wht, invoice.currency)}</td><td data-label={t("finance.receipt.settlement")}>{receiptMoney(invoice.settlement, invoice.currency)}</td></tr>)}</tbody></table></section>
       {document.receipt.issuedAt ? <section className={styles.section}><h2>{t("finance.taxInvoice.ui.history")}</h2><dl className={styles.facts}><div><dt>{t("finance.receipt.issuedAt")}</dt><dd>{date(document.receipt.issuedAt, true)}</dd></div><div><dt>{t("finance.receipt.issuer")}</dt><dd>{document.receipt.issuedBy}</dd></div></dl></section> : null}
-      <FinanceDocumentNextAction paymentId={receipt.payment_id} />
+      <FinanceDocumentNextAction paymentId={receipt.payment_id} directMoneyId={receipt.direct_money_receipt_id} />
     </div> : null}
     <section className={`${styles.section} ${styles.noPrint}`}>
       {receipt.status === "voided" ? <p className={styles.error}>{t("finance.receipt.voidedAt", { date: receipt.voided_at && Number.isFinite(Date.parse(receipt.voided_at)) ? date(receipt.voided_at, true) : t("finance.receipt.missingTime") })}<br />{t("finance.taxInvoice.ui.reason")} {receipt.void_reason}</p> : null}

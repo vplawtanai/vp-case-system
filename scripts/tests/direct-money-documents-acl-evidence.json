@@ -1,0 +1,81 @@
+{
+  "evidence_kind": "operator_reported_failed_066_preflight_excerpt_not_a_raw_database_export",
+  "reported_on": "2026-09-24",
+  "candidate_sha256": "010093343be8675823b8e9459c979d1dc6efe75959c7f12c0268eecb17db3f9e",
+  "gate_pass": false,
+  "failed_checks": [
+    "dependency_functions_exact"
+  ],
+  "reported_function_difference": {
+    "expected": {
+      "acl": null,
+      "name": "calculate_finance_billable_charge_amounts",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "calculate_finance_billable_charge_amounts(numeric,numeric,text,numeric)",
+      "definition": "CREATE OR REPLACE FUNCTION public.calculate_finance_billable_charge_amounts(p_quantity numeric, p_unit_rate numeric, p_price_tax_mode text, p_vat_rate numeric)\n RETURNS TABLE(vat_applicable boolean, amount_before_vat numeric, vat_amount numeric, total_amount numeric)\n LANGUAGE plpgsql\n IMMUTABLE\n SET search_path TO 'public'\nAS $function$\ndeclare\n  v_mode text := lower(btrim(coalesce(p_price_tax_mode, '')));\n  v_entered_total numeric(14, 2);\n  v_before_vat numeric(14, 2);\n  v_vat numeric(14, 2);\nbegin\n  if p_quantity is null or p_quantity <= 0 or p_quantity <> round(p_quantity, 4) then\n    raise exception 'Billable Charge quantity must be positive with no more than four decimal places';\n  end if;\n  if p_unit_rate is null or p_unit_rate < 0 or p_unit_rate <> round(p_unit_rate, 2) then\n    raise exception 'Billable Charge unit rate must be non-negative with no more than two decimal places';\n  end if;\n  if v_mode not in ('non_vat', 'vat_exclusive', 'vat_inclusive') then\n    raise exception 'Billable Charge price tax mode is invalid';\n  end if;\n  if p_vat_rate is null or p_vat_rate < 0 or p_vat_rate <> round(p_vat_rate, 4) then\n    raise exception 'Billable Charge VAT rate must be non-negative with no more than four decimal places';\n  end if;\n  if v_mode = 'non_vat' and p_vat_rate <> 0 then\n    raise exception 'Non-VAT Billable Charge must use a zero VAT rate';\n  end if;\n\n  v_entered_total := round(p_quantity * p_unit_rate, 2);\n  v_before_vat := case\n    when v_mode = 'vat_inclusive'\n      then round(v_entered_total / (1 + p_vat_rate / 100), 2)\n    else v_entered_total\n  end;\n  v_vat := case\n    when v_mode = 'non_vat' then 0\n    when v_mode = 'vat_inclusive' then v_entered_total - v_before_vat\n    else round(v_before_vat * p_vat_rate / 100, 2)\n  end;\n\n  return query select\n    v_mode <> 'non_vat',\n    v_before_vat,\n    v_vat,\n    case when v_mode = 'vat_inclusive' then v_entered_total else v_before_vat + v_vat end;\nend;\n$function$\n",
+      "anon_execute": true,
+      "service_execute": true,
+      "security_definer": false,
+      "authenticated_execute": true
+    },
+    "actual": {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "name": "calculate_finance_billable_charge_amounts",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "calculate_finance_billable_charge_amounts(numeric,numeric,text,numeric)",
+      "definition": "CREATE OR REPLACE FUNCTION public.calculate_finance_billable_charge_amounts(p_quantity numeric, p_unit_rate numeric, p_price_tax_mode text, p_vat_rate numeric)\n RETURNS TABLE(vat_applicable boolean, amount_before_vat numeric, vat_amount numeric, total_amount numeric)\n LANGUAGE plpgsql\n IMMUTABLE\n SET search_path TO 'public'\nAS $function$\ndeclare\n  v_mode text := lower(btrim(coalesce(p_price_tax_mode, '')));\n  v_entered_total numeric(14, 2);\n  v_before_vat numeric(14, 2);\n  v_vat numeric(14, 2);\nbegin\n  if p_quantity is null or p_quantity <= 0 or p_quantity <> round(p_quantity, 4) then\n    raise exception 'Billable Charge quantity must be positive with no more than four decimal places';\n  end if;\n  if p_unit_rate is null or p_unit_rate < 0 or p_unit_rate <> round(p_unit_rate, 2) then\n    raise exception 'Billable Charge unit rate must be non-negative with no more than two decimal places';\n  end if;\n  if v_mode not in ('non_vat', 'vat_exclusive', 'vat_inclusive') then\n    raise exception 'Billable Charge price tax mode is invalid';\n  end if;\n  if p_vat_rate is null or p_vat_rate < 0 or p_vat_rate <> round(p_vat_rate, 4) then\n    raise exception 'Billable Charge VAT rate must be non-negative with no more than four decimal places';\n  end if;\n  if v_mode = 'non_vat' and p_vat_rate <> 0 then\n    raise exception 'Non-VAT Billable Charge must use a zero VAT rate';\n  end if;\n\n  v_entered_total := round(p_quantity * p_unit_rate, 2);\n  v_before_vat := case\n    when v_mode = 'vat_inclusive'\n      then round(v_entered_total / (1 + p_vat_rate / 100), 2)\n    else v_entered_total\n  end;\n  v_vat := case\n    when v_mode = 'non_vat' then 0\n    when v_mode = 'vat_inclusive' then v_entered_total - v_before_vat\n    else round(v_before_vat * p_vat_rate / 100, 2)\n  end;\n\n  return query select\n    v_mode <> 'non_vat',\n    v_before_vat,\n    v_vat,\n    case when v_mode = 'vat_inclusive' then v_entered_total else v_before_vat + v_vat end;\nend;\n$function$\n",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": false,
+      "authenticated_execute": false
+    }
+  },
+  "failed_preflight_artifact_sha256": "23679614613ea1864c256169a27ff033cac24e2c30820b2f0e5d76cda79866ec",
+  "failed_contract_artifact_sha256": "54828755bd792cee1c346a53a65174ff44524e254f1774baa215067dff7c97db",
+  "archived_original_artifacts": "/private/tmp/vp-066-failed-preflight-acl",
+  "post063_capture": {
+    "path": "/private/tmp/post063-baseline-for-064.json",
+    "sha256": "874e1058f0bea6b1cfce975adfd49be68983437c58510ebce89472cc00c4013c",
+    "captured_at": "2026-09-23T03:41:32.96862+00:00",
+    "object": {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "calculate_finance_billable_charge_amounts(numeric,numeric,text,numeric)",
+      "definition": "CREATE OR REPLACE FUNCTION public.calculate_finance_billable_charge_amounts(p_quantity numeric, p_unit_rate numeric, p_price_tax_mode text, p_vat_rate numeric)\n RETURNS TABLE(vat_applicable boolean, amount_before_vat numeric, vat_amount numeric, total_amount numeric)\n LANGUAGE plpgsql\n IMMUTABLE\n SET search_path TO 'public'\nAS $function$\ndeclare\n  v_mode text := lower(btrim(coalesce(p_price_tax_mode, '')));\n  v_entered_total numeric(14, 2);\n  v_before_vat numeric(14, 2);\n  v_vat numeric(14, 2);\nbegin\n  if p_quantity is null or p_quantity <= 0 or p_quantity <> round(p_quantity, 4) then\n    raise exception 'Billable Charge quantity must be positive with no more than four decimal places';\n  end if;\n  if p_unit_rate is null or p_unit_rate < 0 or p_unit_rate <> round(p_unit_rate, 2) then\n    raise exception 'Billable Charge unit rate must be non-negative with no more than two decimal places';\n  end if;\n  if v_mode not in ('non_vat', 'vat_exclusive', 'vat_inclusive') then\n    raise exception 'Billable Charge price tax mode is invalid';\n  end if;\n  if p_vat_rate is null or p_vat_rate < 0 or p_vat_rate <> round(p_vat_rate, 4) then\n    raise exception 'Billable Charge VAT rate must be non-negative with no more than four decimal places';\n  end if;\n  if v_mode = 'non_vat' and p_vat_rate <> 0 then\n    raise exception 'Non-VAT Billable Charge must use a zero VAT rate';\n  end if;\n\n  v_entered_total := round(p_quantity * p_unit_rate, 2);\n  v_before_vat := case\n    when v_mode = 'vat_inclusive'\n      then round(v_entered_total / (1 + p_vat_rate / 100), 2)\n    else v_entered_total\n  end;\n  v_vat := case\n    when v_mode = 'non_vat' then 0\n    when v_mode = 'vat_inclusive' then v_entered_total - v_before_vat\n    else round(v_before_vat * p_vat_rate / 100, 2)\n  end;\n\n  return query select\n    v_mode <> 'non_vat',\n    v_before_vat,\n    v_vat,\n    case when v_mode = 'vat_inclusive' then v_entered_total else v_before_vat + v_vat end;\nend;\n$function$\n",
+      "definition_hash": "fb4e7079abe375e3bebde9c9721ac969",
+      "security_definer": false
+    },
+    "function_default_privileges": [
+      {
+        "acl": "{postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+        "owner": "postgres",
+        "schema": "public",
+        "object_type": "f"
+      }
+    ]
+  },
+  "accepted_065_evidence": {
+    "candidate_sha256": "eea28bb1470b964547815c90ad4d0be0b22408da1978176b49ac194ad855a54e",
+    "approved_baseline_sha256": "e435c194590aaa322c061e600705613d3757d0e8a8ad5357f6d1a194e6027d59",
+    "approved_baseline_captured_at": "2026-09-23T12:40:41.750864+00:00",
+    "operator_reported_post_apply_pass": true,
+    "helper_was_in_065_scoped_contract": false,
+    "limitation": "065 PASS does not independently attest this helper ACL. The earlier current-state capture, explicit Migration 030 REVOKE, absence of subsequent helper ACL changes in repository migrations, and current operator-reported 066 result reconcile it; do not claim blanket acceptance of 490 differences."
+  },
+  "provenance": {
+    "created_and_hardened_by": "supabase/migrations/202607180030_create_finance_billable_charge_foundation.sql",
+    "create_line": 387,
+    "revoke_line": 1228,
+    "later_definition_or_acl_changes_found": [],
+    "service_role_origin": "No explicit object-specific grant found in repository. The retained service_role ACL is present in the post-063 capture and current reported result, consistent with captured Supabase postgres/public function default privileges. Creation-time default-grant history is not independently recorded."
+  }
+}

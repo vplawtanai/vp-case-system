@@ -8,35 +8,37 @@ import { documentDecisionLabel, documentError, vatTreatmentLabel, type DocumentD
 import { useI18n } from "../../../lib/i18n/provider";
 import styles from "../tax-invoices/tax-invoices.module.css";
 
-export function FinanceDocumentNextAction({ paymentId }: { paymentId: string }) {
-  return <NextAction key={paymentId} paymentId={paymentId} />;
+export function FinanceDocumentNextAction({ paymentId, directMoneyId }: { paymentId?: string | null; directMoneyId?: string | null }) {
+  return <NextAction key={directMoneyId || paymentId} paymentId={paymentId || ""} directMoneyId={directMoneyId || ""} />;
 }
-function NextAction({ paymentId }: { paymentId: string }) {
+function NextAction({ paymentId, directMoneyId }: { paymentId: string; directMoneyId: string }) {
   const { locale, t } = useI18n();
   const { permissions } = useTaxAccess(), router = useRouter(), lock = useRef(false);
   const [decision, setDecision] = useState<DocumentDecision | null>(null), [error, setError] = useState<unknown>(null);
-  const [busy, setBusy] = useState(false), [open, setOpen] = useState(false), [receiptChecked, setReceiptChecked] = useState(false), [taxChecked, setTaxChecked] = useState(false);
+  const [busy, setBusy] = useState(false), [open, setOpen] = useState(Boolean(directMoneyId)), [receiptChecked, setReceiptChecked] = useState(false), [taxChecked, setTaxChecked] = useState(false);
+  const [noEarlierEvent, setNoEarlierEvent] = useState(false);
   const canView = permissions?.canViewFinanceReceipts || permissions?.canViewFinanceTaxInvoices;
   useEffect(() => {
     let active = true;
     if (canView) void (async () => {
-      const result = await supabase.rpc("get_finance_document_decision", { p_payment_id: paymentId });
+      const result = directMoneyId ? await supabase.rpc("get_finance_received_document_decision", { p_source_type: "direct_money_receipt", p_source_id: directMoneyId }) : await supabase.rpc("get_finance_document_decision", { p_payment_id: paymentId });
       if (active) { setDecision(result.error ? null : result.data); setError(result.error); }
     })().catch(cause => { if (active) setError(cause); });
     return () => { active = false; };
-  }, [paymentId, canView]);
+  }, [paymentId, directMoneyId, canView]);
   if (!canView) return null;
   const kind = decision?.decision, paired = kind === "combined_receipt_tax_invoice";
   const receiptOnly = kind === "receipt_only" || kind === "receipt_completion_only";
+  const completedReceipt = Boolean(directMoneyId && kind === "complete" && !decision?.tax_invoice_id && decision?.receipt_id);
   const canManage = paired ? permissions?.canManageFinanceReceipts && permissions?.canManageFinanceTaxInvoices : receiptOnly ? permissions?.canManageFinanceReceipts : permissions?.canManageFinanceTaxInvoices;
-  const existingId = decision?.combined_id || (paired ? decision?.receipt_id || decision?.tax_invoice_id : receiptOnly ? decision?.receipt_id : decision?.tax_invoice_id);
-  const existingPath = decision?.combined_id ? "combined-documents" : (paired && decision?.receipt_id) || receiptOnly ? "receipts" : "tax-invoices";
+  const existingId = decision?.combined_id || (paired ? decision?.receipt_id || decision?.tax_invoice_id : receiptOnly || completedReceipt ? decision?.receipt_id : decision?.tax_invoice_id);
+  const existingPath = decision?.combined_id ? "combined-documents" : (paired && decision?.receipt_id) || receiptOnly || completedReceipt ? "receipts" : "tax-invoices";
   const actionable = !!kind && !kind.startsWith("blocked_") && kind !== "complete";
   async function create() {
-    if (lock.current || !canManage || !actionable || !receiptChecked || (paired && !taxChecked)) return;
+    if (lock.current || !canManage || !actionable || !receiptChecked || (paired && !taxChecked) || (directMoneyId && !receiptOnly && (!taxChecked || !noEarlierEvent))) return;
     lock.current = true; setBusy(true); setError("");
     try {
-      const result = paired ? await supabase.rpc("create_finance_combined_document_draft", { p_payment_id: paymentId, p_external_receipt_checked: receiptChecked, p_external_tax_checked: taxChecked })
+      const result = directMoneyId ? await supabase.rpc("create_finance_received_document_draft", { p_source_type: "direct_money_receipt", p_source_id: directMoneyId, p_external_receipt_checked: receiptChecked, p_external_tax_checked: taxChecked, p_no_earlier_event: noEarlierEvent }) : paired ? await supabase.rpc("create_finance_combined_document_draft", { p_payment_id: paymentId, p_external_receipt_checked: receiptChecked, p_external_tax_checked: taxChecked })
         : receiptOnly ? await supabase.rpc("create_finance_receipt_draft_from_payment", { p_payment_id: paymentId, p_external_receipt_checked: receiptChecked })
         : await supabase.rpc("create_finance_tax_invoice_draft", { p_payment_id: paymentId });
       if (result.error || typeof result.data !== "string") throw result.error || new Error("response");
@@ -50,13 +52,14 @@ function NextAction({ paymentId }: { paymentId: string }) {
       {decision.decision === "receipt_only" ? <p>{t("finance.document.noTaxExplanation")}</p> : null}
       <ul>{decision.lines.map(line => <li key={line.id}>{line.description}: {vatTreatmentLabel(line.resolved_vat_treatment.treatment, locale, line.vat_rate)}</li>)}</ul>
       {decision.blockers?.length ? <ul className={styles.notice}>{decision.blockers.map(code => <li key={code}>{documentError(code, locale, paired)}</li>)}</ul> : null}
-      {existingId ? <Link className={styles.primary} href={`/finance/${existingPath}/${existingId}`}>{t("finance.document.openExisting")}</Link> : actionable && canManage ? <button className={styles.primary} disabled={busy} onClick={() => setOpen(true)}>{documentDecisionLabel(decision.decision, locale)}</button> : null}
+      {existingId ? <Link className={styles.primary} href={`/finance/${existingPath}/${existingId}`}>{t("finance.document.openExisting")}</Link> : actionable && canManage && !directMoneyId ? <button className={styles.primary} disabled={busy} onClick={() => setOpen(true)}>{documentDecisionLabel(decision.decision, locale)}</button> : null}
       {decision.receipt_id && existingPath !== "receipts" ? <p><Link className={styles.button} href={`/finance/receipts/${decision.receipt_id}`}>{t("finance.document.openIssuedReceipt")}</Link></p> : null}
-      {open && actionable && !existingId ? <div className={styles.section}>
+      {open && actionable && canManage && !existingId ? <div className={styles.section}>
         <p className={styles.small}>{t("finance.document.externalStop")}</p>
         <label className={styles.check}><input type="checkbox" checked={receiptChecked} onChange={e => setReceiptChecked(e.target.checked)} />{t(receiptOnly || paired ? "finance.document.checkExternalReceipt" : "finance.document.checkCompletion")}</label>
-        {paired ? <label className={styles.check}><input type="checkbox" checked={taxChecked} onChange={e => setTaxChecked(e.target.checked)} />{t("finance.document.checkExternalTax")}</label> : null}
-        <button className={styles.primary} disabled={busy || !receiptChecked || (paired && !taxChecked)} onClick={() => void create()}>{t("finance.document.confirmDraft")}</button>
+        {paired || (directMoneyId && !receiptOnly) ? <label className={styles.check}><input type="checkbox" checked={taxChecked} onChange={e => setTaxChecked(e.target.checked)} />{t("finance.document.checkExternalTax")}</label> : null}
+        {directMoneyId && !receiptOnly ? <label className={styles.check}><input type="checkbox" checked={noEarlierEvent} onChange={e => setNoEarlierEvent(e.target.checked)} />{t("finance.taxInvoice.ui.noEarlierEvent")}</label> : null}
+        <button className={styles.primary} disabled={busy || !receiptChecked || (paired && !taxChecked) || Boolean(directMoneyId && !receiptOnly && (!taxChecked || !noEarlierEvent))} onClick={() => void create()}>{t(directMoneyId ? "directMoney.prepareDocument" : "finance.document.confirmDraft")}</button>
       </div> : null}
     </>}
   </section>;

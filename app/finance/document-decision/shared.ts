@@ -47,6 +47,9 @@ export function documentDecisionLabel(decision: string, locale: UiLocale = "th")
 }
 export function documentError(error: unknown, locale: UiLocale = "th", combined = false): string {
   const message = typeof error === "string" ? error : error && typeof error === "object" && "message" in error ? String(error.message) : "";
+  if (message.includes("DOCUMENT_DIRECT_CLASSIFICATION_REQUIRED")) return translate(locale, "directMoney.documentClassificationRequired");
+  if (message.includes("RECEIPT_CUSTOMER_IDENTITY_REQUIRED")) return translate(locale, "directMoney.documentCustomerRequired");
+  if (message.includes("DIRECT_DOCUMENT_DEPENDENCY_CORRECTION_REQUIRED")) return translate(locale, "finance.document.error.correctionRequired");
   if (combined && message.includes("TAX_INVOICE_EXTERNAL_COVERAGE_CHECK_REQUIRED")) {
     return translate(locale, "finance.document.error.externalTaxCombined");
   }

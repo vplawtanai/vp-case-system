@@ -1,3 +1,4 @@
+import { directDocumentEvidence } from "../document-decision/source";
 import { translate } from "../../../lib/i18n/catalog";
 import { isUiMessage, type UiLocale } from "../../../lib/i18n/core";
 import type { DocumentIdentity } from "../../../lib/documentIdentity";
@@ -6,7 +7,8 @@ import { documentLogoEvidence, type DocumentLogoEvidence } from "../../../lib/do
 export type ReceiptStatus = "draft" | "issued" | "cancelled" | "voided";
 export type FinanceReceipt = {
   id: string;
-  payment_id: string;
+  payment_id: string | null;
+  direct_money_receipt_id?: string | null;
   status: ReceiptStatus;
   receipt_no: string | null;
   receipt_date: string;
@@ -25,7 +27,7 @@ export type FinanceReceipt = {
   combined_document_id?: string | null;
 };
 
-export const receiptSelect = "id,payment_id,status,receipt_no,receipt_date,currency,cash_amount,wht_amount,settlement_amount,draft_snapshot_json,issued_snapshot_json,issued_at,voided_at,void_reason,replaces_receipt_id,created_at,updated_at,combined_document_id";
+export const receiptSelect = "id,payment_id,direct_money_receipt_id,status,receipt_no,receipt_date,currency,cash_amount,wht_amount,settlement_amount,draft_snapshot_json,issued_snapshot_json,issued_at,voided_at,void_reason,replaces_receipt_id,created_at,updated_at,combined_document_id";
 export const receiptStatusLabels: Record<ReceiptStatus, string> = {
   draft: translate("th", "finance.receipt.draft"),
   issued: translate("th", "finance.receipt.issued"),
@@ -45,6 +47,7 @@ export const receiptMethodLabels: Record<string, string> = {
 };
 type Amounts = { cash: number; wht: number; settlement: number; currency: string };
 export type ReceiptPresentation = {
+  sourceType?: "direct_money_receipt";
   status: ReceiptStatus;
   identity: DocumentIdentity;
   logo: DocumentLogoEvidence | null;
@@ -106,11 +109,13 @@ export function receiptPresentation(row: FinanceReceipt): ReceiptPresentationRes
     if (!Object.hasOwn(receiptStatusLabels, row.status)) throw new Error("status");
     const frozen = row.status === "issued" || row.status === "voided";
     const snapshot = object(frozen ? row.issued_snapshot_json : row.draft_snapshot_json);
-    if (![1, 2].includes(Number(snapshot.schema_version)) || typeof snapshot.schema_version !== "number" || snapshot.document_kind !== "receipt") throw new Error("schema version");
+    const direct = snapshot.schema_version === 3 ? directDocumentEvidence(snapshot, row) : null;
+    if (!!row.direct_money_receipt_id !== !!direct) throw new Error("source version");
+    if (![1, 2, 3].includes(Number(snapshot.schema_version)) || typeof snapshot.schema_version !== "number" || snapshot.document_kind !== "receipt") throw new Error("schema version");
     const seller = object(snapshot.seller);
-    const logo = snapshot.schema_version === 2 ? documentLogoEvidence(seller.logo_asset) : null;
+    const logo = snapshot.schema_version !== 1 ? documentLogoEvidence(seller.logo_asset) : null;
     const customer = object(snapshot.customer);
-    const payment = object(snapshot.payment);
+    const payment = direct?.money ?? object(snapshot.payment);
     const nameTh = optionalText(seller.company_name_th);
     const nameEn = optionalText(seller.company_name_en);
     const addressTh = optionalText(seller.address_th);
@@ -138,8 +143,11 @@ export function receiptPresentation(row: FinanceReceipt): ReceiptPresentationRes
       receivedOn: date(payment.received_on), method,
       bank: bankView, receivingAccountReference,
     };
-    if (!Array.isArray(snapshot.invoices) || !snapshot.invoices.length) throw new Error("invoices");
-    const invoices = snapshot.invoices.map((value) => {
+    if (!direct && (!Array.isArray(snapshot.invoices) || !snapshot.invoices.length)) throw new Error("invoices");
+    const invoices = direct ? direct.lines.map(line => ({
+      ...amounts(line.cash, line.wht, line.gross, payment.currency), id: uuid(line.source_line_id),
+      number: paymentView.reference, description: requiredText(line.description),
+    })) : (snapshot.invoices as unknown[]).map((value) => {
       const invoice = object(value);
       return {
         ...amounts(invoice.cash_allocated, invoice.wht_allocated, invoice.settlement_allocated, invoice.currency),
@@ -162,14 +170,14 @@ export function receiptPresentation(row: FinanceReceipt): ReceiptPresentationRes
     };
     if (frozen && (!/^VP-RC-\d{6}-\d{6}$/.test(receiptView.number) || receiptView.number !== row.receipt_no || Date.parse(receiptView.issuedAt) !== Date.parse(timestamp(row.issued_at)))) throw new Error("issued metadata");
     if (!frozen && (row.receipt_no !== null || row.issued_at !== null || snapshot.receipt != null)) throw new Error("draft number");
-    if (receiptView.id !== row.id || paymentView.id !== row.payment_id || receiptView.date !== date(row.receipt_date) || receiptView.date !== paymentView.receivedOn) throw new Error("receipt linkage");
+    if (receiptView.id !== row.id || paymentView.id !== (row.direct_money_receipt_id || row.payment_id) || receiptView.date !== date(row.receipt_date) || receiptView.date !== paymentView.receivedOn) throw new Error("receipt linkage");
     const rowAmounts = amounts(row.cash_amount, row.wht_amount, row.settlement_amount, row.currency);
     if ((["cash", "wht", "settlement", "currency"] as const).some((key) => rowAmounts[key] !== paymentView[key])) throw new Error("row amounts");
     if (row.status === "voided") { timestamp(row.voided_at); requiredText(row.void_reason); }
     if (snapshot.structured_wht_components != null && !Array.isArray(snapshot.structured_wht_components)) throw new Error("WHT evidence");
     const structuredWhtComponents = (snapshot.structured_wht_components as unknown[] | undefined ?? []).map((value) => structuredClone(object(value)));
     return { ok: true, value: {
-      status: row.status, identity, logo,
+      status: row.status, identity, logo, ...(direct ? { sourceType: "direct_money_receipt" as const } : {}),
       customer: { name: requiredText(customer.name), taxId: optionalText(customer.tax_id), address: optionalText(customer.address), branch: optionalText(customer.branch) },
       payment: paymentView, invoices, receipt: receiptView, structuredWhtComponents,
     } };
@@ -267,6 +275,6 @@ export function safeReceiptError(error: unknown, locale: UiLocale = "th") {
 export function receiptSearchFilter(search: string) {
   const escaped = search.trim().slice(0, 150).replace(/[\\%_"]/g, "\\$&");
   if (!escaped) return "";
-  return ["receipt_no", "draft_snapshot_json->customer->>name", "issued_snapshot_json->customer->>name", "draft_snapshot_json->payment->>internal_reference", "issued_snapshot_json->payment->>internal_reference"]
+  return ["receipt_no", "draft_snapshot_json->customer->>name", "issued_snapshot_json->customer->>name", "draft_snapshot_json->payment->>internal_reference", "issued_snapshot_json->payment->>internal_reference", "draft_snapshot_json->money->>internal_reference", "issued_snapshot_json->money->>internal_reference"]
     .map((field) => `${field}.ilike."%${escaped}%"`).join(",");
 }

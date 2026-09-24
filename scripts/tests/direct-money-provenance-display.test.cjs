@@ -12,6 +12,7 @@ const detail=workspaceFixture('app/finance/direct-money/[id]/page.tsx',['DirectM
  '../../quotations/shared':{QuotationGuard:empty},'../../FinanceSubNav':{default:empty},
  '../../payments/vp-distribution-panel':{VpDistributionPanel:empty},'../form':{DirectAmounts:empty,DirectMoneyForm:empty},
  '../classification':{DirectMoneyClassification:empty},
+ '../../document-decision/next-action':{FinanceDocumentNextAction:empty},
 });
 function sample(){const p=newDirectInput();return prepareDirectSourceEvidence({...p,client_id:'10000000-0000-4000-8000-000000000001',payer_name:'Actual recorded payer',case_id:47,
  lines:[{...p.lines[0],description:'ค่าบังคับคดี',money_nature:'business_revenue',classification:'professional_fee',base:10000,vat_applicable:true,vat_rate:7,wht_applicability:'applies',wht_base:10000,wht_rate:3}]}).input;}

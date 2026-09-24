@@ -32,8 +32,8 @@ export function ReceiptDocument({ receipt, logoUrl = "" }: { receipt: FinanceRec
       </dl>
     </section>
     <table className={styles.allocations}>
-      <caption>รายการอ้างอิงใบแจ้งหนี้</caption>
-      <thead><tr><th scope="col">ใบแจ้งหนี้ / รายการ</th><th scope="col">ยอดชำระ<br />{payment.currency}</th></tr></thead>
+      <caption>{result.value.sourceType ? "รายการอ้างอิงการรับเงิน" : "รายการอ้างอิงใบแจ้งหนี้"}</caption>
+      <thead><tr><th scope="col">{result.value.sourceType ? "อ้างอิงรายการรับเงิน / รายการ" : "ใบแจ้งหนี้ / รายการ"}</th><th scope="col">ยอดชำระ<br />{payment.currency}</th></tr></thead>
       <tbody>{invoices.map((invoice) => <tr key={invoice.id}><td><strong>{invoice.number}</strong><p>{invoice.description}</p></td><td>{receiptMoney(invoice.settlement, invoice.currency)}</td></tr>)}</tbody>
     </table>
     <div className={styles.closing}>
