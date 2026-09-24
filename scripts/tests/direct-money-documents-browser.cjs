@@ -12,12 +12,14 @@ const access=write('access.js',`export const useTaxAccess=()=>({permissions:${JS
 const navigation=write('navigation.js',"export const usePathname=()=>'/finance/direct-money/local';export const useRouter=()=>({push:p=>{window.navigated=p;window.stage='preview';window.render066();}});");
 const link=write('link.js',`import React from '${require.resolve('react')}';export default function Link({children,...props}){return React.createElement('a',props,children)}`);
 const adapter=write('adapter.js',`window.calls=[];window.stage='source';window.f=${JSON.stringify(f)};
+window.combinedStatus=new URLSearchParams(location.search).get('combined');
 export const supabase={async rpc(name,args){window.calls.push({name,args});
+if(name==='get_finance_received_document_decision'&&window.combinedStatus)return {data:{decision:window.combinedStatus==='draft'?'combined_receipt_tax_invoice':'complete',combined_id:window.f.combined.id,receipt_id:window.f.receipt.id,tax_invoice_id:window.f.tax.id,lines:window.f.tax.source_snapshot_json.document_lines,blockers:[]}};
 if(name==='get_finance_received_document_decision')return {data:{decision:window.existingReceipt||window.stage==='issued'?'complete':'combined_receipt_tax_invoice',combined_id:window.stage==='issued'?window.f.combined.id:null,receipt_id:window.existingReceipt?window.f.receipt.id:null,lines:window.f.tax.source_snapshot_json.document_lines,blockers:[]}};
 if(name==='create_finance_received_document_draft'){if(!args.p_no_earlier_event||!args.p_external_receipt_checked||!args.p_external_tax_checked)throw Error('Missing explicit acknowledgement');return {data:window.f.combined.id};}
 if(name==='issue_finance_combined_document'){if(!args.p_acknowledged||!args.p_external_receipt_checked||!args.p_external_tax_checked)throw Error('Missing issue acknowledgements');window.stage='issued';return {data:window.f.combined.id};}
 if(name==='get_finance_tax_correction_context')return {data:{history:[],items:[],source:{}}};
-throw Error('Forbidden RPC '+name);}};`);
+throw Error('Forbidden RPC '+name);},from(table){if(table!=='finance_combined_documents')throw Error('Forbidden read '+table);const call={table,filters:[]};window.calls.push(call);return {select(columns){call.columns=columns;return this;},eq(key,value){call.filters.push([key,value]);return this;},async single(){return window.combinedStatus==='denied'?{error:{message:'DOCUMENT_PERMISSION_DENIED'}}:{data:window.combinedStatus==='missing'?null:{status:window.combinedStatus}};}};}};`);
 const loader=write('loader.cjs',`module.exports=function(source){if(this.resourcePath.endsWith('.css')){const prefix=require('node:path').basename(this.resourcePath).replaceAll('.','_')+'_';return 'module.exports={__esModule:true,default:new Proxy({}, {get:(_,k)=>'+JSON.stringify(prefix)+'+k})};'}return require(${JSON.stringify(require.resolve('typescript'))}).transpileModule(source,{compilerOptions:{module:99,target:9,jsx:4,esModuleInterop:true}}).outputText};`);
 const entry=write('entry.tsx',`import React from'react';import{createRoot}from'react-dom/client';import{UiLocaleProvider}from'${root}/lib/i18n/provider';import{FinanceDocumentNextAction}from'${root}/app/finance/document-decision/next-action';import{TaxInvoiceEditor}from'${root}/app/finance/tax-invoices/editor';import{CombinedReceiptTaxDocument}from'${root}/app/finance/combined-documents/document';
 const mount=createRoot(document.getElementById('root'));window.render066=()=>{const f=window.f,issued=window.stage==='issued',preview=window.stage==='preview',row={...f.tax,status:issued?'issued':'draft',tax_invoice_no:issued?f.tax.tax_invoice_no:null,issued_at:issued?f.tax.issued_at:null,issued_snapshot_json:issued?f.tax.issued_snapshot_json:null},combined={...f.combined,status:row.status,combined_no:row.tax_invoice_no,issued_at:row.issued_at,issued_snapshot_json:issued?f.combined.issued_snapshot_json:null};
@@ -61,6 +63,28 @@ async function main(){
  assert.equal(await existing.getAttribute('href'),'/finance/receipts/'+f.receipt.id);
  assert.equal(await page.getByRole('button',{name:translate('en','directMoney.prepareDocument'),exact:true}).count(),0);
  console.log('PASS completed Receipt opens existing coverage');
+ assert.equal((await page.evaluate(()=>window.calls)).filter(c=>c.table).length,0);
+ for(const locale of ['th','en'])for(const width of [390,1440])for(const status of ['draft','issued']){
+ await page.setViewportSize({width,height:1100});await page.emulateMedia({media:'screen'});
+ await page.goto(`http://127.0.0.1:${server.address().port}?locale=${locale}&combined=${status}`);
+ const label=translate(locale,status==='draft'?'finance.document.openCombinedDraft':'finance.document.postPayment.openCombined');
+ const action=page.getByRole('link',{name:label,exact:true});await action.waitFor();
+ assert.equal(await action.getAttribute('href'),'/finance/combined-documents/'+f.combined.id);
+ assert.equal(await page.getByRole('link').count(),1);assert.equal(await page.getByRole('button').count(),0);
+ assert.equal(await page.getByRole('link',{name:translate(locale,'finance.document.openIssuedReceipt'),exact:true}).count(),0);
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+ const calls=await page.evaluate(()=>window.calls);
+ assert.deepEqual(calls.map(c=>c.name||c.table),['get_finance_received_document_decision','finance_combined_documents']);
+ assert.equal(calls[1].columns,'status');assert.deepEqual(calls[1].filters,[['id',f.combined.id],['direct_money_receipt_id',f.tax.direct_money_receipt_id]]);
+ await page.screenshot({path:path.join(out,`${locale}-${width}-combined-${status}-action.png`),fullPage:true});
+ await action.click();assert.equal(new URL(page.url()).pathname,'/finance/combined-documents/'+f.combined.id);
+ console.log(`PASS ${locale} ${width}: Combined ${status} opens directly in one action; actual status read, no child link or mutation`);
+ }
+ for(const status of ['denied','missing','cancelled']){
+ await page.goto(`http://127.0.0.1:${server.address().port}?locale=en&combined=${status}`);
+ await page.getByRole('alert').waitFor();assert.equal(await page.getByRole('link').count(),0);assert.equal(await page.getByRole('button').count(),0);
+ console.log(`PASS Combined ${status}: no guessed status or Receipt-child fallback`);
+ }
  for(const kind of ['receipt','tax-invoice'])for(const locale of ['th','en']){
  await page.setViewportSize({width:1440,height:1100});await page.emulateMedia({media:'screen'});await page.goto(`http://127.0.0.1:${server.address().port}/${kind}?locale=${locale}`);
  assert.equal(await page.locator('article img').count(),1);assert.match(await page.locator('article').innerText(),/อ้างอิงรายการรับเงิน/);

@@ -40,6 +40,7 @@ export const documentDecisionMessages = {
   "finance.document.reviewSource": { th: "ต้องตรวจสอบต้นทางก่อนดำเนินการ", en: "Review the source before continuing" },
   "finance.document.noTaxExplanation": { th: "รายการรับชำระนี้ไม่มีรายการที่ต้องออกใบกำกับภาษีตาม ประเภท VAT ที่บันทึกไว้", en: "The stored VAT treatments do not require a Tax Invoice for this Payment." },
   "finance.document.openExisting": { th: "เปิดเอกสารที่มีอยู่", en: "Open Existing Document" },
+  "finance.document.openCombinedDraft": { th: "เปิดร่างใบเสร็จรับเงิน/ใบกำกับภาษี", en: "Open Receipt / Tax Invoice Draft" },
   "finance.document.openIssuedReceipt": { th: "เปิดใบเสร็จที่ออกแล้ว", en: "Open Issued Receipt" },
   "finance.document.externalStop": { th: "หากมีเอกสารภายนอกอยู่แล้ว ให้หยุดและตรวจสอบการจัดทำเฉพาะเอกสารส่วนที่ขาดกับผู้มีอำนาจ ห้ามยืนยันว่าไม่มีเอกสารเพื่อออกซ้ำ", en: "If an external document already exists, stop and ask an authorized reviewer about completing only the missing document. Do not acknowledge its absence to issue a duplicate." },
   "finance.document.checkExternalReceipt": { th: "ตรวจสอบแล้วว่าไม่มีใบเสร็จภายนอกหรือเลขที่จองไว้นอกระบบซ้ำสำหรับยอดนี้", en: "I verified that no external Receipt or external number reservation duplicates this amount." },
