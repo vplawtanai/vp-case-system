@@ -10,6 +10,7 @@ export type FinanceSubNavPage =
   | "billable-charges"
   | "invoices"
   | "payments"
+  | "revenue-distribution"
   | "receipts"
   | "combined-documents"
   | "tax-invoices"
@@ -56,6 +57,9 @@ export function financeNavigationLinks(permissions: FinanceNavigationPermissions
       : null,
     permissions.canViewFinancePayments || permissions.canManageFinancePayments || permissions.canConfirmFinancePayments || permissions.canReverseFinancePayments || permissions.canReallocateFinancePayments
       ? { href: "/finance/payments", page: "payments" as const, label: t("finance.nav.payments") }
+      : null,
+    permissions.canViewFinancePayments
+      ? { href: "/finance/revenue-distribution", page: "revenue-distribution" as const, label: t("revenueDistribution.title") }
       : null,
     permissions.canViewFinanceReceipts
       ? { href: "/finance/receipts", page: "receipts" as const, label: t("finance.nav.receipts") }
@@ -109,7 +113,7 @@ export function financeNavigationItems(permissions: FinanceNavigationPermissions
 
 export function activeFinancePage(pathname: string | null, fallback: FinanceSubNavPage): FinanceSubNavPage {
   const routes: [string, FinanceSubNavPage][] = [
-    ["payouts", "payables"],
+    ["payouts", "payables"], ["revenue-distribution", "revenue-distribution"],
     ["quotations", "quotations"], ["fee-agreements", "fee-agreements"], ["billing-plans", "fee-agreements"],
     ["billable-charges", "billable-charges"], ["invoices", "invoices"], ["payments", "payments"], ["direct-money", "payments"],
     ["receipts", "receipts"], ["combined-documents", "combined-documents"], ["tax-invoices", "tax-invoices"],

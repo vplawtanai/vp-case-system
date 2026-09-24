@@ -1,4 +1,5 @@
 import { taxHomeMessages } from "./messages/tax-home";
+import { revenueDistributionMessages } from "./messages/revenue-distribution";
 import { commonMessages } from "./messages/common";
 import { expenseMessages } from "./messages/expenses";
 import { payoutMessages } from "./messages/payouts";
@@ -31,6 +32,7 @@ import { formatMessage, type MessageCatalog, type MessageParameters, type UiLoca
 export const messages: MessageCatalog = { ...taxHomeMessages, ...taxFilingMessages, ...payoutMessages, ...taxPositionMessages, ...treasuryMessages, ...payableMessages, ...incomingMoneyMessages, ...directMoneyMessages, ...vpDistributionMessages, ...moneyAllocationMessages, ...taxCorrectionMessages, ...commonMessages, ...customerTaxMessages, ...documentDecisionMessages, ...taxInvoiceMessages, ...combinedDocumentMessages, ...receiptMessages, ...paymentMessages, ...invoiceMessages, ...billableChargeMessages, ...feeAgreementMessages, ...billingPlanMessages, ...quotationsMessages, ...cashTransactionsMessages, ...legacyFinanceMessages, ...compensationMessages, ...documentSettingsMessages };
 
 Object.assign(messages, expenseMessages);
+Object.assign(messages, revenueDistributionMessages);
 
 export function translate(locale: UiLocale, key: string, parameters?: MessageParameters): string {
   return formatMessage(messages, locale, key, parameters);

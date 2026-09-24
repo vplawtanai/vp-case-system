@@ -13,7 +13,7 @@ export function FinanceSidebar({ permissions, pathname, onNavigate }: { permissi
  const link = (l: FinanceNavigationLink) => <Link key={l.href} href={l.href} onClick={onNavigate} aria-current={active === l.page ? "page" : undefined}>{l.label}</Link>;
  const items = financeNavigationItems(permissions, locale);
  const sections = [
-  { key: "incomeGroup", pages: ["quotations", "fee-agreements", "billable-charges", "invoices", "payments", "payment-documents"] },
+  { key: "incomeGroup", pages: ["quotations", "fee-agreements", "billable-charges", "invoices", "payments", "revenue-distribution", "payment-documents"] },
   { key: "expenseGroup", pages: ["expenses", "expense-claims", "payables"] },
   { key: "moneyGroup", pages: ["treasury", "cash-transactions"] },
   { key: "taxGroup", pages: ["tax-position"] },

@@ -1,0 +1,669 @@
+{
+  "audit": [],
+  "source": {
+    "lines": [
+      {
+        "vat": 700,
+        "wht": 300,
+        "base": 10000,
+        "cash": 10400,
+        "gross": 10700,
+        "reason": "Agreed work already paid",
+        "vat_rate": 7,
+        "wht_base": 10000,
+        "wht_rate": 3,
+        "description": "Direct legal work",
+        "company_cash": 0,
+        "money_nature": "business_revenue",
+        "classification": "professional_fee",
+        "source_line_id": "92c574b5-8806-4ff8-ac88-a7416be4cc48",
+        "vat_applicable": true,
+        "company_economic": 0,
+        "professional_pool": 10000,
+        "wht_applicability": "applies",
+        "vat_treatment_json": {
+          "basis": "explicit_positive_vat",
+          "reason": null,
+          "treatment": "standard_rate",
+          "schema_version": 1
+        }
+      }
+    ],
+    "totals": {
+      "vat": 700,
+      "wht": 300,
+      "base": 10000,
+      "cash": 10400,
+      "company_cash": 0,
+      "company_economic": 0,
+      "professional_pool": 10000
+    },
+    "blockers": [],
+    "money_source": null,
+    "policy_version": "vp_distribution_v2",
+    "schema_version": 1,
+    "money_allocation": null,
+    "received_money_source": {
+      "vat": 700,
+      "bank": {
+        "id": "10000000-0000-4000-8000-000000000004",
+        "bank_name": "Fixture Bank",
+        "short_name": "FIX"
+      },
+      "facts": {
+        "id": "0bca6e7a-c73b-4cdc-b824-98130937bd87",
+        "note": "Synthetic only",
+        "method": "bank_transfer",
+        "status": "confirmed",
+        "case_id": null,
+        "version": 2,
+        "currency": "THB",
+        "client_id": "10000000-0000-4000-8000-000000000003",
+        "created_at": "2026-09-24T05:17:07.384+00:00",
+        "created_by": "10000000-0000-4000-8000-000000000001",
+        "input_json": {
+          "note": "Synthetic only",
+          "lines": [
+            {
+              "base": 10000,
+              "reason": "Agreed work already paid",
+              "vat_rate": 7,
+              "wht_base": 10000,
+              "wht_rate": 3,
+              "description": "Direct legal work",
+              "money_nature": "business_revenue",
+              "classification": "professional_fee",
+              "source_line_id": "92c574b5-8806-4ff8-ac88-a7416be4cc48",
+              "vat_applicable": true,
+              "wht_applicability": "applies",
+              "vat_treatment_json": null
+            }
+          ],
+          "method": "bank_transfer",
+          "case_id": null,
+          "currency": "THB",
+          "client_id": "10000000-0000-4000-8000-000000000003",
+          "payer_name": "Synthetic payer",
+          "cash_amount": 10400,
+          "received_on": "2026-09-15",
+          "reference_no": null,
+          "cash_location": null,
+          "advisory_matter_id": null,
+          "evidence_reference": null,
+          "receiving_bank_account_id": "10000000-0000-4000-8000-000000000004"
+        },
+        "lines_json": [
+          {
+            "vat": 700,
+            "wht": 300,
+            "base": 10000,
+            "cash": 10400,
+            "gross": 10700,
+            "reason": "Agreed work already paid",
+            "vat_rate": 7,
+            "wht_base": 10000,
+            "wht_rate": 3,
+            "description": "Direct legal work",
+            "money_nature": "business_revenue",
+            "classification": "professional_fee",
+            "source_line_id": "92c574b5-8806-4ff8-ac88-a7416be4cc48",
+            "vat_applicable": true,
+            "wht_applicability": "applies",
+            "vat_treatment_json": {
+              "basis": "explicit_positive_vat",
+              "reason": null,
+              "treatment": "standard_rate",
+              "schema_version": 1
+            }
+          }
+        ],
+        "payer_name": "Synthetic payer",
+        "updated_at": "2026-09-24T05:17:07.386+00:00",
+        "vat_amount": 700,
+        "wht_amount": 300,
+        "cash_amount": 10400,
+        "received_on": "2026-09-15",
+        "reversed_at": null,
+        "reversed_by": null,
+        "confirmed_at": "2026-09-24T05:17:07.386+00:00",
+        "confirmed_by": "10000000-0000-4000-8000-000000000001",
+        "gross_amount": 10700,
+        "reference_no": null,
+        "unclassified": false,
+        "cash_location": null,
+        "reversal_reason": null,
+        "amount_before_vat": 10000,
+        "advisory_matter_id": null,
+        "evidence_reference": null,
+        "classification_json": null,
+        "receiving_bank_account_id": "10000000-0000-4000-8000-000000000004",
+        "receiving_cash_location_id": null
+      },
+      "lines": [
+        {
+          "vat": 700,
+          "wht": 300,
+          "base": 10000,
+          "cash": 10400,
+          "gross": 10700,
+          "reason": "Agreed work already paid",
+          "vat_rate": 7,
+          "wht_base": 10000,
+          "wht_rate": 3,
+          "description": "Direct legal work",
+          "money_nature": "business_revenue",
+          "classification": "professional_fee",
+          "source_line_id": "92c574b5-8806-4ff8-ac88-a7416be4cc48",
+          "vat_applicable": true,
+          "wht_applicability": "applies",
+          "vat_treatment_json": {
+            "basis": "explicit_positive_vat",
+            "reason": null,
+            "treatment": "standard_rate",
+            "schema_version": 1
+          }
+        }
+      ],
+      "client": {
+        "id": "10000000-0000-4000-8000-000000000003",
+        "name": "Mutable Client Master"
+      },
+      "status": "confirmed",
+      "cashbook": {
+        "posting_policy": "confirmed_opening_strict_cutoff",
+        "original_leg_key": "direct_money_receipt:0bca6e7a-c73b-4cdc-b824-98130937bd87:original"
+      },
+      "currency": "THB",
+      "source_id": "0bca6e7a-c73b-4cdc-b824-98130937bd87",
+      "before_vat": 10000,
+      "wht_credit": 300,
+      "actual_cash": 10400,
+      "source_type": "direct_money_receipt",
+      "cash_location": null,
+      "gross_received": 10700,
+      "schema_version": 1,
+      "source_version": 2,
+      "document_policy": {
+        "state": "requires_review",
+        "reason": "direct_source_integration_not_enabled",
+        "automatic_issue": false
+      },
+      "source_fingerprint": "5c22497646774ffabef44e71a177f2c7"
+    }
+  },
+  "current": {
+    "id": "d7dea375-65c0-43fe-9597-3cdef4b8ab29",
+    "note": "Synthetic reviewed formula",
+    "status": "finalized",
+    "version": 3,
+    "revision": 1,
+    "created_at": "2026-09-24T05:17:07.416+00:00",
+    "created_by": "10000000-0000-4000-8000-000000000001",
+    "payment_id": null,
+    "updated_at": "2026-09-24T05:17:07.422+00:00",
+    "previous_id": null,
+    "reviewed_at": "2026-09-24T05:17:07.419+00:00",
+    "reviewed_by": "10000000-0000-4000-8000-000000000001",
+    "finalized_at": "2026-09-24T05:17:07.422+00:00",
+    "finalized_by": "10000000-0000-4000-8000-000000000001",
+    "superseded_at": null,
+    "superseded_by": null,
+    "decisions_json": [
+      {
+        "formula_result": {
+          "pool": 10000,
+          "recipients": [
+            {
+              "amount": 2000,
+              "bucket": "referral_amount",
+              "percent": 20,
+              "role_label": "Client Source / Broker",
+              "component_no": 1,
+              "fixed_amount": null,
+              "recipient_kind": "user",
+              "recipient_name": "Fixture Admin",
+              "recipient_type": "source",
+              "recipient_user_id": "10000000-0000-4000-8000-000000000001",
+              "rounding_adjustment_cents": 0
+            },
+            {
+              "amount": 4000,
+              "bucket": "company_share_amount",
+              "percent": 40,
+              "role_label": "Company Share",
+              "component_no": 2,
+              "fixed_amount": null,
+              "recipient_kind": "company",
+              "recipient_name": "Company",
+              "recipient_type": "company",
+              "recipient_user_id": null,
+              "rounding_adjustment_cents": 0
+            },
+            {
+              "amount": 4000,
+              "bucket": "work_compensation_amount",
+              "percent": 40,
+              "role_label": "Lead Lawyer / Case Owner",
+              "component_no": 3,
+              "fixed_amount": null,
+              "recipient_kind": "user",
+              "recipient_name": "Fixture Staff",
+              "recipient_type": "worker",
+              "recipient_user_id": "10000000-0000-4000-8000-000000000002",
+              "rounding_adjustment_cents": 0
+            }
+          ],
+          "calculation": "exact_cents_largest_remainder_v1",
+          "formula_code": "source_worker_qc",
+          "schema_version": 1,
+          "formula_version": 1,
+          "referral_amount": 2000,
+          "formula_snapshot": {
+            "code": "source_worker_qc",
+            "mode": "work_pool",
+            "version": 1,
+            "defaults": [
+              {
+                "name": "",
+                "role": "Client Source / Broker",
+                "type": "source",
+                "company": false,
+                "percent": 20
+              },
+              {
+                "name": "Company",
+                "role": "Company Share",
+                "type": "company",
+                "company": true,
+                "percent": 40
+              },
+              {
+                "name": "",
+                "role": "Lead Lawyer / Case Owner",
+                "type": "worker",
+                "company": false,
+                "percent": 40
+              }
+            ],
+            "label_key": "finance.compensation.formula.source_worker_qc",
+            "calculation": "exact_cents_largest_remainder_v1",
+            "work_percent": 40,
+            "source_percent": 20,
+            "company_percent": 40,
+            "recipient_buckets": {
+              "qc": "work_compensation_amount",
+              "other": "work_compensation_amount",
+              "lawyer": "work_compensation_amount",
+              "source": "referral_amount",
+              "worker": "work_compensation_amount",
+              "company": "company_share_amount",
+              "assistant": "work_compensation_amount",
+              "lead_lawyer": "work_compensation_amount"
+            }
+          },
+          "company_share_amount": 4000,
+          "work_compensation_amount": 4000
+        },
+        "source_line_id": "92c574b5-8806-4ff8-ac88-a7416be4cc48",
+        "referral_amount": 2000,
+        "company_share_amount": 4000,
+        "work_compensation_amount": 4000
+      }
+    ],
+    "supersede_reason": null,
+    "money_allocation_id": null,
+    "source_snapshot_json": {
+      "lines": [
+        {
+          "vat": 700,
+          "wht": 300,
+          "base": 10000,
+          "cash": 10400,
+          "gross": 10700,
+          "reason": "Agreed work already paid",
+          "vat_rate": 7,
+          "wht_base": 10000,
+          "wht_rate": 3,
+          "description": "Direct legal work",
+          "company_cash": 0,
+          "money_nature": "business_revenue",
+          "classification": "professional_fee",
+          "source_line_id": "92c574b5-8806-4ff8-ac88-a7416be4cc48",
+          "vat_applicable": true,
+          "company_economic": 0,
+          "professional_pool": 10000,
+          "wht_applicability": "applies",
+          "vat_treatment_json": {
+            "basis": "explicit_positive_vat",
+            "reason": null,
+            "treatment": "standard_rate",
+            "schema_version": 1
+          }
+        }
+      ],
+      "totals": {
+        "vat": 700,
+        "wht": 300,
+        "base": 10000,
+        "cash": 10400,
+        "company_cash": 0,
+        "company_economic": 0,
+        "professional_pool": 10000
+      },
+      "blockers": [],
+      "money_source": null,
+      "policy_version": "vp_distribution_v2",
+      "schema_version": 1,
+      "money_allocation": null,
+      "received_money_source": {
+        "vat": 700,
+        "bank": {
+          "id": "10000000-0000-4000-8000-000000000004",
+          "bank_name": "Fixture Bank",
+          "short_name": "FIX"
+        },
+        "facts": {
+          "id": "0bca6e7a-c73b-4cdc-b824-98130937bd87",
+          "note": "Synthetic only",
+          "method": "bank_transfer",
+          "status": "confirmed",
+          "case_id": null,
+          "version": 2,
+          "currency": "THB",
+          "client_id": "10000000-0000-4000-8000-000000000003",
+          "created_at": "2026-09-24T05:17:07.384+00:00",
+          "created_by": "10000000-0000-4000-8000-000000000001",
+          "input_json": {
+            "note": "Synthetic only",
+            "lines": [
+              {
+                "base": 10000,
+                "reason": "Agreed work already paid",
+                "vat_rate": 7,
+                "wht_base": 10000,
+                "wht_rate": 3,
+                "description": "Direct legal work",
+                "money_nature": "business_revenue",
+                "classification": "professional_fee",
+                "source_line_id": "92c574b5-8806-4ff8-ac88-a7416be4cc48",
+                "vat_applicable": true,
+                "wht_applicability": "applies",
+                "vat_treatment_json": null
+              }
+            ],
+            "method": "bank_transfer",
+            "case_id": null,
+            "currency": "THB",
+            "client_id": "10000000-0000-4000-8000-000000000003",
+            "payer_name": "Synthetic payer",
+            "cash_amount": 10400,
+            "received_on": "2026-09-15",
+            "reference_no": null,
+            "cash_location": null,
+            "advisory_matter_id": null,
+            "evidence_reference": null,
+            "receiving_bank_account_id": "10000000-0000-4000-8000-000000000004"
+          },
+          "lines_json": [
+            {
+              "vat": 700,
+              "wht": 300,
+              "base": 10000,
+              "cash": 10400,
+              "gross": 10700,
+              "reason": "Agreed work already paid",
+              "vat_rate": 7,
+              "wht_base": 10000,
+              "wht_rate": 3,
+              "description": "Direct legal work",
+              "money_nature": "business_revenue",
+              "classification": "professional_fee",
+              "source_line_id": "92c574b5-8806-4ff8-ac88-a7416be4cc48",
+              "vat_applicable": true,
+              "wht_applicability": "applies",
+              "vat_treatment_json": {
+                "basis": "explicit_positive_vat",
+                "reason": null,
+                "treatment": "standard_rate",
+                "schema_version": 1
+              }
+            }
+          ],
+          "payer_name": "Synthetic payer",
+          "updated_at": "2026-09-24T05:17:07.386+00:00",
+          "vat_amount": 700,
+          "wht_amount": 300,
+          "cash_amount": 10400,
+          "received_on": "2026-09-15",
+          "reversed_at": null,
+          "reversed_by": null,
+          "confirmed_at": "2026-09-24T05:17:07.386+00:00",
+          "confirmed_by": "10000000-0000-4000-8000-000000000001",
+          "gross_amount": 10700,
+          "reference_no": null,
+          "unclassified": false,
+          "cash_location": null,
+          "reversal_reason": null,
+          "amount_before_vat": 10000,
+          "advisory_matter_id": null,
+          "evidence_reference": null,
+          "classification_json": null,
+          "receiving_bank_account_id": "10000000-0000-4000-8000-000000000004",
+          "receiving_cash_location_id": null
+        },
+        "lines": [
+          {
+            "vat": 700,
+            "wht": 300,
+            "base": 10000,
+            "cash": 10400,
+            "gross": 10700,
+            "reason": "Agreed work already paid",
+            "vat_rate": 7,
+            "wht_base": 10000,
+            "wht_rate": 3,
+            "description": "Direct legal work",
+            "money_nature": "business_revenue",
+            "classification": "professional_fee",
+            "source_line_id": "92c574b5-8806-4ff8-ac88-a7416be4cc48",
+            "vat_applicable": true,
+            "wht_applicability": "applies",
+            "vat_treatment_json": {
+              "basis": "explicit_positive_vat",
+              "reason": null,
+              "treatment": "standard_rate",
+              "schema_version": 1
+            }
+          }
+        ],
+        "client": {
+          "id": "10000000-0000-4000-8000-000000000003",
+          "name": "Mutable Client Master"
+        },
+        "status": "confirmed",
+        "cashbook": {
+          "posting_policy": "confirmed_opening_strict_cutoff",
+          "original_leg_key": "direct_money_receipt:0bca6e7a-c73b-4cdc-b824-98130937bd87:original"
+        },
+        "currency": "THB",
+        "source_id": "0bca6e7a-c73b-4cdc-b824-98130937bd87",
+        "before_vat": 10000,
+        "wht_credit": 300,
+        "actual_cash": 10400,
+        "source_type": "direct_money_receipt",
+        "cash_location": null,
+        "gross_received": 10700,
+        "schema_version": 1,
+        "source_version": 2,
+        "document_policy": {
+          "state": "requires_review",
+          "reason": "direct_source_integration_not_enabled",
+          "automatic_issue": false
+        },
+        "source_fingerprint": "5c22497646774ffabef44e71a177f2c7"
+      }
+    },
+    "direct_money_receipt_id": "0bca6e7a-c73b-4cdc-b824-98130937bd87"
+  },
+  "history": [],
+  "summary": {
+    "vat": 700,
+    "wht": 300,
+    "cash": 10400,
+    "basis": 10000,
+    "gross": 10700,
+    "state": "unpaid",
+    "client": "Mutable Client Master",
+    "matter": null,
+    "policy": "vp_distribution_v2",
+    "rights": 2,
+    "account": "FIX",
+    "settled": 0,
+    "blockers": [],
+    "currency": "THB",
+    "reference": "0BCA6E7A",
+    "source_id": "0bca6e7a-c73b-4cdc-b824-98130937bd87",
+    "received_on": "2026-09-15",
+    "source_type": "direct_money_receipt",
+    "distribution_id": "d7dea375-65c0-43fe-9597-3cdef4b8ab29",
+    "distribution_status": "finalized",
+    "document_references": "0BCA6E7A"
+  },
+  "can_manage": true,
+  "formula_people": [
+    {
+      "id": "10000000-0000-4000-8000-000000000001",
+      "name": "Fixture Admin"
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000002",
+      "name": "Fixture Staff"
+    }
+  ],
+  "source_current": true,
+  "formula_catalog": {
+    "version": 1,
+    "formulas": [
+      {
+        "code": "pao_line",
+        "mode": "percent",
+        "defaults": [
+          {
+            "name": "Company",
+            "role": "Company",
+            "type": "company",
+            "company": true,
+            "percent": 20
+          },
+          {
+            "name": "ทนายเป้า",
+            "role": "Lawyer",
+            "type": "lawyer",
+            "company": false,
+            "percent": 55
+          },
+          {
+            "name": "ทนายตุลย์",
+            "role": "Lawyer",
+            "type": "lawyer",
+            "company": false,
+            "percent": 25
+          }
+        ],
+        "label_key": "finance.compensation.formula.pao_line"
+      },
+      {
+        "code": "tun_line",
+        "mode": "percent",
+        "defaults": [
+          {
+            "name": "Company",
+            "role": "Company",
+            "type": "company",
+            "company": true,
+            "percent": 20
+          },
+          {
+            "name": "ทนายเป้า",
+            "role": "Lawyer",
+            "type": "lawyer",
+            "company": false,
+            "percent": 40
+          },
+          {
+            "name": "ทนายตุลย์",
+            "role": "Lawyer",
+            "type": "lawyer",
+            "company": false,
+            "percent": 40
+          }
+        ],
+        "label_key": "finance.compensation.formula.tun_line"
+      },
+      {
+        "code": "source_worker_qc",
+        "mode": "work_pool",
+        "defaults": [
+          {
+            "name": "",
+            "role": "Client Source / Broker",
+            "type": "source",
+            "company": false,
+            "percent": 20
+          },
+          {
+            "name": "Company",
+            "role": "Company Share",
+            "type": "company",
+            "company": true,
+            "percent": 40
+          },
+          {
+            "name": "",
+            "role": "Lead Lawyer / Case Owner",
+            "type": "worker",
+            "company": false,
+            "percent": 40
+          }
+        ],
+        "label_key": "finance.compensation.formula.source_worker_qc",
+        "work_percent": 40,
+        "source_percent": 20,
+        "company_percent": 40
+      },
+      {
+        "code": "travel_fee",
+        "mode": "company_only",
+        "defaults": [
+          {
+            "name": "Company",
+            "role": "Company",
+            "type": "company",
+            "company": true,
+            "percent": 100
+          }
+        ],
+        "label_key": "finance.compensation.revenue.travel_fee"
+      },
+      {
+        "code": "custom",
+        "mode": "fixed",
+        "defaults": [],
+        "label_key": "finance.compensation.formula.custom"
+      }
+    ],
+    "recipient_buckets": {
+      "qc": "work_compensation_amount",
+      "other": "work_compensation_amount",
+      "lawyer": "work_compensation_amount",
+      "source": "referral_amount",
+      "worker": "work_compensation_amount",
+      "company": "company_share_amount",
+      "assistant": "work_compensation_amount",
+      "lead_lawyer": "work_compensation_amount"
+    },
+    "distribution_calculation": "exact_cents_largest_remainder_v1"
+  },
+  "posting_enabled": false,
+  "formula_schema_version": 1
+}

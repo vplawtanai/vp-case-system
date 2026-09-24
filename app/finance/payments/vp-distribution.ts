@@ -29,7 +29,7 @@ export type DistributionLine = (MoneyLine | (DistributionIdentity & Pick<MoneyLi
   professional_pool: number; company_economic: number; company_cash: number;
 };
 export type DistributionSource = {
-  schema_version: 1; policy_version: "vp_distribution_v1";
+  schema_version: 1; policy_version: "vp_distribution_v1" | "vp_distribution_v2";
   money_source: MoneySource | null; money_allocation: MoneyAllocation | null;
   received_money_source?: { source_type: "direct_money_receipt"; source_id: string; source_version: number; source_fingerprint: string; status: string; currency: string; actual_cash: number; wht_credit: number; gross_received: number };
   lines: DistributionLine[];
@@ -95,7 +95,7 @@ export function distributionCurrency(source: DistributionSource): string { retur
 export function distributionConfirmed(source: DistributionSource): boolean { return (source.received_money_source?.status || source.money_source?.payment?.status) === "confirmed"; }
 
 export function distributionSourceProven(source: DistributionSource): boolean {
-  if (source.schema_version !== 1 || source.policy_version !== "vp_distribution_v1"
+  if (source.schema_version !== 1 || !["vp_distribution_v1", "vp_distribution_v2"].includes(source.policy_version)
     || !distributionConfirmed(source) || source.blockers.length || source.money_source?.blockers.length
     || !source.lines.length || source.lines.some(line => Boolean(line.invoice_item_id) === Boolean("source_line_id" in line && line.source_line_id))
     || new Set(source.lines.map(distributionLineId)).size !== source.lines.length) return false;
@@ -103,7 +103,7 @@ export function distributionSourceProven(source: DistributionSource): boolean {
     if (isDirectCompanyClassification(line.classification)) return true;
     if (line.classification !== "professional_fee") return false;
     const base = distributionCents(line.base), wht = distributionCents(line.wht), pool = distributionCents(line.professional_pool);
-    return base !== null && wht !== null && pool !== null && base - wht === pool;
+    return base !== null && wht !== null && pool !== null && (source.policy_version === "vp_distribution_v2" ? base : base - wht) === pool;
   });
 }
 

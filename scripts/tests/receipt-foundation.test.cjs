@@ -134,7 +134,7 @@ async function fixture() {
     create table finance_invoices (
       id uuid primary key,invoice_no text,document_status text default 'issued',client_id uuid references clients(id),
       currency text default 'THB',total_amount numeric(14,2),issued_snapshot_json jsonb,
-      case_id uuid,advisory_matter_id uuid,issue_date date,due_date date,
+      case_id bigint,advisory_matter_id uuid,issue_date date,due_date date,
       source_model text default 'billable_charge_v2',v2_bridge_id uuid,
       voided_at timestamptz,voided_by_user_id uuid,void_reason text,updated_at timestamptz,updated_by_user_id uuid,
       issued_at timestamptz,cancelled_at timestamptz,amount_before_vat numeric(14,2),vat_amount numeric(14,2)

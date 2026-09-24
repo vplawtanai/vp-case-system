@@ -23,7 +23,7 @@ import { MaterializeEntitlements } from "../payables/materialize-action";
 function DistributionAmounts({ values, currency }: { values: Record<string, number | string | null>; currency: string }) {
   const { t, locale } = useI18n();
   return <dl className={styles.facts}>{Object.entries(values).map(([key, value]) => <div key={key}>
-    <dt>{t(`vpDistribution.${key}`)}</dt><dd>{value !== null && Number.isFinite(Number(value))
+    <dt>{t(key === "professional_pool" ? "revenueDistribution.basis" : `vpDistribution.${key}`)}</dt><dd>{value !== null && Number.isFinite(Number(value))
       ? `${Number(value).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}` : "-"}</dd>
   </div>)}</dl>;
 }
@@ -63,7 +63,7 @@ export function VpDistributionEvidence({ source, choices, editable = false, busy
         {direct ? <DistributionAmounts values={{ company_economic: line.company_economic, company_cash: line.company_cash }} currency={currency} /> : null}
         {professional ? <>
           <DistributionAmounts values={{ professional_pool: line.professional_pool, allocated: sum !== null ? sum / 100 : null, remaining: sum !== null && pool !== null ? (pool - sum) / 100 : null }} currency={currency} />
-          <p className={styles.muted}>{t("vpDistribution.poolFormula")}</p>
+          <p className={styles.muted}>{t(source.policy_version === "vp_distribution_v2" ? "revenueDistribution.basisHelp" : "vpDistribution.poolFormula")}</p>
           {editable ? <VpFormulaEditor pool={line.professional_pool} input={formulas[lineId]} people={people}
             currency={currency} disabled={busy} invalid={invalid} onChange={input => onChange?.(lineId, input)} />
             : saved?.formula_result ? <FormulaResultEvidence result={saved.formula_result} currency={currency} />
