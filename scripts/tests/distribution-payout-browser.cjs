@@ -1,0 +1,62 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
+// Real workspace, source editor and VP shell; synthetic adapter, loopback only.
+const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http'),assert=require('node:assert/strict');
+const root=path.resolve(__dirname,'../..'),out=fs.mkdtempSync(path.join(os.tmpdir(),'vp-distribution-068-'));
+const evidence=require('./distribution-payout-fixture.json'),fixture=evidence.detail;
+const write=(name,body)=>{const p=path.join(out,name);fs.writeFileSync(p,body);return p;};
+const adapter=write('adapter.js',`const saved=${JSON.stringify(fixture)};window.calls=[];window.context=structuredClone(saved);const params=new URLSearchParams(location.search);window.sourceType=params.get('source')||'direct_money_receipt';const mode=params.get('mode')||'finalized';
+window.context.summary.source_type=window.sourceType;
+if(mode==='new'){window.context.current=null;window.context.summary.distribution_id=null;window.context.summary.state='pending';}
+if(mode==='draft'){window.context.current.status='draft';window.context.current.version=1;window.context.summary.state='pending';}
+if(mode==='v1'){window.context.source.policy_version='vp_distribution_v1';window.context.current.source_snapshot_json.policy_version='vp_distribution_v1';}
+if(mode==='blocked'){window.context.current=null;window.context.source.blockers=['partial_line_evidence_missing'];window.context.summary.basis=null;}
+window.context.can_manage=!params.has('readonly');
+const states=['pending','unpaid','partial','paid','pending'];const rows=states.map((state,i)=>({...saved.summary,source_type:i%2?'payment':'direct_money_receipt',source_id:saved.summary.source_id.slice(0,-1)+i,reference:(i%2?'VP-RC-':'DM-')+'202609-'+String(i+1).padStart(3,'0'),client:i%2?'บริษัท ตัวอย่างงานที่ปรึกษา จำกัด':'ลูกค้าตัวอย่าง',matter:i%2?'ADV-2026-014 · สัญญาตัวแทนจำหน่าย':'VP-2026-035 · งานคดีตัวอย่าง',state,distribution_id:state==='pending'?null:saved.current.id}));
+export const supabase={auth:{async getUser(){return {data:{user:{id:'synthetic'}}}},async signOut(){throw Error('No signout')}},from(table){if(table!=='user_profiles')throw Error('Unexpected read '+table);return {select(){return this},eq(){return this},async single(){return {data:{role:params.has('readonly')?'partner':'admin'}}}}},async rpc(name,args){window.calls.push({name,args});
+if(name==='get_finance_expense_access')return {data:{can_view_all:true}};
+if(name==='get_finance_payees')return {data:[]};
+if(name==='get_finance_revenue_distribution_detail')return {data:structuredClone(window.context)};
+if(name==='get_finance_distribution_payment_context'){const e=window.context.participants.find(e=>e.id===args.p_entitlement_id);const c=structuredClone(${JSON.stringify(evidence.context)});c.component={...c.component,...e,recipient_name:'ผู้รับตัวอย่าง / Participant',gross_amount:e.gross_amount};c.payee={...c.payee,id:e.recipient_id};if(params.has('needsTax'))c.payee.tax_id=null;return {data:c};}
+if(name==='pay_finance_distribution_participant'){if(!window.context.can_manage)throw Error('Unauthorized payout');if(args.p_rate==null||args.p_treatment==null)throw Error('Missing WHT');const p=window.context.participants.find(e=>e.id===args.p_entitlement_id);p.payout_id=args.p_request_id;p.paid_on=args.p_paid_on;p.wht_amount=Math.round(p.gross_amount*args.p_rate)/100;p.net_amount=p.gross_amount-p.wht_amount;p.account='บัญชีบริษัท / Company bank';window.context.summary.state=window.context.participants.every(e=>e.payout_id)?'paid':'partial';return {data:args.p_request_id};}
+
+if(name==='get_finance_revenue_distribution_workspace'){const found=rows.filter(r=>(args.p_source_type==='all'||r.source_type===args.p_source_type)&&(!args.p_search||JSON.stringify(r).toLowerCase().includes(args.p_search.toLowerCase())));return {data:{rows:found.filter(r=>args.p_status==='all'||args.p_status===r.state||(args.p_status==='history'&&r.distribution_id)),count:found.filter(r=>args.p_status==='all'||args.p_status===r.state||(args.p_status==='history'&&r.distribution_id)).length,summary:states.filter((s,i,a)=>a.indexOf(s)===i).map(state=>({state,currency:'THB',count:found.filter(r=>r.state===state).length,amount:found.filter(r=>r.state===state).reduce((n,r)=>n+r.basis,0),unresolved:0})),can_manage:window.context.can_manage}};}
+if(['save_finance_direct_vp_distribution','save_finance_vp_distribution','confirm_finance_vp_received_distribution'].includes(name)){if(window.failNext){window.failNext=false;return{error:{message:'VP_DISTRIBUTION_STALE'}};}if(!window.context.can_manage)throw Error('Unauthorized write');const confirmed=name.startsWith('confirm');window.context.current={...saved.current,source_snapshot_json:args.p_source,decisions_json:args.p_choices,note:args.p_note,status:confirmed?'finalized':'draft',version:confirmed?3:1};window.context.summary.state=confirmed?'unpaid':'pending';window.context.summary.distribution_id=saved.current.id;return {data:saved.current.id};}
+throw Error('Unexpected RPC '+name);}};`);
+const navigation=write('navigation.js',`export const usePathname=()=>location.pathname;export const useRouter=()=>({replace(){throw Error('Unexpected redirect')}});`);
+const link=write('link.js',`import React from'react';export default function Link({children,...props}){return React.createElement('a',props,children);}`);
+const loader=write('loader.cjs',`module.exports=function(source){if(this.resourcePath.endsWith('.css')){const prefix=require('node:path').basename(this.resourcePath).replaceAll('.','_')+'_';return 'module.exports={__esModule:true,default:new Proxy({}, {get:(_,k)=>'+JSON.stringify(prefix)+'+k})};'}return require(${JSON.stringify(require.resolve('typescript'))}).transpileModule(source,{compilerOptions:{module:99,target:9,jsx:4,esModuleInterop:true}}).outputText};`);
+const entry=write('entry.tsx',`import React from'react';import{createRoot}from'react-dom/client';import{UiLocaleProvider}from'${root}/lib/i18n/provider';import AppTopNav from'${root}/app/components/AppTopNav';import{RevenueWorkspace}from'${root}/app/finance/revenue-distribution/workspace';import{RevenueDetail}from'${root}/app/finance/revenue-distribution/detail';const p=new URLSearchParams(location.search);createRoot(document.getElementById('root')).render(<UiLocaleProvider initialLocale={p.get('locale')||'th'} pathname={location.pathname}><AppTopNav title='VP Case System' activePage='finance'/><main>{location.pathname.endsWith('/detail')?<RevenueDetail sourceType={window.sourceType} sourceId={window.context.summary.source_id}/>:<RevenueWorkspace/>}</main></UiLocaleProvider>);`);
+async function main(){
+ await new Promise((resolve,reject)=>require('next/dist/compiled/webpack/webpack').webpack({mode:'development',context:root,entry,output:{path:out,filename:'bundle.js'},resolve:{extensions:['.tsx','.ts','.js'],modules:[root+'/node_modules'],alias:{'next/navigation':navigation,'next/link':link,[root+'/lib/supabase']:adapter}},module:{rules:[{test:/\.(tsx?|css)$/,use:loader}]},devtool:false},(e,s)=>e||s.hasErrors()?reject(e||Error(s.toString({all:false,errors:true}))):resolve()));
+ const styles=['app/components/AppSidebar.module.css','app/components/ui/vp-ui.module.css','app/components/LanguageSelector.module.css','app/finance/finance-sidebar.module.css','app/finance/revenue-distribution/workspace.module.css','app/finance/payments/money-allocation.module.css','app/finance/payments/vp-distribution.module.css','app/components/DetailModal.module.css','app/finance/payouts/payout.module.css'];
+ const css=styles.map(p=>{const prefix=path.basename(p).replaceAll('.','_')+'_';return fs.readFileSync(root+'/'+p,'utf8').replace(/\.([A-Za-z_][A-Za-z_0-9-]*)/g,(_,k)=>'.'+prefix+k).replace(/:global\(([^)]+)\)/g,'$1');}).join('\n');
+ const server=http.createServer((req,res)=>{if(req.url==='/bundle.js'){res.setHeader('content-type','text/javascript');return res.end(fs.readFileSync(out+'/bundle.js'));}res.setHeader('content-type','text/html');res.end(`<!doctype html><html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><style>*{box-sizing:border-box}body{margin:0;background:#fff;font:14px Arial,sans-serif}main{padding:12px 24px 32px}button,input,select,textarea{font-family:inherit}@media(max-width:540px){main{padding:12px}}${css}</style><div id='root'></div><script src='/bundle.js'></script></html>`);});
+ await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});let browser;
+ try{const {chromium}=require('/Users/paolawyer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>new URL(r.request().url()).hostname==='127.0.0.1'?r.continue():r.abort());
+ require('./receipt-render-fixture.cjs');const {translate}=require('../../lib/i18n/catalog.ts');const base=`http://127.0.0.1:${server.address().port}/finance/revenue-distribution`;
+ const fits=async()=>assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'Viewport overflow');
+ for(const locale of ['th','en'])for(const width of [390,768,1024,1440]){
+  const w=k=>translate(locale,'revenueDistribution.'+k);await page.setViewportSize({width,height:1050});
+  for(const source of ['payment','direct_money_receipt']){
+   await page.goto(`${base}/detail?locale=${locale}&source=${source}`);const pay=page.getByRole('button',{name:w('pay'),exact:true});await pay.first().waitFor();assert.equal(await pay.count(),2);await fits();
+   const company=page.locator('main .workspace_module_css_participants tbody tr').filter({hasText:w('company')});assert.equal(await company.getByRole('button').count(),0);
+   for(const n of [0,1]){
+    await pay.first().click();const dialog=page.getByRole('dialog');await dialog.waitFor();const confirm=dialog.getByRole('button',{name:w('confirmPayment'),exact:true});assert.equal(await confirm.isDisabled(),true);
+    await page.locator('#participant-source').selectOption(n?evidence.context.accounts.find(a=>a.kind==='cash')?'cash:'+evidence.context.accounts.find(a=>a.kind==='cash').account_id:'bank:'+evidence.context.accounts[0].account_id:'bank:'+evidence.context.accounts.find(a=>a.kind==='bank').account_id);
+    // The fixture cash account has no opening: switch to the active bank after checking the guard.
+    if(n){assert.equal(await confirm.isDisabled(),true);await page.locator('#participant-source').selectOption('bank:'+evidence.context.accounts.find(a=>a.kind==='bank').account_id);}
+    assert.equal(await page.locator('#participant-wht').inputValue(),'');await page.locator('#participant-wht').selectOption('0');assert.equal(await confirm.isDisabled(),false);await fits();
+    if(!n&&source==='direct_money_receipt')await page.screenshot({path:out+`/${locale}-${width}-payment.png`,fullPage:true});
+    await confirm.dblclick();await dialog.waitFor({state:'hidden'});assert.equal(await pay.count(),1-n);await page.getByText(w(n?'paid':'partial'),{exact:true}).first().waitFor();await fits();
+   }
+   assert.equal((await page.evaluate(()=>window.calls)).filter(c=>c.name==='pay_finance_distribution_participant').length,2);
+   if(source==='direct_money_receipt')await page.screenshot({path:out+`/${locale}-${width}-paid.png`,fullPage:true});
+  }
+  console.log('PASS',locale,width,'source parity, company excluded, explicit WHT, dynamic account, partial/paid, double click');
+ }
+ await page.goto(`${base}/detail?locale=en&needsTax`);await page.getByRole('button',{name:'Pay',exact:true}).first().click();await page.locator('#participant-wht').selectOption('3');assert.equal(await page.getByRole('button',{name:'Confirm payment',exact:true}).isDisabled(),true);await page.getByRole('button',{name:translate('en','payout.fixPayee')}).waitFor();
+ await page.goto(`${base}/detail?locale=en&readonly`);await page.getByText(translate('en','revenueDistribution.readonly'),{exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Pay',exact:true}).count(),0);
+ assert.deepEqual(errors,[]);console.log('PASS withholding identity guard, Admin-only UI; Screenshots:',out);
+ }finally{await browser?.close();server.close();}
+}
+main().catch(e=>{console.error(e);process.exitCode=1;});

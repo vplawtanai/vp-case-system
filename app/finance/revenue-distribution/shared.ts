@@ -8,7 +8,8 @@ export type RevenueRow = {
  policy: string; distribution_id: string | null; distribution_status: string | null; rights: number; settled: number; state: RevenueState;
 };
 export type RevenueWorkspaceData = { rows: RevenueRow[]; count: number; can_manage: boolean; summary: { state: RevenueState; currency: string; count: number; amount: number | null; unresolved: number }[] };
-export type RevenueDetailData = FormulaContext & { summary: RevenueRow };
+export type ParticipantSettlement = { id: string; source_line_id: string; component_no: number; recipient_id: string; gross_amount: number; payout_id: string | null; paid_on: string | null; net_amount: number | null; wht_amount: number | null; account: string | null };
+export type RevenueDetailData = FormulaContext & { summary: RevenueRow; participants?: ParticipantSettlement[] };
 export const revenueHref = (type: string, id: string) => `/finance/revenue-distribution/${type}/${id}`;
 export const receiptHref = (r: RevenueRow) => `/finance/${r.source_type === "payment" ? "payments" : "direct-money"}/${r.source_id}`;
 export function distributionTotals(choices: DistributionDecision[]) {

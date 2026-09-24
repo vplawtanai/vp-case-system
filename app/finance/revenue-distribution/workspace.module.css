@@ -37,3 +37,15 @@
 @media(min-width:851px) and (max-width:1200px) { .formula :global([class*="recipientFields"]) { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:540px) { .cards { grid-template-columns:1fr 1fr; }.card strong { font-size:25px; }.tabs button { padding:10px 13px; font-size:13px; }.filters { grid-template-columns:1fr; }.search { grid-column:auto; }.panel { padding:14px; }.header>div:first-child { flex-basis:100%; }.tableWrap { overflow:visible; border:0; }.tableWrap .table { min-width:0; }.tableWrap thead { display:none; }.tableWrap tbody { display:grid; gap:12px; }.tableWrap tr { display:grid; grid-template-columns:1fr 1fr; border:1px solid #dfe7ef; border-radius:8px; padding:10px; }.tableWrap td { border:0; padding:5px; max-width:none; min-width:0; text-align:left; white-space:normal; }.tableWrap td::before { content:attr(data-label); display:block; font-size:11px; color:#708095; margin-bottom:3px; }.tableWrap td:last-child { grid-column:1/-1; text-align:right; }.summary .actions { grid-template-columns:1fr; }.participants .table { min-width:320px; }.header p { font-size:12px; }.pagination { gap:8px; }.pagination button { padding:7px; font-size:12px; } }
 @media(max-width:540px) { .formula :global([class*="recipientFields"]) { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+
+.paymentForm { display: grid; gap: 14px; min-width: 0; }
+.paymentForm input, .paymentForm select, .paymentForm textarea { width: 100%; min-width: 0; }
+.settled { color: #18794e; font-weight: 600; }
+.paidEvidence { display: block; color: #64748b; max-width: 220px; font-size: 11px; line-height: 1.5; }
+
+.muted { color: #64748b; font-size: 12px; line-height: 1.5; margin: 0; }
+
+.paymentForm input, .paymentForm select, .paymentForm textarea { border: 1px solid #d7e1ed; border-radius: 7px; padding: 10px 12px; min-height: 42px; font-size: 14px; color: #142d4c; background: #fff; }
+.paymentForm input:focus-visible, .paymentForm select:focus-visible, .paymentForm textarea:focus-visible { outline: 2px solid #528add; outline-offset: 2px; }
+.participants .settlementTable { min-width: 570px; }
+.participants button { white-space: nowrap; min-width: 56px; padding: 8px 12px; font-size: 12px; }

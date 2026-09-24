@@ -28,24 +28,24 @@ for(const locale of ['th','en'])test(`055 ${locale}: real Expense summaries, min
  for(const key of ['vatRate','eligibility','whtRate','confirmPayment'])assert.ok(!form.includes(t(key)),key);
  assert.doesNotMatch(form,/<pre|type="file"/);
  const admin={...buildPermissions({role:'admin'}),expenseAccess:f.data.access},items=financeNavigationItems(admin,locale);
- assert.deepEqual(items.map(i=>i.group||i.page),['quotations','fee-agreements','billable-charges','invoices','payments','payment-documents','expenses','expense-claims','payables','treasury','tax-position','legacy']);
+ assert.deepEqual(items.map(i=>i.group||i.page),['quotations','fee-agreements','billable-charges','invoices','payments','revenue-distribution','payment-documents','expenses','expense-claims','payables','treasury','tax-position','legacy']);
  assert.deepEqual(items.at(-1).children.map(i=>i.href),['/finance/expense-claims','/finance/compensation','/finance/ledger']);
  const staff={...buildPermissions({role:'staff',can_submit_expense_claim:true,can_view_own_expense_claims:true}),expenseAccess:employee.data.access};
- assert.deepEqual(financeNavigationLinks(staff,locale).map(l=>l.page),['expense-claims','claims']);
- const custodian={...staff,expenseAccess:{...employee.data.access,can_view_accounts:true}};assert.ok(financeNavigationLinks(custodian,locale).some(l=>l.page==='expenses'));assert.ok(!financeNavigationLinks(custodian,locale).some(l=>l.page==='payables'));
+ assert.deepEqual(financeNavigationLinks(staff,locale).map(l=>l.page),['claims']);
+ const custodian={...staff,expenseAccess:{...employee.data.access,can_view_accounts:true}};assert.ok(!financeNavigationLinks(custodian,locale).some(l=>l.page==='expenses'));assert.ok(!financeNavigationLinks(custodian,locale).some(l=>l.page==='payables'));
  const sidebar=nav.render(locale,{}, {permissions:admin,pathname:'/finance/receipts/synthetic',onNavigate:()=>{}},'FinanceSidebar');assert.match(sidebar,/aria-expanded="true"/);assert.match(sidebar,/aria-current="page"/);
  assert.equal(activeFinancePage('/finance/expenses/claims/new'),'expense-claims');assert.equal(activeFinancePage('/finance/expenses/synthetic'),'expenses');
 });
-test('055 actual multi-source queue preserves source identities, canonical recipients and independent currencies',()=>{
+test('068 General Payables preserves expense identities and excludes distribution shares/currencies',()=>{
  const f=fixture('queue'),before=JSON.stringify(f);
  for(const locale of ['th','en']){
   const html=multi.render(locale,{}, {canReadRevenue:true,canReadExpense:true,isAdmin:false,fixture:{revenue:f.revenue,expenses:f.obligations}},'MultiSourcePayables');
-  assert.ok(html.includes('20,245.00 THB'));assert.ok(html.includes('5 '));
-  for(const key of ['revenue_distribution','employee_reimbursement','supplier_payable'])assert.ok(html.includes(translate(locale,'expenses.'+key)));
-  assert.ok(html.includes('/finance/payouts/new?payee='));assert.ok(html.includes('/finance/expenses/'+f.obligations[0].expense_id+'#payment'));assert.doesNotMatch(html,/<pre/);
+  assert.ok(html.includes('14,425.00 THB'));
+  for(const key of ['employee_reimbursement','supplier_payable'])assert.ok(html.includes(translate(locale,'expenses.'+key)));
+  assert.ok(!html.includes('/finance/payouts/new?payee='));assert.ok(html.includes('/finance/expenses/'+f.obligations[0].expense_id+'#payment'));assert.doesNotMatch(html,/<pre/);
   const usd=structuredClone(f.revenue[0]);usd.currency='USD';usd.components.forEach(c=>c.currency='USD');
   const currencies=multi.render(locale,{}, {canReadRevenue:true,canReadExpense:true,isAdmin:false,fixture:{revenue:[usd],expenses:f.obligations}},'MultiSourcePayables');
-  assert.ok(currencies.includes('3,104.00 USD'));assert.ok(currencies.includes('14,425.00 THB'));
+  assert.ok(!currencies.includes('3,104.00 USD'));assert.ok(currencies.includes('14,425.00 THB'));
  }
  assert.equal(JSON.stringify(f),before);
 });
@@ -72,6 +72,6 @@ test('055 applied migrations and legacy claim UI remain byte-identical; UI only 
  files.push('app/finance/expense-claims/page.tsx','app/components/AppSidebar.module.css','app/components/sidebar-reveal.ts');
  for(const file of files)assert.deepEqual(fs.readFileSync(file),cp.execFileSync('git',['show','HEAD:'+file]),file);
  for(const file of ['workspace.tsx','forms.tsx','admin-tools.tsx'])assert.doesNotMatch(fs.readFileSync('app/finance/expenses/'+file,'utf8'),/\.(insert|update|upsert|delete)\(/);
- const s=fs.readFileSync('app/finance/expenses/workspace.tsx','utf8');assert.match(s,/busy \|\| dirty/);assert.match(s,/access.is_admin && a.evidence_json/);assert.match(s,/if \(lock.current \|\| fixture\)/);
+ const s=fs.readFileSync('app/finance/expenses/workspace.tsx','utf8');assert.match(s,/busy \|\| dirty/);assert.match(fs.readFileSync('app/finance/expenses/audit-view.tsx','utf8'),/isAdmin/);assert.match(s,/if \(lock.current \|\| fixture\)/);
  for(const [key,entry] of Object.entries(expenseMessages))for(const locale of ['th','en'])assert.ok(entry[locale]?.trim(),key);
 });

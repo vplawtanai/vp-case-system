@@ -45,10 +45,10 @@ for(const locale of ['th','en']) {
   for(const group of f.revenue){assert.ok(html.includes('/finance/payouts/new?payee='+group.recipient_id));assert.ok(html.includes(group.open_amount.toLocaleString(locale,{minimumFractionDigits:2,maximumFractionDigits:2})));}
   const external=structuredClone(f.revenue[0]);external.components.forEach(c=>c.recipient_type='payee');assert.match(groups.render(locale,{}, {groups:[external]},'PayableGroups'),/lucide-circle-user-round/);
   const combined=queue.render(locale,{}, {canReadRevenue:true,canReadExpense:true,isAdmin:false,fixture:{revenue:f.revenue,expenses:f.obligations}},'MultiSourcePayables');
-  for(const family of ['revenue_distribution','employee_reimbursement','supplier_payable'])assert.ok(combined.includes(`data-source-family="${family}"`));
-  assert.match(combined,/data-recipient-kind="supplier"/);assert.match(combined,/lucide-building-2/);assert.ok(combined.includes('20,245.00 THB'));assert.equal(JSON.stringify(f),before);
+  for(const family of ['employee_reimbursement','supplier_payable'])assert.ok(combined.includes(`data-source-family="${family}"`));
+  assert.match(combined,/data-recipient-kind="supplier"/);assert.match(combined,/lucide-building-2/);assert.ok(combined.includes('14,425.00 THB'));assert.equal(JSON.stringify(f),before);
   const revenue=queue.render(locale,{}, {canReadRevenue:true,canReadExpense:true,isAdmin:false,fixture:{revenue:f.revenue,expenses:[]}},'MultiSourcePayables');
-  assert.ok(revenue.includes('5,820.00 THB'));assert.doesNotMatch(revenue,/data-source-family="(?:employee_reimbursement|supplier_payable)"/);
+  assert.ok(revenue.includes('0.00 THB'));assert.doesNotMatch(revenue,/data-source-family="revenue_distribution"/);assert.doesNotMatch(revenue,/data-source-family="(?:employee_reimbursement|supplier_payable)"/);
  });
 }
 test('Expense polish preserves readers, financial helpers, RPCs, migrations and sidebar motion/reveal',()=>{

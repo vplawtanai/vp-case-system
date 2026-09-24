@@ -6,8 +6,7 @@ import { Callout, FieldGroup, PageShell } from "../../components/ui/patterns";
 import ui from "../../components/ui/vp-ui.module.css";
 import { supabase } from "../../../lib/supabase";
 import { useI18n } from "../../../lib/i18n/provider";
-import { PayableGroups } from "./groups";
-import { payableQueueSummary, type PayableGroup } from "./shared";
+import { type PayableGroup } from "./shared";
 import { ExpensePayableDetail } from "./expense-detail";
 import { ExpenseBadge } from "../expenses/workspace";
 import type { ExpenseObligation } from "../expenses/shared";
@@ -17,7 +16,7 @@ import { PayableSourceBadge, PayableSourceHeading, RecipientAvatar } from "./sou
 import { payableQueueEntries, type QueueOrder } from "../workflow-time";
 import { QueueSort, WorkflowDate } from "../workflow-time-ui";
 
-export function MultiSourcePayables({ canReadRevenue, canReadExpense, isAdmin, fixture }: { canReadRevenue: boolean; canReadExpense: boolean; isAdmin: boolean; fixture?: { revenue: PayableGroup[]; expenses: ExpenseObligation[] } }) {
+export function MultiSourcePayables({ canReadExpense, isAdmin, fixture }: { canReadRevenue: boolean; canReadExpense: boolean; isAdmin: boolean; fixture?: { revenue: PayableGroup[]; expenses: ExpenseObligation[] } }) {
  const { t, locale } = useI18n(), seq = useRef(0);
  const [data, setData] = useState(fixture || null), [error, setError] = useState(false), [loading, setLoading] = useState(!fixture), [source, setSource] = useState("all"), [search, setSearch] = useState("");
  const [order, setOrder] = useState<QueueOrder>("newest");
@@ -26,12 +25,6 @@ export function MultiSourcePayables({ canReadRevenue, canReadExpense, isAdmin, f
   const current = ++seq.current; setLoading(true); setError(false); setData(null);
   try {
    const revenue: PayableGroup[] = [], expenses: ExpenseObligation[] = [];
-   if (canReadRevenue) for (let start = 0; ; start += 25) {
-    if (start > 100000) throw new Error("limit");
-    const r = await supabase.rpc("get_finance_payable_entitlements", { p_search: "", p_source_type: "all", p_bucket: "all", p_status: "open", p_offset: start });
-    if (r.error || !Array.isArray(r.data?.groups)) throw r.error || new Error("response");
-    revenue.push(...r.data.groups); if (!r.data.has_next) break;
-   }
    if (canReadExpense) for (let start = 0; ; start += 50) {
     if (start > 100000) throw new Error("limit");
     const r = await supabase.rpc("get_finance_expense_obligations", { p_offset: start });
@@ -41,23 +34,24 @@ export function MultiSourcePayables({ canReadRevenue, canReadExpense, isAdmin, f
    if (current === seq.current) setData({ revenue, expenses });
   } catch { if (current === seq.current) setError(true); }
   finally { if (current === seq.current) setLoading(false); }
- }, [canReadExpense, canReadRevenue, fixture]);
+ }, [canReadExpense, fixture]);
  const invalidate = useCallback(() => { seq.current++; }, []);
  useEffect(() => { void load(); return invalidate; }, [load, invalidate]);
- const revenue = data?.revenue.filter(g => ["all", "revenue_distribution"].includes(source) && g.recipient_name.toLowerCase().includes(search.toLowerCase())) || [];
+ // Distribution compensation is paid from its own workspace; never include it in this queue.
+ const revenue: PayableGroup[] = [];
  const expenses = data?.expenses.filter(e => e.status === "open" && (source === "all" || e.source_type === source) && [e.payee_name, e.description, e.reference].join(" ").toLowerCase().includes(search.toLowerCase())) || [];
- const amounts = new Map(payableQueueSummary(revenue).amounts.map(a => [a.currency, Math.round(a.amount * 100)]));
+ const amounts = new Map<string, number>();
  for (const e of expenses) amounts.set(e.currency, (amounts.get(e.currency) || 0) + Math.round(e.gross_amount * 100));
  const total = [...amounts].map(([currency, cents]) => `${(cents / 100).toLocaleString(locale, { minimumFractionDigits: 2 })} ${currency}`).join(" / ") || "0.00 THB";
  const recipients = new Set([...revenue.map(g => g.recipient_id), ...expenses.map(e => e.payee_id)]).size;
  const entries = payableQueueEntries(revenue, expenses, order);
  return <PageShell><div className={css.page}><header className={css.heading}><div className={css.title}><span className={css.icon}><FileText size={23} /></span><div><h1>{t("payables.title")}</h1><p>{t("expenses.payablesHelp")}</p></div></div><button type="button" className={ui.secondary} aria-label={t("expenses.refresh")} title={t("expenses.refresh")} disabled={loading} onClick={() => void load()}><RefreshCw size={17} /></button></header>
   <div className={`${css.stats} ${css.payableStats}`}><article className={css.stat}><div>{t("payables.total")}<strong>{data ? total : "-"}</strong></div></article><article className={css.stat}><div>{t("payables.recipients")}<strong>{data ? t("payables.peopleCount", { count: recipients }) : "-"}</strong></div></article><article className={css.stat}><div>{t("expenses.payableItems")}<strong>{data ? t("expenses.count", { count: revenue.reduce((sum, g) => sum + g.components.length, 0) + expenses.length }) : "-"}</strong></div></article></div>
-  <div className={css.filters}><FieldGroup id="outgoing-search" label={t("expenses.search")}><input type="search" value={search} onChange={e => setSearch(e.target.value)} /></FieldGroup><FieldGroup id="outgoing-source" label={t("expenses.origin")}><select value={source} onChange={e => setSource(e.target.value)}>{["all", ...(canReadRevenue ? ["revenue_distribution"] : []), ...(canReadExpense ? ["employee_reimbursement", "supplier_payable"] : [])].map(k => <option key={k} value={k}>{t(`expenses.${k}`)}</option>)}</select></FieldGroup><QueueSort id="payable-queue-order" value={order} newest="newestReady" onChange={setOrder} /></div>
+  <div className={css.filters}><FieldGroup id="outgoing-search" label={t("expenses.search")}><input type="search" value={search} onChange={e => setSearch(e.target.value)} /></FieldGroup><FieldGroup id="outgoing-source" label={t("expenses.origin")}><select value={source} onChange={e => setSource(e.target.value)}>{["all", ...(canReadExpense ? ["employee_reimbursement", "supplier_payable"] : [])].map(k => <option key={k} value={k}>{t(`expenses.${k}`)}</option>)}</select></FieldGroup><QueueSort id="payable-queue-order" value={order} newest="newestReady" onChange={setOrder} /></div>
   {error ? <Callout tone="negative" role="alert">{t("expenses.failed")}</Callout> : loading ? <p role="status">{t("expenses.loading")}</p> : <>
-   {entries.map((entry, index) => <section key={entry.key} data-payable-queue={entry.key}>
+   {entries.map((entry, index) => entry.source === "revenue_distribution" ? null : <section key={entry.key} data-payable-queue={entry.key}>
     {index === 0 || entries[index - 1].source !== entry.source ? <PayableSourceHeading source={entry.source} /> : null}
-    {entry.source === "revenue_distribution" ? <PayableGroups groups={[entry.group]} isAdmin={isAdmin} /> : <ExpenseObligationQueue rows={entry.rows} showHeading={false} isAdmin={isAdmin} />}
+    <ExpenseObligationQueue rows={entry.rows} showHeading={false} isAdmin={isAdmin} />
    </section>)}
    {!expenses.length && !revenue.length ? <div className={css.empty}><strong>{t("expenses.empty")}</strong><p>{t("expenses.emptyHelp")}</p></div> : null}
   </>}
