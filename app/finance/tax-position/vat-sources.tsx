@@ -17,7 +17,7 @@ export function VatSources({ data }: { data: TaxMonth }) {
    <header className={css.heading}><h3>{tr(kind)}</h3><strong>{money(kind === "output" ? trace.outputTotal : trace.inputTotal)}</strong></header>
    {!trace[kind].length ? <p className={css.empty}>{tr(trace.unavailable ? "vatTraceUnavailable" : kind === "output" ? "noOutputSources" : "noInputSources")}</p> : <ul className={css.rows}>{trace[kind].map(row => <li key={row.key}>
     <div className={css.rowHead}><div><strong>{row.party || row.reference}</strong><p>{row.party ? `${row.reference} · ` : ""}{date(row.date)}</p><span>{tr(`source_${row.kind}`)}{kind === "input" ? ` · ${tr("eligible")}` : ""}</span></div><strong className={css.amount}>VAT {money(row.vat)}</strong></div>
-    {kind === "input" ? <p className={css.base}>{tr("base")} {money(row.base)}{row.gross === null ? "" : ` · ${tr("gross")} ${money(row.gross)}`}</p> : null}
+    {kind === "input" ? <p className={css.base}>{tr("base")} {money(row.base)}</p> : null}
     {row.href ? <Link className={css.link} href={row.href}>{t("taxDashboard.openSource")} →</Link> : <details className={css.details}><summary>{tr("details")}</summary><p>{row.note || "—"}</p><p>{tr("funding")}</p></details>}
    </li>)}</ul>}
   </section>)}

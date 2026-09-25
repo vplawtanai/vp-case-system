@@ -7,10 +7,12 @@ const {workspaceFixture}=require('./i18n-workspace-fixture.cjs');
 const {taxMonthSummary}=require('../../app/finance/tax-position/period-data.ts');
 const ui=workspaceFixture('app/finance/tax-position/vat-sources.tsx',['VatSources']);
 test('same monthly authoritative evidence reconciles multiple purchases; rendering does not change any facts or card amounts',()=>{
- const d=fixture(),before=structuredClone(d),summary=taxMonthSummary(d),r=vatSourceTrace(d);
+ const d=fixture(),before=structuredClone(d),summary=structuredClone(taxMonthSummary(d)),r=vatSourceTrace(d);
  assert.deepEqual([r.outputTotal,r.inputTotal,r.net,r.reconciled],[700,89.63,610.37,true]);
- assert.deepEqual(r.input.map(s=>[s.base,s.gross,s.vat]),[[280.37,300,19.63],[1000,1070,70]]);
+ assert.deepEqual(r.input.map(s=>[s.base,s.vat]),[[280.37,19.63],[1000,70]]);
  assert.equal(r.input[1].href,'/finance/expenses/purchase-2');assert.equal(r.output[0].href,'/finance/direct-money/direct-sample');
+ d.filing.pools[0].monthly_facts.input_sources[1].source.source_evidence.expense.gross_amount=1000;
+ assert.equal(vatSourceTrace(d).input[1].base,1000,'Add-on source gross field is not the final settlement and must not be reinterpreted');
  assert.match(r.output[0].party,/Sample customer/);assert.match(r.input[1].reference,/EXP-/);
  // UI must not add current queue entries/materialized facts to the authoritative set.
  d.inputs.expenses.push({id:'pending',status:'pending',vat_amount:999});d.sources.register={periods:[],facts:[{tax_kind:'input_vat',tax_amount:999}]};
@@ -55,7 +57,7 @@ for(const locale of ['th','en'])test(`${locale}: both groups, period, source lab
  const React=require('react'),home=workspaceFixture('app/finance/tax-position/tax-home.tsx',[],{'../../components/DetailModal':{default:({children})=>React.createElement('div',{role:'dialog'},children)}});
  const {buildPermissions}=require('../../lib/permissions.ts'),d=fixture();
  const html=home.render(locale,{'TaxHome.month':'2026-10','TaxHome.months':[d],'TaxHome.loading':false,'TaxHome.source':'vat'},{permissions:buildPermissions({role:'admin'})});
- assert.match(html,/610\.37/);assert.match(html,/89\.63/);assert.match(html,/1,070\.00/);assert.match(html,/href="\/finance\/expenses\/purchase-2"/);
+ assert.match(html,/610\.37/);assert.match(html,/89\.63/);assert.match(html,/1,000\.00/);assert.doesNotMatch(html,/Gross amount|ยอดก่อนหัก WHT/);assert.match(html,/href="\/finance\/expenses\/purchase-2"/);
  assert.match(html,locale==='th'?/ยอดต้นทางตรงกับยอดสรุป/:/Source totals match the summary/);
  assert.match(html,locale==='th'?/กันยายน 2569/:/September 2026/);assert.doesNotMatch(html,/taxHome\.|role="alert"/);
 });

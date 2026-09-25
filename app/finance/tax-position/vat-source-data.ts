@@ -5,7 +5,7 @@ import { taxMonthSummary } from "./period-data";
 type Json = Record<string, unknown>;
 export type VatSourceRow = {
  key: string; reference: string; date: string; party: string | null; kind: string;
- vat: number; base: number | null; gross: number | null; href: string | null; note: string | null;
+ vat: number; base: number | null; href: string | null; note: string | null;
 };
 const object = (value: unknown): Json => {
  if (!value || typeof value !== "object" || Array.isArray(value)) throw Error("Invalid VAT source evidence");
@@ -14,7 +14,6 @@ const object = (value: unknown): Json => {
 const text = (value: unknown) => typeof value === "string" && value.trim() ? value : null;
 const required = (value: unknown) => { const result = text(value); if (!result) throw Error("Missing VAT source identity"); return result; };
 const amount = (value: unknown) => { if (typeof value !== "number") throw Error("Missing VAT source amount"); return cents(value); };
-const optionalAmount = (value: unknown) => value == null ? null : amount(value) / 100;
 const array = (value: unknown): unknown[] => { if (!Array.isArray(value)) throw Error("Missing VAT source rows"); return value; };
 function lines(value: unknown, kind: string) {
  const rows = array(value).map(object), ids = new Set<string>();
@@ -51,7 +50,7 @@ export function vatSourceTrace(data: TaxMonth) {
    const direct = data.sources.money?.direct.find(d => d.id === row.id);
    const document = data.sources.taxes?.documents.find(d => d.id === row.id);
    const payer = direct?.payer_name || data.sources.money?.payments.find(p => p.id === document?.payment_id)?.payer_name || null;
-   return { ...row, ...totals, party: payer, kind: row.type, gross: null, href: `/finance/${route}/${encodeURIComponent(row.id)}`, note: null };
+   return { ...row, ...totals, party: payer, kind: row.type, href: `/finance/${route}/${encodeURIComponent(row.id)}`, note: null };
   });
   const input: VatSourceRow[] = array(facts.input_sources ?? facts.reviewed_input_sources).map(value => {
    const entry = object(value), source = object(entry.source), row = identity(source), totals = lines(source.lines, "input_vat");
@@ -60,12 +59,12 @@ export function vatSourceTrace(data: TaxMonth) {
    if (row.type === "expense") {
     const expense = object(evidence.expense), claim = expense.origin !== "company_purchase";
     if (expense.id !== row.id || !["employee_claim", "company_purchase", "legacy_claim"].includes(required(expense.origin))) throw Error("Invalid expense source");
-    return { ...row, reference: text(source.reference) || `EXP-${row.id.slice(0, 8).toUpperCase()}`, ...totals, party: text(payer.name), kind: claim ? "employee_claim" : "company_purchase", gross: optionalAmount(expense.gross_amount), href: `/finance/expenses/${claim ? "claims/" : ""}${encodeURIComponent(row.id)}`, note: text(expense.description) };
+    return { ...row, reference: text(source.reference) || `EXP-${row.id.slice(0, 8).toUpperCase()}`, ...totals, party: text(payer.name), kind: claim ? "employee_claim" : "company_purchase", href: `/finance/expenses/${claim ? "claims/" : ""}${encodeURIComponent(row.id)}`, note: text(expense.description) };
    }
    if (row.type !== "external_input_vat") throw Error("Unknown input VAT source");
    const document = object(evidence.document);
    if (document.id !== row.id) throw Error("External evidence identity mismatch");
-   return { ...row, ...totals, party: text(payer.name), kind: "external_input_vat", gross: null, href: null, note: text(document.note) };
+   return { ...row, ...totals, party: text(payer.name), kind: "external_input_vat", href: null, note: text(document.note) };
   });
   const total = (rows: VatSourceRow[]) => rows.reduce((n, row) => n + cents(row.vat), 0) / 100;
   const outputTotal = total(output), inputTotal = total(input), net = (cents(outputTotal) - cents(inputTotal)) / 100;
