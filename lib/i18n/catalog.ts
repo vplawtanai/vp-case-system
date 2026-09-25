@@ -1,3 +1,4 @@
+import { executiveFinanceMessages } from "./messages/executive-finance";
 import { taxHomeMessages } from "./messages/tax-home";
 import { companyStatementMessages } from "./messages/company-statement";
 import { statementMessages } from "./messages/statement";
@@ -37,6 +38,7 @@ Object.assign(messages, expenseMessages);
 Object.assign(messages, revenueDistributionMessages);
 Object.assign(messages, companyStatementMessages);
 Object.assign(messages, statementMessages);
+Object.assign(messages, executiveFinanceMessages);
 
 export function translate(locale: UiLocale, key: string, parameters?: MessageParameters): string {
   return formatMessage(messages, locale, key, parameters);

@@ -1,3 +1,4 @@
+import { canOverview } from "./overview/data";
 import { isAdmin, type UserPermissions } from "../../lib/permissions";
 import { translate } from "../../lib/i18n/catalog";
 import type { UiLocale } from "../../lib/i18n/core";
@@ -5,6 +6,7 @@ import type { ExpenseAccess } from "./expenses/shared";
 export type FinanceNavigationPermissions = UserPermissions & { expenseAccess?: ExpenseAccess | null };
 
 export type FinanceSubNavPage =
+  | "overview"
   | "quotations"
   | "fee-agreements"
   | "billable-charges"
@@ -45,6 +47,7 @@ export function financeNavigationLinks(permissions: FinanceNavigationPermissions
   // Temporary development/UAT visibility gate; route access and permissions stay unchanged.
   const showNewFinance = isAdmin(permissions.role);
   const links: (FinanceNavigationLink | null)[] = [
+    canOverview(permissions) ? {href: "/finance/overview", page: "overview", label: t("executive.nav")} : null,
     permissions.canViewFinanceQuotations
       ? { href: "/finance/quotations", page: "quotations" as const, label: t("finance.nav.quotations") }
       : null,
@@ -113,6 +116,7 @@ export function financeNavigationItems(permissions: FinanceNavigationPermissions
 
 export function activeFinancePage(pathname: string | null, fallback: FinanceSubNavPage): FinanceSubNavPage {
   const routes: [string, FinanceSubNavPage][] = [
+    ["overview", "overview"],
     ["statement", "statement"],
     ["payouts", "payables"], ["revenue-distribution", "revenue-distribution"],
     ["quotations", "quotations"], ["fee-agreements", "fee-agreements"], ["billing-plans", "fee-agreements"],
