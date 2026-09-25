@@ -1,11 +1,12 @@
 import type { StatementAccount, StatementAccounts } from "./shared";
 import type { StatementData, StatementRow } from "./workspace";
 import type { TreasuryData } from "../treasury/shared";
+import { createOverviewActivity, expandOverviewActivity, type OverviewActivity } from "./overview-activity";
 
 type ReadResult = { data: unknown; error?: unknown };
 export type StatementRead = (name: string, args?: Record<string, unknown>) => PromiseLike<ReadResult>;
 export type OverviewAccount = { account: StatementAccount; current: StatementData; period: StatementData; transfers: StatementRow[] };
-export type OverviewData = { accounts: OverviewAccount[]; company: StatementData | null; canTransfer: boolean; canManageOpenings: boolean; asOf: string };
+export type OverviewData = { accounts: OverviewAccount[]; company: StatementData | null; canTransfer: boolean; canManageOpenings: boolean; asOf: string; activity: OverviewActivity };
 type TransferRow = StatementRow & { transfer_id?: string };
 export const accountKey = (a: StatementAccount) => `${a.kind}:${a.account_id}`;
 // Sum only authoritative THB cash amounts, in satang. Unknown balances stay unknown.
@@ -90,9 +91,6 @@ export async function loadStatementOverview(read: StatementRead, options: { canC
  accounts.sort((a, b) => a.account.kind.localeCompare(b.account.kind) || a.account.name_th.localeCompare(b.account.name_th));
  const keys = accounts.map(a => accountKey(a.account)); if (new Set(keys).size !== keys.length || (treasury && (treasury.accounts.length !== keys.length || treasury.accounts.some(a => !keys.includes(accountKey(a)))))) throw Error("Duplicate account");
  overviewTotals(accounts); // Fail closed on incomplete transfer evidence, never present inflated totals.
- return { accounts, company, canTransfer: !!directory?.can_transfer, canManageOpenings: !!directory?.can_manage_openings, asOf: options.today };
-}
-export function recentOverviewRows(accounts: OverviewAccount[]) {
- return accounts.flatMap(a => a.period.rows.map(row => ({ ...row, account: a.account })))
-  .sort((a, b) => (b.occurred_at || "").localeCompare(a.occurred_at || "") || (b.confirmed_at || "").localeCompare(a.confirmed_at || "") || b.id.localeCompare(a.id)).slice(0, 10);
+ const activity = await expandOverviewActivity(read, createOverviewActivity(accounts, options.from, options.to), active);
+ return { accounts, company, canTransfer: !!directory?.can_transfer, canManageOpenings: !!directory?.can_manage_openings, asOf: options.today, activity };
 }

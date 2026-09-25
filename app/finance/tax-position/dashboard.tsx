@@ -61,7 +61,7 @@ export default function TaxDashboard({ permissions }: { permissions: UserPermiss
    {c.badge ? <span className={styles.badge}>{c.badge}</span> : null}
    <p>{loading || c.value == null ? tr("notSummarized") : c.meta}</p>
    {c.key === "treasury" && summary?.accounts.length ? <small>{summary.accounts.filter(a => a.system_balance !== null).map(a => `${locationName(a, locale)} ${money(a.system_balance)}`).join(" · ")}{summary.unknownAccounts ? ` · ${tr("unopened", { count: summary.unknownAccounts })}` : ""}</small> : null}
-   {c.key === "treasury" && permissions.canViewFinanceCashTransactions ? <Link className={styles.contextLink} href="/finance/treasury">{tr("openTreasury")}<ArrowRight size={14} /></Link> : null}
+   {c.key === "treasury" && permissions.canViewFinanceCashTransactions ? <Link className={styles.contextLink} href="/finance/statement">{t("statement.openOverview")}<ArrowRight size={14} /></Link> : null}
    {c.key === "vat" ? <small>{tr("net")}: {t("taxPosition.unknown")}</small> : null}
    {c.key === "wht" ? <small>{tr("creditNotCash")}</small> : null}
   </article>)}</div>
@@ -105,7 +105,7 @@ export default function TaxDashboard({ permissions }: { permissions: UserPermiss
   </div>
   <section className={styles.moneyPosition} aria-labelledby="money-position-title">
    <div className={styles.sectionHeading}><Landmark size={23} aria-hidden="true" /><div><h2 id="money-position-title">{tr("moneyPosition")}</h2><p>{tr("moneyPositionHelp")}</p></div>
-    {permissions.canViewFinanceCashTransactions ? <Link className={ui.secondary} href="/finance/treasury">{tr("openTreasury")}<ArrowRight size={14} /></Link> : null}</div>
+    {permissions.canViewFinanceCashTransactions ? <Link className={ui.secondary} href="/finance/statement">{t("statement.openOverview")}<ArrowRight size={14} /></Link> : null}</div>
    <div className={styles.accounts}>
     {summary?.accounts.map(a => <article className={styles.account} key={`${a.kind}:${a.account_id}`}><Landmark size={22} aria-hidden="true" /><div><h3>{locationName(a, locale)}</h3><strong>{money(a.system_balance)}</strong><small>{a.system_balance === null ? tr("openingRequired") : tr("systemNow")}</small></div></article>)}
     {!summary?.accounts.length ? <p className={styles.empty}>{tr("unavailable")}</p> : null}

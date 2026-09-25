@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const {test}=require('node:test'),assert=require('node:assert/strict');
 require('./receipt-render-fixture.cjs');
-const {loadStatementOverview,overviewTotals,recentOverviewRows}=require('../../app/finance/statement/overview-data.ts');
+const {loadStatementOverview,overviewTotals}=require('../../app/finance/statement/overview-data.ts');
+const {activityOrder}=require('../../app/finance/statement/overview-activity.ts');
 const {bankIdentity,maskedAccount}=require('../../app/finance/statement/account-identity.tsx');
 const accounts=['BAY','KBANK','KTB','Office cash'].map((name,i)=>({kind:i===3?'cash':'bank',account_id:'a'+i,bank_account_id:i===3?null:'a'+i,cash_location_id:i===3?'a3':null,name_th:name,name_en:name,bank_name:name,account_number:'123-456-7890',is_active:i!==2}));
 function adapter({transfers=1,unknown=false,fail=false,broken=false}={}){
@@ -15,7 +16,7 @@ function adapter({transfers=1,unknown=false,fail=false,broken=false}={}){
   const rows=source||target?Array.from({length:transfers},(_,n)=>({id:(source?'out':'in')+n,transfer_id:'t'+n,kind:'transfer',cash_amount:100,direction:source?'outflow':'inflow',occurred_at:'2026-09-20T12:00:00Z',balance:1000})):[];
   if(broken&&target)rows.pop();
   const all=[...rows,{id:'external'+index,kind:'payment',cash_amount:10400,direction:'inflow',occurred_at:'2026-09-21T12:00:00Z',balance:3000}];
-  const selected=args.p_type==='transfer'?rows:all;
+  const selected=(args.p_type==='transfer'?rows:all).sort(activityOrder);
   return {data:{rows:selected.slice(args.p_offset,args.p_offset+50),count:selected.length,inflow:10400+(target?transfers*100:0),outflow:500+(source?transfers*100:0),closing:unknown&&source?null:1000*(index+1),balance_covered:!(unknown&&source)}};
  };return {read,calls};
 }
@@ -31,7 +32,7 @@ test('Over 50 transfer legs use all pages, never page subtotals',async()=>{
  const {read,calls}=adapter({transfers:57}),data=await loadStatementOverview(read,options);
  assert.equal(overviewTotals(data.accounts).internal,5700);assert.equal(overviewTotals(data.accounts).externalIn,41600);assert.equal(overviewTotals(data.accounts).externalOut,2000);
  assert.equal(calls.filter(c=>c.args?.p_type==='transfer'&&c.args.p_offset===50).length,2);
- assert.equal(recentOverviewRows(data.accounts).length,10);
+ assert.equal(data.activity.rows.length,10);
 });
 test('Unknown opening balance never becomes zero or an understated grand total',async()=>{
  const {read}=adapter({unknown:true}),data=await loadStatementOverview(read,options),t=overviewTotals(data.accounts);
