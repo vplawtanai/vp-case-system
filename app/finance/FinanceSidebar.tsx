@@ -17,10 +17,11 @@ export function FinanceSidebar({ permissions, pathname, onNavigate }: { permissi
   { key: "expenseGroup", pages: ["expenses", "expense-claims", "payables"] },
   { key: "moneyGroup", pages: ["treasury", "cash-transactions"] },
   { key: "taxGroup", pages: ["tax-position"] },
+  { key: "statement", pages: ["statement"] },
   { key: "legacy", pages: ["legacy"] },
  ];
  return <div className={css.nav} aria-label={t("finance.nav.label")}>
-  {sections.map(section => { const visible = items.filter(item => section.pages.includes("group" in item ? item.group : item.page)); return visible.length ? <section key={section.key} data-finance-section={section.key} className={section.key === "legacy" ? css.legacy : undefined}><h3>{t(section.key === "legacy" ? "payout.legacySection" : `expenses.${section.key}`)}</h3>{visible.map(item => "group" in item ? item.group === "payment-documents" ? <div key={item.group}>
+  {sections.map(section => { const visible = items.filter(item => section.pages.includes("group" in item ? item.group : item.page)); return visible.length ? <section key={section.key} data-finance-section={section.key} className={section.key === "legacy" ? css.legacy : undefined}><h3>{t(section.key === "statement" ? "companyStatement.nav" : section.key === "legacy" ? "payout.legacySection" : `expenses.${section.key}`)}</h3>{visible.map(item => "group" in item ? item.group === "payment-documents" ? <div key={item.group}>
    <button className={css.accordion} type="button" aria-expanded={documentsOpen} aria-controls="finance-receiving-documents" onClick={() => setPreference({ path: pathname, open: !documentsOpen })}><span>{item.label}</span>{documentsOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</button>
    <div className={css.children} id="finance-receiving-documents" hidden={!documentsOpen}>{item.children.map(link)}</div>
   </div> : item.children.map(link) : link(item))}</section> : null; })}

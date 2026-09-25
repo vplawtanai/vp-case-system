@@ -1,4 +1,5 @@
 import { taxHomeMessages } from "./messages/tax-home";
+import { companyStatementMessages } from "./messages/company-statement";
 import { revenueDistributionMessages } from "./messages/revenue-distribution";
 import { commonMessages } from "./messages/common";
 import { expenseMessages } from "./messages/expenses";
@@ -33,6 +34,7 @@ export const messages: MessageCatalog = { ...taxHomeMessages, ...taxFilingMessag
 
 Object.assign(messages, expenseMessages);
 Object.assign(messages, revenueDistributionMessages);
+Object.assign(messages, companyStatementMessages);
 
 export function translate(locale: UiLocale, key: string, parameters?: MessageParameters): string {
   return formatMessage(messages, locale, key, parameters);
