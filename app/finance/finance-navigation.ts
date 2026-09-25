@@ -84,9 +84,6 @@ export function financeNavigationLinks(permissions: FinanceNavigationPermissions
     showNewFinance
       ? { href: "/finance/tax-position", page: "tax-position" as const, label: t("taxPosition.title") }
       : null,
-    permissions.canViewFinancePayments
-      ? { href: "/finance/statement/company", page: "company-statement" as const, label: t("companyStatement.company") }
-      : null,
     permissions.canSubmitExpenseClaim || permissions.canViewOwnExpenseClaims || permissions.canViewAllExpenseClaims
       ? { href: "/finance/expense-claims", page: "claims" as const, label: t("payables.legacyClaims") }
       : null,
@@ -104,11 +101,11 @@ export function financeNavigationItems(permissions: FinanceNavigationPermissions
   const items: FinanceNavigationItem[] = [];
   for (const link of financeNavigationLinks(permissions, locale)) {
     const group = ["receipts", "combined-documents", "tax-invoices"].includes(link.page)
-      ? "payment-documents" : link.page === "company-statement" ? "statement" : ["claims", "ledger", "compensation"].includes(link.page) ? "legacy" : null;
+      ? "payment-documents" : ["claims", "ledger", "compensation"].includes(link.page) ? "legacy" : null;
     if (!group) { items.push(link); continue; }
     const existing = items.find((item): item is FinanceNavigationGroup => "group" in item && item.group === group);
     if (existing) existing.children.push(link);
-    else items.push({ group, label: translate(locale, group === "statement" ? "companyStatement.nav" : group === "legacy" ? "finance.nav.legacy" : "finance.nav.paymentDocuments"), children: [link] });
+    else items.push({ group, label: translate(locale, group === "legacy" ? "finance.nav.legacy" : "finance.nav.paymentDocuments"), children: [link] });
   }
   if (permissions.canViewFinanceCashTransactions && !items.some(i => "group" in i && i.group === "statement")) items.push({ group: "statement", label: translate(locale,"companyStatement.nav"), children: [] });
   return items;
@@ -116,7 +113,7 @@ export function financeNavigationItems(permissions: FinanceNavigationPermissions
 
 export function activeFinancePage(pathname: string | null, fallback: FinanceSubNavPage): FinanceSubNavPage {
   const routes: [string, FinanceSubNavPage][] = [
-    ["statement/company", "company-statement"], ["statement", "statement"],
+    ["statement", "statement"],
     ["payouts", "payables"], ["revenue-distribution", "revenue-distribution"],
     ["quotations", "quotations"], ["fee-agreements", "fee-agreements"], ["billing-plans", "fee-agreements"],
     ["billable-charges", "billable-charges"], ["invoices", "invoices"], ["payments", "payments"], ["direct-money", "payments"],

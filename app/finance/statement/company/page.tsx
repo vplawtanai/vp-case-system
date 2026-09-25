@@ -1,6 +1,5 @@
-"use client";
-import { QuotationGuard } from "../../quotations/shared";
-import { UnifiedStatement } from "../workspace";
+import { redirect } from "next/navigation";
+
 export default function CompanyStatementPage() {
- return <QuotationGuard canAccess={a => a.permissions.canViewFinancePayments}>{() => <UnifiedStatement />}</QuotationGuard>;
+ redirect("/finance/statement");
 }

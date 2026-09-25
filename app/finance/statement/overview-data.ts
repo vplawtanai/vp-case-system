@@ -6,7 +6,7 @@ import { createOverviewActivity, expandOverviewActivity, type OverviewActivity }
 type ReadResult = { data: unknown; error?: unknown };
 export type StatementRead = (name: string, args?: Record<string, unknown>) => PromiseLike<ReadResult>;
 export type OverviewAccount = { account: StatementAccount; current: StatementData; period: StatementData; transfers: StatementRow[] };
-export type OverviewData = { accounts: OverviewAccount[]; company: StatementData | null; canTransfer: boolean; canManageOpenings: boolean; asOf: string; activity: OverviewActivity };
+export type OverviewData = { accounts: OverviewAccount[]; canTransfer: boolean; canManageOpenings: boolean; asOf: string; activity: OverviewActivity };
 type TransferRow = StatementRow & { transfer_id?: string };
 export const accountKey = (a: StatementAccount) => `${a.kind}:${a.account_id}`;
 // Sum only authoritative THB cash amounts, in satang. Unknown balances stay unknown.
@@ -40,7 +40,7 @@ export function overviewTotals(accounts: OverviewAccount[]) {
   externalIn: (incoming - internalIn) / 100, externalOut: (outgoing - internalOut) / 100, internal: internalOut / 100,
   unknown: accounts.filter(a => a.current.balance_covered !== true || a.current.closing == null).length };
 }
-export async function loadStatementOverview(read: StatementRead, options: { canCash: boolean; canCompany: boolean; from: string; to: string; today: string }, active = () => true): Promise<OverviewData> {
+export async function loadStatementOverview(read: StatementRead, options: { canCash: boolean; from: string; to: string; today: string }, active = () => true): Promise<OverviewData> {
  const args = { p_from: options.from, p_to: options.to, p_type: "all", p_search: "", p_offset: 0 };
  async function call(name: string, params?: Record<string, unknown>) {
   if (!active()) throw Error("Stale request");
@@ -52,13 +52,11 @@ export async function loadStatementOverview(read: StatementRead, options: { canC
   satang(d.inflow); satang(d.outflow); if (d.closing != null) satang(d.closing);
   return d;
  }
- const [directory, company, treasury] = await Promise.all([
+ const [directory, treasury] = await Promise.all([
   options.canCash ? call("get_finance_statement_accounts") as Promise<StatementAccounts> : Promise.resolve(null),
-  options.canCompany ? call("get_finance_unified_company_statement", args) as Promise<StatementData> : Promise.resolve(null),
   options.canCash ? call("get_finance_treasury", { p_offset: 0 }) as Promise<TreasuryData> : Promise.resolve(null),
  ]);
  if (directory && !Array.isArray(directory.accounts)) throw Error("Invalid account directory");
- if (company) { if (!Array.isArray(company.rows)) throw Error("Invalid company response"); satang(company.income); satang(company.expense); }
  if (treasury && !Array.isArray(treasury.accounts)) throw Error("Invalid treasury response");
  const accounts: OverviewAccount[] = [];
  // Bound concurrent reads; the first page supplies recent rows, never period totals.
@@ -92,5 +90,5 @@ export async function loadStatementOverview(read: StatementRead, options: { canC
  const keys = accounts.map(a => accountKey(a.account)); if (new Set(keys).size !== keys.length || (treasury && (treasury.accounts.length !== keys.length || treasury.accounts.some(a => !keys.includes(accountKey(a)))))) throw Error("Duplicate account");
  overviewTotals(accounts); // Fail closed on incomplete transfer evidence, never present inflated totals.
  const activity = await expandOverviewActivity(read, createOverviewActivity(accounts, options.from, options.to), active);
- return { accounts, company, canTransfer: !!directory?.can_transfer, canManageOpenings: !!directory?.can_manage_openings, asOf: options.today, activity };
+ return { accounts, canTransfer: !!directory?.can_transfer, canManageOpenings: !!directory?.can_manage_openings, asOf: options.today, activity };
 }

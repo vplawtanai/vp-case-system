@@ -8,8 +8,8 @@ for(const locale of ['th','en'])test('069 '+locale+' Statement rows, total, froz
  const w=k=>translate(locale,'companyStatement.'+k),html=fixture.render(locale,{'CompanyStatement.data':data,'CompanyStatement.loading':false},{},'CompanyStatement');
  for(const key of ['title','total','scope','rowTitle'])assert.ok(html.includes(w(key)),key);assert.match(html,/4,000\.00 THB/);assert.doesNotMatch(html,/undefined|NaN|companyStatement\./);
  const detail=fixture.render(locale,{}, {row:data.rows[0]},'CompanyShareDetails');for(const key of ['received','finalized','revision','policy','basis','frozenNote'])assert.ok(detail.includes(w(key)));assert.match(detail,/10,000\.00 THB/);assert.doesNotMatch(detail,new RegExp(data.rows[0].distribution_id));
- for(const role of ['admin','partner','finance','staff']){const p=buildPermissions({role}),items=financeNavigationItems(p,locale),statement=items.find(i=>i.group==='statement');assert.equal(Boolean(statement),p.canViewFinancePayments);if(statement)assert.deepEqual(statement.children,[{href:'/finance/statement/company',page:'company-statement',label:w('company')}]);}
- assert.equal(activeFinancePage('/finance/statement/company','quotations'),'company-statement');
+ for(const role of ['admin','partner','finance','staff']){const p=buildPermissions({role}),items=financeNavigationItems(p,locale),statement=items.find(i=>i.group==='statement');assert.equal(Boolean(statement),p.canViewFinanceCashTransactions);if(statement)assert.deepEqual(statement.children,[]);}
+ assert.equal(activeFinancePage('/finance/statement/company','quotations'),'statement');
  const empty=fixture.render(locale,{'CompanyStatement.data':{...data,rows:[],count:0,totals:[],excluded_count:1},'CompanyStatement.loading':false},{},'CompanyStatement');assert.ok(empty.includes(w('empty')));assert.ok(empty.includes(w('excluded')));assert.ok(empty.includes(w('noIncome')));
 });
 test('069 all Statement language has Thai/English; source links and RPC are read only',()=>{

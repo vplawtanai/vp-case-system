@@ -5,7 +5,7 @@ const {loadStatementOverview,overviewTotals}=require('../../app/finance/statemen
 const {activityOrder,expandOverviewActivity}=require('../../app/finance/statement/overview-activity.ts');
 const {workspaceFixture}=require('./i18n-workspace-fixture.cjs'),{translate}=require('../../lib/i18n/catalog.ts');
 const {fixture:maintenanceFixture}=require('./treasury-dashboard-fixture.cjs');
-const options={canCash:true,canCompany:true,from:'2026-09-01',to:'2026-09-25',today:'2026-09-25'};
+const options={canCash:true,from:'2026-09-01',to:'2026-09-25',today:'2026-09-25'};
 function activityFixture(count=125,transfers=3){
  const calls=[],accounts=[0,1,2].map(i=>({kind:'bank',account_id:'a'+i,bank_account_id:'a'+i,cash_location_id:null,name_th:'Bank '+i,name_en:'Bank '+i,is_active:true}));
  const external=Array.from({length:count},(_,i)=>({id:String(i).padStart(6,'0'),kind:i%2?'payment':'company_purchase',direction:i%2?'inflow':'outflow',cash_amount:100,occurred_at:`2026-09-${String(24-i%20).padStart(2,'0')}T12:00:00+00:00`,confirmed_at:'2026-09-25T12:00:00+00:00',balance:2000,accountIndex:i%3}));
@@ -23,17 +23,17 @@ function activityFixture(count=125,transfers=3){
  }; return {read,calls,external,legs,all};
 }
 for(const count of [0,1,10,11,21,175])test(`Activity ${count}: progressive pages, exact count/order, totals and balances independent`,async()=>{
- const f=activityFixture(count,0),data=await loadStatementOverview(f.read,options),before=JSON.stringify(data.accounts),totals=overviewTotals(data.accounts),company=JSON.stringify(data.company);
+ const f=activityFixture(count,0),data=await loadStatementOverview(f.read,options),before=JSON.stringify(data.accounts),totals=overviewTotals(data.accounts);
  let activity=data.activity;assert.equal(activity.rows.length,Math.min(10,count));assert.equal(activity.count,count);
  if(count>150)assert.equal(f.calls.filter(c=>c.args?.p_type==='all'&&c.args.p_offset>0).length,0,'first render does not fetch entire history');
  while(activity.rows.length<count){const previous=activity,serialized=JSON.stringify(previous);activity=await expandOverviewActivity(f.read,previous);assert.equal(JSON.stringify(previous),serialized,'cursor is immutable');assert.equal(activity.rows.length,Math.min(previous.rows.length+10,count));assert.deepEqual(overviewTotals(data.accounts),totals);}
- assert.deepEqual(activity.rows.map(r=>r.id),f.external.sort(activityOrder).map(r=>r.id));assert.equal(new Set(activity.rows.map(r=>r.id)).size,count);assert.equal(JSON.stringify(data.accounts),before);assert.equal(JSON.stringify(data.company),company);
+ assert.deepEqual(activity.rows.map(r=>r.id),f.external.sort(activityOrder).map(r=>r.id));assert.equal(new Set(activity.rows.map(r=>r.id)).size,count);assert.equal(JSON.stringify(data.accounts),before);
  if(count>150)assert.ok(f.calls.some(c=>c.args?.p_type==='all'&&c.args.p_offset===50));
 });
 test('Transfers appear once with both accounts; no external flow/company/liquidity inflation',async()=>{
  const f=activityFixture(21,3),data=await loadStatementOverview(f.read,options);let activity=data.activity;
  while(activity.rows.length<activity.count)activity=await expandOverviewActivity(f.read,activity);
- const t=overviewTotals(data.accounts);assert.equal(t.internal,90000);assert.equal(t.externalIn,1000);assert.equal(t.externalOut,1100);assert.equal(t.total,6000);assert.equal(data.company.income,500);assert.equal(data.company.expense,70);
+ const t=overviewTotals(data.accounts);assert.equal(t.internal,90000);assert.equal(t.externalIn,1000);assert.equal(t.externalOut,1100);assert.equal(t.total,6000);assert.ok(!f.calls.some(c=>c.name==='get_finance_unified_company_statement'));
  assert.equal(activity.count,24);assert.equal(activity.rows.filter(r=>r.toAccount).length,3);
  for(const row of activity.rows.filter(r=>r.toAccount)){assert.equal(row.account.account_id,'a1');assert.equal(row.toAccount.account_id,'a0');assert.equal(row.cash_amount,30000);}
 });
@@ -58,11 +58,11 @@ const shared=workspaceFixture('app/finance/statement/shared.ts',['accountHref','
 const view=workspaceFixture('app/finance/statement/overview.tsx',['StatementOverview'],{'./shared':shared});
 const maintenance=workspaceFixture('app/finance/treasury/maintenance-view.tsx',['StatementMaintenanceView']);
 for(const locale of ['th','en'])test(`${locale}: counts, show-more, transfer row, controlled maintenance and no legacy dashboard`,async()=>{
- const data=await loadStatementOverview(activityFixture(21).read,options),range=shared.monthRange(),key=`${range.from}:${range.to}:0:true:true:${shared.bangkokToday()}`;
- const html=view.render(locale,{'StatementOverview.result':{key,data}},{canCash:true,canCompany:true},'StatementOverview');
+ const data=await loadStatementOverview(activityFixture(21).read,options),range=shared.monthRange(),key=`${range.from}:${range.to}:0:true:${shared.bangkokToday()}`;
+ const html=view.render(locale,{'StatementOverview.result':{key,data}},{canCash:true},'StatementOverview');
  assert.ok(html.includes(translate(locale,'statement.overview.rowCount',{shown:10,count:24})));assert.ok(html.includes(translate(locale,'statement.overview.showMore')));assert.equal((html.split("<tbody>")[1].split("</tbody>")[0].match(/<tr>/g)||[]).length,10);assert.ok(html.includes('/finance/statement/opening-balances'));assert.doesNotMatch(html,/href="\/finance\/treasury"/);
- const more=await expandOverviewActivity(activityFixture(21).read,data.activity);const expanded=view.render(locale,{'StatementOverview.result':{key,data},'StatementOverview.activityResult':{data,activity:more}},{canCash:true,canCompany:true},'StatementOverview');assert.ok(expanded.includes(translate(locale,'statement.overview.rowCount',{shown:20,count:24})));
- const fresh=await loadStatementOverview(activityFixture(21).read,options);const reset=view.render(locale,{'StatementOverview.result':{key,data:fresh},'StatementOverview.activityResult':{data,activity:more}},{canCash:true,canCompany:true},'StatementOverview');assert.ok(reset.includes(translate(locale,'statement.overview.rowCount',{shown:10,count:24})), 'returning to an earlier date range resets the batch');
+ const more=await expandOverviewActivity(activityFixture(21).read,data.activity);const expanded=view.render(locale,{'StatementOverview.result':{key,data},'StatementOverview.activityResult':{data,activity:more}},{canCash:true},'StatementOverview');assert.ok(expanded.includes(translate(locale,'statement.overview.rowCount',{shown:20,count:24})));
+ const fresh=await loadStatementOverview(activityFixture(21).read,options);const reset=view.render(locale,{'StatementOverview.result':{key,data:fresh},'StatementOverview.activityResult':{data,activity:more}},{canCash:true},'StatementOverview');assert.ok(reset.includes(translate(locale,'statement.overview.rowCount',{shown:10,count:24})), 'returning to an earlier date range resets the batch');
  const f=maintenanceFixture(),m=maintenance.render(locale,{}, {data:f,busy:false,onOpening(){},onMaterialize(){}},'StatementMaintenanceView');
  assert.ok(m.includes(translate(locale,'treasury.opening')));assert.ok(m.includes(translate(locale,'treasury.replacement')));assert.ok(m.includes(translate(locale,'treasury.openingHistory')));assert.ok(m.includes(translate(locale,'statement.receiptMaintenance')));assert.doesNotMatch(m,/<table|data-treasury-summary|treasury-movements|<details[^>]*\sopen/);
  const denied=maintenance.render(locale,{}, {data:{...f,can_manage:false},busy:false},'StatementMaintenanceView');assert.doesNotMatch(denied,/<button|<form/);assert.ok(denied.includes(translate(locale,'treasury.error.permission')));
