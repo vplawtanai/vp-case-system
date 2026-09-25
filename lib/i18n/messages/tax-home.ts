@@ -1,5 +1,11 @@
 import type { MessageCatalog } from "../core";
 const copy: Record<string,[string,string]> = {
+ vatReconciliation:["ตรวจสอบยอด VAT","VAT reconciliation"],vatTraceMatched:["ยอดต้นทางตรงกับยอดสรุป","Source totals match the summary"],
+ vatTraceMismatch:["ยอดต้นทางไม่ตรงกับยอดสรุป กรุณารีเฟรชและตรวจสอบข้อมูลก่อนใช้งาน","Source totals do not match the summary. Refresh and check the evidence before using these amounts."],
+ vatTraceUnavailable:["ข้อมูลต้นทาง VAT ไม่ครบหรือไม่ตรงกับรอบภาษี จึงยังตรวจสอบยอดไม่ได้","VAT source evidence is incomplete or inconsistent with this tax period. Totals cannot be verified."],
+ summaryAmount:["ยอดในการ์ดสรุป","Summary card"],noOutputSources:["ไม่มีรายการ VAT ขายในรอบภาษีนี้","No Output VAT sources in this tax period"],noInputSources:["ไม่มีรายการ VAT ซื้อที่ใช้เครดิตได้ในรอบภาษีนี้","No eligible Input VAT sources in this tax period"],
+ source_direct_money_receipt:["รับเงินตรง","Direct Money"],source_tax_invoice:["ใบกำกับภาษี","Tax Invoice"],source_tax_correction:["ใบลดหนี้ / ใบเพิ่มหนี้","Credit / Debit Note"],
+ source_company_purchase:["การซื้อ / ค่าใช้จ่ายบริษัท","Company Purchase / Expense"],source_employee_claim:["เบิกคืนค่าใช้จ่าย","Employee Reimbursement"],source_external_input_vat:["เอกสารภาษีซื้ออื่น","Other Input VAT evidence"],
  sourceVat:["ใช้ VAT ตามรายการต้นทาง","Use authoritative source VAT"],correctInput:["แก้ไข / ไม่ใช้เครดิต","Correct / exclude credit"],immediateInput:["เมื่อบันทึก VAT จะรวมในภาษีซื้อทันที","Saving immediately includes this VAT in Input VAT."],
  inputEvidence:["เอกสารภาษีซื้อ","Input VAT evidence"],reviewInput:["ตรวจ VAT ซื้อ","Review Input VAT"],inputReviewHelp:["ใช้ข้อมูล VAT จากต้นทางโดยตรง หน้านี้สำหรับแก้ไขหรือไม่ใช้เครดิต โดยไม่เปลี่ยนยอดอนุมัติ การจ่ายเงิน หรือ WHT","Source VAT is used directly. Use this exception path to correct or exclude credit; approval, payment and WHT are unchanged."],
  remitBy:["นำส่งภายใน","Remit by"],manageFiling:["จัดการยื่น","Manage filing"],manageRemittance:["จัดการนำส่ง","Manage remittance"],classify:["ตรวจและจัดประเภท","Review & classify"],
