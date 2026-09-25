@@ -1,6 +1,6 @@
 "use client";
 import { QuotationGuard } from "../../quotations/shared";
-import { CompanyStatement } from "./workspace";
+import { UnifiedStatement } from "../workspace";
 export default function CompanyStatementPage() {
- return <QuotationGuard canAccess={a => a.permissions.canViewFinancePayments}>{() => <CompanyStatement />}</QuotationGuard>;
+ return <QuotationGuard canAccess={a => a.permissions.canViewFinancePayments}>{() => <UnifiedStatement />}</QuotationGuard>;
 }

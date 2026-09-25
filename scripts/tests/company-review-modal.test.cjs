@@ -14,7 +14,7 @@ test('060 UI scopes new requests, titles and tax choices; no second calculation 
  assert.equal(companyDeclarationsMatch([{id:'a',input:{creator_tax:choices}}],{items:[{id:'a'}]}),false);
  assert.equal(companyDeclarationsMatch([{id:'a',input:{creator_tax:choices}}],{items:[{id:'a',creator_tax:{...choices,wht_rate:5}}]}),false);
  const ui=fs.readFileSync('app/finance/expenses/purchase-request-review.tsx','utf8'),form=fs.readFileSync('app/finance/expenses/purchase-request-form.tsx','utf8');
- assert.match(ui,/preview_finance_company_expense_tax/);assert.match(ui,/review_finance_company_purchase_request/);assert.doesNotMatch(ui,/Math\.round|paid_withholding_ack|TaxForm|supplier_tax_id|type="checkbox"|type="file"|prepare_finance_expense_payout/);
+ assert.match(ui,/preview_finance_company_expense_tax/);assert.match(ui,/review_finance_expense_with_economics/);assert.match(fs.readFileSync('supabase/migrations/202607180070_add_unified_statement_and_transfers.sql','utf8'),/perform public.review_finance_company_purchase_request\(p_operation/);assert.doesNotMatch(ui,/Math\.round|paid_withholding_ack|TaxForm|supplier_tax_id|type="checkbox"|type="file"|prepare_finance_expense_payout/);
  assert.doesNotMatch(form,/company_paid|payment-status|type="file"|bank_account_id|cash_location_id/);
  assert.equal(translate('th','expenses.purchaseRequestCreate'),'สร้างคำขอซื้อหรือค่าใช้จ่าย');assert.equal(translate('th','expenses.purchaseRequestReview'),'ตรวจสอบคำขอซื้อหรือค่าใช้จ่าย');
  for(const locale of ['th','en'])for(const key of ['purchaseRequestCreate','purchaseRequestReview','purchaseRequestVendor','purchaseRequestDate','purchaseRequestNet','purchaseRequestPayeeRequired','purchaseRequestRetry'])assert.notEqual(translate(locale,'expenses.'+key),'expenses.'+key);

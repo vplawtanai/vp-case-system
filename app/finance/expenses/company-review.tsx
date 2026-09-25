@@ -17,6 +17,7 @@ import { expenseStatusTone } from "./presentation";
 import css from "./expenses.module.css";
 import company from "./company.module.css";
 import { CompanyTaxForm, CompanyTaxSummary, type CompanyTaxCalculation } from "./company-tax";
+import { ExpenseEconomicPanel } from "./economics";
 import { CompanyItemPayment } from "./company-item-payment";
 import { companyItemPaymentStatus, companyRequestPayment } from "./company-payment-status";
 import { PurchaseRequestReview, PurchaseRequestItemReview } from "./purchase-request-review";
@@ -112,6 +113,7 @@ function HistoricalCompanyItemReview({ row, access, accounts = [], lookups, run,
   <section><h3>{t("expenses.companyFacts")}</h3><dl className={css.facts}>{[["date", date(row.expense_date)], ["category", expenseCategoryLabel(row.category, locale)], ["amount", money(row.declared_gross_amount ?? row.gross_amount)], ["vendor", row.vendor_name], ["description", row.description], ["note", row.note], ...context].filter(([,v]) => v).map(([k,v]) => <div key={k}><dt>{t(`expenses.${k}`)}</dt><dd>{v}</dd></div>)}</dl></section>
   <section><h3>{t("expenses.companyPaymentPayee")}</h3><strong>{t("expenses.companyCreatorDeclaration")}</strong><dl className={css.facts}><div><dt>{t("expenses.companyPaymentQuestion")}</dt><dd>{t(`expenses.${creatorPaymentLabel(row)}`)}{row.creator_payment_fact === "personal_paid" && row.claimant_name ? ` · ${row.claimant_name}` : ""}</dd></div>{row.personally_paid ? <><div><dt>{t("expenses.companyReimbursementPayee")}</dt><dd>{payee?.legal_name || row.claimant_name || t("expenses.companyMissingPayee")}</dd></div><div><dt>{t("expenses.staffRequestedTotal")}</dt><dd>{money(row.reimbursement_requested)}</dd></div></> : null}{row.settlement ? <><div><dt>{t("expenses.companyMoneyDecision")}</dt><dd>{t(`expenses.${row.settlement.mode}`)}</dd></div><div><dt>{t("expenses.settlementAmount")}</dt><dd>{money(row.settlement.amount)}<br />{row.settlement.reason}</dd></div></> : null}{row.settlement && !row.personally_paid && payee ? <div><dt>{t(row.settlement.mode === "supplier_unpaid" ? "expenses.companySupplierPayee" : "expenses.vendor")}</dt><dd>{payee.legal_name}</dd></div> : null}</dl>
    <CompanyItemPayment item={row} />
+   {row.status === "accepted" ? <ExpenseEconomicPanel row={row} canManage={access.can_manage}/> : null}
    {(row.status === "submitted" || row.status === "accepted") && !row.settlement && access.can_manage ? <ExpenseSettlementForm companyReview row={reviewedRow} optionalNote={structured} taxWithholding={structured && (calculation?.wht_amount ?? 0) > 0} lookups={parties} onPayees={setUpdatedPayees} run={run} busy={disabled || partial} plan={row.status === "submitted" || partial ? { onPlan: setSettlementPlan, reason } : undefined} /> : null}
    {row.status === "accepted" && row.creator_payment_fact === "company_paid" && row.settlement && ["company_bank", "company_cash"].includes(row.settlement.mode) ? <ExpensePaymentPanel key={row.payout?.id || row.settlement.id} row={row} access={access} accounts={accounts} run={run} busy={disabled || partial} /> : null}
   </section>

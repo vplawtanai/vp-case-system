@@ -1,0 +1,28 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
+const {workspaceFixture}=require('./i18n-workspace-fixture.cjs'),{translate}=require('../../lib/i18n/catalog.ts');
+const {financeNavigationItems,activeFinancePage}=require('../../app/finance/finance-navigation.ts'),{buildPermissions}=require('../../lib/permissions.ts');
+const {economicChoiceValid,reducedVatRequired,economicVat,emptyEconomicChoice}=workspaceFixture('app/finance/expenses/economics.tsx',['economicChoiceValid','reducedVatRequired','economicVat','emptyEconomicChoice']);
+const data=require('./unified-statement-fixture.json'),shared=workspaceFixture('app/finance/statement/shared.ts',['accountHref','accountName','monthRange']),{accountHref}=shared;
+const fixture=workspaceFixture('app/finance/statement/workspace.tsx',['UnifiedStatement'],{'../../components/DetailModal':{default:({children,footer})=>require('react').createElement('div',null,children,footer)},'./shared':shared,'./company/workspace':{CompanyShareDetails:workspaceFixture('app/finance/statement/company/workspace.tsx',['CompanyShareDetails']).component('CompanyShareDetails')}});
+for(const locale of ['th','en'])test('070 '+locale+' company/cash Statement, economic detail, dynamic navigation and isolated transfer',()=>{
+ const w=k=>translate(locale,'statement.'+k);let html=fixture.render(locale,{'UnifiedStatement.data':data.company,'UnifiedStatement.loading':false},{},'UnifiedStatement');for(const key of ['companyDescription','income','expense','net'])assert.ok(html.includes(w(key)));assert.match(html,/4,000\.00 THB/);assert.match(html,/280\.37 THB/);assert.doesNotMatch(html,/undefined|NaN|statement\./);
+ html=fixture.render(locale,{'UnifiedStatement.data':data.bank,'UnifiedStatement.loading':false,'UnifiedStatement.selected':data.bank.rows[0]},{account:data.accounts.accounts[0]},'UnifiedStatement');for(const key of ['opening','inflow','outflow','closing','confirmed','filteredBalances'])assert.ok(html.includes(w(key)),key);assert.match(html,/10,008\.41 THB/);assert.ok(html.includes(data.bank.rows[0].href));
+ for(const role of ['admin','partner','finance','staff']){const p=buildPermissions({role}),items=financeNavigationItems(p,locale);assert.equal(Boolean(items.find(i=>i.group==='statement')),p.canViewFinancePayments||p.canViewFinanceCashTransactions);assert.ok(!items.some(i=>i.page==='treasury'));}
+ const sidebar=fs.readFileSync('app/finance/FinanceSidebar.tsx','utf8');assert.match(sidebar,/key: "moneyGroup", pages: \["statement", "cash-transactions"\]/);assert.match(sidebar,/StatementAccountNavigation/);
+ for(const account of data.accounts.accounts){assert.equal(accountHref(account),`/finance/statement/account/${account.kind}/${account.account_id}`);assert.equal(activeFinancePage(accountHref(account),'quotations'),'statement');}
+});
+test('070 full/reduced VAT choice validation and whole-unit decision; no accounting calculations in creator',()=>{
+ assert.equal(economicChoiceValid(emptyEconomicChoice,false,0),false);const base={treatment:'COMPANY_COST',vatChoice:'',vat:''};assert.equal(economicChoiceValid(base,false,70),true);assert.equal(economicVat(base,false),null);
+ assert.equal(reducedVatRequired(535,1070,70),true);assert.equal(reducedVatRequired(1070,1070,70),false);assert.equal(reducedVatRequired(500,1000,0),false);assert.equal(economicChoiceValid(base,true,70),false);
+ for(const invalid of ['-1','70.01','35.001','NaN',''])assert.equal(economicChoiceValid({...base,vatChoice:'specified',vat:invalid},true,70),false);
+ assert.equal(economicVat({...base,vatChoice:'none'},true),0);assert.equal(economicVat({...base,vatChoice:'specified',vat:'35'},true),35);assert.equal(economicChoiceValid({...base,treatment:'CLIENT_RECOVERABLE',vatChoice:'none'},true,0),true);
+ const panel=workspaceFixture('app/finance/expenses/economics.tsx',['EconomicChoice']);for(const locale of ['th','en']){const html=panel.render(locale,{}, {value:{...base,vatChoice:'specified',vat:'35'},onChange(){},reduced:true,originalVat:70,maximum:70},'EconomicChoice');for(const key of ['burden','unitNote','approvedVat','originalVat'])assert.ok(html.includes(translate(locale,'statement.'+key)));assert.match(html,/max="70"/);}
+});
+test('070 immutable earlier migrations, exact static gates and no changes to frozen 069 income derivation',()=>{
+ const a=require('./unified-statement-artifacts.cjs'),c=a.validate(),sql=a.source();assert.equal(c.scope.created.length,11);assert.equal(c.scope.newTables.length,3);assert.equal(c.broaderUnresolvedDifferences,490);
+ const prior=fs.readFileSync('supabase/migrations/202607180069_add_company_share_statement.sql','utf8');const before=prior.slice(prior.indexOf(' with sources as ('),prior.indexOf(' ), filtered as materialized ('));const current=sql.slice(sql.indexOf(' with sources as ('),sql.indexOf('\n )\nselect to_jsonb(p)'));assert.equal(current.trimEnd(),before.trimEnd(),'069 income CTEs preserved');
+ for(const p of [a.files.preflight,a.files.verifier]){const cleaned=fs.readFileSync(p,'utf8').replace(/'(?:[^']|'')*'/g,"''").replace(/--[^\n]*/g,'');assert.doesNotMatch(cleaned,/\b(create|alter|insert|update|delete|truncate)\b/i);}
+ const dry=fs.readFileSync(a.files.dryRun,'utf8');assert.equal(dry.split('$candidate070$')[1],sql);assert.match(dry,/BEGIN;/);assert.match(dry,/ROLLBACK;/);assert.match(dry,/REQUIRES_PRODUCTION_PREFLIGHT_PASS/);
+ const w=fs.readFileSync('app/finance/statement/workspace.tsx','utf8');assert.doesNotMatch(w,/\.insert\(|\.update\(|\.delete\(/);assert.match(w,/get_finance_unified_company_statement/);assert.match(w,/get_finance_account_statement/);assert.ok(fs.existsSync('app/finance/treasury/page.tsx'));
+});

@@ -16,6 +16,7 @@ import { PurchaseTaxChoices, emptyPurchaseTax } from "./purchase-tax-choices";
 import { companyItemPaymentStatus } from "./company-payment-status";
 import { CompanyItemPayment } from "./company-item-payment";
 import css from "./purchase-request.module.css";
+import { EconomicChoice, ExpenseEconomicPanel, emptyEconomicChoice } from "./economics";
 
 type ItemProps = { row: Expense; access: ExpenseAccess; lookups: ExpenseLookups; run: ExpenseRun; busy: boolean };
 export function PurchaseRequestReview({ request, access, lookups, busy, error, run, onClose, onEdit }: Omit<ItemProps,"row"> & { request: ExpenseRequest; error: string; onClose: () => void; onEdit: () => void }) {
@@ -34,6 +35,7 @@ export function PurchaseRequestReview({ request, access, lookups, busy, error, r
 
 export function PurchaseRequestItemReview({ row, access, lookups, run, busy }: ItemProps) {
  const { t, locale, date } = useI18n();
+ const [economic,setEconomic] = useState(emptyEconomicChoice);
  const [recipient,setRecipient] = useState(row.reviewed_recipient_name || row.vendor_name || "");
  const [tax,setTax] = useState(row.creator_tax || emptyPurchaseTax), [note,setNote] = useState(""), [rejecting,setRejecting] = useState(false);
  const [result,setResult] = useState<{key:string;value:CompanyTaxCalculation}|null>(null), [failed,setFailed] = useState(false), [working,setWorking] = useState(false), [uncertain,setUncertain] = useState(false);
@@ -65,21 +67,23 @@ export function PurchaseRequestItemReview({ row, access, lookups, run, busy }: I
  async function decide(accept:boolean) {
   if (lock.current||busy||working) return;
   if (!attempt.current && !accept && !note.trim()) { setRejecting(true);requestAnimationFrame(()=>noteField.current?.focus());return; }
-  if (!attempt.current && accept && (!calculation?.ready||failed||!recipient.trim())) return;
+  if (!attempt.current && accept && (!calculation?.ready||failed||!recipient.trim()||!economic.treatment)) return;
   lock.current=true;setWorking(true);
-  if (!attempt.current) attempt.current={p_operation:crypto.randomUUID(),p_expense:row.id,p_version:row.version,p_accept:accept,p_input:{...tax,recipient_name:recipient.trim()},p_reason:note};
+  if (!attempt.current) attempt.current={p_kind:"company_purchase",p_treatment:economic.treatment,p_approved_vat:null,p_amount:null,p_operation:crypto.randomUUID(),p_expense:row.id,p_version:row.version,p_accept:accept,p_input:{...tax,recipient_name:recipient.trim()},p_reason:note};
   try {
    // An uncertain response is retried with the identical operation and reviewed choices.
-   if (!await run("review_finance_company_purchase_request",attempt.current)) {setUncertain(true);return;}
+   if (!await run("review_finance_expense_with_economics",attempt.current)) {setUncertain(true);return;}
    setUncertain(false);attempt.current=null;
   } finally {lock.current=false;setWorking(false);}
  }
  return <div className={css.review} data-purchase-review>
   <section className={css.facts}><div><h3>{row.description}</h3>{!reviewable ? <p>{row.reviewed_recipient_name || row.vendor_name}</p> : null}<p>{date(row.expense_date)} · {expenseCategoryLabel(row.category,locale)}</p></div><div className={css.amount}><span>{t("expenses.amount")}</span><strong>{money(row.declared_gross_amount ?? row.gross_amount)}</strong></div></section>
   <CompanyItemPayment item={row} />
+  {row.status === "accepted" ? <ExpenseEconomicPanel row={row} canManage={access.can_manage}/> : null}
   {clientName || workName != null ? <div className={css.linkageSummary} data-purchase-linkage>{clientName ? <p>{t("expenses.client")}: {clientName}</p> : null}{workName != null ? <p>{t("expenses.purchaseWork")}: {workName}</p> : null}</div> : null}
   <div className={css.columns}><div className={css.controls}>
    {reviewable ? <FieldGroup id="purchase-review-recipient" label={t("expenses.purchaseRequestVendor")}><input required maxLength={300} value={recipient} disabled={disabled} onChange={e=>setRecipient(e.target.value)} /></FieldGroup> : null}
+   {reviewable ? <EconomicChoice value={economic} onChange={setEconomic} disabled={disabled}/> : null}
    {reviewable ? <PurchaseTaxChoices value={tax} onChange={setTax} disabled={disabled} /> : !companyItemPaymentStatus(row) ? <dl><dt>{t("expenses.status")}</dt><dd>{t(`expenses.${row.payout?.status === "confirmed" || row.obligation?.settled ? "paid" : row.obligation ? "unpaid" : row.status}`)}</dd></dl> : null}
   </div><aside className={css.summary} data-purchase-summary aria-live="polite"><h3>{t("expenses.purchaseRequestSummary")}</h3>
    {calculation ? <dl>{([['companyBeforeVat',calculation.vat_base],['vat',calculation.vat_amount],['expenseTotal',calculation.gross],['wht',calculation.wht_amount],['purchaseRequestNet',calculation.net]] as const).map(([label,amount])=><div key={label}><dt>{t(`expenses.${label}`)}{label==='vat'&&calculation.vat_rate!=null?` ${calculation.vat_rate}%`:label==='wht'&&calculation.wht_rate?` ${calculation.wht_rate}%`:null}</dt><dd>{amount==null?t("expenses.unavailable"):money(amount)}</dd></div>)}</dl>:<p role="status">{t(reviewable ? failed ? "expenses.companyTaxPreviewFailed" : "expenses.companyTaxCalculating" : "expenses.unavailable")}</p>}
@@ -88,6 +92,6 @@ export function PurchaseRequestItemReview({ row, access, lookups, run, busy }: I
   </div>
   {reviewable&&!recipient.trim()?<Callout tone="warning">{t("expenses.purchaseRequestPayeeRequired")}</Callout>:null}
   {uncertain?<Callout tone="warning">{t("expenses.purchaseRequestRetry")}</Callout>:null}
-  {row.status==='submitted'&&access.can_manage?<div className={css.actions}>{!uncertain?<button type="button" className={ui.secondary} disabled={busy||working} onClick={()=>void decide(false)}><X size={17}/>{t("expenses.companyReject")}</button>:null}<button type="button" className={ui.primary} disabled={busy||working||(!uncertain&&(!reviewable||!calculation?.ready||failed||!recipient.trim()))} onClick={()=>void decide(true)}><Check size={17}/>{t(uncertain?"expenses.companyRetryReview":"expenses.companyApprove")}</button></div>:null}
+  {row.status==='submitted'&&access.can_manage?<div className={css.actions}>{!uncertain?<button type="button" className={ui.secondary} disabled={busy||working} onClick={()=>void decide(false)}><X size={17}/>{t("expenses.companyReject")}</button>:null}<button type="button" className={ui.primary} disabled={busy||working||(!uncertain&&(!reviewable||!calculation?.ready||failed||!recipient.trim()||!economic.treatment))} onClick={()=>void decide(true)}><Check size={17}/>{t(uncertain?"expenses.companyRetryReview":"expenses.companyApprove")}</button></div>:null}
  </div>;
 }

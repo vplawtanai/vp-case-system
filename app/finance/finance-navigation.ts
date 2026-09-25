@@ -12,6 +12,7 @@ export type FinanceSubNavPage =
   | "payments"
   | "revenue-distribution"
   | "company-statement"
+  | "statement"
   | "receipts"
   | "combined-documents"
   | "tax-invoices"
@@ -81,9 +82,6 @@ export function financeNavigationLinks(permissions: FinanceNavigationPermissions
       ? { href: "/finance/payables", page: "payables" as const, label: t("payables.title") }
       : null,
     showNewFinance
-      ? { href: "/finance/treasury", page: "treasury" as const, label: t("treasury.title") }
-      : null,
-    showNewFinance
       ? { href: "/finance/tax-position", page: "tax-position" as const, label: t("taxPosition.title") }
       : null,
     permissions.canViewFinancePayments
@@ -112,12 +110,13 @@ export function financeNavigationItems(permissions: FinanceNavigationPermissions
     if (existing) existing.children.push(link);
     else items.push({ group, label: translate(locale, group === "statement" ? "companyStatement.nav" : group === "legacy" ? "finance.nav.legacy" : "finance.nav.paymentDocuments"), children: [link] });
   }
+  if (permissions.canViewFinanceCashTransactions && !items.some(i => "group" in i && i.group === "statement")) items.push({ group: "statement", label: translate(locale,"companyStatement.nav"), children: [] });
   return items;
 }
 
 export function activeFinancePage(pathname: string | null, fallback: FinanceSubNavPage): FinanceSubNavPage {
   const routes: [string, FinanceSubNavPage][] = [
-    ["statement/company", "company-statement"],
+    ["statement/company", "company-statement"], ["statement", "statement"],
     ["payouts", "payables"], ["revenue-distribution", "revenue-distribution"],
     ["quotations", "quotations"], ["fee-agreements", "fee-agreements"], ["billing-plans", "fee-agreements"],
     ["billable-charges", "billable-charges"], ["invoices", "invoices"], ["payments", "payments"], ["direct-money", "payments"],

@@ -49,12 +49,12 @@ module.exports=async({page,url,out,translate})=>{
    assert.ok(!(await dialog.innerText()).includes('WHT'));
    if(mode==='case')await dialog.locator('#claim-approved').fill('250');
    if(mode==='advisory')await page.evaluate(()=>window.loseReviewResponse=true);
-   await dialog.getByRole('button',{name:t('claimApprove'),exact:true}).click();
+   await dialog.getByRole('combobox',{name:translate(locale,'statement.burden'),exact:true}).selectOption('COMPANY_COST');await dialog.getByRole('button',{name:t('claimApprove'),exact:true}).click();
    if(mode==='advisory'){await dialog.getByRole('button',{name:t('companyRetryReview'),exact:true}).click();}
    await dialog.locator('#claim-approved').waitFor({state:'hidden'});
    const result=await page.evaluate(()=>({item:window.fixtureRequests[0].items[0],cash:window.fixtureCash,calls:window.calls}));
    assert.equal(result.item.obligation.gross_amount,mode==='case'?250:300);assert.equal(result.item.settlement.mode,'reimburse');assert.equal(result.cash.length,0);
-   assert.equal(result.calls.filter(c=>c.name==='review_finance_employee_reimbursement').at(-1).args.p_amount,mode==='case'?250:300);
+   assert.equal(result.calls.filter(c=>c.name==='review_finance_expense_with_economics').at(-1).args.p_amount,mode==='case'?250:300);
    assert.equal(await dialog.evaluate(e=>e.scrollWidth>e.clientWidth+1),false);await page.screenshot({path:out+`/claim-review-${mode}-${locale}-${width}.png`});
    console.log('PASS reimbursement',width,locale,mode);scenarios++;
   }
@@ -78,7 +78,7 @@ module.exports=async({page,url,out,translate})=>{
  await dialog.getByRole('button',{name:t('addItem'),exact:true}).click();await dialog.locator('#claim-category').click();await dialog.getByRole('option',{name:'ค่าแท็กซี่ / Grab / รถรับจ้าง',exact:true}).click();await dialog.locator('#claim-amount').fill('850');await dialog.locator('#claim-description').fill('Second trip');await dialog.getByRole('button',{name:t('addThisItem'),exact:true}).click();
  await dialog.getByRole('button',{name:t('saveForLater'),exact:true}).click();await dialog.getByRole('button',{name:t('editRequest'),exact:true}).click();assert.equal(await dialog.locator('[data-request-item]').count(),2);
  await dialog.getByRole('button',{name:t('submitRequest'),exact:true}).click();await dialog.locator('#claim-approved').waitFor();
- assert.equal(await dialog.locator('[data-review-item]').count(),2);await dialog.getByRole('button',{name:t('claimApprove'),exact:true}).click();await page.waitForFunction(()=>document.querySelector('[data-claim-review] h3')?.textContent==='Second trip');
+ assert.equal(await dialog.locator('[data-review-item]').count(),2);await dialog.getByRole('combobox',{name:translate('th','statement.burden'),exact:true}).selectOption('COMPANY_COST');await dialog.getByRole('button',{name:t('claimApprove'),exact:true}).click();await page.waitForFunction(()=>document.querySelector('[data-claim-review] h3')?.textContent==='Second trip');
  await dialog.getByRole('button',{name:t('companyReject'),exact:true}).click();assert.ok(await dialog.getByRole('alert').count());await dialog.locator('#claim-review-note').fill('Not reimbursable');await dialog.getByRole('button',{name:t('companyReject'),exact:true}).click();await dialog.locator('#claim-approved').waitFor({state:'hidden'});
  assert.equal(await page.evaluate(()=>window.fixtureCash.length),0);scenarios++;console.log('PASS multi-item edit/copy/delete/add/draft/submit/rejection');
  return scenarios;
