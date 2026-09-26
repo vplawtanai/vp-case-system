@@ -1,5 +1,6 @@
 "use client";
-import { FinanceStatusBadge } from "../ui/primitives";
+import { FinanceFilterBar, FinanceHeader, FinanceListFrame, FinanceStatusBadge } from "../ui/primitives";
+import { FinanceIcon } from "../ui/icons";
 import { useI18n } from "../../../lib/i18n/provider";
 import { translate } from "../../../lib/i18n/catalog";
 import { uiMessage, type UiMessage, type UiLocale } from "../../../lib/i18n/core";
@@ -680,10 +681,9 @@ function BillableChargesWorkspace() {
       {!loadingProfile && !permissions.canViewFinanceBillableCharges ? <div className={styles.noAccess}><h1>{t("finance.charge.ui.accessDenied")}</h1><p>{t("finance.charge.ui.accessDeniedHelp")}</p></div> : null}
       {!loadingProfile && permissions.canViewFinanceBillableCharges ? <>
         <FinanceSubNav activePage="billable-charges" permissions={permissions} />
-        <header className={styles.workspaceHeader}>
-          <div><span className={styles.eyebrow}>{t("finance.invoice.ui.workspace")}</span><h1>{t("finance.invoice.ui.additionalCharges")}</h1><p>{t("finance.charge.ui.workspaceHelp")}</p></div>
-          <div className={styles.headerActions}>{canComposeInvoice ? <Link className={styles.secondaryButton} href="/finance/invoices/compose">{t("finance.invoice.composer.compose")}</Link> : null}{permissions.canManageFinanceBillableCharges ? <button className={styles.primaryButton} type="button" onClick={() => { setBillingPlanContext(null); openNew(); }}><PlusIcon />{t("finance.charge.ui.create")}</button> : null}</div>
-        </header>
+        <FinanceHeader icon="billingPlan" title={t("finance.invoice.ui.additionalCharges")} description={t("finance.charge.ui.workspaceHelp")} actions={<>
+          {canComposeInvoice ? <Link className={styles.secondaryButton} href="/finance/invoices/compose">{t("finance.invoice.composer.compose")}</Link> : null}{permissions.canManageFinanceBillableCharges ? <button className={styles.primaryButton} type="button" onClick={() => { setBillingPlanContext(null); openNew(); }}><PlusIcon />{t("finance.charge.ui.create")}</button> : null}
+        </>} />
 
         {billingPlanContext ? <section className={styles.billingPlanContext} aria-label={t("finance.charge.ui.planContext")}>
           <div><span className={styles.eyebrow}>{t("finance.charge.ui.addForPlan")}</span><strong>{billingPlanContext.clientName}</strong><span>{billingPlanContext.matterLabel}</span><p>{t("finance.charge.ui.combineWithPlanHelp")}</p></div>
@@ -694,16 +694,25 @@ function BillableChargesWorkspace() {
         {message ? <div className={styles.successBanner}>{text(message)}</div> : null}
 
         <section className={styles.listSection}>
-          <div className={styles.filterBar}>
-            <div className={styles.tabs} aria-label={t("finance.charge.ui.statusFilter")}>{localizedStatusTabs(locale).map((tab) => <button key={tab.value} type="button" className={filter === tab.value ? styles.activeTab : ""} onClick={() => { closeChargeDetails(); setFilter(tab.value); }}>{tab.label}<span>{countStatus(charges, tab.value)}</span></button>)}</div>
-            <input aria-label={t("finance.charge.ui.searchLabel")} value={search} onChange={(event) => { closeChargeDetails(); setSearch(event.target.value); }} placeholder={t("finance.charge.ui.searchPlaceholder")} />
-          </div>
-          {!filteredCharges.length ? <div className={styles.emptyState}><strong>{charges.length ? t("finance.charge.ui.noMatches") : t("finance.charge.ui.empty")}</strong><p>{charges.length ? t("finance.charge.ui.adjustFilters") : t("finance.charge.ui.emptyHelp")}</p></div> : <div className={styles.chargeGrid}>{filteredCharges.map((charge) => <article key={charge.id} className={styles.chargeCard}>
-              <div className={styles.chargeCardHeader}><div><span>{date(charge.service_date || charge.created_at)}</span><h2>{charge.description || t("finance.charge.ui.draftCharge")}</h2></div><StatusBadge status={charge.status} /></div>
-              <div className={styles.chargeContext}><strong>{clientLabel(charge.client_id, clients, locale)}</strong><span>{matterLabel(charge, cases, advisories, locale)}</span></div>
-              <dl className={styles.cardMetrics}><div><dt>{t("finance.invoice.ui.classification")}</dt><dd>{classificationLabel(charge.economic_classification, locale)}</dd></div><div><dt>VAT</dt><dd>{taxModeLabel(charge.price_tax_mode, charge.vat_rate, locale)}</dd></div><div><dt>{t("finance.charge.ui.chargeAmount")}</dt><dd>{money(charge.total_amount, charge.currency)}</dd></div></dl>
-              <button className={styles.openButton} type="button" onClick={() => openChargeDetails(charge)}>{t("finance.invoice.ui.details")}</button>
-            </article>)}</div>}
+          <div className={styles.tabs} role="group" aria-label={t("finance.charge.ui.statusFilter")}>{localizedStatusTabs(locale).map((tab) => <button key={tab.value} type="button" aria-pressed={filter === tab.value} className={filter === tab.value ? styles.activeTab : ""} onClick={() => { closeChargeDetails(); setFilter(tab.value); }}>{tab.label}<span>{countStatus(charges, tab.value)}</span></button>)}</div>
+          <FinanceFilterBar label={t("finance.charge.ui.searchLabel")}>
+            <label className={styles.searchField}><FinanceIcon name="search" /><input aria-label={t("finance.charge.ui.searchLabel")} value={search} onChange={(event) => { closeChargeDetails(); setSearch(event.target.value); }} placeholder={t("finance.charge.ui.searchPlaceholder")} /></label>
+          </FinanceFilterBar>
+          {!filteredCharges.length ? <div className={styles.emptyState}><strong>{charges.length ? t("finance.charge.ui.noMatches") : t("finance.charge.ui.empty")}</strong><p>{charges.length ? t("finance.charge.ui.adjustFilters") : t("finance.charge.ui.emptyHelp")}</p></div> : <FinanceListFrame>
+            <table className={styles.chargeTable} aria-label={t("finance.invoice.ui.additionalCharges")}>
+              <colgroup><col style={{ width: "9%" }} /><col style={{ width: "20%" }} /><col style={{ width: "20%" }} /><col style={{ width: "16%" }} /><col style={{ width: "14%" }} /><col style={{ width: "13%" }} /><col style={{ width: "8%" }} /></colgroup>
+              <thead><tr><th scope="col">{t("finance.invoice.ui.date")}</th><th scope="col">{t("finance.invoice.ui.item")}</th><th scope="col">{t("finance.charge.ui.clientMatter")}</th><th scope="col">{t("finance.invoice.ui.classification")} / VAT</th><th scope="col" className={styles.amountHeading}>{t("finance.charge.ui.chargeAmount")}</th><th scope="col">{t("finance.invoice.ui.status")}</th><th scope="col">{t("finance.charge.ui.details")}</th></tr></thead>
+              <tbody>{filteredCharges.map((charge) => <tr key={charge.id}>
+                <td data-label={t("finance.invoice.ui.date")} className={styles.chargeDate}>{date(charge.service_date || charge.created_at)}</td>
+                <td data-label={t("finance.invoice.ui.item")} className={styles.chargeDescription}><strong>{charge.description || t("finance.charge.ui.draftCharge")}</strong></td>
+                <td data-label={t("finance.charge.ui.clientMatter")} className={styles.chargeClient}><div className={styles.chargeContext}><strong>{clientLabel(charge.client_id, clients, locale)}</strong><span>{matterLabel(charge, cases, advisories, locale)}</span></div></td>
+                <td data-label={`${t("finance.invoice.ui.classification")} / VAT`} className={styles.chargeType}><div className={styles.chargeContext}><span>{classificationLabel(charge.economic_classification, locale)}</span><span>{taxModeLabel(charge.price_tax_mode, charge.vat_rate, locale)}</span></div></td>
+                <td data-label={t("finance.charge.ui.chargeAmount")} data-amount className={styles.chargeAmount}>{money(charge.total_amount, charge.currency)}</td>
+                <td data-label={t("finance.invoice.ui.status")} className={styles.chargeStatus}><StatusBadge status={charge.status} /></td>
+                <td className={styles.chargeAction}><button className={styles.openButton} type="button" onClick={() => openChargeDetails(charge)}>{t("finance.charge.ui.details")}</button></td>
+              </tr>)}</tbody>
+            </table>
+          </FinanceListFrame>}
         </section>
 
         {detailCharge ? <DetailModal variant="detail" open title={detailCharge.description || t("finance.charge.ui.draftCharge")} subtitle={<>{clientLabel(detailCharge.client_id, clients, locale)} · {matterLabel(detailCharge, cases, advisories, locale)}</>} status={<StatusBadge status={detailCharge.status} />} prominentValue={money(detailCharge.total_amount, detailCharge.currency)} footer={billingPlanContext ? <div className={styles.returnFooter}><Link className={detailCharge.status === "ready_to_invoice" ? styles.primaryButton : styles.secondaryButton} href={billingPlanContext.returnTo}>{billingPlanContext.returnLabel}</Link></div> : undefined} onClose={closeChargeDetails}>

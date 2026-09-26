@@ -25,7 +25,14 @@ test('UI changes preserve database calls, mutations, handler guards and frozen d
  const files=cp.execFileSync('git',['diff','--name-only',baseline],{encoding:'utf8'}).trim().split('\n').filter(Boolean);
  assert.ok(files.every(f=>!f.endsWith('.sql')),'No SQL/migration change');
  const collect=source=>{const tree=ts.createSourceFile('component.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),calls=[],guards=[];function visit(n){if(ts.isCallExpression(n)&&/\.(rpc|from|insert|update|delete|upsert|select|eq|order|range|limit)$/.test(n.expression.getText(tree)))calls.push(n.getText(tree).replace(/\s+/g,' '));if(ts.isIfStatement(n))guards.push(n.expression.getText(tree).replace(/\s+/g,' '));ts.forEachChild(n,visit);}visit(tree);return {calls,guards};};
- for(const file of files.filter(f=>f.startsWith('app/')&&f.endsWith('.tsx'))){const old=cp.execFileSync('git',['show',`${baseline}:${file}`],{encoding:'utf8'}),now=fs.readFileSync(file,'utf8');assert.deepEqual(collect(now),collect(old),file);}
+ for(const file of files.filter(f=>f.startsWith('app/')&&f.endsWith('.tsx'))){
+  const now=fs.readFileSync(file,'utf8');
+  const existed=cp.spawnSync('git',['cat-file','-e',`${baseline}:${file}`]).status===0;
+  // Phase 6 introduced these presentation components; they have no prior version.
+  // Require zero data calls/guards instead of trying to read a nonexistent file.
+  if(!existed){assert.ok(file.startsWith('app/finance/ui/'),file);assert.deepEqual(collect(now),{calls:[],guards:[]},file);continue;}
+  const old=cp.execFileSync('git',['show',`${baseline}:${file}`],{encoding:'utf8'});assert.deepEqual(collect(now),collect(old),file);
+ }
  for(const file of files)assert.doesNotMatch(file,/(receipt-document|tax-invoice-document|combined-document|DocumentIdentity|LegalDocumentLayout|invoice-document)\.tsx$/);
 });
 test('Modal family retains existing focus/close lifecycle and mobile containment',()=>{

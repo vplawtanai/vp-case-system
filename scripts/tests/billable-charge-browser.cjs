@@ -26,7 +26,7 @@ async function main() {
       [root + '/lib/supabase']: supabase, [root + '/app/components/AuthGuard']: auth, [root + '/app/components/AppTopNav']: topNav, [root + '/app/finance/quotations/shared']: guard } },
     module: { rules: [{ test: /\.(tsx?|css)$/, use: loader }] }, plugins: [new webpack.DefinePlugin({ 'process.env.NODE_ENV': JSON.stringify('development') })], devtool: false,
   }, (error, stats) => error || stats.hasErrors() ? reject(error || Error(stats.toString({ all: false, errors: true }))) : resolve()));
-  const styles = ['app/finance/billable-charges/billable-charges.module.css', 'app/finance/invoices/invoice-workspace.module.css', 'app/finance/finance-sub-nav.module.css', 'app/components/LanguageSelector.module.css', 'app/components/DetailModal.module.css', 'app/finance/billable-charges/charge-vat.module.css', 'app/finance/billable-charges/charge-create-modal.module.css'].map(file => {
+  const styles = ['app/finance/ui/finance-ui.module.css', 'app/finance/billable-charges/billable-charges.module.css', 'app/finance/invoices/invoice-workspace.module.css', 'app/finance/finance-sub-nav.module.css', 'app/components/LanguageSelector.module.css', 'app/components/DetailModal.module.css', 'app/finance/billable-charges/charge-vat.module.css', 'app/finance/billable-charges/charge-create-modal.module.css'].map(file => {
     const prefix = path.basename(file).replaceAll('.', '_') + '_';
     return fs.readFileSync(path.join(root, file), 'utf8').replace(/\.([A-Za-z_][A-Za-z_0-9-]*)/g, (_, key) => '.' + prefix + key);
   }).join('\n');
@@ -43,8 +43,8 @@ async function main() {
     page.on('pageerror', error => failures.push(error.message));
     await page.route('**/*', route => { if (new URL(route.request().url()).hostname === '127.0.0.1') return route.continue(); external.push(route.request().url()); return route.abort(); });
     const base = 'http://127.0.0.1:' + server.address().port;
-    const field = label => page.getByRole('dialog', { name: 'Create Non-Quotation Charge', exact: true }).locator('label').filter({ has: page.locator('span', { hasText: new RegExp('^' + label + '$') }) });
-    const creation = () => page.getByRole('dialog', { name: 'Create Non-Quotation Charge', exact: true });
+    const field = label => page.getByRole('dialog', { name: 'Create Charge', exact: true }).locator('label').filter({ has: page.locator('span', { hasText: new RegExp('^' + label + '$') }) });
+    const creation = () => page.getByRole('dialog', { name: 'Create Charge', exact: true });
     const lang = locale => page.locator('button[lang="' + locale + '"]').last().click();
     for (const width of [390, 768, 1024, 1440]) for (const route of ['billable-charges', 'invoices', 'invoices/compose']) for (const locale of ['th', 'en']) {
       await page.setViewportSize({ width, height: 1100 });
@@ -61,7 +61,7 @@ async function main() {
         const header = page.locator('header').filter({ has: page.locator('h1') });
         assert.equal(await header.locator('a[href="/finance/invoices/compose"]').count(), 1, 'Create Invoice stays in the page header');
         if (route === 'billable-charges') {
-          assert.equal(await header.getByRole('button', { name: locale === 'th' ? 'สร้างรายการเรียกเก็บนอกใบเสนอราคา' : 'Create Non-Quotation Charge', exact: true }).count(), 1);
+          assert.equal(await header.getByRole('button', { name: locale === 'th' ? 'สร้างรายการเรียกเก็บ' : 'Create Charge', exact: true }).count(), 1);
           assert.equal(await page.locator('[class*="billable-charges_module_css_tabs"] button').count(), 6, 'Same-module status filters remain');
           assert.equal(await page.getByRole('textbox', { name: locale === 'th' ? 'ค้นหารายการเรียกเก็บนอกใบเสนอราคา' : 'Search Non-Quotation Charges' }).count(), 1);
         }
@@ -80,7 +80,7 @@ async function main() {
         await page.goto(base + '/finance/billable-charges');
         await lang(locale);
         await page.getByRole('heading', { name: locale === 'th' ? 'รายการเรียกเก็บนอกใบเสนอราคา' : 'Non-Quotation Charges', exact: true }).waitFor();
-        await page.getByRole('button', { name: locale === 'th' ? 'สร้างรายการเรียกเก็บนอกใบเสนอราคา' : 'Create Non-Quotation Charge', exact: true }).click();
+        await page.getByRole('button', { name: locale === 'th' ? 'สร้างรายการเรียกเก็บ' : 'Create Charge', exact: true }).click();
         assert.equal(page.url(), base + '/finance/billable-charges');
         await page.locator('textarea').first().fill('Original unsaved description');
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false);
@@ -131,7 +131,7 @@ async function main() {
         await creation().getByRole('button', { name: 'Close', exact: true }).last().click();
         await discard.getByRole('button', { name: 'Close Without Saving' }).click();
         await page.waitForFunction(() => !document.querySelector('[role="dialog"]') && document.body.style.overflow !== 'hidden');
-        assert.equal(await page.evaluate(() => document.activeElement?.textContent.includes('Create Non-Quotation Charge')), true);
+        assert.equal(await page.evaluate(() => document.activeElement?.textContent.includes('Create Charge')), true);
       }
     }
 
@@ -152,7 +152,7 @@ async function main() {
     await creation().getByRole('button', { name: 'Save Draft', exact: true }).click();
     await creation().waitFor({ state: 'detached' });
     await page.getByText('Charge Draft saved.', { exact: true }).waitFor();
-    await page.locator('article').filter({ hasText: 'Synthetic professional service' }).waitFor();
+    await page.locator('tbody tr').filter({ hasText: 'Synthetic professional service' }).waitFor();
     assert.equal(page.url(), base + '/finance/billable-charges?new=1&client=' + clientId);
     const calls = await page.evaluate(() => window.__chargeFixture.calls);
     assert.deepEqual(calls.map(call => call.name), ['create_finance_billable_charge_draft', 'save_finance_billable_charge_draft']);
@@ -167,7 +167,7 @@ async function main() {
       for (const locale of ['th', 'en']) {
         await page.goto(base + '/finance/invoices/compose?client=' + clientId);
         await lang(locale);
-        await page.getByRole('button', { name: locale === 'th' ? 'สร้างรายการเรียกเก็บนอกใบเสนอราคา' : 'Create Non-Quotation Charge', exact: true }).click();
+        await page.getByRole('button', { name: locale === 'th' ? 'สร้างรายการเรียกเก็บ' : 'Create Charge', exact: true }).click();
         assert.equal(page.url(), base + '/finance/invoices/compose?client=' + clientId);
         await lang('en');
         assert.equal(await field('Client').locator('select').inputValue(), clientId);

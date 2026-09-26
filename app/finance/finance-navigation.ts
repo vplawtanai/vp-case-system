@@ -55,7 +55,7 @@ export function financeNavigationLinks(permissions: FinanceNavigationPermissions
       ? { href: "/finance/fee-agreements", page: "fee-agreements" as const, label: t("finance.nav.feeAgreements") }
       : null,
     permissions.canViewFinanceBillableCharges
-      ? { href: "/finance/billable-charges", page: "billable-charges" as const, label: t("finance.invoice.ui.additionalCharges") }
+      ? { href: "/finance/billable-charges", page: "billable-charges" as const, label: t("finance.charge.nav") }
       : null,
     permissions.canViewFinanceQuotations
       ? { href: "/finance/invoices", page: "invoices" as const, label: t("finance.nav.invoices") }

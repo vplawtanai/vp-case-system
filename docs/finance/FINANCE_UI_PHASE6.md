@@ -195,3 +195,41 @@ Local logs: `/private/tmp/phase6-release-tests.log`, `/private/tmp/phase6-lint.l
 - `scripts/tests/i18n-workspace-fixture.cjs`
 - `scripts/tests/statement-completion.test.cjs`
 - `scripts/tests/tax-filing-ui.test.cjs`
+
+## Billable Charges completion polish — 26 September 2026
+
+Start: repo `/Users/paolawyer/vp-case-app/vp-case-web`, `main`, HEAD = origin/main = `42a8cb8510cb98a4117a60bee01323e5a7b3db65`. Staged/unstaged diffs were empty; the interrupted request left no tracked edits to reconcile. Existing untracked SQL/migration files are unrelated and remain untouched.
+
+- Navigation: `รายการเรียกเก็บ` / `Billable Charges`. Full page title and business subtitle retained. Primary action shortened to `สร้างรายการเรียกเก็บ` / `Create Charge`; Compose Invoice remains secondary.
+- Reuse FinanceHeader, FinanceFilterBar, FinanceListFrame, FinanceStatusBadge and existing FinanceModal. No shared visual component changes or new package.
+- Desktop rows show date, item, customer/matter, classification + VAT, amount/currency, status and a compact Details action. Tablet/mobile uses the shared labeled-card breakpoint with a compact charge-specific arrangement. All prior card facts remain visible.
+- Tabs/counts, search predicates, callbacks, invoice links, permissions, lifecycle, VAT and calculations are unchanged. Shared status colors remain authoritative.
+
+| Common action | Before | After |
+|---|---|---|
+| Open Create | 1 click | 1 click |
+| Open Details | 1 click | 1 click |
+| Filter status | 1 click | 1 click |
+| Search | Focus + type | Focus + type |
+| Open Invoice Composer | 1 click | 1 click |
+
+No new mandatory decisions. Existing form, save/readiness and invoice selection steps remain unchanged.
+
+Validation: 34/34 targeted tests passed (Billable Charges runtime/navigation/VAT, shared Phase 6 presentation and Invoice integration/regression). The older Phase 6 AST guard tried to read newly introduced UI components from its pre-Phase-6 baseline; the harness now explicitly requires those new presentation files to have zero database calls/guards, while retaining exact comparisons for existing files. An additional Billable Charges guard compares all business functions and detail/create/edit workflows byte-for-byte with the deployed Phase 6 baseline. No weakened financial assertions.
+
+Targeted ESLint, `tsc --noEmit`, production build and `git diff --check`: PASS. TH/EN at 390/768/1024/1440: eight local browser scenarios with 20 rows, long descriptions and Case/Advisory links; no viewport/cell overflow. All five status filters, Thai search, reference search, keyboard clearing, empty/no-match states, issued/draft/ready/cancelled Details, mobile Create and Compose Invoice navigation checked. No Production transactions performed. Screenshots/geometry: `/private/tmp/charge-polish-evidence/`. Test/build logs: `/private/tmp/charge-polish-tests.log`, `/private/tmp/charge-polish-build.log`.
+
+All SQL/migrations 001–071 unchanged; no Migration 072. No schema/RPC/RLS/data or document renderer changes. Golden Reference pages unchanged. No Legacy Cutover.
+
+Exact release files (8):
+
+- `app/finance/billable-charges/page.tsx`
+- `app/finance/billable-charges/billable-charges.module.css`
+- `app/finance/finance-navigation.ts`
+- `lib/i18n/messages/billable-charges.ts`
+- `scripts/tests/billable-charge-browser.cjs`
+- `scripts/tests/billable-charge-runtime.test.cjs`
+- `scripts/tests/finance-ui-phase6.test.cjs`
+- `docs/finance/FINANCE_UI_PHASE6.md`
+
+Human UAT: Finance → รายรับ → รายการเรียกเก็บ. Compare desktop rows/mobile cards, switch TH/EN, search and filter, open an existing item, and verify Create/Compose Invoice launch their familiar workflows. Automated release verification is read-only.
