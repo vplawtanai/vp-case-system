@@ -1,14 +1,14 @@
-# Phase 8A.1 — Create hardening candidate status
+# Phase 8A.1 — Create hardening release closeout
 
 Baseline: `main`, HEAD = local origin/main = `1b4c1f73ae3bcde6e5a4de497d4a97b8f8ccfef3`.
 Latest existing migration is `202607180071_add_executive_finance_read_contracts.sql`.
 Next number is 072; no competing 072 exists. Candidate:
 `supabase/migrations/202607180072_core_numbering_create_hardening.sql`.
 
-**Production migration gate PASS; application release authorized.**
+**CLOSED — Production migration gate, application release and non-mutating smoke PASS.**
 The operator manually applied Migration 072 and supplied its successful verifier.
-Release validation is complete; deployment and non-mutating smoke evidence will
-be recorded below after the application release. Do not reapply the migration.
+Release validation, deployment and non-mutating smoke evidence are recorded below.
+Do not reapply the migration. Phase 8B has not started.
 
 ## Frozen authorization
 
@@ -127,10 +127,44 @@ ownership/RLS preserved, and Case UPDATE/Advisory policies preserved.
 - Release rerun: **18/18 tests PASS**, including **24 independent PostgreSQL
   transactions**; targeted ESLint, TypeScript, production build and diff check
   PASS. The sandbox's blocked Google Fonts download was resolved by rerunning
-  the unchanged build with network access. Deployment evidence follows after release.
+  the unchanged build with network access.
 
 Atomic create Production mutation not artificially exercised; first real
 business creation will be Human UAT.
 
-Release commit/deployment/non-mutating smoke: pending release completion.
+### Application release evidence
+
+- Application release commit: `a54344a5bc35acaa5382421522de4007404b052b`
+  (`Phase 8A.1: harden core create numbering`). Only the seven files listed above
+  were staged explicitly. Unrelated audit files and untracked SQL were preserved.
+- Push: `1b4c1f7..a54344a main -> main`; local HEAD and origin/main matched.
+- Vercel Git integration: Production deployment
+  `dpl_E2reZwnw4vxUpinVKQ3GHeZCCD4d`, READY, exact Git SHA matching the application
+  release above. Deployment URL:
+  `https://vp-case-system-rlejxxtu7-vplawtanais-projects.vercel.app`.
+- Canonical alias `https://vp-case-system.vercel.app` assigned successfully to
+  that deployment before smoke. This closeout evidence is a subsequent
+  documentation-only update; application and migration bytes remain identical.
+
+### Non-mutating Production smoke
+
+- Authenticated `/cases` list loaded (52 existing Cases); existing Case detail
+  and edit/child-workflow controls rendered. Opened the create form and cancelled
+  without submitting.
+- Authenticated `/advisory` list loaded (9 existing matters), along with its
+  create surface and existing matter detail. Opened an existing edit form,
+  verified saved values populated, then cancelled without saving.
+- Both create surfaces checked at measured **390 CSS px**: document client width
+  and scroll width both 390; controls remained readable without page overflow.
+  Temporary viewport override was reset and the original `/cases` tab restored.
+- No browser console error/warning appeared during the checked surfaces. Source
+  and handler tests establish removal of direct raw-generator calls; the smoke
+  deliberately did not invoke an atomic create RPC in Production.
+- Create UI visibility is consistent with the active-role checks verified in
+  code and local role tests. Production smoke used the existing signed-in
+  session; it did not impersonate or modify other users.
+- No fake Case, Advisory Matter or Production number was created/consumed by
+  smoke. No Production SQL, Finance permission or Lawyer+ change was performed.
+
+**Phase 8A.1: CLOSED.** First real business creation remains Human UAT as noted above.
 Do not start Phase 8B.
