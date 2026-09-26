@@ -2,7 +2,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowRight, ChevronDown } from "lucide-react";
-import { Disclosure, MoneySummary, ReadOnlyGrid, SourceBadge, StatusBadge } from "../../components/ui/patterns";
+import { Disclosure, MoneySummary, ReadOnlyGrid, SourceBadge } from "../../components/ui/patterns";
+import { FinanceStatusBadge as StatusBadge } from "../ui/primitives";
 import ui from "../../components/ui/vp-ui.module.css";
 import { useI18n } from "../../../lib/i18n/provider";
 import { payableGroupKey, payableRoleLabel, payableSourceHref, type PayableGroup } from "./shared";

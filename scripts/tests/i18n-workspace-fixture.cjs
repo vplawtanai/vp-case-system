@@ -30,7 +30,12 @@ function workspaceFixture(file, exportedNames = [], importOverrides = {}) {
     if (!node.importClause || node.importClause.isTypeOnly) continue;
     const specifier = node.moduleSpecifier.text;
     let imported;
-    if (Object.hasOwn(importOverrides, specifier)) imported = importOverrides[specifier];
+    // FinanceModal is a presentation wrapper over the same dialog contract.
+    // Existing SSR fixtures replace portals; reuse their explicit dialog override.
+    const financeDialogOverride = specifier.endsWith("/ui/FinanceModal")
+      ? Object.entries(importOverrides).find(([key]) => key.endsWith("/DetailModal"))?.[1] : undefined;
+    if (financeDialogOverride) imported = financeDialogOverride;
+    else if (Object.hasOwn(importOverrides, specifier)) imported = importOverrides[specifier];
     else if (specifier.endsWith("/supabase")) imported = { supabase: new Proxy({}, { get: block }) };
     else if (specifier.endsWith("/auditLog")) imported = { createAuditLog: block };
     else if (specifier.endsWith("/AuthGuard")) imported = { default: ({ children }) => children };

@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import Link from "next/link";
-import DetailModal from "../../components/DetailModal";
-import { Callout, Disclosure, EmptyState, FieldGroup, PageHeader, PageShell, ReadOnlyGrid, StatusBadge } from "../../components/ui/patterns";
+import DetailModal from "../ui/FinanceModal";
+import { Callout, Disclosure, EmptyState, FieldGroup, PageHeader, PageShell, ReadOnlyGrid } from "../../components/ui/patterns";
+import { FinanceStatusBadge as StatusBadge } from "../ui/primitives";
 import ui from "../../components/ui/vp-ui.module.css";
 import { supabase } from "../../../lib/supabase";
 import { useI18n } from "../../../lib/i18n/provider";
@@ -115,7 +116,7 @@ export function TaxPositionWorkspace({ isAdmin = false }: { isAdmin?: boolean })
    </section> : null}
    <FinanceEvidence title={t("taxPosition.history")} raw={data.history} isAdmin={isAdmin}><p>{t("taxFiling.sourceCount", { count: data.history.length })}</p></FinanceEvidence>
   </> : null}
-  <DetailModal open={!!action} title={title} size="edit" onClose={close} closeOnBackdrop={!busy}>
+  <DetailModal variant="detail" open={!!action} title={title} size="edit" onClose={close} closeOnBackdrop={!busy}>
    {action ? <form className={styles.form} noValidate onSubmit={submit}>
     <p>{t(action.kind === "evidence" ? "taxPosition.incomingHelp" : "taxPosition.boundary")}</p>
     {action.kind === "source" ? <><strong>{sourceLabel(action.row)}</strong>{action.row.lines.map((l, n) => <p key={n}>{t(l.kind === "output_vat" ? "taxPosition.output" : "taxPosition.incoming")}: {amount(l.tax)}</p>)}</> : null}

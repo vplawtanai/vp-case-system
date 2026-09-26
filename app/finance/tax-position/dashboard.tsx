@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, ChevronLeft, ChevronRight, Clock3, FileCheck2, FileText, Landmark, RefreshCw, ShieldCheck, Wallet, MoreHorizontal } from "lucide-react";
-import DetailModal from "../../components/DetailModal";
+import DetailModal from "../ui/FinanceModal";
 import { Callout, PageShell, ReadOnlyGrid } from "../../components/ui/patterns";
 import ui from "../../components/ui/vp-ui.module.css";
 import { supabase } from "../../../lib/supabase";
@@ -113,10 +113,10 @@ export default function TaxDashboard({ permissions }: { permissions: UserPermiss
    </div>
   </section>
   {isAdmin ? <div className={styles.auditEntry}><button type="button" className={ui.secondary} disabled={!data || !summary || loading} onClick={() => setAuditOpen(true)}><ShieldCheck size={16} />{tr("adminAudit")}</button></div> : null}
-  <DetailModal open={isAdmin && auditOpen} title={tr("adminAudit")} size="edit" onClose={() => setAuditOpen(false)}>
+  <DetailModal variant="source" open={isAdmin && auditOpen} title={tr("adminAudit")} size="edit" onClose={() => setAuditOpen(false)}>
    {isAdmin && auditOpen && data && summary ? <TaxAudit permissions={permissions} data={data} summary={summary} month={month} /> : null}
   </DetailModal>
-  <DetailModal open={!!selected} title={selected ? `${tr(selected.source)} · ${selected.reference}` : tr("open")} size="edit" onClose={() => setSelected(null)}>
+  <DetailModal variant="source" open={!!selected} title={selected ? `${tr(selected.source)} · ${selected.reference}` : tr("open")} size="edit" onClose={() => setSelected(null)}>
    {selected ? <><ReadOnlyGrid items={[
     { key: "date", label: tr("date"), value: date(selected.date) }, { key: "payer", label: tr("payer"), value: selected.payer || tr("notEstablished") },
     { key: "gross", label: tr("gross"), value: money(selected.gross) }, { key: "cash", label: tr("cash"), value: selected.cash === null ? tr("noCash") : money(selected.cash) },

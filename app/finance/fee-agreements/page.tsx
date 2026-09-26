@@ -1,4 +1,6 @@
 "use client";
+import { FinanceHeader, FinanceFilterBar, FinanceListFrame, FinanceStatusBadge } from "../ui/primitives";
+import { FinanceIcon } from "../ui/icons";
 import { uiMessage, type UiMessage } from "../../../lib/i18n/core";
 import { useI18n } from "../../../lib/i18n/provider";
 
@@ -52,12 +54,9 @@ function FeeAgreementList({ permissions }: { permissions: Parameters<typeof Fina
   return <main style={pageStyle}>
     <FinanceSubNav activePage="fee-agreements" permissions={permissions} />
 
-    <header style={headerStyle}>
-      <h1 style={pageTitle}>{t("finance.feeAgreement.list.title")}</h1>
-      <p style={pageSubtitle}>{t("finance.feeAgreement.list.help")}</p>
-    </header>
+    <FinanceHeader icon="agreement" title={t("finance.feeAgreement.list.title")} description={t("finance.feeAgreement.list.help")} />
 
-    <section className="fee-agreement-filter-toolbar" style={filterStyle} aria-label={t("finance.feeAgreement.list.filter")}>
+    <FinanceFilterBar label={t("finance.feeAgreement.list.filter")}>
       <label style={filterField}>
         <span style={filterLabel}>{t("common.actions.search")}</span>
         <span style={searchControl}>
@@ -71,15 +70,11 @@ function FeeAgreementList({ permissions }: { permissions: Parameters<typeof Fina
           <option value="all">{t("finance.taxInvoice.ui.allStatuses")}</option>{["draft", "under_review", "sent", "signed", "completed", "engagement_confirmed", "cancelled", "active"].map((item) => <option key={item} value={item}>{feeAgreementStatusLabel(item, locale)}</option>)}
         </select>
       </label>
-    </section>
+    </FinanceFilterBar>
 
     {!loading && !error ? <div style={listMeta} aria-live="polite">{t("finance.feeAgreement.list.count", { count: filtered.length, total: agreements.length })}</div> : null}
 
-    {loading ? <div style={loadingStyle}>{t("finance.feeAgreement.list.loading")}</div> : error ? <div style={warning}>{text(error)}</div> : filtered.length === 0 ? <div style={emptyStyle}>{t("finance.feeAgreement.list.empty")}</div> : <div className="fee-agreement-list-table-wrap" style={tableWrap}><table className="fee-agreement-list-table" style={tableStyle}>
-      <colgroup>
-        <col style={{ width: 190 }} /><col style={{ width: 220 }} /><col style={{ width: 155 }} /><col style={{ width: 150 }} />
-        <col style={{ width: 78 }} /><col style={{ width: 110 }} /><col style={{ width: 110 }} /><col style={{ width: 86 }} />
-      </colgroup>
+    {loading ? <div style={loadingStyle}>{t("finance.feeAgreement.list.loading")}</div> : error ? <div style={warning}>{text(error)}</div> : filtered.length === 0 ? <div style={emptyStyle}>{t("finance.feeAgreement.list.empty")}</div> : <FinanceListFrame><table className="fee-agreement-list-table" style={tableStyle}>
       <thead><tr><th>{t("finance.feeAgreement.list.engagement")}</th><th>{t("finance.feeAgreement.list.clientMatter")}</th><th>{t("finance.invoice.sourceQuotation")}</th><th>{t("finance.taxInvoice.ui.status")}</th><th>{t("finance.invoice.ui.language")}</th><th>{t("finance.feeAgreement.effectiveDate")}</th><th>{t("finance.payment.ui.updated")}</th><th>{t("finance.feeAgreement.actions")}</th></tr></thead>
       <tbody>{filtered.map((agreement) => {
         const source = agreement.source_document_snapshot_json || {};
@@ -89,17 +84,17 @@ function FeeAgreementList({ permissions }: { permissions: Parameters<typeof Fina
         const matter = snapshotText(agreement.matter_snapshot_json, "title", "file_no", "matter_no");
         const acceptedQuotationBasis = agreement.engagement_basis === "accepted_quotation";
         return <tr key={agreement.id}>
-          <td><div style={cellStack}><span style={{ ...basisBadge, ...(acceptedQuotationBasis ? acceptedBasisBadge : formalBasisBadge) }}>{acceptedQuotationBasis ? t("finance.feeAgreement.acceptedQuotationBasis") : t("finance.feeAgreement.formalAgreement")}</span><strong style={agreementNumber}>{acceptedQuotationBasis ? quotationNo : agreement.agreement_no || t("finance.feeAgreement.unnumbered")}</strong><span style={secondaryText}>{title}</span></div></td>
-          <td><div style={cellStack}><strong style={primaryText}>{client}</strong><span style={secondaryText}>{matter}</span></div></td>
-          <td>{agreement.source_quotation_id ? <Link className="fee-agreement-source-link" style={sourceLink} href={`/finance/quotations/${agreement.source_quotation_id}`}>{quotationNo}</Link> : <span style={primaryText}>{quotationNo}</span>}</td>
-          <td><StatusBadge status={agreement.status} /></td>
-          <td style={conciseCell}>{acceptedQuotationBasis ? "-" : agreement.language_code === "en" ? t("finance.feeAgreement.language.en") : t("finance.feeAgreement.language.th")}</td>
-          <td style={dateCell}>{acceptedQuotationBasis ? "-" : date(agreement.effective_date)}</td>
-          <td style={dateCell}>{date(agreement.updated_at)}</td>
-          <td><Link className="fee-agreement-open-link" style={openLink} href={`/finance/fee-agreements/${agreement.id}`}>{t("finance.feeAgreement.open")}<ListIcon name="open" /></Link></td>
+          <td data-label={t("finance.feeAgreement.list.engagement")}><div style={cellStack}><span style={{ ...basisBadge, ...(acceptedQuotationBasis ? acceptedBasisBadge : formalBasisBadge) }}>{acceptedQuotationBasis ? t("finance.feeAgreement.acceptedQuotationBasis") : t("finance.feeAgreement.formalAgreement")}</span><strong style={agreementNumber}>{acceptedQuotationBasis ? quotationNo : agreement.agreement_no || t("finance.feeAgreement.unnumbered")}</strong><span style={secondaryText}>{title}</span></div></td>
+          <td data-label={t("finance.feeAgreement.list.clientMatter")}><div style={cellStack}><strong style={primaryText}>{client}</strong><span style={secondaryText}>{matter}</span></div></td>
+          <td data-label={t("finance.invoice.sourceQuotation")}>{agreement.source_quotation_id ? <Link className="fee-agreement-source-link" style={sourceLink} href={`/finance/quotations/${agreement.source_quotation_id}`}>{quotationNo}</Link> : <span style={primaryText}>{quotationNo}</span>}</td>
+          <td data-label={t("finance.taxInvoice.ui.status")}><StatusBadge status={agreement.status} /></td>
+          <td data-label={t("finance.invoice.ui.language")} style={conciseCell}>{acceptedQuotationBasis ? "-" : agreement.language_code === "en" ? t("finance.feeAgreement.language.en") : t("finance.feeAgreement.language.th")}</td>
+          <td data-label={t("finance.feeAgreement.effectiveDate")} style={dateCell}>{acceptedQuotationBasis ? "-" : date(agreement.effective_date)}</td>
+          <td data-label={t("finance.payment.ui.updated")} style={dateCell}>{date(agreement.updated_at)}</td>
+          <td data-label={t("finance.feeAgreement.actions")}><Link className="fee-agreement-open-link" style={openLink} href={`/finance/fee-agreements/${agreement.id}`}>{t("finance.feeAgreement.open")}<ListIcon name="open" /></Link></td>
         </tr>;
       })}</tbody>
-    </table></div>}
+    </table></FinanceListFrame>}
 
     <style jsx global>{`
       .fee-agreement-list-table th,
@@ -143,14 +138,10 @@ function FeeAgreementList({ permissions }: { permissions: Parameters<typeof Fina
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const { locale } = useI18n(); return <span style={{ ...badgeStyle, ...(badgeColors[status] || {}) }}>{feeAgreementStatusLabel(status, locale)}</span>; }
-function ListIcon({ name }: { name: "search" | "open" }) { const common = { width: 17, height: 17, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true }; if (name === "search") return <svg {...common} style={searchIcon}><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>; return <svg {...common}><path d="M5 12h14M13 6l6 6-6 6" /></svg>; }
+  const { locale } = useI18n(); return <FinanceStatusBadge status={status} label={feeAgreementStatusLabel(status, locale)}/>; }
+function ListIcon({ name }: { name: "search" | "open" }) { if (name === "search") return <span style={searchIcon}><FinanceIcon name="search" size={17}/></span>; return <FinanceIcon name="next" size={17}/>; }
 
 const pageStyle: CSSProperties = { width: "100%", minWidth: 0 };
-const headerStyle: CSSProperties = { margin: "24px 0 18px" };
-const pageTitle: CSSProperties = { margin: 0, color: "#172033", fontSize: 28, lineHeight: 1.25 };
-const pageSubtitle: CSSProperties = { margin: "7px 0 0", color: "#64748b", fontSize: 14, lineHeight: 1.5 };
-const filterStyle: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(190px,220px)", gap: 12, alignItems: "end", padding: 14, marginBottom: 12, border: "1px solid #e2e8f0", borderRadius: 8, background: "#f8fafc", boxShadow: "0 1px 2px rgba(15,23,42,.04)" };
 const filterField: CSSProperties = { display: "grid", gap: 6, minWidth: 0 };
 const filterLabel: CSSProperties = { color: "#475569", fontSize: 12, fontWeight: 700 };
 const searchControl: CSSProperties = { position: "relative", display: "block", minWidth: 0 };
@@ -158,8 +149,7 @@ const searchIcon: CSSProperties = { position: "absolute", left: 11, top: "50%", 
 const inputStyle: CSSProperties = { width: "100%", height: 42, minWidth: 0, boxSizing: "border-box", border: "1px solid #cbd5e1", borderRadius: 6, padding: "9px 12px 9px 38px", background: "#fff", color: "#172033", font: "inherit" };
 const selectStyle: CSSProperties = { width: "100%", height: 42, minWidth: 0, boxSizing: "border-box", border: "1px solid #cbd5e1", borderRadius: 6, padding: "9px 10px", background: "#fff", color: "#172033", font: "inherit" };
 const listMeta: CSSProperties = { margin: "0 2px 8px", color: "#64748b", fontSize: 12, textAlign: "right" };
-const tableWrap: CSSProperties = { width: "100%", minWidth: 0, overflowX: "auto", border: "1px solid #dfe5ec", borderRadius: 8, background: "#fff", boxShadow: "0 1px 3px rgba(15,23,42,.05)" };
-const tableStyle: CSSProperties = { width: "100%", minWidth: 1099, borderCollapse: "separate", borderSpacing: 0, color: "#334155", fontSize: 13 };
+const tableStyle: CSSProperties = { width: "100%", minWidth: 0, borderCollapse: "separate", borderSpacing: 0, color: "#334155", fontSize: 13 };
 const cellStack: CSSProperties = { display: "grid", gap: 4, minWidth: 0 };
 const primaryText: CSSProperties = { color: "#1e293b", fontWeight: 650 };
 const agreementNumber: CSSProperties = { color: "#172033", fontSize: 14, fontWeight: 750 };
@@ -171,8 +161,6 @@ const openLink: CSSProperties = { display: "inline-flex", alignItems: "center", 
 const loadingStyle: CSSProperties = { border: "1px solid #e2e8f0", borderRadius: 8, padding: 20, background: "#fff", color: "#64748b" };
 const warning: CSSProperties = { background: "#fff7ed", color: "#9a3412", padding: 12, borderRadius: 6 };
 const emptyStyle: CSSProperties = { border: "1px dashed #cbd5e1", borderRadius: 8, padding: 28, background: "#f8fafc", color: "#64748b", textAlign: "center" };
-const badgeStyle: CSSProperties = { display: "inline-block", padding: "4px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700, lineHeight: 1.3, whiteSpace: "nowrap" };
 const basisBadge: CSSProperties = { width: "fit-content", padding: "3px 7px", borderRadius: 4, fontSize: 10, fontWeight: 800, lineHeight: 1.3 };
 const formalBasisBadge: CSSProperties = { background: "#f1f5f9", color: "#475569" };
 const acceptedBasisBadge: CSSProperties = { background: "#ecfdf5", color: "#047857" };
-const badgeColors: Record<string, CSSProperties> = { draft: { background: "#e5e7eb", color: "#374151" }, under_review: { background: "#e0e7ff", color: "#3730a3" }, sent: { background: "#fef3c7", color: "#92400e" }, signed: { background: "#dcfce7", color: "#166534" }, completed: { background: "#dcfce7", color: "#166534" }, engagement_confirmed: { background: "#dcfce7", color: "#166534" }, cancelled: { background: "#fee2e2", color: "#b91c1c" }, active: { background: "#dcfce7", color: "#166534" } };

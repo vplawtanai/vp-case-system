@@ -7,7 +7,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import DetailModal from "../../../components/DetailModal";
+import DetailModal from "../../ui/FinanceModal";
 import BillableChargeCreateWorkflow, { type BillableChargeContext } from "../../billable-charges/BillableChargeCreateWorkflow";
 import { billableChargeNatureLabel, clientCostFundingModeLabel, type ClientCostFundingMode } from "../../billable-charges/funding-semantics";
 import { billingPlanReadyChargeCompletionState, canAddChargeFromInstallment, currentChargeOverviewRows, filterChargesForBillingContext, filterSelectableReadyCharges, partitionChargesByWorkflow, summarizeReadyCharges, type BillingChargeContext } from "../charge-context";
@@ -617,7 +617,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
       historical
       onDetail={setRelatedChargeId}
     /> : null}
-    {relatedCharge ? <DetailModal open title={text(relatedCharge.description, t("finance.charge.ui.draftCharge"))} subtitle={<>{client} · {matter}</>} status={<StatusBadge status={relatedCharge.status} label={chargeStatusLabel(relatedCharge.status, locale)} />} prominentValue={money(relatedCharge.total_amount, relatedCharge.currency)} onClose={() => setRelatedChargeId("")}>
+    {relatedCharge ? <DetailModal variant="detail" open title={text(relatedCharge.description, t("finance.charge.ui.draftCharge"))} subtitle={<>{client} · {matter}</>} status={<StatusBadge status={relatedCharge.status} label={chargeStatusLabel(relatedCharge.status, locale)} />} prominentValue={money(relatedCharge.total_amount, relatedCharge.currency)} onClose={() => setRelatedChargeId("")}>
       <dl className="billing-plan-related-charge-detail-grid" style={relatedChargeDetailGrid}>
         <Field label={t("finance.charge.ui.transactionDate")} value={date(relatedCharge.service_date || relatedCharge.created_at, locale)} />
         <Field label={t("finance.taxInvoice.ui.status")} value={chargeStatusLabel(relatedCharge.status, locale)} />
@@ -632,7 +632,7 @@ function BillingPlanDetail({ canManage, canComposeInstallment, canViewCharges, c
         {relatedCharge.ready_to_invoice_at ? <Field label={t("finance.billingPlan.readyAt")} value={dateTime(relatedCharge.ready_to_invoice_at, locale)} /> : null}
       </dl>
     </DetailModal> : null}
-    {readyChargeListInstallment ? <DetailModal open title={t("finance.billingPlan.readyAdditionalCharges")} subtitle={<>{t("finance.billingPlan.availableForInstallment", { number: readyChargeListInstallment.installment_no })}</>} prominentValue={money(summarizeReadyCharges(compatibleReadyCharges, readyChargeListInstallment.total_amount).total, plan.currency)} onClose={() => setReadyChargeListInstallmentId("")}>
+    {readyChargeListInstallment ? <DetailModal variant="detail" open title={t("finance.billingPlan.readyAdditionalCharges")} subtitle={<>{t("finance.billingPlan.availableForInstallment", { number: readyChargeListInstallment.installment_no })}</>} prominentValue={money(summarizeReadyCharges(compatibleReadyCharges, readyChargeListInstallment.total_amount).total, plan.currency)} onClose={() => setReadyChargeListInstallmentId("")}>
       <ReadyChargeRows charges={compatibleReadyCharges} />
       <p style={readyChargeDisclaimer}>{t("finance.billingPlan.availableChargesHelp")}</p>
     </DetailModal> : null}

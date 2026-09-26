@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowDownLeft, ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpRight, Banknote, CircleAlert, Landmark, MoreHorizontal, Plus, RotateCcw, Wallet } from "lucide-react";
-import DetailModal from "../../components/DetailModal";
-import { Disclosure, EmptyState, FieldGroup, ReadOnlyGrid, StatusBadge } from "../../components/ui/patterns";
+import DetailModal from "../ui/FinanceModal";
+import { Disclosure, EmptyState, FieldGroup, ReadOnlyGrid } from "../../components/ui/patterns";
+import { FinanceStatusBadge as StatusBadge } from "../ui/primitives";
 import ui from "../../components/ui/vp-ui.module.css";
 import { useI18n } from "../../../lib/i18n/provider";
 import { emptyMovementFilters, filterMovements, movementDate, movementSource, treasuryOverview, type CurrencyTotal } from "./dashboard";
@@ -122,7 +123,7 @@ export function TreasuryDashboard({ data, offset, loading, busy, onPage, onOpeni
    <div className={styles.actions}><strong>{locationName(accountFor(o), locale)}</strong><StatusBadge status={o.status} label={t(`treasury.${o.status}`)} /><span>{date(openingStart(o.as_of))} · {money(o.balance_amount, o.currency)}</span></div>
    <p>{o.note}</p>{o.status === "draft" && data.can_manage && accountFor(o) ? <button className={ui.secondary} onClick={() => onOpening(accountFor(o)!, o)}>{t("common.actions.edit")}</button> : null}
   </article>)}</Disclosure>
-  <DetailModal open={!!detail} title={t("treasury.movementDetails")} size="edit" onClose={() => setDetail(null)}>{detail ? <>
+  <DetailModal variant="detail" open={!!detail} title={t("treasury.movementDetails")} size="edit" onClose={() => setDetail(null)}>{detail ? <>
    <ReadOnlyGrid items={[
     { key: "reference", label: t("treasury.reference"), value: reference(detail) }, { key: "date", label: t("treasury.date"), value: date(movementDate(detail)) },
     { key: "account", label: t("treasury.account"), value: locationName(accountFor(detail), locale) }, { key: "cash", label: t(`treasury.${detail.direction}`), value: money(detail.cash_amount, detail.currency) },

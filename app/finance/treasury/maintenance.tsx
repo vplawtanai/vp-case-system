@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { RefreshCw } from "lucide-react";
-import DetailModal from "../../components/DetailModal";
+import DetailModal from "../ui/FinanceModal";
 import { Callout, FieldGroup, PageHeader, PageShell, ReadOnlyGrid } from "../../components/ui/patterns";
 import ui from "../../components/ui/vp-ui.module.css";
 import { supabase } from "../../../lib/supabase";
@@ -85,7 +85,7 @@ export function StatementMaintenance() {
   {loading ? <p role="status">{t("common.state.loading")}</p> : null}
   {data ? <StatementMaintenanceView data={data} busy={busy} onOpening={editOpening}
    onMaterialize={s => { setSelected(s); setCashLocation(""); setAck(false); setInvalid(false); setFailure(null); }} /> : null}
-  <DetailModal open={!!opening} title={t("treasury.opening")} size="edit" onClose={close} closeOnBackdrop={!busy}>
+  <DetailModal variant="detail" open={!!opening} title={t("treasury.opening")} size="edit" onClose={close} closeOnBackdrop={!busy}>
    {opening ? <><p>{t("treasury.openingHelp")}</p>{opening.prior ? <Callout tone="warning">{t("treasury.replaceHelp")}</Callout> : null}
     <form className={styles.form} noValidate ref={formRef} onSubmit={saveOpening}>
      <FieldGroup id="opening-account" label={t("treasury.account")}><select required disabled={busy || !!opening.prior} value={opening.account} onChange={e => { setOpening({ ...opening, account: e.target.value, saved: null }); setAck(false); }}><option value="">-</option>{data?.accounts.filter(a => a.is_active).map(a => <option key={locationKey(a)} value={locationKey(a)}>{locationName(a, locale)}</option>)}</select></FieldGroup>
@@ -98,7 +98,7 @@ export function StatementMaintenance() {
     {opening.saved ? <><label className={styles.check}><input ref={ackRef} type="checkbox" checked={ack} disabled={busy} aria-invalid={invalid && !ack} onChange={e => { setAck(e.target.checked); setInvalid(false); setFailure(null); }} />{t("treasury.openingAck")}</label><button className={ui.primary} disabled={busy} onClick={confirmOpening}>{t("treasury.confirmOpening")}</button></> : null}
    </> : null}
   </DetailModal>
-  <DetailModal open={!!selected} title={t("treasury.materialize")} size="edit" onClose={close} closeOnBackdrop={!busy}>
+  <DetailModal variant="detail" open={!!selected} title={t("treasury.materialize")} size="edit" onClose={close} closeOnBackdrop={!busy}>
    {selected ? <><ReadOnlyGrid items={[
     { key: "source", label: t("treasury.source"), value: selected.reference }, { key: "date", label: t("treasury.date"), value: date(selected.received_on) },
     { key: "cash", label: t("treasury.amount"), value: amount(selected.cash_amount, selected.currency) }, { key: "account", label: t("treasury.account"), value: locationName(selectedAccount, locale) },

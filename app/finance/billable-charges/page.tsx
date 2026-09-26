@@ -1,4 +1,5 @@
 "use client";
+import { FinanceStatusBadge } from "../ui/primitives";
 import { useI18n } from "../../../lib/i18n/provider";
 import { translate } from "../../../lib/i18n/catalog";
 import { uiMessage, type UiMessage, type UiLocale } from "../../../lib/i18n/core";
@@ -11,7 +12,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AuthGuard from "../../components/AuthGuard";
 import AppTopNav from "../../components/AppTopNav";
-import DetailModal from "../../components/DetailModal";
+import DetailModal from "../ui/FinanceModal";
 import { buildPermissions } from "../../../lib/permissions";
 import type { UserPermissionProfile } from "../../../lib/permissions";
 import { supabase } from "../../../lib/supabase";
@@ -705,7 +706,7 @@ function BillableChargesWorkspace() {
             </article>)}</div>}
         </section>
 
-        {detailCharge ? <DetailModal open title={detailCharge.description || t("finance.charge.ui.draftCharge")} subtitle={<>{clientLabel(detailCharge.client_id, clients, locale)} · {matterLabel(detailCharge, cases, advisories, locale)}</>} status={<StatusBadge status={detailCharge.status} />} prominentValue={money(detailCharge.total_amount, detailCharge.currency)} footer={billingPlanContext ? <div className={styles.returnFooter}><Link className={detailCharge.status === "ready_to_invoice" ? styles.primaryButton : styles.secondaryButton} href={billingPlanContext.returnTo}>{billingPlanContext.returnLabel}</Link></div> : undefined} onClose={closeChargeDetails}>
+        {detailCharge ? <DetailModal variant="detail" open title={detailCharge.description || t("finance.charge.ui.draftCharge")} subtitle={<>{clientLabel(detailCharge.client_id, clients, locale)} · {matterLabel(detailCharge, cases, advisories, locale)}</>} status={<StatusBadge status={detailCharge.status} />} prominentValue={money(detailCharge.total_amount, detailCharge.currency)} footer={billingPlanContext ? <div className={styles.returnFooter}><Link className={detailCharge.status === "ready_to_invoice" ? styles.primaryButton : styles.secondaryButton} href={billingPlanContext.returnTo}>{billingPlanContext.returnLabel}</Link></div> : undefined} onClose={closeChargeDetails}>
           <BillableChargeModalDetail charge={detailCharge} clients={clients} cases={cases} advisories={advisories} />
           {chargeInvoiceLinks[detailCharge.id] ? <div className={styles.detailActionRow}><Link className={styles.secondaryButton} href={`/finance/invoices/${chargeInvoiceLinks[detailCharge.id].invoiceId}`}>{t("finance.invoice.ui.open")} {chargeInvoiceLinks[detailCharge.id].invoiceNo || t("finance.charge.ui.draftVersion")}</Link></div> : null}
           {detailCharge.status === "ready_to_invoice" && !chargeInvoiceLinks[detailCharge.id] && canComposeInvoice ? <div className={styles.detailActionRow}><Link className={styles.primaryButton} href={`/finance/invoices/compose?charge=${detailCharge.id}`}>{t("finance.invoice.composer.compose")}</Link></div> : null}
@@ -860,7 +861,7 @@ function Detail({ label, value, link, prominent }: { label: string; value: strin
 
 function StatusBadge({ status }: { status: ChargeStatus }) {
   const { locale } = useI18n();
-  return <span className={`${styles.statusBadge} ${styles[`status_${status}`]}`}>{statusLabel(status, locale)}</span>;
+  return <FinanceStatusBadge status={status} label={statusLabel(status, locale)}/>;
 }
 
 function PlusIcon() {

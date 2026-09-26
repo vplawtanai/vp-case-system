@@ -5,7 +5,7 @@ import { ArrowDownLeft, ArrowRight, ArrowUpRight, Building2, CalendarDays, Circl
 import { supabase } from "../../../lib/supabase";
 import type { UserPermissions } from "../../../lib/permissions";
 import { useI18n } from "../../../lib/i18n/provider";
-import DetailModal from "../../components/DetailModal";
+import DetailModal from "../ui/FinanceModal";
 import { PageShell } from "../../components/ui/patterns";
 import { accountHref, accountName, bangkokToday } from "../statement/shared";
 import { AccountIdentity } from "../statement/account-identity";
@@ -149,7 +149,7 @@ export function OverviewView({ data, month, today, setMonth, refresh, detail, se
     <div className={css.trace}>{sourceRows.map(row => <article key={row.key}><time>{date(row.date)}</time><div><small>{row.type}</small><strong>{row.title}</strong></div><Values values={[{ currency: row.currency, amount: row.amount }]}/>{row.href ? <More href={row.href}>{w("source")}</More> : "—"}</article>)}{!sourceRows.length ? <p className={css.empty}>{data?.economic.status === "ready" ? w("empty") : "—"}</p> : null}</div>
    </Section>
   </div><aside className={css.guide}><h2><Info size={20}/>{w("principles")}</h2>{["Cash", "Economic", "Liability", "Tax", "Transfer"].map((key, i) => <p key={key}><span data-color={i}/>{w(`rule${key}`)}</p>)}<More href={routes.statement}>Statement</More></aside></div>
-  {detail === "accounts" && balances ? <DetailModal open title={w("accounts")} onClose={() => setDetail(null)}><p className={css.note}>{w("current")} · {w("visible")}</p>{balances.accounts.map(account => <div className={css.account} key={`${account.kind}:${account.account_id}`}><AccountIdentity account={account}/><div><strong>{accountName(account, locale)}</strong>{!account.known ? <p className={css.notice}>{w("unknown")}</p> : null}<More href={accountHref(account)}>Statement</More></div><Values values={[{ currency: account.currency, amount: account.known ? account.system_balance : null }]}/></div>)}{!balances.accounts.length ? w("empty") : null}</DetailModal> : null}
-  {detail === "vat" && tax ? <DetailModal open title={w("source")} onClose={() => setDetail(null)} size="workflow"><VatSources data={tax.month}/></DetailModal> : null}
+  {detail === "accounts" && balances ? <DetailModal variant="source" open title={w("accounts")} onClose={() => setDetail(null)}><p className={css.note}>{w("current")} · {w("visible")}</p>{balances.accounts.map(account => <div className={css.account} key={`${account.kind}:${account.account_id}`}><AccountIdentity account={account}/><div><strong>{accountName(account, locale)}</strong>{!account.known ? <p className={css.notice}>{w("unknown")}</p> : null}<More href={accountHref(account)}>Statement</More></div><Values values={[{ currency: account.currency, amount: account.known ? account.system_balance : null }]}/></div>)}{!balances.accounts.length ? w("empty") : null}</DetailModal> : null}
+  {detail === "vat" && tax ? <DetailModal variant="source" open title={w("source")} onClose={() => setDetail(null)} size="workflow"><VatSources data={tax.month}/></DetailModal> : null}
  </PageShell>;
 }

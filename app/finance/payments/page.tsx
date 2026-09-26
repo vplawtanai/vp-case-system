@@ -1,9 +1,10 @@
 "use client";
+import { FinanceHeader, FinanceStatusBadge as StatusBadge } from "../ui/primitives";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Plus } from "lucide-react";
-import { Callout, EmptyState, FilterToolbar, PageHeader, PageShell, SourceBadge, StatusBadge } from "../../components/ui/patterns";
+import { Callout, EmptyState, FilterToolbar, PageShell, SourceBadge } from "../../components/ui/patterns";
 import ui from "../../components/ui/vp-ui.module.css";
 import { supabase } from "../../../lib/supabase";
 import { useI18n } from "../../../lib/i18n/provider";
@@ -52,7 +53,7 @@ export function IncomingMoney({ canManage = false }: { canManage?: boolean }) {
   const filtered = filters.source !== "all" || !!filters.status || filters.classification !== "all";
   const headings = ["reference", "payer", "date", "cash", "wht", "gross", "status", "open"].map(key => t(`incomingMoney.${key}`));
   return <PageShell className={listStyles.workspace}>
-    <PageHeader title={t("finance.nav.payments")} actions={canManage ? <Link className={ui.primary} href="/finance/direct-money/new"><Plus size={16} aria-hidden="true" />{t("directMoney.create")}</Link> : null} />
+    <FinanceHeader icon="payment" title={t("finance.nav.payments")} actions={canManage ? <Link className={ui.primary} href="/finance/direct-money/new"><Plus size={16} aria-hidden="true" />{t("directMoney.create")}</Link> : null} />
     <FilterToolbar label={t("incomingMoney.filters")}>
       <label className={styles.filter}>{t("incomingMoney.source")}<select value={filters.source} onChange={event => {
         const source = event.target.value as MoneySource;

@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import DetailModal from "../../components/DetailModal";
+import DetailModal from "../ui/FinanceModal";
 import { supabase } from "../../../lib/supabase";
 import { useI18n } from "../../../lib/i18n/provider";
 import type { UserPermissions } from "../../../lib/permissions";
@@ -54,7 +54,7 @@ export function TaxCorrectionInitiation({ taxId, combinedId = null, permissions 
     {context ? <TaxCorrectionHistoryList rows={context.history} /> : null}
     {!open && error ? <p role="alert" className={styles.error}>{error}</p> : null}
     {canManage && context ? <button className={styles.button} onClick={() => { request.current = crypto.randomUUID(); setMode(""); setBasis(""); setReason(""); setEvidence(""); setAmounts({}); setError(""); setOpen(true); }}>{t("taxCorrection.title")}</button> : null}
-    <DetailModal open={open} title={t("taxCorrection.title")} subtitle={context?.source.document_no} onClose={() => { if (!busy) setOpen(false); }}
+    <DetailModal variant="detail" open={open} title={t("taxCorrection.title")} subtitle={context?.source.document_no} onClose={() => { if (!busy) setOpen(false); }}
       footer={<button className={styles.primary} disabled={busy} onClick={() => void create()}>{t("taxCorrection.create")}</button>}>
       <p className={styles.notice}>{t("taxCorrection.warning")}</p>
       {error ? <p role="alert" className={styles.error}>{error}</p> : null}

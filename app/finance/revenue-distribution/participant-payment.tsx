@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import DetailModal from "../../components/DetailModal";
+import { FinanceCard } from "../ui/primitives";
+import DetailModal from "../ui/FinanceModal";
 import { Callout, FieldGroup } from "../../components/ui/patterns";
 import ui from "../../components/ui/vp-ui.module.css";
 import { supabase } from "../../../lib/supabase";
@@ -40,11 +41,11 @@ export function ParticipantPayment({ distributionId, entitlementId, onClose, onP
    setPaid(true); await onPaid();
   } catch (e) { setError(payoutError(e)); } finally { lock.current = false; setBusy(false); }
  }
- return <DetailModal open size="edit" title={w("payParticipant")} onClose={() => { if (!lock.current) onClose(); }} closeOnBackdrop={!busy}>
+ return <DetailModal variant="payment" open size="edit" title={w("payParticipant")} onClose={() => { if (!lock.current) onClose(); }} closeOnBackdrop={!busy}>
   <form className={css.paymentForm} onSubmit={confirm}>
    {error ? <Callout tone="negative" role="alert">{t(`payout.${error}`)}</Callout> : null}
    {paid ? <Callout tone="success" role="status">{w("paymentDone")}<button type="button" className={ui.secondary} disabled={busy} onClick={() => void onPaid()}>{w("retry")}</button></Callout> : !data ? <p role="status">{t("common.state.loading")}</p> : <>
-    <dl className={css.facts}><div><dt>{w("recipient")}</dt><dd>{data.component.recipient_name}</dd></div><div><dt>{w("role")}</dt><dd>{compensationRoleLabel(data.component.role_label, locale)}</dd></div><div><dt>{w("amount")}</dt><dd>{money(data.component.gross_amount)}</dd></div></dl>
+    <FinanceCard variant="summary" icon="payout" title={w("payParticipant")}><dl className={css.facts}><div><dt>{w("recipient")}</dt><dd>{data.component.recipient_name}</dd></div><div><dt>{w("role")}</dt><dd>{compensationRoleLabel(data.component.role_label, locale)}</dd></div><div><dt>{w("amount")}</dt><dd>{money(data.component.gross_amount)}</dd></div></dl></FinanceCard>
     {!data.payee.is_active ? <Callout tone="warning">{t("payout.inactive")} <button type="button" className={ui.secondary} disabled={busy} onClick={() => setEditPayee(true)}>{t("payout.fixPayee")}</button></Callout> : null}
     <FieldGroup id="participant-source" label={w("payFrom")}><select required disabled={busy} value={accountKey} onChange={e => setAccount(e.target.value)}><option value="">{t("payout.choose")}</option>{data.accounts.filter(a => a.is_active && a.currency === "THB").map(a => <option key={locationKey(a)} value={locationKey(a)}>{locationName(a, locale)}</option>)}</select></FieldGroup>
     {account && (!account.opening_as_of || account.system_balance === null) ? <Callout tone="warning">{t("payout.unknown")}</Callout> : null}

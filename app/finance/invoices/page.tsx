@@ -10,6 +10,7 @@ import { supabase } from "../../../lib/supabase";
 import type { UserPermissions } from "../../../lib/permissions";
 import FinanceSubNav from "../FinanceSubNav";
 import { invoiceCompositionSourceLabel, invoiceUiLabels, money, type InvoiceCompositionItem } from "./shared";
+import { FinanceHeader, FinanceFilterBar, FinanceListFrame, FinanceStatusBadge } from "../ui/primitives";
 import styles from "./invoice-workspace.module.css";
 
 type InvoiceListRow = {
@@ -34,6 +35,9 @@ function InvoiceListWorkspace({ permissions }: { permissions: UserPermissions })
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<UiMessage | string>("");
   const { statuses: invoiceStatusLabels } = invoiceUiLabels(locale);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("");
+  const visibleRows = rows.filter(row => (!status || row.document_status === status) && `${row.invoice_no || ""} ${row.customer_name || ""}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   const canCompose = permissions.canEditFinanceQuotation && permissions.canManageFinanceBillableCharges;
 
   const load = useCallback(async () => {
@@ -55,21 +59,21 @@ function InvoiceListWorkspace({ permissions }: { permissions: UserPermissions })
 
   return <div className={styles.page}>
     <FinanceSubNav activePage="invoices" permissions={permissions} />
-    <header className={styles.header}>
-      <div><span className={styles.eyebrow}>{t("finance.invoice.ui.finance")}</span><h1>{t("finance.invoice.ui.title")}</h1><p>{t("finance.invoice.ui.listDescription")}</p></div>
-      {canCompose ? <Link className={styles.primaryButton} href="/finance/invoices/compose">{t("finance.invoice.ui.create")}</Link> : null}
-    </header>
+    <FinanceHeader icon="invoice" title={t("finance.invoice.ui.title")} description={t("finance.invoice.ui.listDescription")} actions={canCompose ? <Link className={styles.primaryButton} href="/finance/invoices/compose">{t("finance.invoice.ui.create")}</Link> : null}/>
+    <FinanceFilterBar label={t("common.actions.search")}>
+      <label>{t("common.actions.search")}<input type="search" value={search} onChange={event => setSearch(event.target.value)} /></label>
+      <label>{t("finance.taxInvoice.ui.status")}<select value={status} onChange={event => setStatus(event.target.value)}><option value="">{t("finance.taxInvoice.ui.allStatuses")}</option>{Object.entries(invoiceStatusLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+    </FinanceFilterBar>
     {error ? <div className={styles.error}>{text(error)}</div> : null}
-    <section className={styles.surface}>
-      {loading ? <div className={styles.loading}>{t("finance.invoice.ui.loading")}</div> : null}
-      {!loading && !rows.length ? <div className={styles.empty}>{t("finance.invoice.ui.empty")}</div> : null}
-      {!loading && rows.length ? <div className={styles.invoiceList}>{rows.map((invoice) => <article key={invoice.id} className={styles.invoiceRow}>
-        <div className={styles.invoiceIdentity}><strong>{invoice.invoice_no || t("finance.invoice.ui.draftReferenceValue", { reference: invoice.id.slice(0, 8).toUpperCase() })}</strong><small>{date(invoice.created_at, true)}</small></div>
-        <div className={styles.invoiceCell}><span>{t("finance.invoice.ui.customer")}</span><strong>{invoice.customer_name || "-"}</strong></div>
-        <div className={styles.invoiceCell}><span>{t("finance.invoice.ui.source")}</span><strong>{invoiceCompositionSourceLabel(invoice.source_model, invoice.finance_invoice_items || [], undefined, locale)}</strong></div>
-        <div className={styles.invoiceCell}><span>{t("finance.invoice.ui.total")}</span><strong>{money(invoice.total_amount, invoice.currency)}</strong><span className={styles.status}>{invoiceStatusLabels[invoice.document_status] || invoice.document_status}</span></div>
-        <Link className={styles.detailButton} href={`/finance/invoices/${invoice.id}`}>{t("finance.invoice.ui.open")}</Link>
-      </article>)}</div> : null}
-    </section>
+    {loading ? <div className={styles.loading} role="status">{t("finance.invoice.ui.loading")}</div> : !visibleRows.length ? <div className={styles.empty}>{t("finance.invoice.ui.empty")}</div> : <FinanceListFrame><table><thead><tr>
+      {[t("finance.list.documentNumber"),t("finance.invoice.ui.customer"),t("finance.invoice.ui.source"),t("finance.invoice.ui.total"),t("finance.taxInvoice.ui.status"),t("finance.invoice.ui.open")].map(label => <th key={label} scope="col">{label}</th>)}
+    </tr></thead><tbody>{visibleRows.map(invoice => <tr key={invoice.id}>
+      <td data-label={t("finance.list.documentNumber")}><strong>{invoice.invoice_no || t("finance.invoice.ui.draftReferenceValue", { reference: invoice.id.slice(0, 8).toUpperCase() })}</strong><div><small>{date(invoice.created_at, true)}</small></div></td>
+      <td data-label={t("finance.invoice.ui.customer")}>{invoice.customer_name || "-"}</td>
+      <td data-label={t("finance.invoice.ui.source")}>{invoiceCompositionSourceLabel(invoice.source_model, invoice.finance_invoice_items || [], undefined, locale)}</td>
+      <td data-label={t("finance.invoice.ui.total")} data-amount>{money(invoice.total_amount, invoice.currency)}</td>
+      <td data-label={t("finance.taxInvoice.ui.status")}><FinanceStatusBadge status={invoice.document_status} label={invoiceStatusLabels[invoice.document_status] || t("finance.receipt.invalidStatus")}/></td>
+      <td data-label={t("finance.invoice.ui.open")}><Link className={styles.detailButton} href={`/finance/invoices/${invoice.id}`}>{t("finance.invoice.ui.open")}</Link></td>
+    </tr>)}</tbody></table></FinanceListFrame>}
   </div>;
 }

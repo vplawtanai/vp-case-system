@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { Check, Pencil, Send, UserRound, X } from "lucide-react";
-import DetailModal from "../../components/DetailModal";
+import DetailModal from "../ui/FinanceModal";
 import { Callout, FieldGroup } from "../../components/ui/patterns";
 import ui from "../../components/ui/vp-ui.module.css";
 import { useI18n } from "../../../lib/i18n/provider";
@@ -28,7 +28,7 @@ export function claimStatus(items: Expense[]) {
 export function ClaimRequestReview({ request, error, onClose, onEdit, ...props }: Props & { request: ExpenseRequest; error: string; onClose: () => void; onEdit: () => void }) {
  const { t } = useI18n();
  const { selected: item, select } = useReviewSelection(request.items, props.busy, error);
- return <DetailModal open size="workflow" title={t("expenses.claimReview")} closeOnBackdrop={false} onClose={() => { if (!props.busy) onClose(); }}>
+ return <DetailModal variant="review" open size="workflow" title={t("expenses.claimReview")} closeOnBackdrop={false} onClose={() => { if (!props.busy) onClose(); }}>
   <div className={css.review}>
    {error ? <Callout tone="negative" role="alert">{t(`expenses.${error}`)}</Callout> : null}
    <ItemNavigator items={request.items} selected={item?.id} claim busy={props.busy} onSelect={select}/>

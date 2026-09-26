@@ -46,7 +46,7 @@ test('Create/payment RPC calls, input contract, permissions, routes and shared m
   const declaration=text=>ts.createSourceFile(file,text,99,true,ts.ScriptKind.TSX).statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text===name).getText();
   assert.equal(declaration(source),declaration(old),name+' remains byte-identical');
  }
- for(const file of ['app/components/DetailModal.tsx','app/components/DetailModal.module.css','app/finance/expenses/new/page.tsx','app/finance/expenses/claims/[id]/page.tsx'])assert.equal(fs.readFileSync(file,'utf8'),cp.execFileSync('git',['show','HEAD:'+file],{encoding:'utf8'}),file);
+ for(const file of ['app/components/DetailModal.module.css','app/finance/expenses/new/page.tsx','app/finance/expenses/claims/[id]/page.tsx'])assert.equal(fs.readFileSync(file,'utf8'),cp.execFileSync('git',['show','HEAD:'+file],{encoding:'utf8'}),file);
  const reader='app/finance/expenses/data.ts',decl=(s,n)=>ts.createSourceFile(reader,s,99,true).statements.find(x=>ts.isFunctionDeclaration(x)&&x.name?.text===n).getText();
  for(const name of ['readExpenses','readExpenseLookups'])assert.equal(decl(fs.readFileSync(reader,'utf8'),name),decl(cp.execFileSync('git',['show','HEAD:'+reader],{encoding:'utf8'}),name));
  const shared='app/finance/expenses/shared.ts',runtime=s=>ts.transpileModule(s,{compilerOptions:{module:1,target:9}}).outputText;

@@ -1,4 +1,5 @@
 "use client";
+import { FinanceStatusBadge } from "../ui/primitives";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, RefreshCw, Search } from "lucide-react";
@@ -8,7 +9,7 @@ import { Callout, PageShell } from "../../components/ui/patterns";
 import ui from "../../components/ui/vp-ui.module.css";
 import { revenueHref, type RevenueWorkspaceData, type RevenueState } from "./shared";
 import css from "./workspace.module.css";
-export function RevenueBadge({ state }: { state: RevenueState }) { const { t } = useI18n(); return <span className={`${css.badge} ${css[state]}`}>{t(`revenueDistribution.${state}`)}</span>; }
+export function RevenueBadge({ state }: { state: RevenueState }) { const { t } = useI18n(); return <FinanceStatusBadge status={state} label={t(`revenueDistribution.${state}`)}/>; }
 export function RevenueWorkspace() {
  const { t, locale, date } = useI18n(), seq = useRef(0);
  const [data, setData] = useState<RevenueWorkspaceData | null>(null), [failed, setFailed] = useState(false), [loading, setLoading] = useState(true);

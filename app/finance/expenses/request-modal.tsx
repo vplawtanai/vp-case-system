@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { Copy, Pencil, Plus, Save, Send, Trash2 } from "lucide-react";
-import DetailModal from "../../components/DetailModal";
+import DetailModal from "../ui/FinanceModal";
 import { Callout, FieldGroup } from "../../components/ui/patterns";
 import ui from "../../components/ui/vp-ui.module.css";
 import { useI18n } from "../../../lib/i18n/provider";
@@ -88,7 +88,7 @@ export function ExpenseRequestModal({ request, claim, access, accounts, lookups,
   finally { lock.current = false; setWorking(false); }
  }
  return <>
-  <DetailModal open size={claim ? "workflow" : "detail"} title={t(claim ? "expenses.newClaimRequest" : purchase ? "expenses.purchaseRequestCreate" : "expenses.companyNewRequest")} onClose={close} closeOnBackdrop={false}
+  <DetailModal variant="review" open size={claim ? "workflow" : "detail"} title={t(claim ? "expenses.newClaimRequest" : purchase ? "expenses.purchaseRequestCreate" : "expenses.companyNewRequest")} onClose={close} closeOnBackdrop={false}
    footer={<div className={css.createFooter}><button type="button" className={ui.secondary} disabled={busy || working} onClick={close}>{t("common.actions.close")}</button><button type="button" className={ui.secondary} disabled={busy || working || !!editing || !items.length} onClick={() => void save()}><Save size={17} />{t("expenses.saveForLater")}</button><button type="button" className={ui.primary} disabled={busy || working || !!editing || !items.length || moneyIncomplete} onClick={() => void save(true)}><Send size={17} />{t(claim ? "expenses.submitRequest" : "expenses.sendForReview")}</button></div>}>
    <div className={`${css.page} ${claim ? "" : company.create}`}>
     {localError || error ? <Callout tone="negative" role="alert">{t(`expenses.${localError || error}`)} {checkpoint && !localError ? t("expenses.requestRetry") : null}</Callout> : null}
@@ -118,6 +118,6 @@ export function ExpenseRequestModal({ request, claim, access, accounts, lookups,
     {!purchase ? <details className={css.disclosure}><summary>{t("expenses.requestNote")}</summary><FieldGroup id="expense-request-note" label={t("expenses.note")}><textarea maxLength={2000} value={note} disabled={blocked} onChange={e => { setNote(e.target.value); setDirty(true); }} /></FieldGroup></details> : null}
    </div>
   </DetailModal>
-  {confirmClose ? <DetailModal open size="edit" title={t("common.state.unsaved")} onClose={() => setConfirmClose(false)} closeOnBackdrop={false} footer={<div className={css.actions}><button type="button" className={ui.secondary} onClick={() => setConfirmClose(false)}>{t(checkpoint ? "expenses.continueRequest" : "expenses.keepEditing")}</button><button type="button" className={ui.secondary} onClick={onClose}>{t(checkpoint ? "common.actions.close" : "expenses.discardCreate")}</button></div>}><p>{t(checkpoint ? "expenses.requestCloseCheckpoint" : "expenses.discardCreateHelp")}</p></DetailModal> : null}
+  {confirmClose ? <DetailModal variant="destructive" open size="confirm" title={t("common.state.unsaved")} onClose={() => setConfirmClose(false)} closeOnBackdrop={false} footer={<div className={css.actions}><button type="button" className={ui.secondary} onClick={() => setConfirmClose(false)}>{t(checkpoint ? "expenses.continueRequest" : "expenses.keepEditing")}</button><button type="button" className={ui.secondary} onClick={onClose}>{t(checkpoint ? "common.actions.close" : "expenses.discardCreate")}</button></div>}><p>{t(checkpoint ? "expenses.requestCloseCheckpoint" : "expenses.discardCreateHelp")}</p></DetailModal> : null}
  </>;
 }

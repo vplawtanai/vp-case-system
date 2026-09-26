@@ -57,7 +57,8 @@ test('Existing mutation call payloads, readiness rules, migrations and protected
  const structuredWht='row.tax_review?.request_json?.schema_version === 2 ? row.tax_review.wht_state === "withhold" : withhold';
  assert.ok(fs.readFileSync('app/finance/expenses/forms.tsx','utf8').includes(structuredWht));
  for(const file of ['forms.tsx','company-review.tsx','workspace.tsx']){const path='app/finance/expenses/'+file;assert.deepEqual(calls(fs.readFileSync(path,'utf8')),calls(cp.execFileSync('git',['show','d6e0f719b8768ee6845a62409758a0c9186db8b4:'+path],{encoding:'utf8'})),path);}
- const protectedFiles=['app/finance/expenses/request-operations.ts','app/finance/expenses/requests.ts','app/finance/expenses/request-modal.tsx','app/finance/expenses/data.ts','app/finance/payables/groups.tsx','app/finance/treasury/dashboard.ts'];
+ // UI wrapper presentation is covered by finance-ui-phase6.test.cjs; data contracts stay byte-identical.
+ const protectedFiles=['app/finance/expenses/request-operations.ts','app/finance/expenses/requests.ts','app/finance/expenses/data.ts','app/finance/treasury/dashboard.ts'];
  const migrations=cp.execFileSync('git',['ls-tree','-r','--name-only','HEAD','supabase/migrations'],{encoding:'utf8'}).trim().split('\n');
  for(const file of [...protectedFiles,...migrations])assert.deepEqual(fs.readFileSync(file),cp.execFileSync('git',['show','HEAD:'+file]),file);
 });

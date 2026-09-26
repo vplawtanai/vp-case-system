@@ -1,4 +1,5 @@
 "use client";
+import { FinanceStatusBadge } from "../ui/primitives";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -29,7 +30,7 @@ import css from "./expenses.module.css";
 export function ExpenseBadge({ state }: { state: string }) {
  const { t } = useI18n();
  const tone = expenseStatusTone(state);
- return <span className={css.badge} data-tone={tone}>{t(`expenses.${state}`)}</span>;
+ return <FinanceStatusBadge status={state} tone={tone === "good" ? "success" : tone === "bad" ? "danger" : tone === "warn" || tone === "payable" ? "warning" : state === "draft" ? "neutral" : "info"} label={t(`expenses.${state}`)}/>;
 }
 export function ExpenseWorkspace({ id, claims = false, initialTaxFilter = false, fixture, fixtureLookups }: { id?: string; claims?: boolean; initialTaxFilter?: boolean; fixture?: ExpenseData; fixtureLookups?: ExpenseLookups }) {
  const { t, locale } = useI18n(), router = useRouter(), lock = useRef(false), seq = useRef(0);

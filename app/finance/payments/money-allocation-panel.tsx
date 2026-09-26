@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import DetailModal from "../../components/DetailModal";
+import DetailModal from "../ui/FinanceModal";
 import { supabase } from "../../../lib/supabase";
 import { useI18n } from "../../../lib/i18n/provider";
 import { moneyAllocationError, type MoneyContext, type MoneySource } from "./money-allocation";
@@ -51,7 +51,7 @@ export function MoneyAllocationPanel({ paymentId }: { paymentId: string }) {
     {!open && (error || loadFailed) ? <p className={styles.error} role="alert">{error || t("moneyAllocation.error.unknown")}</p> : null}
     <p className={styles.muted}>{t("moneyAllocation.boundary")}</p>
     {context ? <button className={styles.button} disabled={busy} onClick={() => { setError(""); setOpen(true); void refresh(); }}>{t("moneyAllocation.open")}</button> : !loading ? <button className={styles.button} disabled={busy} onClick={() => void refresh()}>{t("moneyAllocation.retry")}</button> : null}
-    <DetailModal open={open} title={t("moneyAllocation.title")}
+    <DetailModal variant="detail" open={open} title={t("moneyAllocation.title")}
       onClose={() => { if (!busy) setOpen(false); }} closeOnBackdrop={!busy}>
       {context ? <div className={styles.body} aria-busy={busy}>
         {error ? <div className={styles.error} role="alert">{error} <button className={styles.button} disabled={busy} onClick={() => void refresh()}>{t("moneyAllocation.retry")}</button></div> : null}

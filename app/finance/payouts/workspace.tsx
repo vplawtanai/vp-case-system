@@ -3,8 +3,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Banknote, Calculator, Check, CircleAlert, CircleX, Clock, FileText, Save, Send, UserRound, Wallet } from "lucide-react";
-import DetailModal from "../../components/DetailModal";
-import { Callout, EmptyState, FieldGroup, PageHeader, PageShell, StatusBadge } from "../../components/ui/patterns";
+import DetailModal from "../ui/FinanceModal";
+import { Callout, EmptyState, FieldGroup, PageHeader, PageShell } from "../../components/ui/patterns";
+import { FinanceStatusBadge as StatusBadge } from "../ui/primitives";
 import ui from "../../components/ui/vp-ui.module.css";
 import { useI18n } from "../../../lib/i18n/provider";
 import { supabase } from "../../../lib/supabase";
@@ -132,10 +133,10 @@ export function PayoutWorkspace({ id, payeeId: entryPayeeId, fixture }: { id: st
    <section className={css.section}><h2><Clock />{t("payout.history")}</h2>{payee && data.history.length ? <div className={css.history}>{data.history.map(h => <div key={h.id}><span>{date(h.paid_on)}</span><Link className={h.status === "draft" ? ui.secondary : undefined} href={payoutHref(payee.id, h.id)}>{h.status === "draft" ? `${t("payout.openDraft")} ` : ""}{h.id.slice(0, 8).toUpperCase()}</Link><span>{t("payout.gross")}: {money(h.gross)}</span><span>{t(h.status === "cancelled" ? "payout.draftNet" : "payout.net")}: {money(h.net)}</span><span>WHT: {money(h.wht)}</span><StatusBadge status={h.status} label={t(h.status === "cancelled" ? "payout.cancelledDraft" : `payout.${h.status}`)} /></div>)}</div> : <p className={css.muted}>{t("payout.emptyHistory")}</p>}</section>
   </>}
   {editPayee ? <PayeeModal payee={editPayee === "new" ? undefined : editPayee} onClose={() => setEditPayee(null)} onSaved={payee => { setEditPayee(null); if (id === "new" && payee !== payeeId) router.push(payoutHref(payee)); else void load(true); }} /> : null}
-  <DetailModal open={changeRecipient} title={t("payout.changeRecipient")} size="edit" onClose={() => setChangeRecipient(false)}>
+  <DetailModal variant="detail" open={changeRecipient} title={t("payout.changeRecipient")} size="edit" onClose={() => setChangeRecipient(false)}>
    <p>{t("payout.changeRecipientWarning")}</p><div className={css.payeeActions}><button className={ui.secondary} onClick={() => setChangeRecipient(false)}>{t("common.actions.cancel")}</button><button className={ui.primary} onClick={() => { setChangeRecipient(false); router.push("/finance/payables"); }}>{t("payout.backChooseRecipient")}</button></div>
   </DetailModal>
-  <DetailModal open={!!modal} title={t(modal === "cancel" ? "payout.cancelTitle" : "payout.review")} size="edit" onClose={() => { if (!busy) setModal(null); }} closeOnBackdrop={!busy}>
+  <DetailModal variant={modal === "cancel" ? "destructive" : "payment"} open={!!modal} title={t(modal === "cancel" ? "payout.cancelTitle" : "payout.review")} size="edit" onClose={() => { if (!busy) setModal(null); }} closeOnBackdrop={!busy}>
    <div className={css.form}><p>{t(modal === "cancel" ? "payout.cancelIntro" : "payout.confirmHelp")}</p>{modal === "cancel" ? <>
     <dl className={css.summary}><div><dt>{t("payout.reference")}</dt><dd>{p?.id.slice(0, 8).toUpperCase()}</dd></div><div><dt>{t("payout.checkRecipient")}</dt><dd>{payee?.legal_name}</dd></div></dl>
     <div className={css.cancelEffects}><p>{t("payout.cancelNoEffects")}</p><ul>{["cancelNoSettlement", "cancelNoCash", "cancelNoWht"].map(key => <li key={key}>{t(`payout.${key}`)}</li>)}</ul><p>{t("payout.cancelRightsRemain")}</p>{dirty ? <p>{t("payout.cancelUnsaved")}</p> : null}</div>

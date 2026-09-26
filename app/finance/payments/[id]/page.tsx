@@ -1,4 +1,6 @@
 "use client";
+import { AccountIdentity } from "../../statement/account-identity";
+import { FinanceStatusBadge } from "../../ui/primitives";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
@@ -778,8 +780,8 @@ function InvoiceTaxSummary({ facts }: { facts: InvoiceTaxFacts | null }) { const
 }
 function FormField({ label, helper, required = false, error, children }: { label: string; helper?: string; required?: boolean; error?: UiMessage; children: ReactNode }) { const { text } = useI18n(); return <label style={formField}><span style={formLabel}>{label}{required ? <strong style={{ color: "#b91c1c" }}> *</strong> : null}</span>{children}{helper ? <small style={helperText}>{helper}</small> : null}{error ? <small style={formError}>{text(error)}</small> : null}</label>; }
 function Metric({ label, value, prominent = false }: { label: string; value: string; prominent?: boolean }) { return <div style={{ ...metric, ...(prominent ? prominentMetric : {}) }}><small>{label}</small><strong style={metricValue}>{value}</strong></div>; }
-function StatusBadge({ status, children }: { status: string; children: ReactNode }) { return <span style={{ ...badge, ...(status === "draft" ? amberBadge : status === "confirmed" ? greenBadge : redBadge) }}>{children}</span>; }
-function BankAccountIdentity({ account, paymentMethod }: { account: BankAccount | null; paymentMethod: string }) { const { t } = useI18n(); if (!account) return <span>{paymentMethod === "bank_transfer" ? t("finance.payment.ui.notEntered") : t("finance.payment.ui.bankNotUsed")}</span>; return <div style={bankAccountIdentity}><strong>{displayText(account.short_name)} — {displayText(account.bank_name)}</strong>{account.account_number ? <span style={bankAccountDetail}>{account.account_number}{account.account_name ? ` · ${account.account_name}` : ""}</span> : null}</div>; }
+function StatusBadge({ status, children }: { status: string; children: ReactNode }) { return <FinanceStatusBadge status={status} label={children}/>; }
+function BankAccountIdentity({ account, paymentMethod }: { account: BankAccount | null; paymentMethod: string }) { const { t } = useI18n(); if (!account) return <span>{paymentMethod === "bank_transfer" ? t("finance.payment.ui.notEntered") : t("finance.payment.ui.bankNotUsed")}</span>; return <div style={bankAccountIdentity}><div style={{ display: "flex", gap: 10, alignItems: "center" }}><AccountIdentity account={{ kind: "bank", name_th: account.short_name || "", name_en: "", bank_name: account.bank_name }}/><strong>{displayText(account.short_name)} — {displayText(account.bank_name)}</strong></div>{account.account_number ? <span style={bankAccountDetail}>{account.account_number}{account.account_name ? ` · ${account.account_name}` : ""}</span> : null}</div>; }
 
 function AllocationSummaryCard({ invoice, cash, wht, total, currency }: { invoice: InvoiceContext | null; cash: number | string; wht: number | string; total: number | string; currency: string }) { const { locale, t } = useI18n(); const { settlement: paymentSettlementLabels } = paymentUiLabels(locale);
   return <div className="payment-allocation-card" style={allocationCard}><div><small style={fieldLabel}>{t("finance.payment.ui.allocatedTo")}</small><strong>{displayText(invoice?.invoice_no)}</strong><span style={matterText}>{invoiceMatterLabel(invoice, locale)}</span></div><span>{paymentSettlementLabels.receivedCompact} {money(cash, currency)}</span><span>WHT {money(wht, currency)}</span><strong>{t("finance.payment.ui.total")} {money(total, currency)}</strong></div>;
@@ -955,7 +957,3 @@ const dangerButton: CSSProperties = { ...primaryButton, borderColor: "#b91c1c", 
 const exceptionPanel: CSSProperties = { marginTop: 14, padding: 14, border: "1px solid #fecaca", borderRadius: 6, background: "#fef2f2" };
 const errorNotice: CSSProperties = { marginBottom: 14, padding: 13, border: "1px solid #fecaca", borderRadius: 6, background: "#fef2f2", color: "#b91c1c" };
 const successNotice: CSSProperties = { display: "grid", minWidth: 0, gap: 3, marginBottom: 14, padding: 13, border: "1px solid #bbf7d0", borderRadius: 6, background: "#f0fdf4", color: "#166534", lineHeight: 1.55, overflowWrap: "anywhere" };
-const badge: CSSProperties = { display: "inline-block", width: "fit-content", padding: "4px 8px", borderRadius: 999, fontSize: 12, fontWeight: 700 };
-const amberBadge: CSSProperties = { background: "#fef3c7", color: "#92400e" };
-const greenBadge: CSSProperties = { background: "#dcfce7", color: "#166534" };
-const redBadge: CSSProperties = { background: "#fee2e2", color: "#b91c1c" };

@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import DetailModal from "../../components/DetailModal";
-import { StatusBadge } from "../../components/ui/patterns";
+import DetailModal from "../ui/FinanceModal";
+import { FinanceStatusBadge as StatusBadge } from "../ui/primitives";
 import { supabase } from "../../../lib/supabase";
 import { useI18n } from "../../../lib/i18n/provider";
 import {
@@ -160,7 +160,7 @@ export function VpDistributionPanel({ paymentId, directMoneyReceiptId }: { payme
     {!open && (loadFailed || error) ? <p className={styles.error} role="alert">{distributionError(error, locale)}</p> : null}
     {!open && current && !context?.source_current ? <p className={styles.warning}>{t("vpDistribution.stale")}</p> : null}
     {context ? <button className={styles.button} disabled={busy} onClick={() => { setOpen(true); setSuccess(false); if (!hasLocalInput) void refresh(); }}>{t("vpDistribution.open")}</button> : !loading ? reloadButton : null}
-    <DetailModal open={open} size="workflow" title={t("vpDistribution.title")} status={<StatusBadge status={current?.status || "unallocated"} label={t(`vpDistribution.${current?.status || "unallocated"}`)} />}
+    <DetailModal variant="detail" open={open} size="workflow" title={t("vpDistribution.title")} status={<StatusBadge status={current?.status || "unallocated"} label={t(`vpDistribution.${current?.status || "unallocated"}`)} />}
       onClose={() => { if (!busy) setOpen(false); }} closeOnBackdrop={!busy && !hasLocalInput}
       footer={context?.can_manage ? <div className={vpStyles.footer}>
         {calculated && source ? <div className={vpStyles.reconciliation} aria-live="polite" aria-atomic="true">

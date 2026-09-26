@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Pencil, Send, X } from "lucide-react";
-import DetailModal from "../../components/DetailModal";
+import DetailModal from "../ui/FinanceModal";
 import { Callout, FieldGroup } from "../../components/ui/patterns";
 import ui from "../../components/ui/vp-ui.module.css";
 import { useI18n } from "../../../lib/i18n/provider";
@@ -22,7 +22,7 @@ type ItemProps = { row: Expense; access: ExpenseAccess; lookups: ExpenseLookups;
 export function PurchaseRequestReview({ request, access, lookups, busy, error, run, onClose, onEdit }: Omit<ItemProps,"row"> & { request: ExpenseRequest; error: string; onClose: () => void; onEdit: () => void }) {
  const { t } = useI18n();
  const { selected: active, select } = useReviewSelection(request.items, busy, error);
- return <DetailModal open size="workflow" title={t("expenses.purchaseRequestReview")} closeOnBackdrop={false} onClose={() => { if (!busy) onClose(); }}>
+ return <DetailModal variant="review" open size="workflow" title={t("expenses.purchaseRequestReview")} closeOnBackdrop={false} onClose={() => { if (!busy) onClose(); }}>
   <div className={css.review}>
    {error ? <Callout tone="negative" role="alert">{t(`expenses.${error}`)}</Callout> : null}
    <ItemNavigator items={request.items} selected={active?.id} busy={busy} onSelect={select}/>

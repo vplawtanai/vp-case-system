@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { Disclosure, StatusBadge } from "../../components/ui/patterns";
+import { Disclosure } from "../../components/ui/patterns";
+import { FinanceStatusBadge as StatusBadge } from "../ui/primitives";
 import ui from "../../components/ui/vp-ui.module.css";
 import { useI18n } from "../../../lib/i18n/provider";
 import { treasuryOverview } from "./dashboard";

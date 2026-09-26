@@ -1,4 +1,5 @@
 "use client";
+import { FinanceCard } from "../../ui/primitives";
 import { FinanceDocumentNextAction } from "../../document-decision/next-action";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -6,12 +7,13 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, Pencil, RotateCcw } from "lucide-react";
 import { supabase } from "../../../../lib/supabase";
 import { useI18n } from "../../../../lib/i18n/provider";
-import DetailModal from "../../../components/DetailModal";
+import DetailModal from "../../ui/FinanceModal";
 import { QuotationGuard } from "../../quotations/shared";
 import FinanceSubNav from "../../FinanceSubNav";
 import { VpDistributionPanel } from "../../payments/vp-distribution-panel";
 import { DirectAmounts, DirectMoneyForm } from "../form";
-import { PageHeader, ReadOnlyGrid, StatusBadge } from "../../../components/ui/patterns";
+import { PageHeader, ReadOnlyGrid } from "../../../components/ui/patterns";
+import { FinanceStatusBadge as StatusBadge } from "../../ui/primitives";
 import ui from "../../../components/ui/vp-ui.module.css";
 import { directMoneyError, type DirectRecord } from "../shared";
 import { DirectMoneyClassification } from "../classification";
@@ -84,12 +86,12 @@ export function DirectMoneyDetail({ id, canManage }: { id: string; canManage: bo
       <section className={styles.section}><h2>{t("directMoney.composition")}</h2>{(row.classification_json?.lines || row.lines_json).map(line => <div className={styles.line} key={line.source_line_id}><h3>{line.description}</h3><p>{t(`directMoney.nature.${line.money_nature}`)}{line.classification ? ` · ${t(`finance.invoice.classification.${line.classification}`)}` : ""}</p><DirectSourceEvidence reason={line.reason} client={row.status === "draft" ? draftClient : row.confirmed_snapshot_json?.client} /><DirectAmounts values={{ base: line.base, vat: line.vat, wht: line.wht, gross: line.gross, actualCash: line.cash }} />{line.wht_applicability === "applies" ? <p className={styles.muted}>{t("directMoney.whtBase")}: {line.wht_base} · {t("directMoney.whtRate")}: {line.wht_rate}%</p> : null}</div>)}</section>
       {row.status === "confirmed" ? <FinanceDocumentNextAction directMoneyId={row.id} /> : null}
       {row.status !== "draft" ? <VpDistributionPanel key={row.version} directMoneyReceiptId={id} /> : null}
-      {canManage && row.status === "draft" ? <section className={styles.review}><h2>{t("directMoney.review")}</h2><p className={styles.muted}>{t("directMoney.boundary")}</p><label className={styles.check}><input type="checkbox" checked={ack} disabled={busy} aria-invalid={invalid && !ack} onChange={e => { setAck(e.target.checked); setInvalid(false); }} />{t("directMoney.ack")}</label>{invalid && !ack ? <p className={styles.error} role="alert">{t("directMoney.error.required")}</p> : null}<button className={styles.primary} disabled={busy || loading || refreshRequired} onClick={() => void act("confirm")}>{t("directMoney.confirm")}</button></section> : null}
+      {canManage && row.status === "draft" ? <FinanceCard variant="action" icon="confirm" title={t("directMoney.review")}><p className={styles.muted}>{t("directMoney.boundary")}</p><label className={styles.check}><input type="checkbox" checked={ack} disabled={busy} aria-invalid={invalid && !ack} onChange={e => { setAck(e.target.checked); setInvalid(false); }} />{t("directMoney.ack")}</label>{invalid && !ack ? <p className={styles.error} role="alert">{t("directMoney.error.required")}</p> : null}<button className={styles.primary} disabled={busy || loading || refreshRequired} onClick={() => void act("confirm")}>{t("directMoney.confirm")}</button></FinanceCard> : null}
       {canManage && row.status === "confirmed" ? <section className={styles.section}><details><summary>{t("directMoney.otherActions")}</summary><p className={styles.muted}>{t("directMoney.reverseHelp")}</p><label className={styles.field}><span>{t("directMoney.reverseReason")}</span><textarea maxLength={2000} rows={2} value={reason} disabled={busy} aria-invalid={invalid && !reason.trim()} onChange={e => { setReason(e.target.value); setInvalid(false); }} /></label><label className={styles.check}><input type="checkbox" checked={reverseAck} disabled={busy} aria-invalid={invalid && !reverseAck} onChange={e => { setReverseAck(e.target.checked); setInvalid(false); }} />{t("directMoney.reverseAck")}</label>{invalid ? <p className={styles.error} role="alert">{t("directMoney.error.required")}</p> : null}<button className={styles.danger} disabled={busy || loading || refreshRequired} onClick={() => void act("reverse")}><RotateCcw size={16} />{t("directMoney.reverse")}</button></details></section> : null}
       {row.reversed_at ? <p>{date(row.reversed_at, true)} · {row.reversal_reason}</p> : null}
       <section className={styles.section}><details><summary>{t("directMoney.audit")}</summary>{audit.map(event => <p key={event.id}>{t(`directMoney.${event.event_type}`)} · {date(event.created_at, true)} · v{event.version}</p>)}</details></section>
-      <DetailModal open={open} title={t("directMoney.edit")} onClose={() => { if (!busy) setOpen(false); }} closeOnBackdrop={false}><DirectMoneyForm key={row.version} id={id} initial={row.input_json} version={row.version} onBusy={setBusy} onSaved={() => { setOpen(false); void load(); }} /></DetailModal>
-      <DetailModal open={classifyOpen} title={t("directMoney.classify")} onClose={() => { if (!busy) setClassifyOpen(false); }} closeOnBackdrop={false}><DirectMoneyClassification key={row.version} record={row} onBusy={setBusy} onSaved={() => { setClassifyOpen(false); void load(); }} /></DetailModal>
+      <DetailModal variant="detail" open={open} title={t("directMoney.edit")} onClose={() => { if (!busy) setOpen(false); }} closeOnBackdrop={false}><DirectMoneyForm key={row.version} id={id} initial={row.input_json} version={row.version} onBusy={setBusy} onSaved={() => { setOpen(false); void load(); }} /></DetailModal>
+      <DetailModal variant="detail" open={classifyOpen} title={t("directMoney.classify")} onClose={() => { if (!busy) setClassifyOpen(false); }} closeOnBackdrop={false}><DirectMoneyClassification key={row.version} record={row} onBusy={setBusy} onSaved={() => { setClassifyOpen(false); void load(); }} /></DetailModal>
     </> : null}
   </main>;
 }

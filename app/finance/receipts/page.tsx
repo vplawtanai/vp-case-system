@@ -6,6 +6,7 @@ import Link from "next/link";
 import { supabase } from "../../../lib/supabase";
 import { ReceiptGuard } from "./access";
 import { receiptMoney, receiptPresentation, receiptSearchFilter, receiptSelect, receiptStatusLabels, receiptStatusLabel, type FinanceReceipt, type ReceiptStatus } from "./shared";
+import { FinanceHeader, FinanceFilterBar, FinanceListFrame, FinanceStatusBadge } from "../ui/primitives";
 import styles from "./receipts.module.css";
 
 export default function ReceiptsPage() { return <ReceiptGuard>{() => <ReceiptList />}</ReceiptGuard>; }
@@ -44,13 +45,13 @@ function ReceiptList() {
     return () => { window.clearTimeout(timer); invalidate(); };
   }, [load, invalidate]);
   return <>
-    <header className={styles.heading}><h1>{t("finance.document.receipt")}</h1><button type="button" className={styles.button} disabled={loading} onClick={() => void load()}>{t("finance.receipt.reload")}</button></header>
-    <form className={styles.filters} onSubmit={(event) => { event.preventDefault(); setSearch(query); setPage(0); }}>
+    <FinanceHeader icon="receipt" title={t("finance.document.receipt")} actions={<button type="button" className={styles.button} disabled={loading} onClick={() => void load()}>{t("finance.receipt.reload")}</button>}/>
+    <form onSubmit={(event) => { event.preventDefault(); setSearch(query); setPage(0); }}><FinanceFilterBar label={t("common.actions.search")}>
       <label className={styles.label}>{t("finance.receipt.search")}<input type="search" maxLength={150} className={styles.input} value={query} onChange={(event) => setQuery(event.target.value)} /></label>
       <label className={styles.label}>{t("finance.taxInvoice.ui.status")}<select className={styles.input} value={status} onChange={(event) => { setStatus(event.target.value as ReceiptStatus | ""); setPage(0); }}><option value="">{t("finance.receipt.all")}</option>{Object.keys(receiptStatusLabels).map(key => <option value={key} key={key}>{receiptStatusLabel(key as ReceiptStatus, locale)}</option>)}</select></label>
       <button type="submit" className={styles.button}>{t("common.actions.search")}</button>
-    </form>
-    {error ? <p role="alert" className={styles.error}>{t(error)}</p> : loading ? <p role="status">{t("finance.receipt.loading")}</p> : !rows.length ? <p>{t("finance.receipt.empty")}</p> : <table className={styles.table}>
+    </FinanceFilterBar></form>
+    {error ? <p role="alert" className={styles.error}>{t(error)}</p> : loading ? <p role="status">{t("finance.receipt.loading")}</p> : !rows.length ? <p>{t("finance.receipt.empty")}</p> : <FinanceListFrame><table className={styles.table}>
       <thead><tr><th scope="col">{t("finance.document.receipt")}</th><th scope="col">{t("finance.receipt.clientReference")}</th><th scope="col">{t("finance.receipt.receivedOn")}</th><th scope="col">{t("finance.taxInvoice.ui.status")}</th><th scope="col">{t("finance.receipt.settlement")}</th></tr></thead>
       <tbody>{rows.map((row) => {
         const presentation = receiptPresentation(row);
@@ -59,11 +60,11 @@ function ReceiptList() {
           <td data-label={t("finance.document.receipt")}><Link className={styles.link} href={`/finance/receipts/${row.id}`}>{document?.receipt.number || row.receipt_no || t("finance.receipt.draft")}</Link></td>
           <td data-label={t("finance.receipt.clientReference")}>{document?.customer.name || t("finance.receipt.evidenceMissing")}<p className={styles.small}>{document?.payment.reference || row.payment_id}</p></td>
           <td data-label={t("finance.receipt.receivedOn")}>{document ? date(document.receipt.date) : "-"}</td>
-          <td data-label={t("finance.taxInvoice.ui.status")}>{receiptStatusLabel(row.status, locale) || t("finance.receipt.invalidStatus")}</td>
+          <td data-label={t("finance.taxInvoice.ui.status")}><FinanceStatusBadge status={row.status} label={receiptStatusLabel(row.status, locale) || t("finance.receipt.invalidStatus")}/></td>
           <td data-label={t("finance.receipt.settlement")}>{document ? receiptMoney(document.payment.settlement, document.payment.currency) : "-"}</td>
         </tr>;
       })}</tbody>
-    </table>}
+    </table></FinanceListFrame>}
     <div className={styles.pagination}><button type="button" className={styles.button} disabled={loading || page === 0} onClick={() => setPage((value) => value - 1)}>{t("finance.receipt.previous")}</button><span>{t("finance.receipt.page", { page: page + 1 })}</span><button type="button" className={styles.button} disabled={loading || Boolean(error) || !hasNext} onClick={() => setPage((value) => value + 1)}>{t("finance.receipt.next")}</button></div>
   </>;
 }

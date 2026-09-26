@@ -1,4 +1,5 @@
 "use client";
+import { FinanceHeader, FinanceFilterBar, FinanceListFrame, FinanceStatusBadge } from "../ui/primitives";
 import { useI18n, useUiAlert } from "../../../lib/i18n/provider";
 import { uiMessage, type UiMessage, type UiLocale } from "../../../lib/i18n/core";
 import { translate } from "../../../lib/i18n/catalog";
@@ -756,6 +757,9 @@ export function QuotationList({ access }: { access: QuotationAccess }) {
   const [quotations, setQuotations] = useState<QuotationRow[]>([]);
   const [lookups, setLookups] = useState<LookupState>(getEmptyLookups());
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("");
+  const visibleQuotations = quotations.filter(row => (!status || row.status === status) && `${row.quotation_no || ""} ${renderQuotationClientName(row, lookups.clients)}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -786,17 +790,16 @@ export function QuotationList({ access }: { access: QuotationAccess }) {
   return (
     <>
       <FinanceSubNav activePage="quotations" permissions={access.permissions} />
-      <div style={sectionHeaderStyle}>
-        <div>
-          <h1 style={pageTitleStyle}>{t("finance.quotation.list.title")}</h1>
-          <p style={mutedTextStyle}>{t("finance.quotation.list.help")}</p>
-        </div>
-        {access.permissions.canCreateFinanceQuotation ? <Link href="/finance/quotations/new" style={primaryButtonStyle}>{t("finance.quotation.list.new")}</Link> : null}
-      </div>
+      <FinanceHeader icon="quotation" title={t("finance.quotation.list.title")} description={t("finance.quotation.list.help")} actions={access.permissions.canCreateFinanceQuotation ? <Link href="/finance/quotations/new" style={primaryButtonStyle}>{t("finance.quotation.list.new")}</Link> : null}/>
+
+
+      <FinanceFilterBar label={t("common.actions.search")}>
+        <label>{t("common.actions.search")}<input type="search" value={search} onChange={event => setSearch(event.target.value)} /></label>
+        <label>{t("finance.quotation.list.status")}<select value={status} onChange={event => setStatus(event.target.value)}><option value="">{t("finance.taxInvoice.ui.allStatuses")}</option>{["draft", "sent", "accepted", "cancelled"].map(value => <option key={value} value={value}>{t(`finance.quotation.status.${value}`)}</option>)}</select></label>
+      </FinanceFilterBar>
 
       {error ? <p role="alert" style={errorNoticeTextStyle}>{text(error)}</p> : null}
-      <div style={cardStyle}>
-        <div style={tableWrapStyle}>
+      <FinanceListFrame>
           <table style={tableStyle}>
             <thead>
               <tr>
@@ -812,17 +815,17 @@ export function QuotationList({ access }: { access: QuotationAccess }) {
             </thead>
             <tbody>
               {loading ? <tr><td style={tdStyle} colSpan={8}>{t("finance.quotation.list.loading")}</td></tr> : null}
-              {!loading && quotations.length === 0 ? <tr><td style={tdStyle} colSpan={8}>{t("finance.quotation.list.empty")}</td></tr> : null}
-              {!loading && quotations.map((quotation) => (
+              {!loading && visibleQuotations.length === 0 ? <tr><td style={tdStyle} colSpan={8}>{t("finance.quotation.list.empty")}</td></tr> : null}
+              {!loading && visibleQuotations.map((quotation) => (
                 <tr key={quotation.id}>
-                  <td style={tdStyle}><Link href={`/finance/quotations/${quotation.id}`} style={linkStyle}>{quotation.quotation_no}</Link></td>
-                  <td style={tdStyle}>{renderQuotationClientName(quotation, lookups.clients)}</td>
-                  <td style={tdStyle}>{renderMatterLink(quotation, lookups, locale)}</td>
-                  <td style={tdStyle}>{date(quotation.issue_date)}</td>
-                  <td style={tdStyle}>{date(quotation.valid_until)}</td>
-                  <td style={tdStyle}><StatusBadge status={quotation.status} /></td>
-                  <td style={rightTdStyle}>{formatMoney(toAmount(quotation.grand_total))}</td>
-                  <td style={tdStyle}>
+                  <td data-label={t("finance.quotation.list.number")} style={tdStyle}><Link href={`/finance/quotations/${quotation.id}`} style={linkStyle}>{quotation.quotation_no}</Link></td>
+                  <td data-label={t("finance.quotation.list.client")} style={tdStyle}>{renderQuotationClientName(quotation, lookups.clients)}</td>
+                  <td data-label={t("finance.quotation.list.matter")} style={tdStyle}>{renderMatterLink(quotation, lookups, locale)}</td>
+                  <td data-label={t("finance.quotation.list.issueDate")} style={tdStyle}>{date(quotation.issue_date)}</td>
+                  <td data-label={t("finance.quotation.list.validUntil")} style={tdStyle}>{date(quotation.valid_until)}</td>
+                  <td data-label={t("finance.quotation.list.status")} style={tdStyle}><StatusBadge status={quotation.status} /></td>
+                  <td data-label={t("finance.quotation.list.payable")} style={rightTdStyle}>{formatMoney(toAmount(quotation.grand_total))}</td>
+                  <td data-label={t("finance.quotation.list.actions")} style={tdStyle}>
                     <div style={actionGroupStyle}>
                       <Link href={`/finance/quotations/${quotation.id}`} style={smallButtonStyle}>{t("finance.quotation.list.view")}</Link>
                       {quotation.status === "draft" && access.permissions.canEditFinanceQuotation ? <Link href={`/finance/quotations/${quotation.id}/edit`} style={smallButtonStyle}>{t("finance.quotation.list.edit")}</Link> : null}
@@ -832,8 +835,7 @@ export function QuotationList({ access }: { access: QuotationAccess }) {
               ))}
             </tbody>
           </table>
-        </div>
-      </div>
+      </FinanceListFrame>
     </>
   );
 }
@@ -2884,8 +2886,7 @@ function renderSignerDetail(quotation: QuotationRow) {
 function StatusBadge({ status }: { status: string | null }) {
   const { t } = useI18n();
   const normalized = String(status || "draft").toLowerCase();
-  const style = statusStyles[normalized] || statusStyles.draft;
-  return <span style={{ ...badgeStyle, ...style }}>{["draft", "sent", "accepted", "cancelled"].includes(normalized) ? t(`finance.quotation.status.${normalized}`) : normalized}</span>;
+  return <FinanceStatusBadge status={normalized} label={["draft", "sent", "accepted", "cancelled"].includes(normalized) ? t(`finance.quotation.status.${normalized}`) : t("finance.receipt.invalidStatus")} />;
 }
 
 function getReadonlyMessage(status: string | null) {
@@ -3123,11 +3124,3 @@ const detailGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "
 const detailLabelStyle: CSSProperties = { color: "#6b7280", fontSize: 12, fontWeight: 700, marginBottom: 4 };
 const detailValueStyle: CSSProperties = { color: "#111827", fontSize: 14, fontWeight: 600 };
 const mutedInlineTextStyle: CSSProperties = { color: "#6b7280", fontSize: 12, fontWeight: 600, marginTop: 3 };
-
-const badgeStyle: CSSProperties = { display: "inline-flex", borderRadius: 999, padding: "4px 9px", fontSize: 12, fontWeight: 800, textTransform: "capitalize" };
-const statusStyles: Record<string, CSSProperties> = {
-  draft: { background: "#f3f4f6", color: "#374151" },
-  sent: { background: "#dbeafe", color: "#1e40af" },
-  accepted: { background: "#dcfce7", color: "#166534" },
-  cancelled: { background: "#fee2e2", color: "#991b1b" },
-};

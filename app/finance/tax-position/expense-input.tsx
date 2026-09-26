@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import DetailModal from "../../components/DetailModal";
+import DetailModal from "../ui/FinanceModal";
 import { Callout } from "../../components/ui/patterns";
 import ui from "../../components/ui/vp-ui.module.css";
 import { useI18n } from "../../../lib/i18n/provider";
@@ -40,7 +40,7 @@ export function ExpenseInputReview({ source, onClose, onSaved }: { source: Input
   finally { lock.current = false; setBusy(false); }
  };
  const row = data?.record;
- return <DetailModal open title={t(source.status === "pending" ? "taxHome.reviewInput" : "taxHome.correctInput")} size="edit" closeOnBackdrop={false} onClose={() => { if (!lock.current) onClose(); }}>
+ return <DetailModal variant="review" open title={t(source.status === "pending" ? "taxHome.reviewInput" : "taxHome.correctInput")} size="edit" closeOnBackdrop={false} onClose={() => { if (!lock.current) onClose(); }}>
   <div className={`${expenseCss.page} ${expenseCss.form}`}>
    <Callout tone="info">{t("taxHome.inputReviewHelp")}</Callout>
    {error ? <Callout tone="negative" role="alert">{t(`expenses.${error}`)} <button className={ui.secondary} type="button" disabled={busy} onClick={() => setReload(n => n + 1)}>{t("expenses.refresh")}</button></Callout> : null}

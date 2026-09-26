@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useImperativeHandle, useRef, useState, type Ref } from "react";
-import DetailModal from "../../components/DetailModal";
+import DetailModal from "../ui/FinanceModal";
 import { useI18n } from "../../../lib/i18n/provider";
 import { uiMessage } from "../../../lib/i18n/core";
 import { resolveVatEvidence, vatTreatmentLabel, type VatEvidence } from "../document-decision/shared";
@@ -91,7 +91,7 @@ export default function ChargeVatControl({ value, onChange, disabled = false, er
     </select></label> : null}
     {choice === "standard" ? <details ref={rateDetails} className={styles.rateDetails}><summary>{t("finance.charge.vat.otherRate")}</summary><label className={styles.field}>{t("finance.charge.ui.vatRate")}<input ref={rateInput} disabled={disabled} inputMode="decimal" value={value.vatRate} aria-invalid={Boolean(errors.vatRate)} onChange={event => onChange({ ...value, vatRate: event.target.value, vatTreatment: null })} /></label></details> : null}
     {Object.entries(errors).filter(([key, error]) => error && ["vatRate", "priceTaxMode", "vatTreatment", "vatReason"].includes(key)).map(([key, error]) => <p className={styles.error} key={key}>{text(error)}</p>)}
-    <DetailModal open={open} title={t(modalChoice === "none" ? "finance.charge.vat.reasonTitle" : "finance.charge.vat.zeroTitle")} onClose={() => setOpen(false)} closeOnBackdrop={false}
+    <DetailModal variant="detail" open={open} title={t(modalChoice === "none" ? "finance.charge.vat.reasonTitle" : "finance.charge.vat.zeroTitle")} onClose={() => setOpen(false)} closeOnBackdrop={false}
       footer={<div className={styles.actions}><button type="button" className={styles.secondary} onClick={() => setOpen(false)}>{t("finance.charge.vat.close")}</button><button type="button" className={styles.primary} disabled={disabled} onClick={apply}>{t("finance.charge.vat.apply")}</button></div>}>
       <div className={styles.modalBody}>
         <ChargeValidationSummary errors={modalErrors} />

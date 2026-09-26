@@ -71,7 +71,7 @@ test('Native redirect, no legacy links, original opening/source RPC handlers and
  assert.match(fs.readFileSync('app/finance/treasury/page.tsx','utf8'),/import \{ redirect \} from "next\/navigation"[\s\S]*redirect\("\/finance\/statement"\)/);
  const before=cp.execFileSync('git',['show','bd3acef:app/finance/treasury/page.tsx'],{encoding:'utf8'}),after=fs.readFileSync('app/finance/treasury/maintenance.tsx','utf8');
  const handlers=s=>s.slice(s.indexOf(' function close()'),s.indexOf(' return <PageShell'));
- assert.equal(handlers(after),handlers(before));assert.equal(after.slice(after.indexOf('  <DetailModal open={!!opening}')),before.slice(before.indexOf('  <DetailModal open={!!opening}')));
+ assert.equal(handlers(after),handlers(before));assert.equal(after.replace(/<DetailModal variant="(?:detail|source)"/g,'<DetailModal').slice(after.replace(/<DetailModal variant="(?:detail|source)"/g,'<DetailModal').indexOf('  <DetailModal open={!!opening}')),before.slice(before.indexOf('  <DetailModal open={!!opening}')));
  const guard=fs.readFileSync('app/finance/statement/opening-balances/page.tsx','utf8');assert.match(guard,/permissions.canManageFinanceCashTransactions/);
  const files=cp.execFileSync('rg',['--files','app'],{encoding:'utf8'}).split('\n').filter(f=>/\.tsx$/.test(f));
  for(const file of files)assert.doesNotMatch(fs.readFileSync(file,'utf8'),/href=["']\/finance\/treasury/,file);

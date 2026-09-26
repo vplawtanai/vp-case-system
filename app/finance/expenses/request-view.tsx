@@ -2,7 +2,7 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, Pencil, Send, UserRound } from "lucide-react";
-import DetailModal from "../../components/DetailModal";
+import DetailModal from "../ui/FinanceModal";
 import { Callout } from "../../components/ui/patterns";
 import ui from "../../components/ui/vp-ui.module.css";
 import { useI18n } from "../../../lib/i18n/provider";
@@ -54,7 +54,7 @@ export function ExpenseRequestReview({ request, access, busy, error, run, onClos
  const staff = access.can_manage || access.can_tax_review || access.can_record || access.can_confirm;
  const payable = request.items.find(e => e.status === "accepted" && !pendingExpenseTax(e) && e.obligation && !e.obligation.settled && !e.obligation.waived && (e.payout?.can_confirm || (access.can_manage && access.can_record)));
  const money = (value: number) => `${value.toLocaleString(locale, { minimumFractionDigits: 2 })} THB`;
- return <DetailModal open size="workflow" title={requestReference(request.id)} onClose={() => { if (!busy) onClose(); }} closeOnBackdrop={false} footer={<div className={css.actions}>
+ return <DetailModal variant="review" open size="workflow" title={requestReference(request.id)} onClose={() => { if (!busy) onClose(); }} closeOnBackdrop={false} footer={<div className={css.actions}>
   <button type="button" className={ui.secondary} disabled={busy} onClick={onClose}>{t("common.actions.close")}</button>
   {request.status === "draft" && own ? <button type="button" className={ui.secondary} disabled={busy} onClick={onEdit}><Pencil size={17} />{t("expenses.editRequest")}</button> : null}
   {request.status === "draft" && (own || access.can_manage) ? <button type="button" className={ui.primary} disabled={busy} onClick={() => void run("submit_finance_expense_request", { p_id: request.id, p_version: request.version })}><Send size={17} />{t(claim ? "expenses.submitRequest" : "expenses.sendForReview")}</button> : !pending && payable ? <Link className={ui.primary} href={`${expenseHref(payable)}#payment`}>{t("expenses.payNow")}<ArrowRight size={17} /></Link> : null}

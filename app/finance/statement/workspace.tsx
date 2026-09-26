@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowRight, RefreshCw } from "lucide-react";
 import { supabase } from "../../../lib/supabase";
 import { useI18n } from "../../../lib/i18n/provider";
-import DetailModal from "../../components/DetailModal";
+import DetailModal from "../ui/FinanceModal";
 import { Callout, PageShell } from "../../components/ui/patterns";
 import ui from "../../components/ui/vp-ui.module.css";
 import { CompanyShareDetails, type CompanyStatementRow } from "./company/workspace";
@@ -45,7 +45,7 @@ export function UnifiedStatement({ account }: { account?: StatementAccount }) {
    </tr>)}</tbody></table>{!data.rows.length ? <p className={css.empty}>{w("empty")}</p> : null}</div>
    <footer className={css.pagination}><span>{data.count} {t("revenueDistribution.rows")}</span><div><button className={ui.secondary} disabled={!offset} onClick={() => { setLoading(true); setOffset(n => n - 50); }}>{t("revenueDistribution.previous")}</button><span>{Math.floor(offset / 50) + 1}</span><button className={ui.secondary} disabled={offset + 50 >= data.count} onClick={() => { setLoading(true); setOffset(n => n + 50); }}>{t("revenueDistribution.next")}</button></div></footer>
   </> : null}
-  {selected ? <DetailModal open title={t("companyStatement.detail")} onClose={() => setSelected(null)} footer={selected.href ? <Link className={ui.primary} href={selected.href}>{w("source")}<ArrowRight size={16}/></Link> : undefined}>
+  {selected ? <DetailModal variant="source" open title={t("companyStatement.detail")} onClose={() => setSelected(null)} footer={selected.href ? <Link className={ui.primary} href={selected.href}>{w("source")}<ArrowRight size={16}/></Link> : undefined}>
    {selected.kind === "income" ? <CompanyShareDetails row={selected as CompanyStatementRow}/> : <><div className={css.detailAmount}><div>{title(selected)}<small>{selected.reference}</small></div><strong>{money(isCompany ? selected.expense : selected.cash_amount)}</strong></div><dl className={css.facts}>{[
     [t("companyStatement.date"), date(selected.economic_date || selected.occurred_at || "")],
     [w("account"), account ? accountName(account, locale) : null], [t("revenueDistribution.client"), selected.client], [t("revenueDistribution.matter"), selected.matter],

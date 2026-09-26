@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import DetailModal from "../../components/DetailModal";
+import { FinanceCard } from "../ui/primitives";
+import DetailModal from "../ui/FinanceModal";
 import { Callout, ReadOnlyGrid } from "../../components/ui/patterns";
 import { useI18n } from "../../../lib/i18n/provider";
 import { readExpenses } from "../expenses/data";
@@ -21,8 +22,8 @@ export function ExpensePayableDetail({ obligation, isAdmin, onClose }: { obligat
  }, [obligation.expense_id, obligation.source_type]);
  const row = source?.record, tax = row?.tax_review;
  const money = (value: number | null | undefined) => value == null ? t("expenses.pending") : `${value.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${obligation.currency}`;
- return <DetailModal open title={t("expenses.payableDetails")} size="edit" onClose={onClose}>
-  <ReadOnlyGrid items={[
+ return <DetailModal variant="source" open title={t("expenses.payableDetails")} size="edit" onClose={onClose}>
+  <FinanceCard variant="source" icon="source" title={t("expenses.origin")}><ReadOnlyGrid items={[
    { key: "payee", label: t("expenses.payee"), value: obligation.payee_name },
    { key: "origin", label: t("expenses.origin"), value: t(`expenses.${obligation.source_type}`) },
    { key: "reference", label: t("expenses.reference"), value: obligation.reference },
@@ -31,7 +32,7 @@ export function ExpensePayableDetail({ obligation, isAdmin, onClose }: { obligat
    { key: "status", label: t("expenses.status"), value: <ExpenseBadge state={row ? expensePaymentState(row) : obligation.status === "open" ? "unpaid" : obligation.status === "settled" ? "paid" : "waived"} /> },
    ...(obligation.due_on ? [{ key: "due", label: t("expenses.dueOptional"), value: date(obligation.due_on) }] : []),
    { key: "ready", label: t("expenses.readyToPay"), value: date(obligation.created_at, true) },
-  ]} />
+  ]} /></FinanceCard>
   {failed ? <Callout tone="warning">{t("expenses.sourceReadFailed")}</Callout> : !source ? <p role="status">{t("expenses.loading")}</p> : <>
    <h3>{t("expenses.taxReview")}</h3><ReadOnlyGrid items={[
     { key: "vat", label: t("expenses.vat"), value: `${t(`expenses.${tax?.vat_state || "pending"}`)} · ${money(tax?.vat_state === "none" ? 0 : tax?.vat_amount)}` },

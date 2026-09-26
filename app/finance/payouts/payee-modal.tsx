@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
-import DetailModal from "../../components/DetailModal";
+import DetailModal from "../ui/FinanceModal";
 import { Callout, FieldGroup } from "../../components/ui/patterns";
 import ui from "../../components/ui/vp-ui.module.css";
 import { useI18n } from "../../../lib/i18n/provider";
@@ -35,7 +35,7 @@ export function PayeeModal({ payee, supplierContext, onClose, onSaved }: { payee
   } catch (e) { setError(payoutError(e)); } finally { lock.current = false; setBusy(false); }
  }
  const bankFields = ([["bank", bank, setBank], ["accountName", account, setAccount], ["accountNumber", number, setNumber]] as const).map(([key, value, setter]) => <FieldGroup id={`payee-${key}`} key={key} label={t(`payout.${key}`)}><input value={value} maxLength={key === "accountNumber" ? 50 : 200} disabled={busy} onChange={e => setter(e.target.value)} /></FieldGroup>);
- return <DetailModal open title={t(supplier ? "expenses.companyAddSupplier" : payee ? "payout.edit" : "payout.add")} size="edit" onClose={() => { if (!lock.current) onClose(); }} closeOnBackdrop={!busy}>
+ return <DetailModal variant="detail" open title={t(supplier ? "expenses.companyAddSupplier" : payee ? "payout.edit" : "payout.add")} size="edit" onClose={() => { if (!lock.current) onClose(); }} closeOnBackdrop={!busy}>
   <form className={css.form} onSubmit={save} onChange={() => { if (supplier) setMatches([]); }} noValidate><p className={css.muted}>{t("payout.identityHelp")}</p>
    {error ? <Callout tone="negative" role="alert">{t(supplier && error === "required" ? "expenses.companySupplierRequired" : `payout.${error}`)}</Callout> : null}
    <FieldGroup id="payee-name" label={t("payout.name")}><input required maxLength={300} value={name} disabled={busy || payee?.kind === "internal"} onChange={e => setName(e.target.value)} /></FieldGroup>

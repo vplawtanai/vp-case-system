@@ -30,6 +30,6 @@ test('Filing page presents review-first sections and honest empty history in TH/
   assert.ok(taxFilingMessages['taxFiling.inputReview'][locale]);
   assert.match(taxFilingMessages['taxFiling.creditHelp'][locale],/VAT/);
  }
- const beforeModal=ui.slice(ui.indexOf('return <PageShell'),ui.indexOf('<DetailModal open='));
+ const beforeModal=ui.slice(ui.indexOf('return <PageShell'),ui.indexOf('<DetailModal '));
  assert.doesNotMatch(beforeModal,/type="submit"|onClick=\{[^}]*execute\(/);
 });

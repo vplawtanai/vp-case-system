@@ -2,8 +2,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowDownToLine, ArrowRight, CheckCircle2, ChevronLeft, ChevronRight, Clock3, FileText, RefreshCw, TriangleAlert } from "lucide-react";
-import DetailModal from "../../../components/DetailModal";
-import { Callout, Disclosure, FieldGroup, PageShell, ReadOnlyGrid, StatusBadge } from "../../../components/ui/patterns";
+import DetailModal from "../../ui/FinanceModal";
+import { Callout, Disclosure, FieldGroup, PageShell, ReadOnlyGrid } from "../../../components/ui/patterns";
+import { FinanceStatusBadge as StatusBadge } from "../../ui/primitives";
 import ui from "../../../components/ui/vp-ui.module.css";
 import { supabase } from "../../../../lib/supabase";
 import { useI18n } from "../../../../lib/i18n/provider";
@@ -136,7 +137,7 @@ export function TaxFilingWorkspace({ permissions, initialMonth, initialType, onE
    </section></div>
   </> : null}
   </> : loading ? <p role="status">{t("common.state.loading")}</p> : error && !selection ? <Callout tone="negative">{tr(error)}<button type="button" onClick={close}>{t("common.actions.close")}</button></Callout> : null}
-  <DetailModal open={!!selection} title={vatReview ? tr("vatReviewTitle") : selection ? `${tr(paymentMode ? "paymentReview" : cancellation ? "cancelDraft" : "review")} · ${tr(selection.pool.filing_type)}` : tr("review")} subtitle={vatReview && selection ? `${tr("period")} ${monthName(selection.pool.period_month)}` : undefined} size="edit" onClose={close} closeOnBackdrop={!busy}>
+  <DetailModal variant={cancellation ? "destructive" : paymentMode ? "payment" : "review"} open={!!selection} title={vatReview ? tr("vatReviewTitle") : selection ? `${tr(paymentMode ? "paymentReview" : cancellation ? "cancelDraft" : "review")} · ${tr(selection.pool.filing_type)}` : tr("review")} subtitle={vatReview && selection ? `${tr("period")} ${monthName(selection.pool.period_month)}` : undefined} size="edit" onClose={close} closeOnBackdrop={!busy}>
    {selection && data ? <form ref={form} className={styles.form} onSubmit={submit} noValidate><fieldset disabled={busy}>
     {vatReview ? <VatFilingReview pool={f?.source_snapshot_json || selection.pool} monthlyFacts={reviewMonthMatches ? monthlyFacts : null} outgoingWht={reviewMonthMatches ? summary?.outgoing ?? null : null} /> : <ReadOnlyGrid items={[{ key: "period", label: tr("period"), value: monthName(selection.pool.period_month) }, { key: "amount", label: tr("amount"), value: money(f ? f.tax_amount : selection.pool.tax_amount) },
      { key: "count", label: tr("base"), value: tr("sourceCount", { count: filingCoverage(f?.source_snapshot_json || selection.pool).source_count }) }, { key: "due", label: tr("due"), value: f?.due_date ? date(f.due_date) : tr("dueUnknown") }]} />}

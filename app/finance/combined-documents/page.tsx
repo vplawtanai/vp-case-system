@@ -8,6 +8,7 @@ import { TaxInvoiceGuard } from "../tax-invoices/access";
 import { money } from "../invoices/shared";
 import { taxObject, taxText } from "../tax-invoices/shared";
 import type { CombinedDocument } from "./shared";
+import { FinanceHeader, FinanceFilterBar, FinanceListFrame, FinanceStatusBadge } from "../ui/primitives";
 import styles from "../finance-record-list.module.css";
 
 type CombinedListRow = Pick<CombinedDocument, "id" | "payment_id" | "direct_money_receipt_id" | "status" | "combined_no" | "issue_date" | "draft_snapshot_json" | "issued_snapshot_json">;
@@ -60,9 +61,9 @@ function CombinedList() {
   }, [load, invalidate]);
   const headings = [t("finance.list.documentNumber"), t("finance.payment.ui.client"), t("finance.list.paymentReference"), t("finance.list.documentDate"), t("finance.receipt.settlement"), t("finance.payment.ui.status"), t("finance.list.open")];
   return <section className={styles.workspace}>
-    <header className={styles.header}><h1>{t("finance.nav.combined")}</h1><label className={styles.filter}>{t("finance.payment.ui.status")}<select value={status} onChange={event => { setStatus(event.target.value); setPage(0); }}><option value="">{t("finance.receipt.all")}</option>{Object.entries(statuses).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></header>
+    <FinanceHeader icon="receipt" title={t("finance.nav.combined")}/><FinanceFilterBar label={t("finance.payment.ui.status")}><label className={styles.filter}>{t("finance.payment.ui.status")}<select value={status} onChange={event => { setStatus(event.target.value); setPage(0); }}><option value="">{t("finance.receipt.all")}</option>{Object.entries(statuses).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></FinanceFilterBar>
     {loading ? <p role="status">{t("common.state.loading")}</p> : error ? <p role="alert" className={styles.error}>{t("finance.combined.list.failed")} <button className={styles.button} type="button" onClick={() => void load()}>{t("common.actions.retry")}</button></p> : !rows.length ? <p className={styles.empty}>{t("finance.combined.list.empty")}</p> :
-      <table className={styles.table}><thead><tr>{headings.map((label, index) => <th key={index} scope="col" className={index === 4 ? styles.numeric : undefined}>{label}</th>)}</tr></thead><tbody>{rows.map(row => {
+      <FinanceListFrame><table className={styles.table}><thead><tr>{headings.map((label, index) => <th key={index} scope="col" className={index === 4 ? styles.numeric : undefined}>{label}</th>)}</tr></thead><tbody>{rows.map(row => {
         const facts = combinedListFacts(row);
         return <tr key={row.id}>
           <td data-label={headings[0]}><strong>{row.combined_no || t("finance.taxInvoice.ui.draftReference", { reference: row.id.slice(0, 8).toUpperCase() })}</strong></td>
@@ -70,10 +71,10 @@ function CombinedList() {
           <td data-label={headings[2]}>{facts?.paymentReference || (row.direct_money_receipt_id || row.payment_id || "").slice(0, 8).toUpperCase()}</td>
           <td data-label={headings[3]}>{date(row.issue_date)}{facts?.receivedOn ? <small>{t("finance.receipt.receivedOn")}: {date(facts.receivedOn)}</small> : null}</td>
           <td data-label={headings[4]} className={styles.numeric}>{facts ? money(facts.settlement, facts.currency) : t("finance.receipt.evidenceMissing")}</td>
-          <td data-label={headings[5]}><span className={styles.status}>{statuses[row.status] || t("finance.receipt.invalidStatus")}</span></td>
+          <td data-label={headings[5]}><FinanceStatusBadge status={row.status} label={statuses[row.status] || t("finance.receipt.invalidStatus")}/></td>
           <td data-label={headings[6]}><Link className={styles.button} href={`/finance/combined-documents/${row.id}`}>{t("finance.list.open")}</Link></td>
         </tr>;
-      })}</tbody></table>}
+      })}</tbody></table></FinanceListFrame>}
     <div className={styles.pagination}><button type="button" className={styles.button} disabled={loading || page === 0} onClick={() => setPage(value => value - 1)}>{t("finance.receipt.previous")}</button><span>{t("finance.receipt.page", { page: page + 1 })}</span><button type="button" className={styles.button} disabled={loading || error || !hasNext} onClick={() => setPage(value => value + 1)}>{t("finance.receipt.next")}</button></div>
   </section>;
 }

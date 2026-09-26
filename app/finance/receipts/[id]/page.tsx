@@ -1,4 +1,5 @@
 "use client";
+import { FinanceStatusBadge } from "../../ui/primitives";
 import { documentSource } from "../../document-decision/source";
 import { useI18n } from "../../../../lib/i18n/provider";
 import { FinanceDocumentNextAction } from "../../document-decision/next-action";
@@ -62,7 +63,7 @@ function ReceiptWorkspace({ id, permissions }: { id: string; permissions: UserPe
   if (!receipt) return <><p role="alert" className={styles.error}>{loadError}</p><button type="button" className={styles.button} onClick={() => void reload()}>{t("common.actions.retry")}</button></>;
   return <>
     <header className={`${styles.heading} ${styles.noPrint}`}>
-      <div><Link className={styles.link} href="/finance/receipts">{t("finance.receipt.allReceipts")}</Link><h1>{document?.receipt.number || receipt.receipt_no || t("finance.receipt.draft")}</h1><span className={styles.status}>{receiptStatusLabel(receipt.status, locale)}</span></div>
+      <div><Link className={styles.link} href="/finance/receipts">{t("finance.receipt.allReceipts")}</Link><h1>{document?.receipt.number || receipt.receipt_no || t("finance.receipt.draft")}</h1><FinanceStatusBadge status={receipt.status} label={receiptStatusLabel(receipt.status, locale)}/></div>
       <div className={styles.actions}><Link className={styles.button} href={documentSource(receipt).href}>{t(receipt.direct_money_receipt_id ? "directMoney.documentSource" : "finance.receipt.payment")}</Link><button type="button" className={styles.button} disabled={busy} onClick={() => { clearReview(); void reload(); }}>{t("finance.receipt.reload")}</button></div>
     </header>
     {error || loadError ? <p role="alert" className={styles.error}>{error ? safeReceiptError(error, locale) : loadError}</p> : null}

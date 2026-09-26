@@ -7,7 +7,7 @@ import styles from "./DetailModal.module.css";
 import ui from "./ui/vp-ui.module.css";
 import { useI18n } from "../../lib/i18n/provider";
 
-type DetailModalProps = {
+export type DetailModalProps = {
   open: boolean;
   title: ReactNode;
   subtitle?: ReactNode;
@@ -18,7 +18,10 @@ type DetailModalProps = {
   onClose: () => void;
   closeLabel?: string;
   closeOnBackdrop?: boolean;
-  size?: "detail" | "edit" | "workflow";
+  size?: "detail" | "edit" | "workflow" | "confirm";
+  className?: string;
+  icon?: ReactNode;
+  variant?: "detail" | "review" | "payment" | "destructive" | "source";
 };
 
 const focusableSelector = [
@@ -49,6 +52,9 @@ export default function DetailModal({
   closeLabel,
   closeOnBackdrop = true,
   size = "detail",
+  className,
+  icon,
+  variant,
 }: DetailModalProps) {
   const { t } = useI18n();
   const resolvedCloseLabel = closeLabel || t("common.actions.closeDetails");
@@ -140,12 +146,13 @@ export default function DetailModal({
   if (!mounted || !open) return null;
 
   return createPortal(
-    <div className={`${ui.scope} ${styles.backdrop}`} onMouseDown={(event) => {
+    <div className={`${ui.scope} ${styles.backdrop} ${className || ""}`} data-modal-variant={variant} onMouseDown={(event) => {
       if (closeOnBackdrop && event.target === event.currentTarget) onClose();
     }}>
       <div ref={panelRef} className={styles.modal} data-size={size} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
         <header className={styles.header}>
           <div className={styles.identity}>
+            {icon}
             <div className={styles.titleGroup}>
               <h2 id={titleId}>{title}</h2>
               {subtitle ? <div className={styles.subtitle}>{subtitle}</div> : null}

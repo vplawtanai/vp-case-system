@@ -1,4 +1,5 @@
 "use client";
+import { FinanceStatusBadge } from "../../ui/primitives";
 
 import { useI18n } from "../../../../lib/i18n/provider";
 import { uiMessage, type UiMessage, type UiLocale } from "../../../../lib/i18n/core";
@@ -591,7 +592,7 @@ function SectionHeading({ title, description }: { title: string; description: st
 function Field({ label, value }: { label: string; value: ReactNode }) { return <div style={{ minWidth: 0 }}><small style={fieldLabel}>{label}</small><div style={fieldValue}>{value}</div></div>; }
 function ReadOnlyValue({ label, value, multiline = false }: { label: string; value: string; multiline?: boolean }) { return <div style={readOnlyValue}><small style={fieldLabel}>{label}</small><div style={{ ...readOnlyText, ...(multiline ? readOnlyMultiline : {}) }}>{value}</div></div>; }
 function FormField({ label, helper, required = false, error, children }: { label: string; helper?: string; required?: boolean; error?: UiMessage; children: ReactNode }) { const { text } = useI18n(); return <label style={formField}><span style={formLabel}>{label}{required ? <strong style={requiredMark}> *</strong> : null}</span>{children}{helper ? <small style={formHelper}>{helper}</small> : null}{error ? <small style={formError}>{text(error)}</small> : null}</label>; }
-function StatusBadge({ status, label }: { status: string; label: string }) { return <span style={{ ...badge, ...(status === "draft" || status === "ready_to_invoice" || status === "partially_settled" ? amberBadge : status === "cancelled" || status === "voided" || status === "unpaid" ? redBadge : greenBadge) }}>{label}</span>; }
+function StatusBadge({ status, label }: { status: string; label: string }) { return <FinanceStatusBadge status={status} label={label}/>; }
 function SourceNode({ label, current = false, children }: { label: string; current?: boolean; children: ReactNode }) { return <div style={{ ...sourceNode, ...(current ? currentNode : {}) }}><small style={fieldLabel}>{label}</small><div style={sourceNodeContent}>{children}</div></div>; }
 function Arrow() { return <span className="invoice-source-arrow" style={sourceArrow} aria-hidden="true">→</span>; }
 function Metric({ label, value, prominent = false }: { label: string; value: string; prominent?: boolean }) { return <div style={{ ...metric, ...(prominent ? prominentMetric : {}) }}><small>{label}</small><strong style={metricValue}>{value}</strong></div>; }
@@ -742,7 +743,3 @@ const voidValidationSummary: CSSProperties = { marginBottom: 14, padding: 11, bo
 const voidConsequences: CSSProperties = { marginTop: 14, padding: "12px 14px", border: "1px solid #fecaca", borderRadius: 6, background: "#fff", color: "#475569", fontSize: 13, lineHeight: 1.6 };
 const voidAcknowledgement: CSSProperties = { display: "flex", alignItems: "flex-start", gap: 9, marginTop: 14, padding: 12, border: "1px solid #fca5a5", borderRadius: 6, background: "#fff", color: "#7f1d1d", fontWeight: 700, lineHeight: 1.5 };
 const invalidAcknowledgement: CSSProperties = { borderColor: "#dc2626", boxShadow: "0 0 0 1px #dc2626" };
-const badge: CSSProperties = { display: "inline-block", width: "fit-content", padding: "4px 8px", borderRadius: 999, fontSize: 12, fontWeight: 700 };
-const amberBadge: CSSProperties = { background: "#fef3c7", color: "#92400e" };
-const greenBadge: CSSProperties = { background: "#dcfce7", color: "#166534" };
-const redBadge: CSSProperties = { background: "#fee2e2", color: "#b91c1c" };

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, type ComponentProps } from "react";
-import DetailModal from "../../components/DetailModal";
+import DetailModal from "../ui/FinanceModal";
 import LanguageSelector from "../../components/LanguageSelector";
 import { useI18n } from "../../../lib/i18n/provider";
 import BillableChargeCreateWorkflow, { type BillableChargeWorkflowHandle } from "./BillableChargeCreateWorkflow";
@@ -25,7 +25,7 @@ export default function BillableChargeCreateModal({ onClose, onSaved, onReady, c
   };
 
   return <>
-    <DetailModal open title={t("finance.charge.ui.create")} status={<LanguageSelector />} onClose={requestClose} closeOnBackdrop={false} closeLabel={t("common.actions.close")}
+    <DetailModal variant="detail" open title={t("finance.charge.ui.create")} status={<LanguageSelector />} onClose={requestClose} closeOnBackdrop={false} closeLabel={t("common.actions.close")}
       footer={<div className={styles.footer}><button type="button" className={styles.close} onClick={requestClose}>{t("common.actions.close")}</button><div className={styles.actions} ref={setActionContainer} /></div>}>
       <div className={styles.createBody}>
         <BillableChargeCreateWorkflow {...workflow} ref={workflowRef} actionContainer={actionContainer}
@@ -33,7 +33,7 @@ export default function BillableChargeCreateModal({ onClose, onSaved, onReady, c
           onReady={async charge => { await onReady?.(charge); onClose(); }} />
       </div>
     </DetailModal>
-    {confirmClose ? <DetailModal open title={t("common.state.unsaved")} onClose={() => setConfirmClose(false)} closeOnBackdrop={false}
+    {confirmClose ? <DetailModal variant="destructive" open title={t("common.state.unsaved")} onClose={() => setConfirmClose(false)} closeOnBackdrop={false}
       footer={<div className={styles.confirmActions}><button className={styles.close} type="button" onClick={() => setConfirmClose(false)}>{t("finance.charge.modal.keepEditing")}</button><button className={styles.discard} type="button" onClick={onClose}>{t("finance.charge.modal.discard")}</button></div>}>
       <p>{t("finance.charge.modal.discardHelp")}</p>
     </DetailModal> : null}
