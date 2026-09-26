@@ -148,6 +148,11 @@ export default function AppTopNav({
         items: [
           { page: "dashboard" as const, label: t("common.nav.dashboard"), icon: "dashboard" as const, href: "/dashboard", visible: permissions.canViewDashboard },
           { page: "calendar" as const, label: t("common.nav.calendar"), icon: "calendar" as const, href: "/calendar", visible: permissions.canViewDashboard },
+        ],
+      },
+      {
+        title: t("common.nav.clientWork"),
+        items: [
           { page: "cases" as const, label: t("common.nav.cases"), icon: "cases" as const, href: "/cases", visible: permissions.canViewCases },
           { page: "advisory" as const, label: t("common.nav.advisory"), icon: "advisory" as const, href: "/advisory", visible: permissions.canViewDashboard },
         ],

@@ -28,6 +28,7 @@ export const commonMessages = {
   "common.nav.command": { th: "ภาพรวม", en: "Overview" },
   "common.nav.dashboard": { th: "แดชบอร์ด", en: "Dashboard" },
   "common.nav.calendar": { th: "ปฏิทิน", en: "Calendar" },
+  "common.nav.clientWork": { th: "งานลูกค้า", en: "Client Work" },
   "common.nav.cases": { th: "คดี", en: "Cases" },
   "common.nav.advisory": { th: "งานที่ปรึกษา", en: "Advisory" },
   "common.nav.operations": { th: "การปฏิบัติงาน", en: "Operations" },
