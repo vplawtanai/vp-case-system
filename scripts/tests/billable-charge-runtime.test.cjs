@@ -78,7 +78,7 @@ test('Existing ready Charges still use the normal selection controls', () => {
 
 test('Concise Finance navigation preserves full page title, route and access guards', () => {
   const { financeNavigationLinks, activeFinancePage } = require(root + '/app/finance/finance-navigation.ts');
-  for (const [locale, label] of [['th', 'รายการเรียกเก็บ'], ['en', 'Billable Charges']]) {
+  for (const [locale, label] of [['th', 'เรียกเก็บเพิ่มเติม'], ['en', 'Additional Charges']]) {
     const link = financeNavigationLinks(permissions, locale).find(item => item.page === 'billable-charges');
     assert.deepEqual(link, { href: '/finance/billable-charges', page: 'billable-charges', label });
     assert.equal(activeFinancePage(link.href), 'billable-charges');

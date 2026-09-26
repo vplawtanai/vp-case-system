@@ -233,3 +233,37 @@ Exact release files (8):
 - `docs/finance/FINANCE_UI_PHASE6.md`
 
 Human UAT: Finance → รายรับ → รายการเรียกเก็บ. Compare desktop rows/mobile cards, switch TH/EN, search and filter, open an existing item, and verify Create/Compose Invoice launch their familiar workflows. Automated release verification is read-only.
+
+## Service-fee navigation completion polish — 26 September 2026
+
+Start: `/Users/paolawyer/vp-case-app/vp-case-web`, `main`, HEAD = origin/main = `aaad6c55912462754a0f9de7ed60eb20e339ee99`. No tracked edits at start; 28 unrelated untracked SQL/migration files remain untouched.
+
+Income order: Quotations → Service Fees → Invoices → Payments. Other Finance groups retain their original order and permissions. Service Fees reuses the existing FinanceSidebar accordion, with the two existing routes kept separate:
+
+| TH label / helper | EN label / helper | Existing route | Accent / existing icon |
+|---|---|---|---|
+| ค่าบริการ | Service Fees | Parent toggle only | Normal Finance navigation |
+| ข้อตกลงค่าบริการ / แบบมีใบเสนอราคา | Fee Agreements / From Quotation | `/finance/fee-agreements` | Blue / FileCheck2 |
+| เรียกเก็บเพิ่มเติม / แบบไม่มีใบเสนอราคา | Additional Charges / Without Quotation | `/finance/billable-charges` | Amber / FilePlus2 |
+
+Child labels stay dark; icons, helper text, selected tint and left bar carry the restrained accent. Amber denotes a navigation path, not a warning. Visible helper text, selected font weight, `aria-current`, native buttons and focus outlines preserve non-color cues. No new icon library. Full page titles remain unchanged.
+
+Child routes (including existing Fee Agreement/Billing Plan mappings) open the parent automatically. An explicit toggle can collapse/open it on the current pathname; navigation to a child resets stale preferences. Open group → child remains one click. Mobile uses the existing drawer and closes after selecting a destination.
+
+Validation: 39/39 targeted tests PASS (Finance navigation/access/order, Billable Charges runtime/VAT, Fee Agreements i18n/navigation, Phase 6 presentation and Revenue Distribution UI). Targeted ESLint, `tsc --noEmit`, production build and `git diff --check`: PASS. Local browser smoke used the actual AppTopNav/FinanceSidebar with synthetic identity and no Production connection: TH/EN at 390/768/1024/1440, both destination links/selected states, visible helpers, mobile drawer, Enter/Space toggles and Tab order including skipping collapsed children. No horizontal navigation overflow. Screenshots: `/private/tmp/service-nav-evidence/`; logs: `/private/tmp/service-nav-tests.log`, `/private/tmp/service-nav-build.log`.
+
+Business logic, routes, permissions, page content, SQL/RPC/RLS and migrations 001–071 unchanged; no Migration 072, Production transaction or Legacy Cutover.
+
+Exact release files (9):
+
+- `app/finance/FinanceSidebar.tsx`
+- `app/finance/finance-navigation.ts`
+- `app/finance/finance-sidebar.module.css`
+- `app/finance/ui/icons.tsx`
+- `lib/i18n/messages/common.ts`
+- `lib/i18n/messages/billable-charges.ts`
+- `scripts/tests/finance-service-navigation.test.cjs`
+- `scripts/tests/billable-charge-runtime.test.cjs`
+- `docs/finance/FINANCE_UI_PHASE6.md`
+
+Human UAT: การเงิน → รายรับ → ค่าบริการ. Expand/collapse, open ข้อตกลงค่าบริการ and เรียกเก็บเพิ่มเติม, and check helper text/current selection on desktop and mobile in TH/EN.

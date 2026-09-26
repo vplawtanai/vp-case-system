@@ -33,7 +33,7 @@ export const billableChargeMessages = {
   "finance.charge.modal.discardHelp": { th: "ข้อมูลที่ยังไม่ได้บันทึกจะหายไป รายการที่บันทึกแล้วจะยังคงอยู่", en: "Unsaved changes will be lost. Any previously saved Draft will remain." },
   "finance.charge.modal.composerDraftSaved": { th: "บันทึกร่างรายการเรียกเก็บนอกใบเสนอราคาแล้ว ต้องยืนยันพร้อมออกใบแจ้งหนี้ก่อนเลือกใช้", en: "Non-Quotation Charge Draft saved. Readiness confirmation is required before it can be selected." },
   "finance.charge.modal.composerReady": { th: "รายการเรียกเก็บนอกใบเสนอราคาพร้อมออกใบแจ้งหนี้แล้ว กรุณาเลือกจากรายการต้นทาง", en: "Non-Quotation Charge is ready to invoice. Select it from the source list." },
-  "finance.charge.nav": { th: "รายการเรียกเก็บ", en: "Billable Charges" },
+  "finance.charge.nav": { th: "เรียกเก็บเพิ่มเติม", en: "Additional Charges" },
   "finance.charge.ui.clientMatter": { th: "ลูกค้า / งาน", en: "Client / Matter" },
   "finance.charge.ui.details": { th: "รายละเอียด", en: "Details" },
   "finance.charge.ui.create": { th: "สร้างรายการเรียกเก็บ", en: "Create Charge" },

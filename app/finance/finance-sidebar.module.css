@@ -18,3 +18,14 @@
 .accordion svg { flex:0 0 15px; }
 .children { display:grid; gap:3px; padding-left:12px; margin-left:13px; border-left:1px solid #e1e7ef; }
 .children[hidden] { display:none; }
+/* Service paths are navigation categories, never workflow warning/error states. */
+.nav .serviceLink { --service-accent:#215cab; --service-tint:#edf4ff; display:flex; align-items:flex-start; gap:8px; padding:10px; color:#243b55; }
+.nav .serviceLink[data-service-path=additional] { --service-accent:#8a5309; --service-tint:#fff5df; }
+.serviceLink > svg { margin-top:2px; flex:0 0 17px; color:var(--service-accent); }
+.serviceLink > span { min-width:0; display:grid; gap:2px; }
+.serviceLabel { font-weight:600; line-height:1.5; }
+.serviceLink small { display:block; color:var(--service-accent); font-size:11px; line-height:1.5; font-weight:400; }
+.nav .serviceLink[aria-current] { background:var(--service-tint); color:#152d50; }
+.nav .serviceLink[aria-current] .serviceLabel { font-weight:750; }
+.nav .serviceLink[aria-current]::before { background:var(--service-accent); }
+.nav .serviceLink:hover { background:var(--service-tint); }

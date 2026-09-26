@@ -35,7 +35,7 @@ export type FinanceNavigationLink = {
 };
 
 export type FinanceNavigationGroup = {
-  group: "payment-documents" | "legacy" | "statement";
+  group: "service-fees" | "payment-documents" | "legacy" | "statement";
   label: string;
   children: FinanceNavigationLink[];
 };
@@ -103,12 +103,13 @@ export function financeNavigationLinks(permissions: FinanceNavigationPermissions
 export function financeNavigationItems(permissions: FinanceNavigationPermissions, locale: UiLocale = "th"): FinanceNavigationItem[] {
   const items: FinanceNavigationItem[] = [];
   for (const link of financeNavigationLinks(permissions, locale)) {
-    const group = ["receipts", "combined-documents", "tax-invoices"].includes(link.page)
+    const group = ["fee-agreements", "billable-charges"].includes(link.page)
+      ? "service-fees" : ["receipts", "combined-documents", "tax-invoices"].includes(link.page)
       ? "payment-documents" : ["claims", "ledger", "compensation"].includes(link.page) ? "legacy" : null;
     if (!group) { items.push(link); continue; }
     const existing = items.find((item): item is FinanceNavigationGroup => "group" in item && item.group === group);
     if (existing) existing.children.push(link);
-    else items.push({ group, label: translate(locale, group === "legacy" ? "finance.nav.legacy" : "finance.nav.paymentDocuments"), children: [link] });
+    else items.push({ group, label: translate(locale, group === "service-fees" ? "finance.nav.serviceFees" : group === "legacy" ? "finance.nav.legacy" : "finance.nav.paymentDocuments"), children: [link] });
   }
   if (permissions.canViewFinanceCashTransactions && !items.some(i => "group" in i && i.group === "statement")) items.push({ group: "statement", label: translate(locale,"companyStatement.nav"), children: [] });
   return items;
