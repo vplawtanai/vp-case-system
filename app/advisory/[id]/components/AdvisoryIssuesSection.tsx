@@ -124,7 +124,7 @@ export default function AdvisoryIssuesSection({
         .order("created_at", { ascending: false });
 
       if (error) {
-        alert("Load advisory issues failed:\n" + error.message);
+        alert("โหลดประเด็นไม่สำเร็จ:\n" + error.message);
         setItems([]);
         onIssuesChange?.([]);
         return;
@@ -218,7 +218,7 @@ export default function AdvisoryIssuesSection({
 
         if (error || !data) {
           alert(
-            "Update advisory issue failed:\n" +
+            "แก้ไขประเด็นไม่สำเร็จ:\n" +
               (error?.message || "No row updated")
           );
           return;
@@ -234,7 +234,7 @@ export default function AdvisoryIssuesSection({
 
         if (error || !data) {
           alert(
-            "Create advisory issue failed:\n" +
+            "สร้างประเด็นไม่สำเร็จ:\n" +
               (error?.message || "No row created")
           );
           return;
@@ -253,7 +253,7 @@ export default function AdvisoryIssuesSection({
   const softDeleteIssue = async (id: string) => {
     if (!canDelete) return;
 
-    const confirmed = window.confirm("Delete this advisory issue?");
+    const confirmed = window.confirm("ลบประเด็นนี้หรือไม่?");
     if (!confirmed) return;
 
     try {
@@ -274,7 +274,7 @@ export default function AdvisoryIssuesSection({
 
       if (error || !data) {
         alert(
-          "Soft delete advisory issue failed:\n" +
+          "ลบประเด็นไม่สำเร็จ:\n" +
             (error?.message || "No row updated")
         );
         return;
@@ -312,8 +312,8 @@ export default function AdvisoryIssuesSection({
     <section style={sectionStyle}>
       <div style={headerStyle}>
         <div>
-          <h3 style={titleStyle}>Advisory Issues / Workstreams</h3>
-          <div style={subTitleStyle}>Track advisory issues under this matter.</div>
+          <h3 style={titleStyle}>ประเด็น / งานย่อย</h3>
+          <div style={subTitleStyle}>ติดตามประเด็นและงานย่อยของงานนอกคดีนี้</div>
         </div>
         {canEdit && !showForm ? (
           <button type="button" onClick={startAdd} style={primaryButtonStyle}>
@@ -416,7 +416,7 @@ export default function AdvisoryIssuesSection({
       ) : null}
 
       {loading ? (
-        <div style={messageStyle}>Loading advisory issues...</div>
+        <div style={messageStyle}>กำลังโหลดประเด็น...</div>
       ) : (
         <div style={tableWrapStyle}>
           <table style={tableStyle}>
@@ -487,7 +487,7 @@ export default function AdvisoryIssuesSection({
             </tbody>
           </table>
           {items.length === 0 ? (
-            <div style={messageStyle}>No advisory issues found.</div>
+            <div style={messageStyle}>ไม่พบประเด็น</div>
           ) : null}
         </div>
       )}

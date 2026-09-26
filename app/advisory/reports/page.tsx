@@ -227,7 +227,7 @@ export default function AdvisoryReportsPage() {
         ].find((response) => response.error);
 
         if (failed?.error) {
-          setErrorText(failed.error.message || "Load advisory report failed");
+          setErrorText(failed.error.message || "โหลดรายงานงานนอกคดีไม่สำเร็จ");
           return;
         }
 
@@ -357,8 +357,8 @@ export default function AdvisoryReportsPage() {
       <AuthGuard>
         <main style={pageStyle}>
           <AppTopNav
-            title="Advisory Reports"
-            subtitle="Monthly advisory overview"
+            title="รายงานงานนอกคดี"
+            subtitle="ภาพรวมงานนอกคดีรายเดือน"
             activePage="advisory"
           />
           <div style={noAccessBoxStyle}>No access</div>
@@ -371,13 +371,13 @@ export default function AdvisoryReportsPage() {
     <AuthGuard>
       <main style={pageStyle}>
         <AppTopNav
-          title="Advisory Reports"
-          subtitle="Monthly advisory overview"
+          title="รายงานงานนอกคดี"
+          subtitle="ภาพรวมงานนอกคดีรายเดือน"
           activePage="advisory"
         />
 
         <Link href="/advisory" style={backLinkStyle}>
-          Back to Advisory
+          กลับไปงานนอกคดี
         </Link>
 
         <section style={panelStyle}>

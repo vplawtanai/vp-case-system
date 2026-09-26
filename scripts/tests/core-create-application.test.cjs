@@ -37,7 +37,7 @@ test('Advisory existing creator roles, validated payload/defaults and Finance fi
 });
 test('Advisory rejects invalid business fields before RPC; failed create never writes success audit',async()=>{
  for(const override of [{title:' '},{client_id:''},{matter_type:'other',matter_type_other:''},{monthly_retainer_amount:'bad'}]){const s=advisoryContext({override});await handler('app/advisory/page.tsx','saveMatter',s.context)();assert.equal(s.calls.length,0);assert.equal(s.alerts.length,1);}
- const s=advisoryContext({error:{message:'Denied'}});await handler('app/advisory/page.tsx','saveMatter',s.context)();assert.equal(s.audits.length,0);assert.match(s.alerts[0],/Create advisory matter failed/);
+ const s=advisoryContext({error:{message:'Denied'}});await handler('app/advisory/page.tsx','saveMatter',s.context)();assert.equal(s.audits.length,0);assert.match(s.alerts[0],/สร้างงานนอกคดีไม่สำเร็จ/);
 });
 
 test('Advisory edit retains direct UPDATE and preserves the existing hidden Finance field',async()=>{

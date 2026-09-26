@@ -122,7 +122,7 @@ export default function AdvisoryIssueTasksSection({
         .order("created_at", { ascending: false });
 
       if (error) {
-        alert("Load advisory issue tasks failed:\n" + error.message);
+        alert("โหลดงานที่ต้องดำเนินการไม่สำเร็จ:\n" + error.message);
         setItems([]);
         return;
       }
@@ -209,7 +209,7 @@ export default function AdvisoryIssueTasksSection({
 
         if (error || !data) {
           alert(
-            "Update advisory issue task failed:\n" +
+            "แก้ไขงานที่ต้องดำเนินการไม่สำเร็จ:\n" +
               (error?.message || "No row updated")
           );
           return;
@@ -225,7 +225,7 @@ export default function AdvisoryIssueTasksSection({
 
         if (error || !data) {
           alert(
-            "Create advisory issue task failed:\n" +
+            "สร้างงานที่ต้องดำเนินการไม่สำเร็จ:\n" +
               (error?.message || "No row created")
           );
           return;
@@ -244,7 +244,7 @@ export default function AdvisoryIssueTasksSection({
   const softDeleteTask = async (item: TaskItem) => {
     if (!canDelete) return;
 
-    const confirmed = window.confirm("Delete this advisory issue task?");
+    const confirmed = window.confirm("ลบงานที่ต้องดำเนินการนี้หรือไม่?");
     if (!confirmed) return;
 
     try {
@@ -266,7 +266,7 @@ export default function AdvisoryIssueTasksSection({
 
       if (error || !data) {
         alert(
-          "Soft delete advisory issue task failed:\n" +
+          "ลบงานที่ต้องดำเนินการไม่สำเร็จ:\n" +
             (error?.message || "No row updated")
         );
         return;
@@ -391,7 +391,7 @@ export default function AdvisoryIssueTasksSection({
       ) : null}
 
       {loading ? (
-        <div style={messageStyle}>Loading advisory issue tasks...</div>
+        <div style={messageStyle}>กำลังโหลดงานที่ต้องดำเนินการ...</div>
       ) : (
         <div style={tableWrapStyle}>
           <table style={tableStyle}>
@@ -454,7 +454,7 @@ export default function AdvisoryIssueTasksSection({
             </tbody>
           </table>
           {items.length === 0 ? (
-            <div style={messageStyle}>No advisory issue tasks found.</div>
+            <div style={messageStyle}>ไม่พบงานที่ต้องดำเนินการ</div>
           ) : null}
         </div>
       )}

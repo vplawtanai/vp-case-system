@@ -166,7 +166,7 @@ export default function AdvisoryDeletedItemsPanel({
       <div style={headerStyle}>
         <div>
           <h3 style={titleStyle}>Deleted Items ({totalCount})</h3>
-          <div style={subTitleStyle}>Restore deleted advisory records.</div>
+          <div style={subTitleStyle}>กู้คืนรายการที่ลบในงานนอกคดี</div>
         </div>
         <button
           type="button"

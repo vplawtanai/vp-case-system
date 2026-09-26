@@ -217,7 +217,7 @@ export default function AdvisoryIssueDetailPage() {
         .maybeSingle();
 
       if (matterError || !matterData) {
-        setErrorText(matterError?.message || "Advisory matter not found");
+        setErrorText(matterError?.message || "ไม่พบงานนอกคดี");
         setMatter(null);
         setIssue(null);
         return;
@@ -231,14 +231,14 @@ export default function AdvisoryIssueDetailPage() {
         .maybeSingle();
 
       if (issueError || !issueData) {
-        setErrorText(issueError?.message || "Advisory issue not found");
+        setErrorText(issueError?.message || "ไม่พบประเด็น");
         setMatter(matterData as AdvisoryMatter);
         setIssue(null);
         return;
       }
 
       if (issueData.advisory_matter_id !== matterData.id) {
-        setErrorText("Advisory issue does not belong to this matter");
+        setErrorText("ประเด็นนี้ไม่ได้อยู่ในงานนอกคดีที่เลือก");
         setMatter(matterData as AdvisoryMatter);
         setIssue(null);
         return;
@@ -288,7 +288,7 @@ export default function AdvisoryIssueDetailPage() {
     }
 
     if (issue.advisory_matter_id !== matter.id) {
-      alert("Advisory issue does not belong to this matter");
+      alert("ประเด็นนี้ไม่ได้อยู่ในงานนอกคดีที่เลือก");
       return;
     }
 
@@ -325,7 +325,7 @@ export default function AdvisoryIssueDetailPage() {
         .maybeSingle();
 
       if (error || !data) {
-        alert("Update advisory issue failed:\n" + (error?.message || "No row updated"));
+        alert("แก้ไขประเด็นไม่สำเร็จ:\n" + (error?.message || "No row updated"));
         return;
       }
 
@@ -341,7 +341,7 @@ export default function AdvisoryIssueDetailPage() {
     if (!canEditIssue || !issue || !matter) return;
 
     if (issue.advisory_matter_id !== matter.id) {
-      alert("Advisory issue does not belong to this matter");
+      alert("ประเด็นนี้ไม่ได้อยู่ในงานนอกคดีที่เลือก");
       return;
     }
 
@@ -385,7 +385,7 @@ export default function AdvisoryIssueDetailPage() {
 
       if (error || !data) {
         alert(
-          `${nextClosed ? "Close" : "Reopen"} advisory issue failed:\n` +
+          `${nextClosed ? "ปิด" : "เปิด"}ประเด็นไม่สำเร็จ:\n` +
             (error?.message || "No row updated")
         );
         return;
@@ -408,11 +408,11 @@ export default function AdvisoryIssueDetailPage() {
     if (!canDeleteIssue || !issue || !matter) return;
 
     if (issue.advisory_matter_id !== matter.id) {
-      alert("Advisory issue does not belong to this matter");
+      alert("ประเด็นนี้ไม่ได้อยู่ในงานนอกคดีที่เลือก");
       return;
     }
 
-    const confirmed = window.confirm("Delete this advisory issue?");
+    const confirmed = window.confirm("ลบประเด็นนี้หรือไม่?");
     if (!confirmed) return;
 
     try {
@@ -435,7 +435,7 @@ export default function AdvisoryIssueDetailPage() {
 
       if (error || !data) {
         alert(
-          "Soft delete advisory issue failed:\n" +
+          "ลบประเด็นไม่สำเร็จ:\n" +
             (error?.message || "No row updated")
         );
         return;
@@ -463,8 +463,8 @@ export default function AdvisoryIssueDetailPage() {
       <AuthGuard>
         <main style={pageStyle}>
           <AppTopNav
-            title="Advisory"
-            subtitle="Advisory issue detail"
+            title="งานนอกคดี"
+            subtitle="รายละเอียดประเด็น"
             activePage="advisory"
           />
           <div style={noAccessBoxStyle}>No access</div>
@@ -477,23 +477,23 @@ export default function AdvisoryIssueDetailPage() {
     <AuthGuard>
       <main style={pageStyle}>
         <AppTopNav
-          title="Advisory"
-          subtitle="Advisory issue detail"
+          title="งานนอกคดี"
+          subtitle="รายละเอียดประเด็น"
           activePage="advisory"
         />
 
         <Link href={`/advisory/${id}`} style={backLinkStyle}>
-          Back to Advisory Matter
+          กลับไปงานนอกคดี
         </Link>
 
         {errorText ? <div style={errorBoxStyle}>{errorText}</div> : null}
 
         {loadingData ? (
-          <div style={messageBoxStyle}>Loading advisory issue...</div>
+          <div style={messageBoxStyle}>กำลังโหลดประเด็น...</div>
         ) : matter && issue ? (
           <>
             <section style={panelStyle}>
-              <h3 style={sectionTitleStyle}>Parent Matter</h3>
+              <h3 style={sectionTitleStyle}>งานนอกคดีที่เกี่ยวข้อง</h3>
               <div style={detailGridStyle}>
                 <InfoLine label="Matter No" value={matter.matter_no} />
                 <InfoLine label="Title" value={matter.title} />

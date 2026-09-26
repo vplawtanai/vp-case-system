@@ -125,7 +125,7 @@ export default function AdvisoryTimeLogsSection({
         .order("created_at", { ascending: false });
 
       if (error) {
-        alert("Load advisory time logs failed:\n" + error.message);
+        alert("โหลดบันทึกเวลาไม่สำเร็จ:\n" + error.message);
         setItems([]);
         return;
       }
@@ -311,7 +311,7 @@ export default function AdvisoryTimeLogsSection({
 
         if (error || !data) {
           alert(
-            "Update advisory time log failed:\n" +
+            "แก้ไขบันทึกเวลาไม่สำเร็จ:\n" +
               (error?.message || "No row updated")
           );
           return;
@@ -336,7 +336,7 @@ export default function AdvisoryTimeLogsSection({
 
         if (error || !data) {
           alert(
-            "Create advisory time log failed:\n" +
+            "สร้างบันทึกเวลาไม่สำเร็จ:\n" +
               (error?.message || "No row created")
           );
           return;
@@ -355,7 +355,7 @@ export default function AdvisoryTimeLogsSection({
   const softDeleteTimeLog = async (id: string) => {
     if (!canDelete) return;
 
-    const confirmed = window.confirm("Delete this advisory time log?");
+    const confirmed = window.confirm("ลบบันทึกเวลานี้หรือไม่?");
     if (!confirmed) return;
 
     try {
@@ -377,7 +377,7 @@ export default function AdvisoryTimeLogsSection({
 
       if (error || !data) {
         alert(
-          "Soft delete advisory time log failed:\n" +
+          "ลบบันทึกเวลาไม่สำเร็จ:\n" +
             (error?.message || "No row updated")
         );
         return;
@@ -416,8 +416,8 @@ export default function AdvisoryTimeLogsSection({
     <section style={sectionStyle}>
       <div style={headerStyle}>
         <div>
-          <h3 style={titleStyle}>Advisory Time Logs</h3>
-          <div style={subTitleStyle}>Track advisory work time by staff.</div>
+          <h3 style={titleStyle}>บันทึกเวลางานนอกคดี</h3>
+          <div style={subTitleStyle}>ติดตามเวลาปฏิบัติงานของทีมในงานนอกคดีนี้</div>
         </div>
         {canEdit && !showForm ? (
           <button type="button" onClick={startAdd} style={primaryButtonStyle}>
@@ -616,7 +616,7 @@ export default function AdvisoryTimeLogsSection({
             </tbody>
           </table>
           {items.length === 0 ? (
-            <div style={messageStyle}>No advisory time logs found.</div>
+            <div style={messageStyle}>ไม่พบบันทึกเวลา</div>
           ) : null}
         </div>
       )}

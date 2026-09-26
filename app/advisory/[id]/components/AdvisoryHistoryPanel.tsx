@@ -54,14 +54,14 @@ export default function AdvisoryHistoryPanel({ matterId }: Props) {
         ]);
 
         if (issuesRes.error) {
-          setErrorText(issuesRes.error.message || "Load advisory issue ids failed");
+          setErrorText(issuesRes.error.message || "โหลดรหัสประเด็นของงานนอกคดีไม่สำเร็จ");
           setItems([]);
           return;
         }
 
         if (timeLogsRes.error) {
           setErrorText(
-            timeLogsRes.error.message || "Load advisory time log ids failed"
+            timeLogsRes.error.message || "โหลดรหัสบันทึกเวลาของงานนอกคดีไม่สำเร็จ"
           );
           setItems([]);
           return;
@@ -104,7 +104,7 @@ export default function AdvisoryHistoryPanel({ matterId }: Props) {
         const failedLog = logResponses.find((response) => response.error);
 
         if (failedLog?.error) {
-          setErrorText(failedLog.error.message || "Load advisory history failed");
+          setErrorText(failedLog.error.message || "โหลดประวัติงานนอกคดีไม่สำเร็จ");
           setItems([]);
           return;
         }
@@ -131,7 +131,7 @@ export default function AdvisoryHistoryPanel({ matterId }: Props) {
     <section style={sectionStyle}>
       <div style={headerStyle}>
         <div>
-          <h3 style={titleStyle}>Advisory History</h3>
+          <h3 style={titleStyle}>ประวัติงานนอกคดี</h3>
           <div style={subTitleStyle}>{totalCount} history item(s)</div>
         </div>
         <button
@@ -146,7 +146,7 @@ export default function AdvisoryHistoryPanel({ matterId }: Props) {
       {isOpen && errorText ? <div style={errorStyle}>{errorText}</div> : null}
 
       {isOpen && loading ? (
-        <div style={messageStyle}>Loading advisory history...</div>
+        <div style={messageStyle}>กำลังโหลดประวัติงานนอกคดี...</div>
       ) : isOpen && items.length === 0 ? (
         <div style={messageStyle}>No history found.</div>
       ) : isOpen ? (

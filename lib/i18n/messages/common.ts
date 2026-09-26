@@ -30,7 +30,7 @@ export const commonMessages = {
   "common.nav.calendar": { th: "ปฏิทิน", en: "Calendar" },
   "common.nav.clientWork": { th: "งานลูกค้า", en: "Client Work" },
   "common.nav.cases": { th: "คดี", en: "Cases" },
-  "common.nav.advisory": { th: "งานที่ปรึกษา", en: "Advisory" },
+  "common.nav.advisory": { th: "งานนอกคดี", en: "Non-Litigation" },
   "common.nav.operations": { th: "การปฏิบัติงาน", en: "Operations" },
   "common.nav.workload": { th: "ภาระงาน", en: "Workload" },
   "common.nav.officeWork": { th: "งานสำนักงาน", en: "Office Work" },

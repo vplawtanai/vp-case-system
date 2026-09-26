@@ -196,7 +196,7 @@ export default function AdvisoryPage() {
       }
 
       if (mattersRes.error) {
-        setErrorText(mattersRes.error.message || "Load advisory matters failed");
+        setErrorText(mattersRes.error.message || "โหลดงานนอกคดีไม่สำเร็จ");
         return;
       }
 
@@ -338,7 +338,7 @@ export default function AdvisoryPage() {
 
       if (isEditing) {
         if (!form.id) {
-          alert("Missing advisory matter id");
+          alert("ไม่พบรหัสงานนอกคดี");
           return;
         }
 
@@ -352,7 +352,7 @@ export default function AdvisoryPage() {
 
         if (error || !data) {
           alert(
-            "Update advisory matter failed:\n" +
+            "แก้ไขงานนอกคดีไม่สำเร็จ:\n" +
               (error?.message || "No row updated")
           );
           return;
@@ -391,7 +391,7 @@ export default function AdvisoryPage() {
 
         if (error || !data) {
           alert(
-            "Create advisory matter failed:\n" +
+            "สร้างงานนอกคดีไม่สำเร็จ:\n" +
               (error?.message || "No row created")
           );
           return;
@@ -434,8 +434,8 @@ export default function AdvisoryPage() {
       <AuthGuard>
         <main style={pageStyle}>
           <AppTopNav
-            title="Advisory"
-            subtitle="Advisory and retainer matters"
+            title="งานนอกคดี"
+            subtitle="งานกฎหมายของลูกค้านอกกระบวนการคดีและงานรายเดือน"
             activePage="advisory"
           />
           <div style={noAccessBoxStyle}>No access</div>
@@ -448,8 +448,8 @@ export default function AdvisoryPage() {
     <AuthGuard>
       <main style={pageStyle}>
         <AppTopNav
-          title="Advisory"
-          subtitle="Advisory and retainer matters"
+          title="งานนอกคดี"
+          subtitle="งานกฎหมายของลูกค้านอกกระบวนการคดีและงานรายเดือน"
           activePage="advisory"
         />
 
@@ -463,7 +463,7 @@ export default function AdvisoryPage() {
                 style={inputStyle}
               />
               <Link href="/advisory/reports" style={linkButtonStyle}>
-                Reports
+                รายงานงานนอกคดี
               </Link>
             </div>
           </div>
@@ -472,7 +472,7 @@ export default function AdvisoryPage() {
         {canEditAdvisory ? (
           <section ref={formRef} style={panelStyle}>
             <div style={formTitleStyle}>
-              {isEditing ? "Edit advisory matter" : "Create advisory matter"}
+              {isEditing ? "แก้ไขงานนอกคดี" : "สร้างงานนอกคดี"}
             </div>
             <div style={formGridStyle}>
               <SelectField
@@ -589,7 +589,7 @@ export default function AdvisoryPage() {
         <section style={panelStyle}>
           {errorText ? <div style={errorBoxStyle}>{errorText}</div> : null}
           {loadingData ? (
-            <div style={messageBoxStyle}>Loading advisory matters...</div>
+            <div style={messageBoxStyle}>กำลังโหลดงานนอกคดี...</div>
           ) : (
             <div style={tableWrapStyle}>
               <table style={tableStyle}>
@@ -663,7 +663,7 @@ export default function AdvisoryPage() {
               </table>
 
               {filteredMatters.length === 0 ? (
-                <div style={messageBoxStyle}>No advisory matters found.</div>
+                <div style={messageBoxStyle}>ไม่พบงานนอกคดี</div>
               ) : null}
             </div>
           )}

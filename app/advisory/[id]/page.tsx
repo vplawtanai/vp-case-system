@@ -169,7 +169,7 @@ export default function AdvisoryDetailPage() {
           .maybeSingle();
 
         if (error || !data) {
-          setErrorText(error?.message || "Advisory matter not found");
+          setErrorText(error?.message || "ไม่พบงานนอกคดี");
           setMatter(null);
           return;
         }
@@ -209,8 +209,8 @@ export default function AdvisoryDetailPage() {
       <AuthGuard>
         <main style={pageStyle}>
           <AppTopNav
-            title="Advisory"
-            subtitle="Advisory and retainer matter"
+            title="งานนอกคดี"
+            subtitle="รายละเอียดงานนอกคดี"
             activePage="advisory"
           />
           <div style={noAccessBoxStyle}>No access</div>
@@ -223,19 +223,19 @@ export default function AdvisoryDetailPage() {
     <AuthGuard>
       <main style={pageStyle}>
         <AppTopNav
-          title="Advisory"
-          subtitle="Advisory and retainer matter"
+          title="งานนอกคดี"
+          subtitle="รายละเอียดงานนอกคดี"
           activePage="advisory"
         />
 
         <Link href="/advisory" style={backLinkStyle}>
-          Back to Advisory
+          กลับไปงานนอกคดี
         </Link>
 
         {errorText ? <div style={errorBoxStyle}>{errorText}</div> : null}
 
         {loadingMatter ? (
-          <div style={messageBoxStyle}>Loading advisory matter...</div>
+          <div style={messageBoxStyle}>กำลังโหลดงานนอกคดี...</div>
         ) : matter ? (
           <>
             <section style={panelStyle}>
