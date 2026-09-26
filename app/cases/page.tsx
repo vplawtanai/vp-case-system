@@ -379,51 +379,16 @@ export default function CasesPage() {
     try {
       setSaving(true);
 
-      const now = new Date().toISOString();
-
-      const { data: fileNo, error: fileNoError } = await supabase.rpc(
-        "generate_file_no"
-      );
-
-      if (fileNoError) {
-        alert(
-          "Generate File No failed:\n" + JSON.stringify(fileNoError, null, 2)
-        );
-        return;
-      }
-
-      if (!fileNo) {
-        alert("Generate File No failed: no file number returned");
-        return;
-      }
-
       const selectedClient =
         clients.find((item) => item.id === selectedCreateClientId) || null;
 
-      const { data: createdCase, error } = await supabase
-        .from("cases")
-        .insert([
-          {
-            file_no: fileNo,
-            client_id: selectedClient?.id || null,
-            title: "",
-            client_name: selectedClient?.name || "",
-            court_name: "",
-            case_number: "",
-            phase: "litigation",
-            status: "Active",
-            owner_name: "",
-            physical_storage_type: "Cabinet",
-            physical_storage_detail: "",
-            created_at: now,
-            updated_at: now,
-          },
-        ])
-        .select("id, file_no")
-        .single();
+      const { data: createdCase, error } = await supabase.rpc(
+        "create_case_with_number",
+        { p_client_id: selectedClient?.id || null }
+      );
 
-      if (error) {
-        alert("Create case failed:\n" + JSON.stringify(error, null, 2));
+      if (error || !createdCase) {
+        alert("Create case failed:\n" + (error ? JSON.stringify(error, null, 2) : "No row created"));
         return;
       }
 

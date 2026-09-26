@@ -372,32 +372,22 @@ export default function AdvisoryPage() {
           console.error("CREATE ADVISORY AUDIT LOG FAILED:", auditError);
         }
       } else {
-        const { data: generatedMatterNo, error: matterNoError } =
-          await supabase.rpc("generate_advisory_matter_no");
-
-        if (matterNoError) {
-          alert(
-            "Generate advisory matter no failed:\n" +
-              (matterNoError.message || "Unknown error")
-          );
-          return;
-        }
-
-        if (!generatedMatterNo) {
-          alert("Failed to generate advisory matter no");
-          return;
-        }
-
-        const { data, error } = await supabase
-          .from("advisory_matters")
-          .insert([
-            {
-              ...payload,
-              matter_no: generatedMatterNo,
-            },
-          ])
-          .select("*")
-          .single();
+        const { data, error } = await supabase.rpc(
+          "create_advisory_matter_with_number",
+          {
+            p_client_id: payload.client_id,
+            p_title: payload.title,
+            p_matter_type: payload.matter_type,
+            p_retainer_type: payload.retainer_type,
+            p_status: payload.status,
+            p_responsible_lawyer: payload.responsible_lawyer,
+            p_start_date: payload.start_date,
+            p_end_date: payload.end_date,
+            p_monthly_retainer_amount: payload.monthly_retainer_amount ?? null,
+            p_scope_of_work: payload.scope_of_work,
+            p_note: payload.note,
+          }
+        );
 
         if (error || !data) {
           alert(
