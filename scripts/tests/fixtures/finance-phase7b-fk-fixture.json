@@ -1,0 +1,4372 @@
+{
+  "notice": "Synthetic FK-only test shape from captured 063/071 catalogs; NOT authoritative Production baseline. Live Gate 1 discovers and hashes actual Production FK/schema. No business row data included.",
+  "tables": {
+    "advisory_matters": {
+      "columns": [
+        "id",
+        "client_id"
+      ],
+      "constraints": [
+        {
+          "name": "advisory_matters_client_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (client_id) REFERENCES clients(id)"
+        },
+        {
+          "name": "advisory_matters_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "case_audit_logs": {
+      "columns": [
+        "id",
+        "table_name",
+        "record_id"
+      ],
+      "constraints": []
+    },
+    "cases": {
+      "columns": [
+        "id",
+        "client_id"
+      ],
+      "constraints": [
+        {
+          "name": "cases_client_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (client_id) REFERENCES clients(id)"
+        },
+        {
+          "name": "cases_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "clients": {
+      "columns": [
+        "id",
+        "name",
+        "tax_id",
+        "address",
+        "client_type",
+        "status"
+      ],
+      "constraints": [
+        {
+          "name": "clients_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "document_clause_libraries": {
+      "columns": [
+        "id"
+      ],
+      "constraints": [
+        {
+          "name": "document_clause_libraries_pkey",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "document_clause_version_variable_bindings": {
+      "columns": [
+        "id"
+      ],
+      "constraints": [
+        {
+          "name": "document_clause_version_variable_bindings_pkey",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "document_clause_versions": {
+      "columns": [
+        "id"
+      ],
+      "constraints": [
+        {
+          "name": "document_clause_versions_pkey",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "document_numbering_profiles": {
+      "columns": [
+        "document_type",
+        "display_prefix",
+        "period_scope",
+        "sequence_width",
+        "is_active",
+        "created_at",
+        "updated_at"
+      ],
+      "constraints": [
+        {
+          "name": "document_numbering_profiles_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (document_type)"
+        }
+      ]
+    },
+    "document_template_alternative_groups": {
+      "columns": [
+        "id"
+      ],
+      "constraints": [
+        {
+          "name": "document_template_alternative_groups_pkey",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "document_template_audit_events": {
+      "columns": [
+        "id"
+      ],
+      "constraints": [
+        {
+          "name": "document_template_audit_events_pkey",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "document_template_clause_slots": {
+      "columns": [
+        "id"
+      ],
+      "constraints": [
+        {
+          "name": "document_template_clause_slots_pkey",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "document_template_sections": {
+      "columns": [
+        "id"
+      ],
+      "constraints": [
+        {
+          "name": "document_template_sections_pkey",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "document_template_variable_bindings": {
+      "columns": [
+        "id"
+      ],
+      "constraints": [
+        {
+          "name": "document_template_variable_bindings_pkey",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "document_template_versions": {
+      "columns": [
+        "id"
+      ],
+      "constraints": [
+        {
+          "name": "document_template_versions_pkey",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "document_templates": {
+      "columns": [
+        "id"
+      ],
+      "constraints": [
+        {
+          "name": "document_templates_pkey",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "document_variable_definitions": {
+      "columns": [
+        "id"
+      ],
+      "constraints": [
+        {
+          "name": "document_variable_definitions_pkey",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_account_opening_balance_audit_events": {
+      "columns": [
+        "id",
+        "opening_balance_id",
+        "event_type",
+        "event_payload_json",
+        "actor_user_id",
+        "actor_email",
+        "actor_name",
+        "created_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_account_opening_balance_audit_e_opening_balance_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (opening_balance_id) REFERENCES finance_account_opening_balances(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_account_opening_balance_audit_events_actor_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (actor_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_account_opening_balance_audit_events_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_account_opening_balances": {
+      "columns": [
+        "id",
+        "bank_account_id",
+        "currency",
+        "as_of",
+        "balance_amount",
+        "status",
+        "evidence_reference",
+        "note",
+        "supersedes_opening_balance_id",
+        "created_at",
+        "created_by_user_id",
+        "updated_at",
+        "updated_by_user_id",
+        "confirmed_at",
+        "confirmed_by_user_id",
+        "cancelled_at",
+        "cancelled_by_user_id",
+        "cancel_reason",
+        "superseded_at",
+        "superseded_by_user_id",
+        "cash_location_id"
+      ],
+      "constraints": [
+        {
+          "name": "finance_account_opening_balan_supersedes_opening_balance_i_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (supersedes_opening_balance_id) REFERENCES finance_account_opening_balances(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_account_opening_balances_bank_account_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (bank_account_id) REFERENCES finance_bank_accounts(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_account_opening_balances_cancelled_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (cancelled_by_user_id) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_account_opening_balances_cash_location_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (cash_location_id) REFERENCES finance_cash_locations(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_account_opening_balances_confirmed_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (confirmed_by_user_id) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_account_opening_balances_created_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_account_opening_balances_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_account_opening_balances_superseded_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (superseded_by_user_id) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_account_opening_balances_updated_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (updated_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        }
+      ]
+    },
+    "finance_authorized_signers": {
+      "columns": [
+        "id",
+        "signer_key",
+        "display_name",
+        "nickname",
+        "position_th",
+        "position_en",
+        "email",
+        "signature_storage_path",
+        "is_active",
+        "is_default",
+        "sort_order",
+        "created_at",
+        "updated_at",
+        "updated_by_user_id",
+        "updated_by_email",
+        "updated_by_name"
+      ],
+      "constraints": [
+        {
+          "name": "finance_authorized_signers_pkey",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_authorized_signers_signer_key_key",
+          "definition": "UNIQUE (signer_key)"
+        }
+      ]
+    },
+    "finance_bank_account_access": {
+      "columns": [
+        "user_profile_id",
+        "bank_account_id",
+        "can_view"
+      ],
+      "constraints": []
+    },
+    "finance_bank_accounts": {
+      "columns": [
+        "id",
+        "short_name",
+        "bank_name",
+        "account_name",
+        "account_number",
+        "branch_name",
+        "is_active"
+      ],
+      "constraints": [
+        {
+          "name": "finance_bank_accounts_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_billable_charge_audit_events": {
+      "columns": [
+        "id",
+        "charge_id",
+        "event_type",
+        "event_payload_json",
+        "actor_user_id",
+        "actor_email",
+        "actor_name",
+        "created_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_billable_charge_audit_events_actor_user_id_fkey",
+          "definition": "FOREIGN KEY (actor_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_billable_charge_audit_events_charge_id_fkey",
+          "definition": "FOREIGN KEY (charge_id) REFERENCES finance_billable_charges(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_billable_charge_audit_events_pkey",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_billable_charges": {
+      "columns": [
+        "id",
+        "status",
+        "updated_at",
+        "updated_by_user_id",
+        "source_billing_installment_item_id",
+        "vat_applicable",
+        "vat_rate",
+        "vat_treatment_json"
+      ],
+      "constraints": [
+        {
+          "name": "finance_billable_charges_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_billing_installment_audit_events": {
+      "columns": [
+        "id",
+        "billing_installment_id",
+        "billing_plan_id",
+        "event_type",
+        "event_payload_json",
+        "actor_user_id",
+        "actor_email",
+        "actor_name",
+        "created_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_billing_installment_audit_e_billing_installment_id_fkey",
+          "definition": "FOREIGN KEY (billing_installment_id) REFERENCES finance_billing_installments(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_billing_installment_audit_events_actor_user_id_fkey",
+          "definition": "FOREIGN KEY (actor_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_billing_installment_audit_events_billing_plan_id_fkey",
+          "definition": "FOREIGN KEY (billing_plan_id) REFERENCES finance_billing_plans(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_billing_installment_audit_events_pkey",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_billing_installment_charge_bridge_audit_events": {
+      "columns": [
+        "id",
+        "bridge_id",
+        "billing_installment_id",
+        "event_type",
+        "event_payload_json",
+        "actor_user_id",
+        "actor_email",
+        "actor_name",
+        "created_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_billing_installment_charge_billing_installment_id_fkey1",
+          "definition": "FOREIGN KEY (billing_installment_id) REFERENCES finance_billing_installments(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_billing_installment_charge_bridge_au_actor_user_id_fkey",
+          "definition": "FOREIGN KEY (actor_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_billing_installment_charge_bridge_audit__bridge_id_fkey",
+          "definition": "FOREIGN KEY (bridge_id) REFERENCES finance_billing_installment_charge_bridges(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_billing_installment_charge_bridge_audit_events_pkey",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_billing_installment_charge_bridges": {
+      "columns": [
+        "id",
+        "billing_plan_id",
+        "billing_installment_id"
+      ],
+      "constraints": [
+        {
+          "name": "finance_billing_installment_charge_bridges_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_billing_installment_items": {
+      "columns": [
+        "id",
+        "fee_agreement_item_id",
+        "vat_applicable",
+        "vat_rate",
+        "vat_treatment_json"
+      ],
+      "constraints": [
+        {
+          "name": "finance_billing_installment_items_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_billing_installments": {
+      "columns": [
+        "id",
+        "status",
+        "invoiced_at",
+        "updated_at",
+        "updated_by_user_id"
+      ],
+      "constraints": [
+        {
+          "name": "finance_billing_installments_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_billing_plans": {
+      "columns": [
+        "id",
+        "status",
+        "updated_at",
+        "updated_by_user_id"
+      ],
+      "constraints": [
+        {
+          "name": "finance_billing_plans_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_cash_locations": {
+      "columns": [
+        "id",
+        "code",
+        "name_th",
+        "name_en",
+        "is_active"
+      ],
+      "constraints": [
+        {
+          "name": "finance_cash_locations_code_key",
+          "validated": true,
+          "definition": "UNIQUE (code)"
+        },
+        {
+          "name": "finance_cash_locations_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_cash_transaction_audit_events": {
+      "columns": [
+        "id",
+        "cash_transaction_id",
+        "event_type",
+        "event_payload_json",
+        "actor_user_id",
+        "actor_email",
+        "actor_name",
+        "created_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_cash_transaction_audit_events_actor_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (actor_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_cash_transaction_audit_events_cash_transaction_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (cash_transaction_id) REFERENCES finance_cash_transactions(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_cash_transaction_audit_events_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_cash_transactions": {
+      "columns": [
+        "id",
+        "occurred_at",
+        "direction",
+        "transaction_type",
+        "bank_account_id",
+        "cash_amount",
+        "currency",
+        "status",
+        "source_payment_id",
+        "reference_no",
+        "description",
+        "note",
+        "reversal_of_transaction_id",
+        "created_at",
+        "created_by_user_id",
+        "updated_at",
+        "updated_by_user_id",
+        "confirmed_at",
+        "confirmed_by_user_id",
+        "cancelled_at",
+        "cancelled_by_user_id",
+        "cancel_reason",
+        "cash_location_id",
+        "source_direct_money_receipt_id",
+        "source_snapshot_json",
+        "source_payout_id",
+        "source_tax_remittance_id"
+      ],
+      "constraints": [
+        {
+          "name": "finance_cash_transactions_bank_account_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (bank_account_id) REFERENCES finance_bank_accounts(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_cash_transactions_cancelled_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (cancelled_by_user_id) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_cash_transactions_cash_location_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (cash_location_id) REFERENCES finance_cash_locations(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_cash_transactions_confirmed_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (confirmed_by_user_id) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_cash_transactions_created_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_cash_transactions_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_cash_transactions_reversal_of_transaction_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (reversal_of_transaction_id) REFERENCES finance_cash_transactions(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_cash_transactions_source_direct_money_receipt_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (source_direct_money_receipt_id) REFERENCES finance_direct_money_receipts(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_cash_transactions_source_payment_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (source_payment_id) REFERENCES finance_payments(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_cash_transactions_source_payout_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (source_payout_id) REFERENCES finance_payouts(id)"
+        },
+        {
+          "name": "finance_cash_transactions_source_payout_id_key",
+          "validated": true,
+          "definition": "UNIQUE (source_payout_id)"
+        },
+        {
+          "name": "finance_cash_transactions_source_tax_remittance_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (source_tax_remittance_id) REFERENCES finance_tax_remittances(id)"
+        },
+        {
+          "name": "finance_cash_transactions_source_tax_remittance_id_key",
+          "validated": true,
+          "definition": "UNIQUE (source_tax_remittance_id)"
+        },
+        {
+          "name": "finance_cash_transactions_updated_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (updated_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        }
+      ]
+    },
+    "finance_combined_document_audit_events": {
+      "columns": [
+        "id",
+        "combined_document_id",
+        "event_type",
+        "event_payload_json",
+        "actor_user_id",
+        "created_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_combined_document_audit_event_combined_document_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (combined_document_id) REFERENCES finance_combined_documents(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_combined_document_audit_events_actor_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (actor_user_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_combined_document_audit_events_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_combined_documents": {
+      "columns": [
+        "id",
+        "payment_id",
+        "receipt_id",
+        "tax_invoice_id",
+        "status",
+        "combined_no",
+        "issue_date",
+        "source_snapshot_json",
+        "draft_snapshot_json",
+        "issued_snapshot_json",
+        "decisions_json",
+        "external_receipt_checked",
+        "issued_at",
+        "issued_by_user_id",
+        "created_by_user_id",
+        "created_at",
+        "updated_at",
+        "cancel_reason",
+        "direct_money_receipt_id"
+      ],
+      "constraints": [
+        {
+          "name": "finance_combined_documents_combined_no_key",
+          "validated": true,
+          "definition": "UNIQUE (combined_no)"
+        },
+        {
+          "name": "finance_combined_documents_created_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by_user_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_combined_documents_direct_money_receipt_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (direct_money_receipt_id) REFERENCES finance_direct_money_receipts(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_combined_documents_issued_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (issued_by_user_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_combined_documents_payment_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (payment_id) REFERENCES finance_payments(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_combined_documents_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_combined_documents_receipt_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (receipt_id) REFERENCES finance_receipts(id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED"
+        },
+        {
+          "name": "finance_combined_documents_receipt_id_key",
+          "validated": true,
+          "definition": "UNIQUE (receipt_id)"
+        },
+        {
+          "name": "finance_combined_documents_tax_invoice_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (tax_invoice_id) REFERENCES finance_tax_invoices(id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED"
+        },
+        {
+          "name": "finance_combined_documents_tax_invoice_id_key",
+          "validated": true,
+          "definition": "UNIQUE (tax_invoice_id)"
+        }
+      ]
+    },
+    "finance_company_ledger": {
+      "columns": [
+        "id",
+        "source_payment_id",
+        "source_invoice_id",
+        "source_expense_claim_id"
+      ],
+      "constraints": [
+        {
+          "name": "finance_company_ledger_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_company_profiles": {
+      "columns": [
+        "id",
+        "company_name_th",
+        "company_name_en",
+        "tax_id",
+        "address_th",
+        "address_en",
+        "branch_th",
+        "branch_en",
+        "branch_label",
+        "phone",
+        "email",
+        "website",
+        "quotation_prefix",
+        "logo_storage_path"
+      ],
+      "constraints": [
+        {
+          "name": "finance_company_profiles_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_compensation_allocations": {
+      "columns": [
+        "id",
+        "amount"
+      ],
+      "constraints": [
+        {
+          "name": "finance_compensation_allocations_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_compensation_batches": {
+      "columns": [
+        "id",
+        "source_payment_id",
+        "source_invoice_id"
+      ],
+      "constraints": [
+        {
+          "name": "finance_compensation_batches_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_customer_tax_profile_audit_events": {
+      "columns": [
+        "id",
+        "client_id",
+        "event_type",
+        "event_payload_json",
+        "actor_user_id",
+        "created_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_customer_tax_profile_audit_events_actor_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (actor_user_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_customer_tax_profile_audit_events_client_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (client_id) REFERENCES finance_customer_tax_profiles(client_id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_customer_tax_profile_audit_events_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_customer_tax_profiles": {
+      "columns": [
+        "client_id",
+        "vat_registered",
+        "branch_type",
+        "branch_code",
+        "identity_evidence",
+        "identity_snapshot_json",
+        "verified_at",
+        "verified_by_user_id",
+        "updated_at",
+        "updated_by_user_id"
+      ],
+      "constraints": [
+        {
+          "name": "finance_customer_tax_profiles_client_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_customer_tax_profiles_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (client_id)"
+        },
+        {
+          "name": "finance_customer_tax_profiles_updated_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (updated_by_user_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_customer_tax_profiles_verified_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (verified_by_user_id) REFERENCES user_profiles(id)"
+        }
+      ]
+    },
+    "finance_direct_money_receipt_audit": {
+      "columns": [
+        "id",
+        "receipt_id",
+        "event_type",
+        "version",
+        "actor_id",
+        "created_at",
+        "evidence_json"
+      ],
+      "constraints": [
+        {
+          "name": "finance_direct_money_receipt_audit_actor_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (actor_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_direct_money_receipt_audit_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_direct_money_receipt_audit_receipt_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (receipt_id) REFERENCES finance_direct_money_receipts(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_direct_money_receipt_audit_receipt_id_version_key",
+          "validated": true,
+          "definition": "UNIQUE (receipt_id, version)"
+        }
+      ]
+    },
+    "finance_direct_money_receipts": {
+      "columns": [
+        "id",
+        "status",
+        "version",
+        "client_id",
+        "payer_name",
+        "case_id",
+        "advisory_matter_id",
+        "received_on",
+        "method",
+        "receiving_bank_account_id",
+        "cash_location",
+        "currency",
+        "cash_amount",
+        "wht_amount",
+        "amount_before_vat",
+        "vat_amount",
+        "gross_amount",
+        "reference_no",
+        "evidence_reference",
+        "note",
+        "lines_json",
+        "unclassified",
+        "input_json",
+        "confirmed_snapshot_json",
+        "classification_json",
+        "created_at",
+        "created_by",
+        "updated_at",
+        "confirmed_at",
+        "confirmed_by",
+        "reversed_at",
+        "reversed_by",
+        "reversal_reason",
+        "receiving_cash_location_id"
+      ],
+      "constraints": [
+        {
+          "name": "finance_direct_money_receipts_advisory_matter_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (advisory_matter_id) REFERENCES advisory_matters(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_direct_money_receipts_case_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_direct_money_receipts_client_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_direct_money_receipts_confirmed_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (confirmed_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_direct_money_receipts_created_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_direct_money_receipts_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_direct_money_receipts_receiving_bank_account_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (receiving_bank_account_id) REFERENCES finance_bank_accounts(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_direct_money_receipts_receiving_cash_location_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (receiving_cash_location_id) REFERENCES finance_cash_locations(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_direct_money_receipts_reversed_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (reversed_by) REFERENCES user_profiles(id)"
+        }
+      ]
+    },
+    "finance_document_counters": {
+      "columns": [
+        "doc_type",
+        "year",
+        "month",
+        "prefix",
+        "last_no",
+        "updated_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_document_counters_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (prefix)"
+        }
+      ]
+    },
+    "finance_expense_audit": {
+      "columns": [
+        "id",
+        "expense_id",
+        "event_type",
+        "actor_id",
+        "created_at",
+        "evidence_json"
+      ],
+      "constraints": [
+        {
+          "name": "finance_expense_audit_actor_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (actor_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_expense_audit_expense_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (expense_id) REFERENCES finance_expenses(id)"
+        },
+        {
+          "name": "finance_expense_audit_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_expense_claims": {
+      "columns": [
+        "id",
+        "claim_date",
+        "claimant_user_id",
+        "category",
+        "amount",
+        "client_id",
+        "case_id",
+        "advisory_matter_id",
+        "description",
+        "note",
+        "status",
+        "ledger_entry_id"
+      ],
+      "constraints": [
+        {
+          "name": "finance_expense_claims_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_expense_economic_decisions": {
+      "columns": [
+        "id",
+        "expense_id",
+        "revision",
+        "previous_id",
+        "treatment",
+        "approved_recoverable_vat",
+        "context_json",
+        "request_json",
+        "reason",
+        "created_by",
+        "created_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_expense_economic_decisions_created_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_expense_economic_decisions_expense_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (expense_id) REFERENCES finance_expenses(id)"
+        },
+        {
+          "name": "finance_expense_economic_decisions_expense_id_revision_key",
+          "validated": true,
+          "definition": "UNIQUE (expense_id, revision)"
+        },
+        {
+          "name": "finance_expense_economic_decisions_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_expense_economic_decisions_previous_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (previous_id) REFERENCES finance_expense_economic_decisions(id)"
+        },
+        {
+          "name": "finance_expense_economic_decisions_previous_id_key",
+          "validated": true,
+          "definition": "UNIQUE (previous_id)"
+        }
+      ]
+    },
+    "finance_expense_obligation_waivers": {
+      "columns": [
+        "obligation_id",
+        "reason",
+        "disposition",
+        "created_by",
+        "created_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_expense_obligation_waivers_created_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_expense_obligation_waivers_obligation_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (obligation_id) REFERENCES finance_expense_obligations(id)"
+        },
+        {
+          "name": "finance_expense_obligation_waivers_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (obligation_id)"
+        }
+      ]
+    },
+    "finance_expense_obligations": {
+      "columns": [
+        "id",
+        "expense_id",
+        "settlement_id",
+        "source_type",
+        "payee_id",
+        "gross_amount",
+        "currency",
+        "due_on",
+        "created_at",
+        "created_by"
+      ],
+      "constraints": [
+        {
+          "name": "finance_expense_obligations_created_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_expense_obligations_expense_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (expense_id) REFERENCES finance_expenses(id)"
+        },
+        {
+          "name": "finance_expense_obligations_expense_id_key",
+          "validated": true,
+          "definition": "UNIQUE (expense_id)"
+        },
+        {
+          "name": "finance_expense_obligations_payee_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (payee_id) REFERENCES finance_payees(id)"
+        },
+        {
+          "name": "finance_expense_obligations_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_expense_obligations_settlement_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (settlement_id) REFERENCES finance_expense_settlements(id)"
+        },
+        {
+          "name": "finance_expense_obligations_settlement_id_key",
+          "validated": true,
+          "definition": "UNIQUE (settlement_id)"
+        }
+      ]
+    },
+    "finance_expense_request_audit": {
+      "columns": [
+        "id",
+        "request_id",
+        "event_type",
+        "actor_id",
+        "created_at",
+        "input_json",
+        "version"
+      ],
+      "constraints": [
+        {
+          "name": "finance_expense_request_audit_actor_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (actor_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_expense_request_audit_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_expense_request_audit_request_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (request_id) REFERENCES finance_expense_requests(id)"
+        },
+        {
+          "name": "finance_expense_request_audit_request_id_version_key",
+          "validated": true,
+          "definition": "UNIQUE (request_id, version)"
+        }
+      ]
+    },
+    "finance_expense_request_items": {
+      "columns": [
+        "request_id",
+        "expense_id",
+        "item_no",
+        "active",
+        "created_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_expense_request_items_expense_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (expense_id) REFERENCES finance_expenses(id)"
+        },
+        {
+          "name": "finance_expense_request_items_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (expense_id)"
+        },
+        {
+          "name": "finance_expense_request_items_request_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (request_id) REFERENCES finance_expense_requests(id)"
+        }
+      ]
+    },
+    "finance_expense_requests": {
+      "columns": [
+        "id",
+        "kind",
+        "status",
+        "version",
+        "note",
+        "created_by",
+        "created_at",
+        "submitted_by",
+        "submitted_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_expense_requests_created_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_expense_requests_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_expense_requests_submitted_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (submitted_by) REFERENCES user_profiles(id)"
+        }
+      ]
+    },
+    "finance_expense_settlements": {
+      "columns": [
+        "id",
+        "expense_id",
+        "mode",
+        "payee_id",
+        "amount",
+        "reason",
+        "created_by",
+        "created_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_expense_settlements_created_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_expense_settlements_expense_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (expense_id) REFERENCES finance_expenses(id)"
+        },
+        {
+          "name": "finance_expense_settlements_expense_id_key",
+          "validated": true,
+          "definition": "UNIQUE (expense_id)"
+        },
+        {
+          "name": "finance_expense_settlements_payee_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (payee_id) REFERENCES finance_payees(id)"
+        },
+        {
+          "name": "finance_expense_settlements_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_expense_tax_reviews": {
+      "columns": [
+        "id",
+        "expense_id",
+        "revision",
+        "supersedes_id",
+        "vat_state",
+        "vat_base",
+        "vat_rate",
+        "vat_amount",
+        "eligibility",
+        "supplier_tax_id",
+        "tax_document_reference",
+        "tax_document_date",
+        "company_name_status",
+        "wht_state",
+        "wht_base",
+        "wht_rate",
+        "wht_amount",
+        "wht_exception",
+        "reason",
+        "request_json",
+        "reviewed_by",
+        "reviewed_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_expense_tax_reviews_expense_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (expense_id) REFERENCES finance_expenses(id)"
+        },
+        {
+          "name": "finance_expense_tax_reviews_expense_id_revision_key",
+          "validated": true,
+          "definition": "UNIQUE (expense_id, revision)"
+        },
+        {
+          "name": "finance_expense_tax_reviews_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_expense_tax_reviews_reviewed_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (reviewed_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_expense_tax_reviews_supersedes_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (supersedes_id) REFERENCES finance_expense_tax_reviews(id)"
+        },
+        {
+          "name": "finance_expense_tax_reviews_supersedes_id_key",
+          "validated": true,
+          "definition": "UNIQUE (supersedes_id)"
+        }
+      ]
+    },
+    "finance_expenses": {
+      "columns": [
+        "id",
+        "origin",
+        "legacy_claim_id",
+        "reference",
+        "status",
+        "version",
+        "expense_date",
+        "description",
+        "category",
+        "vendor_name",
+        "supplier_payee_id",
+        "claimant_id",
+        "client_id",
+        "case_id",
+        "advisory_matter_id",
+        "currency",
+        "gross_amount",
+        "personally_paid",
+        "reimbursement_requested",
+        "vat_awareness",
+        "wht_awareness",
+        "note",
+        "submitted_at",
+        "reviewed_at",
+        "reviewed_by",
+        "review_reason",
+        "created_at",
+        "updated_at",
+        "created_by",
+        "updated_by",
+        "creator_payment_fact"
+      ],
+      "constraints": [
+        {
+          "name": "finance_expenses_advisory_matter_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (advisory_matter_id) REFERENCES advisory_matters(id)"
+        },
+        {
+          "name": "finance_expenses_case_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (case_id) REFERENCES cases(id)"
+        },
+        {
+          "name": "finance_expenses_claimant_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (claimant_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_expenses_client_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (client_id) REFERENCES clients(id)"
+        },
+        {
+          "name": "finance_expenses_created_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_expenses_legacy_claim_id_key",
+          "validated": true,
+          "definition": "UNIQUE (legacy_claim_id)"
+        },
+        {
+          "name": "finance_expenses_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_expenses_reference_key",
+          "validated": true,
+          "definition": "UNIQUE (reference)"
+        },
+        {
+          "name": "finance_expenses_reviewed_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (reviewed_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_expenses_supplier_payee_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (supplier_payee_id) REFERENCES finance_payees(id)"
+        },
+        {
+          "name": "finance_expenses_updated_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (updated_by) REFERENCES user_profiles(id)"
+        }
+      ]
+    },
+    "finance_external_input_vat": {
+      "columns": [
+        "id",
+        "vendor",
+        "invoice_date",
+        "invoice_number",
+        "tax_base",
+        "vat_amount",
+        "note",
+        "funding_source",
+        "created_by",
+        "created_at",
+        "input_json"
+      ],
+      "constraints": [
+        {
+          "name": "finance_external_input_vat_created_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_external_input_vat_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_external_input_vat_reviews": {
+      "columns": [
+        "id",
+        "evidence_id",
+        "previous_id",
+        "status",
+        "reason",
+        "actor_id",
+        "created_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_external_input_vat_reviews_actor_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (actor_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_external_input_vat_reviews_evidence_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (evidence_id) REFERENCES finance_external_input_vat(id)"
+        },
+        {
+          "name": "finance_external_input_vat_reviews_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_external_input_vat_reviews_previous_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (previous_id) REFERENCES finance_external_input_vat_reviews(id)"
+        },
+        {
+          "name": "finance_external_input_vat_reviews_previous_id_key",
+          "validated": true,
+          "definition": "UNIQUE (previous_id)"
+        }
+      ]
+    },
+    "finance_fee_agreement_clause_overrides": {
+      "columns": [
+        "id",
+        "fee_agreement_id",
+        "template_slot_id",
+        "source_clause_version_id",
+        "action",
+        "replacement_title",
+        "replacement_content",
+        "reason",
+        "risk_metadata_json",
+        "created_by_user_id",
+        "updated_by_user_id",
+        "created_at",
+        "updated_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_fee_agreement_clause_over_source_clause_version_id_fkey",
+          "definition": "FOREIGN KEY (source_clause_version_id) REFERENCES document_clause_versions(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_fee_agreement_clause_overrides_created_by_user_id_fkey",
+          "definition": "FOREIGN KEY (created_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_fee_agreement_clause_overrides_fee_agreement_id_fkey",
+          "definition": "FOREIGN KEY (fee_agreement_id) REFERENCES finance_fee_agreements(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_fee_agreement_clause_overrides_pkey",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_fee_agreement_clause_overrides_template_slot_id_fkey",
+          "definition": "FOREIGN KEY (template_slot_id) REFERENCES document_template_clause_slots(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_fee_agreement_clause_overrides_unique",
+          "definition": "UNIQUE (fee_agreement_id, template_slot_id)"
+        },
+        {
+          "name": "finance_fee_agreement_clause_overrides_updated_by_user_id_fkey",
+          "definition": "FOREIGN KEY (updated_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        }
+      ]
+    },
+    "finance_fee_agreement_clause_slot_selections": {
+      "columns": [
+        "id",
+        "fee_agreement_id",
+        "alternative_group_id",
+        "template_slot_id",
+        "source_clause_version_id",
+        "was_default",
+        "reason",
+        "status",
+        "provenance_json",
+        "created_by_user_id",
+        "updated_by_user_id",
+        "created_at",
+        "updated_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_fee_agreement_clause_slot_sel_alternative_group_id_fkey",
+          "definition": "FOREIGN KEY (alternative_group_id) REFERENCES document_template_alternative_groups(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_fee_agreement_clause_slot_selec_created_by_user_id_fkey",
+          "definition": "FOREIGN KEY (created_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_fee_agreement_clause_slot_selec_updated_by_user_id_fkey",
+          "definition": "FOREIGN KEY (updated_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_fee_agreement_clause_slot_selecti_fee_agreement_id_fkey",
+          "definition": "FOREIGN KEY (fee_agreement_id) REFERENCES finance_fee_agreements(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_fee_agreement_clause_slot_selecti_template_slot_id_fkey",
+          "definition": "FOREIGN KEY (template_slot_id) REFERENCES document_template_clause_slots(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_fee_agreement_clause_slot_selections_pkey",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_fee_agreement_clause_slot_selections_unique",
+          "definition": "UNIQUE (fee_agreement_id, alternative_group_id, template_slot_id)"
+        },
+        {
+          "name": "finance_fee_agreement_clause_slot_source_clause_version_id_fkey",
+          "definition": "FOREIGN KEY (source_clause_version_id) REFERENCES document_clause_versions(id) ON DELETE RESTRICT"
+        }
+      ]
+    },
+    "finance_fee_agreement_custom_clauses": {
+      "columns": [
+        "id",
+        "fee_agreement_id",
+        "template_section_id",
+        "anchor_template_slot_id",
+        "title",
+        "content",
+        "sort_order",
+        "reason",
+        "risk_metadata_json",
+        "created_by_user_id",
+        "updated_by_user_id",
+        "created_at",
+        "updated_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_fee_agreement_custom_claus_anchor_template_slot_id_fkey",
+          "definition": "FOREIGN KEY (anchor_template_slot_id) REFERENCES document_template_clause_slots(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_fee_agreement_custom_clauses_created_by_user_id_fkey",
+          "definition": "FOREIGN KEY (created_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_fee_agreement_custom_clauses_fee_agreement_id_fkey",
+          "definition": "FOREIGN KEY (fee_agreement_id) REFERENCES finance_fee_agreements(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_fee_agreement_custom_clauses_order_unique",
+          "definition": "UNIQUE (fee_agreement_id, template_section_id, sort_order)"
+        },
+        {
+          "name": "finance_fee_agreement_custom_clauses_pkey",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_fee_agreement_custom_clauses_template_section_id_fkey",
+          "definition": "FOREIGN KEY (template_section_id) REFERENCES document_template_sections(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_fee_agreement_custom_clauses_updated_by_user_id_fkey",
+          "definition": "FOREIGN KEY (updated_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        }
+      ]
+    },
+    "finance_fee_agreement_items": {
+      "columns": [
+        "id",
+        "source_quotation_item_id",
+        "vat_applicable",
+        "vat_rate",
+        "vat_treatment_json"
+      ],
+      "constraints": [
+        {
+          "name": "finance_fee_agreement_items_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_fee_agreement_versions": {
+      "columns": [
+        "id",
+        "fee_agreement_id",
+        "version_no",
+        "event_type",
+        "reason",
+        "previous_version_id",
+        "source_quotation_id",
+        "template_id",
+        "template_version_id",
+        "document_snapshot_json",
+        "change_metadata_json",
+        "actor_user_id",
+        "actor_email",
+        "actor_name",
+        "created_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_fee_agreement_versions_actor_user_id_fkey",
+          "definition": "FOREIGN KEY (actor_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_fee_agreement_versions_fee_agreement_id_fkey",
+          "definition": "FOREIGN KEY (fee_agreement_id) REFERENCES finance_fee_agreements(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_fee_agreement_versions_pkey",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_fee_agreement_versions_previous_version_id_fkey",
+          "definition": "FOREIGN KEY (previous_version_id) REFERENCES finance_fee_agreement_versions(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_fee_agreement_versions_source_quotation_id_fkey",
+          "definition": "FOREIGN KEY (source_quotation_id) REFERENCES finance_quotations(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_fee_agreement_versions_template_id_fkey",
+          "definition": "FOREIGN KEY (template_id) REFERENCES document_templates(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_fee_agreement_versions_template_version_id_fkey",
+          "definition": "FOREIGN KEY (template_version_id) REFERENCES document_template_versions(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_fee_agreement_versions_unique",
+          "definition": "UNIQUE (fee_agreement_id, version_no)"
+        }
+      ]
+    },
+    "finance_fee_agreements": {
+      "columns": [
+        "id",
+        "agreement_no",
+        "title",
+        "client_id",
+        "case_id",
+        "advisory_matter_id",
+        "source_type",
+        "source_quotation_id",
+        "source_reference",
+        "status",
+        "effective_date",
+        "expiry_date",
+        "currency",
+        "amount_before_tax",
+        "vat_amount",
+        "total_amount",
+        "billing_method",
+        "allocation_method",
+        "allocation_base_policy",
+        "allocation_snapshot_json",
+        "commercial_terms_snapshot_json",
+        "client_snapshot_json",
+        "matter_snapshot_json",
+        "company_snapshot_json",
+        "source_document_snapshot_json",
+        "created_by_user_id",
+        "updated_by_user_id",
+        "created_at",
+        "updated_at",
+        "legal_terms_json",
+        "signatories_json",
+        "custom_clauses_json",
+        "selected_template_id",
+        "selected_template_version_id",
+        "resolved_document_snapshot_json",
+        "signed_document_snapshot_json",
+        "document_version",
+        "language_code",
+        "commencement_date",
+        "sent_at",
+        "sent_by_user_id",
+        "signed_at",
+        "signed_by_user_id",
+        "signed_evidence_reference",
+        "cancelled_at",
+        "cancelled_by_user_id",
+        "cancel_reason",
+        "retired_template_use_approved_version_id",
+        "retired_template_use_approved_by_user_id",
+        "retired_template_use_approved_at",
+        "retired_template_use_reason",
+        "agreement_date",
+        "execution_mode",
+        "executed_on",
+        "signed_evidence_json",
+        "engagement_basis",
+        "engagement_confirmed_on",
+        "engagement_confirmed_at",
+        "engagement_confirmed_by_user_id",
+        "engagement_confirmation_channel",
+        "engagement_confirmation_note",
+        "engagement_confirmation_snapshot_json"
+      ],
+      "constraints": [
+        {
+          "name": "finance_fee_agreements_advisory_matter_id_fkey",
+          "definition": "FOREIGN KEY (advisory_matter_id) REFERENCES advisory_matters(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_fee_agreements_cancelled_by_user_id_fkey",
+          "definition": "FOREIGN KEY (cancelled_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_fee_agreements_case_id_fkey",
+          "definition": "FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_fee_agreements_client_id_fkey",
+          "definition": "FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_fee_agreements_created_by_user_id_fkey",
+          "definition": "FOREIGN KEY (created_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_fee_agreements_engagement_confirmed_by_user_id_fkey",
+          "definition": "FOREIGN KEY (engagement_confirmed_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_fee_agreements_pkey",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_fee_agreements_retired_template_use_approved_by_us_fkey",
+          "definition": "FOREIGN KEY (retired_template_use_approved_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_fee_agreements_retired_template_use_approved_versi_fkey",
+          "definition": "FOREIGN KEY (retired_template_use_approved_version_id) REFERENCES document_template_versions(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_fee_agreements_selected_template_id_fkey",
+          "definition": "FOREIGN KEY (selected_template_id) REFERENCES document_templates(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_fee_agreements_selected_template_version_id_fkey",
+          "definition": "FOREIGN KEY (selected_template_version_id) REFERENCES document_template_versions(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_fee_agreements_sent_by_user_id_fkey",
+          "definition": "FOREIGN KEY (sent_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_fee_agreements_signed_by_user_id_fkey",
+          "definition": "FOREIGN KEY (signed_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_fee_agreements_source_quotation_id_fkey",
+          "definition": "FOREIGN KEY (source_quotation_id) REFERENCES finance_quotations(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_fee_agreements_updated_by_user_id_fkey",
+          "definition": "FOREIGN KEY (updated_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        }
+      ]
+    },
+    "finance_invoice_audit_events": {
+      "columns": [
+        "id",
+        "invoice_id",
+        "event_type",
+        "event_payload_json",
+        "actor_user_id"
+      ],
+      "constraints": [
+        {
+          "name": "finance_invoice_audit_events_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_invoice_charge_allocation_audit_events": {
+      "columns": [
+        "id",
+        "allocation_id",
+        "invoice_id",
+        "billable_charge_id",
+        "event_type",
+        "event_payload_json",
+        "actor_user_id",
+        "actor_email",
+        "actor_name",
+        "created_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_invoice_charge_allocation_audit_billable_charge_id_fkey",
+          "definition": "FOREIGN KEY (billable_charge_id) REFERENCES finance_billable_charges(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_invoice_charge_allocation_audit_even_actor_user_id_fkey",
+          "definition": "FOREIGN KEY (actor_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_invoice_charge_allocation_audit_even_allocation_id_fkey",
+          "definition": "FOREIGN KEY (allocation_id) REFERENCES finance_invoice_charge_allocations(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_invoice_charge_allocation_audit_events_invoice_id_fkey",
+          "definition": "FOREIGN KEY (invoice_id) REFERENCES finance_invoices(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_invoice_charge_allocation_audit_events_pkey",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_invoice_charge_allocations": {
+      "columns": [
+        "id",
+        "invoice_id",
+        "billable_charge_id",
+        "status",
+        "released_at",
+        "released_by_user_id",
+        "release_reason"
+      ],
+      "constraints": [
+        {
+          "name": "finance_invoice_charge_allocations_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_invoice_installment_allocations": {
+      "columns": [
+        "id",
+        "invoice_id",
+        "billing_installment_id",
+        "allocated_before_vat",
+        "allocated_vat",
+        "allocated_total",
+        "source_snapshot_json",
+        "created_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_invoice_installment_allocat_billing_installment_id_fkey",
+          "definition": "FOREIGN KEY (billing_installment_id) REFERENCES finance_billing_installments(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_invoice_installment_allocations_invoice_id_fkey",
+          "definition": "FOREIGN KEY (invoice_id) REFERENCES finance_invoices(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_invoice_installment_allocations_pkey",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "uq_finance_invoice_installment_allocations_source",
+          "definition": "UNIQUE (invoice_id, billing_installment_id)"
+        }
+      ]
+    },
+    "finance_invoice_items": {
+      "columns": [
+        "id",
+        "invoice_id",
+        "source_state",
+        "source_billable_charge_id",
+        "source_fee_agreement_item_id",
+        "vat_applicable",
+        "vat_rate",
+        "description",
+        "amount_before_vat",
+        "vat_amount",
+        "line_total",
+        "sort_order",
+        "vat_treatment_json"
+      ],
+      "constraints": [
+        {
+          "name": "finance_invoice_items_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_invoice_v2_composition_requests": {
+      "columns": [
+        "request_id",
+        "invoice_id",
+        "operation",
+        "request_fingerprint",
+        "result_snapshot_json",
+        "created_by_user_id",
+        "created_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_invoice_v2_composition_requests_created_by_user_id_fkey",
+          "definition": "FOREIGN KEY (created_by_user_id) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_invoice_v2_composition_requests_invoice_id_fkey",
+          "definition": "FOREIGN KEY (invoice_id) REFERENCES finance_invoices(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_invoice_v2_composition_requests_pkey",
+          "definition": "PRIMARY KEY (request_id)"
+        }
+      ]
+    },
+    "finance_invoices": {
+      "columns": [
+        "id",
+        "invoice_no",
+        "document_status",
+        "client_id",
+        "currency",
+        "total_amount",
+        "issued_snapshot_json",
+        "case_id",
+        "advisory_matter_id",
+        "issue_date",
+        "due_date",
+        "source_model",
+        "v2_bridge_id",
+        "voided_at",
+        "voided_by_user_id",
+        "void_reason",
+        "updated_at",
+        "updated_by_user_id",
+        "issued_at",
+        "cancelled_at",
+        "amount_before_vat",
+        "vat_amount",
+        "customer_billing_address",
+        "source_snapshot_json"
+      ],
+      "constraints": [
+        {
+          "name": "finance_invoices_client_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (client_id) REFERENCES clients(id)"
+        },
+        {
+          "name": "finance_invoices_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_outgoing_wht_obligations": {
+      "columns": [
+        "id",
+        "payout_source_id",
+        "source_line_id",
+        "source_fingerprint",
+        "payee_json",
+        "gross_base",
+        "explicit_treatment",
+        "explicit_rate",
+        "withheld_amount",
+        "withheld_on",
+        "period_month",
+        "currency",
+        "evidence_json",
+        "filing_status",
+        "remittance_status",
+        "remitted_amount"
+      ],
+      "constraints": [
+        {
+          "name": "finance_outgoing_wht_obligati_payout_source_id_source_line__key",
+          "validated": true,
+          "definition": "UNIQUE (payout_source_id, source_line_id, source_fingerprint)"
+        },
+        {
+          "name": "finance_outgoing_wht_obligations_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "payout_wht_component",
+          "validated": true,
+          "definition": "FOREIGN KEY (source_line_id) REFERENCES finance_payout_allocations(id)"
+        },
+        {
+          "name": "payout_wht_source",
+          "validated": true,
+          "definition": "FOREIGN KEY (payout_source_id) REFERENCES finance_payouts(id)"
+        }
+      ]
+    },
+    "finance_payable_entitlement_audit": {
+      "columns": [
+        "id",
+        "distribution_id",
+        "event_type",
+        "actor_id",
+        "created_at",
+        "evidence_json"
+      ],
+      "constraints": [
+        {
+          "name": "finance_payable_entitlement_audi_distribution_id_event_type_key",
+          "validated": true,
+          "definition": "UNIQUE (distribution_id, event_type)"
+        },
+        {
+          "name": "finance_payable_entitlement_audit_actor_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (actor_id) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_payable_entitlement_audit_distribution_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (distribution_id) REFERENCES finance_payable_entitlement_sources(distribution_id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_payable_entitlement_audit_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_payable_entitlement_sources": {
+      "columns": [
+        "distribution_id",
+        "frozen_distribution_json",
+        "components_json",
+        "status",
+        "materialized_at",
+        "materialized_by",
+        "superseded_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_payable_entitlement_sources_distribution_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (distribution_id) REFERENCES finance_vp_revenue_distributions(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_payable_entitlement_sources_materialized_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (materialized_by) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_payable_entitlement_sources_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (distribution_id)"
+        }
+      ]
+    },
+    "finance_payable_entitlements": {
+      "columns": [
+        "id",
+        "distribution_id",
+        "distribution_revision",
+        "distribution_version",
+        "distribution_fingerprint",
+        "source_type",
+        "received_money_id",
+        "source_line_id",
+        "component_key",
+        "component_no",
+        "formula_code",
+        "formula_version",
+        "bucket",
+        "role_label",
+        "recipient_type",
+        "recipient_id",
+        "recipient_name",
+        "currency",
+        "gross_amount",
+        "finalized_at",
+        "evidence_json",
+        "status",
+        "created_at",
+        "superseded_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_payable_entitlements_distribution_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (distribution_id) REFERENCES finance_payable_entitlement_sources(distribution_id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_payable_entitlements_distribution_id_source_line_id_key",
+          "validated": true,
+          "definition": "UNIQUE (distribution_id, source_line_id, component_key)"
+        },
+        {
+          "name": "finance_payable_entitlements_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_payee_audit": {
+      "columns": [
+        "id",
+        "payee_id",
+        "actor_id",
+        "created_at",
+        "evidence_json"
+      ],
+      "constraints": [
+        {
+          "name": "finance_payee_audit_actor_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (actor_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_payee_audit_payee_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (payee_id) REFERENCES finance_payees(id)"
+        },
+        {
+          "name": "finance_payee_audit_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_payee_destinations": {
+      "columns": [
+        "id",
+        "payee_id",
+        "bank_name",
+        "account_name",
+        "account_number",
+        "is_active",
+        "created_by",
+        "created_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_payee_destinations_created_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_payee_destinations_payee_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (payee_id) REFERENCES finance_payees(id)"
+        },
+        {
+          "name": "finance_payee_destinations_payee_id_id_key",
+          "validated": true,
+          "definition": "UNIQUE (payee_id, id)"
+        },
+        {
+          "name": "finance_payee_destinations_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_payees": {
+      "columns": [
+        "id",
+        "kind",
+        "profile_id",
+        "entity_type",
+        "legal_name",
+        "tax_id",
+        "is_active",
+        "version",
+        "created_by",
+        "updated_by",
+        "created_at",
+        "updated_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_payees_created_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_payees_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_payees_profile_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (profile_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_payees_profile_id_key",
+          "validated": true,
+          "definition": "UNIQUE (profile_id)"
+        },
+        {
+          "name": "finance_payees_updated_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (updated_by) REFERENCES user_profiles(id)"
+        }
+      ]
+    },
+    "finance_payment_allocation_reallocations": {
+      "columns": [
+        "id",
+        "payment_id",
+        "source_invoice_id",
+        "target_invoice_id",
+        "cash_moved",
+        "wht_moved",
+        "settlement_moved",
+        "reason",
+        "request_id",
+        "created_by_user_id",
+        "created_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_payment_allocation_reallocation_created_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_payment_allocation_reallocations_payment_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (payment_id) REFERENCES finance_payments(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_payment_allocation_reallocations_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_payment_allocation_reallocations_source_invoice_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (source_invoice_id) REFERENCES finance_invoices(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_payment_allocation_reallocations_target_invoice_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (target_invoice_id) REFERENCES finance_invoices(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "uq_finance_payment_reallocation_request",
+          "validated": true,
+          "definition": "UNIQUE (request_id)"
+        }
+      ]
+    },
+    "finance_payment_audit_events": {
+      "columns": [
+        "id",
+        "payment_id",
+        "event_type",
+        "event_payload_json",
+        "actor_user_id",
+        "actor_email",
+        "actor_name",
+        "created_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_payment_audit_events_actor_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (actor_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_payment_audit_events_payment_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (payment_id) REFERENCES finance_payments(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_payment_audit_events_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_payment_evidence": {
+      "columns": [
+        "id",
+        "payment_id",
+        "evidence_type",
+        "evidence_on",
+        "external_reference",
+        "note",
+        "storage_bucket",
+        "storage_path",
+        "file_name",
+        "mime_type",
+        "file_size_bytes",
+        "file_sha256",
+        "created_at",
+        "created_by_user_id"
+      ],
+      "constraints": [
+        {
+          "name": "finance_payment_evidence_created_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_payment_evidence_payment_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (payment_id) REFERENCES finance_payments(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_payment_evidence_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_payment_invoice_allocations": {
+      "columns": [
+        "id",
+        "payment_id",
+        "invoice_id",
+        "cash_allocated",
+        "wht_credit_allocated",
+        "settlement_total",
+        "created_at",
+        "created_by_user_id",
+        "updated_at",
+        "updated_by_user_id"
+      ],
+      "constraints": [
+        {
+          "name": "finance_payment_invoice_allocations_created_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_payment_invoice_allocations_invoice_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (invoice_id) REFERENCES finance_invoices(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_payment_invoice_allocations_payment_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (payment_id) REFERENCES finance_payments(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_payment_invoice_allocations_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_payment_invoice_allocations_updated_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (updated_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "uq_finance_payment_invoice_allocation",
+          "validated": true,
+          "definition": "UNIQUE (payment_id, invoice_id)"
+        }
+      ]
+    },
+    "finance_payment_money_allocation_audit": {
+      "columns": [
+        "id",
+        "allocation_id",
+        "event_type",
+        "actor_id",
+        "created_at",
+        "evidence_json"
+      ],
+      "constraints": [
+        {
+          "name": "finance_payment_money_allocation_audit_actor_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (actor_id) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_payment_money_allocation_audit_allocation_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (allocation_id) REFERENCES finance_payment_money_allocations(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_payment_money_allocation_audit_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_payment_money_allocations": {
+      "columns": [
+        "id",
+        "payment_id",
+        "revision",
+        "previous_id",
+        "status",
+        "version",
+        "source_snapshot_json",
+        "decisions_json",
+        "note",
+        "created_at",
+        "created_by",
+        "updated_at",
+        "reviewed_at",
+        "reviewed_by",
+        "finalized_at",
+        "finalized_by",
+        "superseded_at",
+        "superseded_by",
+        "supersede_reason"
+      ],
+      "constraints": [
+        {
+          "name": "finance_payment_money_allocations_created_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_payment_money_allocations_finalized_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (finalized_by) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_payment_money_allocations_payment_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (payment_id) REFERENCES finance_payments(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_payment_money_allocations_payment_id_revision_key",
+          "validated": true,
+          "definition": "UNIQUE (payment_id, revision)"
+        },
+        {
+          "name": "finance_payment_money_allocations_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_payment_money_allocations_previous_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (previous_id) REFERENCES finance_payment_money_allocations(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_payment_money_allocations_previous_id_key",
+          "validated": true,
+          "definition": "UNIQUE (previous_id)"
+        },
+        {
+          "name": "finance_payment_money_allocations_reviewed_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (reviewed_by) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_payment_money_allocations_superseded_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (superseded_by) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+        }
+      ]
+    },
+    "finance_payment_wht_components": {
+      "columns": [
+        "id",
+        "payment_id",
+        "invoice_id",
+        "invoice_item_id",
+        "calculation_rule",
+        "base_amount",
+        "rate_percent",
+        "calculated_wht_amount",
+        "basis_snapshot_json",
+        "created_at",
+        "created_by_user_id"
+      ],
+      "constraints": [
+        {
+          "name": "finance_payment_wht_components_created_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_payment_wht_components_invoice_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (invoice_id) REFERENCES finance_invoices(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_payment_wht_components_invoice_item_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (invoice_item_id) REFERENCES finance_invoice_items(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_payment_wht_components_payment_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (payment_id) REFERENCES finance_payments(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_payment_wht_components_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_payment_wht_line_unique",
+          "validated": true,
+          "definition": "UNIQUE (payment_id, invoice_id, invoice_item_id)"
+        }
+      ]
+    },
+    "finance_payments": {
+      "columns": [
+        "id",
+        "internal_reference",
+        "client_id",
+        "currency",
+        "status",
+        "cash_amount",
+        "wht_amount",
+        "settlement_amount",
+        "received_on",
+        "payment_method",
+        "receiving_bank_account_id",
+        "receiving_account_reference",
+        "external_transaction_reference",
+        "payer_name",
+        "note",
+        "created_at",
+        "created_by_user_id",
+        "updated_at",
+        "updated_by_user_id",
+        "confirmed_at",
+        "confirmed_by_user_id",
+        "cancelled_at",
+        "cancelled_by_user_id",
+        "cancel_reason",
+        "reversed_at",
+        "reversed_by_user_id",
+        "reverse_reason",
+        "draft_origin_invoice_id",
+        "wht_calculation_mode"
+      ],
+      "constraints": [
+        {
+          "name": "finance_payments_cancelled_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (cancelled_by_user_id) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_payments_client_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_payments_confirmed_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (confirmed_by_user_id) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_payments_created_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_payments_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_payments_receiving_bank_account_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (receiving_bank_account_id) REFERENCES finance_bank_accounts(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_payments_reversed_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (reversed_by_user_id) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_payments_updated_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (updated_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        }
+      ]
+    },
+    "finance_payout_allocations": {
+      "columns": [
+        "id",
+        "payout_id",
+        "entitlement_id",
+        "gross_amount",
+        "treatment",
+        "rate",
+        "wht_amount",
+        "evidence_json",
+        "expense_id",
+        "expense_obligation_id",
+        "wht_base"
+      ],
+      "constraints": [
+        {
+          "name": "finance_payout_allocations_entitlement_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (entitlement_id) REFERENCES finance_payable_entitlements(id)"
+        },
+        {
+          "name": "finance_payout_allocations_entitlement_id_key",
+          "validated": true,
+          "definition": "UNIQUE (entitlement_id)"
+        },
+        {
+          "name": "finance_payout_allocations_expense_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (expense_id) REFERENCES finance_expenses(id)"
+        },
+        {
+          "name": "finance_payout_allocations_expense_id_key",
+          "validated": true,
+          "definition": "UNIQUE (expense_id)"
+        },
+        {
+          "name": "finance_payout_allocations_expense_obligation_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (expense_obligation_id) REFERENCES finance_expense_obligations(id)"
+        },
+        {
+          "name": "finance_payout_allocations_expense_obligation_id_key",
+          "validated": true,
+          "definition": "UNIQUE (expense_obligation_id)"
+        },
+        {
+          "name": "finance_payout_allocations_payout_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (payout_id) REFERENCES finance_payouts(id)"
+        },
+        {
+          "name": "finance_payout_allocations_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_payout_audit": {
+      "columns": [
+        "id",
+        "payout_id",
+        "event_type",
+        "version",
+        "actor_id",
+        "created_at",
+        "evidence_json"
+      ],
+      "constraints": [
+        {
+          "name": "finance_payout_audit_actor_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (actor_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_payout_audit_payout_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (payout_id) REFERENCES finance_payouts(id)"
+        },
+        {
+          "name": "finance_payout_audit_payout_id_version_key",
+          "validated": true,
+          "definition": "UNIQUE (payout_id, version)"
+        },
+        {
+          "name": "finance_payout_audit_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_payouts": {
+      "columns": [
+        "id",
+        "payee_id",
+        "status",
+        "version",
+        "paid_on",
+        "bank_account_id",
+        "cash_location_id",
+        "currency",
+        "choices_json",
+        "gross_amount",
+        "wht_amount",
+        "net_amount",
+        "note",
+        "confirmed_snapshot_json",
+        "confirmed_at",
+        "confirmed_by",
+        "cancelled_at",
+        "cancelled_by",
+        "created_at",
+        "updated_at",
+        "created_by",
+        "updated_by",
+        "source_model"
+      ],
+      "constraints": [
+        {
+          "name": "finance_payouts_bank_account_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (bank_account_id) REFERENCES finance_bank_accounts(id)"
+        },
+        {
+          "name": "finance_payouts_cancelled_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (cancelled_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_payouts_cash_location_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (cash_location_id) REFERENCES finance_cash_locations(id)"
+        },
+        {
+          "name": "finance_payouts_confirmed_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (confirmed_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_payouts_created_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_payouts_payee_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (payee_id) REFERENCES finance_payees(id)"
+        },
+        {
+          "name": "finance_payouts_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_payouts_updated_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (updated_by) REFERENCES user_profiles(id)"
+        }
+      ]
+    },
+    "finance_quotation_items": {
+      "columns": [
+        "id",
+        "quotation_id",
+        "vat_applicable",
+        "vat_rate",
+        "vat_treatment_json"
+      ],
+      "constraints": [
+        {
+          "name": "finance_quotation_items_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_quotation_payment_installment_items": {
+      "columns": [
+        "id",
+        "payment_installment_id",
+        "quotation_item_id",
+        "allocated_amount_before_tax",
+        "allocated_vat_amount",
+        "allocated_total",
+        "allocation_percentage",
+        "sort_order",
+        "created_at",
+        "updated_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_quotation_payment_installme_payment_installment_id_fkey",
+          "definition": "FOREIGN KEY (payment_installment_id) REFERENCES finance_quotation_payment_installments(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "finance_quotation_payment_installment_it_quotation_item_id_fkey",
+          "definition": "FOREIGN KEY (quotation_item_id) REFERENCES finance_quotation_items(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_quotation_payment_installment_items_pkey",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_quotation_payment_installment_items_unique",
+          "definition": "UNIQUE (payment_installment_id, quotation_item_id)"
+        }
+      ]
+    },
+    "finance_quotation_payment_installments": {
+      "columns": [
+        "id",
+        "payment_terms_id",
+        "installment_no",
+        "title",
+        "calculation_type",
+        "percentage",
+        "trigger_type",
+        "trigger_description",
+        "due_date",
+        "payment_due_days",
+        "client_note",
+        "amount_before_tax",
+        "vat_amount",
+        "total_amount",
+        "sort_order",
+        "created_at",
+        "updated_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_quotation_payment_installments_number_unique",
+          "definition": "UNIQUE (payment_terms_id, installment_no)"
+        },
+        {
+          "name": "finance_quotation_payment_installments_payment_terms_id_fkey",
+          "definition": "FOREIGN KEY (payment_terms_id) REFERENCES finance_quotation_payment_terms(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "finance_quotation_payment_installments_pkey",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_quotation_payment_terms": {
+      "columns": [
+        "id",
+        "quotation_id",
+        "payment_method_type",
+        "currency",
+        "amount_before_tax",
+        "vat_amount",
+        "total_amount",
+        "client_summary",
+        "snapshot_version",
+        "created_by_user_id",
+        "updated_by_user_id",
+        "created_at",
+        "updated_at",
+        "allocation_mode"
+      ],
+      "constraints": [
+        {
+          "name": "finance_quotation_payment_terms_created_by_user_id_fkey",
+          "definition": "FOREIGN KEY (created_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_quotation_payment_terms_pkey",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_quotation_payment_terms_quotation_id_fkey",
+          "definition": "FOREIGN KEY (quotation_id) REFERENCES finance_quotations(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "finance_quotation_payment_terms_quotation_id_key",
+          "definition": "UNIQUE (quotation_id)"
+        },
+        {
+          "name": "finance_quotation_payment_terms_updated_by_user_id_fkey",
+          "definition": "FOREIGN KEY (updated_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        }
+      ]
+    },
+    "finance_quotation_service_patterns": {
+      "columns": [
+        "id",
+        "pattern_code",
+        "display_name",
+        "category",
+        "short_description",
+        "scope_text",
+        "included_services_text",
+        "excluded_services_text",
+        "is_active",
+        "sort_order",
+        "created_at",
+        "updated_at",
+        "created_by_user_id",
+        "created_by_email",
+        "created_by_name",
+        "updated_by_user_id",
+        "updated_by_email",
+        "updated_by_name"
+      ],
+      "constraints": [
+        {
+          "name": "finance_quotation_service_patterns_created_by_user_id_fkey",
+          "definition": "FOREIGN KEY (created_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_quotation_service_patterns_pkey",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_quotation_service_patterns_updated_by_user_id_fkey",
+          "definition": "FOREIGN KEY (updated_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        }
+      ]
+    },
+    "finance_quotations": {
+      "columns": [
+        "id",
+        "status"
+      ],
+      "constraints": [
+        {
+          "name": "finance_quotations_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_receipt_audit_events": {
+      "columns": [
+        "id",
+        "receipt_id",
+        "event_type",
+        "event_payload_json",
+        "actor_user_id",
+        "created_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_receipt_audit_events_actor_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (actor_user_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_receipt_audit_events_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_receipt_audit_events_receipt_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (receipt_id) REFERENCES finance_receipts(id) ON DELETE RESTRICT"
+        }
+      ]
+    },
+    "finance_receipt_invoice_allocations": {
+      "columns": [
+        "id",
+        "receipt_id",
+        "invoice_id",
+        "invoice_no",
+        "currency",
+        "cash_allocated",
+        "wht_allocated",
+        "settlement_allocated",
+        "source_snapshot_json",
+        "created_at",
+        "direct_money_receipt_id",
+        "direct_source_line_id"
+      ],
+      "constraints": [
+        {
+          "name": "finance_receipt_invoice_allocation_direct_money_receipt_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (direct_money_receipt_id) REFERENCES finance_direct_money_receipts(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_receipt_invoice_allocations_invoice_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (invoice_id) REFERENCES finance_invoices(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_receipt_invoice_allocations_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_receipt_invoice_allocations_receipt_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (receipt_id) REFERENCES finance_receipts(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_receipt_invoice_allocations_receipt_id_invoice_id_key",
+          "validated": true,
+          "definition": "UNIQUE (receipt_id, invoice_id)"
+        },
+        {
+          "name": "receipt_direct_line_once_066",
+          "validated": true,
+          "definition": "UNIQUE (receipt_id, direct_source_line_id)"
+        }
+      ]
+    },
+    "finance_receipts": {
+      "columns": [
+        "id",
+        "payment_id",
+        "client_id",
+        "status",
+        "receipt_no",
+        "receipt_date",
+        "currency",
+        "cash_amount",
+        "wht_amount",
+        "settlement_amount",
+        "draft_snapshot_json",
+        "issued_snapshot_json",
+        "replaces_receipt_id",
+        "external_receipt_checked_at",
+        "external_receipt_checked_by_user_id",
+        "issued_at",
+        "issued_by_user_id",
+        "cancelled_at",
+        "cancelled_by_user_id",
+        "cancel_reason",
+        "voided_at",
+        "voided_by_user_id",
+        "void_reason",
+        "created_at",
+        "created_by_user_id",
+        "updated_at",
+        "combined_document_id",
+        "direct_money_receipt_id"
+      ],
+      "constraints": [
+        {
+          "name": "finance_receipts_cancelled_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (cancelled_by_user_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_receipts_client_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_receipts_combined_document_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (combined_document_id) REFERENCES finance_combined_documents(id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED"
+        },
+        {
+          "name": "finance_receipts_combined_document_id_key",
+          "validated": true,
+          "definition": "UNIQUE (combined_document_id)"
+        },
+        {
+          "name": "finance_receipts_created_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by_user_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_receipts_direct_money_receipt_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (direct_money_receipt_id) REFERENCES finance_direct_money_receipts(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_receipts_external_receipt_checked_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (external_receipt_checked_by_user_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_receipts_issued_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (issued_by_user_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_receipts_payment_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (payment_id) REFERENCES finance_payments(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_receipts_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_receipts_receipt_no_key",
+          "validated": true,
+          "definition": "UNIQUE (receipt_no)"
+        },
+        {
+          "name": "finance_receipts_replaces_receipt_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (replaces_receipt_id) REFERENCES finance_receipts(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_receipts_voided_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (voided_by_user_id) REFERENCES user_profiles(id)"
+        }
+      ]
+    },
+    "finance_tax_correction_audit_events": {
+      "columns": [
+        "id",
+        "correction_id",
+        "event_type",
+        "event_payload_json",
+        "actor_user_id",
+        "created_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_tax_correction_audit_events_actor_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (actor_user_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_tax_correction_audit_events_correction_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (correction_id) REFERENCES finance_tax_document_corrections(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_tax_correction_audit_events_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_tax_correction_documents": {
+      "columns": [
+        "id",
+        "document_type",
+        "document_no",
+        "document_date",
+        "issued_at",
+        "issued_by_user_id",
+        "copy_sequence",
+        "issued_snapshot_json"
+      ],
+      "constraints": [
+        {
+          "name": "finance_tax_correction_documents_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (id) REFERENCES finance_tax_document_corrections(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_tax_correction_documents_issued_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (issued_by_user_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_tax_correction_documents_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_tax_correction_lines": {
+      "columns": [
+        "id",
+        "correction_id",
+        "original_tax_invoice_item_id",
+        "base_change",
+        "vat_change",
+        "previous_base",
+        "previous_vat",
+        "resulting_base",
+        "resulting_vat",
+        "source_snapshot_json"
+      ],
+      "constraints": [
+        {
+          "name": "finance_tax_correction_lines_correction_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (correction_id) REFERENCES finance_tax_document_corrections(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_tax_correction_lines_correction_id_original_tax_inv_key",
+          "validated": true,
+          "definition": "UNIQUE (correction_id, original_tax_invoice_item_id)"
+        },
+        {
+          "name": "finance_tax_correction_lines_original_tax_invoice_item_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (original_tax_invoice_item_id) REFERENCES finance_tax_invoice_items(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_tax_correction_lines_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_tax_deadline_rules": {
+      "columns": [
+        "id",
+        "version",
+        "filing_type",
+        "channel",
+        "effective_from",
+        "effective_to",
+        "status",
+        "supersedes_id",
+        "spec",
+        "reviewed_by",
+        "reviewed_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_tax_deadline_rules_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_tax_deadline_rules_reviewed_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (reviewed_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_tax_deadline_rules_supersedes_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (supersedes_id) REFERENCES finance_tax_deadline_rules(id)"
+        },
+        {
+          "name": "finance_tax_deadline_rules_supersedes_id_key",
+          "validated": true,
+          "definition": "UNIQUE (supersedes_id)"
+        },
+        {
+          "name": "finance_tax_deadline_rules_version_key",
+          "validated": true,
+          "definition": "UNIQUE (version)"
+        }
+      ]
+    },
+    "finance_tax_document_corrections": {
+      "columns": [
+        "id",
+        "request_id",
+        "original_tax_invoice_id",
+        "original_combined_document_id",
+        "original_receipt_id",
+        "invoice_id",
+        "payment_id",
+        "source_correction_id",
+        "correction_mode",
+        "reason",
+        "legal_basis",
+        "evidence_reference",
+        "issue_date",
+        "adjustment_date",
+        "source_snapshot_json",
+        "draft_snapshot_json",
+        "request_json",
+        "status",
+        "created_at",
+        "created_by_user_id",
+        "approved_at",
+        "approved_by_user_id",
+        "approval_evidence",
+        "issued_at",
+        "issued_by_user_id",
+        "cancelled_at",
+        "cancelled_by_user_id",
+        "cancel_reason",
+        "direct_money_receipt_id"
+      ],
+      "constraints": [
+        {
+          "name": "finance_tax_document_correcti_original_combined_document_i_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (original_combined_document_id) REFERENCES finance_combined_documents(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_tax_document_corrections_approved_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (approved_by_user_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_tax_document_corrections_cancelled_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (cancelled_by_user_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_tax_document_corrections_created_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by_user_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_tax_document_corrections_direct_money_receipt_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (direct_money_receipt_id) REFERENCES finance_direct_money_receipts(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_tax_document_corrections_invoice_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (invoice_id) REFERENCES finance_invoices(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_tax_document_corrections_issued_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (issued_by_user_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_tax_document_corrections_original_receipt_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (original_receipt_id) REFERENCES finance_receipts(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_tax_document_corrections_original_tax_invoice_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (original_tax_invoice_id) REFERENCES finance_tax_invoices(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_tax_document_corrections_payment_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (payment_id) REFERENCES finance_payments(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_tax_document_corrections_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_tax_document_corrections_request_id_key",
+          "validated": true,
+          "definition": "UNIQUE (request_id)"
+        },
+        {
+          "name": "finance_tax_document_corrections_source_correction_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (source_correction_id) REFERENCES finance_tax_document_corrections(id) ON DELETE RESTRICT"
+        }
+      ]
+    },
+    "finance_tax_filing_allocations": {
+      "columns": [
+        "id",
+        "filing_id",
+        "tax_fact_id",
+        "outgoing_wht_id",
+        "economic_key",
+        "source_fingerprint",
+        "evidence_json"
+      ],
+      "constraints": [
+        {
+          "name": "finance_tax_filing_allocations_filing_id_economic_key_key",
+          "validated": true,
+          "definition": "UNIQUE (filing_id, economic_key)"
+        },
+        {
+          "name": "finance_tax_filing_allocations_filing_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (filing_id) REFERENCES finance_tax_filings(id)"
+        },
+        {
+          "name": "finance_tax_filing_allocations_outgoing_wht_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (outgoing_wht_id) REFERENCES finance_outgoing_wht_obligations(id)"
+        },
+        {
+          "name": "finance_tax_filing_allocations_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_tax_filing_allocations_tax_fact_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (tax_fact_id) REFERENCES finance_tax_position_facts(id)"
+        }
+      ]
+    },
+    "finance_tax_filing_audit": {
+      "columns": [
+        "id",
+        "filing_id",
+        "event_type",
+        "version",
+        "actor_id",
+        "created_at",
+        "evidence_json"
+      ],
+      "constraints": [
+        {
+          "name": "finance_tax_filing_audit_actor_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (actor_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_tax_filing_audit_filing_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (filing_id) REFERENCES finance_tax_filings(id)"
+        },
+        {
+          "name": "finance_tax_filing_audit_filing_id_version_key",
+          "validated": true,
+          "definition": "UNIQUE (filing_id, version)"
+        },
+        {
+          "name": "finance_tax_filing_audit_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_tax_filings": {
+      "columns": [
+        "id",
+        "period_month",
+        "filing_type",
+        "filing_version",
+        "amendment_of_id",
+        "status",
+        "version",
+        "due_date",
+        "due_date_evidence",
+        "source_fingerprint",
+        "source_snapshot_json",
+        "base_amount",
+        "tax_amount",
+        "currency",
+        "filed_on",
+        "filed_at",
+        "filed_by",
+        "external_reference",
+        "filing_evidence",
+        "filed_snapshot_json",
+        "cancelled_at",
+        "cancelled_by",
+        "cancellation_reason",
+        "created_at",
+        "created_by",
+        "deadline_snapshot_json"
+      ],
+      "constraints": [
+        {
+          "name": "finance_tax_filings_amendment_of_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (amendment_of_id) REFERENCES finance_tax_filings(id)"
+        },
+        {
+          "name": "finance_tax_filings_cancelled_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (cancelled_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_tax_filings_created_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_tax_filings_filed_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (filed_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_tax_filings_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_tax_invoice_audit_events": {
+      "columns": [
+        "id",
+        "tax_invoice_id",
+        "event_type",
+        "event_payload_json",
+        "actor_user_id",
+        "created_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_tax_invoice_audit_events_actor_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (actor_user_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_tax_invoice_audit_events_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_tax_invoice_audit_events_tax_invoice_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (tax_invoice_id) REFERENCES finance_tax_invoices(id) ON DELETE RESTRICT"
+        }
+      ]
+    },
+    "finance_tax_invoice_items": {
+      "columns": [
+        "id",
+        "tax_invoice_id",
+        "invoice_item_id",
+        "amount_before_vat",
+        "vat_amount",
+        "total_amount",
+        "source_snapshot_json",
+        "direct_money_receipt_id",
+        "direct_source_line_id"
+      ],
+      "constraints": [
+        {
+          "name": "finance_tax_invoice_items_direct_money_receipt_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (direct_money_receipt_id) REFERENCES finance_direct_money_receipts(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_tax_invoice_items_invoice_item_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (invoice_item_id) REFERENCES finance_invoice_items(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_tax_invoice_items_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_tax_invoice_items_tax_invoice_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (tax_invoice_id) REFERENCES finance_tax_invoices(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_tax_invoice_items_tax_invoice_id_invoice_item_id_key",
+          "validated": true,
+          "definition": "UNIQUE (tax_invoice_id, invoice_item_id)"
+        },
+        {
+          "name": "tax_direct_line_once_066",
+          "validated": true,
+          "definition": "UNIQUE (tax_invoice_id, direct_source_line_id)"
+        }
+      ]
+    },
+    "finance_tax_invoice_source_coverages": {
+      "columns": [
+        "id",
+        "tax_invoice_id",
+        "tax_invoice_item_id",
+        "invoice_item_id",
+        "tax_point_event_id",
+        "status",
+        "amount_before_vat",
+        "vat_amount",
+        "total_amount",
+        "source_snapshot_json",
+        "direct_money_receipt_id",
+        "direct_source_line_id"
+      ],
+      "constraints": [
+        {
+          "name": "finance_tax_invoice_source_coverag_direct_money_receipt_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (direct_money_receipt_id) REFERENCES finance_direct_money_receipts(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_tax_invoice_source_coverages_invoice_item_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (invoice_item_id) REFERENCES finance_invoice_items(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_tax_invoice_source_coverages_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_tax_invoice_source_coverages_tax_invoice_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (tax_invoice_id) REFERENCES finance_tax_invoices(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_tax_invoice_source_coverages_tax_invoice_item_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (tax_invoice_item_id) REFERENCES finance_tax_invoice_items(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_tax_invoice_source_coverages_tax_invoice_item_id_key",
+          "validated": true,
+          "definition": "UNIQUE (tax_invoice_item_id)"
+        },
+        {
+          "name": "finance_tax_invoice_source_coverages_tax_point_event_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (tax_point_event_id) REFERENCES finance_tax_point_events(id) ON DELETE RESTRICT"
+        }
+      ]
+    },
+    "finance_tax_invoices": {
+      "columns": [
+        "id",
+        "payment_id",
+        "invoice_id",
+        "client_id",
+        "status",
+        "tax_invoice_no",
+        "issue_date",
+        "source_snapshot_json",
+        "decisions_json",
+        "draft_snapshot_json",
+        "issued_snapshot_json",
+        "issued_at",
+        "issued_by_user_id",
+        "cancelled_at",
+        "cancel_reason",
+        "cancelled_by_user_id",
+        "created_at",
+        "updated_at",
+        "created_by_user_id",
+        "combined_document_id",
+        "direct_money_receipt_id"
+      ],
+      "constraints": [
+        {
+          "name": "finance_tax_invoices_cancelled_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (cancelled_by_user_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_tax_invoices_client_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_tax_invoices_combined_document_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (combined_document_id) REFERENCES finance_combined_documents(id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED"
+        },
+        {
+          "name": "finance_tax_invoices_combined_document_id_key",
+          "validated": true,
+          "definition": "UNIQUE (combined_document_id)"
+        },
+        {
+          "name": "finance_tax_invoices_created_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by_user_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_tax_invoices_direct_money_receipt_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (direct_money_receipt_id) REFERENCES finance_direct_money_receipts(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_tax_invoices_invoice_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (invoice_id) REFERENCES finance_invoices(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_tax_invoices_issued_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (issued_by_user_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_tax_invoices_payment_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (payment_id) REFERENCES finance_payments(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_tax_invoices_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_tax_invoices_tax_invoice_no_key",
+          "validated": true,
+          "definition": "UNIQUE (tax_invoice_no)"
+        }
+      ]
+    },
+    "finance_tax_periods": {
+      "columns": [
+        "period_month",
+        "status",
+        "version",
+        "input_vat_status",
+        "input_vat_amount",
+        "net_vat_amount",
+        "filing_reference",
+        "filed_on"
+      ],
+      "constraints": [
+        {
+          "name": "finance_tax_periods_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (period_month)"
+        }
+      ]
+    },
+    "finance_tax_point_events": {
+      "columns": [
+        "id",
+        "tax_invoice_id",
+        "event_type",
+        "occurred_on",
+        "evidence_json",
+        "approved_at",
+        "approved_by_user_id"
+      ],
+      "constraints": [
+        {
+          "name": "finance_tax_point_events_approved_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (approved_by_user_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_tax_point_events_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_tax_point_events_tax_invoice_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (tax_invoice_id) REFERENCES finance_tax_invoices(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_tax_point_events_tax_invoice_id_key",
+          "validated": true,
+          "definition": "UNIQUE (tax_invoice_id)"
+        }
+      ]
+    },
+    "finance_tax_position_audit": {
+      "columns": [
+        "id",
+        "sequence",
+        "revision_id",
+        "fact_id",
+        "period_month",
+        "event_type",
+        "evidence_json",
+        "actor_id",
+        "created_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_tax_position_audit_actor_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (actor_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_tax_position_audit_fact_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (fact_id) REFERENCES finance_tax_position_facts(id)"
+        },
+        {
+          "name": "finance_tax_position_audit_period_month_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (period_month) REFERENCES finance_tax_periods(period_month)"
+        },
+        {
+          "name": "finance_tax_position_audit_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_tax_position_audit_revision_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (revision_id) REFERENCES finance_tax_source_revisions(id)"
+        },
+        {
+          "name": "finance_tax_position_audit_sequence_key",
+          "validated": true,
+          "definition": "UNIQUE (sequence)"
+        }
+      ]
+    },
+    "finance_tax_position_facts": {
+      "columns": [
+        "id",
+        "revision_id",
+        "source_line_id",
+        "tax_kind",
+        "effective_on",
+        "period_month",
+        "currency",
+        "base_amount",
+        "rate_percent",
+        "tax_amount",
+        "treatment",
+        "date_basis",
+        "document_reference",
+        "payer_json",
+        "evidence_json"
+      ],
+      "constraints": [
+        {
+          "name": "finance_tax_position_facts_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_tax_position_facts_revision_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (revision_id) REFERENCES finance_tax_source_revisions(id)"
+        },
+        {
+          "name": "finance_tax_position_facts_revision_id_source_line_id_tax_k_key",
+          "validated": true,
+          "definition": "UNIQUE (revision_id, source_line_id, tax_kind)"
+        }
+      ]
+    },
+    "finance_tax_remittance_audit": {
+      "columns": [
+        "id",
+        "remittance_id",
+        "event_type",
+        "version",
+        "actor_id",
+        "created_at",
+        "evidence_json"
+      ],
+      "constraints": [
+        {
+          "name": "finance_tax_remittance_audit_actor_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (actor_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_tax_remittance_audit_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_tax_remittance_audit_remittance_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (remittance_id) REFERENCES finance_tax_remittances(id)"
+        },
+        {
+          "name": "finance_tax_remittance_audit_remittance_id_version_key",
+          "validated": true,
+          "definition": "UNIQUE (remittance_id, version)"
+        }
+      ]
+    },
+    "finance_tax_remittances": {
+      "columns": [
+        "id",
+        "filing_id",
+        "status",
+        "version",
+        "amount",
+        "currency",
+        "paid_on",
+        "bank_account_id",
+        "cash_location_id",
+        "external_reference",
+        "payment_evidence",
+        "draft_snapshot_json",
+        "confirmed_snapshot_json",
+        "confirmed_at",
+        "confirmed_by",
+        "cancelled_at",
+        "cancelled_by",
+        "created_at",
+        "created_by"
+      ],
+      "constraints": [
+        {
+          "name": "finance_tax_remittances_bank_account_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (bank_account_id) REFERENCES finance_bank_accounts(id)"
+        },
+        {
+          "name": "finance_tax_remittances_cancelled_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (cancelled_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_tax_remittances_cash_location_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (cash_location_id) REFERENCES finance_cash_locations(id)"
+        },
+        {
+          "name": "finance_tax_remittances_confirmed_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (confirmed_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_tax_remittances_created_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_tax_remittances_filing_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (filing_id) REFERENCES finance_tax_filings(id)"
+        },
+        {
+          "name": "finance_tax_remittances_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_tax_source_revisions": {
+      "columns": [
+        "id",
+        "source_type",
+        "source_id",
+        "revision",
+        "fingerprint",
+        "supersedes_id",
+        "evidence_json",
+        "reason",
+        "created_at",
+        "actor_id"
+      ],
+      "constraints": [
+        {
+          "name": "finance_tax_source_revisions_actor_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (actor_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_tax_source_revisions_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_tax_source_revisions_source_type_source_id_fingerpr_key",
+          "validated": true,
+          "definition": "UNIQUE (source_type, source_id, fingerprint)"
+        },
+        {
+          "name": "finance_tax_source_revisions_source_type_source_id_revision_key",
+          "validated": true,
+          "definition": "UNIQUE (source_type, source_id, revision)"
+        },
+        {
+          "name": "finance_tax_source_revisions_supersedes_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (supersedes_id) REFERENCES finance_tax_source_revisions(id)"
+        },
+        {
+          "name": "finance_tax_source_revisions_supersedes_id_key",
+          "validated": true,
+          "definition": "UNIQUE (supersedes_id)"
+        }
+      ]
+    },
+    "finance_treasury_account_authorities": {
+      "columns": [
+        "id",
+        "user_id",
+        "bank_account_id",
+        "cash_location_id",
+        "view_balance",
+        "view_movements",
+        "record_outflow",
+        "confirm_outflow",
+        "version",
+        "updated_at",
+        "updated_by"
+      ],
+      "constraints": [
+        {
+          "name": "finance_treasury_account_authorities_bank_account_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (bank_account_id) REFERENCES finance_bank_accounts(id)"
+        },
+        {
+          "name": "finance_treasury_account_authorities_cash_location_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (cash_location_id) REFERENCES finance_cash_locations(id)"
+        },
+        {
+          "name": "finance_treasury_account_authorities_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_treasury_account_authorities_updated_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (updated_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_treasury_account_authorities_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (user_id) REFERENCES user_profiles(id)"
+        }
+      ]
+    },
+    "finance_treasury_authority_audit": {
+      "columns": [
+        "id",
+        "authority_id",
+        "version",
+        "actor_id",
+        "created_at",
+        "reason",
+        "evidence_json"
+      ],
+      "constraints": [
+        {
+          "name": "finance_treasury_authority_audit_actor_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (actor_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_treasury_authority_audit_authority_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (authority_id) REFERENCES finance_treasury_account_authorities(id)"
+        },
+        {
+          "name": "finance_treasury_authority_audit_authority_id_version_key",
+          "validated": true,
+          "definition": "UNIQUE (authority_id, version)"
+        },
+        {
+          "name": "finance_treasury_authority_audit_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_treasury_transfer_legs": {
+      "columns": [
+        "transfer_id",
+        "direction",
+        "cash_transaction_id"
+      ],
+      "constraints": [
+        {
+          "name": "finance_treasury_transfer_legs_cash_transaction_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (cash_transaction_id) REFERENCES finance_cash_transactions(id)"
+        },
+        {
+          "name": "finance_treasury_transfer_legs_cash_transaction_id_key",
+          "validated": true,
+          "definition": "UNIQUE (cash_transaction_id)"
+        },
+        {
+          "name": "finance_treasury_transfer_legs_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (transfer_id, direction)"
+        },
+        {
+          "name": "finance_treasury_transfer_legs_transfer_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (transfer_id) REFERENCES finance_treasury_transfers(id)"
+        }
+      ]
+    },
+    "finance_treasury_transfers": {
+      "columns": [
+        "id",
+        "from_bank_id",
+        "from_cash_id",
+        "to_bank_id",
+        "to_cash_id",
+        "amount",
+        "transferred_on",
+        "currency",
+        "reference",
+        "note",
+        "confirmed_by",
+        "confirmed_at"
+      ],
+      "constraints": [
+        {
+          "name": "finance_treasury_transfers_confirmed_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (confirmed_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_treasury_transfers_from_bank_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (from_bank_id) REFERENCES finance_bank_accounts(id)"
+        },
+        {
+          "name": "finance_treasury_transfers_from_cash_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (from_cash_id) REFERENCES finance_cash_locations(id)"
+        },
+        {
+          "name": "finance_treasury_transfers_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_treasury_transfers_reference_key",
+          "validated": true,
+          "definition": "UNIQUE (reference)"
+        },
+        {
+          "name": "finance_treasury_transfers_to_bank_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (to_bank_id) REFERENCES finance_bank_accounts(id)"
+        },
+        {
+          "name": "finance_treasury_transfers_to_cash_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (to_cash_id) REFERENCES finance_cash_locations(id)"
+        }
+      ]
+    },
+    "finance_vp_revenue_distribution_audit": {
+      "columns": [
+        "id",
+        "distribution_id",
+        "event_type",
+        "actor_id",
+        "created_at",
+        "evidence_json"
+      ],
+      "constraints": [
+        {
+          "name": "finance_vp_revenue_distribution_audit_actor_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (actor_id) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_vp_revenue_distribution_audit_distribution_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (distribution_id) REFERENCES finance_vp_revenue_distributions(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_vp_revenue_distribution_audit_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    "finance_vp_revenue_distributions": {
+      "columns": [
+        "id",
+        "payment_id",
+        "money_allocation_id",
+        "revision",
+        "previous_id",
+        "status",
+        "version",
+        "source_snapshot_json",
+        "decisions_json",
+        "note",
+        "created_at",
+        "created_by",
+        "updated_at",
+        "reviewed_at",
+        "reviewed_by",
+        "finalized_at",
+        "finalized_by",
+        "superseded_at",
+        "superseded_by",
+        "supersede_reason",
+        "direct_money_receipt_id"
+      ],
+      "constraints": [
+        {
+          "name": "finance_vp_revenue_distributions_created_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_vp_revenue_distributions_direct_money_receipt_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (direct_money_receipt_id) REFERENCES finance_direct_money_receipts(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_vp_revenue_distributions_finalized_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (finalized_by) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_vp_revenue_distributions_money_allocation_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (money_allocation_id) REFERENCES finance_payment_money_allocations(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_vp_revenue_distributions_payment_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (payment_id) REFERENCES finance_payments(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_vp_revenue_distributions_payment_id_revision_key",
+          "validated": true,
+          "definition": "UNIQUE (payment_id, revision)"
+        },
+        {
+          "name": "finance_vp_revenue_distributions_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_vp_revenue_distributions_previous_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (previous_id) REFERENCES finance_vp_revenue_distributions(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_vp_revenue_distributions_previous_id_key",
+          "validated": true,
+          "definition": "UNIQUE (previous_id)"
+        },
+        {
+          "name": "finance_vp_revenue_distributions_reviewed_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (reviewed_by) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_vp_revenue_distributions_superseded_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (superseded_by) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+        }
+      ]
+    },
+    "user_profiles": {
+      "columns": [
+        "id",
+        "active",
+        "role",
+        "email",
+        "full_name",
+        "staff_name",
+        "can_manage_finance_payments",
+        "can_confirm_finance_payments",
+        "can_reverse_finance_payments",
+        "can_reallocate_finance_payments",
+        "can_reverse_finance_cash_transactions",
+        "can_view_finance_receipts",
+        "can_manage_finance_receipts",
+        "can_issue_finance_receipts",
+        "can_void_finance_receipts",
+        "can_view_finance_tax_invoices",
+        "can_manage_finance_tax_invoices",
+        "can_issue_finance_tax_invoices",
+        "can_view_finance_cash_transactions",
+        "can_manage_finance_cash_transactions",
+        "can_confirm_finance_cash_transactions",
+        "can_submit_expense_claim",
+        "can_view_own_expense_claims",
+        "can_view_all_expense_claims",
+        "can_approve_expense_claims"
+      ],
+      "constraints": [
+        {
+          "name": "user_profiles_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    }
+  }
+}

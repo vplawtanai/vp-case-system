@@ -1,0 +1,1007 @@
+{
+  "phase": "7A",
+  "baseline_commit": "81c90a5e8632d3c087284d3a9634a38335032922",
+  "cutover_date_required": true,
+  "destructive_authorization": false,
+  "broader_unresolved_differences": 490,
+  "tables": [
+    {
+      "table": "advisory_matters",
+      "classification": "SHARED_CORE_NO_TOUCH",
+      "created_by_migration": null,
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Shared core/history. Reference audit only; no Finance-wide deletion."
+    },
+    {
+      "table": "case_audit_logs",
+      "classification": "SHARED_CORE_NO_TOUCH",
+      "created_by_migration": null,
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Shared core/history. Reference audit only; no Finance-wide deletion."
+    },
+    {
+      "table": "cases",
+      "classification": "SHARED_CORE_NO_TOUCH",
+      "created_by_migration": null,
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Shared core/history. Reference audit only; no Finance-wide deletion."
+    },
+    {
+      "table": "clients",
+      "classification": "SHARED_CORE_NO_TOUCH",
+      "created_by_migration": null,
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Shared core/history. Reference audit only; no Finance-wide deletion."
+    },
+    {
+      "table": "document_clause_libraries",
+      "classification": "CONFIG_KEEP",
+      "created_by_migration": "supabase/migrations/202607170001_document_platform_fee_agreement_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Master/configuration or its audit history. Keep by default; test-specific rows require explicit human decision."
+    },
+    {
+      "table": "document_clause_version_variable_bindings",
+      "classification": "CONFIG_KEEP",
+      "created_by_migration": "supabase/migrations/202607180001_document_template_clause_management_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Master/configuration or its audit history. Keep by default; test-specific rows require explicit human decision."
+    },
+    {
+      "table": "document_clause_versions",
+      "classification": "CONFIG_KEEP",
+      "created_by_migration": "supabase/migrations/202607170001_document_platform_fee_agreement_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Master/configuration or its audit history. Keep by default; test-specific rows require explicit human decision."
+    },
+    {
+      "table": "document_numbering_profiles",
+      "classification": "CONFIG_KEEP",
+      "created_by_migration": "supabase/migrations/202607170001_document_platform_fee_agreement_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Master/configuration or its audit history. Keep by default; test-specific rows require explicit human decision."
+    },
+    {
+      "table": "document_template_alternative_groups",
+      "classification": "CONFIG_KEEP",
+      "created_by_migration": "supabase/migrations/202607180001_document_template_clause_management_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Master/configuration or its audit history. Keep by default; test-specific rows require explicit human decision."
+    },
+    {
+      "table": "document_template_audit_events",
+      "classification": "CONFIG_KEEP",
+      "created_by_migration": "supabase/migrations/202607180001_document_template_clause_management_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Master/configuration or its audit history. Keep by default; test-specific rows require explicit human decision."
+    },
+    {
+      "table": "document_template_clause_slots",
+      "classification": "CONFIG_KEEP",
+      "created_by_migration": "supabase/migrations/202607180001_document_template_clause_management_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Master/configuration or its audit history. Keep by default; test-specific rows require explicit human decision."
+    },
+    {
+      "table": "document_template_sections",
+      "classification": "CONFIG_KEEP",
+      "created_by_migration": "supabase/migrations/202607180001_document_template_clause_management_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Master/configuration or its audit history. Keep by default; test-specific rows require explicit human decision."
+    },
+    {
+      "table": "document_template_variable_bindings",
+      "classification": "CONFIG_KEEP",
+      "created_by_migration": "supabase/migrations/202607180001_document_template_clause_management_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Master/configuration or its audit history. Keep by default; test-specific rows require explicit human decision."
+    },
+    {
+      "table": "document_template_versions",
+      "classification": "CONFIG_KEEP",
+      "created_by_migration": "supabase/migrations/202607170001_document_platform_fee_agreement_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Master/configuration or its audit history. Keep by default; test-specific rows require explicit human decision."
+    },
+    {
+      "table": "document_templates",
+      "classification": "CONFIG_KEEP",
+      "created_by_migration": "supabase/migrations/202607170001_document_platform_fee_agreement_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Master/configuration or its audit history. Keep by default; test-specific rows require explicit human decision."
+    },
+    {
+      "table": "document_variable_definitions",
+      "classification": "CONFIG_KEEP",
+      "created_by_migration": "supabase/migrations/202607180001_document_template_clause_management_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Master/configuration or its audit history. Keep by default; test-specific rows require explicit human decision."
+    },
+    {
+      "table": "finance_account_opening_balance_audit_events",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180025_create_finance_cash_transaction_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_account_opening_balances",
+      "classification": "NEW_FINANCE_UAT_PURGE",
+      "created_by_migration": "supabase/migrations/202607180025_create_finance_cash_transaction_foundation.sql",
+      "date_key": "as_of",
+      "amount_key": "balance_amount",
+      "rule": "User confirmed all New Finance transaction data is simulated. Future parent-scoped cleanup only; cross-Legacy links block automatic purge."
+    },
+    {
+      "table": "finance_authorized_signers",
+      "classification": "CONFIG_KEEP",
+      "created_by_migration": "supabase/migrations/202607090005_document_settings_and_vp_qt_prefix.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Master/configuration or its audit history. Keep by default; test-specific rows require explicit human decision."
+    },
+    {
+      "table": "finance_bank_account_access",
+      "classification": "CONFIG_KEEP",
+      "created_by_migration": null,
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Master/configuration or its audit history. Keep by default; test-specific rows require explicit human decision."
+    },
+    {
+      "table": "finance_bank_accounts",
+      "classification": "CONFIG_KEEP",
+      "created_by_migration": null,
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Master/configuration or its audit history. Keep by default; test-specific rows require explicit human decision."
+    },
+    {
+      "table": "finance_billable_charge_audit_events",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180030_create_finance_billable_charge_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_billable_charges",
+      "classification": "NEW_FINANCE_UAT_PURGE",
+      "created_by_migration": "supabase/migrations/202607180030_create_finance_billable_charge_foundation.sql",
+      "date_key": "service_date",
+      "amount_key": "total_amount",
+      "rule": "User confirmed all New Finance transaction data is simulated. Future parent-scoped cleanup only; cross-Legacy links block automatic purge."
+    },
+    {
+      "table": "finance_billing_installment_audit_events",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180018_add_billing_installment_readiness.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_billing_installment_charge_bridge_audit_events",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180031_add_invoice_v2_bridge_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_billing_installment_charge_bridges",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180031_add_invoice_v2_bridge_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_billing_installment_items",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607090010_create_finance_billing_plans.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_billing_installments",
+      "classification": "NEW_FINANCE_UAT_PURGE",
+      "created_by_migration": "supabase/migrations/202607090010_create_finance_billing_plans.sql",
+      "date_key": "due_date",
+      "amount_key": "total_amount",
+      "rule": "User confirmed all New Finance transaction data is simulated. Future parent-scoped cleanup only; cross-Legacy links block automatic purge."
+    },
+    {
+      "table": "finance_billing_plans",
+      "classification": "NEW_FINANCE_UAT_PURGE",
+      "created_by_migration": "supabase/migrations/202607090010_create_finance_billing_plans.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "User confirmed all New Finance transaction data is simulated. Future parent-scoped cleanup only; cross-Legacy links block automatic purge."
+    },
+    {
+      "table": "finance_cash_locations",
+      "classification": "CONFIG_KEEP",
+      "created_by_migration": "supabase/migrations/202607180049_add_treasury_cashbook_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Master/configuration or its audit history. Keep by default; test-specific rows require explicit human decision."
+    },
+    {
+      "table": "finance_cash_transaction_audit_events",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180025_create_finance_cash_transaction_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_cash_transactions",
+      "classification": "NEW_FINANCE_UAT_PURGE",
+      "created_by_migration": "supabase/migrations/202607180025_create_finance_cash_transaction_foundation.sql",
+      "date_key": "occurred_at",
+      "amount_key": "cash_amount",
+      "rule": "User confirmed all New Finance transaction data is simulated. Future parent-scoped cleanup only; cross-Legacy links block automatic purge."
+    },
+    {
+      "table": "finance_combined_document_audit_events",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180040_add_combined_receipt_tax_invoice.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_combined_documents",
+      "classification": "NEW_FINANCE_UAT_PURGE",
+      "created_by_migration": "supabase/migrations/202607180040_add_combined_receipt_tax_invoice.sql",
+      "date_key": "issue_date",
+      "amount_key": null,
+      "rule": "User confirmed all New Finance transaction data is simulated. Future parent-scoped cleanup only; cross-Legacy links block automatic purge."
+    },
+    {
+      "table": "finance_company_ledger",
+      "classification": "LEGACY_REAL_KEEP",
+      "created_by_migration": null,
+      "date_key": "transaction_date",
+      "amount_key": "amount",
+      "rule": "Real Legacy history; never purge, including settled/voided rows."
+    },
+    {
+      "table": "finance_company_profiles",
+      "classification": "CONFIG_KEEP",
+      "created_by_migration": "supabase/migrations/202607090005_document_settings_and_vp_qt_prefix.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Master/configuration or its audit history. Keep by default; test-specific rows require explicit human decision."
+    },
+    {
+      "table": "finance_compensation_allocations",
+      "classification": "LEGACY_REAL_KEEP",
+      "created_by_migration": null,
+      "date_key": "created_at",
+      "amount_key": "amount",
+      "rule": "Real Legacy history; never purge, including settled/voided rows."
+    },
+    {
+      "table": "finance_compensation_batches",
+      "classification": "LEGACY_REAL_KEEP",
+      "created_by_migration": null,
+      "date_key": "received_date",
+      "amount_key": "received_amount",
+      "rule": "Real Legacy history; never purge, including settled/voided rows."
+    },
+    {
+      "table": "finance_customer_tax_profile_audit_events",
+      "classification": "CONFIG_KEEP",
+      "created_by_migration": "supabase/migrations/202607180042_add_customer_tax_identity_profile.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Master/configuration or its audit history. Keep by default; test-specific rows require explicit human decision."
+    },
+    {
+      "table": "finance_customer_tax_profiles",
+      "classification": "CONFIG_KEEP",
+      "created_by_migration": "supabase/migrations/202607180042_add_customer_tax_identity_profile.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Master/configuration or its audit history. Keep by default; test-specific rows require explicit human decision."
+    },
+    {
+      "table": "finance_direct_money_receipt_audit",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180047_add_direct_money_receipt_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_direct_money_receipts",
+      "classification": "NEW_FINANCE_UAT_PURGE",
+      "created_by_migration": "supabase/migrations/202607180047_add_direct_money_receipt_foundation.sql",
+      "date_key": "received_on",
+      "amount_key": "cash_amount",
+      "rule": "User confirmed all New Finance transaction data is simulated. Future parent-scoped cleanup only; cross-Legacy links block automatic purge."
+    },
+    {
+      "table": "finance_document_counters",
+      "classification": "CONFIG_DECISION",
+      "created_by_migration": "supabase/migrations/202607090001_create_finance_quotations.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Keep until reviewed. Counter state may be reset only for approved Finance types; payee masters/evidence need row-level decisions."
+    },
+    {
+      "table": "finance_expense_audit",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180055_add_expense_purchase_settlement_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_expense_claims",
+      "classification": "LEGACY_REAL_KEEP",
+      "created_by_migration": null,
+      "date_key": "claim_date",
+      "amount_key": "amount",
+      "rule": "Real Legacy history; never purge, including settled/voided rows."
+    },
+    {
+      "table": "finance_expense_economic_decisions",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180070_add_unified_statement_and_transfers.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_expense_obligation_waivers",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180055_add_expense_purchase_settlement_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_expense_obligations",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180055_add_expense_purchase_settlement_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_expense_request_audit",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180056_add_expense_request_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_expense_request_items",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180056_add_expense_request_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_expense_requests",
+      "classification": "NEW_FINANCE_UAT_PURGE",
+      "created_by_migration": "supabase/migrations/202607180056_add_expense_request_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "User confirmed all New Finance transaction data is simulated. Future parent-scoped cleanup only; cross-Legacy links block automatic purge."
+    },
+    {
+      "table": "finance_expense_settlements",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180055_add_expense_purchase_settlement_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_expense_tax_reviews",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180055_add_expense_purchase_settlement_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_expenses",
+      "classification": "NEW_FINANCE_UAT_PURGE",
+      "created_by_migration": "supabase/migrations/202607180055_add_expense_purchase_settlement_foundation.sql",
+      "date_key": "expense_date",
+      "amount_key": "gross_amount",
+      "rule": "User confirmed all New Finance transaction data is simulated. Future parent-scoped cleanup only; cross-Legacy links block automatic purge."
+    },
+    {
+      "table": "finance_external_input_vat",
+      "classification": "NEW_FINANCE_UAT_PURGE",
+      "created_by_migration": "supabase/migrations/202607180064_add_external_input_vat_evidence.sql",
+      "date_key": "invoice_date",
+      "amount_key": "vat_amount",
+      "rule": "User confirmed all New Finance transaction data is simulated. Future parent-scoped cleanup only; cross-Legacy links block automatic purge."
+    },
+    {
+      "table": "finance_external_input_vat_reviews",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180064_add_external_input_vat_evidence.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_fee_agreement_clause_overrides",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180001_document_template_clause_management_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_fee_agreement_clause_slot_selections",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180001_document_template_clause_management_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_fee_agreement_custom_clauses",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180001_document_template_clause_management_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_fee_agreement_items",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607090009_create_finance_fee_agreements.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_fee_agreement_versions",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607170001_document_platform_fee_agreement_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_fee_agreements",
+      "classification": "NEW_FINANCE_UAT_PURGE",
+      "created_by_migration": "supabase/migrations/202607090009_create_finance_fee_agreements.sql",
+      "date_key": "effective_date",
+      "amount_key": "total_amount",
+      "rule": "User confirmed all New Finance transaction data is simulated. Future parent-scoped cleanup only; cross-Legacy links block automatic purge."
+    },
+    {
+      "table": "finance_invoice_audit_events",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180017_create_finance_invoice_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_invoice_charge_allocation_audit_events",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180032_add_invoice_v2_composition_lifecycle.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_invoice_charge_allocations",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180032_add_invoice_v2_composition_lifecycle.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_invoice_installment_allocations",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180017_create_finance_invoice_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_invoice_items",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180017_create_finance_invoice_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_invoice_v2_composition_requests",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180032_add_invoice_v2_composition_lifecycle.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_invoices",
+      "classification": "NEW_FINANCE_UAT_PURGE",
+      "created_by_migration": "supabase/migrations/202607180017_create_finance_invoice_foundation.sql",
+      "date_key": "issue_date",
+      "amount_key": "total_amount",
+      "rule": "User confirmed all New Finance transaction data is simulated. Future parent-scoped cleanup only; cross-Legacy links block automatic purge."
+    },
+    {
+      "table": "finance_outgoing_wht_obligations",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180050_add_tax_position_foundation.sql",
+      "date_key": "withheld_on",
+      "amount_key": "withheld_amount",
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_payable_entitlement_audit",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180048_add_payable_entitlement_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_payable_entitlement_sources",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180048_add_payable_entitlement_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_payable_entitlements",
+      "classification": "NEW_FINANCE_UAT_PURGE",
+      "created_by_migration": "supabase/migrations/202607180048_add_payable_entitlement_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": "gross_amount",
+      "rule": "User confirmed all New Finance transaction data is simulated. Future parent-scoped cleanup only; cross-Legacy links block automatic purge."
+    },
+    {
+      "table": "finance_payee_audit",
+      "classification": "CONFIG_DECISION",
+      "created_by_migration": "supabase/migrations/202607180051_add_payee_payout_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Keep until reviewed. Counter state may be reset only for approved Finance types; payee masters/evidence need row-level decisions."
+    },
+    {
+      "table": "finance_payee_destinations",
+      "classification": "CONFIG_DECISION",
+      "created_by_migration": "supabase/migrations/202607180051_add_payee_payout_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Keep until reviewed. Counter state may be reset only for approved Finance types; payee masters/evidence need row-level decisions."
+    },
+    {
+      "table": "finance_payees",
+      "classification": "CONFIG_DECISION",
+      "created_by_migration": "supabase/migrations/202607180051_add_payee_payout_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Keep until reviewed. Counter state may be reset only for approved Finance types; payee masters/evidence need row-level decisions."
+    },
+    {
+      "table": "finance_payment_allocation_reallocations",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180029_add_payment_allocation_reallocation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_payment_audit_events",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180021_create_finance_payment_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_payment_evidence",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180021_create_finance_payment_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_payment_invoice_allocations",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180021_create_finance_payment_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_payment_money_allocation_audit",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180044_add_payment_money_allocation_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_payment_money_allocations",
+      "classification": "NEW_FINANCE_UAT_PURGE",
+      "created_by_migration": "supabase/migrations/202607180044_add_payment_money_allocation_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "User confirmed all New Finance transaction data is simulated. Future parent-scoped cleanup only; cross-Legacy links block automatic purge."
+    },
+    {
+      "table": "finance_payment_wht_components",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180036_add_structured_payment_wht.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_payments",
+      "classification": "NEW_FINANCE_UAT_PURGE",
+      "created_by_migration": "supabase/migrations/202607180021_create_finance_payment_foundation.sql",
+      "date_key": "received_on",
+      "amount_key": "cash_amount",
+      "rule": "User confirmed all New Finance transaction data is simulated. Future parent-scoped cleanup only; cross-Legacy links block automatic purge."
+    },
+    {
+      "table": "finance_payout_allocations",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180051_add_payee_payout_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_payout_audit",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180051_add_payee_payout_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_payouts",
+      "classification": "NEW_FINANCE_UAT_PURGE",
+      "created_by_migration": "supabase/migrations/202607180051_add_payee_payout_foundation.sql",
+      "date_key": "paid_on",
+      "amount_key": "net_amount",
+      "rule": "User confirmed all New Finance transaction data is simulated. Future parent-scoped cleanup only; cross-Legacy links block automatic purge."
+    },
+    {
+      "table": "finance_quotation_items",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607090001_create_finance_quotations.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_quotation_payment_installment_items",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607140008_create_quotation_payment_terms.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_quotation_payment_installments",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607140008_create_quotation_payment_terms.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_quotation_payment_terms",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607140008_create_quotation_payment_terms.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_quotation_service_patterns",
+      "classification": "CONFIG_KEEP",
+      "created_by_migration": "supabase/migrations/202607180005_add_quotation_service_patterns.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Master/configuration or its audit history. Keep by default; test-specific rows require explicit human decision."
+    },
+    {
+      "table": "finance_quotations",
+      "classification": "NEW_FINANCE_UAT_PURGE",
+      "created_by_migration": "supabase/migrations/202607090001_create_finance_quotations.sql",
+      "date_key": "issue_date",
+      "amount_key": "grand_total",
+      "rule": "User confirmed all New Finance transaction data is simulated. Future parent-scoped cleanup only; cross-Legacy links block automatic purge."
+    },
+    {
+      "table": "finance_receipt_audit_events",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180037_create_finance_receipt_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_receipt_invoice_allocations",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180037_create_finance_receipt_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_receipts",
+      "classification": "NEW_FINANCE_UAT_PURGE",
+      "created_by_migration": "supabase/migrations/202607180037_create_finance_receipt_foundation.sql",
+      "date_key": "receipt_date",
+      "amount_key": "cash_amount",
+      "rule": "User confirmed all New Finance transaction data is simulated. Future parent-scoped cleanup only; cross-Legacy links block automatic purge."
+    },
+    {
+      "table": "finance_tax_correction_audit_events",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180043_add_tax_document_correction_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_tax_correction_documents",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180043_add_tax_document_correction_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_tax_correction_lines",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180043_add_tax_document_correction_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_tax_deadline_rules",
+      "classification": "CONFIG_KEEP",
+      "created_by_migration": "supabase/migrations/202607180054_add_reviewed_tax_deadlines.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Master/configuration or its audit history. Keep by default; test-specific rows require explicit human decision."
+    },
+    {
+      "table": "finance_tax_document_corrections",
+      "classification": "NEW_FINANCE_UAT_PURGE",
+      "created_by_migration": "supabase/migrations/202607180043_add_tax_document_correction_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "User confirmed all New Finance transaction data is simulated. Future parent-scoped cleanup only; cross-Legacy links block automatic purge."
+    },
+    {
+      "table": "finance_tax_filing_allocations",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180052_add_tax_filing_remittance_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_tax_filing_audit",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180052_add_tax_filing_remittance_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_tax_filings",
+      "classification": "NEW_FINANCE_UAT_PURGE",
+      "created_by_migration": "supabase/migrations/202607180052_add_tax_filing_remittance_foundation.sql",
+      "date_key": "period_month",
+      "amount_key": "tax_amount",
+      "rule": "User confirmed all New Finance transaction data is simulated. Future parent-scoped cleanup only; cross-Legacy links block automatic purge."
+    },
+    {
+      "table": "finance_tax_invoice_audit_events",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180039_create_finance_tax_invoice_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_tax_invoice_items",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180039_create_finance_tax_invoice_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_tax_invoice_source_coverages",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180039_create_finance_tax_invoice_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_tax_invoices",
+      "classification": "NEW_FINANCE_UAT_PURGE",
+      "created_by_migration": "supabase/migrations/202607180039_create_finance_tax_invoice_foundation.sql",
+      "date_key": "issue_date",
+      "amount_key": null,
+      "rule": "User confirmed all New Finance transaction data is simulated. Future parent-scoped cleanup only; cross-Legacy links block automatic purge."
+    },
+    {
+      "table": "finance_tax_periods",
+      "classification": "NEW_FINANCE_UAT_PURGE",
+      "created_by_migration": "supabase/migrations/202607180050_add_tax_position_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "User confirmed all New Finance transaction data is simulated. Future parent-scoped cleanup only; cross-Legacy links block automatic purge."
+    },
+    {
+      "table": "finance_tax_point_events",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180039_create_finance_tax_invoice_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_tax_position_audit",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180050_add_tax_position_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_tax_position_facts",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180050_add_tax_position_foundation.sql",
+      "date_key": "effective_on",
+      "amount_key": "tax_amount",
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_tax_remittance_audit",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180052_add_tax_filing_remittance_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_tax_remittances",
+      "classification": "NEW_FINANCE_UAT_PURGE",
+      "created_by_migration": "supabase/migrations/202607180052_add_tax_filing_remittance_foundation.sql",
+      "date_key": "paid_on",
+      "amount_key": "amount",
+      "rule": "User confirmed all New Finance transaction data is simulated. Future parent-scoped cleanup only; cross-Legacy links block automatic purge."
+    },
+    {
+      "table": "finance_tax_source_revisions",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180050_add_tax_position_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_treasury_account_authorities",
+      "classification": "CONFIG_KEEP",
+      "created_by_migration": "supabase/migrations/202607180055_add_expense_purchase_settlement_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Master/configuration or its audit history. Keep by default; test-specific rows require explicit human decision."
+    },
+    {
+      "table": "finance_treasury_authority_audit",
+      "classification": "CONFIG_KEEP",
+      "created_by_migration": "supabase/migrations/202607180055_add_expense_purchase_settlement_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Master/configuration or its audit history. Keep by default; test-specific rows require explicit human decision."
+    },
+    {
+      "table": "finance_treasury_transfer_legs",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180070_add_unified_statement_and_transfers.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_treasury_transfers",
+      "classification": "NEW_FINANCE_UAT_PURGE",
+      "created_by_migration": "supabase/migrations/202607180070_add_unified_statement_and_transfers.sql",
+      "date_key": "transferred_on",
+      "amount_key": "amount",
+      "rule": "User confirmed all New Finance transaction data is simulated. Future parent-scoped cleanup only; cross-Legacy links block automatic purge."
+    },
+    {
+      "table": "finance_vp_revenue_distribution_audit",
+      "classification": "DERIVED_PURGE_WITH_PARENT",
+      "created_by_migration": "supabase/migrations/202607180045_add_vp_revenue_distribution_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Derived transaction evidence/child/bridge; only after its exact UAT parent and all references are reconciled."
+    },
+    {
+      "table": "finance_vp_revenue_distributions",
+      "classification": "NEW_FINANCE_UAT_PURGE",
+      "created_by_migration": "supabase/migrations/202607180045_add_vp_revenue_distribution_foundation.sql",
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "User confirmed all New Finance transaction data is simulated. Future parent-scoped cleanup only; cross-Legacy links block automatic purge."
+    },
+    {
+      "table": "user_profiles",
+      "classification": "SHARED_CORE_NO_TOUCH",
+      "created_by_migration": null,
+      "date_key": "created_at",
+      "amount_key": null,
+      "rule": "Shared core/history. Reference audit only; no Finance-wide deletion."
+    }
+  ],
+  "views_keep_schema": {
+    "finance_invoice_settlement_summary": "supabase/migrations/202607180029_add_payment_allocation_reallocation.sql",
+    "finance_cash_account_balance_summary": "supabase/migrations/202607180025_create_finance_cash_transaction_foundation.sql",
+    "finance_payment_effective_invoice_allocations": "supabase/migrations/202607180029_add_payment_allocation_reallocation.sql",
+    "finance_treasury_accounts": "supabase/migrations/202607180049_add_treasury_cashbook_foundation.sql",
+    "finance_treasury_balances": "supabase/migrations/202607180055_add_expense_purchase_settlement_foundation.sql"
+  },
+  "shared_storage_keep": [
+    "storage.buckets",
+    "storage.objects"
+  ],
+  "file_configuration_keep": [
+    "app/finance/compensation/formula-definitions.json",
+    "app/finance/compensation/formula-calculation.ts",
+    "app/finance/payments/vp-formula.ts",
+    "lib/permissions.ts"
+  ],
+  "row_exceptions": {
+    "case_audit_logs": "Legacy table_name rows KEEP; exact New Finance parent-linked audit rows are only future DERIVED candidates; all other rows NO_TOUCH. Never purge this shared table wholesale.",
+    "finance_expenses.legacy_claim_id": "Any non-null link is a cutover decision/blocker, not blanket UAT acceptance.",
+    "storage.objects": "Fee-agreement-executed-documents: future UAT evidence candidates only when exact signed_evidence_json.evidence_file.storage_path matches. VP-document-assets/master logos/signatures KEEP. Unknown/orphan objects require decision; SQL metadata deletion is not object-storage cleanup."
+  }
+}
