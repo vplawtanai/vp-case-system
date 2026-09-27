@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { passwordDestination } from "../../lib/password-onboarding";
 import { supabase } from "../../lib/supabase";
+import BrandMark from "../components/BrandMark";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -84,7 +85,7 @@ export default function LoginPage() {
     <main style={pageStyle}>
       <div style={cardStyle}>
         <div style={brandBoxStyle}>
-          <div style={brandMarkStyle}>VP</div>
+          <BrandMark size={52} />
           <div>
             <h1 style={titleStyle}>VP Case System</h1>
             <p style={subtitleStyle}>เข้าสู่ระบบจัดการแฟ้มคดี</p>
@@ -172,20 +173,6 @@ const brandBoxStyle: React.CSSProperties = {
   alignItems: "center",
   gap: 14,
   marginBottom: 24,
-};
-
-const brandMarkStyle: React.CSSProperties = {
-  width: 52,
-  height: 52,
-  borderRadius: 14,
-  background: "#000000",
-  color: "#ffffff",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontWeight: 900,
-  fontSize: 18,
-  letterSpacing: 1,
 };
 
 const titleStyle: React.CSSProperties = {

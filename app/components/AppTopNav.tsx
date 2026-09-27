@@ -14,6 +14,7 @@ import type { ExpenseAccess } from "../finance/expenses/shared";
 import type { UserPermissionProfile } from "../../lib/permissions";
 import sidebarCss from "./AppSidebar.module.css";
 import { revealActiveNavigation } from "./sidebar-reveal";
+import BrandMark from "./BrandMark";
 
 type AppTopNavProps = {
   title: string;
@@ -326,7 +327,7 @@ export default function AppTopNav({
   const renderNavigation = (collapsed: boolean) => (
     <>
       <div style={brandStyle}>
-        <div style={brandMarkStyle}>VP</div>
+        <BrandMark />
         {(
           <div data-sidebar-label aria-hidden={collapsed || undefined}>
             <div style={brandTitleStyle}>VP Case System</div>
@@ -665,19 +666,6 @@ const brandStyle: React.CSSProperties = {
   alignItems: "center",
   gap: 10,
   minHeight: 42,
-};
-
-const brandMarkStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  width: 38,
-  height: 38,
-  borderRadius: 10,
-  background: "#0f2743",
-  color: "#ffffff",
-  fontSize: 13,
-  fontWeight: 950,
 };
 
 const brandTitleStyle: React.CSSProperties = {
