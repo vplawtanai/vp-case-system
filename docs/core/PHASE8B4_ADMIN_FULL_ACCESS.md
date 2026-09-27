@@ -1,12 +1,34 @@
 # Phase 8B.4 — Admin role authority
 
-Status: **Migration 074 manually applied — Production verifier PASS; application release in progress**. No Production SQL, user mutation or invitation is performed by this release. No Phase 8C.
+Status: **CLOSED — Migration 074 Production PASS; application deployment READY; non-mutating Production smoke PASS**. No Production SQL, user mutation or invitation was performed by this release. No Phase 8C.
 
 ## Production migration evidence — 2026-09-27
 
 The owner reports successful manual Apply and verifier: `gate_pass=true`, `new_admin_policies=23`, `existing_acl_preserved=true`, `profile_flags_unchanged=true`, `historical_rows_unchanged=true`, `non_admin_policies_preserved=true`. Applied Migration 074 is preserved byte-for-byte and must not be re-run.
 
-Release validation repeated: 43 application/permissions/API/UI tests plus 20 isolated PostgreSQL tests, all PASS; targeted ESLint, TypeScript, production build and diff check PASS. Production deployment and non-mutating smoke evidence will be recorded after release.
+Release validation repeated: 43 application/permissions/API/UI tests plus 20 isolated PostgreSQL tests, all PASS; targeted ESLint, TypeScript, production build and diff check PASS.
+
+## Production release and closeout evidence — 2026-09-27
+
+- Implementation commit: `0fe1f1282556d276c46d79c026c4bdda9a35eced`, message `Phase 8B.4: enforce admin full-access semantics`.
+- Push `main -> origin/main` succeeded; local HEAD and origin/main matched that exact implementation commit. Only the 12 intended files below were staged; all 34 unrelated pre-existing untracked files were preserved.
+- The existing Vercel Git workflow deployed that exact commit to project `vp-case-system`, target `production`.
+- Verified deployment: `dpl_CPgpGQ7MaUtXR6sYdWVvvXKez7Cd`, **READY**, `aliasAssigned=true`, no deployment error.
+- Deployment URL: `https://vp-case-system-7l2i86bnp-vplawtanais-projects.vercel.app`.
+- Canonical alias: `https://vp-case-system.vercel.app`, assigned to the verified deployment.
+- This section records the verified application deployment. Its closeout documentation is a subsequent evidence-only commit; no application, test or migration content changes accompany it.
+
+Non-mutating Production smoke used a separate Chrome tab without disturbing the owner's existing forms:
+
+- `/admin/users` loaded all 10 existing profiles. The Admin row shows full access by role.
+- The existing active Admin edit dialog shows `สิทธิ์เต็มจากบทบาทผู้ดูแลระบบ` and explains automatic role authority and retention of stored flags. There is no granular Finance checklist in that dialog.
+- An existing Lawyer+ profile still displays `ทนายความ` and the existing granular capability controls, including its checked Finance access. Only the collapsed section was opened; no role, flag, classification or field was changed.
+- Desktop and **390 CSS px** visual inspection passed for Admin and non-Admin dialogs. The Admin view had no horizontal overflow; Finance Overview also fit 390 px. The temporary viewport override was reset.
+- Both dialogs were dismissed with Cancel. The user table text at the original viewport was identical before and after the form checks.
+- Admin Finance navigation loaded the current and Legacy links. Read-only visits to `/finance/overview`, `/finance/ledger`, `/finance/expense-claims`, `/finance/expenses/claims` and `/finance/statement` rendered successfully.
+- No console warning/error or visible runtime error was observed. Existing empty Finance states and the missing-opening-balance notice remain unchanged.
+- Inactive Admin denial, non-Admin access preservation and lawyer → admin → lawyer flag retention were verified by local permission/PostgreSQL regression tests; no Production account was impersonated or deactivated for smoke.
+- No Save/Create/Delete/Invite/Resend action, Production SQL, financial transaction or permission update was executed. No non-Admin access was widened and no Phase 8C work started.
 
 ## Project guard
 
@@ -80,7 +102,7 @@ The local DB fixture copies those specific historical policy expressions but use
 - 43 permission/User Management/UI/API/Core regression tests PASS.
 - 20 real isolated PostgreSQL 18 tests PASS (074 + existing 073). Unix sockets only; no environment credentials or remote connections. Covers actual 073 role-change RPC, stored flags, non-Admin before/after RLS matrix, current repository Finance helper composition, inactive Admin, original ACL/policy/row preservation and lifecycle guard preservation.
 - Targeted ESLint PASS; `npx tsc --noEmit` PASS; production build PASS; diff check PASS.
-- Production smoke pending the application deployment. No business UAT transactions are authorized for this release.
+- Non-mutating Production smoke PASS on desktop and 390 CSS px, as recorded above. No business UAT transaction was executed.
 
 ## Historical gate artifact — do not re-run after Apply
 
