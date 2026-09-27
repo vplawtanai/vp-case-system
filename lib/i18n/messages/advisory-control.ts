@@ -1,5 +1,33 @@
 import type { MessageCatalog } from "../core";
 export const advisoryControlMessages: MessageCatalog = {
+  "advisory.overviewControlTitle": {"th": "สถานะและความคืบหน้าของงาน", "en": "Matter status and progress"},
+  "advisory.workStateUnset": {"th": "ยังไม่กำหนด", "en": "Not set"},
+  "advisory.editWorkState": {"th": "แก้ไขสถานะการทำงาน", "en": "Edit work state"},
+  "advisory.editNextAction": {"th": "แก้ไขงานถัดไป", "en": "Edit next action"},
+  "advisory.unsetStageHelp": {"th": "ยังไม่ได้เริ่มติดตามขั้นตอน คุณสามารถเริ่มกำหนดขั้นตอนเพื่อวางแผนงานได้", "en": "Stage tracking has not started. Open the map to plan the next steps."},
+  "advisory.unsetClosedStageHint": {"th": "ไม่มีขั้นตอนปัจจุบันที่บันทึกไว้ในงานนี้", "en": "No current stage was recorded for this matter."},
+  "advisory.startStagePlan": {"th": "เริ่มกำหนดขั้นตอนงาน", "en": "Start stage planning"},
+  "advisory.matterAgeHint": {"th": "นับจากวันที่เปิดงาน", "en": "Since the matter opened"},
+  "advisory.matterSections": {"th": "ส่วนต่าง ๆ ของงาน", "en": "Matter sections"},
+  "advisory.viewAll": {"th": "ดูทั้งหมด", "en": "View all"},
+  "advisory.manageTeam": {"th": "จัดการทีมงาน", "en": "Manage team"},
+  "advisory.noAssignedTeam": {"th": "ยังไม่มีทีมที่มอบหมายในระบบ", "en": "No assigned team yet"},
+  "advisory.journeyPlan": {"th": "แผนการดำเนินงาน", "en": "Work journey"},
+  "advisory.closingHint": {"th": "เมื่อดำเนินงานเสร็จแล้ว คุณสามารถปิดงานได้ ระบบจะเก็บประวัติงานทั้งหมด", "en": "Close the matter when work is complete. All matter history is retained."},
+  "advisory.hoursMinutes": {"th": "{hours} ชม. {minutes} นาที", "en": "{hours} hr {minutes} min"},
+  "advisory.empty.tasks": {"th": "ยังไม่มีงานที่ต้องทำ", "en": "No tasks yet"},
+  "advisory.emptyHint.tasks": {"th": "เพิ่มงานเพื่อมอบหมาย ติดตาม และขับเคลื่อนงานนี้ให้สำเร็จ", "en": "Add a task to assign ownership and track the next step."},
+  "advisory.empty.activity": {"th": "ยังไม่มีกิจกรรม", "en": "No activity yet"},
+  "advisory.emptyHint.activity": {"th": "บันทึกความคืบหน้า การประชุม หรือเหตุการณ์สำคัญของงานนี้", "en": "Record progress, meetings or important updates for this matter."},
+  "advisory.empty.deliverables": {"th": "ยังไม่มีงานส่งมอบ", "en": "No deliverables yet"},
+  "advisory.emptyHint.deliverables": {"th": "เพิ่มเอกสาร รายงาน หรือผลลัพธ์ที่ต้องส่งมอบ", "en": "Add a document, report or outcome to deliver."},
+  "advisory.tab.overview": {"th": "ภาพรวม", "en": "Overview"},
+  "advisory.tab.tasks": {"th": "งานที่ต้องทำ", "en": "Tasks"},
+  "advisory.tab.activity": {"th": "กิจกรรม", "en": "Activity"},
+  "advisory.tab.deliverables": {"th": "งานส่งมอบ", "en": "Deliverables"},
+  "advisory.tab.time": {"th": "เวลา", "en": "Time"},
+  "advisory.tab.team": {"th": "ทีมงาน", "en": "Team"},
+  "advisory.tab.records": {"th": "ข้อมูลเดิม", "en": "Existing records"},
   "advisory.presetHint": {"th":"ชุดเริ่มต้นนี้ใช้ลำดับ {template} ที่มีอยู่แล้ว","en":"This starter uses the existing {template} sequence."},
   "advisory.starterCatalog": {"th":"ชุดเริ่มต้นตามประเภทงาน","en":"Work starter catalog"},
   "advisory.previewOnly": {"th":"เลือกเพื่อเตรียมแผน ขั้นตอนจะเริ่มเมื่อบันทึกยืนยันเท่านั้น","en":"Choose a plan; stages start only after explicit confirmation."},
@@ -509,7 +537,7 @@ export const advisoryControlMessages: MessageCatalog = {
     "en": "This matter is closed. Reopen it before editing."
   },
   "advisory.enum.working": {
-    "th": "กำลังทำงาน",
+    "th": "กำลังดำเนินการ",
     "en": "Working"
   },
   "advisory.enum.waiting_client": {
@@ -517,7 +545,7 @@ export const advisoryControlMessages: MessageCatalog = {
     "en": "Waiting for client"
   },
   "advisory.enum.waiting_external": {
-    "th": "รอหน่วยงานภายนอก",
+    "th": "รอภายนอก",
     "en": "Waiting externally"
   },
   "advisory.enum.waiting_internal": {
@@ -525,7 +553,7 @@ export const advisoryControlMessages: MessageCatalog = {
     "en": "Waiting internally"
   },
   "advisory.enum.on_hold": {
-    "th": "พักงาน",
+    "th": "พักไว้",
     "en": "On hold"
   },
   "advisory.enum.active": {

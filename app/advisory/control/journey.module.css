@@ -139,3 +139,18 @@
 @media(max-width:1023px){.returnToRoute{display:inline-flex;border:0;background:none;color:#365b70;font-size:11px;padding:0 0 12px;text-decoration:underline}.stations{max-width:540px;margin:auto}.stageDetail{scroll-margin-top:12px}}
 
 .starterPicker{border:1px solid #e3e8ed;background:#f8fafb;padding:12px;border-radius:8px;margin:0 0 12px}.starterPicker p,.sequenceLabel{color:#6a7d8d;font-size:11px;margin:6px 0!important}.starterPicker .templateField{margin:0}.starterPicker select{flex:1;min-width:0}.sequenceLabel{padding:0 0 6px}
+
+/* Compact overview wrapper; the illustrated map keeps its existing layout. */
+.overviewJourney{margin:0;padding:13px 15px;border-radius:9px}
+.overviewJourney .compactHeading{margin-bottom:8px;gap:8px;flex-direction:row;align-items:center;flex-wrap:wrap}
+.overviewJourney .compactHeading h2{display:flex;align-items:center;gap:8px;font-size:14px!important;margin:0!important}
+.overviewJourney .openMap{min-height:32px;font-size:11px;padding:5px 10px;gap:6px;width:auto}
+.overviewJourney .unsetNotice{display:flex;align-items:flex-start;gap:8px;font-size:10px;margin:0 0 9px;padding:8px 10px;background:#f0f6fd;border:0;color:#65819f}
+.overviewJourney .unsetNotice svg{flex-shrink:0;margin-top:2px}
+.overviewJourney .stepper{gap:7px 0}
+.overviewJourney .stepper li:not(:last-child)::after{padding:0 4px}
+.overviewJourney .stepper li button{padding:7px!important;gap:5px}
+.overviewJourney .stepper strong{font-size:10px}
+.overviewJourney .stepper small{font-size:9px}
+.mapModal .starterPicker{margin:14px 20px 0;font-size:12px}
+@media(max-width:767px){.overviewJourney{padding:12px}.overviewJourney .compactHeading h2{font-size:13px!important}.overviewJourney .openMap{font-size:10px}.overviewJourney .stepper{gap:7px}.overviewJourney .stepper li button{min-height:48px}.mapModal .starterPicker{margin:12px 16px}.overviewJourney .unsetNotice{font-size:11px}}

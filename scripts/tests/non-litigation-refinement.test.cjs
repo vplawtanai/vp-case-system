@@ -43,7 +43,9 @@ for (const locale of ['th', 'en']) {
     assert.doesNotMatch(html, /undefined|NaN/);
   });
   test(locale + ': legacy plans remain unstarted; existing plans cannot be replaced by catalog selection', () => {
-    const html = compact.render(locale, {}, { matter: base, stages: [], canEdit: true, onEdit() {} });
+    const summary = compact.render(locale, {}, { matter: base, stages: [], canEdit: true, onEdit() {} });
+    assert.ok(!summary.includes('<select'));
+    const html = compact.render(locale, { 'MatterJourney.open': true }, { matter: base, stages: [], canEdit: true, onEdit() {} });
     assert.ok(html.includes(a('unset'))); assert.ok(html.includes(a('previewOnly')));
     assert.equal((html.match(/<option /g) || []).length, 17);
     assert.ok(!html.includes('aria-current="step"'));
