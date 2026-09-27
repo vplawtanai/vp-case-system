@@ -1,7 +1,29 @@
 # Phase 8B.2 — Admin User Management & People Alignment
 
-Status: **RELEASE READY — Production server secret present; complete release validation passed**.
-Migration 073 was manually applied by the owner and its Production verifier passed. No Production SQL, invitation or user/profile mutation has been performed by this agent. Deployment and non-mutating smoke evidence will be appended after release.
+Status: **CLOSED — Production release READY; non-mutating Admin smoke passed**.
+Migration 073 was manually applied by the owner and its Production verifier passed. No Production SQL, invitation or user/profile mutation has been performed by this agent.
+
+## Production release evidence — 2026-09-27
+
+- Implementation commit: `00228dc818a7ecc371b1e8c3d0b9a3cc9444bc02`, message `Phase 8B.2: add admin people management`.
+- Push: `main -> origin/main` successful; local HEAD and origin/main matched the implementation commit.
+- Vercel Git workflow deployed that exact commit to the existing `vp-case-system` project, target `production`, after the new Production-only secret was present.
+- Verified deployment: `dpl_Dxk6mzZ3QvjKX5KdiZszVMFppnXJ`, **READY**, `aliasAssigned = true`.
+- Deployment URL: `https://vp-case-system-8juss3m9m-vplawtanais-projects.vercel.app`.
+- Canonical alias: `https://vp-case-system.vercel.app`.
+- These details identify the verified application deployment. This closeout documentation is a subsequent evidence-only commit; no application, test or migration content changes accompany it.
+
+Non-mutating Production smoke used a separate Chrome tab so the owner's already-open edit form was not disturbed:
+
+- Active Admin successfully loaded `/admin/users`; table showed all 10 existing profiles, active and unclassified, with roles and existing capability counts. Classification is not a login prerequisite.
+- Add User opened with email/name/staff-name/main-role/account-type controls and disabled assignable while unclassified; there was no password field or creation wizard.
+- Edit opened for an existing Lawyer with special Finance capabilities. Account Type, Assignable, active state, collapsed capability controls and secondary account actions rendered. Existing checked Finance flags were displayed; no checkbox/selection was changed or saved.
+- Delete action was disabled for the active/unclassified account; deactivate guidance rendered. No delete-check, delete, save, resend or create action was executed.
+- Desktop visual inspection passed. Narrow layout displayed a horizontally scrollable table and stacked forms; at **390 CSS px**, the Create dialog matched viewport width without horizontal overflow. Viewport override was reset afterwards.
+- Browser console: no warning/error entries during the smoke. No visible runtime error occurred.
+- Other existing users were not impersonated or logged in during smoke; access-role denial and 072 compatibility are covered by the local release tests. No Production business row or profile was written.
+
+Email delivery remains **PENDING FIRST REAL HUMAN UAT**. Next Human actions: Admin classifies existing profiles, marks real assignable personnel and personally creates the two real lawyers; the first actual invitation tests delivery/password setup. No Phase 8C work started.
 
 ## Release readiness — 2026-09-27
 
@@ -113,7 +135,7 @@ The owner already completed this gate. Do not repeat it. Its reported result mat
 - Existing migration 072 PostgreSQL regressions: 12 PASS; existing Case/Non-Litigation application regressions: 6 PASS. The post-073 DB suite also repeats the 072 create-role matrix.
 - Targeted ESLint, standalone `tsc --noEmit`, production build and `git diff --check`: PASS (final file review recorded at handoff).
 - DB fixture is explicitly synthetic and extends the verified 072 fixture; it is not a complete Production Supabase/Auth catalog. The manual file checks live preconditions and preservation before committing. Actual invitation delivery and supported Production Auth trigger integration are not claimed as automated Production UAT.
-- Admin UI is Thai; browser/Production account operations were not performed. SSR tests exercise list/create/edit/denied presentation. Existing shared modal provides focus handling/mobile layout.
+- Admin UI is Thai; Production browser smoke is recorded above and performed no account mutation. SSR tests exercise list/create/edit/denied presentation. Existing shared modal provides focus handling/mobile layout.
 
 ## Intended change manifest
 
