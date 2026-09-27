@@ -279,11 +279,9 @@ export default function FinanceLedgerPage() {
       const accessRows = (bankAccessRes.data || []) as BankAccountAccessRow[];
       const allowedBankIds = new Set(accessRows.map((item) => item.bank_account_id).filter(Boolean));
       const visibleBankAccounts =
-        accessRows.length > 0
-          ? activeBankAccounts.filter((account) => allowedBankIds.has(account.id))
-          : permissions.role === "admin"
-            ? activeBankAccounts
-            : [];
+        permissions.role === "admin"
+          ? activeBankAccounts
+          : activeBankAccounts.filter((account) => allowedBankIds.has(account.id));
       const visibleBankIds = new Set(visibleBankAccounts.map((account) => account.id));
       setRows(((ledgerRes.data || []) as LedgerRow[]).filter((row) => row.bank_account_id && visibleBankIds.has(row.bank_account_id)));
       setClients((clientsRes.data || []) as ClientRow[]);

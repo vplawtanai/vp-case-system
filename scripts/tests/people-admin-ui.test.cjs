@@ -148,3 +148,33 @@ test('existing Admin Thai-only locale coverage is preserved even when English is
   const html = render();
   assert.doesNotMatch(html, /Operational|Assignable|Unclassified|Recommended/);
 });
+
+test('Admin edit explains role authority and hides granular capability checklist without changing stored flags', () => {
+  const original = Object.freeze({ ...person, role: 'admin', can_confirm_finance_payments: false });
+  const html = render({ 'UsersPage.original': original, 'UsersPage.form': original });
+  assert.match(html, /สิทธิ์เต็มจากบทบาทผู้ดูแลระบบ/);
+  assert.match(html, /ไม่จำเป็นต้องกำหนดสิทธิ์เพิ่มเติมทีละรายการ/);
+  assert.doesNotMatch(html, /<summary>สิทธิ์เพิ่มเติม|ยืนยันเงินรับ/);
+  assert.equal(original.can_confirm_finance_payments, false);
+});
+test('Admin create needs no capability editor; inactive Admin is clearly denied access', () => {
+  const form = { email: '', full_name: '', staff_name: '', role: 'admin', account_type: '', assignable: false };
+  assert.match(render({ 'UsersPage.form': form }), /สิทธิ์เต็มจากบทบาทผู้ดูแลระบบ/);
+  const inactive = { ...person, role: 'admin', active: false };
+  const html = render({ 'UsersPage.form': inactive, 'UsersPage.original': inactive });
+  assert.match(html, /บัญชีนี้ปิดใช้งานอยู่ จึงไม่สามารถเข้าใช้งานระบบได้/);
+  assert.doesNotMatch(html, /<summary>สิทธิ์เพิ่มเติม/);
+});
+test('lawyer/Admin role selector toggles presentation only; saved explicit permissions reappear intact', () => {
+  const lawyer = Object.freeze({ ...person, can_confirm_finance_payments: true });
+  const adminHtml = render({ 'UsersPage.original': lawyer, 'UsersPage.form': { ...lawyer, role: 'admin' } });
+  assert.doesNotMatch(adminHtml, /<summary>สิทธิ์เพิ่มเติม/);
+  const lawyerHtml = render({ 'UsersPage.original': { ...lawyer, role: 'admin' }, 'UsersPage.form': lawyer });
+  assert.match(lawyerHtml, /type="checkbox" checked=""\/>ยืนยันเงินรับ/);
+  assert.equal(lawyer.can_confirm_finance_payments, true);
+});
+test('list shows Admin role authority instead of misleading zero additional-permission count', () => {
+  const html = render({ 'UsersPage.users': [{ ...person, role: 'admin', financial_access: false, can_confirm_finance_payments: false }] });
+  assert.match(html, /สิทธิ์เต็มจากบทบาท/);
+  assert.doesNotMatch(html, /System Access|Full access from Admin role/);
+});

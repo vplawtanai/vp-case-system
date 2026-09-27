@@ -253,11 +253,9 @@ export default function ExpenseClaimsPage() {
       const accessRows = (bankAccessRes.data || []) as BankAccountAccessRow[];
       const allowedBankIds = new Set(accessRows.map((item) => item.bank_account_id).filter(Boolean));
       const visibleBankAccounts =
-        accessRows.length > 0
-          ? activeBankAccounts.filter((account) => allowedBankIds.has(account.id))
-          : permissions.role === "admin"
-            ? activeBankAccounts
-            : [];
+        permissions.role === "admin"
+          ? activeBankAccounts
+          : activeBankAccounts.filter((account) => allowedBankIds.has(account.id));
       setBankAccounts(visibleBankAccounts);
       setClaimantUsers(((usersRes.data || []) as UserProfileRow[]).filter(isRealUserProfile));
     } finally {

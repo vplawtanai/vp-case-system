@@ -8,6 +8,7 @@ export type UserRole =
   | "";
 
 export type UserPermissionProfile = {
+  active?: boolean | null;
   role?: UserRole | string | null;
   financial_access?: boolean | null;
   staff_name?: string | null;
@@ -319,8 +320,12 @@ export function renderRoleLabel(role?: string | null) {
 ========================================================= */
 
 export function buildPermissions(profile?: UserPermissionProfile | null) {
+  // Legacy UI projections omit active; AuthGuard/QuotationGuard validate it before
+  // exposing those pages. A known inactive Admin must never inherit role authority.
+  if (profile?.role === "admin" && profile.active !== undefined && profile.active !== true) profile = null;
   const role = normalizeRole(profile?.role || "");
-  const financialAccess = profile?.financial_access === true;
+  const admin = isAdmin(role);
+  const financialAccess = admin || profile?.financial_access === true;
   const staffName = profile?.staff_name || "";
   const canSubmitExpenseClaim =
     profile?.can_submit_expense_claim === true || isStaffUp(role);
@@ -330,16 +335,16 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
     profile?.can_view_all_expense_claims === true || isPartnerUp(role);
   const canApproveExpenseClaims =
     profile?.can_approve_expense_claims === true || isPartnerUp(role);
-  const canPayExpenseClaims = profile?.can_pay_expense_claims === true;
+  const canPayExpenseClaims = admin || profile?.can_pay_expense_claims === true;
   const canViewCompanyLedger =
     profile?.can_view_company_ledger === true || isPartnerUp(role);
-  const canEditCompanyLedger = profile?.can_edit_company_ledger === true;
-  const canVoidCompanyLedger = profile?.can_void_company_ledger === true;
+  const canEditCompanyLedger = admin || profile?.can_edit_company_ledger === true;
+  const canVoidCompanyLedger = admin || profile?.can_void_company_ledger === true;
   const canCreateCompensationBatch = isPartnerUp(role);
   const canViewLawyerCompensation =
     profile?.can_view_lawyer_compensation === true || canCreateCompensationBatch;
-  const canEditLawyerCompensation = profile?.can_edit_lawyer_compensation === true;
-  const canVoidLawyerCompensation = profile?.can_void_lawyer_compensation === true;
+  const canEditLawyerCompensation = admin || profile?.can_edit_lawyer_compensation === true;
+  const canVoidLawyerCompensation = admin || profile?.can_void_lawyer_compensation === true;
   const canManageFinanceQuotations = isPartnerUp(role);
   const canManageFinancePayments =
     isAdmin(role) || profile?.can_manage_finance_payments === true;
@@ -379,11 +384,11 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
     isAdmin(role) || profile?.can_manage_finance_billable_charges === true;
   const canApproveFinanceBillableCharges =
     isAdmin(role) || profile?.can_approve_finance_billable_charges === true;
-  const canSubmitOfficeWorkLog = profile?.can_submit_office_work_log === true;
-  const canViewOwnOfficeWorkLogs = profile?.can_view_own_office_work_logs === true;
-  const canViewAllOfficeWorkLogs = profile?.can_view_all_office_work_logs === true;
-  const canEditOfficeWorkLogs = profile?.can_edit_office_work_logs === true;
-  const canVoidOfficeWorkLogs = profile?.can_void_office_work_logs === true;
+  const canSubmitOfficeWorkLog = admin || profile?.can_submit_office_work_log === true;
+  const canViewOwnOfficeWorkLogs = admin || profile?.can_view_own_office_work_logs === true;
+  const canViewAllOfficeWorkLogs = admin || profile?.can_view_all_office_work_logs === true;
+  const canEditOfficeWorkLogs = admin || profile?.can_edit_office_work_logs === true;
+  const canVoidOfficeWorkLogs = admin || profile?.can_void_office_work_logs === true;
 
   return {
     role,

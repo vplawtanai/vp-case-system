@@ -127,7 +127,7 @@ export default function UsersPage() {
         <td data-label="บทบาท">{ROLE_LABELS[user.role] || user.role}</td><td data-label="ประเภทบัญชี">{accountLabel(user.account_type)}</td>
         <td data-label="สถานะ"><span className={user.active ? styles.active : styles.inactive}>{user.active ? "เปิดใช้งาน" : "ปิดใช้งาน"}</span></td>
         <td data-label="การรับมอบหมายงาน">{isAssignablePerson(user) ? "รับมอบหมายงานได้" : "ไม่รับมอบหมายงาน"}</td>
-        <td data-label="สิทธิ์เพิ่มเติม">{Object.keys(CAPABILITY_LABELS).filter(key => user[key] === true).length || "—"}</td>
+        <td data-label="สิทธิ์เพิ่มเติม">{user.role === "admin" ? user.active ? "สิทธิ์เต็มจากบทบาท" : "ปิดใช้งาน" : Object.keys(CAPABILITY_LABELS).filter(key => user[key] === true).length || "—"}</td>
         <td className={styles.editCell}><button className={ui.secondary} onClick={() => open(user)} aria-label={`แก้ไขผู้ใช้ ${user.full_name || user.email}`}>แก้ไข</button></td>
       </tr>)}</tbody></table>{visible.length === 0 && <p className={styles.empty}>ไม่พบผู้ใช้</p>}</div>
     </>}
@@ -145,12 +145,18 @@ export default function UsersPage() {
         </div>
         <label className={styles.check}><input type="checkbox" checked={form.assignable === true} disabled={form.account_type !== "operational" || form.active === false} onChange={e => change("assignable",e.target.checked)} />รับมอบหมายงานได้</label>
         <p className={styles.hint}>เฉพาะบัญชีใช้งานจริงที่เปิดใช้งานเท่านั้น บัญชีทดสอบไม่รับมอบหมายงาน</p>
+        {form.role === "admin" && <section className={styles.systemAccess} aria-label="สิทธิ์ระบบ">
+          <strong>สิทธิ์เต็มจากบทบาทผู้ดูแลระบบ</strong>
+          <p>ผู้ดูแลระบบที่เปิดใช้งานมีสิทธิ์ใช้งานทุกส่วนของระบบโดยอัตโนมัติ ไม่จำเป็นต้องกำหนดสิทธิ์เพิ่มเติมทีละรายการ</p>
+          <p>สิทธิ์เพิ่มเติมที่เคยบันทึกไว้ยังคงเดิม และจะใช้ตามกฎของบทบาทนั้นหากเปลี่ยนเป็นบทบาทอื่น</p>
+          {form.active === false && <p>บัญชีนี้ปิดใช้งานอยู่ จึงไม่สามารถเข้าใช้งานระบบได้</p>}
+        </section>}
         {original && <>
           <label className={styles.check}><input type="checkbox" checked={form.active === true} disabled={original.id === actor} onChange={e => change("active",e.target.checked)} />เปิดใช้งาน</label>
           <p className={styles.hint}>หากเลิกใช้งาน ให้เอาเครื่องหมายออกแล้วบันทึก ประวัติการทำงานยังคงอยู่</p>
-          <details className={styles.advanced}><summary>สิทธิ์เพิ่มเติม</summary><p className={styles.hint}>เป็นสิทธิ์เฉพาะบัญชี การเปลี่ยนบทบาทจะไม่ล้างค่าเหล่านี้</p><div className={styles.grid}>
+          {form.role !== "admin" && <details className={styles.advanced}><summary>สิทธิ์เพิ่มเติม</summary><p className={styles.hint}>เป็นสิทธิ์เฉพาะบัญชี การเปลี่ยนบทบาทจะไม่ล้างค่าเหล่านี้</p><div className={styles.grid}>
             {Object.entries(CAPABILITY_LABELS).filter(([key]) => key in original).map(([key,label]) => <label className={styles.check} key={key}><input type="checkbox" checked={form[key] === true} onChange={e => change(key,e.target.checked)} />{label}</label>)}
-          </div></details>
+          </div></details>}
         </>}
         </fieldset>
         <div className={styles.actions}><button type="button" className={ui.secondary} onClick={close} disabled={busy}>ยกเลิก</button><button type="submit" className={ui.primary} disabled={busy}>{busy ? "กำลังดำเนินการ…" : original ? "บันทึก" : "สร้างและส่งคำเชิญ"}</button></div>
