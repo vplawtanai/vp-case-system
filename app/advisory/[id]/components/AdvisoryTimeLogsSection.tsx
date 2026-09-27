@@ -2,9 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createAuditLog } from "../../../../lib/auditLog";
+import { useI18n } from "../../../../lib/i18n/provider";
+import { messages } from "../../../../lib/i18n/catalog";
 import { supabase } from "../../../../lib/supabase";
 
 type AdvisoryTimeLog = {
+  stage_id?: string | null;
   id: string;
   advisory_matter_id: string;
   advisory_issue_id?: string | null;
@@ -24,6 +27,7 @@ type AdvisoryTimeLog = {
 };
 
 type TimeLogForm = {
+  stage_id: string;
   advisory_issue_id: string;
   work_date: string;
   staff_name: string;
@@ -62,6 +66,7 @@ const workTypeOptions = [
 ];
 
 const emptyForm: TimeLogForm = {
+  stage_id: "",
   advisory_issue_id: "",
   work_date: getTodayDateString(),
   staff_name: "",
@@ -82,6 +87,9 @@ export default function AdvisoryTimeLogsSection({
   issues = [],
   issueIdFilter = null,
 }: Props) {
+  const { t } = useI18n();
+  const [stages,setStages]=useState<{id:string;stage_key:string}[]>([]);
+  useEffect(()=>{let live=true;void supabase.from('advisory_matter_stages').select('id,stage_key').eq('matter_id',advisoryMatterId).order('position').then(r=>{if(live)setStages(r.data||[]);});return()=>{live=false;};},[advisoryMatterId]);
   const [items, setItems] = useState<AdvisoryTimeLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -200,6 +208,7 @@ export default function AdvisoryTimeLogsSection({
     const split = splitMinutes(safeMinutes(item.minutes));
     setEditingId(item.id);
     setForm({
+      stage_id: item.stage_id || "",
       advisory_issue_id: issueIdFilter || item.advisory_issue_id || "",
       work_date: item.work_date || getTodayDateString(),
       staff_name: item.staff_name || actorName || "",
@@ -272,6 +281,7 @@ export default function AdvisoryTimeLogsSection({
   };
 
   const buildPayload = (validated: ValidatedTimeLogForm) => ({
+    stage_id: form.stage_id || null,
     advisory_matter_id: advisoryMatterId,
     advisory_issue_id: issueIdFilter || form.advisory_issue_id || null,
     client_id: clientId || null,
@@ -446,6 +456,7 @@ export default function AdvisoryTimeLogsSection({
 
       {showForm ? (
         <div style={formStyle}>
+          <SelectField label={t('advisory.stage')} value={form.stage_id} onChange={value=>setForm({...form,stage_id:value})} options={[{value:'',label:t('advisory.unclassified')},...stages.map(s=>({value:s.id,label:messages['advisory.enum.'+s.stage_key]?t('advisory.enum.'+s.stage_key):s.stage_key}))]}/>
           <Field
             label="Work date"
             type="date"

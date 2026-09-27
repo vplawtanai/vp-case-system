@@ -1,0 +1,37 @@
+"use client";
+import {useEffect,useRef,useState,type FormEvent} from 'react';
+import {useRouter} from 'next/navigation';
+import DetailModal from '../../components/DetailModal';
+import {supabase} from '../../../lib/supabase';
+import {errorKey,types,workStates,type Matter,type Person,type Stage} from '../../../lib/advisory-control';
+import {useAdvisoryLabels} from './shared';
+import css from './control.module.css';
+export type EditRequest={action:string;title:string;values?:Record<string,string|null|boolean>};
+export default function MatterEditor({request,matter,people,stages,onClose,onSaved}:{request:EditRequest;matter?:Matter;people:Person[];stages?:Stage[];onClose:()=>void;onSaved:()=>Promise<void>}){
+ const {a,label}=useAdvisoryLabels(),router=useRouter();const [busy,setBusy]=useState(false),[error,setError]=useState('');const requestId=useRef(crypto.randomUUID());const retryBody=useRef('');
+ const [search,setSearch]=useState(''),[clients,setClients]=useState<{id:string;name:string}[]>([]),[issues,setIssues]=useState<{id:string;title:string}[]>([]);
+ const v=request.values||{},act=request.action; const [teamRole,setTeamRole]=useState(String(v.role||'lead'));
+ useEffect(()=>{if(act!=='create')return;let live=true;const timer=setTimeout(()=>{void supabase.from('clients').select('id,name').ilike('name','%'+search+'%').order('name').limit(30).then(r=>{if(live)setClients(r.data||[]);});},180);return()=>{live=false;clearTimeout(timer);};},[search,act]);
+ useEffect(()=>{if(act!=='task_save'||!matter)return;let live=true;void supabase.from('advisory_issues').select('id,title').eq('advisory_matter_id',matter.id).is('deleted_at',null).order('created_at',{ascending:false}).limit(100).then(r=>{if(live)setIssues(r.data||[]);});return()=>{live=false;};},[act,matter]);
+ async function save(e:FormEvent<HTMLFormElement>){e.preventDefault();if(busy)return;setError('');setBusy(true);const fields=Object.fromEntries(new FormData(e.currentTarget));const payload={...v,...fields};const body=JSON.stringify(payload);if(retryBody.current&&retryBody.current!==body)requestId.current=crypto.randomUUID();retryBody.current=body;
+ try{const r=await supabase.rpc('advisory_control_write',{p_matter_id:matter?.id||null,p_action:act,p_payload:payload,p_request_id:requestId.current,p_expected_version:matter?.version||0});if(r.error)throw r.error;await onSaved();onClose();if(act==='create')router.push('/advisory/'+r.data.matter_id);}catch(e){setError(a(errorKey(e instanceof Error?e.message:String((e as {message?:string})?.message||e))));}finally{setBusy(false);}}
+ function input(name:string,key:string,kind='text',required=false){return <label>{a(key)}<input name={name} type={kind} defaultValue={String(v[name]||'')} required={required} maxLength={kind==='text'?500:undefined}/></label>;}
+ function area(name:string,key:string,required=false){return <label className={css.wide}>{a(key)}<textarea name={name} defaultValue={String(v[name]||'')} required={required} maxLength={4000} rows={3}/></label>;}
+ function select(name:string,key:string,options:readonly string[],empty=false){return <label>{a(key)}<select name={name} defaultValue={String(v[name]|| (empty?'':options[0]))}>{empty&&<option value="">{a('none')}</option>}{options.map(k=><option key={k} value={k}>{label(k)}</option>)}</select></label>;}
+ function person(name:string,key:string,lead=false,required=false){const pool=lead?people.filter(p=>['admin','partner','lawyer','assistant_lawyer'].includes(p.role)):people;return <label>{a(key)}<select name={name} defaultValue={String(v[name]||'')} required={required}><option value="">{a('none')}</option>{v[name]&&!pool.some(p=>p.id===v[name])&&<option value={String(v[name])}>{a('legacyPerson',{name:String(v.assignee_name||v.name||a('owner'))})}</option>}{pool.map(p=><option key={p.id} value={p.id}>{p.staff_name||p.full_name}</option>)}</select></label>;}
+ return <DetailModal open title={request.title} onClose={()=>{if(!busy)onClose();}} size="edit"><form className={css.form} onSubmit={save}>
+ {error&&<p className={css.error} role="alert">{error}</p>}
+ {act==='create'&&<><label>{a('selectClient')}<input value={search} onChange={e=>setSearch(e.target.value)} placeholder={a('search')}/><select name="client_id" required defaultValue=""><option value="">{a('selectClient')}</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>{input('title','matterTitle','text',true)}{select('matter_type','type',types)}{person('lead_id','lead',true,true)}</>}
+ {act==='team'&&<><label>{a('role')}<select name="role" value={teamRole} onChange={e=>setTeamRole(e.target.value)}>{['lead','co_work','assistant','qa'].map(r=><option key={r} value={r}>{label(r)}</option>)}</select></label>{person('user_id','owner',teamRole==='lead',true)}<label className={css.check}><input type="checkbox" name="remove" value="true"/>{a('remove')}</label></>}
+ {act==='work_state'&&<>{select('state','state',workStates)}{area('reason','reason')}</>}
+ {['stage','stage_skip'].includes(act)&&<><p className={css.wide}>{a('stageConfirm')}</p><span>{a('template')}: {label(String(v.template||''))}</span><strong>{label(String(v.stage_key||''))}</strong></>}
+ {act==='next_action'&&<>{input('title','next')}{person('owner_id','owner')}{input('due_date','due','date')}</>}
+ {act==='task_save'&&<>{input('title','titleField','text',true)}{person('assignee_user_id','owner')}{select('status','status',['pending','in_progress','waiting','completed','cancelled'])}{select('priority','priority',['normal','high','urgent','low'])}{input('due_date','due','date')}<label>{a('stage')}<select name="stage_id" defaultValue={String(v.stage_id||'')}><option value="">{a('none')}</option>{stages?.map(s=><option key={s.id} value={s.id}>{label(s.stage_key)}</option>)}</select></label><label>{a('issue')}<select name="issue_id" defaultValue={String(v.issue_id||'')}><option value="">{a('none')}</option>{v.issue_id&&!issues.some(i=>i.id===v.issue_id)&&<option value={String(v.issue_id)}>{a('issueUnavailable')}</option>}{issues.map(i=><option key={i.id} value={i.id}>{i.title}</option>)}</select></label>{area('note','note')}{v.assignee_name&&<small>{a('legacyPerson',{name:String(v.assignee_name)})}</small>}{v.completed_at&&v.status!=='completed'&&<p className={css.notice}>{a('legacyCompletion')}</p>}</>}
+ {act==='deliverable'&&<>{input('title','titleField','text',true)}{select('status','status',['draft','in_progress','ready','delivered','cancelled'])}{person('owner_id','owner')}{input('due_date','due','date')}{input('version_label','version')}<label>{a('drive')}<input name="drive_url" type="url" pattern="https://(drive|docs)\.google\.com/.*" defaultValue={String(v.drive_url||'')}/></label></>}
+ {act==='task_delete'&&<p className={css.notice}>{a('deleteHint')}</p>}
+ {act==='note'&&area('text','note',true)}
+ {act==='close'&&<>{select('outcome','outcome',['completed','client_stopped','external_refusal','agreement','litigation','cancelled'])}{area('summary','summary',true)}{area('follow_up','followUp')}{input('case_reference','caseReference')}</>}
+ {act==='reopen'&&area('reason','reason',true)}
+ <div className={css.formActions}><button type="button" disabled={busy} onClick={onClose}>{a('cancel')}</button><button className={css.primary} disabled={busy} type="submit">{a(busy?'saving':'save')}</button></div>
+ </form></DetailModal>;
+}
