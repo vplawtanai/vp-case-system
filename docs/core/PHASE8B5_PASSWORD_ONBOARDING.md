@@ -1,6 +1,6 @@
 # Phase 8B.5 — Temporary-password onboarding
 
-Status: Migration 075 Production PASS; post-migration release validation complete, deployment/smoke pending. Human UAT remains pending.
+Status: **CLOSED — Migration 075 Production PASS; application deployment READY; non-mutating Production smoke PASS.** Human UAT with the first real new lawyer remains pending.
 No Production SQL, Auth operation, user change or email is part of this release.
 
 ## Production gate evidence — 2026-09-27
@@ -9,9 +9,32 @@ Owner-reported verifier: `gate_pass=true`, `failed_checks=[]`, `existing_profile
 
 The ten pre-existing profiles remain `must_change_password=false`; roles, activity, classification, assignment and Finance flags are preserved by the accepted migration verifier. This evidence is supplied by the owner; release does not re-run database SQL or modify a user to re-test it.
 
-## Release evidence — pending deployment
+## Release and closeout evidence — 2026-09-27
 
-Final release checks repeat the full 103-test baseline (74 application/UI/permission tests, 29 isolated PostgreSQL tests), targeted ESLint, TypeScript, production build and diff check. Only the intended 18-file manifest below is eligible for staging. The existing Vercel Git integration deploys the pushed `main` commit. Exact release SHA, deployment and non-mutating smoke will be recorded after verification in an evidence-only documentation commit, following the preceding 8B.4 closeout workflow.
+- Implementation commit: `ab8979f369fecf224df93bcf348de4e58888bd0e`, message `Phase 8B.5: add temporary password onboarding`.
+- `main -> origin/main` push succeeded; HEAD and origin/main matched the implementation commit.
+- Exactly the 18 intended files below were committed. All 34 unrelated pre-existing untracked files remain preserved; no applied migration changed.
+- Final validation repeated: 74 application/UI/permissions/forced-change/reset tests plus 29 isolated PostgreSQL 073/074/075 tests, all PASS (103 total). Targeted ESLint, `npx tsc --noEmit`, `npm run build`, `git diff --check` and final diff review PASS. No tests were weakened.
+- Compiled browser JavaScript contains no `SUPABASE_SERVICE_ROLE_KEY`, private completion function or completion-signing helper. Auth Admin calls remain in the server-only helper; client requests carry passwords only for the authorized operation, never receive them back and never write them to profile fields/logs.
+- The existing Vercel Git integration deployed that exact commit to project `vp-case-system`, target `production`.
+- Verified deployment `dpl_74Tk5wQ3LdMNbbiuqCAocDWV2dM3`: **READY**, `aliasAssigned=true`, no error; Git SHA exactly matches the implementation commit.
+- Deployment URL: `https://vp-case-system-5wt4avp3o-vplawtanais-projects.vercel.app`.
+- Canonical Production alias: `https://vp-case-system.vercel.app`, assigned to the verified application deployment.
+- This section records the verified application deployment. Its closeout documentation is a subsequent evidence-only commit, following 8B.4; no application, migration or test content changes accompany it.
+
+Non-mutating Production smoke used a separate Chrome tab:
+
+- `/admin/users` loaded the existing ten users normally, with no forced redirect for the current existing Admin. The rendered table text was identical before deployment, after deployment and after modal checks.
+- Add User opened with two empty temporary-password fields, first-sign-in explanation and `สร้างผู้ใช้`. No invite-specific wording appeared. The dialog was closed with Cancel, with no data entered.
+- Existing Admin edit retained the full-access-by-role explanation and no granular Finance checklist. Additional Account Management exposed the new empty password/confirmation inputs and reset control. No reset or Save was invoked.
+- An existing Lawyer+ profile remained `lawyer`, with its granular Finance controls and existing checked Finance access. Only disclosure panels were expanded, then Cancel was used; no input/checkbox changed.
+- Desktop and actual **390 CSS px** presentation passed for the Add/Admin/non-Admin dialogs, with no horizontal overflow. Browser zoom was accounted for when setting the temporary viewport override; it was reset afterward.
+- `/account/security` displayed ordinary password-change mode for the existing account, with two empty password fields, confirmation, save and sign-out controls. TH and EN each rendered correctly on desktop and at 390 CSS px. No field was entered and no password update was submitted. The language preference was restored to Thai.
+- No console warning/error or visible runtime error was observed in the smoke tab.
+- Forced first-login, completion failure/retry, inactive denial and Admin reset mutations were validated only in local tests. No existing Production account was put into forced mode or reset to simulate UAT.
+- No Production SQL, user creation, invite, password change, profile update, activation/deactivation/deletion, classification, assignment or Finance-permission change occurred. No Phase 8C work.
+
+Human UAT remains the owner's next step: create the first real lawyer, verify temporary login → forced `/account/security` → personal password → normal access; only after PASS create the second lawyer.
 
 ## Project guard
 
