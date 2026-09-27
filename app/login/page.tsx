@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { passwordDestination } from "../../lib/password-onboarding";
 import { supabase } from "../../lib/supabase";
 
 export default function LoginPage() {
@@ -46,7 +47,7 @@ export default function LoginPage() {
 
       const { data: profile, error: profileError } = await supabase
         .from("user_profiles")
-        .select("id, email, full_name, role, active")
+        .select("id, email, full_name, role, active, must_change_password")
         .eq("id", data.user.id)
         .single();
 
@@ -64,11 +65,10 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/cases");
+      router.push(passwordDestination(profile, "/cases") || "/cases");
       router.refresh();
-    } catch (err) {
+    } catch {
       setErrorText("เกิดข้อผิดพลาดระหว่างเข้าสู่ระบบ");
-      console.error(err);
     } finally {
       setLoading(false);
     }

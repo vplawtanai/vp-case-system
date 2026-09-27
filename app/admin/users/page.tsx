@@ -10,6 +10,10 @@ import ui from "../../components/ui/vp-ui.module.css";
 import styles from "./users.module.css";
 import { organizeUsers, USER_LIST_FILTERS, USER_LIST_SORTS, type UserListFilter, type UserListSort } from "./list";
 
+import TemporaryPasswordFields from "./TemporaryPasswordFields";
+import { useI18n } from "../../../lib/i18n/provider";
+import { passwordText, validatePassword } from "../../../lib/password-onboarding";
+
 type Form = Record<string, unknown>;
 type ApiResult = { users?: PeopleProfile[]; actor?: string; id?: string; warning?: string; message?: string; error?: string; reference?: string; deletable?: boolean; code?: string };
 async function adminRequest(body?: Record<string, unknown>): Promise<ApiResult> {
@@ -27,6 +31,9 @@ async function adminRequest(body?: Record<string, unknown>): Promise<ApiResult> 
 const accountLabel = (value: unknown) => value === "operational" ? "ใช้งานจริง" : value === "uat" ? "UAT / ทดสอบ" : "ยังไม่จัดประเภท";
 
 export default function UsersPage() {
+  const { locale } = useI18n();
+  const [temporaryPassword, setTemporaryPassword] = useState("");
+  const [confirmTemporaryPassword, setConfirmTemporaryPassword] = useState("");
   const [users, setUsers] = useState<PeopleProfile[]>([]);
   const [actor, setActor] = useState("");
   const [loading, setLoading] = useState(true);
@@ -49,10 +56,11 @@ export default function UsersPage() {
   }, []);
   useEffect(() => { void load(); }, [load]);
   const open = (user?: PeopleProfile) => {
+    setTemporaryPassword(""); setConfirmTemporaryPassword("");
     setOriginal(user || null); setFormError(""); setCanDelete(false); setConfirmation(""); setNotice("");
     setForm(user ? { ...user } : { email: "", full_name: "", staff_name: "", role: "lawyer", account_type: "", assignable: false });
   };
-  const close = () => { if (!busy) { setForm(null); setOriginal(null); } };
+  const close = () => { if (!busy) { setTemporaryPassword(""); setConfirmTemporaryPassword(""); setForm(null); setOriginal(null); } };
   const change = (key: string, value: unknown) => {
     setCanDelete(false);
     setForm(current => {
@@ -65,14 +73,16 @@ export default function UsersPage() {
     event.preventDefault(); if (!form || busy) return;
     setBusy(true); setFormError("");
     try {
+      if (!original) validatePassword(temporaryPassword, confirmTemporaryPassword);
       const input = original
         ? Object.fromEntries(PROFILE_FIELDS.filter(key => form[key] !== original[key]).map(key => [key, form[key]]))
         : Object.fromEntries(["email", "full_name", "staff_name", "role", "account_type", "assignable"].map(key => [key, form[key]]));
       if (original && !Object.keys(input).length) { setForm(null); return; }
-      const result = await adminRequest(original ? { action: "save", id: original.id, input, expected: original } : { action: "create", input });
-      setNotice(result.warning ? (result.message || PEOPLE_ERRORS.ONBOARDING_FAILED) : original ? "บันทึกผู้ใช้แล้ว" : "สร้างผู้ใช้และส่งคำเชิญตั้งรหัสผ่านแล้ว");
+      const result = await adminRequest(original ? { action: "save", id: original.id, input, expected: original } : { action: "create", input, temporaryPassword, confirmTemporaryPassword });
+      setNotice(result.warning ? (result.message || PEOPLE_ERRORS.OPERATION_FAILED) : original ? "บันทึกผู้ใช้แล้ว" : passwordText("created", locale));
+      setTemporaryPassword(""); setConfirmTemporaryPassword("");
       setForm(null); setOriginal(null); await load();
-    } catch (error) { setFormError(error instanceof Error ? error.message : PEOPLE_ERRORS.OPERATION_FAILED); }
+    } catch (error) { setFormError(error instanceof Error ? PEOPLE_ERRORS[error.message] || error.message : PEOPLE_ERRORS.OPERATION_FAILED); }
     finally { setBusy(false); }
   };
   const checkDelete = async () => {
@@ -82,7 +92,7 @@ export default function UsersPage() {
       const result = await adminRequest({ action: "delete-check", id: original.id });
       setCanDelete(result.deletable === true);
       if (!result.deletable) setFormError(PEOPLE_ERRORS[result.code || "USER_HISTORY_REQUIRED"] || PEOPLE_ERRORS.USER_HISTORY_REQUIRED);
-    } catch (error) { setFormError(error instanceof Error ? error.message : PEOPLE_ERRORS.OPERATION_FAILED); }
+    } catch (error) { setFormError(error instanceof Error ? PEOPLE_ERRORS[error.message] || error.message : PEOPLE_ERRORS.OPERATION_FAILED); }
     finally { setBusy(false); }
   };
   const remove = async () => {
@@ -91,15 +101,19 @@ export default function UsersPage() {
     try {
       await adminRequest({ action: "delete", id: original.id, confirmation });
       setForm(null); setOriginal(null); setNotice("ลบบัญชีที่ไม่มีประวัติแล้ว"); await load();
-    } catch (error) { setFormError(error instanceof Error ? error.message : PEOPLE_ERRORS.OPERATION_FAILED); }
+    } catch (error) { setFormError(error instanceof Error ? PEOPLE_ERRORS[error.message] || error.message : PEOPLE_ERRORS.OPERATION_FAILED); }
     finally { setBusy(false); }
   };
-  const resend = async () => {
-    if (!original) return;
+  const resetPassword = async () => {
+    if (!original || busy) return;
     setBusy(true); setFormError("");
-    try { await adminRequest({ action: "invite", id: original.id }); setNotice("ส่งคำเชิญอีกครั้งแล้ว"); }
-    catch (error) { setFormError(error instanceof Error ? error.message : PEOPLE_ERRORS.OPERATION_FAILED); }
-    finally { setBusy(false); }
+    try {
+      validatePassword(temporaryPassword, confirmTemporaryPassword);
+      await adminRequest({ action: "reset-password", id: original.id, temporaryPassword, confirmTemporaryPassword });
+      setNotice(passwordText("resetDone", locale));
+      setForm(null); setOriginal(null); await load();
+    } catch (error) { setFormError(error instanceof Error ? PEOPLE_ERRORS[error.message] || error.message : PEOPLE_ERRORS.OPERATION_FAILED); }
+    finally { setTemporaryPassword(""); setConfirmTemporaryPassword(""); setBusy(false); }
   };
   const visible = organizeUsers(users, query, filter, sort);
   return <AuthGuard><main className={`${ui.scope} ${styles.page}`}>
@@ -125,13 +139,13 @@ export default function UsersPage() {
       </tr></thead><tbody>{visible.map(user => <tr key={user.id}>
         <td className={styles.identity}><strong>{user.full_name || user.staff_name || "—"}</strong><span className={styles.secondaryText}>{user.email}</span>{user.staff_name && user.staff_name !== user.full_name && <span className={styles.secondaryText}>{user.staff_name}</span>}</td>
         <td data-label="บทบาท">{ROLE_LABELS[user.role] || user.role}</td><td data-label="ประเภทบัญชี">{accountLabel(user.account_type)}</td>
-        <td data-label="สถานะ"><span className={user.active ? styles.active : styles.inactive}>{user.active ? "เปิดใช้งาน" : "ปิดใช้งาน"}</span></td>
+        <td data-label="สถานะ"><span className={user.active ? styles.active : styles.inactive}>{user.active ? "เปิดใช้งาน" : "ปิดใช้งาน"}</span>{user.must_change_password && <span className={styles.secondaryText}>{passwordText("required", locale)}</span>}</td>
         <td data-label="การรับมอบหมายงาน">{isAssignablePerson(user) ? "รับมอบหมายงานได้" : "ไม่รับมอบหมายงาน"}</td>
         <td data-label="สิทธิ์เพิ่มเติม">{user.role === "admin" ? user.active ? "สิทธิ์เต็มจากบทบาท" : "ปิดใช้งาน" : Object.keys(CAPABILITY_LABELS).filter(key => user[key] === true).length || "—"}</td>
         <td className={styles.editCell}><button className={ui.secondary} onClick={() => open(user)} aria-label={`แก้ไขผู้ใช้ ${user.full_name || user.email}`}>แก้ไข</button></td>
       </tr>)}</tbody></table>{visible.length === 0 && <p className={styles.empty}>ไม่พบผู้ใช้</p>}</div>
     </>}
-    <DetailModal open={!!form} title={original ? "แก้ไขผู้ใช้" : "เพิ่มผู้ใช้"} subtitle={original?.email || "ผู้ใช้จะได้รับอีเมลตั้งรหัสผ่านด้วยตนเอง"} size="edit" onClose={close} closeOnBackdrop={!busy} closeLabel="ปิด">
+    <DetailModal open={!!form} title={original ? "แก้ไขผู้ใช้" : "เพิ่มผู้ใช้"} subtitle={original?.email || passwordText("hint", locale)} size="edit" onClose={close} closeOnBackdrop={!busy} closeLabel="ปิด">
       {form && <form onSubmit={save} className={styles.form}>
         {formError && <p role="alert" className={styles.error}>{formError}</p>}
         <fieldset disabled={busy} className={styles.fields}><div className={styles.grid}>
@@ -142,6 +156,7 @@ export default function UsersPage() {
           <label>ประเภทบัญชี<select required={!original} value={String(form.account_type || "")} onChange={e => change("account_type",e.target.value || null)}>
             <option value="">{original ? "ยังไม่จัดประเภท" : "เลือกประเภทบัญชี"}</option><option value="operational">ใช้งานจริง</option><option value="uat">UAT / ทดสอบ</option>
           </select></label>
+          {!original && <TemporaryPasswordFields password={temporaryPassword} confirmation={confirmTemporaryPassword} onPassword={setTemporaryPassword} onConfirmation={setConfirmTemporaryPassword} />}
         </div>
         <label className={styles.check}><input type="checkbox" checked={form.assignable === true} disabled={form.account_type !== "operational" || form.active === false} onChange={e => change("assignable",e.target.checked)} />รับมอบหมายงานได้</label>
         <p className={styles.hint}>เฉพาะบัญชีใช้งานจริงที่เปิดใช้งานเท่านั้น บัญชีทดสอบไม่รับมอบหมายงาน</p>
@@ -159,10 +174,11 @@ export default function UsersPage() {
           </div></details>}
         </>}
         </fieldset>
-        <div className={styles.actions}><button type="button" className={ui.secondary} onClick={close} disabled={busy}>ยกเลิก</button><button type="submit" className={ui.primary} disabled={busy}>{busy ? "กำลังดำเนินการ…" : original ? "บันทึก" : "สร้างและส่งคำเชิญ"}</button></div>
+        <div className={styles.actions}><button type="button" className={ui.secondary} onClick={close} disabled={busy}>ยกเลิก</button><button type="submit" className={ui.primary} disabled={busy}>{busy ? "กำลังดำเนินการ…" : original ? "บันทึก" : passwordText("create", locale)}</button></div>
         {original && <details className={styles.advanced}><summary>การจัดการบัญชีเพิ่มเติม</summary>
-          <button type="button" className={ui.secondary} onClick={() => void resend()} disabled={busy || !original.active}>ส่งคำเชิญตั้งรหัสผ่านอีกครั้ง</button>
-          <p className={styles.hint}>ใช้สำหรับผู้ที่ยังไม่ยืนยันอีเมลเท่านั้น</p>
+          <fieldset disabled={busy} className={styles.fields}><div className={styles.grid}>
+            <TemporaryPasswordFields password={temporaryPassword} confirmation={confirmTemporaryPassword} onPassword={setTemporaryPassword} onConfirmation={setConfirmTemporaryPassword} required={false} />
+          </div><button type="button" className={ui.secondary} onClick={() => void resetPassword()} disabled={busy}>{passwordText("reset", locale)}</button></fieldset>
           <p className={styles.hint}>แนะนำให้ปิดใช้งานแทนการลบถาวร ระบบจะไม่ลบผู้ใช้ที่มีประวัติ</p>
           <button type="button" className={ui.danger} disabled={busy || original.id === actor || original.active || !original.account_type} onClick={() => void checkDelete()}>ตรวจสอบก่อนลบถาวร</button>
           {canDelete && <div className={styles.deleteBox}><p>การลบถาวรจะลบบัญชีเข้าใช้งานและโปรไฟล์ และไม่สามารถย้อนกลับได้</p><label>พิมพ์อีเมลเพื่อยืนยัน<input value={confirmation} onChange={e => setConfirmation(e.target.value)} autoComplete="off" /></label><button type="button" className={ui.danger} onClick={() => void remove()} disabled={busy || confirmation !== original.email}>ยืนยันลบถาวร</button></div>}

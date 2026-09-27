@@ -1,116 +1,84 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import AppTopNav from "../../components/AppTopNav";
 import AuthGuard from "../../components/AuthGuard";
+import LanguageSelector from "../../components/LanguageSelector";
 import { supabase } from "../../../lib/supabase";
+import { BilingualUiScope, useI18n } from "../../../lib/i18n/provider";
+import { PASSWORD_MESSAGES, PASSWORD_MIN_LENGTH, passwordText, validatePassword, type PasswordMessage } from "../../../lib/password-onboarding";
 
 export default function AccountSecurityPage() {
+  return <AuthGuard><BilingualUiScope><PasswordForm /></BilingualUiScope></AuthGuard>;
+}
+export function PasswordForm() {
+  const { locale } = useI18n();
+  const router = useRouter();
+  const [forced, setForced] = useState<boolean | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [completionTicket, setCompletionTicket] = useState("");
   const [saving, setSaving] = useState(false);
-  const [errorText, setErrorText] = useState("");
-  const [successText, setSuccessText] = useState("");
-
-  const updatePassword = async () => {
-    setErrorText("");
-    setSuccessText("");
-
-    const password = newPassword.trim();
-    const confirmation = confirmPassword.trim();
-
-    if (!password) {
-      setErrorText("New password is required.");
-      return;
-    }
-
-    if (password.length < 8) {
-      setErrorText("New password must be at least 8 characters.");
-      return;
-    }
-
-    if (password !== confirmation) {
-      setErrorText("Confirm password does not match.");
-      return;
-    }
-
-    try {
-      setSaving(true);
-
-      const { error } = await supabase.auth.updateUser({
-        password,
-      });
-
-      if (error) {
-        setErrorText(error.message || "Unable to update password.");
-        return;
+  const [errorText, setErrorText] = useState<PasswordMessage | "">("");
+  const [success, setSuccess] = useState(false);
+  const text = (key: PasswordMessage) => passwordText(key, locale);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const auth = await supabase.auth.getUser();
+      if (!auth.data.user) return;
+      const result = await supabase.from("user_profiles").select("must_change_password").eq("id", auth.data.user.id).single();
+      if (!cancelled) {
+        if (result.error || typeof result.data?.must_change_password !== "boolean") setErrorText("PASSWORD_UPDATE_FAILED");
+        else setForced(result.data.must_change_password);
       }
-
-      setNewPassword("");
-      setConfirmPassword("");
-      setSuccessText("Password updated successfully.");
-    } catch {
-      setErrorText("Unable to update password.");
-    } finally {
-      setSaving(false);
-    }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  const updatePassword = async (event: React.FormEvent) => {
+    event.preventDefault(); if (saving) return;
+    setErrorText(""); setSuccess(false);
+    try {
+      if (!completionTicket) validatePassword(newPassword, confirmPassword);
+      setSaving(true);
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) throw new Error("PASSWORD_UPDATE_FAILED");
+      const response = await fetch("/api/account/password", {
+        method: "POST", cache: "no-store", headers: { Authorization: `Bearer ${data.session.access_token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(completionTicket ? { action: "complete", ticket: completionTicket } : { action: "change", password: newPassword, confirmation: confirmPassword }),
+      });
+      const result = await response.json();
+      // Drop entered secrets on every completed request, including rejected Auth updates.
+      setNewPassword(""); setConfirmPassword("");
+      if (result.ticket) setCompletionTicket(result.ticket);
+      else if (!response.ok) setCompletionTicket("");
+      if (!response.ok || !result.changed) throw new Error(result.error || "PASSWORD_UPDATE_FAILED");
+      setCompletionTicket(""); setForced(false); setSuccess(true);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      setErrorText(Object.hasOwn(PASSWORD_MESSAGES, code) ? code as PasswordMessage : "PASSWORD_UPDATE_FAILED");
+    } finally { setSaving(false); }
   };
-
-  return (
-    <AuthGuard>
-      <main style={pageStyle}>
-        <AppTopNav
-          title="Account Security"
-          subtitle="Change the password for your current account."
-          activePage="account"
-        />
-
-        <section style={panelStyle}>
-          <div style={formGridStyle}>
-            <label style={labelStyle}>
-              New password
-              <input
-                type="password"
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-                style={inputStyle}
-                autoComplete="new-password"
-              />
-            </label>
-
-            <label style={labelStyle}>
-              Confirm new password
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                style={inputStyle}
-                autoComplete="new-password"
-              />
-            </label>
-
-            {errorText ? <div style={errorBoxStyle}>{errorText}</div> : null}
-            {successText ? (
-              <div style={successBoxStyle}>{successText}</div>
-            ) : null}
-
-            <button
-              type="button"
-              onClick={updatePassword}
-              disabled={saving}
-              style={{
-                ...primaryButtonStyle,
-                opacity: saving ? 0.65 : 1,
-                cursor: saving ? "not-allowed" : "pointer",
-              }}
-            >
-              {saving ? "Updating..." : "Update Password"}
-            </button>
-          </div>
-        </section>
-      </main>
-    </AuthGuard>
-  );
+  const logout = async () => { await supabase.auth.signOut(); router.replace("/login"); };
+  return <main style={pageStyle}>
+    {forced !== false ? <header style={{ maxWidth: 560, marginBottom: 18 }}><LanguageSelector /><h1>{text("title")}</h1><p>{text("instruction")}</p></header>
+      : <AppTopNav title={text("ordinaryTitle")} subtitle={text("ordinaryHint")} activePage="account" />}
+    <section style={panelStyle}>
+      <form style={formGridStyle} onSubmit={updatePassword}>
+        {!completionTicket && <>
+          <label style={labelStyle}>{text("newPassword")}<input type="password" required minLength={PASSWORD_MIN_LENGTH} value={newPassword} onChange={e => setNewPassword(e.target.value)} style={inputStyle} autoComplete="new-password" /></label>
+          <label style={labelStyle}>{text("confirmNew")}<input type="password" required minLength={PASSWORD_MIN_LENGTH} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} style={inputStyle} autoComplete="new-password" /></label>
+          <p>{text("minimum")}</p>
+        </>}
+        {errorText && <div role="alert" style={errorBoxStyle}>{text(errorText)}</div>}
+        {success && <div role="status" style={successBoxStyle}>{text("saved")}</div>}
+        <button type="submit" disabled={saving || forced === null} style={primaryButtonStyle}>{text(saving ? "saving" : completionTicket ? "retry" : "save")}</button>
+        {success && <button type="button" onClick={() => router.push("/cases")}>{text("continue")}</button>}
+        <button type="button" onClick={() => void logout()} disabled={saving}>{text("logout")}</button>
+      </form>
+    </section>
+  </main>;
 }
 
 const pageStyle: React.CSSProperties = {

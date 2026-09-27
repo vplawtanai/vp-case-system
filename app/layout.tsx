@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { cookies } from "next/headers";
 import { AppLocaleProvider } from "../lib/i18n/provider";
 import { resolvePreferredLocale, UI_LOCALE_COOKIE } from "../lib/i18n/core";
+import AuthGuard from "./components/AuthGuard";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -42,7 +43,7 @@ export default async function RootLayout({
           colorScheme: "light",
         }}
       >
-        <AppLocaleProvider initialLocale={initialLocale}>{children}</AppLocaleProvider>
+        <AppLocaleProvider initialLocale={initialLocale}><AuthGuard publicRoutes>{children}</AuthGuard></AppLocaleProvider>
       </body>
     </html>
   );

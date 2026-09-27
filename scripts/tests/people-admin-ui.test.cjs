@@ -30,13 +30,15 @@ test('Thai list distinguishes unclassified/UAT/operational and effective assignm
   assert.ok(!html.includes('ยืนยันเงินรับ'));
   assert.ok(!html.includes('Account Type'));
 });
-test('create has essential required fields, no password and no advanced Finance checklist', () => {
+test('create has essential required fields, temporary-password confirmation and no advanced Finance checklist', () => {
   const html = render({ 'UsersPage.form': { email: '', full_name: '', staff_name: '', role: 'lawyer', account_type: '', assignable: false } });
   assert.match(html, /role="dialog"/);
-  assert.match(html, /สร้างและส่งคำเชิญ/);
+  assert.match(html, /สร้างผู้ใช้/);
+  assert.equal((html.match(/type="password"/g)||[]).length,2);
+  assert.match(html,/ยืนยันรหัสผ่านชั่วคราว/);
   assert.match(html, /<select required="">/);
   assert.match(html, /type="checkbox" disabled=""/);
-  assert.doesNotMatch(html, /type="password"|<details|ยืนยันเงินรับ/);
+  assert.doesNotMatch(html, /<details|ยืนยันเงินรับ|ส่งคำเชิญ/);
 });
 test('edit retains explicit Finance flags, uses collapsed details and requires delete confirmation', () => {
   const original = { ...person, active: false, account_type: 'uat' };

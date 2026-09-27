@@ -4,7 +4,7 @@ export type AccountType = "operational" | "uat" | null;
 export type PeopleProfile = {
   id: string; email: string | null; full_name: string | null; staff_name: string | null;
   role: string; active: boolean; financial_access: boolean;
-  account_type: AccountType; assignable: boolean;
+  account_type: AccountType; assignable: boolean; must_change_password?: boolean;
   [key: string]: unknown;
 };
 export const ROLE_LABELS: Record<string, string> = {
@@ -93,8 +93,9 @@ export const PEOPLE_ERRORS: Record<string, string> = {
   NOT_FOUND: "ไม่พบผู้ใช้", CREATE_FAILED: "สร้างผู้ใช้ไม่สำเร็จ บัญชีที่สร้างในคำขอนี้ถูกล้างแล้ว",
   CREATE_RECOVERY_REQUIRED: "การสร้างยังไม่สมบูรณ์ บัญชีถูกระงับไว้ กรุณาติดต่อผู้ดูแลระบบพร้อมรหัสอ้างอิง",
   AUTH_UNCERTAIN: "ยังยืนยันผลจากระบบบัญชีไม่ได้ กรุณาโหลดรายการใหม่ก่อนลองอีกครั้ง",
-  ONBOARDING_FAILED: "บัญชีพร้อมแล้ว แต่ส่งคำเชิญไม่สำเร็จ กรุณากดส่งคำเชิญอีกครั้ง",
-  ALREADY_CONFIRMED: "ผู้ใช้นี้ยืนยันอีเมลแล้ว ให้เปลี่ยนรหัสผ่านจากบัญชีผู้ใช้ของตนเอง",
+  PASSWORD_REQUIRED: "กรุณากรอกรหัสผ่านชั่วคราว",
+  PASSWORD_MISMATCH: "รหัสผ่านและการยืนยันไม่ตรงกัน",
+  PASSWORD_WEAK: "รหัสผ่านไม่ผ่านข้อกำหนด กรุณาใช้รหัสผ่านที่ปลอดภัยอย่างน้อย 8 ตัวอักษร",
   CONFIGURATION_REQUIRED: "ระบบเพิ่ม/ลบผู้ใช้ยังไม่พร้อม กรุณาตรวจการตั้งค่าฝั่งเซิร์ฟเวอร์",
   OPERATION_FAILED: "ดำเนินการไม่สำเร็จ กรุณาโหลดใหม่แล้วลองอีกครั้ง",
 };

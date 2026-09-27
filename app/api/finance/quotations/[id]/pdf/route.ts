@@ -120,10 +120,10 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 
     const { data: profileData } = await supabase
       .from("user_profiles")
-      .select("active, role, financial_access, can_submit_expense_claim, can_view_own_expense_claims, can_view_all_expense_claims, can_view_company_ledger, can_view_lawyer_compensation")
+      .select("must_change_password, active, role, financial_access, can_submit_expense_claim, can_view_own_expense_claims, can_view_all_expense_claims, can_view_company_ledger, can_view_lawyer_compensation")
       .eq("id", userData.user.id)
       .maybeSingle();
-    if (profileData?.active !== true || !buildPermissions(profileData).canViewFinanceQuotations) return safeError("Forbidden", 403);
+    if (profileData?.active !== true || profileData.must_change_password !== false || !buildPermissions(profileData).canViewFinanceQuotations) return safeError("Forbidden", 403);
 
     const quotationRes = await supabase
       .from("finance_quotations")
