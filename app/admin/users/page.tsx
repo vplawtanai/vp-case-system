@@ -8,6 +8,7 @@ import { supabase } from "../../../lib/supabase";
 import { CAPABILITY_LABELS, PEOPLE_ERRORS, PEOPLE_ROLES, PROFILE_FIELDS, ROLE_LABELS, isAssignablePerson, type PeopleProfile } from "../../../lib/people";
 import ui from "../../components/ui/vp-ui.module.css";
 import styles from "./users.module.css";
+import { organizeUsers, USER_LIST_FILTERS, USER_LIST_SORTS, type UserListFilter, type UserListSort } from "./list";
 
 type Form = Record<string, unknown>;
 type ApiResult = { users?: PeopleProfile[]; actor?: string; id?: string; warning?: string; message?: string; error?: string; reference?: string; deletable?: boolean; code?: string };
@@ -33,6 +34,8 @@ export default function UsersPage() {
   const [pageError, setPageError] = useState("");
   const [notice, setNotice] = useState("");
   const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<UserListFilter>("all");
+  const [sort, setSort] = useState<UserListSort>("recommended");
   const [form, setForm] = useState<Form | null>(null);
   const [original, setOriginal] = useState<PeopleProfile | null>(null);
   const [formError, setFormError] = useState("");
@@ -98,7 +101,7 @@ export default function UsersPage() {
     catch (error) { setFormError(error instanceof Error ? error.message : PEOPLE_ERRORS.OPERATION_FAILED); }
     finally { setBusy(false); }
   };
-  const visible = users.filter(user => [user.full_name,user.staff_name,user.email].some(value => value?.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())));
+  const visible = organizeUsers(users, query, filter, sort);
   return <AuthGuard><main className={`${ui.scope} ${styles.page}`}>
     <AppTopNav title="จัดการผู้ใช้" subtitle="บัญชีเข้าใช้งาน สิทธิ์ และสถานะบุคลากร" activePage="users" />
     <div className={styles.toolbar}>
@@ -110,15 +113,22 @@ export default function UsersPage() {
     {notice && <p role="status" className={styles.notice}>{notice}</p>}
     {loading ? <p role="status">กำลังโหลดผู้ใช้…</p> : actor && <>
       <p className={styles.hint}>บัญชีเดิมที่ยังไม่จัดประเภทใช้งานได้ตามสิทธิ์เดิม ผู้ดูแลระบบเป็นผู้ระบุประเภทและการรับมอบหมายงาน</p>
+      <div className={styles.listControls}>
+        <div className={styles.filters} role="group" aria-label="ตัวกรองผู้ใช้">
+          {USER_LIST_FILTERS.map(option => <button key={option.value} type="button" aria-pressed={filter === option.value} onClick={() => setFilter(option.value)}>{option.label}</button>)}
+        </div>
+        <label className={styles.sort}>เรียงตาม<select value={sort} onChange={event => setSort(event.target.value as UserListSort)}>{USER_LIST_SORTS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+      </div>
+      <p className={styles.resultCount} role="status">แสดง {visible.length} จาก {users.length} ผู้ใช้</p>
       <div className={styles.tableWrap}><table className={styles.table}><thead><tr>
         <th>ชื่อ / อีเมล</th><th>บทบาท</th><th>ประเภทบัญชี</th><th>สถานะ</th><th>การรับมอบหมายงาน</th><th>สิทธิ์เพิ่มเติม</th><th>จัดการ</th>
       </tr></thead><tbody>{visible.map(user => <tr key={user.id}>
-        <td><strong>{user.full_name || user.staff_name || "—"}</strong><span className={styles.secondaryText}>{user.email}</span>{user.staff_name && user.staff_name !== user.full_name && <span className={styles.secondaryText}>{user.staff_name}</span>}</td>
-        <td>{ROLE_LABELS[user.role] || user.role}</td><td>{accountLabel(user.account_type)}</td>
-        <td><span className={user.active ? styles.active : styles.inactive}>{user.active ? "เปิดใช้งาน" : "ปิดใช้งาน"}</span></td>
-        <td>{isAssignablePerson(user) ? "รับมอบหมายงานได้" : "ไม่รับมอบหมายงาน"}</td>
-        <td>{Object.keys(CAPABILITY_LABELS).filter(key => user[key] === true).length || "—"}</td>
-        <td><button className={ui.secondary} onClick={() => open(user)} aria-label={`แก้ไขผู้ใช้ ${user.full_name || user.email}`}>แก้ไข</button></td>
+        <td className={styles.identity}><strong>{user.full_name || user.staff_name || "—"}</strong><span className={styles.secondaryText}>{user.email}</span>{user.staff_name && user.staff_name !== user.full_name && <span className={styles.secondaryText}>{user.staff_name}</span>}</td>
+        <td data-label="บทบาท">{ROLE_LABELS[user.role] || user.role}</td><td data-label="ประเภทบัญชี">{accountLabel(user.account_type)}</td>
+        <td data-label="สถานะ"><span className={user.active ? styles.active : styles.inactive}>{user.active ? "เปิดใช้งาน" : "ปิดใช้งาน"}</span></td>
+        <td data-label="การรับมอบหมายงาน">{isAssignablePerson(user) ? "รับมอบหมายงานได้" : "ไม่รับมอบหมายงาน"}</td>
+        <td data-label="สิทธิ์เพิ่มเติม">{Object.keys(CAPABILITY_LABELS).filter(key => user[key] === true).length || "—"}</td>
+        <td className={styles.editCell}><button className={ui.secondary} onClick={() => open(user)} aria-label={`แก้ไขผู้ใช้ ${user.full_name || user.email}`}>แก้ไข</button></td>
       </tr>)}</tbody></table>{visible.length === 0 && <p className={styles.empty}>ไม่พบผู้ใช้</p>}</div>
     </>}
     <DetailModal open={!!form} title={original ? "แก้ไขผู้ใช้" : "เพิ่มผู้ใช้"} subtitle={original?.email || "ผู้ใช้จะได้รับอีเมลตั้งรหัสผ่านด้วยตนเอง"} size="edit" onClose={close} closeOnBackdrop={!busy} closeLabel="ปิด">
