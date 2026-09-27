@@ -1,0 +1,28 @@
+.page { min-height: 100vh; padding: 24px; background: #f8fafc; color: #132b45; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin-bottom: 16px; }
+.search { flex: 1 1 240px; max-width: 520px; }
+.page label, .form label { display: grid; gap: 6px; font-size: 14px; font-weight: 600; }
+.page input:not([type=checkbox]), .form input:not([type=checkbox]), .form select { width: 100%; min-width: 0; box-sizing: border-box; padding: 10px 12px; border: 1px solid #cdd8e3; border-radius: 8px; background: white; color: #132b45; font: inherit; }
+.form input:disabled, .form select:disabled { background: #f1f5f9; color: #64748b; }
+.tableWrap { overflow-x: auto; border: 1px solid #dce4ec; border-radius: 12px; background: white; }
+.table { border-collapse: collapse; width: 100%; min-width: 980px; font-size: 14px; }
+.table th { text-align: left; color: #52657b; background: #f1f5f9; font-size: 13px; }
+.table td, .table th { padding: 12px 14px; border-bottom: 1px solid #e7edf3; vertical-align: middle; }
+.secondaryText { display: block; color: #52657b; font-size: 13px; overflow-wrap: anywhere; }
+.active, .inactive { display: inline-block; padding: 4px 9px; border-radius: 6px; font-size: 12px; white-space: nowrap; }
+.active { background: #e8f6ef; color: #146044; }
+.inactive { background: #f1f5f9; color: #64748b; }
+.hint { color: #52657b; font-size: 13px; line-height: 1.65; }
+.error { padding: 12px; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; color: #9f1239; overflow-wrap: anywhere; }
+.notice { padding: 12px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; color: #065f46; }
+.empty { padding: 20px; }
+.form { display: grid; gap: 14px; }
+.fields { padding: 0; margin: 0; border: 0; min-width: 0; }
+.grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+.form .check { display: flex; align-items: center; gap: 9px; margin-top: 14px; }
+.check input { flex: none; width: 18px; height: 18px; }
+.actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+.advanced { border-top: 1px solid #dce4ec; padding-top: 14px; }
+.advanced summary { cursor: pointer; font-weight: 700; margin-bottom: 14px; }
+.deleteBox { display: grid; gap: 12px; margin-top: 12px; padding: 14px; border: 1px solid #fecdd3; border-radius: 8px; }
+@media(max-width: 600px) { .page { padding: 16px; } .grid { grid-template-columns: minmax(0,1fr); } .actions > button { flex: 1; } }

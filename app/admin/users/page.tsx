@@ -1,603 +1,157 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import AuthGuard from "../../components/AuthGuard";
 import AppTopNav from "../../components/AppTopNav";
+import DetailModal from "../../components/DetailModal";
 import { supabase } from "../../../lib/supabase";
-import { createAuditLog } from "../../../lib/auditLog";
-import { buildPermissions } from "../../../lib/permissions";
-import type { UserPermissions, UserRole } from "../../../lib/permissions";
+import { CAPABILITY_LABELS, PEOPLE_ERRORS, PEOPLE_ROLES, PROFILE_FIELDS, ROLE_LABELS, isAssignablePerson, type PeopleProfile } from "../../../lib/people";
+import ui from "../../components/ui/vp-ui.module.css";
+import styles from "./users.module.css";
 
-type CurrentProfile = {
-  role?: UserRole | string | null;
-  financial_access?: boolean | null;
-};
-
-type UserProfileRow = {
-  id: string;
-  email?: string | null;
-  full_name?: string | null;
-  staff_name?: string | null;
-  role?: string | null;
-  financial_access?: boolean | null;
-  active?: boolean | null;
-};
-
-type EditUserForm = {
-  id: string;
-  email: string;
-  full_name: string;
-  staff_name: string;
-  role: UserRole;
-  financial_access: boolean;
-  active: boolean;
-};
-
-const ROLE_OPTIONS: UserRole[] = [
-  "admin",
-  "partner",
-  "lawyer",
-  "assistant_lawyer",
-  "staff",
-  "viewer",
-];
+type Form = Record<string, unknown>;
+type ApiResult = { users?: PeopleProfile[]; actor?: string; id?: string; warning?: string; message?: string; error?: string; reference?: string; deletable?: boolean; code?: string };
+async function adminRequest(body?: Record<string, unknown>): Promise<ApiResult> {
+  const { data } = await supabase.auth.getSession();
+  if (!data.session) throw new Error(PEOPLE_ERRORS.UNAUTHORIZED);
+  const response = await fetch("/api/admin/users", {
+    method: body ? "POST" : "GET", cache: "no-store",
+    headers: { Authorization: `Bearer ${data.session.access_token}`, ...(body ? { "Content-Type": "application/json" } : {}) },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  const result: ApiResult = await response.json();
+  if (!response.ok) throw new Error(`${result.message || PEOPLE_ERRORS.OPERATION_FAILED}${result.reference ? ` (${result.reference})` : ""}`);
+  return result;
+}
+const accountLabel = (value: unknown) => value === "operational" ? "ใช้งานจริง" : value === "uat" ? "UAT / ทดสอบ" : "ยังไม่จัดประเภท";
 
 export default function UsersPage() {
-  const [profile, setProfile] = useState<CurrentProfile>({
-    role: "",
-    financial_access: false,
-  });
-  const [loadingProfile, setLoadingProfile] = useState(true);
-  const [loadingUsers, setLoadingUsers] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [users, setUsers] = useState<UserProfileRow[]>([]);
-  const [editingUser, setEditingUser] = useState<EditUserForm | null>(null);
-  const [errorText, setErrorText] = useState("");
-
-  const permissions: UserPermissions = useMemo(() => {
-    return buildPermissions(profile);
-  }, [profile]);
-
-  useEffect(() => {
-    const loadProfile = async () => {
-      try {
-        setLoadingProfile(true);
-
-        const { data: userData, error: userError } =
-          await supabase.auth.getUser();
-
-        if (userError || !userData.user) {
-          setProfile({ role: "", financial_access: false });
-          return;
-        }
-
-        const { data, error } = await supabase
-          .from("user_profiles")
-          .select("role, financial_access")
-          .eq("id", userData.user.id)
-          .single();
-
-        if (error || !data) {
-          setProfile({ role: "", financial_access: false });
-          return;
-        }
-
-        setProfile({
-          role: data.role || "",
-          financial_access: data.financial_access === true,
-        });
-      } finally {
-        setLoadingProfile(false);
-      }
-    };
-
-    loadProfile();
+  const [users, setUsers] = useState<PeopleProfile[]>([]);
+  const [actor, setActor] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [pageError, setPageError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [query, setQuery] = useState("");
+  const [form, setForm] = useState<Form | null>(null);
+  const [original, setOriginal] = useState<PeopleProfile | null>(null);
+  const [formError, setFormError] = useState("");
+  const [canDelete, setCanDelete] = useState(false);
+  const [confirmation, setConfirmation] = useState("");
+  const load = useCallback(async () => {
+    setLoading(true); setPageError("");
+    try { const result = await adminRequest(); setUsers(result.users || []); setActor(result.actor || ""); }
+    catch (error) { setUsers([]); setActor(""); setPageError(error instanceof Error ? error.message : PEOPLE_ERRORS.OPERATION_FAILED); }
+    finally { setLoading(false); }
   }, []);
-
-  const loadUsers = useCallback(async () => {
-    if (!permissions.canManageUsers) return;
-
-    try {
-      setLoadingUsers(true);
-      setErrorText("");
-
-      const { data, error } = await supabase
-        .from("user_profiles")
-        .select("id, email, full_name, staff_name, role, financial_access, active")
-        .order("email", { ascending: true });
-
-      if (error) {
-        setErrorText(error.message || "Load users failed");
-        setUsers([]);
-        return;
-      }
-
-      setUsers((data || []) as UserProfileRow[]);
-    } finally {
-      setLoadingUsers(false);
-    }
-  }, [permissions.canManageUsers]);
-
-  useEffect(() => {
-    if (loadingProfile) return;
-    loadUsers();
-  }, [loadingProfile, loadUsers]);
-
-  const startEdit = (user: UserProfileRow) => {
-    setErrorText("");
-    setEditingUser({
-      id: user.id,
-      email: user.email || "",
-      full_name: user.full_name || "",
-      staff_name: user.staff_name || "",
-      role: normalizeEditableRole(user.role),
-      financial_access: user.financial_access === true,
-      active: user.active === true,
+  useEffect(() => { void load(); }, [load]);
+  const open = (user?: PeopleProfile) => {
+    setOriginal(user || null); setFormError(""); setCanDelete(false); setConfirmation(""); setNotice("");
+    setForm(user ? { ...user } : { email: "", full_name: "", staff_name: "", role: "lawyer", account_type: "", assignable: false });
+  };
+  const close = () => { if (!busy) { setForm(null); setOriginal(null); } };
+  const change = (key: string, value: unknown) => {
+    setCanDelete(false);
+    setForm(current => {
+      const next = { ...current, [key]: value };
+      if (next.account_type !== "operational" || next.active === false) next.assignable = false;
+      return next;
     });
   };
-
-  const cancelEdit = () => {
-    setEditingUser(null);
-    setErrorText("");
-  };
-
-  const saveUser = async () => {
-    if (!editingUser || !permissions.canManageUsers) return;
-
-    console.log("Updating user profile id:", editingUser.id);
-
-    if (!editingUser.id) {
-      alert("Missing user id");
-      return;
-    }
-
+  const save = async (event: React.FormEvent) => {
+    event.preventDefault(); if (!form || busy) return;
+    setBusy(true); setFormError("");
     try {
-      setSaving(true);
-      setErrorText("");
-
-      const oldUser = users.find((user) => user.id === editingUser.id);
-      const payload = {
-        full_name: editingUser.full_name.trim(),
-        staff_name: editingUser.staff_name.trim(),
-        role: editingUser.role,
-        financial_access: editingUser.financial_access,
-        active: editingUser.active,
-      };
-      const oldData: Record<string, unknown> = {};
-      const newData: Record<string, unknown> = {};
-
-      if ((oldUser?.full_name || "") !== payload.full_name) {
-        oldData.full_name = oldUser?.full_name || "";
-        newData.full_name = payload.full_name;
-      }
-
-      if ((oldUser?.staff_name || "") !== payload.staff_name) {
-        oldData.staff_name = oldUser?.staff_name || "";
-        newData.staff_name = payload.staff_name;
-      }
-
-      if (normalizeEditableRole(oldUser?.role) !== payload.role) {
-        oldData.role = normalizeEditableRole(oldUser?.role);
-        newData.role = payload.role;
-      }
-
-      if ((oldUser?.financial_access === true) !== payload.financial_access) {
-        oldData.financial_access = oldUser?.financial_access === true;
-        newData.financial_access = payload.financial_access;
-      }
-
-      if ((oldUser?.active === true) !== payload.active) {
-        oldData.active = oldUser?.active === true;
-        newData.active = payload.active;
-      }
-
-      const changedFields = Object.keys(newData);
-
-      if (changedFields.length === 0) {
-        alert("No changes to save");
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("user_profiles")
-        .update(payload)
-        .eq("id", editingUser.id)
-        .select("id, full_name, staff_name, role, financial_access, active")
-        .maybeSingle();
-
-      if (error) {
-        console.error("UPDATE USER PROFILE FAILED:", error);
-        alert(
-          "Update user profile failed:\n" +
-            [
-              `message: ${error.message || "-"}`,
-              `details: ${error.details || "-"}`,
-              `hint: ${error.hint || "-"}`,
-              `code: ${error.code || "-"}`,
-            ].join("\n")
-        );
-        setErrorText(error.message || "Save user failed");
-        return;
-      }
-
-      if (!data) {
-        alert(
-          "No user profile was updated. Please check user id or RLS policy."
-        );
-        setErrorText("No user profile was updated");
-        return;
-      }
-
-      try {
-        await createAuditLog({
-          caseId: null,
-          tableName: "user_profiles",
-          recordId: editingUser.id,
-          action: "update",
-          oldData,
-          newData,
-          note: `Admin updated user profile: ${
-            editingUser.email || editingUser.id
-          } | changed: ${changedFields.join(", ")}`,
-        });
-      } catch (auditError) {
-        console.error("CREATE USER PROFILE AUDIT LOG FAILED:", auditError);
-      }
-
-      setEditingUser(null);
-      await loadUsers();
-      alert("Updated user profile successfully");
-    } finally {
-      setSaving(false);
-    }
+      const input = original
+        ? Object.fromEntries(PROFILE_FIELDS.filter(key => form[key] !== original[key]).map(key => [key, form[key]]))
+        : Object.fromEntries(["email", "full_name", "staff_name", "role", "account_type", "assignable"].map(key => [key, form[key]]));
+      if (original && !Object.keys(input).length) { setForm(null); return; }
+      const result = await adminRequest(original ? { action: "save", id: original.id, input, expected: original } : { action: "create", input });
+      setNotice(result.warning ? (result.message || PEOPLE_ERRORS.ONBOARDING_FAILED) : original ? "บันทึกผู้ใช้แล้ว" : "สร้างผู้ใช้และส่งคำเชิญตั้งรหัสผ่านแล้ว");
+      setForm(null); setOriginal(null); await load();
+    } catch (error) { setFormError(error instanceof Error ? error.message : PEOPLE_ERRORS.OPERATION_FAILED); }
+    finally { setBusy(false); }
   };
-
-  if (loadingProfile) {
-    return (
-      <AuthGuard>
-        <main style={pageStyle}>
-          <div style={loadingBoxStyle}>Loading permission...</div>
-        </main>
-      </AuthGuard>
-    );
-  }
-
-  if (!permissions.canManageUsers) {
-    return (
-      <AuthGuard>
-        <main style={pageStyle}>
-          <AppTopNav
-            title="User Management"
-            subtitle="Admin users"
-            activePage="users"
-          />
-          <div style={noAccessBoxStyle}>No access</div>
-        </main>
-      </AuthGuard>
-    );
-  }
-
-  return (
-    <AuthGuard>
-      <main style={pageStyle}>
-        <AppTopNav
-          title="User Management"
-          subtitle="User profiles"
-          activePage="users"
-        />
-
-        <section style={panelStyle}>
-          {errorText ? <div style={errorBoxStyle}>{errorText}</div> : null}
-
-          {editingUser ? (
-            <div style={editPanelStyle}>
-              <div style={editTitleStyle}>Edit user: {editingUser.email}</div>
-
-              <div style={formGridStyle}>
-                <label style={fieldLabelStyle}>
-                  Full name
-                  <input
-                    value={editingUser.full_name}
-                    onChange={(event) =>
-                      setEditingUser({
-                        ...editingUser,
-                        full_name: event.target.value,
-                      })
-                    }
-                    style={inputStyle}
-                  />
-                </label>
-
-                <label style={fieldLabelStyle}>
-                  Staff name
-                  <input
-                    value={editingUser.staff_name}
-                    onChange={(event) =>
-                      setEditingUser({
-                        ...editingUser,
-                        staff_name: event.target.value,
-                      })
-                    }
-                    style={inputStyle}
-                  />
-                </label>
-
-                <label style={fieldLabelStyle}>
-                  Role
-                  <select
-                    value={editingUser.role}
-                    onChange={(event) =>
-                      setEditingUser({
-                        ...editingUser,
-                        role: event.target.value as UserRole,
-                      })
-                    }
-                    style={inputStyle}
-                  >
-                    {ROLE_OPTIONS.map((role) => (
-                      <option key={role} value={role}>
-                        {role}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label style={checkboxLabelStyle}>
-                  <input
-                    type="checkbox"
-                    checked={editingUser.financial_access}
-                    onChange={(event) =>
-                      setEditingUser({
-                        ...editingUser,
-                        financial_access: event.target.checked,
-                      })
-                    }
-                  />
-                  Financial access
-                </label>
-
-                <label style={checkboxLabelStyle}>
-                  <input
-                    type="checkbox"
-                    checked={editingUser.active}
-                    onChange={(event) =>
-                      setEditingUser({
-                        ...editingUser,
-                        active: event.target.checked,
-                      })
-                    }
-                  />
-                  Active
-                </label>
-              </div>
-
-              <div style={buttonRowStyle}>
-                <button
-                  type="button"
-                  onClick={saveUser}
-                  disabled={saving}
-                  style={primaryButtonStyle}
-                >
-                  {saving ? "Saving..." : "Save"}
-                </button>
-                <button
-                  type="button"
-                  onClick={cancelEdit}
-                  disabled={saving}
-                  style={secondaryButtonStyle}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          ) : null}
-
-          {loadingUsers ? (
-            <div style={loadingBoxStyle}>Loading users...</div>
-          ) : (
-            <div style={tableWrapStyle}>
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={thStyle}>Email</th>
-                    <th style={thStyle}>Full name</th>
-                    <th style={thStyle}>Staff name</th>
-                    <th style={thStyle}>Role</th>
-                    <th style={thStyle}>Financial access</th>
-                    <th style={thStyle}>Active</th>
-                    {permissions.canManageUsers ? (
-                      <th style={thStyle}>Action</th>
-                    ) : null}
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((user) => (
-                    <tr key={user.id}>
-                      <td style={tdStyle}>{user.email || "-"}</td>
-                      <td style={tdStyle}>{user.full_name || "-"}</td>
-                      <td style={tdStyle}>{user.staff_name || "-"}</td>
-                      <td style={tdStyle}>{user.role || "-"}</td>
-                      <td style={tdStyle}>
-                        {user.financial_access ? "Yes" : "No"}
-                      </td>
-                      <td style={tdStyle}>{user.active ? "Yes" : "No"}</td>
-                      {permissions.canManageUsers ? (
-                        <td style={tdStyle}>
-                          <button
-                            type="button"
-                            onClick={() => startEdit(user)}
-                            style={smallButtonStyle}
-                          >
-                            Edit
-                          </button>
-                        </td>
-                      ) : null}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {users.length === 0 ? (
-                <div style={emptyStyle}>No users found.</div>
-              ) : null}
-            </div>
-          )}
-        </section>
-      </main>
-    </AuthGuard>
-  );
+  const checkDelete = async () => {
+    if (!original) return;
+    setBusy(true); setFormError("");
+    try {
+      const result = await adminRequest({ action: "delete-check", id: original.id });
+      setCanDelete(result.deletable === true);
+      if (!result.deletable) setFormError(PEOPLE_ERRORS[result.code || "USER_HISTORY_REQUIRED"] || PEOPLE_ERRORS.USER_HISTORY_REQUIRED);
+    } catch (error) { setFormError(error instanceof Error ? error.message : PEOPLE_ERRORS.OPERATION_FAILED); }
+    finally { setBusy(false); }
+  };
+  const remove = async () => {
+    if (!original || !canDelete || confirmation !== original.email) return;
+    setBusy(true); setFormError("");
+    try {
+      await adminRequest({ action: "delete", id: original.id, confirmation });
+      setForm(null); setOriginal(null); setNotice("ลบบัญชีที่ไม่มีประวัติแล้ว"); await load();
+    } catch (error) { setFormError(error instanceof Error ? error.message : PEOPLE_ERRORS.OPERATION_FAILED); }
+    finally { setBusy(false); }
+  };
+  const resend = async () => {
+    if (!original) return;
+    setBusy(true); setFormError("");
+    try { await adminRequest({ action: "invite", id: original.id }); setNotice("ส่งคำเชิญอีกครั้งแล้ว"); }
+    catch (error) { setFormError(error instanceof Error ? error.message : PEOPLE_ERRORS.OPERATION_FAILED); }
+    finally { setBusy(false); }
+  };
+  const visible = users.filter(user => [user.full_name,user.staff_name,user.email].some(value => value?.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())));
+  return <AuthGuard><main className={`${ui.scope} ${styles.page}`}>
+    <AppTopNav title="จัดการผู้ใช้" subtitle="บัญชีเข้าใช้งาน สิทธิ์ และสถานะบุคลากร" activePage="users" />
+    <div className={styles.toolbar}>
+      <label className={styles.search}>ค้นหาผู้ใช้<input value={query} onChange={event => setQuery(event.target.value)} placeholder="ชื่อหรืออีเมล" /></label>
+      {actor && <button className={ui.primary} onClick={() => open()}>เพิ่มผู้ใช้</button>}
+      <button className={ui.secondary} onClick={() => void load()} disabled={loading}>รีเฟรช</button>
+    </div>
+    {pageError && <p role="alert" className={styles.error}>{pageError}</p>}
+    {notice && <p role="status" className={styles.notice}>{notice}</p>}
+    {loading ? <p role="status">กำลังโหลดผู้ใช้…</p> : actor && <>
+      <p className={styles.hint}>บัญชีเดิมที่ยังไม่จัดประเภทใช้งานได้ตามสิทธิ์เดิม ผู้ดูแลระบบเป็นผู้ระบุประเภทและการรับมอบหมายงาน</p>
+      <div className={styles.tableWrap}><table className={styles.table}><thead><tr>
+        <th>ชื่อ / อีเมล</th><th>บทบาท</th><th>ประเภทบัญชี</th><th>สถานะ</th><th>การรับมอบหมายงาน</th><th>สิทธิ์เพิ่มเติม</th><th>จัดการ</th>
+      </tr></thead><tbody>{visible.map(user => <tr key={user.id}>
+        <td><strong>{user.full_name || user.staff_name || "—"}</strong><span className={styles.secondaryText}>{user.email}</span>{user.staff_name && user.staff_name !== user.full_name && <span className={styles.secondaryText}>{user.staff_name}</span>}</td>
+        <td>{ROLE_LABELS[user.role] || user.role}</td><td>{accountLabel(user.account_type)}</td>
+        <td><span className={user.active ? styles.active : styles.inactive}>{user.active ? "เปิดใช้งาน" : "ปิดใช้งาน"}</span></td>
+        <td>{isAssignablePerson(user) ? "รับมอบหมายงานได้" : "ไม่รับมอบหมายงาน"}</td>
+        <td>{Object.keys(CAPABILITY_LABELS).filter(key => user[key] === true).length || "—"}</td>
+        <td><button className={ui.secondary} onClick={() => open(user)} aria-label={`แก้ไขผู้ใช้ ${user.full_name || user.email}`}>แก้ไข</button></td>
+      </tr>)}</tbody></table>{visible.length === 0 && <p className={styles.empty}>ไม่พบผู้ใช้</p>}</div>
+    </>}
+    <DetailModal open={!!form} title={original ? "แก้ไขผู้ใช้" : "เพิ่มผู้ใช้"} subtitle={original?.email || "ผู้ใช้จะได้รับอีเมลตั้งรหัสผ่านด้วยตนเอง"} size="edit" onClose={close} closeOnBackdrop={!busy} closeLabel="ปิด">
+      {form && <form onSubmit={save} className={styles.form}>
+        {formError && <p role="alert" className={styles.error}>{formError}</p>}
+        <fieldset disabled={busy} className={styles.fields}><div className={styles.grid}>
+          <label>อีเมล<input type="email" required maxLength={254} disabled={!!original} value={String(form.email || "")} onChange={e => change("email",e.target.value)} autoComplete="off" /></label>
+          <label>ชื่อเต็ม<input required maxLength={200} value={String(form.full_name || "")} onChange={e => change("full_name",e.target.value)} /></label>
+          <label>ชื่อที่ใช้ปฏิบัติงาน (ถ้ามี)<input maxLength={200} value={String(form.staff_name || "")} onChange={e => change("staff_name",e.target.value)} /></label>
+          <label>บทบาทหลัก<select value={String(form.role)} onChange={e => change("role",e.target.value)} disabled={original?.id === actor}>{PEOPLE_ROLES.map(role => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}</select></label>
+          <label>ประเภทบัญชี<select required={!original} value={String(form.account_type || "")} onChange={e => change("account_type",e.target.value || null)}>
+            <option value="">{original ? "ยังไม่จัดประเภท" : "เลือกประเภทบัญชี"}</option><option value="operational">ใช้งานจริง</option><option value="uat">UAT / ทดสอบ</option>
+          </select></label>
+        </div>
+        <label className={styles.check}><input type="checkbox" checked={form.assignable === true} disabled={form.account_type !== "operational" || form.active === false} onChange={e => change("assignable",e.target.checked)} />รับมอบหมายงานได้</label>
+        <p className={styles.hint}>เฉพาะบัญชีใช้งานจริงที่เปิดใช้งานเท่านั้น บัญชีทดสอบไม่รับมอบหมายงาน</p>
+        {original && <>
+          <label className={styles.check}><input type="checkbox" checked={form.active === true} disabled={original.id === actor} onChange={e => change("active",e.target.checked)} />เปิดใช้งาน</label>
+          <p className={styles.hint}>หากเลิกใช้งาน ให้เอาเครื่องหมายออกแล้วบันทึก ประวัติการทำงานยังคงอยู่</p>
+          <details className={styles.advanced}><summary>สิทธิ์เพิ่มเติม</summary><p className={styles.hint}>เป็นสิทธิ์เฉพาะบัญชี การเปลี่ยนบทบาทจะไม่ล้างค่าเหล่านี้</p><div className={styles.grid}>
+            {Object.entries(CAPABILITY_LABELS).filter(([key]) => key in original).map(([key,label]) => <label className={styles.check} key={key}><input type="checkbox" checked={form[key] === true} onChange={e => change(key,e.target.checked)} />{label}</label>)}
+          </div></details>
+        </>}
+        </fieldset>
+        <div className={styles.actions}><button type="button" className={ui.secondary} onClick={close} disabled={busy}>ยกเลิก</button><button type="submit" className={ui.primary} disabled={busy}>{busy ? "กำลังดำเนินการ…" : original ? "บันทึก" : "สร้างและส่งคำเชิญ"}</button></div>
+        {original && <details className={styles.advanced}><summary>การจัดการบัญชีเพิ่มเติม</summary>
+          <button type="button" className={ui.secondary} onClick={() => void resend()} disabled={busy || !original.active}>ส่งคำเชิญตั้งรหัสผ่านอีกครั้ง</button>
+          <p className={styles.hint}>ใช้สำหรับผู้ที่ยังไม่ยืนยันอีเมลเท่านั้น</p>
+          <p className={styles.hint}>แนะนำให้ปิดใช้งานแทนการลบถาวร ระบบจะไม่ลบผู้ใช้ที่มีประวัติ</p>
+          <button type="button" className={ui.danger} disabled={busy || original.id === actor || original.active || !original.account_type} onClick={() => void checkDelete()}>ตรวจสอบก่อนลบถาวร</button>
+          {canDelete && <div className={styles.deleteBox}><p>การลบถาวรจะลบบัญชีเข้าใช้งานและโปรไฟล์ และไม่สามารถย้อนกลับได้</p><label>พิมพ์อีเมลเพื่อยืนยัน<input value={confirmation} onChange={e => setConfirmation(e.target.value)} autoComplete="off" /></label><button type="button" className={ui.danger} onClick={() => void remove()} disabled={busy || confirmation !== original.email}>ยืนยันลบถาวร</button></div>}
+        </details>}
+      </form>}
+    </DetailModal>
+  </main></AuthGuard>;
 }
-
-function normalizeEditableRole(role?: string | null): UserRole {
-  if (ROLE_OPTIONS.includes(role as UserRole)) return role as UserRole;
-  return "viewer";
-}
-
-const pageStyle: React.CSSProperties = {
-  minHeight: "100vh",
-  padding: 24,
-  background: "#f8fafc",
-  color: "#111111",
-};
-
-const panelStyle: React.CSSProperties = {
-  border: "1px solid #dddddd",
-  borderRadius: 12,
-  background: "#ffffff",
-  overflow: "hidden",
-};
-
-const tableWrapStyle: React.CSSProperties = {
-  overflowX: "auto",
-};
-
-const tableStyle: React.CSSProperties = {
-  width: "100%",
-  borderCollapse: "collapse",
-  minWidth: 920,
-};
-
-const thStyle: React.CSSProperties = {
-  padding: "12px 14px",
-  borderBottom: "1px solid #dddddd",
-  background: "#f3f4f6",
-  textAlign: "left",
-  fontSize: 13,
-  fontWeight: 800,
-};
-
-const tdStyle: React.CSSProperties = {
-  padding: "12px 14px",
-  borderBottom: "1px solid #eeeeee",
-  fontSize: 14,
-  verticalAlign: "top",
-};
-
-const loadingBoxStyle: React.CSSProperties = {
-  padding: 18,
-  fontWeight: 800,
-};
-
-const noAccessBoxStyle: React.CSSProperties = {
-  padding: 18,
-  border: "1px solid #f0c4c4",
-  borderRadius: 12,
-  background: "#fff5f5",
-  color: "#a40000",
-  fontWeight: 800,
-};
-
-const errorBoxStyle: React.CSSProperties = {
-  margin: 16,
-  padding: 14,
-  border: "1px solid #f0c4c4",
-  borderRadius: 10,
-  background: "#fff5f5",
-  color: "#a40000",
-  fontWeight: 700,
-};
-
-const emptyStyle: React.CSSProperties = {
-  padding: 18,
-  color: "#666666",
-  fontWeight: 700,
-};
-
-const editPanelStyle: React.CSSProperties = {
-  padding: 16,
-  borderBottom: "1px solid #dddddd",
-  background: "#fbfbfb",
-};
-
-const editTitleStyle: React.CSSProperties = {
-  marginBottom: 14,
-  fontWeight: 900,
-};
-
-const formGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  gap: 12,
-  alignItems: "end",
-};
-
-const fieldLabelStyle: React.CSSProperties = {
-  display: "grid",
-  gap: 6,
-  fontSize: 13,
-  fontWeight: 800,
-};
-
-const checkboxLabelStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 8,
-  alignItems: "center",
-  minHeight: 40,
-  fontSize: 13,
-  fontWeight: 800,
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "10px 12px",
-  border: "1px solid #cccccc",
-  borderRadius: 8,
-  background: "#ffffff",
-  color: "#111111",
-};
-
-const buttonRowStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 10,
-  marginTop: 14,
-};
-
-const primaryButtonStyle: React.CSSProperties = {
-  padding: "10px 14px",
-  border: "1px solid #000000",
-  borderRadius: 8,
-  background: "#000000",
-  color: "#ffffff",
-  cursor: "pointer",
-  fontWeight: 800,
-};
-
-const secondaryButtonStyle: React.CSSProperties = {
-  padding: "10px 14px",
-  border: "1px solid #cccccc",
-  borderRadius: 8,
-  background: "#ffffff",
-  color: "#111111",
-  cursor: "pointer",
-  fontWeight: 800,
-};
-
-const smallButtonStyle: React.CSSProperties = {
-  padding: "8px 10px",
-  border: "1px solid #cccccc",
-  borderRadius: 8,
-  background: "#ffffff",
-  color: "#111111",
-  cursor: "pointer",
-  fontWeight: 800,
-};
