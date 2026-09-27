@@ -12,7 +12,7 @@ for(const locale of ['th','en']){
  const a=k=>translate(locale,'advisory.'+k);
  test(locale+' legacy Journey renders no claimed past visits, dates or current stage',()=>{
   const html=journey.render(locale,{}, {matter,stages:[],canEdit:true,onEdit(){}});
-  assert.ok(html.includes(a('unset')));assert.equal((html.match(/data-state="planned"/g)||[]).length,6);assert.doesNotMatch(html,/data-state="current"|data-state="visited"|NaN|undefined/);
+  assert.ok(html.includes(a('unset')));assert.equal((html.match(/<button[^>]*data-state="planned"/g)||[]).length,6);assert.doesNotMatch(html,/<button[^>]*data-state="(?:current|visited)"|NaN|undefined/);
   const readOnly=journey.render(locale,{}, {matter,stages:[],canEdit:false,onEdit(){}});assert.ok(!readOnly.includes('>'+a('activate')+'<'));
  });
  test(locale+' explicit Stage shows separate calendar duration, actual minutes, task completion and safe selected template',()=>{
