@@ -25,7 +25,7 @@ export default function MatterDetail(){const params=useParams(),id=String(params
  return <AuthGuard><main className={`${css.page} ${ui.page}`}><div className={css.shellHeader}><AppTopNav title={a('title')} activePage="advisory"/></div><Link className={css.back} href="/advisory"><ArrowLeft size={16}/>{a('back')}</Link>{(error||actionError)&&<p role="alert" className={css.error}>{actionError||a('loadError')} <button onClick={reload}>{a('refresh')}</button></p>}
  {!m?<p className={css.empty}>{a(loading?'loading':'empty')}</p>:<>
  <header className={ui.header}>
-   <div><div className={css.headingLine}><h1>{m.title}</h1><Badge value={m.status}/></div><p><strong>{m.matter_no}</strong> · <Link href={'/clients/'+m.client_id}>{m.client_name}</Link></p></div>
+   <div><div className={css.headingLine}><h1>{m.title}</h1><Badge kind="lifecycle" value={m.status}/></div><p><strong>{m.matter_no}</strong> · <Link href={'/clients/'+m.client_id}>{m.client_name}</Link></p></div>
    <div className={css.actions}><button onClick={reload}><RefreshCw size={15}/>{a('refresh')}</button>{permissions?.manage&&<button className={css.primary} onClick={()=>setEdit({action:m.closed_at?'reopen':'task_save',title:a(m.closed_at?'reopen':'addTask')})}><Plus size={16}/>{a(m.closed_at?'reopen':'addTask')}</button>}</div>
  </header>
  <div className={ui.metadata}><span>{a('type')}: <strong>{label(m.matter_type)}</strong></span><span>{a('lead')}: <strong>{m.lead_name||a('unassigned')}</strong></span></div>

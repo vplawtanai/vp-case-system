@@ -5,6 +5,7 @@ import {useI18n} from '../../../lib/i18n/provider';
 import {messages} from '../../../lib/i18n/catalog';
 import type {ControlRead,Person} from '../../../lib/advisory-control';
 import css from './control.module.css';
+import vp from '../../components/ui/vp-ui.module.css';
 export function useAdvisoryLabels(){const i=useI18n();return {...i,a:(key:string,parameters?:Record<string,string|number>)=>i.t('advisory.'+key,parameters),label:(value:string|null|undefined)=>!value?'—':messages['advisory.enum.'+value]?i.t('advisory.enum.'+value):value};}
 export function useControl(id?:string,query='{}'){
  const [data,setData]=useState<ControlRead|null>(null),[error,setError]=useState(false),[loading,setLoading]=useState(true);
@@ -19,5 +20,5 @@ export function useControl(id?:string,query='{}'){
  return {data,error,loading,reload};
 }
 export function usePeople(){const [people,setPeople]=useState<Person[]>([]);useEffect(()=>{let live=true;void supabase.from('user_profiles').select('id,full_name,staff_name,role').eq('active',true).eq('account_type','operational').eq('assignable',true).order('full_name').limit(200).then(r=>{if(live&&r.data)setPeople(r.data);});return()=>{live=false;};},[]);return people;}
-export function Badge({value}:{value:string|null|undefined}){const {label}=useAdvisoryLabels();return <span className={css.badge} data-status={value}>{label(value)}</span>;}
+export function Badge({value,kind}:{value:string|null|undefined;kind?:'lifecycle'}){const {label}=useAdvisoryLabels();return <span className={`${css.badge}${kind==='lifecycle'?' '+vp.scope:''}`} data-status={value} data-kind={kind}>{label(value)}</span>;}
 export function Pagination({offset,total,onChange}:{offset:number;total:number;onChange:(offset:number)=>void}){const {a}=useAdvisoryLabels();return <div className={css.pagination}><span>{a('count',{n:total})}</span><div><button disabled={offset===0} onClick={()=>onChange(Math.max(0,offset-20))}>{a('previous')}</button><span>{Math.floor(offset/20)+1}</span><button disabled={offset+20>=total} onClick={()=>onChange(offset+20)}>{a('nextPage')}</button></div></div>;}
