@@ -1,5 +1,6 @@
 import type { MessageCatalog } from "../core";
 export const advisoryControlMessages: MessageCatalog = {
+  "advisory.noClients": {"th":"ไม่พบลูกค้าที่ตรงกับคำค้น","en":"No clients match your search"},
   "advisory.stageTasksPending": {"th":"มีงานค้างในขั้นตอนนี้","en":"Incomplete tasks in this stage"},
   "advisory.tasksPending": {"th":"มีงานที่ยังไม่เสร็จ","en":"Incomplete tasks remain"},
   "advisory.nextPending": {"th":"ยังมีงานถัดไปค้างอยู่","en":"A next action is still pending"},

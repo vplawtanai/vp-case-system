@@ -34,3 +34,5 @@
 
 /* Operational dialogs share the Matter form and remain usable at 390px. */
 .checklist{list-style:none;margin:0;padding:12px;background:#f7fafc;border:1px solid #e0e8f0;border-radius:8px;display:grid;gap:12px}.checklist li{display:flex;align-items:flex-start;gap:10px;color:#996222}.checklist li[data-ok=true]{color:#187153}.checklist svg{flex-shrink:0;margin-top:2px}.durationFields{display:flex;gap:12px;min-width:0}.durationFields>label{flex:1;min-width:0}.timeWorkspace{display:flex;flex-direction:column;gap:12px}.timeWorkspace>button{align-self:flex-end}.form>div,.form>p{min-width:0;overflow-wrap:anywhere}.form details summary{cursor:pointer;padding:8px 0}.form details label{margin-top:12px}
+
+.clientPicker{display:flex;flex-direction:column;gap:5px}
