@@ -664,7 +664,7 @@ function focusPaymentAllocationValidationIssue(issue: PaymentAllocationValidatio
 }
 
 const profileSelect = [
-  "role",
+  "role", "active", "must_change_password", "finance_operator",
   "financial_access",
   "full_name",
   "staff_name",

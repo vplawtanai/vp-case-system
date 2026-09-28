@@ -9,6 +9,8 @@ export type UserRole =
 
 export type UserPermissionProfile = {
   active?: boolean | null;
+  finance_operator?: boolean | null;
+  must_change_password?: boolean | null;
   role?: UserRole | string | null;
   financial_access?: boolean | null;
   staff_name?: string | null;
@@ -321,10 +323,14 @@ export function renderRoleLabel(role?: string | null) {
 
 export function buildPermissions(profile?: UserPermissionProfile | null) {
   // Legacy UI projections omit active; AuthGuard/QuotationGuard validate it before
-  // exposing those pages. A known inactive Admin must never inherit role authority.
-  if (profile?.role === "admin" && profile.active !== undefined && profile.active !== true) profile = null;
+  // exposing those pages. A known inactive profile must never inherit operational authority.
+  if ((profile?.active !== undefined && profile.active !== true) || profile?.must_change_password === true) profile = null;
   const role = normalizeRole(profile?.role || "");
   const admin = isAdmin(role);
+  const partner = role === "partner";
+  const financeOperator = profile?.finance_operator === true && ["lawyer", "assistant_lawyer", "staff"].includes(role);
+  const financeOperations = admin || partner || financeOperator;
+  const financeSelfService = ["admin", "partner", "lawyer", "assistant_lawyer", "staff"].includes(role);
   const financialAccess = admin || profile?.financial_access === true;
   const staffName = profile?.staff_name || "";
   const canSubmitExpenseClaim =
@@ -337,53 +343,34 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
     profile?.can_approve_expense_claims === true || isPartnerUp(role);
   const canPayExpenseClaims = admin || profile?.can_pay_expense_claims === true;
   const canViewCompanyLedger =
-    profile?.can_view_company_ledger === true || isPartnerUp(role);
-  const canEditCompanyLedger = admin || profile?.can_edit_company_ledger === true;
-  const canVoidCompanyLedger = admin || profile?.can_void_company_ledger === true;
-  const canCreateCompensationBatch = isPartnerUp(role);
-  const canViewLawyerCompensation =
-    profile?.can_view_lawyer_compensation === true || canCreateCompensationBatch;
-  const canEditLawyerCompensation = admin || profile?.can_edit_lawyer_compensation === true;
-  const canVoidLawyerCompensation = admin || profile?.can_void_lawyer_compensation === true;
-  const canManageFinanceQuotations = isPartnerUp(role);
-  const canManageFinancePayments =
-    isAdmin(role) || profile?.can_manage_finance_payments === true;
-  const canConfirmFinancePayments =
-    isAdmin(role) || profile?.can_confirm_finance_payments === true;
-  const canReverseFinancePayments =
-    isAdmin(role) || profile?.can_reverse_finance_payments === true;
-  const canReallocateFinancePayments =
-    isAdmin(role) || profile?.can_reallocate_finance_payments === true;
-  const canViewFinanceCashTransactions =
-    isPartnerUp(role) ||
-    profile?.can_view_finance_cash_transactions === true ||
-    profile?.can_manage_finance_cash_transactions === true ||
-    profile?.can_confirm_finance_cash_transactions === true ||
-    profile?.can_reverse_finance_cash_transactions === true;
-  const canManageFinanceReceipts = isAdmin(role) || profile?.can_manage_finance_receipts === true;
-  const canManageFinanceTaxInvoices = isAdmin(role) || profile?.can_manage_finance_tax_invoices === true;
-  const canIssueFinanceTaxInvoices = isAdmin(role) || profile?.can_issue_finance_tax_invoices === true;
-  const canViewFinanceTaxInvoices = isAdmin(role) || profile?.can_view_finance_tax_invoices === true ||
-    canManageFinanceTaxInvoices || canIssueFinanceTaxInvoices;
-  const canIssueFinanceReceipts = isAdmin(role) || profile?.can_issue_finance_receipts === true;
-  const canVoidFinanceReceipts = isAdmin(role) || profile?.can_void_finance_receipts === true;
-  const canViewFinanceReceipts = isAdmin(role) || profile?.can_view_finance_receipts === true ||
-    canManageFinanceReceipts || canIssueFinanceReceipts || canVoidFinanceReceipts;
-  const canManageFinanceCashTransactions =
-    isAdmin(role) || profile?.can_manage_finance_cash_transactions === true;
-  const canConfirmFinanceCashTransactions =
-    isAdmin(role) || profile?.can_confirm_finance_cash_transactions === true;
-  const canReverseFinanceCashTransactions =
-    isAdmin(role) || profile?.can_reverse_finance_cash_transactions === true;
-  const canViewFinanceBillableCharges =
-    isPartnerUp(role) ||
-    profile?.can_view_finance_billable_charges === true ||
-    profile?.can_manage_finance_billable_charges === true ||
-    profile?.can_approve_finance_billable_charges === true;
-  const canManageFinanceBillableCharges =
-    isAdmin(role) || profile?.can_manage_finance_billable_charges === true;
-  const canApproveFinanceBillableCharges =
-    isAdmin(role) || profile?.can_approve_finance_billable_charges === true;
+    isPartnerUp(role);
+  const canEditCompanyLedger = admin;
+  const canVoidCompanyLedger = admin;
+  const canCreateCompensationBatch = admin;
+  const canViewLawyerCompensation = admin;
+  const canEditLawyerCompensation = admin;
+  const canVoidLawyerCompensation = admin;
+  // 078: routine document authority is separate from money/control authority.
+  const canManageFinanceQuotations = financeOperations;
+  const canManageFinancePayments = financeOperations;
+  const canConfirmFinancePayments = admin;
+  const canReverseFinancePayments = admin;
+  const canReallocateFinancePayments = admin;
+  // This permits entering the scoped workspace; the server returns only authorized accounts.
+  const canViewFinanceCashTransactions = financeOperations;
+  const canManageFinanceReceipts = financeOperations;
+  const canManageFinanceTaxInvoices = financeOperations;
+  const canIssueFinanceTaxInvoices = financeOperations;
+  const canViewFinanceTaxInvoices = financeOperations;
+  const canIssueFinanceReceipts = financeOperations;
+  const canVoidFinanceReceipts = admin;
+  const canViewFinanceReceipts = financeOperations;
+  const canManageFinanceCashTransactions = admin;
+  const canConfirmFinanceCashTransactions = admin;
+  const canReverseFinanceCashTransactions = admin;
+  const canViewFinanceBillableCharges = financeOperations;
+  const canManageFinanceBillableCharges = financeOperations;
+  const canApproveFinanceBillableCharges = financeOperations;
   const canSubmitOfficeWorkLog = admin || profile?.can_submit_office_work_log === true;
   const canViewOwnOfficeWorkLogs = admin || profile?.can_view_own_office_work_logs === true;
   const canViewAllOfficeWorkLogs = admin || profile?.can_view_all_office_work_logs === true;
@@ -394,6 +381,14 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
     role,
     financialAccess,
     staffName,
+    financeOperator,
+    canViewFinanceDistribution: admin || partner,
+    canViewFinanceBusiness: admin || partner,
+    canUseNewFinanceExpenses: financeSelfService,
+    canViewFinancePayables: financeOperations,
+    canViewOwnCompensation: financeSelfService,
+    canExecuteParticipantPayments: admin || financeOperator,
+    canFileFinanceTax: admin || financeOperator,
 
     canViewCases: canViewCases(role),
     canViewDashboard: canViewDashboard(role),
@@ -415,7 +410,7 @@ export function buildPermissions(profile?: UserPermissionProfile | null) {
     canViewFinanceQuotations: canManageFinanceQuotations,
     canCreateFinanceQuotation: canManageFinanceQuotations,
     canEditFinanceQuotation: canManageFinanceQuotations,
-    canCancelFinanceQuotation: canManageFinanceQuotations,
+    canCancelFinanceQuotation: admin,
     canMarkFinanceQuotationSent: canManageFinanceQuotations,
     canMarkFinanceQuotationAccepted: canManageFinanceQuotations,
     canManageFinancePayments,

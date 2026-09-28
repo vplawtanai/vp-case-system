@@ -153,6 +153,12 @@ export default function UsersPage() {
           <label>ชื่อเต็ม<input required maxLength={200} value={String(form.full_name || "")} onChange={e => change("full_name",e.target.value)} /></label>
           <label>ชื่อที่ใช้ปฏิบัติงาน (ถ้ามี)<input maxLength={200} value={String(form.staff_name || "")} onChange={e => change("staff_name",e.target.value)} /></label>
           <label>บทบาทหลัก<select value={String(form.role)} onChange={e => change("role",e.target.value)} disabled={original?.id === actor}>{PEOPLE_ROLES.map(role => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}</select></label>
+          {original && !["admin", "partner", "viewer"].includes(String(form.role)) && <label>
+            <span>{locale === "th" ? "ความรับผิดชอบเพิ่มเติม" : "Additional responsibility"}</span>
+            <span><input type="checkbox" checked={form.finance_operator === true} onChange={e => change("finance_operator", e.target.checked)} /> {locale === "th" ? "ผู้ปฏิบัติงานการเงิน" : "Finance Operator"}</span>
+            <small>{locale === "th" ? "บันทึกความรับผิดชอบนี้ก่อนกำหนดสิทธิ์บัญชี การอนุมัติและยืนยันเงินรับยังเป็นหน้าที่ Admin" : "Save this responsibility before assigning accounts. Expense approval and incoming confirmation remain Admin responsibilities."}</small>
+            <a href="/finance/expenses/accounts" target="_blank" rel="noreferrer">{locale === "th" ? "จัดการสิทธิ์บัญชีรับผิดชอบ" : "Manage account custody"}</a>
+          </label>}
           <label>ประเภทบัญชี<select required={!original} value={String(form.account_type || "")} onChange={e => change("account_type",e.target.value || null)}>
             <option value="">{original ? "ยังไม่จัดประเภท" : "เลือกประเภทบัญชี"}</option><option value="operational">ใช้งานจริง</option><option value="uat">UAT / ทดสอบ</option>
           </select></label>

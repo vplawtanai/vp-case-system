@@ -1,5 +1,5 @@
 import { canOverview } from "./overview/data";
-import { isAdmin, type UserPermissions } from "../../lib/permissions";
+import { type UserPermissions } from "../../lib/permissions";
 import { translate } from "../../lib/i18n/catalog";
 import type { UiLocale } from "../../lib/i18n/core";
 import type { ExpenseAccess } from "./expenses/shared";
@@ -26,7 +26,8 @@ export type FinanceSubNavPage =
   | "expenses"
   | "expense-claims"
   | "payables"
-  | "compensation";
+  | "compensation"
+  | "participant-payments";
 
 export type FinanceNavigationLink = {
   href: string;
@@ -44,8 +45,6 @@ export type FinanceNavigationItem = FinanceNavigationLink | FinanceNavigationGro
 
 export function financeNavigationLinks(permissions: FinanceNavigationPermissions, locale: UiLocale = "th"): FinanceNavigationLink[] {
   const t = (key: string) => translate(locale, key);
-  // Temporary development/UAT visibility gate; route access and permissions stay unchanged.
-  const showNewFinance = isAdmin(permissions.role);
   const links: (FinanceNavigationLink | null)[] = [
     canOverview(permissions) ? {href: "/finance/overview", page: "overview", label: t("executive.nav")} : null,
     permissions.canViewFinanceQuotations
@@ -63,7 +62,7 @@ export function financeNavigationLinks(permissions: FinanceNavigationPermissions
     permissions.canViewFinancePayments || permissions.canManageFinancePayments || permissions.canConfirmFinancePayments || permissions.canReverseFinancePayments || permissions.canReallocateFinancePayments
       ? { href: "/finance/payments", page: "payments" as const, label: t("finance.nav.payments") }
       : null,
-    permissions.canViewFinancePayments
+    permissions.canViewFinanceDistribution
       ? { href: "/finance/revenue-distribution", page: "revenue-distribution" as const, label: t("revenueDistribution.title") }
       : null,
     permissions.canViewFinanceReceipts
@@ -75,20 +74,23 @@ export function financeNavigationLinks(permissions: FinanceNavigationPermissions
     permissions.canViewFinanceTaxInvoices
       ? { href: "/finance/tax-invoices", page: "tax-invoices" as const, label: t("finance.nav.taxInvoices") }
       : null,
-    showNewFinance
+    permissions.canViewFinancePayables
       ? { href: "/finance/expenses", page: "expenses" as const, label: t("expenses.title") }
       : null,
-    showNewFinance
+    permissions.canUseNewFinanceExpenses
       ? { href: "/finance/expenses/claims", page: "expense-claims" as const, label: t("expenses.claims") }
       : null,
-    showNewFinance
+    permissions.canViewFinancePayables
       ? { href: "/finance/payables", page: "payables" as const, label: t("payables.title") }
       : null,
-    showNewFinance
+    permissions.canViewFinanceTaxInvoices
       ? { href: "/finance/tax-position", page: "tax-position" as const, label: t("taxPosition.title") }
       : null,
     permissions.canSubmitExpenseClaim || permissions.canViewOwnExpenseClaims || permissions.canViewAllExpenseClaims
       ? { href: "/finance/expense-claims", page: "claims" as const, label: t("payables.legacyClaims") }
+      : null,
+    permissions.canViewOwnCompensation
+      ? { href: "/finance/participant-payments", page: "participant-payments" as const, label: permissions.canExecuteParticipantPayments ? (locale === "th" ? "จ่ายส่วนแบ่ง" : "Participant payments") : (locale === "th" ? "ส่วนแบ่งของฉัน" : "My compensation") }
       : null,
     permissions.canViewLawyerCompensation
       ? { href: "/finance/compensation", page: "compensation" as const, label: t("finance.nav.compensation") }
@@ -117,7 +119,7 @@ export function financeNavigationItems(permissions: FinanceNavigationPermissions
 
 export function activeFinancePage(pathname: string | null, fallback: FinanceSubNavPage): FinanceSubNavPage {
   const routes: [string, FinanceSubNavPage][] = [
-    ["overview", "overview"],
+    ["overview", "overview"], ["participant-payments", "participant-payments"],
     ["statement", "statement"],
     ["payouts", "payables"], ["revenue-distribution", "revenue-distribution"],
     ["quotations", "quotations"], ["fee-agreements", "fee-agreements"], ["billing-plans", "fee-agreements"],

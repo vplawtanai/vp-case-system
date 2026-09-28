@@ -4,10 +4,10 @@ const {workspaceFixture}=require('./i18n-workspace-fixture.cjs'),{translate}=req
 const fixture=require('./distribution-payout-fixture.json');
 const detail=workspaceFixture('app/finance/revenue-distribution/detail.tsx',['RevenueDetail'],{'./participant-payment':{ParticipantPayment:()=>null}});
 for(const locale of ['th','en'])test('068 '+locale+' participant actions/status, company excluded and readonly',()=>{
- const c=structuredClone(fixture.detail),w=k=>translate(locale,'revenueDistribution.'+k),render=data=>detail.render(locale,{'RevenueDetail.data':data},{sourceType:'direct_money_receipt',sourceId:c.summary.source_id},'RevenueDetail');
+ const c={...structuredClone(fixture.detail),can_pay:true},w=k=>translate(locale,'revenueDistribution.'+k),render=data=>detail.render(locale,{'RevenueDetail.data':data},{sourceType:'direct_money_receipt',sourceId:c.summary.source_id},'RevenueDetail');
  let html=render(c);assert.equal((html.match(new RegExp('>'+w('pay')+'</button>','g'))||[]).length,2);assert.ok(html.includes(w('company')));
  c.participants[0]={...c.participants[0],payout_id:'synthetic',paid_on:'2026-09-24',account:'Dynamic Company Bank',net_amount:1940,wht_amount:60};c.summary.state='partial';html=render(c);assert.ok(html.includes(w('participantPaid')));assert.ok(html.includes('Dynamic Company Bank'));assert.ok(html.includes('1,940.00'));assert.equal((html.match(new RegExp('>'+w('pay')+'</button>','g'))||[]).length,1);
- c.can_manage=false;assert.ok(!render(c).includes('>'+w('pay')+'</button>'));
+ c.can_manage=true;c.can_pay=false;assert.ok(!render(c).includes('>'+w('pay')+'</button>'),'referral management never grants payout authority');
 });
 test('068 modal uses existing payout arithmetic and explicit WHT, no incoming tax reuse or direct table writes',()=>{
  const ui=fs.readFileSync('app/finance/revenue-distribution/participant-payment.tsx','utf8');assert.match(ui,/payoutMath/);assert.match(ui,/\[rate, setRate\] = useState\(""\)/);assert.match(ui,/p_acknowledged: true/);assert.match(ui,/p_request_id: requestId/);assert.match(ui,/if \(lock.current/);assert.doesNotMatch(ui,/\.from\(|\.insert\(|\.update\(|summary\.wht|source\.wht/);

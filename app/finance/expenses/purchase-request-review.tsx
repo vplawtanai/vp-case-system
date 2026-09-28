@@ -79,7 +79,7 @@ export function PurchaseRequestItemReview({ row, access, lookups, run, busy }: I
  return <div className={css.review} data-purchase-review>
   <section className={css.facts}><div><h3>{row.description}</h3>{!reviewable ? <p>{row.reviewed_recipient_name || row.vendor_name}</p> : null}<p>{date(row.expense_date)} · {expenseCategoryLabel(row.category,locale)}</p></div><div className={css.amount}><span>{t("expenses.amount")}</span><strong>{money(row.declared_gross_amount ?? row.gross_amount)}</strong></div></section>
   <CompanyItemPayment item={row} />
-  {row.status === "accepted" ? <ExpenseEconomicPanel row={row} canManage={access.can_manage}/> : null}
+  {row.status === "accepted" && access.can_view_all ? <ExpenseEconomicPanel row={row} canManage={access.can_manage}/> : null}
   {clientName || workName != null ? <div className={css.linkageSummary} data-purchase-linkage>{clientName ? <p>{t("expenses.client")}: {clientName}</p> : null}{workName != null ? <p>{t("expenses.purchaseWork")}: {workName}</p> : null}</div> : null}
   <div className={css.columns}><div className={css.controls}>
    {reviewable ? <FieldGroup id="purchase-review-recipient" label={t("expenses.purchaseRequestVendor")}><input required maxLength={300} value={recipient} disabled={disabled} onChange={e=>setRecipient(e.target.value)} /></FieldGroup> : null}

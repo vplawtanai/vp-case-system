@@ -28,10 +28,10 @@ for(const locale of ['th','en'])test(`055 ${locale}: real Expense summaries, min
  for(const key of ['vatRate','eligibility','whtRate','confirmPayment'])assert.ok(!form.includes(t(key)),key);
  assert.doesNotMatch(form,/<pre|type="file"/);
  const admin={...buildPermissions({role:'admin'}),expenseAccess:f.data.access},items=financeNavigationItems(admin,locale);
- assert.deepEqual(items.map(i=>i.group||i.page),['quotations','fee-agreements','billable-charges','invoices','payments','revenue-distribution','payment-documents','expenses','expense-claims','payables','treasury','tax-position','legacy']);
- assert.deepEqual(items.at(-1).children.map(i=>i.href),['/finance/expense-claims','/finance/compensation','/finance/ledger']);
+ assert.deepEqual(items.map(i=>i.group||i.page),['overview','quotations','service-fees','invoices','payments','revenue-distribution','payment-documents','expenses','expense-claims','payables','tax-position','legacy','participant-payments','statement']);
+ assert.deepEqual(items.find(i=>i.group==='legacy').children.map(i=>i.href),['/finance/expense-claims','/finance/compensation','/finance/ledger']);
  const staff={...buildPermissions({role:'staff',can_submit_expense_claim:true,can_view_own_expense_claims:true}),expenseAccess:employee.data.access};
- assert.deepEqual(financeNavigationLinks(staff,locale).map(l=>l.page),['claims']);
+ assert.deepEqual(financeNavigationLinks(staff,locale).map(l=>l.page),['expense-claims','claims','participant-payments']);
  const custodian={...staff,expenseAccess:{...employee.data.access,can_view_accounts:true}};assert.ok(!financeNavigationLinks(custodian,locale).some(l=>l.page==='expenses'));assert.ok(!financeNavigationLinks(custodian,locale).some(l=>l.page==='payables'));
  const sidebar=nav.render(locale,{}, {permissions:admin,pathname:'/finance/receipts/synthetic',onNavigate:()=>{}},'FinanceSidebar');assert.match(sidebar,/aria-expanded="true"/);assert.match(sidebar,/aria-current="page"/);
  assert.equal(activeFinancePage('/finance/expenses/claims/new'),'expense-claims');assert.equal(activeFinancePage('/finance/expenses/synthetic'),'expenses');

@@ -17,7 +17,7 @@ import listStyles from "./incoming-money.module.css";
 
 export default function PaymentsPage() {
   return <QuotationGuard canAccess={access => access.permissions.canViewFinancePayments}>
-    {access => <><FinanceSubNav activePage="payments" permissions={access.permissions} /><IncomingMoney canManage={access.profile?.role === "admin"} /></>}
+    {access => <><FinanceSubNav activePage="payments" permissions={access.permissions} /><IncomingMoney canManage={access.permissions.canManageFinancePayments} /></>}
   </QuotationGuard>;
 }
 

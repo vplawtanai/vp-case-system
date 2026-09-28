@@ -4,7 +4,7 @@ export type AccountType = "operational" | "uat" | null;
 export type PeopleProfile = {
   id: string; email: string | null; full_name: string | null; staff_name: string | null;
   role: string; active: boolean; financial_access: boolean;
-  account_type: AccountType; assignable: boolean; must_change_password?: boolean;
+  finance_operator?: boolean; account_type: AccountType; assignable: boolean; must_change_password?: boolean;
   [key: string]: unknown;
 };
 export const ROLE_LABELS: Record<string, string> = {
@@ -55,7 +55,7 @@ export function isActiveAdmin(profile: { role?: unknown; active?: unknown } | nu
 export function isAssignablePerson(profile: { active?: unknown; account_type?: unknown; assignable?: unknown }) {
   return profile.active === true && profile.account_type === "operational" && profile.assignable === true;
 }
-export const PROFILE_FIELDS = ["full_name", "staff_name", "role", "active", "account_type", "assignable", ...Object.keys(CAPABILITY_LABELS)];
+export const PROFILE_FIELDS = ["full_name", "staff_name", "role", "active", "account_type", "assignable", "finance_operator", ...Object.keys(CAPABILITY_LABELS)];
 export function validatePeopleInput(value: unknown, creating = false): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("INVALID_INPUT");
   const input = value as Record<string, unknown>;
@@ -70,7 +70,7 @@ export function validatePeopleInput(value: unknown, creating = false): Record<st
   if ("full_name" in result && !result.full_name) throw new Error("INVALID_INPUT");
   if ("role" in result && !PEOPLE_ROLES.includes(result.role as typeof PEOPLE_ROLES[number])) throw new Error("INVALID_INPUT");
   if ("account_type" in result && ![null, "operational", "uat"].includes(result.account_type as AccountType)) throw new Error("INVALID_INPUT");
-  for (const key of ["active", "assignable", ...Object.keys(CAPABILITY_LABELS)]) {
+  for (const key of ["active", "assignable", "finance_operator", ...Object.keys(CAPABILITY_LABELS)]) {
     if (key in result && typeof result[key] !== "boolean") throw new Error("INVALID_INPUT");
   }
   if (creating) {

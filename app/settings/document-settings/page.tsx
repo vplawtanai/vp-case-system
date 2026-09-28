@@ -92,7 +92,7 @@ export default function DocumentSettingsPage() {
   const servicePatternFormRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = role === "admin";
-  const canManageSigners = role === "admin" || role === "partner";
+  const canManageSigners = isAdmin;
 
   const loadAssetUrl = useCallback(async (path: string | null | undefined) => {
     if (!path) return;

@@ -74,14 +74,14 @@ export async function loadOverview(read: Read, p: UserPermissions, month: string
   cash:optional(p.canViewFinanceCashTransactions,async()=>{const r=aggregate(await call('get_finance_cash_flow_summary',{p_from:from,p_to:to}),'cash');if(r.from_date!==from||r.to_date!==to)throw Error('Stale period');return r;}),
   receivables:optional(p.canViewFinanceQuotations,async()=>aggregate(await call('get_finance_receivables_summary'),'receivables')),
   payables:(async():Promise<Result<Aggregate>>=>{const a=await access;if(a.status!=='ready')return a;return optional(a.value.can_view_all,async()=>aggregate(await call('get_finance_general_payables_summary'),'payables'));})(),
-  participants:optional(p.canViewFinancePayments,async()=>aggregate(await call('get_finance_unpaid_participants_summary'),'participants')),
-  economic:(async():Promise<Result<Economic>>=>{const a=await access;if(a.status!=='ready')return a;return optional(p.canViewFinancePayments&&a.value.can_view_all,async()=>{
+  participants:optional(p.canViewFinanceBusiness,async()=>aggregate(await call('get_finance_unpaid_participants_summary'),'participants')),
+  economic:(async():Promise<Result<Economic>>=>{const a=await access;if(a.status!=='ready')return a;return optional(p.canViewFinanceBusiness&&a.value.can_view_all,async()=>{
    const [income,expenses,alerts]=await Promise.all([call<CompanyStatementData>('get_finance_company_statement',{p_month:from,p_source_type:'all',p_search:'',p_offset:0}),call<StatementData>('get_finance_unified_company_statement',{...economicArgs,p_from:from,p_to:to}),call<StatementData>('get_finance_unified_company_statement',{...economicArgs,p_from:'0001-01-01',p_to:today})]);
    array(income.totals);array(income.rows);count(income.count);count(income.excluded_count);for(const r of income.totals){if(!/^[A-Z]{3}$/.test(r.currency))throw Error('Invalid currency');satang(r.amount);}
    for(const r of [expenses,alerts]){array(r.rows);count(r.count);count(r.unclassified_count);satang(r.expense);}
    const e={income,expenses,alerts};economics(e);return e;
   });})(),
-  distribution:optional(p.canViewFinancePayments,async()=>{const r=await call<RevenueWorkspaceData>('get_finance_revenue_distribution_workspace',{p_month:null,p_source_type:'all',p_status:'pending',p_search:'',p_offset:0});array(r.rows);array(r.summary);count(r.count);for(const row of r.summary){count(row.count);count(row.unresolved);if(!/^[A-Z]{3}$/.test(row.currency))throw Error('Invalid currency');if(row.amount!==null)satang(row.amount);}return r;}),
+  distribution:optional(p.canViewFinanceDistribution,async()=>{const r=await call<RevenueWorkspaceData>('get_finance_revenue_distribution_workspace',{p_month:null,p_source_type:'all',p_status:'pending',p_search:'',p_offset:0});array(r.rows);array(r.summary);count(r.count);for(const row of r.summary){count(row.count);count(row.unresolved);if(!/^[A-Z]{3}$/.test(row.currency))throw Error('Invalid currency');if(row.amount!==null)satang(row.amount);}return r;}),
   tax:optional(p.canViewFinanceTaxInvoices||p.role==='partner',async()=>{const [m,register]=await Promise.all([readTax(),call<TaxPositionData>('get_finance_tax_position')]);array(register.facts);array(register.periods);return {month:m,register};}),
  };
  const [treasury,cash,receivables,payables,participants,economic,distribution,tax]=await Promise.all([tasks.treasury,tasks.cash,tasks.receivables,tasks.payables,tasks.participants,tasks.economic,tasks.distribution,tasks.tax]);

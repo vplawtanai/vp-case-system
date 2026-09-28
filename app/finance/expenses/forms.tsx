@@ -27,8 +27,8 @@ export function ExpenseFactsForm({ row, claim, access, accounts, lookups, run, b
  const twoFlows = declarationOnly && !companyHistoricalMoney(row);
  const formId = useId();
  const [id] = useState(() => row?.id || crypto.randomUUID());
- const [handling, setHandling] = useState(twoFlows ? ["company_paid", "unpaid"].includes(row?.creator_payment_fact || "") ? row!.creator_payment_fact! : "" : paymentFacts && row?.creator_payment_fact ? row.creator_payment_fact === "personal_paid" ? "personal" : row.creator_payment_fact : !onCapture && !claim && !access.can_manage ? "company_paid" : row?.personally_paid ? "personal" : !companyCapture && row?.supplier_payee_id ? "unpaid" : "unknown");
- const immediate = !onCapture && !claim && handling === "company_paid";
+ const [handling, setHandling] = useState(twoFlows ? ["company_paid", "unpaid"].includes(row?.creator_payment_fact || "") ? row!.creator_payment_fact! : "" : paymentFacts && row?.creator_payment_fact ? row.creator_payment_fact === "personal_paid" ? "personal" : row.creator_payment_fact : row?.personally_paid ? "personal" : !companyCapture && row?.supplier_payee_id ? "unpaid" : "unknown");
+ const immediate = access.is_admin && !onCapture && !claim && handling === "company_paid";
  const [categoryChoice, setCategoryChoice] = useState(() => expenseCategoryChoice(row?.category || ""));
  const [customCategory, setCustomCategory] = useState(() => expenseCategoryChoice(row?.category || "") === "Other" ? row?.category || "" : "");
  const categories = expenseCategoryOptions(claim ? "claim" : "company", row?.category);
@@ -66,11 +66,11 @@ export function ExpenseFactsForm({ row, claim, access, accounts, lookups, run, b
   {companyCapture ? field("vendor_name", "companyVendor") : null}
   {field("gross_amount", "amount", "number", true)}
   {twoFlows ? <fieldset className={moneyCss.choices}><legend>{t("expenses.companyPaymentStatus")}</legend><div>{["company_paid", "unpaid"].map(value => <label key={value}><input type="radio" name={`${formId}-payment-status`} value={value} checked={handling === value} onChange={() => changeHandling(value)} /><span>{t(value === "company_paid" ? "expenses.handlingCompanyPaid" : "expenses.companyUnpaid")}</span></label>)}</div></fieldset> : !claim ? <FieldGroup id="expense-handling" label={t(companyCapture ? "expenses.companyPaymentQuestion" : "expenses.paymentFacts")}><select value={handling} onChange={e => changeHandling(e.target.value)}>
-   {access.can_manage || onCapture ? <option value="unknown">{t(companyCapture ? "expenses.companyPaymentUnknown" : "expenses.handlingUnknown")}</option> : null}
+   <option value="unknown">{t(companyCapture ? "expenses.companyPaymentUnknown" : "expenses.handlingUnknown")}</option>
    {(access.can_manage && !companyCapture) || paymentFacts ? <option value="unpaid">{t(companyCapture ? "expenses.companyUnpaid" : "expenses.handlingUnpaid")}</option> : null}
    {paymentFacts ? <option value="company_paid">{t("expenses.handlingCompanyPaid")}</option> : null}
    {access.can_manage || paymentFacts ? <option value="personal" disabled={!access.can_manage}>{t(companyCapture ? "expenses.companyPersonalPaid" : "expenses.handlingPersonal")}</option> : null}
-   {!onCapture && !row && accounts.some(a => a.can_record && a.can_confirm) ? <option value="company_paid">{t("expenses.handlingCompanyPaid")}</option> : null}
+   {!onCapture && !row && access.is_admin && accounts.some(a => a.can_record && a.can_confirm) ? <option value="company_paid">{t("expenses.handlingCompanyPaid")}</option> : null}
   </select></FieldGroup> : null}
   <div className={css.span}>{field("description", "description", "text", true)}</div>
  </div>
@@ -158,14 +158,14 @@ export function ExpensePaymentPanel({ row, access, accounts, run, busy }: { row:
  const [account, setAccount] = useState(p?.bank_account_id || p?.cash_location_id || ""), [paidOn, setPaidOn] = useState(p?.paid_on || bangkokToday());
  const [withhold, setWithhold] = useState(false), [ack, setAck] = useState(false), [cancelAck, setCancelAck] = useState(false);
  const money = (v: number) => `${v.toLocaleString(locale, { minimumFractionDigits: 2 })} THB`;
- const available = accounts.filter(a => (companyExpense || a.can_record) && (row.settlement?.mode !== "company_bank" || a.kind === "bank") && (row.settlement?.mode !== "company_cash" || a.kind === "cash"));
+ const available = accounts.filter(a => a.can_record && (row.settlement?.mode !== "company_bank" || a.kind === "bank") && (row.settlement?.mode !== "company_cash" || a.kind === "cash"));
  const selectedAccount = available.find(a => a.id === account);
- const blockedAccount = companyExpense && (!selectedAccount || expenseAccountBlocked(selectedAccount));
+ const blockedAccount = !selectedAccount || expenseAccountBlocked(selectedAccount);
  if (p?.status === "confirmed") return <Callout tone="success">{t(row.origin === "employee_claim" ? "expenses.claimRefunded" : "expenses.paid")}: {money(p.net)}{row.origin !== "employee_claim" ? <><br />{t("expenses.wht")}: {money(p.wht)}</> : null}</Callout>;
  if (row.obligation?.waived || !row.settlement || ["undecided", "no_reimbursement"].includes(row.settlement.mode)) return null;
  return <section className={css.paymentPanel} id="payment"><h3><Wallet size={18} aria-hidden="true" /> {t("expenses.paymentReview")}</h3>
   {row.reviewed_recipient_name ? <p>{t("expenses.payee")}: {row.reviewed_recipient_name}</p> : null}
-  {(!p || p.status === "cancelled") && access.can_manage ? <form className={css.form} onSubmit={async e => { e.preventDefault(); const a = available.find(a => a.id === account); await run("prepare_finance_expense_payout", { p_id: id, p_expense: row.id, p_version: null, p_paid_on: paidOn, p_bank: a?.bank_account_id || null, p_cash: a?.cash_location_id || null, p_actual_wht: row.personally_paid ? false : row.tax_review?.request_json?.schema_version === 2 ? row.tax_review.wht_state === "withhold" : withhold, p_note: "" }); }}>
+  {(!p || p.status === "cancelled") && (access.is_admin || (access.can_record && row.status === "accepted")) ? <form className={css.form} onSubmit={async e => { e.preventDefault(); const a = available.find(a => a.id === account); await run("prepare_finance_expense_payout", { p_id: id, p_expense: row.id, p_version: null, p_paid_on: paidOn, p_bank: a?.bank_account_id || null, p_cash: a?.cash_location_id || null, p_actual_wht: row.personally_paid ? false : row.tax_review?.request_json?.schema_version === 2 ? row.tax_review.wht_state === "withhold" : withhold, p_note: "" }); }}>
    <AccountSelect accounts={available} value={account} onChange={setAccount} disabled={busy} showReadiness={companyExpense} />
    <FieldGroup id="payout-date" label={t("expenses.paidOn")}><input type="date" required min={row.expense_date} max={bangkokToday()} value={paidOn} disabled={busy} onChange={e => setPaidOn(e.target.value)} /></FieldGroup>
    {row.tax_review?.wht_state === "withhold" && !row.personally_paid && row.tax_review.request_json?.schema_version !== 2 ? <label className={css.check}><input type="checkbox" checked={withhold} disabled={busy} onChange={e => setWithhold(e.target.checked)} /><span>{t("expenses.actualWithholding")}</span></label> : null}

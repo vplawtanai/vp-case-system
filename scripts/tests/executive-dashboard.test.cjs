@@ -40,7 +40,7 @@ test('Separate currencies across balances, economic income, cash and liabilities
 test('Failed/malformed/denied reads never appear as zero; no unauthorized aggregate fetch or partial economic result',async()=>{
  for(const name of ['get_finance_cash_flow_summary','get_finance_general_payables_summary','get_finance_unified_company_statement']){const f=fixture();f.fail=name;const {data}=await load(f);assert.match(render(data,'en'),/Data unavailable/);}
  const f=fixture();f.rpc.get_finance_general_payables_summary.currencies[0].outstanding_amount=null;assert.equal((await load(f)).data.payables.status,'error');
- const restricted={...p,canViewFinanceCashTransactions:false,canViewFinancePayments:false,canViewFinanceTaxInvoices:false,canViewFinanceQuotations:false,role:'staff'};
+ const restricted=buildPermissions({role:'staff',active:true});
  f.rpc.get_finance_expense_access.can_view_all=false;const {data,a}=await load(f,restricted);
  assert.equal(data.economic.status,'denied');assert.equal(data.cash.status,'denied');assert.equal(data.payables.status,'denied');assert.deepEqual(a.calls.map(c=>c.name),['get_finance_expense_access']);
  assert.match(render(data,'en'),/Access to this section is restricted/);

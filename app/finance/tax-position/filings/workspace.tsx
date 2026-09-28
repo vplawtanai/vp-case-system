@@ -58,7 +58,7 @@ export function TaxFilingWorkspace({ permissions, initialMonth, initialType, onE
  const reviewSources = [...new Map([...(selectedCoverage?.sources || []), ...(selectedCoverage?.review_sources || [])].map(s => [s.id, s])).values()];
  const account = r && paymentMode ? r.draft_snapshot_json.account : data?.accounts.find(a => locationKey(a) === accountKey);
  const after = account?.system_balance != null && f?.tax_amount != null ? Math.round((account.system_balance - f.tax_amount) * 100) / 100 : null;
- const openingBlock = paymentMode && r?.status === "draft" && (!account?.opening_id || account.system_balance === null);
+ const openingBlock = paymentMode && r?.status === "draft" && !account?.opening_id;
  const cutoffBlock = paymentMode && r?.status === "draft" && account?.opening_as_of && r.paid_on < openingStart(account.opening_as_of);
  function changeMonth(value: string) { sequence.current++; setMonth(value); setData(null); setLoading(true); setSelection(null); setSaved(false); setError(null); }
  function open(pool: FilingPool, filing?: Filing, mode: Selection["mode"] = "review", readonly = false) {
