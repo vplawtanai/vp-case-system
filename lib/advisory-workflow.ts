@@ -1,0 +1,12 @@
+import type {Matter} from './advisory-control';
+export type WorkflowChecks={matter_id:string;version:number;lifecycle:string;closed:boolean;current_visit_id:string|null;current_stage_id:string|null;current_stage_key:string|null;current_stage_open_tasks:number;open_tasks:number;has_next_action:boolean;pending_deliverables:number;uncompleted_stages:number;stage_ready:boolean;legacy_without_plan:boolean;ready_to_close:boolean};
+export type TeamMember={user_id:string;team_role:string;name:string};
+export type WritePayload=Record<string,unknown>;
+export type WriteTicket={body:string;id:string};
+export function controlTicket(previous:WriteTicket|null,matterId:string|null,action:string,payload:WritePayload,version:number,newId:()=>string){const body=JSON.stringify({matterId,action,payload,version});return previous?.body===body?previous:{body,id:newId()};}
+export function matterClosed(m:Pick<Matter,'closed_at'|'status'>){return !!m.closed_at||['completed','cancelled'].includes(m.status);}
+export function teamConflict(team:TeamMember[],userId:string,role:string,previousRole?:string){return team.some(t=>t.user_id===userId&&t.team_role===role&&t.team_role!==previousRole);}
+export function successfulOutcome(outcome:string){return ['completed','agreement'].includes(outcome);}
+export const timeTypes=[['Advisory','general_advisory'],['Legal Opinion','legal_opinion'],['Contract Review','contract_review'],['Document Drafting','document_drafting'],['Meeting / Consultation','meeting_consultation'],['Corporate Support','corporate_support'],['Compliance','compliance'],['อื่นๆ','other']] as const;
+export function timeMinutes(hours:string,minutes:string){const h=Number(hours),m=Number(minutes);return Number.isInteger(h)&&Number.isInteger(m)&&h>=0&&m>=0&&m<60&&h*60+m>0&&Number.isSafeInteger(h*60+m)?h*60+m:null;}
+export const workflowErrors:Record<string,string>={CURRENT_STAGE_CHANGED:'changed',STAGE_TASKS_OPEN:'stageBlocked',NEXT_ACTION_RESOLUTION_REQUIRED:'nextResolution',CLOSING_BLOCKED:'closeBlocked',CLOSING_RESOLUTION_REQUIRED:'closeResolution',TEAM_ROLE_EXISTS:'duplicateMember',TEAM_MEMBER_NOT_FOUND:'changed',LEAD_EXISTS:'leadExists',NO_CHANGE:'noChange',CLOSED:'closedHint',STAGE_COMPLETED:'stageAlreadyCompleted',TASK_NOT_AVAILABLE:'taskUnavailable',RETRY_MISMATCH:'changed',REQUIRED_FIELDS:'requiredFields',PRIORITY_INVALID:'requiredFields',STAGE_MISMATCH:'changed',STAGE_ALREADY_CURRENT:'changed',STAGE_HAS_HISTORY:'stageHistory',USE_CLOSE:'closeFromMatter'};

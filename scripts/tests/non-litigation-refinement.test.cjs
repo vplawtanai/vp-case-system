@@ -61,6 +61,8 @@ for (const locale of ['th', 'en']) {
     assert.ok(html.includes('ADV-OTHER')); assert.ok(!html.includes('ADV-TEST'));
     assert.ok(html.includes('Another lawyer')); assert.ok(html.includes(translate(locale, 'advisory.days', { n: 27 })));
     assert.ok(html.includes('href="/advisory/other"')); assert.ok(html.includes('/advisory?client_id=client'));
+    assert.equal((html.match(/href="\/advisory\?client_id=client"/g) || []).length, 2, 'Client name and View all both use the existing filtered Matter list');
+    assert.ok(!html.includes('/clients/'), 'Do not link to a nonexistent Client Detail route');
   });
   test(locale + ': client sibling empty and failed reads are distinct', () => {
     for (const error of [false, true]) {

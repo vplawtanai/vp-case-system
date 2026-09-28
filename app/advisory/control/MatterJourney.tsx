@@ -1,4 +1,5 @@
 "use client";
+import {matterClosed} from '../../../lib/advisory-workflow';
 
 import { useState } from 'react';
 import { Map, ArrowUpRight, Check, SkipForward, List, Info } from 'lucide-react';
@@ -26,10 +27,10 @@ export default function MatterJourney({ matter, stages, canEdit, onEdit, compact
       <button type="button" className={css.openMap} onClick={() => inspect(matter.stage_key || plan[0].stage_key)}><Map size={18} />{a('openMap')}<ArrowUpRight size={14} /></button>
     </div>
     {stages.length > 0 && !compact && <p className={css.sequenceLabel}>{a('recordedSequence')}: <strong>{label(stages[0].template_key)}</strong></p>}
-    {!matter.stage_key && !matter.closed_at && <p className={css.unsetNotice}><Info size={16}/><span><strong>{a('unset')}</strong> · {a('stageUnsetHint')}</span></p>}
+    {!matter.stage_key && !matterClosed(matter) && <p className={css.unsetNotice}><Info size={16}/><span><strong>{a(stages.length?'noCurrentStage':'unset')}</strong> · {a(stages.length?'noCurrentStageHint':'stageUnsetHint')}</span></p>}
     <ol className={css.stepper} aria-label={a('stageOrder')}>
       {plan.map((stage, i) => {
-        const state = stageState(stage, matter.stage_key, !!matter.closed_at);
+        const state = stageState(stage, matter.stage_key, matterClosed(matter));
         return <li key={stage.stage_key} data-state={state}><button type="button" onClick={() => inspect(stage.stage_key)} aria-current={state === 'current' ? 'step' : undefined}>
           <span className={css.stepDot}>{state === 'visited' || state === 'finished' ? <Check size={14} /> : state === 'skipped' ? <SkipForward size={13} /> : i + 1}</span>
           <span><strong>{label(stage.stage_key)}</strong><small>{a(state)}</small></span>
@@ -37,8 +38,8 @@ export default function MatterJourney({ matter, stages, canEdit, onEdit, compact
       })}
     </ol>
     {(open || requestedOpen) && <DetailModal open size="workflow" className={css.mapModal} title={a('journey')} subtitle={`${matter.matter_no} · ${matter.title}`} closeLabel={a('closeMap')} onClose={() => { setOpen(false); onCloseMap?.(); }}>
-      {!stages.length && !matter.closed_at && <div className={css.starterPicker}><label className={css.templateField}>{a('starterCatalog')}<select value={preset} onChange={e => { setPreset(e.target.value as typeof preset); setSelected(''); }}>{workPresets.map(p => <option key={p.key} value={p.key}>{a('preset.' + p.key)}</option>)}</select></label><p>{a('presetHint', { template: label(template) })} {a('previewOnly')}</p></div>}
-      <Journey key={template} matter={matter} stages={stages} canEdit={canEdit} initialStage={selected} template={template} onEdit={onEdit} />
+      {!stages.length && !matterClosed(matter) && <div className={css.starterPicker}><label className={css.templateField}>{a('starterCatalog')}<select value={preset} onChange={e => { setPreset(e.target.value as typeof preset); setSelected(''); }}>{workPresets.map(p => <option key={p.key} value={p.key}>{a('preset.' + p.key)}</option>)}</select></label><p>{a('presetHint', { template: label(template) })} {a('previewOnly')}</p></div>}
+      <Journey key={template} matter={matter} stages={stages} canEdit={canEdit} initialStage={selected} template={template} onEdit={request=>{setOpen(false);onCloseMap?.();onEdit(request);}} />
     </DetailModal>}
   </section>;
 }

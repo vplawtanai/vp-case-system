@@ -2,7 +2,7 @@
 import {useRef,useState} from 'react';
 import {useParams} from 'next/navigation';
 import Link from 'next/link';
-import {ArrowLeft,Plus,RefreshCw,House,ListTodo,List,FileCheck2,Clock3,Users,Database,Flag,UserRound} from 'lucide-react';
+import {ArrowLeft,Plus,RefreshCw,House,ListTodo,List,FileCheck2,Clock3,Users,Database,Flag} from 'lucide-react';
 import AppTopNav from '../../components/AppTopNav';
 import AuthGuard from '../../components/AuthGuard';
 import {supabase} from '../../../lib/supabase';
@@ -13,20 +13,24 @@ import MatterSections from './MatterSections';
 import MatterJourney from './MatterJourney';
 import MatterOverview from './MatterOverview';
 import OtherClientMatters from './OtherClientMatters';
-import MatterTimeSummary from './MatterTimeSummary';
+import MatterTime from './MatterTime';
+import MatterTeam from './MatterTeam';
+import MatterWorkflowDialog from './MatterWorkflowDialog';
+import MatterNextAction from './MatterNextAction';
+import {matterClosed} from '../../../lib/advisory-workflow';
 import css from './control.module.css';
 import ui from './overview.module.css';
 type DetailView='overview'|'tasks'|'activity'|'deliverables'|'time'|'team';
 const views=[{key:'overview',Icon:House},{key:'tasks',Icon:ListTodo},{key:'activity',Icon:List},{key:'deliverables',Icon:FileCheck2},{key:'time',Icon:Clock3},{key:'team',Icon:Users}] as const;
-export default function MatterDetail(){const params=useParams(),id=String(params.id);const {data,loading,error,reload}=useControl(id),people=usePeople(),{a,label,date}=useAdvisoryLabels();const [edit,setEdit]=useState<EditRequest|null>(null),[busy,setBusy]=useState(false),[actionError,setActionError]=useState('');const pending=useRef<{body:string;id:string}|null>(null);
+export default function MatterDetail(){const params=useParams(),id=String(params.id);const {data,loading,error,reload}=useControl(id),people=usePeople(),{a,label,date}=useAdvisoryLabels();const [edit,setEdit]=useState<EditRequest|null>(null),[busy,setBusy]=useState(false),[actionError,setActionError]=useState('');const actionLock=useRef(false);const pending=useRef<{body:string;id:string}|null>(null);
  const [view,setView]=useState<DetailView>('overview'),[mapOpen,setMapOpen]=useState(false);
  const m=data?.items[0],permissions=data?.permissions;
- async function action(name:string,payload:Record<string,string>){if(!m||busy)return;setBusy(true);setActionError('');const body=JSON.stringify({name,payload,version:m.version});if(pending.current?.body!==body)pending.current={body,id:crypto.randomUUID()};try{const r=await supabase.rpc('advisory_control_write',{p_matter_id:id,p_action:name,p_payload:payload,p_request_id:pending.current.id,p_expected_version:m.version});if(r.error)throw r.error;pending.current=null;await reload();}catch(e){setActionError(a(errorKey(String((e as {message?:string})?.message||e))));}finally{setBusy(false);}}
+ async function action(name:string,payload:Record<string,string>){if(!m||actionLock.current)return;actionLock.current=true;setBusy(true);setActionError('');const body=JSON.stringify({name,payload,version:m.version});if(pending.current?.body!==body)pending.current={body,id:crypto.randomUUID()};try{const r=await supabase.rpc('advisory_control_write',{p_matter_id:id,p_action:name,p_payload:payload,p_request_id:pending.current.id,p_expected_version:m.version});if(r.error)throw r.error;pending.current=null;await reload();}catch(e){setActionError(a(errorKey(String((e as {message?:string})?.message||e))));}finally{actionLock.current=false;setBusy(false);}}
  return <AuthGuard><main className={`${css.page} ${ui.page}`}><div className={css.shellHeader}><AppTopNav title={a('title')} activePage="advisory"/></div><Link className={css.back} href="/advisory"><ArrowLeft size={16}/>{a('back')}</Link>{(error||actionError)&&<p role="alert" className={css.error}>{actionError||a('loadError')} <button onClick={reload}>{a('refresh')}</button></p>}
  {!m?<p className={css.empty}>{a(loading?'loading':'empty')}</p>:<>
  <header className={ui.header}>
-   <div><div className={css.headingLine}><h1>{m.title}</h1><Badge kind="lifecycle" value={m.status}/></div><p><strong>{m.matter_no}</strong> · <Link href={'/clients/'+m.client_id}>{m.client_name}</Link></p></div>
-   <div className={css.actions}><button onClick={reload}><RefreshCw size={15}/>{a('refresh')}</button>{permissions?.manage&&<button className={css.primary} onClick={()=>setEdit({action:m.closed_at?'reopen':'task_save',title:a(m.closed_at?'reopen':'addTask')})}><Plus size={16}/>{a(m.closed_at?'reopen':'addTask')}</button>}</div>
+   <div><div className={css.headingLine}><h1>{m.title}</h1><Badge kind="lifecycle" value={m.status}/></div><p><strong>{m.matter_no}</strong> · <Link href={`/advisory?client_id=${encodeURIComponent(m.client_id)}`}>{m.client_name}</Link></p></div>
+   <div className={css.actions}><button onClick={reload}><RefreshCw size={15}/>{a('refresh')}</button>{(matterClosed(m)?permissions?.manage:permissions?.task)&&<button className={css.primary} onClick={()=>setEdit({action:matterClosed(m)?'reopen':'task_save',title:a(matterClosed(m)?'reopen':'addTask')})}><Plus size={16}/>{a(matterClosed(m)?'reopen':'addTask')}</button>}</div>
  </header>
  <div className={ui.metadata}><span>{a('type')}: <strong>{label(m.matter_type)}</strong></span><span>{a('lead')}: <strong>{m.lead_name||a('unassigned')}</strong></span></div>
  <nav className={ui.navigation} aria-label={a('matterSections')}>
@@ -34,7 +38,7 @@ export default function MatterDetail(){const params=useParams(),id=String(params
    <Link href={`/advisory/${id}/records`}><Database size={17}/>{a('tab.records')}</Link>
  </nav>
  <div hidden={view!=='overview'}>
-   <MatterOverview matter={m} canEdit={!!permissions?.manage} onEdit={setEdit} onOpenMap={()=>setMapOpen(true)}>
+   <MatterOverview matter={m} stages={data?.stages} canEdit={!!permissions?.manage} onEdit={setEdit} onOpenMap={()=>setMapOpen(true)}>
      {!!data?.state_history?.length&&<details className={ui.stateHistory}><summary>{a('stateHistory')}</summary><ul className={css.rows}>{data.state_history.map(h=><li key={h.started_at}><Badge value={h.work_state}/><span>{date(h.started_at,true)} → {h.ended_at?date(h.ended_at,true):a('current')}</span>{h.reason&&<p>{h.reason}</p>}</li>)}</ul></details>}
    </MatterOverview>
  </div>
@@ -45,21 +49,17 @@ export default function MatterDetail(){const params=useParams(),id=String(params
      <div className={ui.journeySlot} hidden={view!=='overview'}><MatterJourney key={m.id} matter={m} stages={data?.stages||[]} canEdit={!!permissions?.manage} onEdit={setEdit} requestedOpen={mapOpen} onCloseMap={()=>setMapOpen(false)} compact/></div>
    </div>
    <div className={ui.secondaryColumn} hidden={!['overview','time','deliverables','team'].includes(view)}>
-     <div id="time" hidden={view!=='overview'&&view!=='time'}><MatterTimeSummary matterId={id} time={data?.time}/></div>
+     <div id="time" hidden={view!=='overview'&&view!=='time'}><MatterTime matter={m} stages={data?.stages||[]} time={data?.time} canAdd={!!permissions?.task} focused={view==='time'} onFocus={()=>setView('time')} onSaved={reload}/></div>
      <div id="deliverables" hidden={view!=='overview'&&view!=='deliverables'}><MatterSections overview focused={view==='deliverables'} onFocus={()=>setView('deliverables')} matter={m} section="deliverables" people={people} canEdit={!!permissions?.manage} onEdit={setEdit} onAction={action} busy={busy}/></div>
-     <section className={`${css.panel} ${ui.panel}`} id="team" hidden={view!=='overview'&&view!=='team'}>
-       <div className={ui.panelHeading}><h2><Users size={19}/>{a('team')} <small>({data?.team?.length||0})</small></h2>{permissions?.manage&&!m.closed_at&&<button className={css.textButton} onClick={()=>setEdit({action:'team',title:a('team'),values:{role:'lead'}})}>{a('manageTeam')} →</button>}</div>
-       <ul className={ui.teamRows}>{data?.team?.map(t=><li key={t.user_id+t.team_role}><UserRound size={19}/><strong>{t.name}</strong><Badge value={t.team_role}/>{permissions?.manage&&!m.closed_at&&<button className={css.textButton} onClick={()=>setEdit({action:'team',title:a('team'),values:{user_id:t.user_id,role:t.team_role,name:t.name}})}>{a('edit')}</button>}</li>)}</ul>
-       {!data?.team?.length&&<div className={ui.teamEmpty}><UserRound size={20}/><div><strong>{a('noAssignedTeam')}</strong>{m.responsible_lawyer&&<small>{a('legacyPerson',{name:m.responsible_lawyer})}</small>}</div></div>}
-     </section>
+     <div id="team" hidden={view!=='overview'&&view!=='team'}><MatterTeam matter={m} team={data?.team||[]} people={people} canEdit={!!permissions?.manage} onSaved={reload}/></div>
      <div hidden={view!=='overview'}><OtherClientMatters key={m.id} matter={m}/></div>
    </div>
  </div>
  <section className={ui.closing} hidden={view!=='overview'}>
-   <div><Flag size={20}/><h2>{a(m.closed_at?'outcome':'closeMatter')}</h2></div>
-   <div>{m.closed_at?<><p><Badge value={m.outcome}/> · {date(m.closed_at,true)}</p><p>{m.outcome_summary}</p><p>{m.follow_up}</p><p>{m.case_reference}</p></>:<p>{a('closingHint')}</p>}</div>
-   {permissions?.manage&&<button onClick={()=>setEdit({action:m.closed_at?'reopen':'close',title:a(m.closed_at?'reopen':'closeMatter')})}>{a(m.closed_at?'reopen':'closeMatter')}</button>}
+   <div><Flag size={20}/><h2>{a(matterClosed(m)?'outcome':'closeMatter')}</h2></div>
+   <div>{matterClosed(m)?<><p><Badge value={m.outcome}/> · {m.closed_at?date(m.closed_at,true):'—'}</p><p>{m.outcome_summary}</p><p>{m.follow_up}</p><p>{m.case_reference}</p></>:<p>{a('closingHint')}</p>}</div>
+   {permissions?.manage&&<button onClick={()=>setEdit({action:matterClosed(m)?'reopen':'close',title:a(matterClosed(m)?'reopen':'closeMatter')})}>{a(matterClosed(m)?'reopen':'closeMatter')}</button>}
  </section>
- {edit&&<MatterEditor key={JSON.stringify(edit)} request={edit} matter={m} people={people} stages={data?.stages} onClose={()=>setEdit(null)} onSaved={reload}/>}
+ {edit&&(['stage_complete','close','reopen'].includes(edit.action)?<MatterWorkflowDialog key={edit.action} mode={edit.action as 'stage_complete'|'close'|'reopen'} matter={m} onClose={()=>setEdit(null)} onSaved={reload} onFinish={()=>setEdit({action:'close',title:a('closeMatter')})} onTasks={()=>{setEdit(null);setView('tasks');}}/>:edit.action==='next_action'?<MatterNextAction matter={m} people={people} onClose={()=>setEdit(null)} onSaved={reload}/>:<MatterEditor key={JSON.stringify(edit)} request={edit} matter={m} people={people} stages={data?.stages} onClose={()=>setEdit(null)} onSaved={reload}/>)}
  </>}</main></AuthGuard>;
 }

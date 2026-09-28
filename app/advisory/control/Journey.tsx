@@ -1,4 +1,5 @@
 "use client";
+import {matterClosed} from '../../../lib/advisory-workflow';
 
 import { useRef, useState, type CSSProperties } from 'react';
 import { Flag, Search, FileText, Handshake, Check, SkipForward, Compass, MapPin, ArrowRight, Route } from 'lucide-react';
@@ -27,10 +28,10 @@ export default function Journey({ matter, stages, canEdit, onEdit, initialStage,
   }
   const plan = journeyPlan(matter, stages, template);
   const chosen = plan.find(s => s.stage_key === selected) || plan[0];
-  const state = stageState(chosen, matter.stage_key, !!matter.closed_at);
+  const state = stageState(chosen, matter.stage_key, matterClosed(matter));
   const latest = chosen.visits.find(v => v.kind === 'visit');
   const current = chosen.visits.find(v => v.kind === 'visit' && !v.exited_at);
-  const progress = journeyProgress(plan, matter.stage_key, !!matter.closed_at);
+  const progress = journeyProgress(plan, matter.stage_key, matterClosed(matter));
   const nextStage = plan[plan.indexOf(chosen) + 1];
   const days = state === 'current' ? matter.stage_days : chosen.elapsed_seconds == null ? null : Math.max(0, Math.floor(chosen.elapsed_seconds / 86400));
   const points = plan.map((_, i) => ({ x: 7 + i * 86 / Math.max(1, plan.length - 1), y: [67, 45, 57, 33, 49, 29, 44, 28, 39][i % 9] }));
@@ -46,16 +47,16 @@ export default function Journey({ matter, stages, canEdit, onEdit, initialStage,
         {progress.skipped > 0 && <span data-state="skipped"><SkipForward size={13} />{a('skipped')}</span>}
       </div>
     </div>
-    {!matter.stage_key && !matter.closed_at && <p className={css.unsetNotice}>{a('unset')} · {a('stageUnsetHint')}</p>}
+    {!matter.stage_key && !matterClosed(matter) && <p className={css.unsetNotice}>{a(stages.length?'noCurrentStage':'unset')} · {a(stages.length?'noCurrentStageHint':'stageUnsetHint')}</p>}
     <div ref={sceneRef} className={css.mapScene} style={{ '--stage-count': plan.length } as CSSProperties}>
       <svg className={css.routeLines} viewBox="0 0 1000 400" preserveAspectRatio="none" aria-hidden="true">
         <path d={path} className={css.routeShadow} /><path d={path} className={css.mainRoute} />
-        {plan.map((s, i) => stageState(s, matter.stage_key, !!matter.closed_at) === 'skipped' && i > 0 && i < plan.length - 1
+        {plan.map((s, i) => stageState(s, matter.stage_key, matterClosed(matter)) === 'skipped' && i > 0 && i < plan.length - 1
           ? <path key={s.stage_key} className={css.skippedRoute} d={`M${points[i - 1].x * 10},${points[i - 1].y * 4} Q${points[i].x * 10},${Math.min(points[i].y + 28, 94) * 4} ${points[i + 1].x * 10},${points[i + 1].y * 4}`} /> : null)}
       </svg>
       <ol className={css.stations} aria-label={a('stageOrder')}>
         {plan.map((s, i) => {
-          const status = stageState(s, matter.stage_key, !!matter.closed_at);
+          const status = stageState(s, matter.stage_key, matterClosed(matter));
           const Icon = status === 'visited' || status === 'finished' ? Check : status === 'skipped' ? SkipForward : s.stage_key === 'close' ? Flag : ['analysis', 'research', 'facts'].includes(s.stage_key) ? Search : ['draft', 'review', 'preparation'].includes(s.stage_key) ? FileText : ['negotiation', 'delivery', 'client_delivery'].includes(s.stage_key) ? Handshake : i === 0 ? MapPin : Compass;
           return <li key={s.stage_key} style={{ '--node-x': `${points[i].x}%`, '--node-y': `${points[i].y}%` } as CSSProperties}>
             <button type="button" className={css.station} data-state={status} aria-current={status === 'current' ? 'step' : undefined} aria-pressed={chosen.stage_key === s.stage_key} aria-controls="journey-stage-details" onClick={() => inspect(s.stage_key)}>
@@ -89,11 +90,12 @@ export default function Journey({ matter, stages, canEdit, onEdit, initialStage,
           <span>{a('matterNextAction')}</span><strong>{matter.next_action || a('noNext')}</strong>
           <dl><div><dt>{a('actor')}</dt><dd>{matter.next_owner_name || a('unassigned')}</dd></div><div><dt>{a('due')}</dt><dd>{date(matter.next_due)}</dd></div></dl>
         </div>
-        {canEdit && !matter.closed_at && chosen.stage_key !== 'close' && state !== 'current' && <div className={css.mapActions}>
+        {canEdit && !matterClosed(matter) && state === 'current' && <div className={css.mapActions}><button type="button" className={css.primary} onClick={()=>onEdit({action:'stage_complete',title:a('completeStage')})}>{a('completeStage')}</button></div>}
+        {canEdit && !matterClosed(matter) && chosen.stage_key !== 'close' && state !== 'current' && <div className={css.mapActions}>
           <button type="button" className={css.primary} onClick={() => onEdit({ action: 'stage', title: a('activate'), values: { template: chosen.template_key, stage_key: chosen.stage_key } })}>{a('activate')}<ArrowRight size={15} /></button>
           {!chosen.visits.length && <button type="button" onClick={() => onEdit({ action: 'stage_skip', title: a('skip'), values: { template: chosen.template_key, stage_key: chosen.stage_key } })}>{a('skip')}</button>}
         </div>}
-        {chosen.stage_key === 'close' && !matter.closed_at && <p className={css.progressHint}>{a('closeFromMatter')}</p>}
+        {chosen.stage_key === 'close' && !matterClosed(matter) && <p className={css.progressHint}>{a('closeFromMatter')}</p>}
       </section>
     </div>
   </div>;

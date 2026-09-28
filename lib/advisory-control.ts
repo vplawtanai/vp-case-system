@@ -1,3 +1,4 @@
+import {workflowErrors} from './advisory-workflow';
 // Phase 8C UI contract. Source facts and permission decisions come from PostgreSQL.
 export type Matter = {
  id:string;client_id:string;client_name:string;matter_no:string;title:string;matter_type:string;status:string;
@@ -11,7 +12,7 @@ export type Task={id:string;title:string;status:string;priority:string;assignee_
 export type Visit={id:string;kind:string;entered_at:string|null;exited_at:string|null;exit_reason:string|null};
 export type Stage={id:string;stage_key:string;template_key:string;position:number;visits:Visit[];minutes:number|null;elapsed_seconds?:number|null;task_total?:number;task_completed?:number};
 export type Deliverable={id:string;title:string;status:string;owner_id:string|null;due_date:string|null;version_label:string|null;drive_url:string|null};
-export type Activity={id:string;kind:string;actor_id:string;occurred_at:string;detail:{input?:Record<string,string>;title?:string}};
+export type Activity={id:string;kind:string;actor_id:string;occurred_at:string;detail:{input?:Record<string,string>;title?:string;completed_stage_key?:string;next_stage_key?:string;ready_for_closing?:boolean}};
 export type ControlRead={items:Matter[];total:number;summary:{open:number;overdue:number;waiting:number;closed_week:number};permissions:{manage:boolean;task:boolean;delete:boolean};state_history?:{work_state:string;started_at:string;ended_at:string|null;reason:string|null}[];team?:{user_id:string;team_role:string;name:string}[];stages?:Stage[];time?:{minutes:number;core:number;support:number;unclassified:number};other_matters?:Pick<Matter,'id'|'matter_no'|'title'|'status'>[]};
 export const workStates=['working','waiting_client','waiting_external','waiting_internal','on_hold'] as const;
 // Work starters reuse existing database-backed sequences, never new Stage keys.
@@ -47,4 +48,4 @@ export function journeyProgress(stages:Stage[],current:string|null,closed:boolea
  const states=stages.map(s=>stageState(s,current,closed));
  return {visited:states.filter(s=>s==='visited'||s==='finished').length,skipped:states.filter(s=>s==='skipped').length,total:stages.length};
 }
-export function errorKey(message:string){if(message.includes('ADVISORY_CHANGED'))return 'changed';if(message.includes('FORBIDDEN')||message.includes('permission denied'))return 'forbidden';if(message.includes('NOT_ASSIGNABLE'))return 'personUnavailable';if(message.includes('ISSUE_NOT_AVAILABLE'))return 'issueUnavailable';if(message.includes('COMPLETION_INVALID'))return 'completionInvalid';return 'saveError';}
+export function errorKey(message:string){for(const [code,key] of Object.entries(workflowErrors)){if(message.includes('ADVISORY_'+code))return key;}if(message.includes('ADVISORY_CHANGED'))return 'changed';if(message.includes('FORBIDDEN')||message.includes('permission denied'))return 'forbidden';if(message.includes('NOT_ASSIGNABLE'))return 'personUnavailable';if(message.includes('ISSUE_NOT_AVAILABLE'))return 'issueUnavailable';if(message.includes('COMPLETION_INVALID'))return 'completionInvalid';return 'saveError';}
