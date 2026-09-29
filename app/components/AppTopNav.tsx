@@ -155,7 +155,7 @@ export default function AppTopNav({
         title: t("common.nav.clientWork"),
         items: [
           { page: "cases" as const, label: t("common.nav.cases"), icon: "cases" as const, href: "/cases", visible: permissions.canViewCases },
-          { page: "advisory" as const, label: t("common.nav.advisory"), icon: "advisory" as const, href: "/advisory", visible: permissions.canViewDashboard },
+          { page: "advisory" as const, label: t("common.nav.advisory"), icon: "advisory" as const, href: "/advisory", visible: permissions.role === "admin" },
         ],
       },
       {
