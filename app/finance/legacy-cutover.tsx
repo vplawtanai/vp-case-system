@@ -1,30 +1,17 @@
 "use client";
-import { useEffect, useState } from "react";
 import { useI18n } from "../../lib/i18n/provider";
 import { Callout } from "../components/ui/patterns";
 
-export const legacyCutoverAt = Date.parse("2026-10-01T00:00:00+07:00");
-export const legacyIsReadOnly = (now = Date.now()) => now >= legacyCutoverAt;
-
-// Presentation only. Migration 079 is the authoritative database write guard.
+// Release only AFTER Human Apply + verification of Migration 080.
+// Presentation only; the existing 079 triggers enforce the activated DB freeze.
 export function useLegacyReadOnly() {
- const [readOnly, setReadOnly] = useState(true);
- useEffect(() => {
-  let timer: ReturnType<typeof setTimeout>;
-  const refresh = () => {
-   setReadOnly(legacyIsReadOnly());
-   timer = setTimeout(refresh, Math.max(1, Math.min(30_000, legacyCutoverAt - Date.now())));
-   if (legacyIsReadOnly()) clearTimeout(timer);
-  };
-  refresh();
-  return () => clearTimeout(timer);
- }, []);
- return readOnly;
+ return true;
 }
 
 export function LegacyCutoverNotice({ readOnly }: { readOnly: boolean }) {
  const { locale } = useI18n();
+ if (!readOnly) return null;
  return <Callout tone="info" role="status">{locale === "th"
-  ? readOnly ? "ระบบเดิม — อ่านอย่างเดียว ใช้ดูประวัติ เงินที่รับหรือจ่ายตั้งแต่ 1 ต.ค. 2569 ให้บันทึกในระบบการเงินใหม่" : "ระบบเดิมจะอ่านอย่างเดียวตั้งแต่ 1 ต.ค. 2569 เวลา 00:00 น. ตามเวลาประเทศไทย ประวัติยังเปิดดูได้ตามสิทธิ์เดิม"
-  : readOnly ? "Legacy — Read only. History remains available. Record actual cash received or paid from 1 October 2026 in New Finance." : "Legacy becomes read only on 1 October 2026 at 00:00 Asia/Bangkok. Existing history permissions remain unchanged."}</Callout>;
+  ? "ระบบเดิม — อ่านอย่างเดียว ใช้ดูประวัติ บันทึกรายการใหม่ในระบบการเงินใหม่"
+  : "Legacy — Read only. History remains available. Record all new transactions in New Finance."}</Callout>;
 }
