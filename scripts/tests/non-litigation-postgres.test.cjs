@@ -123,6 +123,22 @@ test('list filters, pagination and DB summary use stored facts; inactive Admin i
  const page=as(1,`select advisory_control_read(null,'{"limit":1,"offset":1}')`);assert.equal(page.items.length,1);assert.equal(page.total,all.total);
  rejects(`begin;update user_profiles set active=false where id='${id(1)}';`+auth(1)+'select advisory_control_read();rollback;',/FORBIDDEN/);
 });
+test('overdue summary and quick tab share the Bangkok-date predicate, independently of narrowing filters',()=>{
+ const preserved=JSON.parse(sql(A.snapshotSql(true)+';'));
+ let setup='begin;';
+ for(const [n,due,closed] of [[801,-1,false],[802,0,false],[803,1,false],[804,null,false],[805,-1,true]]){
+  setup+=`insert into advisory_matters(id,client_id,title,matter_no,status) values('${id(n)}','${id(90)}','Synthetic overdue boundary ${n}','ADV-BOUNDARY-${n}','${closed?'completed':'active'}');`;
+  setup+=`insert into advisory_matter_control(matter_id,next_due,closed_at,outcome) values('${id(n)}',${due===null?'null':`(current_timestamp at time zone 'Asia/Bangkok')::date+(${due})`},${closed?'current_timestamp':'null'},${closed?"'completed'":'null'});`;
+ }
+ const result=JSON.parse(sql(setup+auth(1)+`select jsonb_build_object('today',(current_timestamp at time zone 'Asia/Bangkok')::date,'overdue',advisory_control_read(null,'{"tab":"overdue","sort":"due","limit":50}'),'narrowed',advisory_control_read(null,'{"tab":"overdue","search":"no-such-matter"}'));rollback;`).split('\n').at(-1));
+ assert.equal(result.overdue.total,result.overdue.summary.overdue);
+ assert.equal(result.overdue.items.length,result.overdue.total);
+ assert.ok(result.overdue.items.every(m=>m.closed_at===null&&m.next_due<result.today));
+ assert.ok(result.overdue.items.some(m=>m.id===id(801)));
+ for(const n of [802,803,804,805])assert.ok(!result.overdue.items.some(m=>m.id===id(n)),'Due today/future/unset and closed past-due Matters are excluded');
+ assert.equal(result.narrowed.total,0);assert.equal(result.narrowed.summary.overdue,result.overdue.total,'Summary is global; UI must clear narrowing filters to expose its set');
+ assert.deepEqual(JSON.parse(sql(A.snapshotSql(true)+';')),preserved,'Synthetic boundary rows are completely rolled back');
+});
 test('independent create sessions preserve atomic numbering and identical retry creates one Matter only',async()=>{
  function session(query){return new Promise(resolve=>{const p=spawn(bin+'/psql',args(),{env:{PATH:process.env.PATH,LC_ALL:'C'}});let out='',err='';p.stdout.on('data',b=>out+=b);p.stderr.on('data',b=>err+=b);p.on('close',code=>resolve({code,out,err}));p.stdin.end(auth(1)+query);});}
  const payload={client_id:id(90),title:'Concurrent create',lead_id:id(2),matter_type:'license_regulatory'};

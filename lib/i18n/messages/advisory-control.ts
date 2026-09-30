@@ -189,7 +189,7 @@ export const advisoryControlMessages: MessageCatalog = {
   },
   "advisory.overdue": {
     "th": "งานเลยกำหนด",
-    "en": "Overdue actions"
+    "en": "Overdue"
   },
   "advisory.waiting": {
     "th": "รอข้อมูลลูกค้า",
