@@ -1,4 +1,5 @@
 "use client";
+import { LegacyCutoverNotice, useLegacyReadOnly } from "../legacy-cutover";
 import { useI18n, useUiAlert } from "../../../lib/i18n/provider";
 import { uiMessage, type UiMessage, type UiLocale } from "../../../lib/i18n/core";
 import { translate } from "../../../lib/i18n/catalog";
@@ -180,6 +181,7 @@ export default function FinanceLedgerPage() {
   const formRef = useRef<HTMLElement | null>(null);
 
   const permissions: UserPermissions = useMemo(() => buildPermissions(profile), [profile]);
+  const legacyReadOnly = useLegacyReadOnly();
   const isAdmin = permissions.role === "admin";
   const actorName = profile.full_name || profile.staff_name || userEmail;
 
@@ -387,7 +389,7 @@ export default function FinanceLedgerPage() {
   };
 
   const saveLedger = async () => {
-    if (!permissions.canEditCompanyLedger) return;
+    if (legacyReadOnly || !permissions.canEditCompanyLedger) return;
 
     const amount = parseMoney(form.amount);
     if (!form.transaction_date) return notify(uiMessage("finance.legacy.validation.date"));
@@ -522,7 +524,7 @@ export default function FinanceLedgerPage() {
   };
 
   const voidLedger = async (row: LedgerRow) => {
-    if (!permissions.canVoidCompanyLedger || row.status !== "active") return;
+    if (legacyReadOnly || !permissions.canVoidCompanyLedger || row.status !== "active") return;
     const reason = window.prompt(t("finance.legacy.dialog.voidReason"));
     if (!reason?.trim()) return;
 
@@ -656,6 +658,7 @@ export default function FinanceLedgerPage() {
         <AppTopNav title={t("finance.legacy.title")} activePage="finance" />
 
         <FinanceSubNav activePage="ledger" permissions={permissions} />
+        <LegacyCutoverNotice readOnly={legacyReadOnly} />
 
         {errorText ? <div style={errorStyle}>{text(errorText)}</div> : null}
 
@@ -706,7 +709,7 @@ export default function FinanceLedgerPage() {
           </div>
         </section>
 
-        {permissions.canEditCompanyLedger ? (
+        {!legacyReadOnly && permissions.canEditCompanyLedger ? (
           <section ref={formRef} style={panelStyle}>
             <h2 style={sectionTitleStyle}>{isEditing ? t("finance.legacy.ledger.editTitle") : t("finance.legacy.ledger.createTitle")}</h2>
             <div style={formGridStyle}>
@@ -787,10 +790,10 @@ export default function FinanceLedgerPage() {
                     <td style={{ ...tdStyle, ...entryTextStyle }}>{legacyStatusLabel(row.status, locale)}</td>
                     <td style={{ ...tdStyle, ...actionColumnStyle }}>
                       <div style={actionButtonGroupStyle}>
-                        {row.status === "active" && permissions.canEditCompanyLedger && row.entry_type !== "transfer_in" && row.entry_type !== "transfer_out" ? (
+                        {row.status === "active" && !legacyReadOnly && permissions.canEditCompanyLedger && row.entry_type !== "transfer_in" && row.entry_type !== "transfer_out" ? (
                           <button type="button" onClick={() => startEdit(row)} style={smallButtonStyle}>{t("finance.legacy.actions.edit")}</button>
                         ) : null}
-                        {row.status === "active" && permissions.canVoidCompanyLedger ? (
+                        {row.status === "active" && !legacyReadOnly && permissions.canVoidCompanyLedger ? (
                           <button type="button" onClick={() => voidLedger(row)} style={dangerButtonStyle}>{t("finance.legacy.actions.void")}</button>
                         ) : null}
                       </div>

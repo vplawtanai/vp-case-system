@@ -1,4 +1,5 @@
 "use client";
+import { LegacyCutoverNotice, useLegacyReadOnly } from "../legacy-cutover";
 import { formulasForContext } from "./formula-presentation";
 import {
   generateAllocations, createAllocation, validateAllocations, getRecipientName, getRoleLabelForSave,
@@ -117,8 +118,9 @@ export default function CompensationPage() {
   const [errorText, setErrorText] = useState<UiMessage | string>("");
 
   const permissions: UserPermissions = useMemo(() => buildPermissions(profile), [profile]);
+  const legacyReadOnly = useLegacyReadOnly();
   const actorName = profile.full_name || profile.staff_name || userEmail;
-  const canCreateCompensationBatch = permissions.canCreateCompensationBatch || permissions.canEditLawyerCompensation;
+  const canCreateCompensationBatch = !legacyReadOnly && (permissions.canCreateCompensationBatch || permissions.canEditLawyerCompensation);
 
   useEffect(() => {
     if (!openActionMenuId) return;
@@ -414,7 +416,7 @@ export default function CompensationPage() {
   };
 
   const finalizeBatch = async (batch: BatchRow) => {
-    if (!permissions.canEditLawyerCompensation || batch.status !== "draft") return;
+    if (legacyReadOnly || !permissions.canEditLawyerCompensation || batch.status !== "draft") return;
     const batchAllocations = allAllocations.filter((item) => item.batch_id === batch.id);
     const validation = validateAllocations(
       {
@@ -429,7 +431,7 @@ export default function CompensationPage() {
   };
 
   const postCompanyShare = async (batch: BatchRow) => {
-    if (!permissions.canEditLawyerCompensation || batch.status !== "finalized") return;
+    if (legacyReadOnly || !permissions.canEditLawyerCompensation || batch.status !== "finalized") return;
     if (postingBatchId === batch.id) return;
     try {
       setPostingBatchId(batch.id);
@@ -529,7 +531,7 @@ export default function CompensationPage() {
   };
 
   const voidBatch = async (batch: BatchRow) => {
-    if (!permissions.canVoidLawyerCompensation) return;
+    if (legacyReadOnly || !permissions.canVoidLawyerCompensation) return;
     if (batch.status === "posted" || batch.ledger_entry_id) return notify(uiMessage("finance.compensation.validation.postedVoid"));
     if (!["draft", "finalized"].includes(batch.status)) return;
     const reason = window.prompt(t("finance.legacy.dialog.voidReason"));
@@ -543,7 +545,7 @@ export default function CompensationPage() {
   };
 
   const markAllocationPaid = async (allocation: AllocationRow, batch: BatchRow) => {
-    if (!permissions.canEditLawyerCompensation || !allocation.id || allocation.is_company_share) return;
+    if (legacyReadOnly || !permissions.canEditLawyerCompensation || !allocation.id || allocation.is_company_share) return;
     if (batch.status === "voided" || allocation.payment_status === "paid") return;
     try {
       setPayingAllocationId(allocation.id);
@@ -686,6 +688,7 @@ export default function CompensationPage() {
       <main style={pageStyle}>
         <AppTopNav title={t("finance.legacy.title")} activePage="finance" />
         <FinanceSubNav activePage="compensation" permissions={permissions} />
+        <LegacyCutoverNotice readOnly={legacyReadOnly} />
         {errorText ? <div style={errorStyle}>{text(errorText)}</div> : null}
         <section style={filterPanelStyle}>
           <label style={labelStyle}>
@@ -749,6 +752,7 @@ export default function CompensationPage() {
         </section>
         ) : null}
 
+        {!legacyReadOnly ? (
         <section style={panelStyle}>
           <div style={toolbarStyle}>
             <h2 style={sectionTitleStyle}>{t("finance.compensation.editor.title")}</h2>
@@ -801,6 +805,7 @@ export default function CompensationPage() {
             <button type="button" onClick={resetForm} style={secondaryButtonStyle}>{t("finance.legacy.actions.clear")}</button>
           </div>
         </section>
+        ) : null}
 
         <section style={panelStyle}>
           <h2 style={sectionTitleStyle}>{t("finance.compensation.history.title")}</h2>
@@ -815,18 +820,18 @@ export default function CompensationPage() {
                     <tr key={batch.id}>
                       <td style={tdStyle}>{date(batch.received_date)}</td>
                       <td style={tdStyle}>{renderBatchContext(batch, clients, cases, matters, locale)}</td>
-                      <td style={tdStyle}>{renderFormula(batch.formula_code, locale)}{renderAllocationDetails(batch, allAllocations, permissions.canEditLawyerCompensation, payingAllocationId, markAllocationPaid, locale)}</td>
+                      <td style={tdStyle}>{renderFormula(batch.formula_code, locale)}{renderAllocationDetails(batch, allAllocations, !legacyReadOnly && permissions.canEditLawyerCompensation, payingAllocationId, markAllocationPaid, locale)}</td>
                       <td style={tdStyle}>{formatMoney(toAmount(batch.received_amount))}</td>
                       <td style={tdStyle}>{formatMoney(companyShare)}</td>
                       <td style={tdStyle}>{renderBatchStatus(batch, locale)}</td>
                       <td style={tdStyle}>{batch.ledger_entry_id ? t("finance.compensation.history.postedReference", { id: batch.ledger_entry_id }) : batch.status === "posted" ? t("finance.compensation.history.noCompany") : "-"}</td>
                       <td style={tdStyle}>
                         <div style={actionStackStyle}>
-                          {batch.status === "draft" && permissions.canEditLawyerCompensation ? <button type="button" onClick={() => editDraft(batch)} style={smallButtonStyle}>{t("finance.legacy.actions.edit")}</button> : null}
-                          {batch.status === "draft" && permissions.canEditLawyerCompensation ? <button type="button" onClick={() => finalizeBatch(batch)} style={smallButtonStyle}>{t("finance.compensation.actions.finalize")}</button> : null}
+                          {batch.status === "draft" && !legacyReadOnly && permissions.canEditLawyerCompensation ? <button type="button" onClick={() => editDraft(batch)} style={smallButtonStyle}>{t("finance.legacy.actions.edit")}</button> : null}
+                          {batch.status === "draft" && !legacyReadOnly && permissions.canEditLawyerCompensation ? <button type="button" onClick={() => finalizeBatch(batch)} style={smallButtonStyle}>{t("finance.compensation.actions.finalize")}</button> : null}
                           {batch.status === "finalized" && !batch.ledger_entry_id ? <div style={helpTextStyle}>{t("finance.compensation.actions.postHelp")}</div> : null}
-                          {batch.status === "finalized" && !batch.ledger_entry_id && permissions.canEditLawyerCompensation ? <button type="button" onClick={() => postCompanyShare(batch)} disabled={postingBatchId === batch.id} style={primarySmallButtonStyle}>{postingBatchId === batch.id ? t("finance.legacy.state.posting") : t("finance.compensation.actions.post")}</button> : null}
-                          {["draft", "finalized"].includes(batch.status) && permissions.canVoidLawyerCompensation ? (
+                          {batch.status === "finalized" && !batch.ledger_entry_id && !legacyReadOnly && permissions.canEditLawyerCompensation ? <button type="button" onClick={() => postCompanyShare(batch)} disabled={postingBatchId === batch.id} style={primarySmallButtonStyle}>{postingBatchId === batch.id ? t("finance.legacy.state.posting") : t("finance.compensation.actions.post")}</button> : null}
+                          {["draft", "finalized"].includes(batch.status) && !legacyReadOnly && permissions.canVoidLawyerCompensation ? (
                             <details data-action-menu-root="true" open={openActionMenuId === batch.id} style={moreMenuStyle}>
                               <summary
                                 aria-label={t("finance.legacy.actions.more")}

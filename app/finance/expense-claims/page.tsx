@@ -1,4 +1,5 @@
 "use client";
+import { LegacyCutoverNotice, useLegacyReadOnly } from "../legacy-cutover";
 import { useI18n, useUiAlert } from "../../../lib/i18n/provider";
 import { uiMessage, type UiMessage, type UiLocale } from "../../../lib/i18n/core";
 import { translate } from "../../../lib/i18n/catalog";
@@ -142,6 +143,7 @@ export default function ExpenseClaimsPage() {
   const [openActionMenuId, setOpenActionMenuId] = useState("");
 
   const permissions: UserPermissions = useMemo(() => buildPermissions(profile), [profile]);
+  const legacyReadOnly = useLegacyReadOnly();
   const actorName = profile.full_name || profile.staff_name || userEmail;
 
   useEffect(() => {
@@ -293,7 +295,7 @@ export default function ExpenseClaimsPage() {
   };
 
   const createClaim = async () => {
-    if (!permissions.canSubmitExpenseClaim) return;
+    if (legacyReadOnly || !permissions.canSubmitExpenseClaim) return;
 
     const amount = parseMoney(form.amount);
     const category = form.category === "Other" ? form.custom_category.trim() : form.category;
@@ -362,7 +364,7 @@ export default function ExpenseClaimsPage() {
   };
 
   const approveClaim = async (claim: ClaimRow) => {
-    if (!permissions.canApproveExpenseClaims || claim.status !== "submitted") return;
+    if (legacyReadOnly || !permissions.canApproveExpenseClaims || claim.status !== "submitted") return;
     await updateClaimStatus(
       claim,
       {
@@ -376,7 +378,7 @@ export default function ExpenseClaimsPage() {
   };
 
   const rejectClaim = async (claim: ClaimRow) => {
-    if (!permissions.canApproveExpenseClaims || !["submitted", "approved"].includes(claim.status)) return;
+    if (legacyReadOnly || !permissions.canApproveExpenseClaims || !["submitted", "approved"].includes(claim.status)) return;
     const reason = window.prompt(t("finance.legacy.dialog.rejectReason"));
     if (!reason?.trim()) return;
 
@@ -394,7 +396,7 @@ export default function ExpenseClaimsPage() {
   };
 
   const voidClaim = async (claim: ClaimRow) => {
-    if (!permissions.canApproveExpenseClaims || claim.status === "paid" || claim.ledger_entry_id) {
+    if (legacyReadOnly || !permissions.canApproveExpenseClaims || claim.status === "paid" || claim.ledger_entry_id) {
       notify(uiMessage("finance.legacy.validation.paidClaimVoid"));
       return;
     }
@@ -416,7 +418,7 @@ export default function ExpenseClaimsPage() {
   };
 
   const markPaid = async (claim: ClaimRow) => {
-    if (!permissions.canPayExpenseClaims || claim.status !== "approved") return;
+    if (legacyReadOnly || !permissions.canPayExpenseClaims || claim.status !== "approved") return;
     if (claim.ledger_entry_id) return notify(uiMessage("finance.legacy.validation.claimPosted"));
     if (payingClaimId === claim.id) return;
 
@@ -582,6 +584,7 @@ export default function ExpenseClaimsPage() {
       <main style={pageStyle}>
         <AppTopNav title={t("finance.legacy.title")} activePage="finance" />
         <FinanceSubNav activePage="claims" permissions={permissions} />
+        <LegacyCutoverNotice readOnly={legacyReadOnly} />
         {errorText ? <div style={errorStyle}>{text(errorText)}</div> : null}
 
         <section style={summaryGridStyle}>
@@ -591,7 +594,7 @@ export default function ExpenseClaimsPage() {
           <SummaryCard label={t("finance.legacy.status.rejected")} value={String(summary.rejected)} />
         </section>
 
-        {permissions.canSubmitExpenseClaim ? (
+        {!legacyReadOnly && permissions.canSubmitExpenseClaim ? (
         <section style={panelStyle}>
           <h2 style={sectionTitleStyle}>{t("finance.legacy.claim.create")}</h2>
           <div style={formGridStyle}>
@@ -667,10 +670,10 @@ export default function ExpenseClaimsPage() {
 
     return (
       <div style={actionStackStyle}>
-        {claim.status === "submitted" && permissions.canApproveExpenseClaims ? (
+        {claim.status === "submitted" && !legacyReadOnly && permissions.canApproveExpenseClaims ? (
           <button type="button" onClick={() => approveClaim(claim)} style={smallButtonStyle}>{t("finance.legacy.actions.approve")}</button>
         ) : null}
-        {claim.status === "approved" && !claim.ledger_entry_id && permissions.canPayExpenseClaims ? (
+        {claim.status === "approved" && !claim.ledger_entry_id && !legacyReadOnly && permissions.canPayExpenseClaims ? (
           <div style={paidFormStyle}>
             <input type="date" value={paidForm.paid_date} onChange={(event) => updatePaidForm(claim.id, { paid_date: event.target.value })} style={inputStyle} />
             <select value={paidForm.bank_account_id} onChange={(event) => updatePaidForm(claim.id, { bank_account_id: event.target.value })} style={inputStyle}><option value="">{t("finance.legacy.fields.bank")}</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{renderBankLabel(account)}</option>)}</select>
@@ -680,7 +683,7 @@ export default function ExpenseClaimsPage() {
             <button type="button" onClick={() => markPaid(claim)} disabled={isPaying || bankAccounts.length === 0} style={primarySmallButtonStyle}>{isPaying ? t("finance.legacy.state.processing") : t("finance.legacy.actions.markPaid")}</button>
           </div>
         ) : null}
-        {["submitted", "approved", "rejected"].includes(claim.status) && permissions.canApproveExpenseClaims ? (
+        {["submitted", "approved", "rejected"].includes(claim.status) && !legacyReadOnly && permissions.canApproveExpenseClaims ? (
           <details data-action-menu-root="true" open={openActionMenuId === claim.id} style={moreMenuStyle}>
             <summary
               aria-label={t("finance.legacy.actions.more")}
