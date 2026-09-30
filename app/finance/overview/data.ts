@@ -18,7 +18,7 @@ const fields = {
  payables: ["outstanding_count", "outstanding_amount", "company_purchase_count", "company_purchase_amount", "reimbursement_count", "reimbursement_amount", "overdue_count", "overdue_amount", "due_soon_count", "due_soon_amount", "no_due_date_count", "no_due_date_amount"],
  participants: ["unpaid_entitlement_count", "unpaid_participant_count", "unpaid_amount"],
 };
-export const canOverview = (p: UserPermissions) => p.canViewFinanceCashTransactions || p.canViewFinanceQuotations || p.canViewFinancePayments || p.canViewFinanceTaxInvoices;
+export const canOverview = (p: UserPermissions) => p.role === "admin" || p.role === "partner";
 export function monthDates(month: string) {
  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw Error("Invalid month");
  const [y,m] = month.split("-").map(Number);

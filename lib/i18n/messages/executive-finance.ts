@@ -1,6 +1,6 @@
 import type { MessageCatalog } from "../core";
 export const executiveFinanceMessages: MessageCatalog = {
- "executive.nav": {th:"ภาพรวมการเงิน",en:"Finance overview"},
+ "executive.nav": {th:"ภาพรวมการเงิน",en:"Finance Overview"},
  "executive.title": {th:"ภาพรวมการเงินผู้บริหาร",en:"Executive Finance Dashboard"},
  "executive.subtitle": {th:"เงินจริง ผลทางธุรกิจ และภาระคงค้าง — แยกมุมมอง เชื่อมกลับต้นทาง",en:"Actual money, business results and obligations — separate views, traceable sources"},
  "executive.period": {th:"ช่วงรายงาน",en:"Reporting month"}, "executive.current": {th:"ยอดปัจจุบัน",en:"Current position"},

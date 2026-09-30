@@ -1,6 +1,6 @@
 import type { MessageCatalog } from "../core";
 export const companyStatementMessages: MessageCatalog = {
- "companyStatement.nav": { th: "Statement", en: "Statement" },
+ "companyStatement.nav": { th: "ภาพรวมเงิน", en: "Statement Overview" },
  "companyStatement.company": { th: "บริษัท", en: "Company" },
  "companyStatement.title": { th: "Statement — บริษัท", en: "Statement — Company" },
  "companyStatement.description": { th: "รายรับของบริษัทจากการจัดสรรรายได้ที่ยืนยันแล้ว", en: "Company income from confirmed revenue distributions" },

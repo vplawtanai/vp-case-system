@@ -8,6 +8,7 @@
 .nav h3::before { content:""; width:3px; height:16px; flex:0 0 3px; border-radius:2px; background:var(--section-accent); }
 .nav a { position:relative; display:block; padding:10px 10px 10px 14px; min-height:40px; border-radius:5px; font-size:13px; line-height:1.5; text-decoration:none; color:#435269; overflow-wrap:anywhere; }
 .nav a:hover { background:#f3f6fa; }
+.nav .overview { --section-accent:#30465d; --section-tint:#edf4ff; font-size:15px; font-weight:700; margin-top:8px; }
 .nav a[aria-current] { color:var(--section-accent); background:var(--section-tint); font-weight:700; }
 .nav a[aria-current]::before { content:""; position:absolute; left:0; top:8px; bottom:8px; width:3px; border-radius:2px; background:var(--section-accent); }
 .nav a:focus-visible,.accordion:focus-visible { outline:2px solid #1766df; outline-offset:1px; }

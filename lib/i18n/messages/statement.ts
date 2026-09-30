@@ -15,6 +15,7 @@ export const statementMessages: MessageCatalog = {
  "statement.participant_payout": { th: "จ่ายส่วนแบ่งผู้ร่วมงาน", en: "Participant payout" },
  "statement.tax_remittance": { th: "นำส่งภาษี", en: "Tax remittance" },
  "statement.transfer": { th: "โอนระหว่างบัญชี", en: "Inter-account transfer" }, "statement.other": { th: "รายการเงินอื่น", en: "Other money movement" },
+ "statement.transferNav": { th: "โอนระหว่างบัญชี", en: "Transfers" },
  "statement.transferOut": { th: "โอนไป", en: "Transfer to" }, "statement.transferIn": { th: "รับโอนจาก", en: "Transfer from" },
  "statement.empty": { th: "ไม่มีรายการตามตัวกรองนี้", en: "No movements match these filters." },
  "statement.unclassified": { th: "รายการจ่ายแล้วที่ยังไม่จัดประเภทหรือหลักฐานเปลี่ยน ยังไม่รวมในรายจ่ายบริษัท", en: "Paid expenses awaiting classification or updated evidence are excluded from company expenses" },
