@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { CalendarDays, Clock3, Timer, UserRound, Compass, ArrowUpRight, Activity, ListTodo } from 'lucide-react';
 import { workStates, type Matter, type Stage } from '../../../lib/advisory-control';
 import { Badge, useAdvisoryLabels } from './shared';
+import { OverdueDays } from './MatterOverdue';
 import type { EditRequest } from './MatterEditor';
 import css from './control.module.css';
 import ui from './overview.module.css';
@@ -34,7 +35,7 @@ export default function MatterOverview({ matter, stages = [], canEdit, onEdit, o
           <div><Activity size={18}/><div><dt>{a('state')}</dt><dd>{state ? <Badge value={state}/> : <span className={ui.notSet}>{a('workStateUnset')}</span>}</dd>{editable && <button type="button" className={css.textButton} aria-label={a('editWorkState')} onClick={() => onEdit({ action: 'work_state', title: a('state'), values: { state: state || 'working' } })}>{a('edit')}</button>}</div></div>
           <div id="next-action"><ListTodo size={18}/><div><dt>{a('next')}</dt><dd>{matter.next_action || a('noNext')}</dd>{editable && <button type="button" className={css.textButton} aria-label={a(matter.next_action?'editNextAction':'setNextAction')} onClick={() => onEdit({ action: 'next_action', title: a('next'), values: { title: matter.next_task_id ? '' : matter.next_action, owner_id: matter.next_task_id ? '' : matter.next_owner_id, due_date: matter.next_task_id ? '' : matter.next_due } })}>{a(matter.next_action?'edit':'setNextAction')}</button>}</div></div>
           <div><UserRound size={18}/><div><dt>{a('actor')}</dt><dd>{matter.next_owner_name || a('unassigned')}</dd></div></div>
-          <div><CalendarDays size={18}/><div><dt>{a('due')}</dt><dd>{date(matter.next_due)}</dd></div></div>
+          <div><CalendarDays size={18}/><div><dt>{a('due')}</dt><dd className={matter.next_action_overdue_days?css.overdueDate:undefined}>{date(matter.next_due)}</dd><OverdueDays days={matter.next_action_overdue_days}/></div></div>
         </dl>
         <dl className={ui.controlBottom}>{supporting.map(({ key, Icon, value }) => <div key={key}><Icon size={18}/><div><dt>{a(key)}</dt><dd>{value}{key === 'age' && <small>{a('matterAgeHint')}</small>}</dd></div></div>)}</dl>
       </div>

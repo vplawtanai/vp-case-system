@@ -24,7 +24,7 @@ try{for(const locale of ['th','en'])for(const width of [390,768,1024,1440]){
  const query=()=>page.evaluate(()=>window.calls.filter(c=>c.name==='advisory_control_read').at(-1).args.p_query);
  const clear=()=>page.getByRole('button',{name:a('clear'),exact:true}).first().click();
  await page.goto(base+'/advisory?locale='+locale+'&client_id=normal-client');await settled();
- assert.equal(await card.locator('strong').innerText(),'1');assert.ok((await card.innerText()).includes(a('overdue')));
+ assert.equal(await card.locator('strong').innerText(),translate(locale,'advisory.overdueTotalsOneItem',{matters:1,items:1}));assert.ok((await card.innerText()).includes(a('overdue')));
  assert.equal(await page.locator('#advisory-results').getByText('ADV-2026-009',{exact:true}).count(),0);
  await page.getByRole('button',{name:a('nextPage'),exact:true}).click();await settled();assert.equal((await query()).offset,20);
  await card.click();await settled();assert.deepEqual(await query(),{tab:'overdue',sort:'',offset:0});
@@ -50,7 +50,7 @@ try{for(const locale of ['th','en'])for(const width of [390,768,1024,1440]){
  await clear();await settled();await card.focus();await card.press('Space');await settled();assert.equal((await query()).tab,'overdue');
  assert.deepEqual(await page.evaluate(()=>window.calls.filter(c=>!['advisory_control_read','get_finance_expense_access','get_finance_statement_accounts'].includes(c.name))),[]);
  // Zero is a real empty result, never an invented navigation or a disabled trap.
- await page.goto(base+'/advisory?locale='+locale+'&zeroOverdue');await settled();assert.equal(await card.locator('strong').innerText(),'0');await card.click();await settled();
+ await page.goto(base+'/advisory?locale='+locale+'&zeroOverdue');await settled();assert.equal(await card.locator('strong').innerText(),translate(locale,'advisory.overdueTotals',{matters:0,items:0}));await card.click();await settled();
  assert.equal(await page.evaluate(()=>window.lastResult.total),0);await page.getByRole('status').getByText(a('empty'),{exact:true}).waitFor();
  assert.equal(await card.getAttribute('aria-pressed'),'true');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
  results.push({locale,width,filterReset:true,paginationReset:true,sortPreserved:true,countMatches:true,keyboard:true,zeroSafe:true,noOverflow:true});await page.close();

@@ -191,6 +191,18 @@ export const advisoryControlMessages: MessageCatalog = {
     "th": "งานเลยกำหนด",
     "en": "Overdue"
   },
+  "advisory.overdueTotals": {"th":"{matters} เรื่อง · {items} งาน","en":"{matters} matters · {items} items"},
+  "advisory.overdueTotalsOneMatter": {"th":"{matters} เรื่อง · {items} งาน","en":"{matters} matter · {items} items"},
+  "advisory.overdueTotalsOneItem": {"th":"{matters} เรื่อง · {items} งาน","en":"{matters} matter · {items} item"},
+  "advisory.overdueItem": {"th":"{n} งานเลยกำหนด","en":"{n} overdue item"},
+  "advisory.overdueItems": {"th":"{n} งานเลยกำหนด","en":"{n} overdue items"},
+  "advisory.overdueDay": {"th":"เลยกำหนด {n} วัน","en":"{n} day overdue"},
+  "advisory.overdueDays": {"th":"เลยกำหนด {n} วัน","en":"{n} days overdue"},
+  "advisory.oldestOverdueDay": {"th":"เก่าสุด {n} วัน","en":"Oldest {n} day overdue"},
+  "advisory.oldestOverdueDays": {"th":"เก่าสุด {n} วัน","en":"Oldest {n} days overdue"},
+  "advisory.overdueForMatter": {"th":"งานเลยกำหนดของ {matter}","en":"Overdue work for {matter}"},
+  "advisory.moreOverdueItem": {"th":"อีก {n} งานเลยกำหนด","en":"{n} more overdue item"},
+  "advisory.moreOverdueItems": {"th":"อีก {n} งานเลยกำหนด","en":"{n} more overdue items"},
   "advisory.waiting": {
     "th": "รอข้อมูลลูกค้า",
     "en": "Waiting for client"
