@@ -16,7 +16,14 @@ for(const locale of ['th','en']){
   assert.equal((html.match(/role="combobox"/g)||[]).length,1);assert.match(html,/for="matter-client"/);assert.ok(html.includes(a('client')));assert.ok(html.includes('placeholder="'+a('selectClient')+'"'));
   assert.ok(!html.includes('placeholder="'+a('search')+'"'));assert.doesNotMatch(html,/<select[^>]*name="client_id"/);assert.match(html,/<input[^>]*type="hidden"[^>]*name="client_id"[^>]*value="existing-client"/);
   assert.ok(html.indexOf('id="matter-client"')<html.indexOf('name="title"'));assert.ok(html.indexOf('name="title"')<html.indexOf('name="matter_type"'));assert.ok(html.indexOf('name="matter_type"')<html.indexOf('name="lead_id"'));
-  assert.match(html,/<input(?=[^>]*name="title")(?=[^>]*required)[^>]*>/);assert.match(html,/<select[^>]*name="lead_id"[^>]*required/);assert.match(html,/<input[^>]*name="template"[^>]*value="general_advisory"/);
+  assert.match(html,/<input(?=[^>]*name="title")(?=[^>]*required)[^>]*>/);assert.match(html,/<select[^>]*name="lead_id"[^>]*aria-required="true"/);assert.doesNotMatch(html,/<select[^>]*name="lead_id"[^>]* required=/);assert.match(html,/<input[^>]*name="template"[^>]*value="general_advisory"/);
+ });
+ test(locale+' missing lead has a localized, associated application error without native validation',()=>{
+  const html=editor.render(locale,{'MatterEditor.leadError':true},{request:{action:'create',title:a('create')},people:[],onClose(){},onSaved:async()=>{}});
+  assert.match(html,/<select[^>]*name="lead_id"[^>]*aria-invalid="true"[^>]*aria-describedby="matter-lead-error"/);
+  assert.match(html,/<small id="matter-lead-error"[^>]*role="alert"/);
+  assert.ok(html.includes(locale==='th'?'กรุณาระบุทนายหลัก':'Please select a lead lawyer'));
+  assert.doesNotMatch(html,/Please select an item in the list/);
  });
  test(locale+' legacy Journey renders no claimed past visits, dates or current stage',()=>{
   const html=journey.render(locale,{}, {matter,stages:[],canEdit:true,onEdit(){}});

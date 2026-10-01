@@ -33,13 +33,20 @@ try{for(const locale of ['th','en'])for(const width of [390,768,1024,1440]){
  // Editing a selected value invalidates the old selection; free text is never an ID.
  await input.click();await input.fill('UNREGISTERED AGAIN');await d.getByText(w.empty,{exact:true}).waitFor();assert.equal(await d.locator('input[name=client_id]').inputValue(),'');await save.click();assert.equal(await page.evaluate(()=>window.calls.filter(c=>c.args?.p_action==='create').length),0);
  await input.fill('ซูลู');await d.getByRole('option',{name:clientName,exact:true}).click();await d.locator('input[name=title]').focus();
+ // Missing Lead is blocked by application validation in both locales, before any create RPC.
+ const lead=d.locator('select[name=lead_id]');await lead.selectOption('');
+ assert.equal(await lead.evaluate(el=>el.required),false);assert.equal(await lead.getAttribute('aria-required'),'true');
+ const leadMessage=locale==='th'?'กรุณาระบุทนายหลัก':'Please select a lead lawyer';
+ for(let attempt=0;attempt<2;attempt++){await save.click();await d.locator('#matter-lead-error').getByText(leadMessage,{exact:true}).waitFor();assert.equal(await lead.getAttribute('aria-invalid'),'true');assert.equal(await lead.evaluate(el=>el===document.activeElement),true);assert.equal(await page.evaluate(()=>window.calls.filter(c=>c.args?.p_action==='create').length),0);}
+ assert.equal(await lead.evaluate(el=>el.validationMessage),'');
+ await lead.selectOption('lead');assert.equal(await d.locator('#matter-lead-error').count(),0);assert.equal(await lead.getAttribute('aria-invalid'),null);
  const bounds=await d.locator('#matter-client,input[name=title],select[name=matter_type],select[name=lead_id]').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right};}));
  assert.equal(bounds.length,4);if(width===390){for(let i=1;i<4;i++)assert.ok(bounds[i].y>bounds[i-1].y);}else{assert.ok(bounds[0].x<bounds[1].x);assert.ok(Math.abs(bounds[0].y-bounds[1].y)<8);assert.ok(bounds[2].y>bounds[0].y);assert.ok(Math.abs(bounds[2].y-bounds[3].y)<8);}
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);assert.ok(bounds.every(b=>b.x>=0&&b.right<=width));
  assert.equal(await page.locator('html').getAttribute('lang'),locale);await page.screenshot({path:path.join(out,`${locale}-${width}-create.png`)});
  await save.click();await page.waitForURL(base+'/advisory/00000000-0000-4000-8000-000000000104');await page.getByRole('heading',{name:'Independent Matter title',exact:true}).waitFor();
  const created=await page.evaluate(()=>JSON.parse(sessionStorage.getItem('previewCreatedMatter')));assert.equal(created.client_id,clientId);assert.equal(created.title,'Independent Matter title');assert.equal(created.matter_type,'contract_business_documents');assert.equal(created.template,'contract_business_documents');assert.equal(created.lead_id,'lead');
- results.push({locale,width,selectionAndCreationPassed:true,staleSearchIgnored:true,freeTextRejected:true,layoutPassed:true});await page.close();
+ results.push({locale,width,selectionAndCreationPassed:true,localizedLeadValidationPassed:true,staleSearchIgnored:true,freeTextRejected:true,layoutPassed:true});await page.close();
  }
  // Client lookup failure cannot offer stale options or create anything.
  const page=await browser.newPage();await page.goto(base+'/advisory?locale=en&clientLookupError');await page.getByRole('button',{name:labels.en.create,exact:true}).click();const d=page.getByRole('dialog');await d.locator('#matter-client-status[role=alert]').waitFor();assert.equal(await d.locator('#matter-client-options').getByRole('option').count(),0);assert.equal(await d.locator('input[name=client_id]').inputValue(),'');assert.equal(await page.evaluate(()=>window.calls.filter(c=>c.args?.p_action==='create').length),0);await page.close();

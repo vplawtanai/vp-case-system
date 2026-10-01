@@ -35,6 +35,7 @@ const advisoryMessages: Record<string, MessageCatalog[string]> = {
   "advisory.addMember": {"th": "เพิ่มสมาชิกทีม", "en": "Add team member"},
   "advisory.editRole": {"th": "แก้ไขบทบาท", "en": "Edit role"},
   "advisory.searchPerson": {"th": "ค้นหาชื่อบุคคล", "en": "Search people"},
+  "advisory.leadRequired": {"th": "กรุณาระบุทนายหลัก", "en": "Please select a lead lawyer"},
   "advisory.requiredFields": {"th": "กรุณากรอกข้อมูลที่จำเป็นให้ครบ", "en": "Complete the required fields."},
   "advisory.duplicateMember": {"th": "บุคคลนี้มีบทบาทนี้ในทีมแล้ว", "en": "This person already has this role in the team."},
   "advisory.leadExists": {"th": "มีทนายหลักแล้ว ให้เปลี่ยนผ่านการเพิ่มสมาชิกบทบาททนายหลักและยืนยันผู้ที่จะรับแทน", "en": "A lead already exists. Add the replacement as lead and confirm the change."},
