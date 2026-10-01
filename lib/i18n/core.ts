@@ -35,6 +35,7 @@ export function formatMessage(catalog: MessageCatalog, locale: UiLocale, key: st
 export const englishCoverage = {
   finance: true,
   advisoryControl: true,
+  visualAssets: true,
   documentSettings: true,
   other: false,
 } as const;
@@ -44,6 +45,7 @@ export type ModuleCoverage = Readonly<Record<keyof typeof englishCoverage, boole
 export function uiModule(pathname: string): keyof typeof englishCoverage {
   if (/^\/clients\/[^/]+\/tax-identity(?:\/|$)/.test(pathname)) return "finance";
   if (/^\/advisory(?:\/[0-9a-f-]{36})?\/?$/.test(pathname)) return "advisoryControl";
+  if (/^\/admin\/visual-assets(?:\/|$)/.test(pathname)) return "visualAssets";
   if (/^\/finance(?:\/|$)/.test(pathname)) return "finance";
   if (/^\/settings\/(?:document-settings|document-templates|document-clauses)(?:\/|$)/.test(pathname)) return "documentSettings";
   return "other";

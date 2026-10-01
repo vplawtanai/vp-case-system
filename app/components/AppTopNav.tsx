@@ -15,6 +15,7 @@ import type { UserPermissionProfile } from "../../lib/permissions";
 import sidebarCss from "./AppSidebar.module.css";
 import { revealActiveNavigation } from "./sidebar-reveal";
 import BrandMark from "./BrandMark";
+import { isActiveAdmin } from "../../lib/people";
 
 type AppTopNavProps = {
   title: string;
@@ -35,7 +36,8 @@ type AppTopNavProps = {
     | "documentTemplates"
     | "documentClauses"
     | "account"
-    | "users";
+    | "users"
+    | "visualAssets";
 };
 
 type UserProfile = {
@@ -184,6 +186,7 @@ export default function AppTopNav({
         items: [
           { page: "documentSettings" as const, label: t("common.nav.documentSettings"), icon: "settings" as const, href: "/settings/document-settings", visible: permissions.role === "admin" || permissions.role === "partner" },
           { page: "documentTemplates" as const, label: t("common.nav.documentTemplates"), icon: "templates" as const, href: "/settings/document-templates", visible: permissions.role === "admin" || permissions.role === "partner" },
+          { page: "visualAssets" as const, label: t("common.nav.visualAssets"), icon: "templates" as const, href: "/admin/visual-assets/access", visible: isActiveAdmin(profile) && profile.must_change_password === false },
           { page: "documentClauses" as const, label: t("common.nav.clauseLibrary"), icon: "clauses" as const, href: "/settings/document-clauses", visible: permissions.role === "admin" || permissions.role === "partner" },
         ],
       },
@@ -194,7 +197,7 @@ export default function AppTopNav({
         ],
       },
     ],
-    [expenseFinanceVisible, financeHref, permissions, t]
+    [expenseFinanceVisible, financeHref, permissions, profile, t]
   );
 
   useEffect(() => {
@@ -287,6 +290,7 @@ export default function AppTopNav({
       | "documentClauses"
       | "account"
       | "users"
+      | "visualAssets"
   ) => {
     if (page === "cases") return pathname.startsWith("/cases");
     if (page === "advisory") return pathname.startsWith("/advisory");
@@ -297,6 +301,7 @@ export default function AppTopNav({
     if (page === "officeWork") return pathname === "/workload/office-work";
     if (page === "workloadSummary") return pathname === "/reports/workload-summary";
     if (page === "clients") return pathname === "/clients";
+    if (page === "visualAssets") return pathname.startsWith("/admin/visual-assets");
     if (page === "users") return pathname === "/admin/users";
     if (page === "settings") return pathname.startsWith("/settings");
     if (page === "documentSettings") return pathname.startsWith("/settings/document-settings");

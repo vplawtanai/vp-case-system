@@ -42,6 +42,7 @@ export const commonMessages = {
   "common.nav.settings": { th: "การตั้งค่า", en: "Settings" },
   "common.nav.documentSettings": { th: "การตั้งค่าเอกสาร", en: "Document Settings" },
   "common.nav.documentTemplates": { th: "แม่แบบเอกสาร", en: "Document Templates" },
+  "common.nav.visualAssets": { th: "คลังภาพระบบ", en: "Visual Asset Library" },
   "common.nav.clauseLibrary": { th: "คลังข้อสัญญา", en: "Clause Library" },
   "common.nav.account": { th: "บัญชีผู้ใช้", en: "Account" },
   "common.nav.logout": { th: "ออกจากระบบ", en: "Sign Out" },
