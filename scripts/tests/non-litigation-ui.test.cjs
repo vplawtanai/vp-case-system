@@ -16,7 +16,7 @@ for(const locale of ['th','en']){
   assert.equal((html.match(/role="combobox"/g)||[]).length,1);assert.match(html,/for="matter-client"/);assert.ok(html.includes(a('client')));assert.ok(html.includes('placeholder="'+a('selectClient')+'"'));
   assert.ok(!html.includes('placeholder="'+a('search')+'"'));assert.doesNotMatch(html,/<select[^>]*name="client_id"/);assert.match(html,/<input[^>]*type="hidden"[^>]*name="client_id"[^>]*value="existing-client"/);
   assert.ok(html.indexOf('id="matter-client"')<html.indexOf('name="title"'));assert.ok(html.indexOf('name="title"')<html.indexOf('name="matter_type"'));assert.ok(html.indexOf('name="matter_type"')<html.indexOf('name="lead_id"'));
-  assert.match(html,/<input(?=[^>]*name="title")(?=[^>]*required)[^>]*>/);assert.match(html,/<select[^>]*name="lead_id"[^>]*required/);assert.match(html,/<input[^>]*name="template"[^>]*value="general"/);
+  assert.match(html,/<input(?=[^>]*name="title")(?=[^>]*required)[^>]*>/);assert.match(html,/<select[^>]*name="lead_id"[^>]*required/);assert.match(html,/<input[^>]*name="template"[^>]*value="general_advisory"/);
  });
  test(locale+' legacy Journey renders no claimed past visits, dates or current stage',()=>{
   const html=journey.render(locale,{}, {matter,stages:[],canEdit:true,onEdit(){}});

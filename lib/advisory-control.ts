@@ -1,4 +1,5 @@
 import {workflowErrors} from './advisory-workflow';
+import journeyCatalog from './advisory-journey-catalog.json';
 // Phase 8C UI contract. Source facts and permission decisions come from PostgreSQL.
 export type Matter = {
  id:string;client_id:string;client_name:string;matter_no:string;title:string;matter_type:string;status:string;
@@ -39,14 +40,18 @@ export const workPresets = [
  {key:'data_privacy',template:'opinion'},
  {key:'government_coordination',template:'general'},
 ] as const;
-export const types=[...workPresets.map(p=>p.key),'document_drafting','meeting_consultation','corporate_support','other'] as const;
+// 085 creation catalog is separate from legacy starters and stored Matter plans.
+export const createWorkTypes=journeyCatalog.work_types;
+export const journeyFamilies=journeyCatalog.families;
+export function createJourneyFamily(type:string){return createWorkTypes.find(t=>t.key===type)?.family||'general_advisory';}
+export const types=[...new Set([...createWorkTypes.map(t=>t.key),...workPresets.map(p=>p.key),'document_drafting','meeting_consultation','corporate_support','other'])];
 export const templates:Record<string,string[]>={contract:['intake','information','analysis','draft','review','client_delivery','negotiation','final','close'],license:['intake','requirements','preparation','submission','authority_wait','amendment','result','close'],opinion:['brief','facts','research','analysis','review','opinion_delivery','close'],negotiation:['intake','facts','strategy','contact','negotiation','result','close'],general:['intake','information','analysis','execution','delivery','close']};
 export function defaultTemplate(type:string){return workPresets.find(p=>p.key===type)?.template||'general';}
 export function stageState(stage:Stage,current:string|null,closed:boolean){if(stage.stage_key==='close'&&closed)return 'finished';if(stage.stage_key===current)return 'current';if(stage.visits.some(v=>v.kind==='visit'&&v.exited_at))return 'visited';if(stage.visits.some(v=>v.kind==='skip'))return 'skipped';return 'planned';}
 export function personName(people:Person[],id:string|null,legacy?:string|null){const p=people.find(p=>p.id===id);return p?.staff_name||p?.full_name||legacy||'—';}
 // A preview is a plan, never evidence that a stage has been visited.
-export function journeyPlan(matter:Matter,stages:Stage[],template=defaultTemplate(matter.matter_type)):Stage[]{
- return stages.length?[...stages].sort((a,b)=>a.position-b.position):(templates[template]||templates.general).map((stage_key,position)=>({id:'',stage_key,template_key:template,position,visits:[],minutes:null}));
+export function journeyPlan(matter:Matter,stages:Stage[],template=matter.template_key||defaultTemplate(matter.matter_type)):Stage[]{
+ return stages.length?[...stages].sort((a,b)=>a.position-b.position):(journeyFamilies.find(f=>f.key===template)?.stages||templates[template]||templates.general).map((stage_key,position)=>({id:'',stage_key,template_key:template,position,visits:[],minutes:null}));
 }
 export function journeyProgress(stages:Stage[],current:string|null,closed:boolean){
  const states=stages.map(s=>stageState(s,current,closed));

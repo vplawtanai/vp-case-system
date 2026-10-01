@@ -16,7 +16,6 @@ const dialog = { default: ({ open, children, title }) => open ? React.createElem
 const journey = workspaceFixture('app/advisory/control/Journey.tsx', ['Journey'], { './shared': shared });
 const compact = workspaceFixture('app/advisory/control/MatterJourney.tsx', ['MatterJourney'], { './shared': shared, './Journey': { default: journey.component('Journey') }, '../../components/DetailModal': dialog });
 const overview = workspaceFixture('app/advisory/control/MatterOverview.tsx', ['MatterOverview'], { './shared': shared });
-const editor = workspaceFixture('app/advisory/control/MatterEditor.tsx', ['MatterEditor'], { './shared': shared, '../../components/DetailModal': dialog });
 const base = { id: 'main', client_id: 'client', client_name: 'Synthetic client', matter_no: 'ADV-TEST', title: 'Synthetic matter', matter_type: 'general_advisory', status: 'active', stage_key: null, closed_at: null, stage_days: null, age_days: 19, next_action: 'Prepare response', next_owner_name: 'Assigned person', next_due: '2026-10-01', work_state: 'waiting_client', version: 0 };
 const plan = model.journeyPlan(base, []);
 const live = plan.map((s, i) => ({ ...s, id: 'stage-' + i, minutes: i === 2 ? 95 : null, task_completed: i === 2 ? 1 : 0, task_total: i === 2 ? 3 : 0, elapsed_seconds: 864000, visits: i < 2 ? [{ kind: 'visit', entered_at: '2026-09-10T00:00:00Z', exited_at: '2026-09-12T00:00:00Z' }] : i === 2 ? [{ kind: 'visit', entered_at: '2026-09-24T00:00:00Z', exited_at: null }] : [] }));
@@ -74,7 +73,7 @@ for (const locale of ['th', 'en']) {
   });
 }
 
-test('17 work starters only submit canonical sequences already supported by applied 076', () => {
+test('17 legacy work starters retain canonical sequences supported by applied 076', () => {
   assert.equal(model.workPresets.length, 17);
   assert.equal(new Set(model.workPresets.map(p => p.key)).size, 17);
   const sql = fs.readFileSync('supabase/migrations/202607180076_non_litigation_matter_control_core.sql', 'utf8');
@@ -86,9 +85,7 @@ test('17 work starters only submit canonical sequences already supported by appl
     assert.ok(model.templates[preset.template]); assert.equal(model.defaultTemplate(preset.key), preset.template);
     for (const locale of ['th', 'en']) {
       assert.ok(keys['advisory.preset.' + preset.key][locale]);
-      const html = editor.render(locale, { 'MatterEditor.workType': preset.key }, { request: { action: 'create', title: 'Create' }, people: [], stages: [], onClose() {}, onSaved: async () => {} });
-      assert.ok(html.includes(`name="template" value="${preset.template}"`));
-      assert.ok(html.includes(translate(locale, 'advisory.presetHint', { template: translate(locale, 'advisory.enum.' + preset.template) })));
+
     }
   }
   for (const key of ['document_drafting', 'meeting_consultation', 'corporate_support', 'compliance', 'other', 'unrecognized historical type']) assert.equal(model.defaultTemplate(key), 'general');

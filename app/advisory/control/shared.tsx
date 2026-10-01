@@ -6,7 +6,7 @@ import {messages} from '../../../lib/i18n/catalog';
 import type {ControlRead,Person} from '../../../lib/advisory-control';
 import css from './control.module.css';
 import vp from '../../components/ui/vp-ui.module.css';
-export function useAdvisoryLabels(){const i=useI18n();return {...i,a:(key:string,parameters?:Record<string,string|number>)=>i.t('advisory.'+key,parameters),label:(value:string|null|undefined)=>!value?'—':messages['advisory.enum.'+value]?i.t('advisory.enum.'+value):value};}
+export function useAdvisoryLabels(){const i=useI18n();return {...i,a:(key:string,parameters?:Record<string,string|number>)=>i.t('advisory.'+key,parameters),label:(value:string|null|undefined,family?:string|null)=>!value?'—':family&&messages['advisory.stage.'+family+'.'+value]?i.t('advisory.stage.'+family+'.'+value):messages['advisory.enum.'+value]?i.t('advisory.enum.'+value):value};}
 export function useControl(id?:string,query='{}'){
  const [data,setData]=useState<ControlRead|null>(null),[error,setError]=useState(false),[loading,setLoading]=useState(true);
  const sequence=useRef(0);

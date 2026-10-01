@@ -21,7 +21,7 @@ export default function MatterWorkflowDialog({mode,matter,onClose,onSaved,onFini
  return <DetailModal open size="edit" title={a(stage?'completeStage':closing?'closeMatter':'reopen')} subtitle={matter.matter_no} onClose={()=>{if(!busy)onClose();}}><form className={css.form} onSubmit={submit}>
  {error&&<p role="alert" className={css.error}>{error}</p>}
  {loading?<p role="status">{a('loading')}</p>:loadError?<p className={css.error} role="alert">{a('loadError')} <button type="button" onClick={reload}>{a('refresh')}</button></p>:!fresh?<p role="alert" className={css.error}>{a('changed')} <button type="button" onClick={onSaved}>{a('refresh')}</button></p>:<>
- {stage&&<p className={css.notice}>{label(checks?.current_stage_key)} · {a('stageCompletionHint')}</p>}
+ {stage&&<p className={css.notice}>{label(checks?.current_stage_key,matter.template_key)} · {a('stageCompletionHint')}</p>}
  {mode!=='reopen'&&<ul className={`${css.checklist} ${css.wide}`}>{rows.map(([key,pendingKey,ok,count])=><li key={String(key)} data-ok={!!ok}>{ok?<CheckCircle2 size={18}/>:<AlertCircle size={18}/>}<span>{a(String(ok?key:pendingKey))}{typeof count==='number'&&count>0?` (${count})`:''}</span></li>)}</ul>}
  {stage&&!!checks?.current_stage_open_tasks&&<p role="alert" className={css.error}>{a('stageBlocked')} <button type="button" onClick={onTasks}>{a('viewTasks')}</button></p>}
  {stage&&!!checks?.current_stage_open_tasks&&<div className={css.wide}>{taskLoadError?<p>{a('loadError')}</p>:<ul className={css.rows}>{blockingTasks.map(t=><li key={t.id}>{t.title}</li>)}</ul>}</div>}

@@ -1,5 +1,7 @@
 import type { MessageCatalog } from "../core";
-export const advisoryControlMessages: MessageCatalog = {
+import journeyCatalog from '../../advisory-journey-catalog.json';
+const advisoryMessages: Record<string, MessageCatalog[string]> = {
+  "advisory.familyHint": {"th":"ลำดับการทำงาน: {family}","en":"Journey family: {family}"},
   "advisory.noClients": {"th":"ไม่พบลูกค้าที่ตรงกับคำค้น","en":"No clients match your search"},
   "advisory.stageTasksPending": {"th":"มีงานค้างในขั้นตอนนี้","en":"Incomplete tasks in this stage"},
   "advisory.tasksPending": {"th":"มีงานที่ยังไม่เสร็จ","en":"Incomplete tasks remain"},
@@ -909,3 +911,25 @@ export const advisoryControlMessages: MessageCatalog = {
     "en": "Matter reopened"
   }
 };
+
+// New creation labels do not overwrite historical Work Type or Stage wording.
+for (const type of journeyCatalog.work_types) {
+  const text = {th: type.th, en: type.en};
+  advisoryMessages['advisory.workType.' + type.key] = text;
+  advisoryMessages['advisory.enum.' + type.key] ??= text;
+}
+for (const family of journeyCatalog.families) {
+  const text = {th: family.th, en: family.en};
+  advisoryMessages['advisory.family.' + family.key] = text;
+  advisoryMessages['advisory.enum.' + family.key] ??= text;
+  family.stages.forEach((stage, i) => {
+    const stageText = {th: family.stage_labels_th[i], en: family.stage_labels_en[i]};
+    advisoryMessages['advisory.stage.' + family.key + '.' + stage] = stageText;
+    advisoryMessages['advisory.enum.' + stage] ??= stageText;
+  });
+}
+for (const legacy of ['general','contract','opinion','negotiation','license']) {
+  advisoryMessages['advisory.family.' + legacy] = advisoryMessages['advisory.enum.' + legacy];
+}
+
+export const advisoryControlMessages: MessageCatalog = advisoryMessages;

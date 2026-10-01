@@ -24,7 +24,7 @@ export default function MatterOverview({ matter, stages = [], canEdit, onEdit, o
     <h2 id="matter-control-title" className={ui.commandTitle}><Compass size={18}/>{a('overviewControlTitle')}</h2>
     <div className={ui.commandGrid}>
       <div className={ui.stageBlock}>
-        <Compass size={23}/><div><span className={ui.caption}>{a('stage')}</span><h3>{matter.stage_key ? label(matter.stage_key) : a(stages.length?'noCurrentStage':'unset')}</h3>
+        <Compass size={23}/><div><span className={ui.caption}>{a('stage')}</span><h3>{matter.stage_key ? label(matter.stage_key,matter.template_key) : a(stages.length?'noCurrentStage':'unset')}</h3>
         {!matter.stage_key && <p>{a(matterClosed(matter) ? 'unsetClosedStageHint' : stages.length?'noCurrentStageHint':'unsetStageHelp')}</p>}
         {matter.stage_key && <p>{a('compactJourneyHint')}</p>}
         <div className={ui.stageActions}>{editable && matter.stage_key && <button type="button" className={css.primary} onClick={()=>onEdit({action:'stage_complete',title:a('completeStage')})}>{a('completeStage')}</button>}

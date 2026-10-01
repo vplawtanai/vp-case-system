@@ -14,10 +14,10 @@ type Props = {
   canEdit: boolean;
   onEdit: (request: EditRequest) => void;
   initialStage?: string;
-  template?: ReturnType<typeof defaultTemplate>;
+  template?: string;
 };
 
-export default function Journey({ matter, stages, canEdit, onEdit, initialStage, template = defaultTemplate(matter.matter_type) }: Props) {
+export default function Journey({ matter, stages, canEdit, onEdit, initialStage, template = matter.template_key || defaultTemplate(matter.matter_type) }: Props) {
   const { a, label, date } = useAdvisoryLabels();
   const [selected, setSelected] = useState(initialStage || matter.stage_key || '');
   const detailsRef = useRef<HTMLElement>(null);
@@ -61,7 +61,7 @@ export default function Journey({ matter, stages, canEdit, onEdit, initialStage,
           return <li key={s.stage_key} style={{ '--node-x': `${points[i].x}%`, '--node-y': `${points[i].y}%` } as CSSProperties}>
             <button type="button" className={css.station} data-state={status} aria-current={status === 'current' ? 'step' : undefined} aria-pressed={chosen.stage_key === s.stage_key} aria-controls="journey-stage-details" onClick={() => inspect(s.stage_key)}>
               <span className={css.stationIcon}><Icon size={23} /></span>
-              <span className={css.stationText}><span className={css.stepNumber}>{a('stepNumber', { n: i + 1 })}</span><strong>{label(s.stage_key)}</strong><small>{a(status)}</small>{status === 'current' && <small>{matter.stage_days === null ? '—' : a('days', { n: matter.stage_days })}</small>}</span>
+              <span className={css.stationText}><span className={css.stepNumber}>{a('stepNumber', { n: i + 1 })}</span><strong>{label(s.stage_key,s.template_key)}</strong><small>{a(status)}</small>{status === 'current' && <small>{matter.stage_days === null ? '—' : a('days', { n: matter.stage_days })}</small>}</span>
             </button>
           </li>;
         })}
@@ -78,14 +78,14 @@ export default function Journey({ matter, stages, canEdit, onEdit, initialStage,
       </aside>
       <section ref={detailsRef} id="journey-stage-details" className={css.stageDetail} aria-live="polite" aria-label={a('stageDetails')}>
         <button type="button" className={css.returnToRoute} onClick={() => sceneRef.current?.scrollIntoView({ block: 'start' })}>{a('backToRoute')}</button>
-        <div className={css.detailHeading}><div><span className={css.eyebrow}>{a('stepNumber', { n: plan.indexOf(chosen) + 1 })}</span><h3>{label(chosen.stage_key)}</h3></div><span className={css.stateBadge} data-state={state}>{a(state)}</span></div>
+        <div className={css.detailHeading}><div><span className={css.eyebrow}>{a('stepNumber', { n: plan.indexOf(chosen) + 1 })}</span><h3>{label(chosen.stage_key,chosen.template_key)}</h3></div><span className={css.stateBadge} data-state={state}>{a(state)}</span></div>
         <dl className={css.stageFacts}>
           <div><dt>{a('entered')}</dt><dd>{date(current?.entered_at || latest?.entered_at)}</dd></div>
           <div><dt>{a(state === 'current' ? 'stageDays' : 'stageTotalDays')}</dt><dd>{days === null ? '—' : a('days', { n: days })}</dd></div>
           <div><dt>{a('taskCompletion')}</dt><dd>{chosen.task_total == null || chosen.task_completed == null ? a('notAvailable') : `${chosen.task_completed} / ${chosen.task_total}`}</dd></div>
           <div><dt>{a('actual')}</dt><dd>{chosen.minutes === null ? a('notAvailable') : a('minutes', { n: chosen.minutes })}</dd></div>
         </dl>
-        <div className={css.nextStage}><span>{a('followingStage')}</span><strong>{nextStage ? label(nextStage.stage_key) : a('endOfRoute')}</strong><ArrowRight size={15} /></div>
+        <div className={css.nextStage}><span>{a('followingStage')}</span><strong>{nextStage ? label(nextStage.stage_key,nextStage.template_key) : a('endOfRoute')}</strong><ArrowRight size={15} /></div>
         <div className={css.matterNext}>
           <span>{a('matterNextAction')}</span><strong>{matter.next_action || a('noNext')}</strong>
           <dl><div><dt>{a('actor')}</dt><dd>{matter.next_owner_name || a('unassigned')}</dd></div><div><dt>{a('due')}</dt><dd>{date(matter.next_due)}</dd></div></dl>
