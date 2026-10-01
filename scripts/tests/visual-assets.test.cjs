@@ -64,18 +64,48 @@ test('scoped HttpOnly server-page session requires verified Admin and same origi
 test('upload pipeline decodes exact input, persists measured metadata once and retries without rewriting',async()=>{
  const f=fixture(),start=await request(f,{action:'upload-start',type:'image/png',size:100});assert.equal(start.status,200);assert.match(start.body.path,new RegExp('^'+id(1)+'/'));
  f.files.set(start.body.path,await sharp({create:{width:800,height:450,channels:3,background:'#123456'}}).png().toBuffer());
- const finish=await request(f,{action:'upload-finish',id:start.body.id,metadata});assert.equal(finish.status,201);assert.equal(finish.body.asset.width,800);assert.equal(finish.body.asset.height,450);assert.equal(finish.body.asset.version,1);assert.ok(!f.files.has(start.body.path));assert.equal(f.files.size,2);
- const retry=await request(f,{action:'upload-finish',id:start.body.id,metadata});assert.equal(retry.status,200);assert.equal(f.calls.filter(c=>c[0]==='rpc').length,1);
+ const finish=await request(f,{action:'upload-finish',id:start.body.id});assert.equal(finish.status,201);assert.equal(finish.body.asset.width,800);assert.equal(finish.body.asset.height,450);assert.equal(finish.body.asset.version,1);assert.ok(!f.files.has(start.body.path));assert.equal(f.files.size,2);
+ const asset=finish.body.asset,code=library.visualAssetCode(asset.artwork_key);
+ assert.match(code,/^VP-IMG-[A-F0-9]{12}$/);assert.equal(code.toLowerCase(),asset.artwork_key);
+ assert.equal(asset.name_th,`ภาพ ${code}`);assert.equal(asset.name_en,`Image ${code}`);
+ assert.equal(asset.overlay_ready,false);assert.equal(asset.status,'draft');assert.equal(asset.asset_type,'illustration');assert.equal(asset.scope,'both');assert.equal(asset.theme,'');assert.deepEqual(asset.tags,[]);
+ assert.equal(f.calls.filter(c=>c[0]==='rpc'&&c[2].p_action==='map').length,0);
+ const retry=await request(f,{action:'upload-finish',id:start.body.id,metadata});assert.equal(retry.status,200);assert.equal(retry.body.asset.artwork_key,asset.artwork_key);assert.equal(f.calls.filter(c=>c[0]==='rpc').length,1);
  const read=await request(f);assert.equal(read.body.assets.length,1);assert.ok(read.body.assets[0].master_url);
 });
 test('family mapping resolves active scope then Universal; no Work Type binding or retired fallback',()=>{
  const assets=[{...metadata,id:id(10),delete_pending:false},{...metadata,artwork_key:'specific-map',scope:'case',id:id(11),delete_pending:false}],maps=[{scope:'both',family_key:'universal',artwork_key:'universal-map'},{scope:'case',family_key:'dispute',artwork_key:'specific-map'}];
  assert.equal(library.resolveVisualAsset(assets,maps,'case','dispute').id,id(11));assert.equal(library.resolveVisualAsset(assets,maps,'non_litigation','dispute').id,id(10));assets[0].status='retired';assert.equal(library.resolveVisualAsset(assets,maps,'non_litigation','dispute'),null);
- assert.throws(()=>library.visualMetadata({...metadata,overlay_ready:false}),/VISUAL_INVALID/);assert.throws(()=>library.visualMetadata({...metadata,artwork_key:'../unsafe'}),/VISUAL_INVALID/);
+ assert.equal(library.visualMetadata({...metadata,overlay_ready:false}).overlay_ready,false);for(const value of [null,undefined,'false'])assert.throws(()=>library.visualMetadata({...metadata,overlay_ready:value}),/VISUAL_INVALID/);assert.throws(()=>library.visualMetadata({...metadata,artwork_key:'../unsafe'}),/VISUAL_INVALID/);
 });
 test('navigation is in existing Settings group, active Admin only; page labels and safe overlays are localized',()=>{
  const nav=fs.readFileSync(root+'/app/components/AppTopNav.tsx','utf8'),entry=nav.slice(nav.indexOf('page: "visualAssets"'),nav.indexOf('page: "documentClauses"'));
  assert.match(entry,/isActiveAdmin\(profile\)/);assert.match(entry,/must_change_password === false/);assert.ok(nav.indexOf('title: t("common.nav.settings")')<nav.indexOf('page: "visualAssets"'));
  const {labels}=load('app/admin/visual-assets/labels.ts');for(const pair of Object.values(labels)){assert.equal(pair.length,2);assert.ok(pair.every(s=>s.length>0));assert.ok(!/[ก-๛]/.test(pair[1]));}
  const ui=fs.readFileSync(root+'/app/admin/visual-assets/VisualAssetLibrary.tsx','utf8');assert.match(ui,/\[0,5,7,9\]/);assert.match(ui,/if\(lock.current\)return/);assert.match(ui,/<img src=\{asset.master_url\}/);
+});
+
+test('automatic codes are stable, searchable as stored keys and independent of names or signed URLs',()=>{
+ const input='a1b2c3d4-e5f6-4789-9123-123456789abc',a=library.automaticVisualMetadata(input),code=library.visualAssetCode(a.artwork_key);
+ assert.equal(code,'VP-IMG-A1B2C3D4E5F6');assert.equal(library.automaticVisualMetadata(input).artwork_key,a.artwork_key);
+ assert.equal(library.visualUseInstruction(a.artwork_key,'th'),`ใช้ภาพ ${code} จากคลังภาพระบบ`);
+ assert.equal(library.visualUseInstruction(a.artwork_key,'en'),`Use image ${code} from the Visual Asset Library`);
+ assert.equal(library.visualAssetCode('universal-map'),'universal-map');
+ assert.equal(library.visualUseInstruction('universal-map','th'),'ใช้ภาพ universal-map จากคลังภาพระบบ');
+ assert.throws(()=>library.automaticVisualMetadata('../invalid'),/VISUAL_INVALID/);
+ assert.equal(library.visualMetadata({...a,name_th:'ชื่อใหม่'}).artwork_key,a.artwork_key);
+});
+test('all supported input formats upload with server defaults even if client sends fabricated metadata',async()=>{
+ for(const format of ['jpeg','png','webp']){
+  const f=fixture(),bytes=await sharp({create:{width:320,height:180,channels:3,background:'#346699'}})[format]().toBuffer();
+  const start=await request(f,{action:'upload-start',type:`image/${format}`,size:bytes.length});f.files.set(start.body.path,bytes);
+  const r=await request(f,{action:'upload-finish',id:start.body.id,metadata:{...metadata,width:9000,byte_size:1}});
+  assert.equal(r.status,201);assert.equal(r.body.asset.overlay_ready,false);assert.equal(r.body.asset.status,'draft');assert.notEqual(r.body.asset.artwork_key,metadata.artwork_key);
+  assert.equal(r.body.asset.width,320);assert.equal(r.body.asset.height,180);assert.ok(r.body.asset.byte_size>1);
+  assert.equal((await sharp(f.files.get(r.body.asset.master_path)).metadata()).format,'webp');
+ }
+});
+test('editing a general image accepts false attestation without inventing overlay readiness',async()=>{
+ const f=fixture(),r=await request(f,{action:'edit',id:id(20),version:1,metadata:{...metadata,overlay_ready:false}});
+ assert.equal(r.status,200);const call=f.calls.find(c=>c[0]==='rpc');assert.equal(call[2].p_action,'edit');assert.equal(call[2].p_data.overlay_ready,false);
 });

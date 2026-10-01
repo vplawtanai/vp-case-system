@@ -2,11 +2,13 @@
 // Local synthetic UI only; no credentials, network backend or Production calls.
 const fs=require('node:fs'),path=require('node:path'),http=require('node:http');
 const root=path.resolve(__dirname,'../..'),out=fs.mkdtempSync('/private/tmp/vp-visual083-preview-'),write=(n,s)=>{const p=path.join(out,n);fs.writeFileSync(p,s);return p;};
-const mock=write('mock.js',`const locale=new URLSearchParams(location.search).get('locale')||'th';export const useI18n=()=>({locale,t:()=>locale==='en'?'Close details':'ปิดรายละเอียด'});
+const mock=write('mock.js',`import {automaticVisualMetadata} from ${JSON.stringify(root+'/lib/visual-assets')};const locale=new URLSearchParams(location.search).get('locale')||'th';export const useI18n=()=>({locale,t:()=>locale==='en'?'Close details':'ปิดรายละเอียด'});
 export const supabase={storage:{from:()=>({uploadToSignedUrl:async()=>({error:null})})}};
 const base={width:2560,height:1440,byte_size:231200,thumbnail_bytes:18600,sha256:'a'.repeat(64),overlay_ready:true,delete_pending:false,version:1,master_url:'/art.webp',thumbnail_url:'/art.webp',master_path:'fixture/master.webp',thumbnail_path:'fixture/thumbnail.webp',created_at:'2026-10-01',updated_at:'2026-10-01',tags:['landscape'],theme:'Landscape',asset_type:'journey',scope:'both'};
 let assets=[{...base,id:'1',artwork_key:'universal-landscape',name_th:'ภูมิทัศน์เส้นทางงาน',name_en:'Journey landscape',status:'active'},{...base,id:'2',artwork_key:'case-draft',name_th:'แนวคิดภาพงานคดี',name_en:'Case concept',scope:'case',status:'draft'},{...base,id:'3',artwork_key:'old-background',name_th:'ภาพพื้นหลังเดิม',name_en:'Previous background',status:'retired',asset_type:'background'}],mappings=[{scope:'both',family_key:'universal',artwork_key:'universal-landscape'}];
 export async function visualRequest(b){window.syntheticCalls.push(b||{action:'read'});if(!b)return {assets:assets.map(a=>({...a})),mappings:mappings.map(m=>({...m}))};
+if(b.action==='upload-start')return {id:'a1b2c3d4-e5f6-4789-9123-123456789abc',path:'synthetic/original',token:'synthetic'};
+if(b.action==='upload-finish'){await new Promise(r=>setTimeout(r,500));const asset={...base,...automaticVisualMetadata(b.id),id:b.id};assets.push(asset);return {asset};}
 if(b.action==='edit'){assets=assets.map(a=>a.id===b.id?{...a,...b.metadata,version:a.version+1}:a);return {saved:true};}
 if(b.action==='map'){mappings=mappings.filter(m=>m.scope!==b.scope||m.family_key!==b.family_key);mappings.push({scope:b.scope,family_key:b.family_key,artwork_key:b.artwork_key});return {saved:true};}
 if(b.action==='unmap'){mappings=mappings.filter(m=>m.scope!==b.scope||m.family_key!==b.family_key);return {saved:true};}

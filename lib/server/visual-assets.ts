@@ -3,7 +3,7 @@ import {randomUUID} from 'node:crypto';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {peopleClientsFor,type PeopleClients} from './people-admin';
 import {isActiveAdmin} from '../people';
-import {VISUAL_BUCKET,VISUAL_COOKIE,visualMetadata,validKey,type VisualAsset} from '../visual-assets';
+import {VISUAL_BUCKET,VISUAL_COOKIE,visualMetadata,automaticVisualMetadata,validKey,type VisualAsset} from '../visual-assets';
 import {optimizeVisualImage} from './visual-image';
 
 export class VisualError extends Error {constructor(message:string,public status=400){super(message);}}
@@ -63,7 +63,7 @@ export async function handleVisualRequest(request:Request,supplied?:PeopleClient
   }
   if(b.action==='upload-finish'){
    if(!uuid(b.id))throw new VisualError('VISUAL_INVALID');
-   const metadata=visualMetadata(b.metadata),original=`${actor}/${b.id}/original`;
+   const metadata=automaticVisualMetadata(b.id),original=`${actor}/${b.id}/original`;
    const existing=checked(await caller.from('visual_assets').select('*').eq('id',b.id).maybeSingle());
    if(existing)return reply({asset:existing});
    const store=clients.privileged().storage.from(VISUAL_BUCKET);
