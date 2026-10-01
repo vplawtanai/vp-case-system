@@ -1,4 +1,5 @@
 "use client";
+import {journeyName} from '../../../lib/advisory-flexible-journey';
 import {matterClosed} from '../../../lib/advisory-workflow';
 
 import { useRef, useState, type CSSProperties } from 'react';
@@ -18,7 +19,7 @@ type Props = {
 };
 
 export default function Journey({ matter, stages, canEdit, onEdit, initialStage, template = matter.template_key || defaultTemplate(matter.matter_type) }: Props) {
-  const { a, label, date } = useAdvisoryLabels();
+  const { a, label, date, locale } = useAdvisoryLabels();
   const [selected, setSelected] = useState(initialStage || matter.stage_key || '');
   const detailsRef = useRef<HTMLElement>(null);
   const sceneRef = useRef<HTMLDivElement>(null);
@@ -48,7 +49,7 @@ export default function Journey({ matter, stages, canEdit, onEdit, initialStage,
       </div>
     </div>
     {!matter.stage_key && !matterClosed(matter) && <p className={css.unsetNotice}>{a(stages.length?'noCurrentStage':'unset')} · {a(stages.length?'noCurrentStageHint':'stageUnsetHint')}</p>}
-    <div ref={sceneRef} className={css.mapScene} style={{ '--stage-count': plan.length } as CSSProperties}>
+    <div ref={sceneRef} data-linear={plan.length>9&&stages.some(s=>s.required!==undefined)||undefined} className={css.mapScene} style={{ '--stage-count': plan.length } as CSSProperties}>
       <svg className={css.routeLines} viewBox="0 0 1000 400" preserveAspectRatio="none" aria-hidden="true">
         <path d={path} className={css.routeShadow} /><path d={path} className={css.mainRoute} />
         {plan.map((s, i) => stageState(s, matter.stage_key, matterClosed(matter)) === 'skipped' && i > 0 && i < plan.length - 1
@@ -61,7 +62,7 @@ export default function Journey({ matter, stages, canEdit, onEdit, initialStage,
           return <li key={s.stage_key} style={{ '--node-x': `${points[i].x}%`, '--node-y': `${points[i].y}%` } as CSSProperties}>
             <button type="button" className={css.station} data-state={status} aria-current={status === 'current' ? 'step' : undefined} aria-pressed={chosen.stage_key === s.stage_key} aria-controls="journey-stage-details" onClick={() => inspect(s.stage_key)}>
               <span className={css.stationIcon}><Icon size={23} /></span>
-              <span className={css.stationText}><span className={css.stepNumber}>{a('stepNumber', { n: i + 1 })}</span><strong>{label(s.stage_key,s.template_key)}</strong><small>{a(status)}</small>{status === 'current' && <small>{matter.stage_days === null ? '—' : a('days', { n: matter.stage_days })}</small>}</span>
+              <span className={css.stationText}><span className={css.stepNumber}>{a('stepNumber', { n: i + 1 })}</span><strong>{journeyName(s,locale,label(s.stage_key,s.template_key))}</strong><small>{a(status)}{s.required!==undefined&&` · ${a(s.required?'fjRequired':'fjOptional')}`}</small>{status === 'current' && <small>{matter.stage_days === null ? '—' : a('days', { n: matter.stage_days })}</small>}</span>
             </button>
           </li>;
         })}
@@ -78,23 +79,24 @@ export default function Journey({ matter, stages, canEdit, onEdit, initialStage,
       </aside>
       <section ref={detailsRef} id="journey-stage-details" className={css.stageDetail} aria-live="polite" aria-label={a('stageDetails')}>
         <button type="button" className={css.returnToRoute} onClick={() => sceneRef.current?.scrollIntoView({ block: 'start' })}>{a('backToRoute')}</button>
-        <div className={css.detailHeading}><div><span className={css.eyebrow}>{a('stepNumber', { n: plan.indexOf(chosen) + 1 })}</span><h3>{label(chosen.stage_key,chosen.template_key)}</h3></div><span className={css.stateBadge} data-state={state}>{a(state)}</span></div>
+        <div className={css.detailHeading}><div><span className={css.eyebrow}>{a('stepNumber', { n: plan.indexOf(chosen) + 1 })}</span><h3>{journeyName(chosen,locale,label(chosen.stage_key,chosen.template_key))}</h3></div><span className={css.stateBadge} data-state={state}>{a(state)}</span></div>
         <dl className={css.stageFacts}>
           <div><dt>{a('entered')}</dt><dd>{date(current?.entered_at || latest?.entered_at)}</dd></div>
           <div><dt>{a(state === 'current' ? 'stageDays' : 'stageTotalDays')}</dt><dd>{days === null ? '—' : a('days', { n: days })}</dd></div>
           <div><dt>{a('taskCompletion')}</dt><dd>{chosen.task_total == null || chosen.task_completed == null ? a('notAvailable') : `${chosen.task_completed} / ${chosen.task_total}`}</dd></div>
           <div><dt>{a('actual')}</dt><dd>{chosen.minutes === null ? a('notAvailable') : a('minutes', { n: chosen.minutes })}</dd></div>
         </dl>
-        <div className={css.nextStage}><span>{a('followingStage')}</span><strong>{nextStage ? label(nextStage.stage_key,nextStage.template_key) : a('endOfRoute')}</strong><ArrowRight size={15} /></div>
+        <div className={css.nextStage}><span>{a('followingStage')}</span><strong>{nextStage ? journeyName(nextStage,locale,label(nextStage.stage_key,nextStage.template_key)) : a('endOfRoute')}</strong><ArrowRight size={15} /></div>
         <div className={css.matterNext}>
           <span>{a('matterNextAction')}</span><strong>{matter.next_action || a('noNext')}</strong>
           <dl><div><dt>{a('actor')}</dt><dd>{matter.next_owner_name || a('unassigned')}</dd></div><div><dt>{a('due')}</dt><dd>{date(matter.next_due)}</dd></div></dl>
         </div>
         {canEdit && !matterClosed(matter) && state === 'current' && <div className={css.mapActions}><button type="button" className={css.primary} onClick={()=>onEdit({action:'stage_complete',title:a('completeStage')})}>{a('completeStage')}</button></div>}
-        {canEdit && !matterClosed(matter) && chosen.stage_key !== 'close' && state !== 'current' && <div className={css.mapActions}>
+        {canEdit && !matterClosed(matter) && (chosen.required===undefined||(!matter.stage_key&&state==='visited')) && chosen.stage_key !== 'close' && state !== 'current' && <div className={css.mapActions}>
           <button type="button" className={css.primary} onClick={() => onEdit({ action: 'stage', title: a('activate'), values: { template: chosen.template_key, stage_key: chosen.stage_key } })}>{a('activate')}<ArrowRight size={15} /></button>
           {!chosen.visits.length && <button type="button" onClick={() => onEdit({ action: 'stage_skip', title: a('skip'), values: { template: chosen.template_key, stage_key: chosen.stage_key } })}>{a('skip')}</button>}
         </div>}
+        {canEdit&&!matterClosed(matter)&&chosen.required===false&&['planned','current'].includes(state)&&<div className={css.mapActions}><button type="button" onClick={()=>onEdit({action:'stage_skip',title:a('skip'),values:{stage_key:chosen.stage_key,stage_name:journeyName(chosen,locale)}})}>{a('skip')}</button></div>}
         {chosen.stage_key === 'close' && !matterClosed(matter) && <p className={css.progressHint}>{a('closeFromMatter')}</p>}
       </section>
     </div>

@@ -5,7 +5,8 @@ const {useI18n}=require('../../lib/i18n/provider.tsx'),{messages,translate}=requ
 const model=require('../../lib/advisory-control.ts');
 const shared={useAdvisoryLabels(){const i=useI18n();return {...i,a:(key,p)=>i.t('advisory.'+key,p),label:v=>messages['advisory.enum.'+v]?i.t('advisory.enum.'+v):v};},Badge:({value})=>React.createElement('span',null,value),Pagination:()=>null};
 const journey=workspaceFixture('app/advisory/control/Journey.tsx',['Journey'],{'./shared':shared});
-const editor=workspaceFixture('app/advisory/control/MatterEditor.tsx',['MatterEditor'],{'./shared':shared,'../../components/DetailModal':{default:({children,title})=>React.createElement('section',{'aria-label':title},children)}});
+const variantField=workspaceFixture('app/advisory/control/JourneyVariantField.tsx',[],{'./shared':shared});
+const editor=workspaceFixture('app/advisory/control/MatterEditor.tsx',['MatterEditor'],{'./shared':shared,'./JourneyVariantField':{default:variantField.component('JourneyVariantField')},'../../components/DetailModal':{default:({children,title})=>React.createElement('section',{'aria-label':title},children)}});
 const sections=workspaceFixture('app/advisory/control/MatterSections.tsx',['MatterSections'],{'./shared':shared});
 const matter={id:'synthetic',matter_type:'legacy arbitrary text',stage_key:null,closed_at:null,next_action:null,next_owner_name:null,next_due:null,version:0};
 for(const locale of ['th','en']){

@@ -1,6 +1,22 @@
 import type { MessageCatalog } from "../core";
 import journeyCatalog from '../../advisory-journey-catalog.json';
 const advisoryMessages: Record<string, MessageCatalog[string]> = {
+  "advisory.fjVariant": {"th": "รูปแบบการดำเนินงาน", "en": "Journey variant"},
+  "advisory.fjChoose": {"th": "เลือกรูปแบบการดำเนินงาน", "en": "Choose a journey variant"},
+  "advisory.fjDefault": {"th": "ค่าเริ่มต้น", "en": "Default"},
+  "advisory.fjRequired": {"th": "บังคับ", "en": "Required"},
+  "advisory.fjOptional": {"th": "ทางเลือก", "en": "Optional"},
+  "advisory.fjPreview": {"th": "ดูขั้นตอน", "en": "Preview stages"},
+  "advisory.fjUnavailable": {"th": "ไม่สามารถใช้รูปแบบนี้ได้ กรุณาโหลดข้อมูลใหม่", "en": "This journey is unavailable. Please reload."},
+  "advisory.fjSnapshot": {"th": "รูปแบบที่บันทึกกับงาน", "en": "Matter journey snapshot"},
+  "advisory.fjFrozen": {"th": "การแก้รูปแบบใหม่ไม่เปลี่ยนงานนี้", "en": "Later template changes do not affect this matter"},
+  "advisory.fjSkipHint": {"th": "ข้ามได้เฉพาะขั้นตอนทางเลือก โดยบันทึกเหตุผลในประวัติงาน", "en": "Only optional stages can be skipped. The reason is recorded in the activity history."},
+  "advisory.fjReasonRequired": {"th": "กรุณาระบุเหตุผลที่ข้ามขั้นตอน", "en": "Please give a reason for skipping this stage"},
+  "advisory.fjResolveNext": {"th": "ยืนยันล้างงานถัดไปที่ค้างอยู่", "en": "Confirm clearing the outstanding next action"},
+  "advisory.fjRequiredGuard": {"th": "ไม่สามารถข้ามขั้นตอนบังคับได้", "en": "Required stages cannot be skipped"},
+  "advisory.fjDefaultGuard": {"th": "แต่ละครอบครัวงานต้องมีรูปแบบเริ่มต้นที่ใช้งานอยู่", "en": "Each family must have an active default variant"},
+  "advisory.fjAdvanceOnly": {"th": "กรุณาจบขั้นตอนปัจจุบันเพื่อไปขั้นตอนถัดไป", "en": "Complete the current stage to advance"},
+
   "advisory.familyHint": {"th":"ลำดับการทำงาน: {family}","en":"Journey family: {family}"},
   "advisory.noClients": {"th":"ไม่พบลูกค้าที่ตรงกับคำค้น","en":"No clients match your search"},
   "advisory.stageTasksPending": {"th":"มีงานค้างในขั้นตอนนี้","en":"Incomplete tasks in this stage"},

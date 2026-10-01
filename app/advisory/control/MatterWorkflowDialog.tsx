@@ -9,7 +9,7 @@ import {useAdvisoryLabels} from './shared';
 import {useMatterWrite,useWorkflowChecks} from './workflow-shared';
 import css from './control.module.css';
 export default function MatterWorkflowDialog({mode,matter,onClose,onSaved,onFinish,onTasks}:{mode:'stage_complete'|'close'|'reopen';matter:Matter;onClose:()=>void;onSaved:()=>Promise<void>;onFinish:()=>void;onTasks:()=>void}){
- const {a,label}=useAdvisoryLabels(),{checks,loading,error:loadError,reload}=useWorkflowChecks(matter),{write,busy,error}=useMatterWrite(matter);
+ const {a,label,locale}=useAdvisoryLabels(),{checks,loading,error:loadError,reload}=useWorkflowChecks(matter),{write,busy,error}=useMatterWrite(matter);
  const [blockingTasks,setBlockingTasks]=useState<{id:string;title:string}[]>([]),[taskLoadError,setTaskLoadError]=useState(false);
  const currentStage=checks?.current_stage_id,blockingCount=checks?.current_stage_open_tasks;
  useEffect(()=>{let live=true;if(mode!=='stage_complete'||!currentStage||!blockingCount)return;void Promise.resolve(supabase.from('advisory_issue_tasks').select('id,title').eq('advisory_matter_id',matter.id).eq('stage_id',currentStage).is('deleted_at',null).not('status','in','(completed,cancelled)').order('title').order('id').limit(20)).then(r=>{if(live){setBlockingTasks(r.data||[]);setTaskLoadError(!!r.error);}}).catch(()=>{if(live)setTaskLoadError(true);});return()=>{live=false;};},[mode,matter.id,currentStage,blockingCount]);
@@ -21,7 +21,7 @@ export default function MatterWorkflowDialog({mode,matter,onClose,onSaved,onFini
  return <DetailModal open size="edit" title={a(stage?'completeStage':closing?'closeMatter':'reopen')} subtitle={matter.matter_no} onClose={()=>{if(!busy)onClose();}}><form className={css.form} onSubmit={submit}>
  {error&&<p role="alert" className={css.error}>{error}</p>}
  {loading?<p role="status">{a('loading')}</p>:loadError?<p className={css.error} role="alert">{a('loadError')} <button type="button" onClick={reload}>{a('refresh')}</button></p>:!fresh?<p role="alert" className={css.error}>{a('changed')} <button type="button" onClick={onSaved}>{a('refresh')}</button></p>:<>
- {stage&&<p className={css.notice}>{label(checks?.current_stage_key,matter.template_key)} · {a('stageCompletionHint')}</p>}
+ {stage&&<p className={css.notice}>{(locale==='en'?matter.stage_name_en:matter.stage_name_th)||label(checks?.current_stage_key,matter.template_key)} · {a('stageCompletionHint')}</p>}
  {mode!=='reopen'&&<ul className={`${css.checklist} ${css.wide}`}>{rows.map(([key,pendingKey,ok,count])=><li key={String(key)} data-ok={!!ok}>{ok?<CheckCircle2 size={18}/>:<AlertCircle size={18}/>}<span>{a(String(ok?key:pendingKey))}{typeof count==='number'&&count>0?` (${count})`:''}</span></li>)}</ul>}
  {stage&&!!checks?.current_stage_open_tasks&&<p role="alert" className={css.error}>{a('stageBlocked')} <button type="button" onClick={onTasks}>{a('viewTasks')}</button></p>}
  {stage&&!!checks?.current_stage_open_tasks&&<div className={css.wide}>{taskLoadError?<p>{a('loadError')}</p>:<ul className={css.rows}>{blockingTasks.map(t=><li key={t.id}>{t.title}</li>)}</ul>}</div>}

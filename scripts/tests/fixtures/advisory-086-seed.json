@@ -1,0 +1,606 @@
+{
+  "advisory_journey_requests": [],
+  "advisory_journey_variants": [
+    {
+      "id": "3c7ad0fc-c222-bb2b-116a-d2d9638bee76",
+      "active": true,
+      "revision": 1,
+      "family_key": "real_estate_due_diligence",
+      "is_default": true
+    },
+    {
+      "id": "4219d1c2-25e9-639f-4b14-f5afeab03fea",
+      "active": true,
+      "revision": 1,
+      "family_key": "government_regulatory",
+      "is_default": true
+    },
+    {
+      "id": "509c9b19-a88a-029b-4499-e52ee1ac2f88",
+      "active": true,
+      "revision": 1,
+      "family_key": "general_advisory",
+      "is_default": true
+    },
+    {
+      "id": "641aa434-959a-2bc6-67d9-91d43a90c05e",
+      "active": true,
+      "revision": 1,
+      "family_key": "ip_registration",
+      "is_default": true
+    },
+    {
+      "id": "7e7ba50e-614a-0a56-3943-33fd46a5d096",
+      "active": true,
+      "revision": 1,
+      "family_key": "administrative_challenge",
+      "is_default": true
+    },
+    {
+      "id": "7fc5be10-9624-bcfe-3695-3b014fbb60b7",
+      "active": true,
+      "revision": 1,
+      "family_key": "employment_foreign_workforce",
+      "is_default": true
+    },
+    {
+      "id": "82dd61d5-6758-e495-5fd9-88376b15aa97",
+      "active": true,
+      "revision": 1,
+      "family_key": "negotiation_pre_litigation",
+      "is_default": true
+    },
+    {
+      "id": "b1bcbe70-76ce-b0ee-6d22-d9e6a86b29fc",
+      "active": true,
+      "revision": 1,
+      "family_key": "corporate_transactions",
+      "is_default": true
+    },
+    {
+      "id": "e0d0f909-1d5e-dabd-fddd-ea902c4adc55",
+      "active": true,
+      "revision": 1,
+      "family_key": "legal_analysis_compliance",
+      "is_default": true
+    },
+    {
+      "id": "e9b72fd6-d2db-3c4a-d0c6-e60eca181e3d",
+      "active": true,
+      "revision": 1,
+      "family_key": "contract_business_documents",
+      "is_default": true
+    }
+  ],
+  "advisory_journey_versions": [
+    {
+      "id": "01d31061-2510-2ab0-b379-7212ca1bc4fa",
+      "version": 1,
+      "created_by": null,
+      "definition": {
+        "stages": [
+          {
+            "key": "brief",
+            "name_en": "Issue scoping",
+            "name_th": "กำหนดประเด็น",
+            "required": true
+          },
+          {
+            "key": "facts",
+            "name_en": "Fact gathering",
+            "name_th": "เก็บข้อเท็จจริง",
+            "required": true
+          },
+          {
+            "key": "analysis",
+            "name_en": "Analysis",
+            "name_th": "วิเคราะห์",
+            "required": true
+          },
+          {
+            "key": "draft_recommendation",
+            "name_en": "Draft recommendations and opinion",
+            "name_th": "ร่างข้อเสนอและความเห็น",
+            "required": true
+          },
+          {
+            "key": "review",
+            "name_en": "Review",
+            "name_th": "ตรวจทาน",
+            "required": true
+          },
+          {
+            "key": "delivery_implementation",
+            "name_en": "Delivery and implementation",
+            "name_th": "ส่งมอบและนำไปใช้",
+            "required": true
+          },
+          {
+            "key": "close",
+            "name_en": "Close",
+            "name_th": "ปิดงาน",
+            "required": true
+          }
+        ],
+        "name_en": "Standard",
+        "name_th": "มาตรฐาน"
+      },
+      "variant_id": "e0d0f909-1d5e-dabd-fddd-ea902c4adc55"
+    },
+    {
+      "id": "0ef930b7-302d-71c8-a1af-693ad8c22885",
+      "version": 1,
+      "created_by": null,
+      "definition": {
+        "stages": [
+          {
+            "key": "order_deadline",
+            "name_en": "Order and deadline review",
+            "name_th": "ตรวจคำสั่งและกำหนดเวลา",
+            "required": true
+          },
+          {
+            "key": "evidence",
+            "name_en": "Evidence gathering",
+            "name_th": "รวบรวมหลักฐาน",
+            "required": true
+          },
+          {
+            "key": "legal_grounds",
+            "name_en": "Legal grounds",
+            "name_th": "วิเคราะห์ข้อกฎหมาย",
+            "required": true
+          },
+          {
+            "key": "draft_challenge",
+            "name_en": "Draft appeal or challenge",
+            "name_th": "ร่างอุทธรณ์และโต้แย้ง",
+            "required": true
+          },
+          {
+            "key": "submission",
+            "name_en": "Submission",
+            "name_th": "ยื่น",
+            "required": true
+          },
+          {
+            "key": "decision_follow_up",
+            "name_en": "Decision follow-up",
+            "name_th": "ติดตามคำวินิจฉัย",
+            "required": true
+          },
+          {
+            "key": "close",
+            "name_en": "Close or refer to litigation",
+            "name_th": "ปิดงานหรือส่งต่อคดี",
+            "required": true
+          }
+        ],
+        "name_en": "Standard",
+        "name_th": "มาตรฐาน"
+      },
+      "variant_id": "7e7ba50e-614a-0a56-3943-33fd46a5d096"
+    },
+    {
+      "id": "517166fc-1f7d-260c-f058-6e601b336b1e",
+      "version": 1,
+      "created_by": null,
+      "definition": {
+        "stages": [
+          {
+            "key": "intake",
+            "name_en": "Intake",
+            "name_th": "รับเรื่อง",
+            "required": true
+          },
+          {
+            "key": "information",
+            "name_en": "Information gathering",
+            "name_th": "เก็บข้อมูล",
+            "required": true
+          },
+          {
+            "key": "analysis",
+            "name_en": "Analysis",
+            "name_th": "วิเคราะห์",
+            "required": true
+          },
+          {
+            "key": "execution",
+            "name_en": "Advice and execution",
+            "name_th": "ดำเนินการและให้คำแนะนำ",
+            "required": true
+          },
+          {
+            "key": "follow_up",
+            "name_en": "Follow-up",
+            "name_th": "ติดตาม",
+            "required": true
+          },
+          {
+            "key": "close",
+            "name_en": "Close",
+            "name_th": "ปิดงาน",
+            "required": true
+          }
+        ],
+        "name_en": "Standard",
+        "name_th": "มาตรฐาน"
+      },
+      "variant_id": "509c9b19-a88a-029b-4499-e52ee1ac2f88"
+    },
+    {
+      "id": "70396c27-9b59-01c6-4c75-6dd72179cf1f",
+      "version": 1,
+      "created_by": null,
+      "definition": {
+        "stages": [
+          {
+            "key": "brief",
+            "name_en": "Issue intake",
+            "name_th": "รับประเด็น",
+            "required": true
+          },
+          {
+            "key": "workforce_information",
+            "name_en": "Employee and company information",
+            "name_th": "ข้อมูลพนักงานและบริษัท",
+            "required": true
+          },
+          {
+            "key": "analysis",
+            "name_en": "Analysis",
+            "name_th": "วิเคราะห์",
+            "required": true
+          },
+          {
+            "key": "documents_guidance",
+            "name_en": "Documents and guidance",
+            "name_th": "เอกสารและแนวทาง",
+            "required": true
+          },
+          {
+            "key": "execution",
+            "name_en": "Execution",
+            "name_th": "ดำเนินการ",
+            "required": true
+          },
+          {
+            "key": "follow_up",
+            "name_en": "Follow-up",
+            "name_th": "ติดตาม",
+            "required": true
+          },
+          {
+            "key": "close",
+            "name_en": "Close",
+            "name_th": "ปิดงาน",
+            "required": true
+          }
+        ],
+        "name_en": "Standard",
+        "name_th": "มาตรฐาน"
+      },
+      "variant_id": "7fc5be10-9624-bcfe-3695-3b014fbb60b7"
+    },
+    {
+      "id": "9965078a-c665-247c-bd68-c2c93ba8f5f2",
+      "version": 1,
+      "created_by": null,
+      "definition": {
+        "stages": [
+          {
+            "key": "intake",
+            "name_en": "Intake",
+            "name_th": "รับเรื่อง",
+            "required": true
+          },
+          {
+            "key": "evidence_position",
+            "name_en": "Evidence and position",
+            "name_th": "หลักฐานและจุดยืน",
+            "required": true
+          },
+          {
+            "key": "strategy",
+            "name_en": "Strategy",
+            "name_th": "วางกลยุทธ์",
+            "required": true
+          },
+          {
+            "key": "contact",
+            "name_en": "Contact and demand",
+            "name_th": "ติดต่อและทวงถาม",
+            "required": true
+          },
+          {
+            "key": "negotiation",
+            "name_en": "Negotiation",
+            "name_th": "เจรจา",
+            "required": true
+          },
+          {
+            "key": "agreement",
+            "name_en": "Agreement",
+            "name_th": "ข้อตกลง",
+            "required": true
+          },
+          {
+            "key": "follow_up",
+            "name_en": "Follow-up",
+            "name_th": "ติดตาม",
+            "required": true
+          },
+          {
+            "key": "close",
+            "name_en": "Close",
+            "name_th": "ปิดงาน",
+            "required": true
+          }
+        ],
+        "name_en": "Standard",
+        "name_th": "มาตรฐาน"
+      },
+      "variant_id": "82dd61d5-6758-e495-5fd9-88376b15aa97"
+    },
+    {
+      "id": "a5749956-e701-932a-1a90-9bbde5f151ac",
+      "version": 1,
+      "created_by": null,
+      "definition": {
+        "stages": [
+          {
+            "key": "intake",
+            "name_en": "Intake",
+            "name_th": "รับเรื่อง",
+            "required": true
+          },
+          {
+            "key": "document_review",
+            "name_en": "Documents and review",
+            "name_th": "เอกสารและตรวจสอบ",
+            "required": true
+          },
+          {
+            "key": "structure_preparation",
+            "name_en": "Structure and preparation",
+            "name_th": "โครงสร้างและเตรียมการ",
+            "required": true
+          },
+          {
+            "key": "transaction_documents",
+            "name_en": "Transaction documents",
+            "name_th": "เอกสารดำเนินการ",
+            "required": true
+          },
+          {
+            "key": "filing_signing",
+            "name_en": "Filing, signing and closing",
+            "name_th": "ยื่น ลงนาม และปิดธุรกรรม",
+            "required": true
+          },
+          {
+            "key": "follow_up",
+            "name_en": "Follow-up",
+            "name_th": "ติดตาม",
+            "required": true
+          },
+          {
+            "key": "close",
+            "name_en": "Close",
+            "name_th": "ปิดงาน",
+            "required": true
+          }
+        ],
+        "name_en": "Standard",
+        "name_th": "มาตรฐาน"
+      },
+      "variant_id": "b1bcbe70-76ce-b0ee-6d22-d9e6a86b29fc"
+    },
+    {
+      "id": "aae3dc7e-a000-70e3-039c-1e1d24fb3614",
+      "version": 1,
+      "created_by": null,
+      "definition": {
+        "stages": [
+          {
+            "key": "legal_route",
+            "name_en": "Legal route assessment",
+            "name_th": "ตรวจเส้นทางกฎหมาย",
+            "required": true
+          },
+          {
+            "key": "preparation",
+            "name_en": "Document preparation",
+            "name_th": "เตรียมเอกสาร",
+            "required": true
+          },
+          {
+            "key": "submission_contact",
+            "name_en": "Submission and contact",
+            "name_th": "ยื่นและติดต่อ",
+            "required": true
+          },
+          {
+            "key": "clarification_follow_up",
+            "name_en": "Clarification and follow-up",
+            "name_th": "ชี้แจงและติดตาม",
+            "required": true
+          },
+          {
+            "key": "authority_result",
+            "name_en": "Authority response",
+            "name_th": "ผลอนุมัติและตอบกลับ",
+            "required": true
+          },
+          {
+            "key": "close",
+            "name_en": "Close",
+            "name_th": "ปิดงาน",
+            "required": true
+          }
+        ],
+        "name_en": "Standard",
+        "name_th": "มาตรฐาน"
+      },
+      "variant_id": "4219d1c2-25e9-639f-4b14-f5afeab03fea"
+    },
+    {
+      "id": "b5053a44-45d0-440b-74eb-b776ab1d3d40",
+      "version": 1,
+      "created_by": null,
+      "definition": {
+        "stages": [
+          {
+            "key": "review_scope",
+            "name_en": "Review scope",
+            "name_th": "กำหนดขอบเขตตรวจ",
+            "required": true
+          },
+          {
+            "key": "title_documents",
+            "name_en": "Title documents",
+            "name_th": "เอกสารสิทธิ",
+            "required": true
+          },
+          {
+            "key": "encumbrances_restrictions",
+            "name_en": "Encumbrances and restrictions",
+            "name_th": "ตรวจภาระและข้อจำกัด",
+            "required": true
+          },
+          {
+            "key": "risk_analysis",
+            "name_en": "Risk analysis",
+            "name_th": "วิเคราะห์ความเสี่ยง",
+            "required": true
+          },
+          {
+            "key": "report_recommendations",
+            "name_en": "Report and recommendations",
+            "name_th": "รายงานและคำแนะนำ",
+            "required": true
+          },
+          {
+            "key": "close",
+            "name_en": "Close",
+            "name_th": "ปิดงาน",
+            "required": true
+          }
+        ],
+        "name_en": "Standard",
+        "name_th": "มาตรฐาน"
+      },
+      "variant_id": "3c7ad0fc-c222-bb2b-116a-d2d9638bee76"
+    },
+    {
+      "id": "d97d7ea4-8e8c-068c-5746-9a2ff36a3f87",
+      "version": 1,
+      "created_by": null,
+      "definition": {
+        "stages": [
+          {
+            "key": "search_review",
+            "name_en": "Information review and search",
+            "name_th": "ตรวจข้อมูลและค้น",
+            "required": true
+          },
+          {
+            "key": "strategy",
+            "name_en": "Strategy",
+            "name_th": "วางกลยุทธ์",
+            "required": true
+          },
+          {
+            "key": "application_preparation",
+            "name_en": "Application preparation",
+            "name_th": "เตรียมคำขอ",
+            "required": true
+          },
+          {
+            "key": "submission",
+            "name_en": "Submission",
+            "name_th": "ยื่น",
+            "required": true
+          },
+          {
+            "key": "registrar_review",
+            "name_en": "Registrar review and amendments",
+            "name_th": "ตรวจโดยนายทะเบียนและแก้ไข",
+            "required": true
+          },
+          {
+            "key": "registration",
+            "name_en": "Registration",
+            "name_th": "จดทะเบียน",
+            "required": true
+          },
+          {
+            "key": "close",
+            "name_en": "Close",
+            "name_th": "ปิดงาน",
+            "required": true
+          }
+        ],
+        "name_en": "Standard",
+        "name_th": "มาตรฐาน"
+      },
+      "variant_id": "641aa434-959a-2bc6-67d9-91d43a90c05e"
+    },
+    {
+      "id": "e2104c68-96e9-c9bf-0e23-832135cd09b9",
+      "version": 1,
+      "created_by": null,
+      "definition": {
+        "stages": [
+          {
+            "key": "intake",
+            "name_en": "Intake",
+            "name_th": "รับเรื่อง",
+            "required": true
+          },
+          {
+            "key": "requirements",
+            "name_en": "Requirements",
+            "name_th": "รวบรวมความต้องการ",
+            "required": true
+          },
+          {
+            "key": "draft_review",
+            "name_en": "Drafting and review",
+            "name_th": "ร่างและตรวจเอกสาร",
+            "required": true
+          },
+          {
+            "key": "internal_review",
+            "name_en": "Internal review",
+            "name_th": "ตรวจภายใน",
+            "required": false
+          },
+          {
+            "key": "delivery_negotiation",
+            "name_en": "Delivery and negotiation",
+            "name_th": "ส่งมอบและเจรจา",
+            "required": false
+          },
+          {
+            "key": "final",
+            "name_en": "Final version",
+            "name_th": "ฉบับสุดท้าย",
+            "required": true
+          },
+          {
+            "key": "close",
+            "name_en": "Close",
+            "name_th": "ปิดงาน",
+            "required": true
+          }
+        ],
+        "name_en": "Standard",
+        "name_th": "มาตรฐาน"
+      },
+      "variant_id": "e9b72fd6-d2db-3c4a-d0c6-e60eca181e3d"
+    }
+  ],
+  "advisory_journey_snapshots": []
+}

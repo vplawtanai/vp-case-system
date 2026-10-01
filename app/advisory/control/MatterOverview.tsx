@@ -1,4 +1,5 @@
 "use client";
+import {journeyName} from '../../../lib/advisory-flexible-journey';
 
 import {matterClosed} from '../../../lib/advisory-workflow';
 import type { ReactNode } from 'react';
@@ -11,7 +12,7 @@ import css from './control.module.css';
 import ui from './overview.module.css';
 
 export default function MatterOverview({ matter, stages = [], canEdit, onEdit, onOpenMap, children }: { matter: Matter; stages?: Stage[]; canEdit: boolean; onEdit: (request: EditRequest) => void; onOpenMap?: () => void; children?: ReactNode }) {
-  const { a, label, date } = useAdvisoryLabels();
+  const { a, label, date, locale } = useAdvisoryLabels();
   const editable = canEdit && !matterClosed(matter);
   // Lifecycle is deliberately not a fallback for Work State.
   const state = workStates.find(value => value === matter.work_state);
@@ -24,7 +25,7 @@ export default function MatterOverview({ matter, stages = [], canEdit, onEdit, o
     <h2 id="matter-control-title" className={ui.commandTitle}><Compass size={18}/>{a('overviewControlTitle')}</h2>
     <div className={ui.commandGrid}>
       <div className={ui.stageBlock}>
-        <Compass size={23}/><div><span className={ui.caption}>{a('stage')}</span><h3>{matter.stage_key ? label(matter.stage_key,matter.template_key) : a(stages.length?'noCurrentStage':'unset')}</h3>
+        <Compass size={23}/><div><span className={ui.caption}>{a('stage')}</span><h3>{matter.stage_key ? journeyName(stages.find(s=>s.stage_key===matter.stage_key)||{},locale,label(matter.stage_key,matter.template_key)) : a(stages.length?'noCurrentStage':'unset')}</h3>
         {!matter.stage_key && <p>{a(matterClosed(matter) ? 'unsetClosedStageHint' : stages.length?'noCurrentStageHint':'unsetStageHelp')}</p>}
         {matter.stage_key && <p>{a('compactJourneyHint')}</p>}
         <div className={ui.stageActions}>{editable && matter.stage_key && <button type="button" className={css.primary} onClick={()=>onEdit({action:'stage_complete',title:a('completeStage')})}>{a('completeStage')}</button>}

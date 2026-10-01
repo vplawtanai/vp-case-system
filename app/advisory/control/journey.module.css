@@ -154,3 +154,24 @@
 .overviewJourney .stepper small{font-size:9px}
 .mapModal .starterPicker{margin:14px 20px 0;font-size:12px}
 @media(max-width:767px){.overviewJourney{padding:12px}.overviewJourney .compactHeading h2{font-size:13px!important}.overviewJourney .openMap{font-size:10px}.overviewJourney .stepper{gap:7px}.overviewJourney .stepper li button{min-height:48px}.mapModal .starterPicker{margin:12px 16px}.overviewJourney .unsetNotice{font-size:11px}}
+
+/* Long FJ snapshots keep readable interactive stages without shrinking labels. */
+.mapScene[data-linear=true]{height:auto;min-height:450px}
+.mapScene[data-linear=true] .routeLines{display:none}
+.mapScene[data-linear=true] .stations{display:grid;gap:18px;padding:26px 34px 62px;position:relative;max-width:600px;margin:auto}
+.mapScene[data-linear=true] .stations li{position:relative;left:auto;top:auto;transform:none;width:100%;max-width:none}
+.mapScene[data-linear=true] .station{flex-direction:row;gap:12px;text-align:left;align-items:center}
+.mapScene[data-linear=true] .stationText{align-items:flex-start;margin:0;padding:10px 13px;min-height:90px;border-radius:6px;flex:1}
+.mapScene[data-linear=true] .stationIcon{flex-shrink:0}
+
+.snapshotList{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:6px}
+.snapshotList li{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:8px;border-bottom:1px solid #e3eaf2;min-width:0}
+.snapshotList li[data-state=current]{background:#fff8e8;border:1px solid #ecd29a;border-radius:8px}
+.snapshotStage{display:flex;align-items:center;gap:12px;background:transparent!important;border:0!important;flex:1;min-width:160px;text-align:left;color:#173650;font:inherit;padding:6px!important}
+.snapshotStage>span:last-child{display:grid;gap:5px;min-width:0;overflow-wrap:anywhere}
+.snapshotStage small{font-size:12px;color:#61758b}.snapshotStage .stepDot{flex-shrink:0;width:30px;height:30px}
+.snapshotList [data-state=visited] .stepDot,.snapshotList [data-state=finished] .stepDot{background:#238359;color:white;border-color:#238359}
+.snapshotList [data-state=current] .stepDot{background:#e6b448;color:#173650}.snapshotList [data-state=skipped] .stepDot{border-style:dashed}
+.snapshotAction{border:1px solid #ccdbe9;background:white;color:#244c74;border-radius:7px;padding:8px 10px;font:inherit;cursor:pointer;font-size:12px}
+@media(max-width:600px){.snapshotAction{margin-left:42px}.snapshotStage{flex-basis:100%}}
+.snapshotStage{justify-content:flex-start!important}.snapshotAction{flex-shrink:0}

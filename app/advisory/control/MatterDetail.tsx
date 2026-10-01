@@ -11,6 +11,7 @@ import {Badge,useAdvisoryLabels,useControl,usePeople} from './shared';
 import MatterEditor,{type EditRequest} from './MatterEditor';
 import MatterSections from './MatterSections';
 import MatterJourney from './MatterJourney';
+import JourneySkipDialog from './JourneySkipDialog';
 import MatterOverview from './MatterOverview';
 import OtherClientMatters from './OtherClientMatters';
 import MatterTime from './MatterTime';
@@ -45,8 +46,8 @@ export default function MatterDetail(){const params=useParams(),id=String(params
  <div className={ui.contentGrid} data-focused={view!=='overview'}>
    <div className={ui.primaryColumn} hidden={!['overview','tasks','activity'].includes(view)}>
      <div id="tasks" hidden={view!=='overview'&&view!=='tasks'}><MatterSections overview focused={view==='tasks'} onFocus={()=>setView('tasks')} matter={m} section="tasks" canSetNext={!!permissions?.manage} canDelete={!!permissions?.delete} people={people} canEdit={!!permissions?.task} onEdit={setEdit} onAction={action} busy={busy}/></div>
-     <div id="activity" hidden={view!=='overview'&&view!=='activity'}><MatterSections overview focused={view==='activity'} onFocus={()=>setView('activity')} matter={m} section="activity" people={people} canEdit={!!permissions?.manage} onEdit={setEdit} onAction={action} busy={busy}/></div>
-     <div className={ui.journeySlot} hidden={view!=='overview'}><MatterJourney key={m.id} matter={m} stages={data?.stages||[]} canEdit={!!permissions?.manage} onEdit={setEdit} requestedOpen={mapOpen} onCloseMap={()=>setMapOpen(false)} compact/></div>
+     <div id="activity" hidden={view!=='overview'&&view!=='activity'}><MatterSections overview focused={view==='activity'} onFocus={()=>setView('activity')} matter={m} stages={data?.stages} section="activity" people={people} canEdit={!!permissions?.manage} onEdit={setEdit} onAction={action} busy={busy}/></div>
+     <div className={ui.journeySlot} hidden={view!=='overview'}><MatterJourney key={m.id} snapshot={data?.journey_snapshot} matter={m} stages={data?.stages||[]} canEdit={!!permissions?.manage} onEdit={setEdit} requestedOpen={mapOpen} onCloseMap={()=>setMapOpen(false)} compact/></div>
    </div>
    <div className={ui.secondaryColumn} hidden={!['overview','time','deliverables','team'].includes(view)}>
      <div id="time" hidden={view!=='overview'&&view!=='time'}><MatterTime matter={m} stages={data?.stages||[]} time={data?.time} canAdd={!!permissions?.task} focused={view==='time'} onFocus={()=>setView('time')} onSaved={reload}/></div>
@@ -60,6 +61,6 @@ export default function MatterDetail(){const params=useParams(),id=String(params
    <div>{matterClosed(m)?<><p><Badge value={m.outcome}/> · {m.closed_at?date(m.closed_at,true):'—'}</p><p>{m.outcome_summary}</p><p>{m.follow_up}</p><p>{m.case_reference}</p></>:<p>{a('closingHint')}</p>}</div>
    {permissions?.manage&&<button onClick={()=>setEdit({action:matterClosed(m)?'reopen':'close',title:a(matterClosed(m)?'reopen':'closeMatter')})}>{a(matterClosed(m)?'reopen':'closeMatter')}</button>}
  </section>
- {edit&&(['stage_complete','close','reopen'].includes(edit.action)?<MatterWorkflowDialog key={edit.action} mode={edit.action as 'stage_complete'|'close'|'reopen'} matter={m} onClose={()=>setEdit(null)} onSaved={reload} onFinish={()=>setEdit({action:'close',title:a('closeMatter')})} onTasks={()=>{setEdit(null);setView('tasks');}}/>:edit.action==='next_action'?<MatterNextAction matter={m} people={people} onClose={()=>setEdit(null)} onSaved={reload}/>:<MatterEditor key={JSON.stringify(edit)} request={edit} matter={m} people={people} stages={data?.stages} onClose={()=>setEdit(null)} onSaved={reload}/>)}
+ {edit&&(edit.action==='stage_skip'&&data?.journey_snapshot?<JourneySkipDialog matter={m} request={edit} onClose={()=>setEdit(null)} onSaved={reload}/>:['stage_complete','close','reopen'].includes(edit.action)?<MatterWorkflowDialog key={edit.action} mode={edit.action as 'stage_complete'|'close'|'reopen'} matter={m} onClose={()=>setEdit(null)} onSaved={reload} onFinish={()=>setEdit({action:'close',title:a('closeMatter')})} onTasks={()=>{setEdit(null);setView('tasks');}}/>:edit.action==='next_action'?<MatterNextAction matter={m} people={people} onClose={()=>setEdit(null)} onSaved={reload}/>:<MatterEditor key={JSON.stringify(edit)} request={edit} matter={m} people={people} stages={data?.stages} onClose={()=>setEdit(null)} onSaved={reload}/>)}
  </>}</main></AuthGuard>;
 }

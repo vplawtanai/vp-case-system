@@ -1,0 +1,9 @@
+// FJ-1 labels are frozen in each Matter snapshot, independent of later template versions.
+export type JourneyStep={key:string;name_th:string;name_en:string;required:boolean};
+export type JourneyDefinition={name_th:string;name_en:string;stages:JourneyStep[]};
+export type JourneyVariant={id:string;family_key:string;active:boolean;is_default:boolean;revision:number;version:number;version_id:string;definition:JourneyDefinition};
+export type JourneySnapshot={variant_id:string;version_id:string;version:number;family_key:string;definition:JourneyDefinition;captured_at:string};
+export const JOURNEY_COOKIE='vp_journey_admin';
+export function journeyName(value:{name_th?:string;name_en?:string},locale:string,fallback=''){return (locale==='en'?value.name_en:value.name_th)||fallback;}
+export function availableVariants(variants:JourneyVariant[],family:string){return variants.filter(v=>v.active&&v.family_key===family);}
+export function defaultVariant(variants:JourneyVariant[]){return variants.find(v=>v.is_default)||(variants.length===1?variants[0]:undefined);}
