@@ -4,6 +4,7 @@ const {workspaceFixture}=require('./i18n-workspace-fixture.cjs');
 const {fixture,database}=require('./fixtures/client-workspace.cjs');
 const {readClientDirectory,readClientWorkspace}=require('../../lib/client-workspace-read.ts');
 const {summarizeClient,bangkokDay}=require('../../lib/client-workspace.ts');
+const {cleanNoteText}=require('../../app/clients/workspace/note-text.ts');
 const shared=workspaceFixture('app/advisory/control/shared.tsx',['Badge','useAdvisoryLabels']);
 const ui=workspaceFixture('app/clients/workspace/ClientWorkspace.tsx',['ClientWorkspaceContent','ClientViewToggle'],{
  '../../advisory/control/shared':{Badge:shared.component('Badge'),useAdvisoryLabels:shared.useAdvisoryLabels},
@@ -47,7 +48,34 @@ test('true empty client shows no fabricated activity/history; distinct same-name
  const {db}=database();const empty=summarizeClient(await readClientWorkspace(db,'client-empty'),'2026-10-01');assert.equal(empty.openMatters,0);assert.equal(empty.openCases,0);assert.equal(empty.latest,null);assert.equal(empty.actions.length,0);
  const other=await readClientWorkspace(db,'client-b');assert.equal(other.client.contact_name,'Different Contact');assert.deepEqual(other.cases.map(c=>c.id),[103]);assert.deepEqual(other.matters.map(m=>m.id),['foreign']);
 });
+test('note display removes common Markdown while preserving Thai/English content and readable lines',()=>{
+ const raw='# **หมายเหตุ**\n\n- **ติดตาม** เอกสาร\n- [x] _Review_ complete\n> ~~Old~~ `new`\n[Reference](https://example.invalid)\n```text\nplain text\n```';
+ assert.equal(cleanNoteText(raw),'หมายเหตุ\n\n• ติดตาม เอกสาร\n☑ Review complete\nOld new\nReference (https://example.invalid)\n\nplain text');
+ assert.equal(cleanNoteText('Matter ADV-2026-009: account_id, x_y_z, 2 * 3 = 6, 1. Item'),'Matter ADV-2026-009: account_id, x_y_z, 2 * 3 = 6, 1. Item');
+ assert.equal(cleanNoteText('\\*literal\\* and ![ภาพ](image.png)'),' *literal* and ภาพ'.trim());
+});
 for(const locale of ['th','en']){
+ test(locale+': all internal note sources are clean React text; original notes and HTML safety preserved',async()=>{
+  const {data}=await loaded();data.client.note='**Client note**';data.activities[0].detail.input.text='## Advisory note\n**ติดตาม**';data.caseNotes[0].note_title='__Case note__';data.caseNotes[0].note_text='<img src=x onerror="alert(1)"><script>alert(2)</script>';
+  const before=JSON.stringify(data),html=ui.render(locale,{}, {data},'ClientWorkspaceContent');
+  assert.ok(html.includes('Client note'));assert.ok(html.includes('Advisory note\nติดตาม'));assert.ok(html.includes('Case note'));
+  assert.doesNotMatch(html,/\*\*Client|## Advisory|__Case|<img\b|<script\b|href="javascript:/);assert.ok(html.includes('&lt;img'));assert.ok(html.includes('&lt;script&gt;'));
+  assert.equal(JSON.stringify(data),before);
+ });
+ test(locale+': latest five activities are visible initially, ordered newest first, with show-all/less',async()=>{
+  const {data}=await loaded();data.activities=Array.from({length:7},(_,i)=>({id:'activity-'+i,matter_id:'one',kind:'stage',occurred_at:`2026-09-${String(10+i).padStart(2,'0')}T10:00:00Z`,detail:{}}));
+  const title=locale==='th'?'กิจกรรมล่าสุด':'Recent activity';
+  const section=html=>html.match(new RegExp(`<section[^>]*aria-label="${title}"[\\s\\S]*?</section>`))[0];
+  const initial=section(ui.render(locale,{}, {data},'ClientWorkspaceContent'));
+  assert.equal((initial.match(/<li\b/g)||[]).length,5);assert.doesNotMatch(initial,/<details|<summary|\shidden(?:=|[ >])/);assert.ok(initial.includes(locale==='th'?'ดูทั้งหมด':'Show all'));
+  assert.ok(initial.indexOf(locale==='th'?'16 ก.ย.':'16 Sept')<initial.indexOf(locale==='th'?'12 ก.ย.':'12 Sept'));
+  const expanded=section(ui.render(locale,{'ClientWorkspaceContent.activityExpanded':true},{data},'ClientWorkspaceContent'));
+  assert.equal((expanded.match(/<li\b/g)||[]).length,7);assert.ok(expanded.includes(locale==='th'?'แสดงน้อยลง':'Show less'));
+ });
+ test(locale+': activity empty state is immediately visible only when there are no records',async()=>{
+  const {data}=await loaded();data.activities=[];const html=ui.render(locale,{}, {data},'ClientWorkspaceContent');
+  assert.ok(html.includes(locale==='th'?'ยังไม่มีกิจกรรมบันทึกไว้':'No recorded activity'));assert.doesNotMatch(html,/<details|<summary/);
+ });
  test(locale+': workspace renders translated controls, correct source links, honest legacy Stage and no financial surface',async()=>{
   const {data}=await loaded(),html=ui.render(locale,{}, {data},'ClientWorkspaceContent');
   for(const href of ['/advisory/one','/advisory/two','/cases/101','/cases/102'])assert.ok(html.includes('href="'+href+'"'));
