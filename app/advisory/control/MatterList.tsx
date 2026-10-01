@@ -10,7 +10,9 @@ import {OverdueIndicator,OverduePreview} from './MatterOverdue';
 import {Badge,Pagination,useAdvisoryLabels,useControl,usePeople} from './shared';
 import MatterEditor,{type EditRequest} from './MatterEditor';
 import css from './control.module.css';
+import ClientWorkspace,{ClientViewToggle} from '../../clients/workspace/ClientWorkspace';
 export default function MatterList(){const {a,label,date}=useAdvisoryLabels(),people=usePeople();const searchParams=useSearchParams();const [filters,setFilters]=useState<Record<string,string>>(()=>({client_id:searchParams.get('client_id')||''})),[offset,setOffset]=useState(0),[edit,setEdit]=useState<EditRequest|null>(null);const {data,error,loading,reload}=useControl(undefined,JSON.stringify({...filters,offset}));
+ const [view,setView]=useState<'matters'|'clients'>(()=>searchParams.get('view')==='clients'?'clients':'matters');
  const [expandedOverdue,setExpandedOverdue]=useState<string|null>(null);
  const overdueTab=useRef<HTMLButtonElement>(null),listData=loading?null:data;
  function filter(key:string,value:string){setExpandedOverdue(null);setOffset(0);setFilters(f=>({...f,[key]:value}));}
@@ -23,7 +25,9 @@ export default function MatterList(){const {a,label,date}=useAdvisoryLabels(),pe
  function indicator(m:Matter,mode:string){return <OverdueIndicator matter={m} expanded={expandedOverdue===m.id} controls={`overdue-${mode}-${m.id}`} onToggle={()=>setExpandedOverdue(old=>old===m.id?null:m.id)}/>;}
  const matterCount=data?.summary.overdue,itemCount=data?.summary.overdue_items;
  const totalsKey=matterCount===1?(itemCount===1?'overdueTotalsOneItem':'overdueTotalsOneMatter'):'overdueTotals';
- return <AuthGuard><main className={css.page}><div className={css.shellHeader}><AppTopNav title={a('title')} activePage="advisory"/></div><header className={css.pageHeader}><div><small>{a('title')}</small><h1>{a('title')}</h1><p>{a('subtitle')}</p></div><div className={css.actions}><Link href="/advisory/reports">{a('reports')}</Link><button onClick={reload}>{a('refresh')}</button>{data?.permissions.manage&&<button className={css.primary} onClick={()=>setEdit({action:'create',title:a('create')})}><Plus size={17}/>{a('create')}</button>}</div></header>
+ return <AuthGuard><main className={css.page}><div className={css.shellHeader}><AppTopNav title={a('title')} activePage="advisory"/></div><header className={css.pageHeader}><div><small>{a('title')}</small><h1>{a('title')}</h1><p>{a('subtitle')}</p></div>{view==='matters'&&<div className={css.actions}><Link href="/advisory/reports">{a('reports')}</Link><button onClick={reload}>{a('refresh')}</button>{data?.permissions.manage&&<button className={css.primary} onClick={()=>setEdit({action:'create',title:a('create')})}><Plus size={17}/>{a('create')}</button>}</div>}</header>
+ <ClientViewToggle view={view} onChange={setView}/>
+ {view==='clients'?<ClientWorkspace initialClientId={filters.client_id}/>:<>
  {error?<p role="alert" className={css.error}>{a('loadError')}</p>:null}
  <div className={css.metrics}>{(['open','overdue','waiting','closed_week'] as const).map((key,i)=>{const Icon=[BriefcaseBusiness,Clock3,Users,CheckCircle2][i],content=<><Icon aria-hidden="true"/><div>{key==='overdue'?<><span>{a(key)}</span><strong className={css.overdueTotals}>{a(totalsKey,{matters:matterCount??'—',items:itemCount??'—'})}</strong></>:<><strong>{data?data.summary[key]:'—'}</strong><span>{a(key)}</span></>}</div></>;return key==='overdue'?<button key={key} type="button" className={css.overdueMetric} data-tone={i} aria-pressed={filters.tab==='overdue'} aria-controls="advisory-results" disabled={loading||!data||error} onClick={showOverdue}>{content}<ChevronRight className={css.metricArrow} aria-hidden="true"/></button>:<article key={key} data-tone={i}>{content}</article>;})}</div>
  <div className={css.filters}><label className={css.search}><span><Search size={15}/>{a('search')}</span><input value={filters.search||''} onChange={e=>filter('search',e.target.value)}/></label>
@@ -43,6 +47,6 @@ export default function MatterList(){const {a,label,date}=useAdvisoryLabels(),pe
  {!listData?.items.length&&!error&&<p className={css.empty} role="status">{a(loading?'loading':'empty')}</p>}
  <Pagination offset={offset} total={listData?.total||0} onChange={setOffset}/>
  </div>
- <footer className={css.secondaryLinks}><Link href="/advisory/records">{a('registry')} →</Link></footer>
+ <footer className={css.secondaryLinks}><Link href="/advisory/records">{a('registry')} →</Link></footer></>}
  {edit&&<MatterEditor request={edit} people={people} onClose={()=>setEdit(null)} onSaved={reload}/>}</main></AuthGuard>;
 }

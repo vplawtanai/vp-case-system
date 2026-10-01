@@ -5,6 +5,7 @@ const {translate}=require('../../lib/i18n/catalog.ts');
 const shared=workspaceFixture('app/advisory/control/shared.tsx',['Badge','useAdvisoryLabels']);
 let state;
 const list=workspaceFixture('app/advisory/control/MatterList.tsx',[],{
+ '../../clients/workspace/ClientWorkspace':{default:()=>null,ClientViewToggle:()=>null},
  './shared':{Badge:shared.component('Badge'),useAdvisoryLabels:shared.useAdvisoryLabels,Pagination:()=>null,usePeople:()=>[],useControl:()=>state},
  './MatterEditor':{default:()=>null},
 });

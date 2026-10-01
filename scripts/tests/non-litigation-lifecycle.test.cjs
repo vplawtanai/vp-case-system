@@ -15,6 +15,7 @@ const rows = [
   { id: 'waiting', matter_no: 'ADV-TEST-WAITING', status: 'waiting', work_state: null },
 ].map(row => ({ client_id: 'client', client_name: 'Synthetic client', title: row.matter_no, matter_type: 'general_advisory', age_days: 1, stage_days: null, ...row }));
 const list = workspaceFixture('app/advisory/control/MatterList.tsx', [], {
+  '../../clients/workspace/ClientWorkspace': { default: () => null, ClientViewToggle: () => null },
   './shared': { Badge, useAdvisoryLabels: shared.useAdvisoryLabels, Pagination: () => null, usePeople: () => [], useControl: () => ({ data: { items: rows, summary: {}, permissions: { manage: false }, total: rows.length }, loading: false, error: false, reload() {} }) },
   './MatterEditor': { default: () => null },
 });
