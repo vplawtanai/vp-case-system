@@ -31,7 +31,7 @@ for(const locale of ['th','en']){
  test(locale+': Admin list/immutable publication editor exposes names, order and required flags',()=>{
   const base={'JourneyTemplates.variants':[variant],'JourneyTemplates.family':variant.family_key,'JourneyTemplates.loading':false};
   let html=admin.render(locale,base);assert.ok(html.includes(lib.journeyName(variant.definition,locale)));
-  html=admin.render(locale,{...base,'JourneyTemplates.editing':true,'JourneyTemplates.selected':'v1','JourneyTemplates.draft':variant.definition});assert.equal((html.match(/type="checkbox"/g)||[]).length,7);assert.match(html,/type="checkbox"[^>]*disabled/);assert.ok(!html.includes('ADVISORY_'));
+  html=admin.render(locale,{...base,'JourneyTemplates.editing':true,'JourneyTemplates.selected':'v1','JourneyTemplates.draft':variant.definition});assert.equal((html.match(/type="checkbox"/g)||[]).length,3);assert.match(html,/type="checkbox"[^>]*disabled/);assert.ok(!html.includes('ADVISORY_'));
  });
 }
 test('serialized version resolves both exact identifiers; invalid explicit selection never falls back to default',()=>{

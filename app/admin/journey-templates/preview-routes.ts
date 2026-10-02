@@ -1,5 +1,9 @@
 import type {JourneyDefinition,JourneyStep} from '../../../lib/advisory-flexible-journey';
 
+export function previewIncoming(definition:JourneyDefinition,key:string){
+ return definition.stages.flatMap(stage=>(stage.outcomes||[]).filter(o=>o.target===key).map(outcome=>({stage,outcome})));
+}
+
 // Presentation only. Follow sole outcomes; never invent a default at a branch.
 export function previewContinuation(definition:JourneyDefinition,source:JourneyStep,targetKey:string){
  const steps:{stage:JourneyStep;via:NonNullable<JourneyStep['outcomes']>[number]}[]=[];

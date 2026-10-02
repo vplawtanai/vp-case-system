@@ -1,7 +1,7 @@
 'use client';
 import {ArrowDown,ArrowRight,CornerUpLeft,Flag,GitBranch} from 'lucide-react';
 import {journeyName,type JourneyDefinition} from '../../../lib/advisory-flexible-journey';
-import {previewContinuation,previewClosingPath} from './preview-routes';
+import {previewContinuation,previewClosingPath,previewIncoming} from './preview-routes';
 import {journeyText} from './labels';
 import css from './journey-templates.module.css';
 
@@ -9,10 +9,11 @@ type Props={definition:JourneyDefinition;locale:string;selected:string;onSelect:
 export default function JourneyPreview({definition,locale,selected,onSelect}:Props){
  const t=(key:Parameters<typeof journeyText>[1])=>journeyText(locale,key),stages=definition.stages,stage=stages.find(s=>s.key===selected)||stages[0];
  const name=(s:Parameters<typeof journeyName>[0])=>journeyName(s,locale),position=(key:string)=>stages.findIndex(s=>s.key===key)+1;
- const outcomes=stage.outcomes||[],closing=previewClosingPath(definition,stage.key);
+ const outcomes=stage.outcomes||[],closing=previewClosingPath(definition,stage.key),incoming=previewIncoming(definition,stage.key);
  return <div className={css.focusPreview} role="region" aria-label={t('preview')}>
   <div className={css.previewHeading}><GitBranch size={18}/><h4>{t('preview')}</h4></div>
   <p className={css.previewDescription}>{t('previewFocus')}</p>
+  {incoming.length>0&&<div className={css.incomingRoutes}><small>{t(stage.conditional?'opensWhen':'incoming')}</small>{incoming.map(({stage:from,outcome})=><div className={css.incomingRoute} key={`${from.key}:${outcome.key}`} data-incoming={`${from.key}:${outcome.key}`}><button type="button" onClick={()=>onSelect(from.key)}>{name(from)}</button><ArrowRight size={12}/><span>{name(outcome)}</span>{position(from.key)>=position(stage.key)&&<CornerUpLeft size={14} aria-label={t('returnTo')}/>}</div>)}<ArrowDown size={16}/></div>}
   <button type="button" className={css.previewSource} onClick={()=>onSelect(stage.key)} aria-label={`${position(stage.key)}. ${name(stage)}`} aria-pressed="true"><span className={css.stageNumber}>{position(stage.key)}</span><strong>{name(stage)}</strong><small>{t('selectedStage')}</small></button>
   {stage.key==='close'?<div className={css.closeMessage}><Flag size={18}/>{t('closingSeparate')}</div>:<>
    <p className={css.routeExplanation}>{t(outcomes.length===1?'soleRoute':'choiceRoutes')}</p>

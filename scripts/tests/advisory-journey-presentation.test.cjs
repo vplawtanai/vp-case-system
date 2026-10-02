@@ -3,6 +3,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),React=req
 const {workspaceFixture}=require('./i18n-workspace-fixture.cjs');
 const {stageVisitNumbers,journeyIssues,journeyLayout}=require('../../lib/advisory-journey-presentation.ts');
 const definition=require('./fixtures/advisory-controlled-journey.json');
+const {journeyText:adminText}=require('../../app/admin/journey-templates/labels.ts');
 const {controlledText:t}=require('../../app/advisory/control/controlled-journey-labels.ts');
 const stages=definition.stages.map((s,i)=>({...s,id:'stage-'+i,stage_key:s.key,visits:[]}));
 const path=[0,1,2,1].map((index,i)=>({id:'visit-'+i,stage_id:'stage-'+index,entered_at:'2026-10-02T01:00:00Z',exited_at:i===3?null:'2026-10-02T02:00:00Z',exit_reason:i===3?null:'completed',kind:'visit'}));
@@ -43,7 +44,7 @@ for(const locale of ['th','en']){
  test(locale+': exact issue is readable and actionable even when a different stage is selected',()=>{
   const broken=structuredClone(definition);broken.stages[2].outcomes[0].target='additional';
   const html=editor.render(locale,{'JourneyRoutingEditor.selected':'review'},{definition:broken,locale,onChange(){}});
-  assert.match(html,/role="alert"/);assert.ok(html.includes(t(locale,'noClosingRoute')));assert.ok(html.includes(definition.stages[2][locale==='en'?'name_en':'name_th']));assert.ok(html.includes(t(locale,'completionQuestion')));assert.ok(html.includes(t(locale,'preview')));
+  assert.match(html,/role="alert"/);assert.ok(html.includes(t(locale,'noClosingRoute')));assert.ok(html.includes(definition.stages[2][locale==='en'?'name_en':'name_th']));assert.ok(html.includes(adminText(locale,'completionQuestion')));assert.ok(html.includes(t(locale,'preview')));
  });
  test(locale+': map details use immutable outcome/reason/actor and never execute a write',()=>{
   const decision={id:'decision',actor_id:'actor',occurred_at:'2026-10-02T02:00:00Z',detail:{from_visit_id:'visit-1',outcome:definition.stages[1].outcomes[1],outcome_reason:'Stored <unsafe> reason',actor_name:'Recorded actor'}};
