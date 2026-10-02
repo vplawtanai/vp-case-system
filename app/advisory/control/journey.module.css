@@ -175,3 +175,5 @@
 .snapshotAction{border:1px solid #ccdbe9;background:white;color:#244c74;border-radius:7px;padding:8px 10px;font:inherit;cursor:pointer;font-size:12px}
 @media(max-width:600px){.snapshotAction{margin-left:42px}.snapshotStage{flex-basis:100%}}
 .snapshotStage{justify-content:flex-start!important}.snapshotAction{flex-shrink:0}
+.skipReason{width:100%;min-width:0;margin:6px 0;white-space:pre-wrap;overflow-wrap:anywhere;color:#405974;font-size:13px}
+.snapshotList .skipReason{padding-left:42px}

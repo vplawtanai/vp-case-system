@@ -94,6 +94,7 @@ test('optional future skip requires reason and audit; Required cannot skip or be
  const req=call(m,'stage_skip',{stage_key:'internal_review',reason:'Client requested direct delivery'}),result=as(req);assert.deepEqual(as(req),result);
  const skipped=details(m).stages.find(s=>s.stage_key==='internal_review');assert.equal(skipped.required,false);assert.equal(skipped.visits.length,1);assert.equal(skipped.visits[0].kind,'skip');
  assert.equal(sql(`select detail#>>'{input,reason}' from advisory_matter_activities where matter_id=${q(m)} and kind='stage_skip'`),'Client requested direct delivery');
+ assert.equal(as(`select jsonb_agg(detail) from advisory_matter_activities where matter_id=${q(m)} and kind='stage_skip'`)[0].input.reason,'Client requested direct delivery');
  advance(m);advance(m);advance(m);assert.equal(current(m).stage_key,'delivery_negotiation');
 });
 test('current optional skip uses existing task/Next Action/optimistic guards then advances, never completes work implicitly',()=>{
@@ -104,6 +105,7 @@ test('current optional skip uses existing task/Next Action/optimistic guards the
  denied(call(m,'stage_skip',{stage_key:stage.stage_key,visit_id:stage.visits[0].id,reason:'Skip review'}),'ADVISORY_NEXT_ACTION_RESOLUTION_REQUIRED');
  const r=write(m,'stage_skip',{stage_key:stage.stage_key,visit_id:stage.visits[0].id,reason:'Explicitly waived',resolve_next_action:true});assert.equal(r.next_stage_key,'delivery_negotiation');
  stage=details(m).stages.find(s=>s.id===stage.id);assert.equal(stage.visits.filter(v=>v.kind==='skip').length,1);assert.equal(stage.visits.find(v=>v.kind==='visit').exit_reason,'skipped');assert.equal(r.skipped_stage_key,'internal_review');assert.equal(r.completed_stage_key,undefined);
+ assert.equal(as(`select jsonb_agg(detail) from advisory_matter_activities where matter_id=${q(m)} and kind='stage_skip'`)[0].input.reason,'Explicitly waived');
 });
 test('complete/close/reopen and pre-FJ Matter Stage behavior retain existing guards',()=>{
  const m=create('general_advisory');while(current(m))advance(m);assert.equal(details(m).items[0].status,'active');write(m,'close',{outcome:'completed',summary:'Complete'});write(m,'reopen',{reason:'Follow-up'});assert.equal(details(m).items[0].stage_key,null);write(m,'stage',{stage_key:'intake',template:'general_advisory'});assert.equal(current(m).stage_key,'intake');

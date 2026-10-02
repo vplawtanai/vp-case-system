@@ -16,9 +16,10 @@ type Props = {
   onEdit: (request: EditRequest) => void;
   initialStage?: string;
   template?: string;
+  skipReasons?: Record<string,string>;
 };
 
-export default function Journey({ matter, stages, canEdit, onEdit, initialStage, template = matter.template_key || defaultTemplate(matter.matter_type) }: Props) {
+export default function Journey({ matter, stages, canEdit, onEdit, initialStage, skipReasons = {}, template = matter.template_key || defaultTemplate(matter.matter_type) }: Props) {
   const { a, label, date, locale } = useAdvisoryLabels();
   const [selected, setSelected] = useState(initialStage || matter.stage_key || '');
   const detailsRef = useRef<HTMLElement>(null);
@@ -80,6 +81,7 @@ export default function Journey({ matter, stages, canEdit, onEdit, initialStage,
       <section ref={detailsRef} id="journey-stage-details" className={css.stageDetail} aria-live="polite" aria-label={a('stageDetails')}>
         <button type="button" className={css.returnToRoute} onClick={() => sceneRef.current?.scrollIntoView({ block: 'start' })}>{a('backToRoute')}</button>
         <div className={css.detailHeading}><div><span className={css.eyebrow}>{a('stepNumber', { n: plan.indexOf(chosen) + 1 })}</span><h3>{journeyName(chosen,locale,label(chosen.stage_key,chosen.template_key))}</h3></div><span className={css.stateBadge} data-state={state}>{a(state)}</span></div>
+        {state==='skipped'&&chosen.required===false&&<p className={css.skipReason}><strong>{a('fjSkipReason')}:</strong> {skipReasons[chosen.stage_key]||a('fjSkipReasonMissing')}</p>}
         <dl className={css.stageFacts}>
           <div><dt>{a('entered')}</dt><dd>{date(current?.entered_at || latest?.entered_at)}</dd></div>
           <div><dt>{a(state === 'current' ? 'stageDays' : 'stageTotalDays')}</dt><dd>{days === null ? '—' : a('days', { n: days })}</dd></div>

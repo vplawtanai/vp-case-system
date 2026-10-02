@@ -11,6 +11,8 @@ const advisoryMessages: Record<string, MessageCatalog[string]> = {
   "advisory.fjSnapshot": {"th": "รูปแบบที่บันทึกกับงาน", "en": "Matter journey snapshot"},
   "advisory.fjFrozen": {"th": "การแก้รูปแบบใหม่ไม่เปลี่ยนงานนี้", "en": "Later template changes do not affect this matter"},
   "advisory.fjSkipHint": {"th": "ข้ามได้เฉพาะขั้นตอนทางเลือก โดยบันทึกเหตุผลในประวัติงาน", "en": "Only optional stages can be skipped. The reason is recorded in the activity history."},
+  "advisory.fjSkipReason": {"th": "เหตุผลที่ข้ามขั้นตอน", "en": "Reason for skipping"},
+  "advisory.fjSkipReasonMissing": {"th": "ไม่มีเหตุผลที่บันทึกไว้", "en": "No reason recorded"},
   "advisory.fjReasonRequired": {"th": "กรุณาระบุเหตุผลที่ข้ามขั้นตอน", "en": "Please give a reason for skipping this stage"},
   "advisory.fjResolveNext": {"th": "ยืนยันล้างงานถัดไปที่ค้างอยู่", "en": "Confirm clearing the outstanding next action"},
   "advisory.fjRequiredGuard": {"th": "ไม่สามารถข้ามขั้นตอนบังคับได้", "en": "Required stages cannot be skipped"},
