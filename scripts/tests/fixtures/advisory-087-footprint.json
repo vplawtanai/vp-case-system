@@ -1,0 +1,590 @@
+{
+  "tables": {
+    "advisory_journey_requests": {
+      "acl": "{postgres=arwdDxtm/postgres,authenticated=r/postgres}",
+      "rls": true,
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "request_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "actor_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "body",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "response",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "previous_state",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "resulting_state",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "recorded_at",
+          "type": "timestamp with time zone",
+          "default": "clock_timestamp()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX advisory_journey_requests_pkey ON public.advisory_journey_requests USING btree (request_id)"
+      ],
+      "policies": [
+        {
+          "name": "advisory086_read",
+          "check": null,
+          "roles": [
+            "authenticated"
+          ],
+          "using": "advisory086_admin()",
+          "command": "r",
+          "permissive": true
+        }
+      ],
+      "triggers": [
+        {
+          "enabled": "O",
+          "definition": "CREATE TRIGGER advisory086_request_immutable BEFORE DELETE OR UPDATE ON advisory_journey_requests FOR EACH ROW EXECUTE FUNCTION advisory086_immutable()"
+        }
+      ],
+      "force_rls": false,
+      "constraints": [
+        {
+          "name": "advisory_journey_requests_actor_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (actor_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "advisory_journey_requests_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (request_id)"
+        }
+      ]
+    },
+    "advisory_journey_variants": {
+      "acl": "{postgres=arwdDxtm/postgres,authenticated=r/postgres}",
+      "rls": true,
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "family_key",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "active",
+          "type": "boolean",
+          "default": "true",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "is_default",
+          "type": "boolean",
+          "default": "false",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "revision",
+          "type": "bigint",
+          "default": "1",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "clock_timestamp()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX advisory086_one_default ON public.advisory_journey_variants USING btree (family_key) WHERE is_default",
+        "CREATE UNIQUE INDEX advisory_journey_variants_pkey ON public.advisory_journey_variants USING btree (id)"
+      ],
+      "policies": [
+        {
+          "name": "advisory086_read",
+          "check": null,
+          "roles": [
+            "authenticated"
+          ],
+          "using": "(advisory076_allowed('read'::text) AND (active OR advisory086_admin()))",
+          "command": "r",
+          "permissive": true
+        }
+      ],
+      "triggers": [],
+      "force_rls": false,
+      "constraints": [
+        {
+          "name": "advisory_journey_variants_check",
+          "validated": true,
+          "definition": "CHECK (NOT is_default OR active)"
+        },
+        {
+          "name": "advisory_journey_variants_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "advisory_journey_variants_revision_check",
+          "validated": true,
+          "definition": "CHECK (revision > 0)"
+        }
+      ]
+    },
+    "advisory_journey_versions": {
+      "acl": "{postgres=arwdDxtm/postgres,authenticated=r/postgres}",
+      "rls": true,
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "variant_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "version",
+          "type": "integer",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "definition",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "clock_timestamp()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX advisory_journey_versions_pkey ON public.advisory_journey_versions USING btree (id)",
+        "CREATE UNIQUE INDEX advisory_journey_versions_variant_id_version_key ON public.advisory_journey_versions USING btree (variant_id, version)"
+      ],
+      "policies": [
+        {
+          "name": "advisory086_read",
+          "check": null,
+          "roles": [
+            "authenticated"
+          ],
+          "using": "advisory086_admin()",
+          "command": "r",
+          "permissive": true
+        }
+      ],
+      "triggers": [
+        {
+          "enabled": "O",
+          "definition": "CREATE TRIGGER advisory086_version_immutable BEFORE DELETE OR UPDATE ON advisory_journey_versions FOR EACH ROW EXECUTE FUNCTION advisory086_immutable()"
+        }
+      ],
+      "force_rls": false,
+      "constraints": [
+        {
+          "name": "advisory_journey_versions_created_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "advisory_journey_versions_definition_check",
+          "validated": true,
+          "definition": "CHECK (advisory087_valid_version(definition))"
+        },
+        {
+          "name": "advisory_journey_versions_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "advisory_journey_versions_variant_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (variant_id) REFERENCES advisory_journey_variants(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "advisory_journey_versions_variant_id_version_key",
+          "validated": true,
+          "definition": "UNIQUE (variant_id, version)"
+        },
+        {
+          "name": "advisory_journey_versions_version_check",
+          "validated": true,
+          "definition": "CHECK (version > 0)"
+        }
+      ]
+    },
+    "advisory_journey_snapshots": {
+      "acl": "{postgres=arwdDxtm/postgres,authenticated=r/postgres}",
+      "rls": true,
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "matter_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "version_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "family_key",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "variant_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "version",
+          "type": "integer",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "definition",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "captured_at",
+          "type": "timestamp with time zone",
+          "default": "clock_timestamp()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "captured_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX advisory_journey_snapshots_pkey ON public.advisory_journey_snapshots USING btree (matter_id)"
+      ],
+      "policies": [
+        {
+          "name": "advisory086_read",
+          "check": null,
+          "roles": [
+            "authenticated"
+          ],
+          "using": "advisory076_allowed('read'::text)",
+          "command": "r",
+          "permissive": true
+        }
+      ],
+      "triggers": [
+        {
+          "enabled": "O",
+          "definition": "CREATE TRIGGER advisory086_snapshot_immutable BEFORE DELETE OR UPDATE ON advisory_journey_snapshots FOR EACH ROW EXECUTE FUNCTION advisory086_immutable()"
+        }
+      ],
+      "force_rls": false,
+      "constraints": [
+        {
+          "name": "advisory_journey_snapshots_captured_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (captured_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "advisory_journey_snapshots_definition_check",
+          "validated": true,
+          "definition": "CHECK (advisory087_valid_version(definition))"
+        },
+        {
+          "name": "advisory_journey_snapshots_matter_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (matter_id) REFERENCES advisory_matters(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "advisory_journey_snapshots_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (matter_id)"
+        },
+        {
+          "name": "advisory_journey_snapshots_variant_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (variant_id) REFERENCES advisory_journey_variants(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "advisory_journey_snapshots_version_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (version_id) REFERENCES advisory_journey_versions(id) ON DELETE RESTRICT"
+        }
+      ]
+    }
+  },
+  "functions": {
+    "advisory086_admin()": {
+      "acl": "{postgres=X/postgres,authenticated=X/postgres}",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "execute": {
+        "anon": false,
+        "service_role": false,
+        "authenticated": true
+      },
+      "definition": "CREATE OR REPLACE FUNCTION public.advisory086_admin()\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n select exists(select 1 from public.user_profiles where id=auth.uid() and role='admin' and active and not must_change_password);\n$function$\n",
+      "volatility": "s",
+      "security_definer": true
+    },
+    "advisory086_immutable()": {
+      "acl": "{postgres=X/postgres}",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "execute": {
+        "anon": false,
+        "service_role": false,
+        "authenticated": false
+      },
+      "definition": "CREATE OR REPLACE FUNCTION public.advisory086_immutable()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public'\nAS $function$\nbegin raise exception 'ADVISORY_JOURNEY_IMMUTABLE'; end; $function$\n",
+      "volatility": "v",
+      "security_definer": false
+    },
+    "advisory086_family(p_type text)": {
+      "acl": "{postgres=X/postgres}",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "execute": {
+        "anon": false,
+        "service_role": false,
+        "authenticated": false
+      },
+      "definition": "CREATE OR REPLACE FUNCTION public.advisory086_family(p_type text)\n RETURNS text\n LANGUAGE sql\n IMMUTABLE\n SET search_path TO 'public'\nAS $function$ select case p_type when 'general_advisory' then 'general_advisory' when 'contract_business_documents' then 'contract_business_documents' when 'legal_opinion' then 'legal_analysis_compliance' when 'negotiation' then 'negotiation_pre_litigation' when 'corporate_registration' then 'corporate_transactions' when 'license_regulatory' then 'government_regulatory' when 'government_coordination' then 'government_regulatory' when 'administrative_challenge' then 'administrative_challenge' when 'employment_hr' then 'employment_foreign_workforce' when 'intellectual_property' then 'ip_registration' when 'compliance' then 'legal_analysis_compliance' when 'data_privacy' then 'legal_analysis_compliance' when 'real_estate_review' then 'real_estate_due_diligence' when 'pre_litigation_debt' then 'negotiation_pre_litigation' when 'transactions_review' then 'corporate_transactions' when 'foreign_investment' then 'government_regulatory' when 'foreign_workforce' then 'employment_foreign_workforce' when 'other' then 'general_advisory' end; $function$\n",
+      "volatility": "i",
+      "security_definer": false
+    },
+    "advisory086_valid_version(p jsonb)": {
+      "acl": "{postgres=X/postgres}",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "execute": {
+        "anon": false,
+        "service_role": false,
+        "authenticated": false
+      },
+      "definition": "CREATE OR REPLACE FUNCTION public.advisory086_valid_version(p jsonb)\n RETURNS boolean\n LANGUAGE plpgsql\n IMMUTABLE\n SET search_path TO 'public'\nAS $function$\ndeclare s jsonb; n integer; keys text[]:='{}';\nbegin\n if jsonb_typeof(p) is distinct from 'object' or p-'name_th'-'name_en'-'stages'<>'{}' then return false; end if;\n if jsonb_typeof(p->'name_th') is distinct from 'string' or jsonb_typeof(p->'name_en') is distinct from 'string'\n or length(btrim(coalesce(p->>'name_th',''))) not between 1 and 160 or length(btrim(coalesce(p->>'name_en',''))) not between 1 and 160\n or jsonb_typeof(p->'stages') is distinct from 'array' then return false; end if;\n n:=jsonb_array_length(p->'stages'); if n not between 2 and 20 then return false; end if;\n for s in select value from jsonb_array_elements(p->'stages') loop\n  if jsonb_typeof(s) is distinct from 'object' or s-'key'-'name_th'-'name_en'-'required'<>'{}'\n  or jsonb_typeof(s->'key') is distinct from 'string' or (s->>'key')!~'^[a-z][a-z0-9_]{1,59}$'\n  or jsonb_typeof(s->'required') is distinct from 'boolean'\n  or jsonb_typeof(s->'name_th') is distinct from 'string' or jsonb_typeof(s->'name_en') is distinct from 'string'\n  or length(btrim(coalesce(s->>'name_th',''))) not between 1 and 160 or length(btrim(coalesce(s->>'name_en',''))) not between 1 and 160\n  or (s->>'key')=any(keys) then return false; end if;\n  keys:=array_append(keys,s->>'key');\n end loop;\n return p#>>'{stages,0,key}'<>'close' and (p#>>'{stages,0,required}')::boolean\n and p#>>array['stages',(n-1)::text,'key']='close' and (p#>>array['stages',(n-1)::text,'required'])::boolean\n and array_position(keys,'close')=n;\nend; $function$\n",
+      "volatility": "i",
+      "security_definer": false
+    },
+    "advisory087_valid_version(p jsonb)": {
+      "acl": "{postgres=X/postgres}",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "execute": {
+        "anon": false,
+        "service_role": false,
+        "authenticated": false
+      },
+      "definition": "CREATE OR REPLACE FUNCTION public.advisory087_valid_version(p jsonb)\n RETURNS boolean\n LANGUAGE plpgsql\n IMMUTABLE\n SET search_path TO 'public'\nAS $function$\ndeclare s jsonb; o jsonb; keys text[]:='{}'; outcome_keys text[]; reachable text[]; closing text[]; changed boolean; n integer;\nbegin\n if public.advisory086_valid_version(p) then return true; end if;\n if jsonb_typeof(p) is distinct from 'object' or p-'format'-'name_th'-'name_en'-'stages'<>'{}' or p->'format' is distinct from '2'::jsonb\n or jsonb_typeof(p->'stages') is distinct from 'array' then return false; end if;\n if jsonb_typeof(p->'name_th') is distinct from 'string' or jsonb_typeof(p->'name_en') is distinct from 'string'\n or length(btrim(coalesce(p->>'name_th',''))) not between 1 and 160 or length(btrim(coalesce(p->>'name_en',''))) not between 1 and 160 then return false; end if;\n n:=jsonb_array_length(p->'stages'); if n not between 2 and 20 then return false; end if;\n for s in select value from jsonb_array_elements(p->'stages') loop\n  if jsonb_typeof(s) is distinct from 'object' or s-'key'-'name_th'-'name_en'-'required'-'conditional'-'outcomes'<>'{}'\n  or jsonb_typeof(s->'key') is distinct from 'string' or s->>'key'!~'^[a-z][a-z0-9_]{1,59}$' or (s->>'key')=any(keys)\n  or jsonb_typeof(s->'required') is distinct from 'boolean' or jsonb_typeof(s->'conditional') is distinct from 'boolean'\n  or jsonb_typeof(s->'name_th') is distinct from 'string' or jsonb_typeof(s->'name_en') is distinct from 'string'\n  or length(btrim(coalesce(s->>'name_th',''))) not between 1 and 160 or length(btrim(coalesce(s->>'name_en',''))) not between 1 and 160\n  or jsonb_typeof(s->'outcomes') is distinct from 'array' then return false; end if;\n  if (s->>'key'='close' and s->'outcomes'<>'[]') or (s->>'key'<>'close' and jsonb_array_length(s->'outcomes') not between 1 and 8) then return false; end if;\n  keys:=array_append(keys,s->>'key'); outcome_keys:='{}';\n  for o in select value from jsonb_array_elements(s->'outcomes') loop\n   if jsonb_typeof(o) is distinct from 'object' or o-'key'-'name_th'-'name_en'-'target'-'requires_reason'<>'{}'\n   or jsonb_typeof(o->'key') is distinct from 'string' or o->>'key'!~'^[a-z][a-z0-9_]{1,59}$' or (o->>'key')=any(outcome_keys)\n   or jsonb_typeof(o->'target') is distinct from 'string' or jsonb_typeof(o->'requires_reason') is distinct from 'boolean'\n   or jsonb_typeof(o->'name_th') is distinct from 'string' or jsonb_typeof(o->'name_en') is distinct from 'string'\n   or length(btrim(coalesce(o->>'name_th',''))) not between 1 and 160 or length(btrim(coalesce(o->>'name_en',''))) not between 1 and 160 then return false; end if;\n   outcome_keys:=array_append(outcome_keys,o->>'key');\n  end loop;\n end loop;\n if p#>>'{stages,0,key}'='close' or not (p#>>'{stages,0,required}')::boolean or (p#>>'{stages,0,conditional}')::boolean\n or p#>>array['stages',(n-1)::text,'key']<>'close' or not (p#>>array['stages',(n-1)::text,'required'])::boolean\n or (p#>>array['stages',(n-1)::text,'conditional'])::boolean or array_position(keys,'close')<>n then return false; end if;\n if exists(select 1 from jsonb_array_elements(p->'stages') st,lateral jsonb_array_elements(st->'outcomes') ot where not (ot->>'target')=any(keys)) then return false; end if;\n -- Every stage is reachable from intake and has a possible route to close.\n -- Loops are legal; a disconnected stage or a trapped cycle is not publishable.\n reachable:=array[p#>>'{stages,0,key}']; closing:=array['close'];\n loop\n  changed:=false;\n  for s in select value from jsonb_array_elements(p->'stages') loop\n   for o in select value from jsonb_array_elements(s->'outcomes') loop\n    if (s->>'key')=any(reachable) and not (o->>'target')=any(reachable) then reachable:=array_append(reachable,o->>'target'); changed:=true; end if;\n    if (o->>'target')=any(closing) and not (s->>'key')=any(closing) then closing:=array_append(closing,s->>'key'); changed:=true; end if;\n   end loop;\n  end loop;\n  exit when not changed;\n end loop;\n return keys<@reachable and keys<@closing;\nend; $function$\n",
+      "volatility": "i",
+      "security_definer": false
+    },
+    "advisory086_family_valid(p_family text)": {
+      "acl": "{postgres=X/postgres}",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "execute": {
+        "anon": false,
+        "service_role": false,
+        "authenticated": false
+      },
+      "definition": "CREATE OR REPLACE FUNCTION public.advisory086_family_valid(p_family text)\n RETURNS boolean\n LANGUAGE sql\n IMMUTABLE\n SET search_path TO 'public'\nAS $function$ select coalesce(p_family=any(array['general_advisory','contract_business_documents','legal_analysis_compliance','negotiation_pre_litigation','corporate_transactions','government_regulatory','administrative_challenge','employment_foreign_workforce','ip_registration','real_estate_due_diligence']),false); $function$\n",
+      "volatility": "i",
+      "security_definer": false
+    },
+    "advisory_journey_catalog(p_family text)": {
+      "acl": "{postgres=X/postgres,authenticated=X/postgres}",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "execute": {
+        "anon": false,
+        "service_role": false,
+        "authenticated": true
+      },
+      "definition": "CREATE OR REPLACE FUNCTION public.advisory_journey_catalog(p_family text DEFAULT NULL::text)\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n if not public.advisory076_allowed('read') then raise exception 'ADVISORY_FORBIDDEN' using errcode='42501'; end if;\n return jsonb_build_object('manage',public.advisory086_admin(),'variants',coalesce((\n  select jsonb_agg(to_jsonb(v)||jsonb_build_object('version_id',d.id,'version',d.version,'definition',d.definition) order by v.family_key collate \"C\",v.is_default desc,v.id)\n  from public.advisory_journey_variants v cross join lateral(select * from public.advisory_journey_versions where variant_id=v.id order by version desc limit 1) d\n  where (p_family is null or v.family_key=p_family) and (v.active or public.advisory086_admin())\n ),'[]'::jsonb));\nend; $function$\n",
+      "volatility": "s",
+      "security_definer": true
+    },
+    "advisory086_snapshot(p_matter uuid, p_type text, p_variant uuid, p_version uuid)": {
+      "acl": "{postgres=X/postgres}",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "execute": {
+        "anon": false,
+        "service_role": false,
+        "authenticated": false
+      },
+      "definition": "CREATE OR REPLACE FUNCTION public.advisory086_snapshot(p_matter uuid, p_type text, p_variant uuid, p_version uuid)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare family text:=public.advisory086_family(p_type); v public.advisory_journey_variants%rowtype; d public.advisory_journey_versions%rowtype;\nbegin\n if family is null then raise exception 'ADVISORY_JOURNEY_INVALID'; end if;\n perform pg_advisory_xact_lock_shared(hashtextextended('advisory086-family:'||family,0));\n select * into v from public.advisory_journey_variants where family_key=family and active and (case when p_variant is null then is_default else id=p_variant end);\n if not found then raise exception 'ADVISORY_JOURNEY_UNAVAILABLE'; end if;\n select * into d from public.advisory_journey_versions where variant_id=v.id order by version desc limit 1;\n if not found or (p_version is not null and p_version<>d.id) then raise exception 'ADVISORY_JOURNEY_CHANGED'; end if;\n insert into public.advisory_journey_snapshots(matter_id,version_id,family_key,variant_id,version,definition,captured_by) values(p_matter,d.id,family,v.id,d.version,d.definition,auth.uid());\n insert into public.advisory_matter_stages(matter_id,template_key,stage_key,position)\n select p_matter,family,s->>'key',n-1 from jsonb_array_elements(d.definition->'stages') with ordinality x(s,n);\nend; $function$\n",
+      "volatility": "v",
+      "security_definer": true
+    },
+    "advisory_journey_manage(p_id uuid, p_action text, p_payload jsonb, p_request_id uuid, p_expected_revision bigint)": {
+      "acl": "{postgres=X/postgres,authenticated=X/postgres}",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "execute": {
+        "anon": false,
+        "service_role": false,
+        "authenticated": true
+      },
+      "definition": "CREATE OR REPLACE FUNCTION public.advisory_journey_manage(p_id uuid, p_action text, p_payload jsonb, p_request_id uuid, p_expected_revision bigint)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare actor uuid:=auth.uid(); body jsonb; saved public.advisory_journey_requests%rowtype;\n v public.advisory_journey_variants%rowtype; family text; before_state jsonb; result jsonb; ver integer;\nbegin\n if not public.advisory086_admin() then raise exception 'ADVISORY_FORBIDDEN' using errcode='42501'; end if;\n if p_request_id is null or jsonb_typeof(p_payload) is distinct from 'object' or octet_length(p_payload::text)>32000 then raise exception 'ADVISORY_INVALID_INPUT'; end if;\n body:=jsonb_build_object('id',p_id,'action',p_action,'payload',p_payload,'revision',p_expected_revision);\n perform pg_advisory_xact_lock(hashtextextended('advisory086-request:'||p_request_id,0));\n select * into saved from public.advisory_journey_requests where request_id=p_request_id;\n if found then if saved.actor_id<>actor or saved.body<>body then raise exception 'ADVISORY_RETRY_MISMATCH'; end if; return saved.response; end if;\n if p_action='create' then\n  if p_id is not null or p_payload-'family_key'-'definition'<>'{}' then raise exception 'ADVISORY_INVALID_INPUT'; end if;\n  family:=p_payload->>'family_key';\n else select family_key into family from public.advisory_journey_variants where id=p_id; end if;\n if family is null or not public.advisory086_family_valid(family) then raise exception 'ADVISORY_JOURNEY_INVALID'; end if;\n perform pg_advisory_xact_lock(hashtextextended('advisory086-family:'||family,0));\n if p_action='create' then\n  insert into public.advisory_journey_variants(family_key,is_default) values(family,not exists(select 1 from public.advisory_journey_variants where family_key=family and active)) returning * into v;\n else\n  select * into v from public.advisory_journey_variants where id=p_id for update;\n  if p_expected_revision is distinct from v.revision then raise exception 'ADVISORY_CHANGED'; end if;\n  before_state:=to_jsonb(v);\n end if;\n if p_action in ('create','publish') then\n  if (p_action='publish' and p_payload-'definition'<>'{}') or not public.advisory087_valid_version(p_payload->'definition') then raise exception 'ADVISORY_JOURNEY_INVALID'; end if;\n  select coalesce(max(version),0)+1 into ver from public.advisory_journey_versions where variant_id=v.id;\n  insert into public.advisory_journey_versions(variant_id,version,definition,created_by) values(v.id,ver,p_payload->'definition',actor);\n elsif p_action='configure' then\n  if p_payload-'active'-'is_default'<>'{}' or jsonb_typeof(p_payload->'active') is distinct from 'boolean' or jsonb_typeof(p_payload->'is_default') is distinct from 'boolean'\n  or ((p_payload->>'is_default')::boolean and not (p_payload->>'active')::boolean) then raise exception 'ADVISORY_JOURNEY_INVALID'; end if;\n  if (p_payload->>'is_default')::boolean then\n   update public.advisory_journey_variants set is_default=false,revision=revision+1 where family_key=family and is_default and id<>v.id;\n  end if;\n  update public.advisory_journey_variants set active=(p_payload->>'active')::boolean,is_default=(p_payload->>'is_default')::boolean where id=v.id;\n else raise exception 'ADVISORY_ACTION_INVALID'; end if;\n if not exists(select 1 from public.advisory_journey_variants where family_key=family and active and is_default) then raise exception 'ADVISORY_JOURNEY_DEFAULT_REQUIRED'; end if;\n if p_action<>'create' then update public.advisory_journey_variants set revision=revision+1 where id=v.id; end if;\n select to_jsonb(x) into result from public.advisory_journey_variants x where id=v.id;\n insert into public.advisory_journey_requests(request_id,actor_id,body,response,previous_state,resulting_state) values(p_request_id,actor,body,result,before_state,result||jsonb_build_object('published_version',ver));\n return result;\nend; $function$\n",
+      "volatility": "v",
+      "security_definer": true
+    }
+  }
+}

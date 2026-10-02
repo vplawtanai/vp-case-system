@@ -1,5 +1,8 @@
 "use client";
 import {journeyName,type JourneySnapshot} from '../../../lib/advisory-flexible-journey';
+import ControlledJourney from './ControlledJourney';
+import type {JourneyDecision,JourneyPathVisit} from '../../../lib/advisory-controlled-journey';
+import type {Person} from '../../../lib/advisory-control';
 import {matterClosed} from '../../../lib/advisory-workflow';
 
 import { useEffect, useState } from 'react';
@@ -13,9 +16,9 @@ import Journey from './Journey';
 import type { EditRequest } from './MatterEditor';
 import css from './journey.module.css';
 
-type Props = { snapshot?:JourneySnapshot|null; matter: Matter; stages: Stage[]; canEdit: boolean; onEdit: (request: EditRequest) => void; compact?: boolean; requestedOpen?: boolean; onCloseMap?: () => void };
+type Props = { path?:JourneyPathVisit[];decisions?:JourneyDecision[];people?:Person[];snapshot?:JourneySnapshot|null; matter: Matter; stages: Stage[]; canEdit: boolean; onEdit: (request: EditRequest) => void; compact?: boolean; requestedOpen?: boolean; onCloseMap?: () => void };
 
-export default function MatterJourney({ snapshot, matter, stages, canEdit, onEdit, compact = false, requestedOpen = false, onCloseMap }: Props) {
+export default function MatterJourney({ path=[],decisions=[],people=[],snapshot, matter, stages, canEdit, onEdit, compact = false, requestedOpen = false, onCloseMap }: Props) {
   const { a, label, locale, date } = useAdvisoryLabels();
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState('');
@@ -34,6 +37,8 @@ export default function MatterJourney({ snapshot, matter, stages, canEdit, onEdi
   },[reasonKey]);
   const skipReasons=Object.fromEntries(skippedKeys.map(key=>[key,reasonState?.key!==reasonKey?a('loading'):reasonState.error?a('loadError'):reasonState.reasons[key]||a('fjSkipReasonMissing')]));
   function inspect(stage: string) { setSelected(stage); setOpen(true); }
+
+  if(snapshot?.definition.format===2)return <ControlledJourney snapshot={snapshot} matter={matter} stages={stages} path={path} decisions={decisions} people={people} canEdit={canEdit} onEdit={onEdit} requestedOpen={requestedOpen} onCloseMap={onCloseMap}/>;
 
   return <section className={`${css.compactJourney} ${compact ? css.overviewJourney : ''}`} id="journey">
     <div className={css.compactHeading}>

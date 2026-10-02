@@ -1,0 +1,93 @@
+{
+  "format": 2,
+  "name_th": "เส้นทางแบบมีเงื่อนไข",
+  "name_en": "Controlled route",
+  "stages": [
+    {
+      "key": "intake",
+      "name_th": "รับเรื่อง",
+      "name_en": "Intake",
+      "required": true,
+      "conditional": false,
+      "outcomes": [
+        {
+          "key": "continue",
+          "name_th": "ไปต่อ",
+          "name_en": "Continue",
+          "target": "review",
+          "requires_reason": false
+        }
+      ]
+    },
+    {
+      "key": "review",
+      "name_th": "พิจารณา",
+      "name_en": "Review",
+      "required": true,
+      "conditional": false,
+      "outcomes": [
+        {
+          "key": "approved",
+          "name_th": "อนุมัติ",
+          "name_en": "Approved",
+          "target": "delivery",
+          "requires_reason": false
+        },
+        {
+          "key": "information",
+          "name_th": "ขอข้อมูลเพิ่ม",
+          "name_en": "Additional information",
+          "target": "additional",
+          "requires_reason": true
+        },
+        {
+          "key": "rejected",
+          "name_th": "ไม่อนุมัติ",
+          "name_en": "Rejected",
+          "target": "close",
+          "requires_reason": true
+        }
+      ]
+    },
+    {
+      "key": "additional",
+      "name_th": "ชี้แจงเพิ่มเติม",
+      "name_en": "Provide additional information",
+      "required": true,
+      "conditional": true,
+      "outcomes": [
+        {
+          "key": "resubmit",
+          "name_th": "พิจารณาอีกครั้ง",
+          "name_en": "Review again",
+          "target": "review",
+          "requires_reason": false
+        }
+      ]
+    },
+    {
+      "key": "delivery",
+      "name_th": "ส่งมอบ",
+      "name_en": "Delivery",
+      "required": false,
+      "conditional": false,
+      "outcomes": [
+        {
+          "key": "delivered",
+          "name_th": "ส่งมอบแล้ว",
+          "name_en": "Delivered",
+          "target": "close",
+          "requires_reason": false
+        }
+      ]
+    },
+    {
+      "key": "close",
+      "name_th": "ปิดงาน",
+      "name_en": "Close",
+      "required": true,
+      "conditional": false,
+      "outcomes": []
+    }
+  ]
+}

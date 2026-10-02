@@ -1,6 +1,10 @@
 import type { MessageCatalog } from "../core";
 import journeyCatalog from '../../advisory-journey-catalog.json';
 const advisoryMessages: Record<string, MessageCatalog[string]> = {
+  "advisory.fj2OutcomeRequired":{"th":"กรุณาเลือกผลลัพธ์ที่กำหนดไว้สำหรับขั้นตอนนี้","en":"Please select a configured outcome for this stage"},
+  "advisory.fj2ReasonRequired":{"th":"กรุณาระบุเหตุผลของผลลัพธ์นี้ (ไม่เกิน 4,000 ตัวอักษร)","en":"Please enter a reason for this outcome (up to 4,000 characters)"},
+  "advisory.fj2CompleteRequired":{"th":"ใช้การจบขั้นตอนเพื่อเลือกเส้นทาง ไม่สามารถข้ามขั้นตอนนี้ได้","en":"Complete this stage to choose its route; this stage cannot be skipped"},
+
   "advisory.fjVariant": {"th": "รูปแบบการดำเนินงาน", "en": "Journey variant"},
   "advisory.fjChoose": {"th": "เลือกรูปแบบการดำเนินงาน", "en": "Choose a journey variant"},
   "advisory.fjDefault": {"th": "ค่าเริ่มต้น", "en": "Default"},

@@ -1,3 +1,4 @@
+import type {JourneyDecision,JourneyPathVisit,JourneyOutcome} from './advisory-controlled-journey';
 import type {JourneySnapshot} from './advisory-flexible-journey';
 import {workflowErrors} from './advisory-workflow';
 import journeyCatalog from './advisory-journey-catalog.json';
@@ -16,10 +17,10 @@ export type OverdueItem={source:'task'|'next_action';source_id:string;title:stri
 export type Person={id:string;full_name:string;staff_name:string|null;role:string};
 export type Task={id:string;title:string;status:string;priority:string;assignee_user_id:string|null;assignee_name:string|null;stage_id:string|null;advisory_issue_id:string|null;due_date:string|null;completed_at:string|null;note:string|null;overdue_days?:number};
 export type Visit={id:string;kind:string;entered_at:string|null;exited_at:string|null;exit_reason:string|null};
-export type Stage={required?:boolean;name_th?:string;name_en?:string;id:string;stage_key:string;template_key:string;position:number;visits:Visit[];minutes:number|null;elapsed_seconds?:number|null;task_total?:number;task_completed?:number};
+export type Stage={conditional?:boolean;outcomes?:JourneyOutcome[];required?:boolean;name_th?:string;name_en?:string;id:string;stage_key:string;template_key:string;position:number;visits:Visit[];minutes:number|null;elapsed_seconds?:number|null;task_total?:number;task_completed?:number};
 export type Deliverable={id:string;title:string;status:string;owner_id:string|null;due_date:string|null;version_label:string|null;drive_url:string|null};
-export type Activity={id:string;kind:string;actor_id:string;occurred_at:string;detail:{input?:Record<string,string>;title?:string;completed_stage_key?:string;next_stage_key?:string;ready_for_closing?:boolean}};
-export type ControlRead={journey_snapshot?:JourneySnapshot|null;items:Matter[];total:number;summary:{open:number;overdue:number;overdue_items?:number;waiting:number;closed_week:number};permissions:{manage:boolean;task:boolean;delete:boolean};state_history?:{work_state:string;started_at:string;ended_at:string|null;reason:string|null}[];team?:{user_id:string;team_role:string;name:string}[];stages?:Stage[];time?:{minutes:number;core:number;support:number;unclassified:number};other_matters?:Pick<Matter,'id'|'matter_no'|'title'|'status'>[]};
+export type Activity={id:string;kind:string;actor_id:string;occurred_at:string;detail:{actor_name?:string|null;input?:Record<string,string>;title?:string;completed_stage_key?:string;next_stage_key?:string;ready_for_closing?:boolean;outcome?:JourneyOutcome|null;outcome_reason?:string|null}};
+export type ControlRead={journey_path?:JourneyPathVisit[];journey_decisions?:JourneyDecision[];journey_snapshot?:JourneySnapshot|null;items:Matter[];total:number;summary:{open:number;overdue:number;overdue_items?:number;waiting:number;closed_week:number};permissions:{manage:boolean;task:boolean;delete:boolean};state_history?:{work_state:string;started_at:string;ended_at:string|null;reason:string|null}[];team?:{user_id:string;team_role:string;name:string}[];stages?:Stage[];time?:{minutes:number;core:number;support:number;unclassified:number};other_matters?:Pick<Matter,'id'|'matter_no'|'title'|'status'>[]};
 export const workStates=['working','waiting_client','waiting_external','waiting_internal','on_hold'] as const;
 // Work starters reuse existing database-backed sequences, never new Stage keys.
 export const workPresets = [
