@@ -6,6 +6,7 @@ const definition=require('./fixtures/advisory-controlled-journey.json');
 const lib=require('../../lib/advisory-controlled-journey.ts'),{journeyName}=require('../../lib/advisory-flexible-journey.ts');
 const {controlledText:t}=require('../../app/advisory/control/controlled-journey-labels.ts');
 const shared={useAdvisoryLabels(){const i=useI18n();return{...i,a:(k,p)=>i.t('advisory.'+k,p),label:v=>messages['advisory.enum.'+v]?i.t('advisory.enum.'+v):v||'—',date:s=>s};}};
+const {journeyText:adminText}=require('../../app/admin/journey-templates/labels.ts');
 const editor=workspaceFixture('app/admin/journey-templates/JourneyRoutingEditor.tsx');
 const fields=workspaceFixture('app/advisory/control/JourneyOutcomeFields.tsx');
 const journey=workspaceFixture('app/advisory/control/ControlledJourney.tsx',[],{'./shared':shared,'../../components/DetailModal':{default:()=>null}});
@@ -14,7 +15,7 @@ const path=[{id:'v1',kind:'visit',stage_id:'s0',entered_at:'2026-10-02T01:00:00Z
 const decision={id:'d1',kind:'stage_complete',actor_id:'actor',occurred_at:'2026-10-02T02:00:00Z',detail:{actor_name:'Frozen actor',from_visit_id:'v1',from_stage:definition.stages[0],target_stage:stage,outcome:definition.stages[0].outcomes[0],outcome_reason:'Stored <script>alert(1)</script> reason'}};
 for(const locale of ['th','en']){
  test(locale+': Admin routes, reason requirement and conditional flags are separate from immutable stage labels',()=>{
-  const html=editor.render(locale,{'JourneyRoutingEditor.selected':'review'},{definition,locale,onChange(){}});assert.equal((html.match(/<fieldset/g)||[]).length,3);assert.ok(html.includes(t(locale,'reasonRequired')));assert.ok(html.includes(t(locale,'conditional')));assert.match(html,/value="additional" selected/);
+  const html=editor.render(locale,{'JourneyRoutingEditor.selected':'review'},{definition,locale,onChange(){}});assert.equal((html.match(/<fieldset/g)||[]).length,3);assert.ok(html.includes(adminText(locale,'reasonRequired')));assert.ok(html.includes(t(locale,'conditional')));assert.match(html,/value="additional" selected/);
   const readOnly=editor.render(locale,{'JourneyRoutingEditor.selected':'review'},{definition,locale});assert.ok(readOnly.includes(journeyName(stage.outcomes[1],locale)));assert.doesNotMatch(readOnly,/<input|<select/);
  });
  test(locale+': completion chooses configured outcomes, shows required reason and correct target',()=>{

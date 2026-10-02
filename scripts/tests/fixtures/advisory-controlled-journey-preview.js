@@ -1,7 +1,8 @@
 // Synthetic localhost only. The DB suite separately exercises real atomic writes.
 import {supabase as base} from './advisory-flexible-journey-preview';
 import definition from './advisory-controlled-journey.json';
-const snapshotDefinition=structuredClone(definition),param=new URLSearchParams(location.search),variants=[{id:'fj2-default',family_key:'general_advisory',active:true,is_default:true,revision:1,version:1,version_id:'fj2-v1',definition:structuredClone(definition)}];
+import adminDefinition from './advisory-admin-journey-preview.json';
+const snapshotDefinition=structuredClone(definition),param=new URLSearchParams(location.search),variants=[{id:'fj2-default',family_key:'general_advisory',active:true,is_default:true,revision:1,version:1,version_id:'fj2-v1',definition:structuredClone(param.has('adminPolish')?adminDefinition:definition)}];
 let version=1;const stages=definition.stages.map((s,i)=>({...s,id:'fj2-stage-'+i,stage_key:s.key,template_key:'general_advisory',position:i,minutes:null,visits:[],task_total:0,task_completed:0}));
 const path=[{id:'fj2-visit-1',kind:'visit',stage_id:stages[0].id,entered_at:'2026-10-02T01:00:00Z',exited_at:'2026-10-02T02:00:00Z',exit_reason:'completed',actor_id:'lead',recorded_at:'2026-10-02T01:00:00Z'},{id:'fj2-visit-2',kind:'visit',stage_id:stages[1].id,entered_at:'2026-10-02T02:00:00Z',exited_at:null,exit_reason:null,actor_id:'lead',recorded_at:'2026-10-02T02:00:00Z'}];
 const decisions=[{id:'decision-1',kind:'stage_complete',actor_id:'lead',occurred_at:'2026-10-02T02:00:00Z',detail:{journey_format:2,from_visit_id:path[0].id,to_visit_id:path[1].id,from_stage:definition.stages[0],target_stage:definition.stages[1],outcome:definition.stages[0].outcomes[0],next_stage_key:'review',completed_stage_key:'intake'}}];

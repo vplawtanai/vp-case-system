@@ -1,0 +1,12 @@
+{
+  "format": 2, "name_th": "ตัวอย่างเส้นทางตามผลลัพธ์", "name_en": "Example outcome journey",
+  "stages": [
+    {"key":"intake","name_th":"รับเรื่อง","name_en":"Intake","required":true,"conditional":false,"outcomes":[{"key":"continue","name_th":"ไปต่อ","name_en":"Continue","target":"collect","requires_reason":false}]},
+    {"key":"collect","name_th":"เก็บข้อมูล","name_en":"Gather information","required":true,"conditional":false,"outcomes":[{"key":"continue","name_th":"ข้อมูลครบแล้ว","name_en":"Information ready","target":"analysis","requires_reason":false}]},
+    {"key":"analysis","name_th":"วิเคราะห์","name_en":"Analysis","required":true,"conditional":false,"outcomes":[{"key":"continue","name_th":"ไปดำเนินการ","name_en":"Proceed","target":"execution","requires_reason":false}]},
+    {"key":"execution","name_th":"ดำเนินการและให้คำแนะนำ","name_en":"Advice and execution","required":true,"conditional":false,"outcomes":[{"key":"proceed","name_th":"ดำเนินการต่อ","name_en":"Proceed","target":"follow","requires_reason":false},{"key":"information","name_th":"ขอข้อมูลเพิ่ม","name_en":"Additional information","target":"additional","requires_reason":true},{"key":"finish","name_th":"ยุติเรื่อง","name_en":"End the matter","target":"close","requires_reason":true}]},
+    {"key":"additional","name_th":"ชี้แจงเพิ่มเติม","name_en":"Provide additional information","required":true,"conditional":true,"outcomes":[{"key":"return","name_th":"กลับไปดำเนินการ","name_en":"Return to execution","target":"execution","requires_reason":false}]},
+    {"key":"follow","name_th":"ติดตาม","name_en":"Follow up","required":true,"conditional":false,"outcomes":[{"key":"continue","name_th":"ไปปิดงาน","name_en":"Ready to close","target":"close","requires_reason":false}]},
+    {"key":"close","name_th":"ปิดงาน","name_en":"Close","required":true,"conditional":false,"outcomes":[]}
+  ]
+}
