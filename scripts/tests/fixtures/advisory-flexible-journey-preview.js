@@ -4,7 +4,7 @@ import catalog from '../../../lib/advisory-journey-catalog.json';
 const p=new URLSearchParams(location.search);
 let variants=catalog.families.map(f=>({id:'variant-'+f.key,family_key:f.key,revision:1,active:true,is_default:true,version:1,version_id:'version-'+f.key,definition:{name_th:'มาตรฐาน',name_en:'Standard',stages:f.stages.map((key,i)=>({key,name_th:f.stage_labels_th[i],name_en:f.stage_labels_en[i],required:!(f.key==='contract_business_documents'&&['internal_review','delivery_negotiation'].includes(key))}))}}));
 const contract=variants.find(v=>v.family_key==='contract_business_documents');
-if(p.has('multiple'))variants.push({...contract,id:'alternative',is_default:false,definition:{...contract.definition,name_th:'มีการเจรจา',name_en:'With negotiation'}});
+if(p.has('multiple'))variants.push({...contract,id:'alternative',version_id:'version-alternative',is_default:false,definition:{...contract.definition,name_th:'มีการเจรจา',name_en:'With negotiation'}});
 variants.push({...contract,id:'retired',active:false,is_default:false,definition:{...contract.definition,name_en:'Inactive excluded',name_th:'รูปแบบปิดใช้งาน'}});
 const stages=contract.definition.stages.map((s,i)=>({...s,id:'fj-stage-'+i,stage_key:s.key,template_key:contract.family_key,position:i,task_total:0,task_completed:0,elapsed_seconds:i<2?86400:null,minutes:null,visits:i<2?[{id:'fj-visit-'+i,kind:'visit',entered_at:'2026-10-01T01:00:00Z',exited_at:i===0?'2026-10-01T02:00:00Z':null}]:[]}));
 const skipActivities=[];

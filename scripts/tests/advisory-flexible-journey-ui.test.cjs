@@ -16,8 +16,8 @@ const matterJourney=workspaceFixture('app/advisory/control/MatterJourney.tsx',[]
 for(const locale of ['th','en']){
  test(locale+': sole active default auto-selected; multiple choices only; inactive filtered out',()=>{
   assert.equal(lib.defaultVariant(lib.availableVariants([variant,{...variant,id:'off',active:false}],variant.family_key)).id,'v1');
-  let html=field.render(locale,{'JourneyVariantField.variants':[variant],'JourneyVariantField.selected':'v1','JourneyVariantField.loading':false},{family:variant.family_key});assert.match(html,/name="variant_id" value="v1"/);assert.doesNotMatch(html,/type="radio"/);
-  html=field.render(locale,{'JourneyVariantField.variants':[variant,{...variant,id:'v2',is_default:false}],'JourneyVariantField.selected':'v1','JourneyVariantField.loading':false},{family:variant.family_key});assert.equal((html.match(/type="radio"/g)||[]).length,2);assert.ok(html.includes(lib.journeyName(variant.definition,locale)));
+  let html=field.render(locale,{'JourneyVariantField.variants':[variant],'JourneyVariantField.selected':'v1','JourneyVariantField.loading':false},{family:variant.family_key});assert.match(html,/name="journey_version_id" value="version1"/);assert.doesNotMatch(html,/type="radio"/);
+  html=field.render(locale,{'JourneyVariantField.variants':[variant,{...variant,id:'v2',version_id:'version2',is_default:false}],'JourneyVariantField.selected':'v1','JourneyVariantField.loading':false},{family:variant.family_key});assert.equal((html.match(/type="radio"/g)||[]).length,2);assert.ok(html.includes(lib.journeyName(variant.definition,locale)));assert.match(html,/value="version2"/);assert.doesNotMatch(html,/type="hidden"/);
  });
  test(locale+': Required has no Skip/Activate bypass; Optional is skippable; snapshot labels used',()=>{
   for(const index of [0,1,3]){const html=journey.render(locale,{}, {matter,stages,canEdit:true,onEdit(){},initialStage:stages[index].key});assert.ok(html.includes(lib.journeyName(stages[index],locale)));const skip=messages['advisory.skip'][locale];assert.equal(html.includes('>'+skip+'</button>'),index===3);assert.ok(!html.includes('>'+messages['advisory.activate'][locale]));}
@@ -34,6 +34,14 @@ for(const locale of ['th','en']){
   html=admin.render(locale,{...base,'JourneyTemplates.editing':true,'JourneyTemplates.selected':'v1','JourneyTemplates.draft':variant.definition});assert.equal((html.match(/type="checkbox"/g)||[]).length,7);assert.match(html,/type="checkbox"[^>]*disabled/);assert.ok(!html.includes('ADVISORY_'));
  });
 }
+test('serialized version resolves both exact identifiers; invalid explicit selection never falls back to default',()=>{
+ const alternative={...variant,id:'v2',version_id:'version2',is_default:false};
+ const variants=[variant,alternative,{...variant,id:'retired',version_id:'retired-version',active:false},{...variant,id:'other',version_id:'other-version',family_key:'general_advisory'}];
+ assert.deepEqual(lib.resolveJourneySelection(variants,variant.family_key,'version2'),{variant_id:'v2',journey_version_id:'version2'});
+ assert.deepEqual(lib.resolveJourneySelection(variants,variant.family_key,lib.defaultVariant([variant]).version_id),{variant_id:'v1',journey_version_id:'version1'});
+ for(const value of ['on','missing','retired-version','other-version','',null,undefined])assert.equal(lib.resolveJourneySelection(variants,variant.family_key,value),null,String(value));
+ assert.equal(lib.resolveJourneySelection([variant,{...alternative,version_id:variant.version_id}],variant.family_key,variant.version_id),null);
+});
 test('current optional skip renders skipped, not completed; legacy state semantics unchanged',()=>{const visits=[{kind:'visit',exited_at:'2026-10-01',exit_reason:'skipped'},{kind:'skip'}];assert.equal(stageState({stage_key:'review',required:false,visits},null,false),'skipped');assert.equal(stageState({stage_key:'review',visits},null,false),'visited');});
 function load(file,overrides={}){
  const full=path.resolve(root,file),box={exports:{},Response,Request,URL,console,process:{env:{}},require:n=>{if(n in overrides)return overrides[n];if(n==='server-only')return {};if(n.startsWith('.')){let p=path.resolve(path.dirname(full),n);if(!fs.existsSync(p))p+=fs.existsSync(p+'.ts')?'.ts':'.tsx';return load(p);}return require(n);}};

@@ -54,6 +54,28 @@ test('exact 087 contract, no rows/backfill/seeds, portable catalog and fail-clos
  ]){v=JSON.parse(sql('begin;'+change+G.verifierSql(pins)+'rollback;'));assert.equal(v.gate_pass,false,change);}
  const altered=structuredClone(pins);altered.catalog_sha256='0'.repeat(64);assert.equal(JSON.parse(sql(G.verifierSql(altered))).gate_pass,false);
 });
+test('create snapshots the explicit non-default Variant and exact version instead of the family default',()=>{
+ const before=stableDetails(legacy),standard=catalog('general_advisory').find(v=>v.is_default);
+ const created=manage(null,'create',{family_key:'general_advisory',definition});
+ const selected=catalog('general_advisory').find(v=>v.id===created.id);
+ assert.equal(selected.is_default,false);assert.notEqual(selected.id,standard.id);assert.notEqual(selected.version_id,standard.version_id);
+ // Match the real Create Matter payload, including its family template hint.
+ const m=create('general_advisory',{template:'general_advisory',variant_id:selected.id,journey_version_id:selected.version_id}),d=details(m);
+ assert.equal(d.journey_snapshot.variant_id,selected.id);assert.equal(d.journey_snapshot.version_id,selected.version_id);
+ assert.equal(d.journey_snapshot.version,selected.version);assert.deepEqual(d.journey_snapshot.definition,definition);
+ assert.equal(d.stages.find(s=>s.stage_key==='additional').conditional,true);
+ assert.equal(d.journey_path.length,1);assert.equal(d.items[0].stage_key,'intake');
+ const request=JSON.parse(sql(`select request_body->'payload' from advisory_control_requests where response->>'matter_id'=${q(m)} and request_body->>'action'='create'`));
+ assert.equal(request.variant_id,selected.id);assert.equal(request.journey_version_id,selected.version_id);
+ const after=stableDetails(legacy);
+ for(const key of ['items','stages','journey_snapshot','journey_path','journey_decisions','state_history','team','time'])assert.deepEqual(after[key],before[key],key);
+});
+test('create without an explicit Variant snapshots the active family default and its current version',()=>{
+ const standard=catalog('general_advisory').find(v=>v.is_default),d=details(create('general_advisory'));
+ assert.equal(d.journey_snapshot.variant_id,standard.id);assert.equal(d.journey_snapshot.version_id,standard.version_id);
+ assert.deepEqual(d.journey_snapshot.definition,standard.definition);assert.equal(d.journey_path.length,1);
+ assert.equal(d.items[0].stage_key,standard.definition.stages[0].key);
+});
 test('Admin publishes FJ-2, default snapshot freezes all outcomes/routes; legacy is not rewritten',()=>{
  variant=manage(null,'create',{family_key:'general_advisory',definition});variant=catalog('general_advisory').find(v=>v.id===variant.id);
  const m=newMatter(),d=details(m);assert.deepEqual(d.journey_snapshot.definition,definition);assert.equal(d.items[0].stage_key,'intake');assert.equal(d.stages.flatMap(s=>s.visits).length,1);assert.equal(d.stages.find(s=>s.stage_key==='additional').visits.length,0);
