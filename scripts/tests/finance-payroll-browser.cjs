@@ -17,20 +17,40 @@ const adapter=write('adapter.js',`window.writes=[];window.cash=[];window.failRea
  if(body.action==='prepare'&&location.search.includes('readfail'))window.failRead=true;
  return {id:body.payload?.id,ok:true};}
 `);
-const supabase=write('supabase.js',`export const supabase={rpc(){throw Error('Unexpected external RPC')}};`);
-const entry=write('entry.tsx',`import React from'react';import{createRoot}from'react-dom/client';import{UiLocaleProvider}from'${root}/lib/i18n/provider.tsx';import Payroll from'${root}/app/finance/payroll/workspace.tsx';const p=new URLSearchParams(location.search);createRoot(document.getElementById('root')).render(<UiLocaleProvider initialLocale={p.get('locale')||'th'} pathname="/finance/payroll"><Payroll/></UiLocaleProvider>);`);
+const supabase=write('supabase.js',`export const supabase={
+ auth:{getUser:async()=>({data:{user:{id:'synthetic-admin'}}})},
+ from(table){if(table!=='user_profiles')throw Error('Unexpected table');const q={select:()=>q,eq:()=>q,single:async()=>({data:{role:'admin',active:true,must_change_password:false}})};return q;},
+ async rpc(name){if(name==='get_finance_expense_access')return{data:{can_view_all:true,can_record:true,can_view_accounts:true}};if(name==='get_finance_statement_accounts')return{data:{accounts:[],can_transfer:true}};throw Error('Unexpected external RPC: '+name);}
+};`);
+const navigation=write('navigation.js',`export const usePathname=()=>location.pathname;export const useRouter=()=>({push:url=>location.assign(url),replace:url=>location.replace(url)});`);
+const link=write('link.tsx',`import React from'react';export default function Link({children,prefetch,...props}){return <a {...props}>{children}</a>;}`);
+const image=write('image.tsx',`import React from'react';export default function Image(props){return <img {...props}/>;}`);
+const entry=write('entry.tsx',`import React from'react';import{createRoot}from'react-dom/client';import{UiLocaleProvider}from'${root}/lib/i18n/provider.tsx';import{cookieUiLocale}from'${root}/lib/i18n/core.ts';import Payroll from'${root}/app/finance/payroll/workspace.tsx';import PayrollLayout from'${root}/app/finance/payroll/layout.tsx';const p=new URLSearchParams(location.search);createRoot(document.getElementById('root')).render(<UiLocaleProvider initialLocale={p.get('locale')||cookieUiLocale(document.cookie)||'th'} pathname={location.pathname}><PayrollLayout>{location.pathname.startsWith('/finance/payroll')?<Payroll/>:<main>Navigation fixture</main>}</PayrollLayout></UiLocaleProvider>);`);
 async function main(){
- await new Promise((resolve,reject)=>require('next/dist/compiled/webpack/webpack').webpack({mode:'development',context:root,entry,output:{path:out,filename:'bundle.js'},resolve:{extensions:['.tsx','.ts','.js'],modules:[root+'/node_modules'],alias:{[root+'/app/finance/payroll/client']:adapter,[root+'/lib/supabase']:supabase}},module:{rules:[{test:/\.(tsx?|css|js)$/,exclude:/node_modules/,use:loader}]},devtool:false},(e,s)=>e||s.hasErrors()?reject(e||Error(s.toString({all:false,errors:true}))):resolve()));
- const files=['app/components/ui/vp-ui.module.css','app/components/DetailModal.module.css','app/finance/payroll/payroll.module.css','app/finance/payouts/payout.module.css'];
+ await new Promise((resolve,reject)=>require('next/dist/compiled/webpack/webpack').webpack({mode:'development',context:root,entry,output:{path:out,filename:'bundle.js'},resolve:{extensions:['.tsx','.ts','.js'],modules:[root+'/node_modules'],alias:{[root+'/app/finance/payroll/client']:adapter,[root+'/lib/supabase']:supabase,'next/navigation':navigation,'next/link':link,'next/image':image}},module:{rules:[{test:/\.(tsx?|css|js)$/,exclude:/node_modules/,use:loader}]},devtool:false},(e,s)=>e||s.hasErrors()?reject(e||Error(s.toString({all:false,errors:true}))):resolve()));
+ const files=['app/components/ui/vp-ui.module.css','app/components/DetailModal.module.css','app/finance/payroll/payroll.module.css','app/finance/payouts/payout.module.css','app/components/AppSidebar.module.css','app/components/LanguageSelector.module.css','app/finance/finance-sidebar.module.css'];
  const css=files.map(f=>fs.readFileSync(root+'/'+f,'utf8').replace(/\.([A-Za-z_][A-Za-z_0-9-]*)/g,(_,k)=>'.'+path.basename(f).replaceAll('.','_')+'_'+k).replace(/:global\(([^)]+)\)/g,'$1')).join('\n');
- const server=http.createServer((req,res)=>{if(req.url==='/bundle.js'){res.setHeader('Content-Type','text/javascript');return res.end(fs.readFileSync(out+'/bundle.js'));}res.setHeader('Content-Type','text/html');res.end(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;color:#193956;background:#f7f9fc}${css}</style><div id="root"></div><script src="/bundle.js"></script>`);});
+ const server=http.createServer((req,res)=>{if(req.url==='/branding/vp-partners-logo.png'){res.setHeader('Content-Type','image/png');return res.end(fs.readFileSync(root+'/public/branding/vp-partners-logo.png'));}if(req.url==='/bundle.js'){res.setHeader('Content-Type','text/javascript');return res.end(fs.readFileSync(out+'/bundle.js'));}res.setHeader('Content-Type','text/html');res.end(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;color:#193956;background:#f7f9fc}${css}</style><div id="root"></div><script src="/bundle.js"></script>`);});
  await new Promise(r=>server.listen(0,'127.0.0.1',r));let browser;
  try{
-  const {chromium}=require('/Users/paolawyer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});const page=await browser.newPage(),errors=[];
+  const {chromium}=require('/Users/paolawyer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});const page=await browser.newPage({reducedMotion:'reduce'}),errors=[];
   page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});await page.route('**/*',r=>new URL(r.request().url()).hostname==='127.0.0.1'?r.continue():r.abort());
-  require('./receipt-render-fixture.cjs');const {payrollText}=require('../../app/finance/payroll/labels.ts'),url='http://127.0.0.1:'+server.address().port;
+  require('./receipt-render-fixture.cjs');const {payrollText}=require('../../app/finance/payroll/labels.ts'),url='http://127.0.0.1:'+server.address().port+'/finance/payroll';
   for(const [width,locale]of [[1440,'th'],[390,'th'],[1440,'en'],[390,'en']]){
-   const t=k=>payrollText(locale,k);await page.setViewportSize({width,height:980});await page.goto(url+'?locale='+locale);await page.getByRole('button',{name:t('view'),exact:true}).first().click();await page.getByRole('heading',{name:t('employee')+' (2)',exact:true}).waitFor();
+   const t=k=>payrollText(locale,k);await page.setViewportSize({width,height:980});await page.goto(url+'?locale='+locale);
+   const {translate}=require('../../lib/i18n/catalog.ts'),nav=k=>translate(locale,k);
+   await page.getByRole('heading',{name:t('title'),exact:true}).waitFor();
+   assert.equal(await page.locator(`button[lang="${locale}"]`).getAttribute('aria-pressed'),'true');
+   if(width===390)await page.getByRole('button',{name:nav('common.nav.menu'),exact:true}).click();else await page.locator('[data-app-sidebar]').hover();
+   const payrollLink=page.locator('a[href="/finance/payroll"]');
+   await payrollLink.waitFor({state:'visible'});assert.equal(await payrollLink.getAttribute('aria-current'),'page');assert.equal(await payrollLink.innerText(),t('title'));await page.screenshot({path:out+`/navigation-${locale}-${width}.png`});
+   if(width===390)await page.keyboard.press('Escape');else {await page.locator('main h1').hover();await page.waitForFunction(()=>document.querySelector('[data-app-sidebar]').getBoundingClientRect().right<=89);assert.ok(await page.locator('main h1').evaluate(e=>e.getBoundingClientRect().left>=88));}
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+   await page.screenshot({path:out+`/shell-${locale}-${width}.png`,fullPage:true});
+   // Browser-native validation is presented by the application in its selected language.
+   await page.getByRole('button',{name:t('newPeriod'),exact:true}).click();
+   const invalidForm=page.getByRole('dialog');await invalidForm.getByLabel(t('targetDate'),{exact:true}).fill('');await invalidForm.getByRole('button',{name:t('newPeriod'),exact:true}).click();await invalidForm.getByRole('alert').getByText(t('inputInvalid'),{exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.writes.length),0);await page.keyboard.press('Escape');
+   await page.getByRole('button',{name:t('view'),exact:true}).first().click();await page.getByRole('heading',{name:t('employee')+' (2)',exact:true}).waitFor();
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);await page.screenshot({path:out+`/period-${locale}-${width}.png`,fullPage:true});
    // Choose one non-first person, then all. The UI never implies FIFO.
    await page.getByLabel(t('select')+': '+people[1].legal_name,{exact:true}).check();assert.ok(await page.getByRole('button',{name:t('prepare'),exact:true}).isEnabled());assert.equal(await page.getByLabel(t('select')+': '+people[0].legal_name,{exact:true}).isChecked(),false);
@@ -43,8 +63,17 @@ async function main(){
    await page.goto(url+'?locale='+locale);await page.getByRole('button',{name:t('view'),exact:true}).nth(1).click();await page.getByRole('button',{name:t('review'),exact:true}).first().click();await d.getByLabel(t('employer_ss'),{exact:true}).waitFor();await d.getByLabel(t('additions'),{exact:true}).fill('2000');await d.getByLabel(t('deductions'),{exact:true}).fill('500');await d.getByLabel(t('wht'),{exact:true}).fill('1000');await d.getByLabel(t('whtTreatment')).selectOption('withhold');await d.getByText('22,750.00 THB',{exact:true}).waitFor();assert.equal(await d.evaluate(e=>e.scrollWidth>e.clientWidth+1),false);await page.screenshot({path:out+`/review-${locale}-${width}.png`});await d.getByRole('button',{name:t('save'),exact:true}).click();await d.waitFor({state:'hidden'});assert.equal(await page.evaluate(()=>window.writes[0].payload.employer_ss),750);
    await page.getByRole('button',{name:t('review'),exact:true}).last().click();assert.equal(await d.getByLabel(t('employee_ss'),{exact:true}).count(),0);assert.equal(await d.getByLabel(t('employer_ss'),{exact:true}).count(),0);await page.keyboard.press('Escape');
   }
+  // Shared selector changes Payroll and Finance navigation live, then persists across navigation/reload.
+  await page.setViewportSize({width:1440,height:980});await page.goto(url+'?locale=th');
+  await page.locator('button[lang="en"]').click();await page.getByRole('heading',{name:'Payroll & Compensation',exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>localStorage.getItem('vp.ui.locale')),'en');assert.equal(await page.locator('html').getAttribute('lang'),'en');
+  await page.goto(url);await page.getByRole('heading',{name:'Payroll & Compensation',exact:true}).waitFor();
+  await page.locator('[data-app-sidebar]').hover();await page.locator('a[href="/finance/statement"]').first().click();
+  await page.locator('button[lang="en"][aria-pressed="true"]').waitFor();await page.locator('button[lang="th"]').click();
+  await page.goto(url);await page.getByRole('heading',{name:payrollText('th','title'),exact:true}).waitFor();
+  assert.equal(await page.locator('html').getAttribute('lang'),'th');
   const t=k=>payrollText('en',k);await page.goto(url+'?locale=en&readfail=1');await page.getByRole('button',{name:t('view'),exact:true}).first().click();await page.getByLabel(t('selectAll')).check();await page.getByRole('button',{name:t('prepare'),exact:true}).click();const d=page.getByRole('dialog');await d.locator('select').first().waitFor();for(const s of await d.locator('select').all())await s.selectOption(id(90));await d.getByRole('button',{name:t('prepare'),exact:true}).click();await d.waitFor({state:'hidden'});await page.getByText(t('savedReadFailed'),{exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.writes.length),1);await page.getByRole('button',{name:t('reload'),exact:true}).click();await page.getByRole('button',{name:t('confirm'),exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.writes.length),1);
-  assert.deepEqual(errors,[]);console.log('PASS TH/EN 1440/390, separate tracks, manual review/net, people history, no SS for contractors, selected separate payments, double click, save/read-back recovery, no overflow/runtime errors. '+out);
+  assert.deepEqual(errors,[]);console.log('PASS shared Finance shell/active navigation, live TH/EN switching and persisted language, localized validation, TH/EN 1440/390, separate tracks, manual review/net, people history, no SS for contractors, selected separate payments, double click, save/read-back recovery, no overflow/runtime errors. '+out);
  }finally{if(browser)await browser.close();await new Promise(r=>server.close(r));}
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});

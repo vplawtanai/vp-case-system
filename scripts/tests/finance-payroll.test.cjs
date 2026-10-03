@@ -61,3 +61,11 @@ test('089 verifier retains fail-closed equality checks for unbound or partial ba
   assert.ok(sql.includes('bool_and(coalesce(pass,false)) gate_pass'));
  }
 });
+
+test('Payroll business failures stay localized without exposing raw server errors',()=>{
+ for(const code of ['PAYROLL_ADMIN_REQUIRED','PAYROLL_RATE_MISSING','PAYROLL_DRAFT_SOURCES_CHANGED','PAYROLL_PAYMENT_STALE','PAYROLL_REVIEW_REQUIRED','PAYROLL_ACCOUNT_DENIED','PAYROLL_DESTINATION_REQUIRED','FINANCE_CASH_OPENING_BALANCE_REQUIRED','PAYROLL_ALREADY_PREPARED','PAYROLL_RETRY_CHANGED','PAYROLL_HISTORY_IMMUTABLE','PAYROLL_NO_ELIGIBLE_PEOPLE','PAYROLL_INPUT_INVALID','Unexpected private database details']){
+  const th=labels.payrollError('th',new Error(code)),en=labels.payrollError('en',new Error(code));
+  assert.match(th,/[ก-๛]/);assert.doesNotMatch(en,/[ก-๛]/);assert.notEqual(th,en);assert.notEqual(en,code);assert.doesNotMatch(en,/PAYROLL_|FINANCE_/);
+ }
+ assert.equal(labels.payrollError('th',new Error('PAYROLL_HISTORY_IMMUTABLE')),labels.payrollText('th','historyLocked'));
+});
