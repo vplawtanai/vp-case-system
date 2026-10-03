@@ -3,8 +3,10 @@
 const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'../..'),out=fs.mkdtempSync(path.join(os.tmpdir(),'vp-payroll-089-browser-'));
 const id=n=>'90000000-0000-4000-8000-'+String(n).padStart(12,'0');
-const people=[1,2,3].map((n)=>({id:id(n),profile_id:n===3?null:id(n),legal_name:['พนักงานตัวอย่าง A','พนักงานตัวอย่าง B','ผู้รับจ้างตัวอย่าง C'][n-1],version:1,is_active:true,tax_id:'1234567890123',destination:{id:id(100+n)},engagements:[{id:id(110+n),kind:n===3?'contractor':'employee',active:true,effective_from:'2026-01-01',reason:'Synthetic engagement'}],rates:[{id:id(120+n),monthly_amount:[23000,20000,15000][n-1],effective_from:'2026-01-01',reason:'Synthetic rate'}]}));
-const data={today:'2026-10-03',people,people_options:people.map(p=>({...p,kind:p.profile_id?'internal':'external',entity_type:'natural_person'})),accounts:[{bank_account_id:id(90),cash_location_id:null,name_th:'KTB · บัญชีบริษัท',name_en:'KTB · Company account'}],periods:[{id:id(80),month:'2026-09-01',target_payment_date:'2026-09-30',status:'approved',payment_status:'approved',version:5,note:'Synthetic',line_count:3,net_total:56500},{id:id(81),month:'2026-10-01',target_payment_date:'2026-10-31',status:'draft',payment_status:'draft',version:1,note:'Draft',line_count:3,net_total:56500}],lines:[],obligations:[]};
+const people=[1,2,3].map((n)=>({id:id(n),profile_id:id(n),legal_name:['พนักงานตัวอย่าง A','พนักงานตัวอย่าง B','ผู้รับจ้างตัวอย่าง C'][n-1],version:1,is_active:true,tax_id:'1234567890123',destination:{id:id(100+n)},engagements:[{id:id(110+n),kind:n===3?'contractor':'employee',active:true,effective_from:'2026-01-01',reason:'Synthetic engagement'}],rates:[{id:id(120+n),monthly_amount:[23000,20000,15000][n-1],effective_from:'2026-01-01',reason:'Synthetic rate'}]}));
+const external={...people[2],id:id(4),profile_id:null,legal_name:'External vendor - not Payroll'};
+const sourcePeople=[...people,external];
+const data={today:'2026-10-03',people:sourcePeople,people_options:sourcePeople.map(p=>({...p,kind:p.profile_id?'internal':'external',entity_type:'natural_person'})),accounts:[{bank_account_id:id(90),cash_location_id:null,name_th:'KTB · บัญชีบริษัท',name_en:'KTB · Company account'}],periods:[{id:id(80),month:'2026-09-01',target_payment_date:'2026-09-30',status:'approved',payment_status:'approved',version:5,note:'Synthetic',line_count:3,net_total:56500},{id:id(81),month:'2026-10-01',target_payment_date:'2026-10-31',status:'draft',payment_status:'draft',version:1,note:'Draft',line_count:3,net_total:56500}],lines:[],obligations:[]};
 const lines=people.map((p,n)=>({id:id(20+n),period_id:id(80),payee_id:p.id,kind:n===2?'contractor':'employee',name:p.legal_name,service_from:'2026-09-01',service_to:'2026-09-30',base_amount:[23000,20000,15000][n],additions:0,deductions:0,employee_ss:n<2?750:0,employer_ss:n<2?750:0,wht_treatment:'none',wht_amount:0,gross_amount:[23000,20000,15000][n],net_amount:[22250,19250,15000][n],requires_base_review:false,reviewed:true,adjustment_reason:'',note:'Reviewed synthetic facts',payment:null}));
 const write=(n,s)=>{const p=path.join(out,n);fs.writeFileSync(p,s);return p;};
 const loader=write('loader.cjs',`module.exports=function(s){if(this.resourcePath.endsWith('.css')){const p=require('node:path').basename(this.resourcePath).replaceAll('.','_')+'_';return 'module.exports={__esModule:true,default:new Proxy({}, {get:(_,k)=>'+JSON.stringify(p)+'+k})};'}return require(${JSON.stringify(require.resolve('typescript'))}).transpileModule(s,{compilerOptions:{module:99,target:9,jsx:4,esModuleInterop:true}}).outputText};`);
@@ -13,6 +15,7 @@ const setup=new URLSearchParams(location.search).get('setup');
 if(setup){
  data.periods=[];
  if(setup==='empty')data.people=[];
+ if(setup==='external-only')data.people=data.people.filter(p=>!p.profile_id);
  if(setup==='account-only')data.people=data.people.map(p=>({...p,engagements:[],rates:[]}));
  if(setup==='missing-rate')data.people=[{...data.people[0],rates:JSON.parse(sessionStorage.getItem('payroll-fixture-rates')||'[]')}];
 }
@@ -70,6 +73,29 @@ async function main(){
    await page.getByRole('button',{name:t('confirm'),exact:true}).click();await d.getByLabel(t('paymentAck')).waitFor();assert.equal(await d.getByRole('button',{name:t('confirm'),exact:true}).isDisabled(),true);await d.getByLabel(t('paymentAck')).check();await d.getByRole('button',{name:t('confirm'),exact:true}).evaluate(b=>{b.click();b.click();});await d.waitFor({state:'hidden'});assert.equal(await page.evaluate(()=>window.writes.length),2);assert.deepEqual(await page.evaluate(()=>window.cash.map(x=>x.amount)),[22250,19250,15000]);
    // Personnel history and distinct tracks, including contractor form without SS.
    await page.getByRole('tab',{name:t('people'),exact:true}).click();await page.getByRole('button',{name:t('changeRate'),exact:true}).first().click();await d.getByText(t('effectiveHint'),{exact:true}).waitFor();await page.keyboard.press('Escape');await page.getByRole('tab',{name:t('obligations'),exact:true}).click();await page.getByText(t('obligationHint'),{exact:true}).waitFor();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+   // Only existing internal People can start Payroll setup; both engagements remain available.
+   await page.getByRole('tab',{name:t('people'),exact:true}).click();
+   assert.equal(await page.getByText(external.legal_name,{exact:true}).count(),0);
+   assert.equal(await page.getByRole('button',{name:/Add external contractor|\u0e40\u0e1e\u0e34\u0e48\u0e21\u0e1c\u0e39\u0e49\u0e23\u0e31\u0e1a\u0e08\u0e49\u0e32\u0e07\u0e20\u0e32\u0e22\u0e19\u0e2d\u0e01/}).count(),0);
+   for(const kind of ['employee','contractor']){
+    await page.getByRole('button',{name:t('addPerson'),exact:true}).click();
+    await d.waitFor();const personSelect=d.getByRole('combobox').first();await personSelect.waitFor();
+    assert.deepEqual(await personSelect.locator('option').evaluateAll(options=>options.map(o=>o.value)),['',...people.map(p=>p.id)]);
+    await personSelect.selectOption(people[2].id);await d.getByRole('combobox').nth(1).selectOption(kind);
+    await d.getByLabel(t('reason'),{exact:true}).fill('Internal VP setup - synthetic only');
+    assert.equal(await d.evaluate(e=>e.scrollWidth>e.clientWidth+1),false);
+    await page.screenshot({path:out+`/internal-${kind}-${locale}-${width}.png`});
+    const before=await page.evaluate(()=>window.writes.length);
+    await d.getByRole('button',{name:t('save'),exact:true}).click();await d.waitFor({state:'hidden'});
+    assert.equal(await page.evaluate(()=>window.writes.length),before+1);
+    assert.equal(await page.evaluate(()=>window.writes.at(-1).payload.payee_id),people[2].id);
+    assert.equal(await page.evaluate(()=>window.writes.at(-1).payload.kind),kind);
+   }
+   // The shared payment identity modal opens only with a bound internal person.
+   await page.getByRole('button',{name:t('paymentIdentity'),exact:true}).first().click();
+   await d.locator('input[disabled]').first().waitFor();
+   assert.equal(await d.locator('input[disabled]').first().inputValue(),people[0].legal_name);
+   await page.keyboard.press('Escape');
    await page.goto(url+'?locale='+locale);await page.getByRole('button',{name:t('view'),exact:true}).nth(1).click();await page.getByRole('button',{name:t('review'),exact:true}).first().click();await d.getByLabel(t('employer_ss'),{exact:true}).waitFor();await d.getByLabel(t('additions'),{exact:true}).fill('2000');await d.getByLabel(t('deductions'),{exact:true}).fill('500');await d.getByLabel(t('wht'),{exact:true}).fill('1000');await d.getByLabel(t('whtTreatment')).selectOption('withhold');await d.getByText('22,750.00 THB',{exact:true}).waitFor();assert.equal(await d.evaluate(e=>e.scrollWidth>e.clientWidth+1),false);await page.screenshot({path:out+`/review-${locale}-${width}.png`});await d.getByRole('button',{name:t('save'),exact:true}).click();await d.waitFor({state:'hidden'});assert.equal(await page.evaluate(()=>window.writes[0].payload.employer_ss),750);
    await page.getByRole('button',{name:t('review'),exact:true}).last().click();assert.equal(await d.getByLabel(t('employee_ss'),{exact:true}).count(),0);assert.equal(await d.getByLabel(t('employer_ss'),{exact:true}).count(),0);await page.keyboard.press('Escape');
   }
@@ -77,7 +103,7 @@ async function main(){
   for(const [width,locale]of [[1440,'th'],[390,'th'],[1440,'en'],[390,'en']]){
    const t=k=>payrollText(locale,k),tab=k=>page.getByRole('tab',{name:t(k),exact:true});
    await page.setViewportSize({width,height:980});
-   for(const setup of ['empty','account-only']){
+   for(const setup of ['empty','account-only','external-only']){
     await page.goto(url+'?locale='+locale+'&setup='+setup);
     await page.getByText(t('emptyPeople'),{exact:true}).waitFor();
     assert.deepEqual(await page.getByRole('tab').allTextContents(),[t('people'),t('periods'),t('obligations')]);
@@ -108,7 +134,7 @@ async function main(){
   await page.goto(url);await page.getByRole('heading',{name:payrollText('th','title'),exact:true}).waitFor();
   assert.equal(await page.locator('html').getAttribute('lang'),'th');
   const t=k=>payrollText('en',k);await page.goto(url+'?locale=en&readfail=1');await page.getByRole('button',{name:t('view'),exact:true}).first().click();await page.getByLabel(t('selectAll')).check();await page.getByRole('button',{name:t('prepare'),exact:true}).click();const d=page.getByRole('dialog');await d.locator('select').first().waitFor();for(const s of await d.locator('select').all())await s.selectOption(id(90));await d.getByRole('button',{name:t('prepare'),exact:true}).click();await d.waitFor({state:'hidden'});await page.getByText(t('savedReadFailed'),{exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.writes.length),1);await page.getByRole('button',{name:t('reload'),exact:true}).click();await page.getByRole('button',{name:t('confirm'),exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.writes.length),1);
-  assert.deepEqual(errors,[]);console.log('PASS setup-aware People/Pay periods landing and tab order, manual tab persistence, shared Finance shell/active navigation, live TH/EN switching and persisted language, localized validation, TH/EN 1440/390, separate tracks, manual review/net, people history, no SS for contractors, selected separate payments, double click, save/read-back recovery, no overflow/runtime errors. '+out);
+  assert.deepEqual(errors,[]);console.log('PASS internal-only People options/cards and Employee/Contractor setup, no external creation, bound internal identity modal, setup-aware People/Pay periods landing and tab order, manual tab persistence, shared Finance shell/active navigation, live TH/EN switching and persisted language, localized validation, TH/EN 1440/390, separate tracks, manual review/net, people history, no SS for contractors, selected separate payments, double click, save/read-back recovery, no overflow/runtime errors. '+out);
  }finally{if(browser)await browser.close();await new Promise(r=>server.close(r));}
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});

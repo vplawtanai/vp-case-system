@@ -8,6 +8,25 @@ export type Line = {id:string;period_id:string;payee_id:string;kind:'employee'|'
 export type Obligation = {id:string;month:string;name:string;kind:'employee_wht'|'contractor_wht'|'employee_ss'|'employer_ss';amount:number;status:'pending'};
 export type Account = {bank_account_id:string|null;cash_location_id:string|null;name_th:string;name_en:string};
 export type PayrollData = {people:Person[];people_options:import('../payouts/shared').Payee[];periods:Period[];lines:Line[];obligations:Obligation[];accounts:Account[];today:string};
+// Finance's internal payee identity is the existing user_profile ID. External
+// payees remain valid in Expense/Payables, but are not a Payroll setup source.
+export const isInternalPayrollIdentity=(person:{id:string;profile_id:string|null})=>!!person.profile_id&&person.id===person.profile_id;
+export function payrollPeopleOptions(options:PayrollData['people_options']){
+ return options.filter(p=>p.kind==='internal'&&p.entity_type==='natural_person'&&isInternalPayrollIdentity(p));
+}
+export function payrollSetupPeople(data:Pick<PayrollData,'people'|'people_options'>){
+ const ids=new Set(payrollPeopleOptions(data.people_options).map(p=>p.id));
+ return data.people.filter(p=>isInternalPayrollIdentity(p)&&ids.has(p.id));
+}
+// Do not silently turn an existing external engagement into new Payroll lines.
+// This is an application scope check only; the RPC still owns period validation.
+export function hasExternalPayrollSource(data:Pick<PayrollData,'people'|'people_options'>,month:string){
+ if(!/^\d{4}-(0[1-9]|1[0-2])-01$/.test(month))throw Error('PAYROLL_MONTH_INVALID');
+ const internalIds=new Set(payrollSetupPeople(data).map(p=>p.id));
+ return data.people.some(p=>!internalIds.has(p.id)&&(
+  effective(p.engagements,month)?.active||p.engagements.some(e=>e.active&&e.effective_from.slice(0,7)===month.slice(0,7))
+ ));
+}
 export const accountKey=(a:Account)=>a.bank_account_id||a.cash_location_id||'';
 export function effective<T extends {effective_from:string}>(events:T[],on:string):T|undefined{return [...events].filter(e=>e.effective_from<=on).sort((a,b)=>b.effective_from.localeCompare(a.effective_from))[0];}
 // Landing guidance only; period creation/approval still use the existing RPC guards.
@@ -16,7 +35,7 @@ export function payrollLandingTab({people,today}:Pick<PayrollData,'people'|'toda
  const ready=people.some(person=>{
   const engagement=effective(person.engagements,today),rate=effective(person.rates,today);
   return person.is_active&&engagement?.active
-   &&(engagement.kind==='contractor'||!!person.profile_id)
+   &&isInternalPayrollIdentity(person)
    &&!!rate&&Number.isFinite(Number(rate.monthly_amount))&&Number(rate.monthly_amount)>0;
  });
  return ready?'periods':'people';

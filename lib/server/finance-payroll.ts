@@ -1,7 +1,7 @@
 import 'server-only';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {peopleClientsFor,type PeopleClients} from './people-admin';
-import {PAYROLL_COOKIE} from '../../app/finance/payroll/model';
+import {PAYROLL_COOKIE,payrollPeopleOptions,hasExternalPayrollSource,type PayrollData} from '../../app/finance/payroll/model';
 export class PayrollError extends Error {constructor(message:string,public status=400){super(message);}}
 export async function authorizePayroll(caller:SupabaseClient){
  const u=await caller.auth.getUser();if(u.error||!u.data.user)throw new PayrollError('PAYROLL_UNAUTHORIZED',401);
@@ -22,6 +22,23 @@ export async function handlePayrollRequest(request:Request,supplied?:PeopleClien
   if(b.action==='session'){
    const token=request.headers.get('authorization')?.slice(7)||'';if(!/^[A-Za-z0-9._-]+$/.test(token))throw new PayrollError('PAYROLL_UNAUTHORIZED',401);
    const response=reply({ready:true});response.headers.set('Set-Cookie',`${PAYROLL_COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/finance/payroll; Max-Age=1800${new URL(request.url).protocol==='https:'?'; Secure':''}`);return response;
+  }
+  if(['engagement','rate'].includes(b.action)){
+   // Check the caller-visible internal People projection, not client-supplied
+   // profile/kind fields. Keep the generic, already-applied 089 RPC unchanged.
+   const payees=await caller.rpc('get_finance_payees',{p_search:''});
+   if(payees.error)throw payees.error;
+   if(!Array.isArray(payees.data))throw new PayrollError('PAYROLL_FAILED');
+   if(!payrollPeopleOptions(payees.data).some(p=>p.id===b.payload?.payee_id))throw new PayrollError('PAYROLL_INTERNAL_PERSON_REQUIRED');
+  }
+  if(['create_period','reload_period'].includes(b.action)){
+   const read=await caller.rpc('payroll089_read',{p_period:b.action==='reload_period'?b.payload?.period_id:null});
+   if(read.error)throw read.error;
+   const data=read.data as PayrollData;
+   if(!data||!Array.isArray(data.people)||!Array.isArray(data.people_options)||!Array.isArray(data.periods))throw new PayrollError('PAYROLL_FAILED');
+   const month=b.action==='create_period'?b.payload?.month:data.periods.find(p=>p.id===b.payload?.period_id)?.month;
+   if(typeof month!=='string')throw new PayrollError('PAYROLL_MONTH_INVALID');
+   if(hasExternalPayrollSource(data,month))throw new PayrollError('PAYROLL_INTERNAL_PERSON_REQUIRED');
   }
   let result;
   if(['prepare','confirm','cancel'].includes(b.action))result=await caller.rpc('payroll089_payment_batch',{p_action:b.action,p_items:b.items,p_request_id:b.request_id,p_acknowledged:b.acknowledged===true});
