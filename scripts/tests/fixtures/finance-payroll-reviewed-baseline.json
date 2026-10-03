@@ -1,0 +1,5 @@
+{
+  "rows_sha256": "d7439a1db0fbcb7abadfeaed977c250f21fea50fa4eba16da0ce87623dc1af6a",
+  "preserved_sha256": "9136fbd2a8e169d95dcdb8d947a861f637155922f01ec6d22b8418e12b1f5b5f",
+  "note": "Exact Human-reviewed Production Preflight PASS baseline for candidate d08607902bb1e04ade69c320d7538336168f83fe627aad19985234a9fb71d53b. No fixture-derived substitution; broader Finance differences remain unaccepted."
+}

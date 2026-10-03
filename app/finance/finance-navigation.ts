@@ -25,6 +25,7 @@ export type FinanceSubNavPage =
   | "claims"
   | "expenses"
   | "expense-claims"
+  | "payroll"
   | "payables"
   | "compensation"
   | "participant-payments";
@@ -46,6 +47,7 @@ export type FinanceNavigationItem = FinanceNavigationLink | FinanceNavigationGro
 export function financeNavigationLinks(permissions: FinanceNavigationPermissions, locale: UiLocale = "th"): FinanceNavigationLink[] {
   const t = (key: string) => translate(locale, key);
   const links: (FinanceNavigationLink | null)[] = [
+    permissions.role === "admin" ? {href:"/finance/payroll",page:"payroll",label:locale==="th"?"เงินเดือนและค่าตอบแทน":"Payroll & Compensation"} : null,
     canOverview(permissions) ? {href: "/finance/overview", page: "overview", label: t("executive.nav")} : null,
     permissions.canViewFinanceQuotations
       ? { href: "/finance/quotations", page: "quotations" as const, label: t("finance.nav.quotations") }
@@ -119,7 +121,7 @@ export function financeNavigationItems(permissions: FinanceNavigationPermissions
 
 export function activeFinancePage(pathname: string | null, fallback: FinanceSubNavPage): FinanceSubNavPage {
   const routes: [string, FinanceSubNavPage][] = [
-    ["overview", "overview"], ["participant-payments", "participant-payments"],
+    ["payroll", "payroll"], ["overview", "overview"], ["participant-payments", "participant-payments"],
     ["statement", "statement"],
     ["payouts", "payables"], ["revenue-distribution", "revenue-distribution"],
     ["quotations", "quotations"], ["fee-agreements", "fee-agreements"], ["billing-plans", "fee-agreements"],

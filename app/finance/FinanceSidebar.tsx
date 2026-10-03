@@ -23,7 +23,7 @@ export function FinanceSidebar({ permissions, pathname, onNavigate }: { permissi
  const items = financeNavigationItems(permissions, locale);
  const sections = [
   { key: "incomeGroup", pages: ["quotations", "service-fees", "invoices", "payments", "revenue-distribution", "payment-documents"] },
-  { key: "expenseGroup", pages: ["expenses", "expense-claims", "payables"] },
+  { key: "expenseGroup", pages: ["expenses", "expense-claims", "payables", "payroll"] },
   { key: "moneyGroup", pages: ["statement", "cash-transactions"] },
   { key: "taxGroup", pages: ["tax-position"] },
   { key: "legacy", pages: ["legacy"] },
