@@ -10,6 +10,17 @@ export type Account = {bank_account_id:string|null;cash_location_id:string|null;
 export type PayrollData = {people:Person[];people_options:import('../payouts/shared').Payee[];periods:Period[];lines:Line[];obligations:Obligation[];accounts:Account[];today:string};
 export const accountKey=(a:Account)=>a.bank_account_id||a.cash_location_id||'';
 export function effective<T extends {effective_from:string}>(events:T[],on:string):T|undefined{return [...events].filter(e=>e.effective_from<=on).sort((a,b)=>b.effective_from.localeCompare(a.effective_from))[0];}
+// Landing guidance only; period creation/approval still use the existing RPC guards.
+// Use the server's Bangkok date and effective history, not login-account existence.
+export function payrollLandingTab({people,today}:Pick<PayrollData,'people'|'today'>):'people'|'periods'{
+ const ready=people.some(person=>{
+  const engagement=effective(person.engagements,today),rate=effective(person.rates,today);
+  return person.is_active&&engagement?.active
+   &&(engagement.kind==='contractor'||!!person.profile_id)
+   &&!!rate&&Number.isFinite(Number(rate.monthly_amount))&&Number(rate.monthly_amount)>0;
+ });
+ return ready?'periods':'people';
+}
 export function netPay(l:Pick<Line,'base_amount'|'additions'|'deductions'|'employee_ss'|'wht_amount'>){return Math.round((Number(l.base_amount)+Number(l.additions)-Number(l.deductions)-Number(l.employee_ss)-Number(l.wht_amount))*100)/100;}
 export function selectedTotal(lines:Line[]){return lines.reduce((n,l)=>n+Math.round(l.net_amount*100),0)/100;}
 export function reviewInput(period:Period,line:Line,form:FormData){

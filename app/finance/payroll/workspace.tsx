@@ -8,7 +8,7 @@ import {PayeeModal} from '../payouts/payee-modal';
 import type {Payee} from '../payouts/shared';
 import {payrollRequest} from './client';
 import {payrollText,payrollError,type PayrollLabel} from './labels';
-import {effective,netPay,selectedTotal,reviewInput,paymentItems,accountKey,type PayrollData,type Person,type Period,type Line} from './model';
+import {effective,payrollLandingTab,netPay,selectedTotal,reviewInput,paymentItems,accountKey,type PayrollData,type Person,type Period,type Line} from './model';
 import css from './payroll.module.css';
 const Feedback=createContext('');
 function DetailModal(props:DetailModalProps){const error=useContext(Feedback);return <BaseModal {...props}>{error&&<p className={css.error} role="alert">{error}</p>}{props.children}</BaseModal>;}
@@ -34,12 +34,12 @@ function PayrollForm({children,onSubmit,...props}:ComponentProps<'form'>){
 const monthName=(value:string,locale:string)=>new Intl.DateTimeFormat(locale==='th'?'th-TH':'en-GB',{month:'long',year:'numeric',timeZone:'Asia/Bangkok'}).format(new Date(value+'T12:00:00+07:00'));
 export default function PayrollWorkspace(){
  const {locale}=useI18n(),t:Text=k=>payrollText(locale,k),money=(n:number)=>Number(n).toLocaleString(locale,{minimumFractionDigits:2,maximumFractionDigits:2});
- const [data,setData]=useState<PayrollData|null>(null),[tab,setTab]=useState<'periods'|'people'|'obligations'>('periods'),[periodId,setPeriodId]=useState('');
+ const [data,setData]=useState<PayrollData|null>(null),[tab,setTab]=useState<'people'|'periods'|'obligations'|null>(null),[periodId,setPeriodId]=useState('');
  const [busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[error,setError]=useState<unknown>(null),[notice,setNotice]=useState<PayrollLabel|null>(null),[stale,setStale]=useState(false);
  const [modal,setModal]=useState<'period'|'edit_period'|'engagement'|'rate'|'approve'|'prepare'|'confirm'|'cancel'|'reset'|null>(null),[person,setPerson]=useState<Person|null>(null),[line,setLine]=useState<Line|null>(null),[payee,setPayee]=useState<Payee|null|undefined>(undefined),[selected,setSelected]=useState<string[]>([]);
  const lock=useRef(false),sequence=useRef(0),pending=useRef<{body:string;id:string}|null>(null);
  const invalidate=useCallback(()=>{sequence.current++;},[]);
- const load=useCallback(async(id=periodId)=>{const seq=++sequence.current;setLoading(true);try{const result=await payrollRequest(undefined,id);if(seq!==sequence.current)return;if(!Array.isArray(result.lines)||!Array.isArray(result.people)||!Array.isArray(result.periods))throw Error('PAYROLL_FAILED');setData(result);setStale(false);}finally{if(seq===sequence.current)setLoading(false);}},[periodId]);
+ const load=useCallback(async(id=periodId)=>{const seq=++sequence.current;setLoading(true);try{const result=await payrollRequest(undefined,id);if(seq!==sequence.current)return;if(!Array.isArray(result.lines)||!Array.isArray(result.people)||!Array.isArray(result.periods))throw Error('PAYROLL_FAILED');setData(result);setTab(current=>current??payrollLandingTab(result));setStale(false);}finally{if(seq===sequence.current)setLoading(false);}},[periodId]);
  useEffect(()=>{void load().catch(e=>{setStale(true);setError(e);});return invalidate;},[load,locale,invalidate]);
  async function mutate(body:Body){
   if(lock.current||stale)return false;lock.current=true;setBusy(true);setError('');setNotice(null);
@@ -57,7 +57,7 @@ export default function PayrollWorkspace(){
  const errorMessage=error?payrollError(locale,error):'';
  return <Feedback.Provider value={errorMessage}><main className={`${ui.scope} ${css.root}`}>
   <header className={css.header}><div><span className={css.badge}><LockKeyhole size={13}/>&nbsp;{t('private')}</span><h1>{t('title')}</h1><p className={css.muted}>{t('intro')}</p></div><button className={ui.secondary} disabled={busy||loading} onClick={()=>void reload()}><RefreshCw size={16}/>{t('reload')}</button></header>
-  <nav className={css.tabs} role="tablist" aria-label={t('title')}>{(['periods','people','obligations'] as const).map(k=><button key={k} role="tab" aria-selected={tab===k} onClick={()=>setTab(k)}>{t(k)}</button>)}</nav>
+  <nav className={css.tabs} role="tablist" aria-label={t('title')}>{(['people','periods','obligations'] as const).map(k=><button key={k} role="tab" aria-selected={tab===k} onClick={()=>setTab(k)}>{t(k)}</button>)}</nav>
   {errorMessage&&<div className={css.error} role="alert">{errorMessage}</div>}{notice&&<div className={css.success} role="status">{t(notice)}</div>}
   {loading&&!data?<p role="status">{t('loading')}</p>:data&&<>
    {tab==='periods'&&!period&&<><div className={css.toolbar}><h2><CalendarDays size={19}/> {t('periods')}</h2><button className={ui.primary} disabled={blocked} onClick={()=>setModal('period')}><Plus size={16}/>{t('newPeriod')}</button></div>

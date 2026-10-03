@@ -69,3 +69,16 @@ test('Payroll business failures stay localized without exposing raw server error
  }
  assert.equal(labels.payrollError('th',new Error('PAYROLL_HISTORY_IMMUTABLE')),labels.payrollText('th','historyLocked'));
 });
+
+test('Payroll landing uses effective engagement and positive rate, not account existence',()=>{
+ const today='2026-10-04',engagement={id:'engagement',kind:'employee',active:true,effective_from:'2026-10-01'},rate={id:'rate',monthly_amount:23000,effective_from:'2026-10-01'};
+ const person={id:'person',profile_id:'profile',is_active:true,engagements:[engagement],rates:[rate]};
+ const landing=(people,on=today)=>model.payrollLandingTab({people,today:on});
+ assert.equal(landing([]),'people');
+ for(const patch of [{engagements:[],rates:[]},{engagements:[]},{rates:[]},{is_active:false},{profile_id:null},{rates:[{...rate,monthly_amount:0}]},{rates:[{...rate,monthly_amount:-1}]},{rates:[{...rate,monthly_amount:'invalid'}]},{engagements:[{...engagement,active:false}]},{engagements:[{...engagement,effective_from:'2026-11-01'}]},{rates:[{...rate,effective_from:'2026-11-01'}]}])assert.equal(landing([{...person,...patch}]),'people',JSON.stringify(patch));
+ assert.equal(landing([person]),'periods');
+ assert.equal(landing([{...person,profile_id:null,engagements:[{...engagement,kind:'contractor'}]}]),'periods','External contractors do not need a login account');
+ assert.equal(landing([{...person,engagements:[],rates:[]},person]),'periods','At least one usable setup is sufficient for landing guidance');
+ const history={...person,engagements:[{...engagement,active:false,effective_from:'2026-11-01'},engagement],rates:[{...rate,monthly_amount:25000,effective_from:'2026-11-01'},rate]};
+ const before=JSON.stringify(history);assert.equal(landing([history]),'periods');assert.equal(landing([history],'2026-11-01'),'people');assert.equal(JSON.stringify(history),before,'History is never reordered or rewritten');
+});
