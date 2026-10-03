@@ -2,7 +2,7 @@
 import {useRef,useState} from 'react';
 import {useParams} from 'next/navigation';
 import Link from 'next/link';
-import {ArrowLeft,Plus,RefreshCw,House,ListTodo,List,FileCheck2,Clock3,Users,Database,Flag} from 'lucide-react';
+import {ArrowLeft,Plus,RefreshCw,House,ListTodo,List,FileCheck2,Clock3,Users,Flag} from 'lucide-react';
 import AppTopNav from '../../components/AppTopNav';
 import AuthGuard from '../../components/AuthGuard';
 import {supabase} from '../../../lib/supabase';
@@ -36,7 +36,6 @@ export default function MatterDetail(){const params=useParams(),id=String(params
  <div className={ui.metadata}><span>{a('type')}: <strong>{label(m.matter_type)}</strong></span><span>{a('lead')}: <strong>{m.lead_name||a('unassigned')}</strong></span></div>
  <nav className={ui.navigation} aria-label={a('matterSections')}>
    {views.map(({key,Icon})=><button key={key} type="button" aria-current={view===key?'page':undefined} onClick={()=>setView(key)}><Icon size={17}/>{a('tab.'+key)}</button>)}
-   <Link href={`/advisory/${id}/records`}><Database size={17}/>{a('tab.records')}</Link>
  </nav>
  <div hidden={view!=='overview'}>
    <MatterOverview matter={m} stages={data?.stages} canEdit={!!permissions?.manage} onEdit={setEdit} onOpenMap={()=>setMapOpen(true)}>

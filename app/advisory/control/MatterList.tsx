@@ -47,6 +47,6 @@ export default function MatterList(){const {a,label,date,locale}=useAdvisoryLabe
  {!listData?.items.length&&!error&&<p className={css.empty} role="status">{a(loading?'loading':'empty')}</p>}
  <Pagination offset={offset} total={listData?.total||0} onChange={setOffset}/>
  </div>
- <footer className={css.secondaryLinks}><Link href="/advisory/records">{a('registry')} →</Link></footer></>}
+ <footer className={css.secondaryLinks}><Link href="/advisory/records">{locale==='th'?'ดูข้อมูลระบบเก่า':'View Legacy Data'} →</Link></footer></>}
  {edit&&<MatterEditor request={edit} people={people} onClose={()=>setEdit(null)} onSaved={reload}/>}</main></AuthGuard>;
 }

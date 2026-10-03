@@ -82,7 +82,7 @@ for (const locale of ['th', 'en']) {
     for (const n of [3180, 2460, 720]) assert.ok(html.includes(a('minutes', { n })));
     assert.ok(html.includes(a('hoursMinutes', { hours: 53, minutes: 0 })));
     assert.ok(html.includes(a('unclassifiedCount', { n: 18 })));
-    assert.ok(html.includes('/advisory/test/records#time'));
+    assert.ok(!html.includes('/records'), 'Time summary never links back into Legacy');
     const zero = time.render(locale, {}, { matterId: 'test', time: { minutes: 0, core: 0, support: 0, unclassified: 0 } });
     assert.ok(zero.includes('data-empty="true"'));
     assert.doesNotMatch(zero, /NaN|Infinity/);

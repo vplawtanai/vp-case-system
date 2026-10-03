@@ -46,6 +46,7 @@ export function uiModule(pathname: string): keyof typeof englishCoverage {
   if (/^\/clients\/[^/]+\/tax-identity(?:\/|$)/.test(pathname)) return "finance";
   if (/^\/admin\/journey-templates(?:\/|$)/.test(pathname)) return "advisoryControl";
   if (/^\/advisory(?:\/[0-9a-f-]{36})?\/?$/.test(pathname)) return "advisoryControl";
+  if (/^\/advisory\/(?:records|[^/]+\/(?:records|issues\/[^/]+))\/?$/.test(pathname)) return "advisoryControl";
   if (/^\/admin\/visual-assets(?:\/|$)/.test(pathname)) return "visualAssets";
   if (/^\/finance(?:\/|$)/.test(pathname)) return "finance";
   if (/^\/settings\/(?:document-settings|document-templates|document-clauses)(?:\/|$)/.test(pathname)) return "documentSettings";
