@@ -1,0 +1,4386 @@
+{
+  "source": "Reconciled against accepted 070/071 full-object pins and exact 078 additions/security. Two new dependency pins derive from immutable 055 security + 060 bodies. No Production hashes copied.",
+  "functions": [
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres,authenticated=X/postgres}",
+      "name": "cancel_finance_payout",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "cancel_finance_payout(uuid,integer,boolean)",
+      "definition": "CREATE OR REPLACE FUNCTION public.cancel_finance_payout(p_id uuid, p_expected_version integer, p_acknowledged boolean)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare p public.finance_payouts%rowtype;\nbegin\n PERFORM public.finance078_require_payout(p_id,'record_outflow');\n if not public.payout_can_manage() then raise exception 'PAYOUT_PERMISSION_DENIED'; end if;\n if p_acknowledged is distinct from true then raise exception 'PAYOUT_ACK_REQUIRED'; end if;\n perform pg_advisory_xact_lock(hashtextextended('payout_lifecycle',0));select * into p from public.finance_payouts where id=p_id for update;\n if p.status='cancelled' then return p.id; end if;\n if p.id is null or p.status<>'draft' or p.version is distinct from p_expected_version then raise exception 'PAYOUT_STALE'; end if;\n update public.finance_payouts set status='cancelled',version=version+1,cancelled_at=clock_timestamp(),cancelled_by=auth.uid(),updated_by=auth.uid(),updated_at=clock_timestamp() where id=p_id;\n insert into public.finance_payout_audit(payout_id,event_type,version,actor_id,evidence_json) values(p.id,'cancelled',p.version+1,auth.uid(),to_jsonb(p));return p.id;\nend;\n$function$\n",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": true
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "name": "company_purchase_request_declaration",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "company_purchase_request_declaration(uuid)",
+      "definition": "CREATE OR REPLACE FUNCTION public.company_purchase_request_declaration(p_expense uuid)\n RETURNS jsonb\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n select case when item->'input'->>'company_request_version'='1' then item->'input'->'creator_tax' end\n from public.finance_expense_request_items i\n join public.finance_expense_requests r on r.id=i.request_id and r.kind='company_expense_batch'\n join public.finance_expense_request_audit a on a.request_id=r.id and a.event_type='saved'\n cross join lateral jsonb_array_elements(a.input_json->'items') item\n where i.expense_id=p_expense and item->>'id'=p_expense::text order by a.version desc limit 1;\n$function$\n",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "name": "company_purchase_request_recipient",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "company_purchase_request_recipient(uuid)",
+      "definition": "CREATE OR REPLACE FUNCTION public.company_purchase_request_recipient(p_expense uuid)\n RETURNS text\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n select btrim(a.evidence_json#>>'{purchase_request_review,input,recipient_name}')\n from public.finance_expenses e join public.finance_expense_audit a on a.expense_id=e.id and a.event_type='accepted'\n where e.id=p_expense and e.origin='company_purchase' and not e.personally_paid and e.creator_payment_fact='unpaid'\n  and e.status='accepted' and e.supplier_payee_id is null and a.actor_id=e.reviewed_by\n  and a.evidence_json#>>'{purchase_request_review,accept}'='true'\n  and length(btrim(a.evidence_json#>>'{purchase_request_review,input,recipient_name}')) between 1 and 300\n  and public.company_purchase_request_declaration(e.id) is not null\n order by a.created_at desc,a.id limit 1;\n$function$\n",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres,authenticated=X/postgres}",
+      "name": "confirm_finance_expense_payout",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "confirm_finance_expense_payout(uuid,integer,integer,uuid,boolean)",
+      "definition": "CREATE OR REPLACE FUNCTION public.confirm_finance_expense_payout(p_id uuid, p_version integer, p_payee_version integer, p_destination uuid, p_acknowledged boolean)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare p public.finance_payouts%rowtype;c jsonb;canonical jsonb;recipient jsonb;claimant_reimbursement boolean;payee public.finance_payees%rowtype;dest public.finance_payee_destinations%rowtype;\n o public.finance_account_opening_balances%rowtype;snapshot jsonb;allocation uuid;cash uuid;ts timestamptz:=clock_timestamp();\nbegin\n PERFORM public.finance078_require_payout(p_id,'confirm_outflow');\n select * into p from public.finance_payouts where id=p_id;\n if p.id is null or p.source_model<>'expense_v1' or not public.expense_account_allowed(p.bank_account_id,p.cash_location_id,'confirm_outflow')\n then raise exception 'EXPENSE_ACCOUNT_DENIED'; end if;\n if p_acknowledged is distinct from true then raise exception 'EXPENSE_ACTUAL_PAYMENT_ACK_REQUIRED'; end if;\n perform pg_advisory_xact_lock(hashtextextended('expense:'||(p.choices_json#>>'{0,expense_id}'),0));\n select * into p from public.finance_payouts where id=p_id for update;\n if not public.expense_account_allowed(p.bank_account_id,p.cash_location_id,'confirm_outflow') then raise exception 'EXPENSE_ACCOUNT_DENIED'; end if;\n if p.status='confirmed' then return p_id; end if;\n if p.status<>'draft' or p.version is distinct from p_version then raise exception 'EXPENSE_STALE'; end if;\n c:=p.choices_json->0;\n canonical:=public.expense_payout_choice((c->>'expense_id')::uuid,(c->>'actual_withholding')::boolean);\n if canonical is distinct from c then raise exception 'EXPENSE_PAYMENT_SOURCE_CHANGED'; end if;\n recipient:=c->'recipient';\n select * into payee from public.finance_payees where id=p.payee_id for share;\n select * into dest from public.finance_payee_destinations where payee_id=p.payee_id and is_active for share;\n if p.payee_id is not null and (payee.is_active is distinct from true or payee.version is distinct from p_payee_version\n  or (payee.profile_id is not null and not exists(select 1 from public.user_profiles where id=payee.profile_id and active))) then raise exception 'PAYOUT_PAYEE_INVALID'; end if;\n -- Approved claimant reimbursement records actual company outflow, not a transfer instruction.\n -- Keep canonical source, identity, version, amount and acknowledgement checks above unchanged.\n claimant_reimbursement:=coalesce(c#>>'{expense,origin}'='employee_claim'\n  and c#>>'{expense,status}'='accepted' and (c#>>'{expense,personally_paid}')::boolean\n  and c#>>'{expense,claimant_id}'=payee.profile_id::text\n  and c#>>'{settlement,mode}'='reimburse' and c#>>'{settlement,payee_id}'=p.payee_id::text\n  and c->>'obligation_id' is not null and p.wht_amount=0,false);\n if recipient is null and not claimant_reimbursement and c->>'obligation_id' is not null and p.bank_account_id is not null and (dest.id is null or dest.id is distinct from p_destination)\n then raise exception 'PAYOUT_DESTINATION_REQUIRED'; end if;\n if recipient is null and p.wht_amount>0 and payee.tax_id is null then raise exception 'PAYOUT_TAX_ID_REQUIRED'; end if;\n perform pg_advisory_xact_lock(hashtextextended('finance_cash_cutover:THB',0));\n if not public.treasury_location_active(p.bank_account_id,p.cash_location_id) then raise exception 'EXPENSE_ACCOUNT_DENIED'; end if;\n select * into o from public.finance_account_opening_balances where bank_account_id is not distinct from p.bank_account_id\n  and cash_location_id is not distinct from p.cash_location_id and currency='THB' and status='confirmed' for update;\n if o.id is null then raise exception 'FINANCE_CASH_OPENING_BALANCE_REQUIRED'; end if;\n if public.finance_bangkok_completed_day_end(p.paid_on)<=o.as_of then raise exception 'FINANCE_CASH_TRANSACTION_BEFORE_CUTOVER'; end if;\n snapshot:=jsonb_build_object('schema_version',2,'source_model','expense_v1','choices',p.choices_json,'payee',coalesce(recipient,to_jsonb(payee)),\n  'destination',case when p.bank_account_id is not null then to_jsonb(dest) end,'opening',to_jsonb(o),\n  'bank_account_id',p.bank_account_id,'cash_location_id',p.cash_location_id,'paid_on',p.paid_on,'currency',p.currency,\n  'gross',p.gross_amount,'wht',p.wht_amount,'net',p.net_amount,'confirmed_by',auth.uid(),'actual_company_cash_moved',true);\n update public.finance_payouts set status='confirmed',version=version+1,confirmed_snapshot_json=snapshot,confirmed_at=ts,confirmed_by=auth.uid(),updated_at=ts,updated_by=auth.uid() where id=p_id;\n insert into public.finance_payout_allocations(payout_id,expense_id,expense_obligation_id,gross_amount,treatment,rate,wht_base,wht_amount,evidence_json)\n values(p_id,(c->>'expense_id')::uuid,(c->>'obligation_id')::uuid,p.gross_amount,c->>'treatment',(c->>'rate')::numeric,(c->>'wht_base')::numeric,p.wht_amount,c) returning id into allocation;\n if p.wht_amount>0 then\n  insert into public.finance_outgoing_wht_obligations(payout_source_id,source_line_id,source_fingerprint,payee_json,gross_base,explicit_treatment,explicit_rate,withheld_amount,withheld_on,period_month,currency,evidence_json)\n  values(p_id,allocation,md5(c::text),coalesce(recipient,to_jsonb(payee)),(c->>'wht_base')::numeric,'withhold',(c->>'rate')::numeric,p.wht_amount,p.paid_on,date_trunc('month',p.paid_on)::date,'THB',c);\n end if;\n insert into public.finance_cash_transactions(occurred_at,direction,transaction_type,bank_account_id,cash_location_id,cash_amount,currency,status,source_payout_id,reference_no,description,created_by_user_id,updated_by_user_id,confirmed_at,confirmed_by_user_id)\n values(public.finance_bangkok_completed_day_end(p.paid_on),'outflow','other',p.bank_account_id,p.cash_location_id,p.net_amount,'THB','confirmed',p.id,upper(left(p.id::text,8)),'Expense payout',auth.uid(),auth.uid(),ts,auth.uid()) returning id into cash;\n perform public.record_finance_cash_transaction_audit_event(cash,'confirmed',jsonb_build_object('payout_id',p.id,'payout',snapshot,'outgoing_wht_is_not_cash_outflow',true));\n insert into public.finance_payout_audit(payout_id,event_type,version,actor_id,evidence_json) values(p.id,'confirmed',p.version+1,auth.uid(),snapshot);\n insert into public.finance_expense_audit(expense_id,event_type,actor_id,evidence_json) values((c->>'expense_id')::uuid,'payment_confirmed',auth.uid(),snapshot);\n return p_id;\nend;\n$function$\n",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": true
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres,authenticated=X/postgres}",
+      "name": "confirm_finance_payout",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "confirm_finance_payout(uuid,integer,integer,uuid,boolean)",
+      "definition": "CREATE OR REPLACE FUNCTION public.confirm_finance_payout(p_id uuid, p_expected_version integer, p_expected_payee_version integer, p_expected_destination_id uuid, p_acknowledged boolean)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n if exists(select 1 from public.finance_payouts where id=p_id and source_model='expense_v1') then\n  return public.confirm_finance_expense_payout(p_id,p_expected_version,p_expected_payee_version,p_expected_destination_id,p_acknowledged);\n end if;\n return public.confirm_finance_payout_before_expense(p_id,p_expected_version,p_expected_payee_version,p_expected_destination_id,p_acknowledged);\nend;\n$function$\n",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": true
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "name": "enforce_finance_cash_transaction_integrity",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "enforce_finance_cash_transaction_integrity()",
+      "definition": "CREATE OR REPLACE FUNCTION public.enforce_finance_cash_transaction_integrity()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n  if tg_op = 'DELETE' then\n    perform public.validate_finance_cash_transaction_integrity(old.id);\n  else\n    perform public.validate_finance_cash_transaction_integrity(new.id);\n  end if;\n  return null;\nend;\n$function$\n",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres,authenticated=X/postgres}",
+      "name": "expense_account_allowed",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "expense_account_allowed(uuid,uuid,text)",
+      "definition": "CREATE OR REPLACE FUNCTION public.expense_account_allowed(p_bank uuid, p_cash uuid, p_right text)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n SELECT num_nonnulls(p_bank,p_cash)=1 AND p_right IN ('view_balance','view_movements','record_outflow','confirm_outflow')\n AND public.finance078_active() AND (public.finance078_admin()\n  OR (public.finance078_partner() AND p_right IN ('view_balance','view_movements'))\n  OR (public.finance078_operator() AND EXISTS(SELECT 1 FROM public.finance_treasury_account_authorities a\n   WHERE a.user_id=auth.uid() AND a.bank_account_id IS NOT DISTINCT FROM p_bank AND a.cash_location_id IS NOT DISTINCT FROM p_cash\n    AND (to_jsonb(a)->>p_right)::boolean IS TRUE)));\n$function$\n",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": true
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "name": "expense_integrity",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "expense_integrity()",
+      "definition": "CREATE OR REPLACE FUNCTION public.expense_integrity()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare eid uuid;e public.finance_expenses%rowtype;s public.finance_expense_settlements%rowtype;o public.finance_expense_obligations%rowtype;\nbegin\n if tg_table_name='finance_expenses' then eid:=new.id;\n elsif tg_table_name='finance_expense_obligation_waivers' then select expense_id into eid from public.finance_expense_obligations where id=new.obligation_id;\n else eid:=new.expense_id;end if;\n select * into strict e from public.finance_expenses where id=eid;\n if not exists(select 1 from public.finance_expense_audit where expense_id=e.id)\n  or (e.status in ('accepted','rejected') and not exists(select 1 from public.finance_expense_audit where expense_id=e.id and event_type=e.status))\n then raise exception 'EXPENSE_AUDIT_INTEGRITY';end if;\n select * into s from public.finance_expense_settlements where expense_id=e.id;\n select * into o from public.finance_expense_obligations where expense_id=e.id;\n if s.id is not null and (e.status not in ('accepted','submitted','rejected')\n  or not exists(select 1 from public.finance_expense_audit where expense_id=e.id and event_type='settlement_decided')\n  or (s.mode in ('reimburse','no_reimbursement') and not e.personally_paid)\n  or (s.mode in ('company_bank','company_cash','supplier_unpaid') and e.personally_paid)\n  or s.amount>public.company_expense_reviewed_gross(e.id)\n  or ((e.origin<>'company_purchase' or e.personally_paid) and nullif(btrim(s.reason),'') is null)\n  or (s.mode in ('supplier_unpaid','reimburse') and (e.status<>'accepted' or o.id is null))\n  or (s.mode not in ('supplier_unpaid','reimburse') and o.id is not null)) then raise exception 'EXPENSE_SETTLEMENT_INTEGRITY';end if;\n if (s.mode='supplier_unpaid' and s.payee_id is null and public.company_purchase_request_recipient(e.id) is null)\n  or (public.company_purchase_request_declaration(e.id) is not null and s.id is not null and\n   (s.mode<>'supplier_unpaid' or s.payee_id is not null or public.company_purchase_request_recipient(e.id) is null))\n then raise exception 'EXPENSE_REQUEST_RECIPIENT_INTEGRITY';end if;\n if o.id is not null and (o.settlement_id is distinct from s.id or o.payee_id is distinct from s.payee_id\n  or o.gross_amount is distinct from s.amount or o.source_type is distinct from case s.mode when 'reimburse' then 'employee_reimbursement' when 'supplier_unpaid' then 'supplier_payable' end)\n then raise exception 'EXPENSE_OBLIGATION_INTEGRITY';end if;\n if exists(select 1 from public.finance_expense_obligation_waivers where obligation_id=o.id) and\n  (o.source_type<>'employee_reimbursement' or exists(select 1 from public.finance_payout_allocations where expense_obligation_id=o.id)\n   or not exists(select 1 from public.finance_expense_audit where expense_id=e.id and event_type='waived'))\n then raise exception 'EXPENSE_WAIVER_INTEGRITY';end if;\n if exists(select 1 from public.finance_expense_tax_reviews r where r.expense_id=e.id and\n  (e.status<>'accepted' or (r.vat_state='exists' and r.vat_base+r.vat_amount<>coalesce((r.request_json#>>'{calculation,gross}')::numeric,e.gross_amount))\n   or (r.request_json->>'schema_version'='2' and (e.origin<>'company_purchase' or e.personally_paid\n    or (r.request_json#>>'{calculation,declared_amount}')::numeric is distinct from e.gross_amount\n    or (r.vat_state='exists' and r.vat_amount is distinct from (r.request_json#>>'{calculation,vat_amount}')::numeric)\n    or (r.wht_state='withhold' and r.wht_amount is distinct from (r.request_json#>>'{calculation,wht_amount}')::numeric)))\n   or (r.wht_state='withhold' and r.wht_base>coalesce((r.request_json#>>'{calculation,gross}')::numeric,e.gross_amount))\n   or (r.revision=1 and r.supersedes_id is not null)\n   or (r.revision>1 and not exists(select 1 from public.finance_expense_tax_reviews previous where previous.id=r.supersedes_id and previous.expense_id=e.id and previous.revision=r.revision-1))\n   or not exists(select 1 from public.finance_expense_audit where expense_id=e.id and event_type='tax_reviewed')))\n then raise exception 'EXPENSE_TAX_INTEGRITY';end if;\n return null;\nend;\n$function$\n",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "name": "expense_payout_choice",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "expense_payout_choice(uuid,boolean)",
+      "definition": "CREATE OR REPLACE FUNCTION public.expense_payout_choice(p_expense uuid, p_actual_wht boolean)\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare e public.finance_expenses%rowtype;s public.finance_expense_settlements%rowtype;o public.finance_expense_obligations%rowtype;\n r public.finance_expense_tax_reviews%rowtype; gross numeric;rate numeric:=0;base numeric:=0;wht numeric:=0;\nbegin\n select * into strict e from public.finance_expenses where id=p_expense;\n select * into s from public.finance_expense_settlements where expense_id=p_expense;\n select * into o from public.finance_expense_obligations where expense_id=p_expense;\n select * into r from public.finance_expense_tax_reviews where expense_id=p_expense order by revision desc limit 1;\n if s.id is null or s.mode in ('undecided','no_reimbursement') or e.status not in ('submitted','accepted')\n  or (o.id is not null and e.status<>'accepted')\n  or exists(select 1 from public.finance_expense_obligation_waivers where obligation_id=o.id)\n  or exists(select 1 from public.finance_payout_allocations where expense_id=p_expense) then raise exception 'EXPENSE_PAYMENT_UNAVAILABLE'; end if;\n gross:=s.amount;\n if e.origin='company_purchase' and not e.personally_paid and e.status='accepted' then\n  if r.id is null or r.wht_state='pending' then raise exception 'EXPENSE_WHT_DECISION_REQUIRED';end if;\n  if r.request_json->>'schema_version'='2' and p_actual_wht is distinct from (r.wht_state='withhold')\n  then raise exception 'EXPENSE_WHT_ACTUAL_FACTS_REQUIRED';end if;\n end if;\n if p_actual_wht is null then raise exception 'EXPENSE_ACTUAL_WITHHOLDING_REQUIRED'; end if;\n if p_actual_wht then\n  if s.mode='reimburse' or e.personally_paid or r.wht_state is distinct from 'withhold' or r.wht_exception\n   or (public.company_purchase_request_recipient(p_expense) is null and not exists(select 1 from public.finance_payees where id=s.payee_id and is_active and tax_id is not null))\n  then raise exception 'EXPENSE_WHT_ACTUAL_FACTS_REQUIRED'; end if;\n  base:=r.wht_base;rate:=r.wht_rate;wht:=round(base*rate/100,2);\n end if;\n return jsonb_build_object('expense_id',e.id,'obligation_id',o.id,'payee_id',s.payee_id,'settlement',to_jsonb(s),\n  'expense',to_jsonb(e),'tax_review',to_jsonb(r),'obligation',to_jsonb(o),'actual_withholding',p_actual_wht,\n  'gross',gross,'wht_base',base,'rate',rate,'wht',wht,'treatment',case when p_actual_wht then 'withhold' else 'none' end)||case when public.company_purchase_request_recipient(p_expense) is not null then\n  jsonb_build_object('recipient',jsonb_build_object('legal_name',public.company_purchase_request_recipient(p_expense),'identity_source','company_purchase_request','expense_id',p_expense)) else '{}'::jsonb end;\nend;\n$function$\n",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "name": "expense_payout_model_guard",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "expense_payout_model_guard()",
+      "definition": "CREATE OR REPLACE FUNCTION public.expense_payout_model_guard()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public'\nAS $function$\nbegin\n if old.source_model<>new.source_model then raise exception 'PAYOUT_SOURCE_MODEL_IMMUTABLE'; end if;\n return new;\nend;\n$function$\n",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": false,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,authenticated=X/postgres}",
+      "name": "finance078_active",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "finance078_active()",
+      "definition": "CREATE OR REPLACE FUNCTION public.finance078_active()\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n SELECT EXISTS(SELECT 1 FROM public.user_profiles WHERE id=auth.uid() AND active IS TRUE AND must_change_password IS FALSE);\n$function$\n",
+      "anon_execute": false,
+      "service_execute": false,
+      "security_definer": true,
+      "authenticated_execute": true
+    },
+    {
+      "acl": "{postgres=X/postgres,authenticated=X/postgres}",
+      "name": "finance078_admin",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "finance078_admin()",
+      "definition": "CREATE OR REPLACE FUNCTION public.finance078_admin()\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n SELECT public.finance078_active() AND EXISTS(SELECT 1 FROM public.user_profiles WHERE id=auth.uid() AND role='admin');\n$function$\n",
+      "anon_execute": false,
+      "service_execute": false,
+      "security_definer": true,
+      "authenticated_execute": true
+    },
+    {
+      "acl": "{postgres=X/postgres}",
+      "name": "finance078_execution_account",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "finance078_execution_account(uuid,uuid)",
+      "definition": "CREATE OR REPLACE FUNCTION public.finance078_execution_account(p_bank uuid, p_cash uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE result jsonb;\nBEGIN\n IF NOT public.expense_account_allowed(p_bank,p_cash,'record_outflow') AND NOT public.expense_account_allowed(p_bank,p_cash,'confirm_outflow') THEN RAISE EXCEPTION 'EXPENSE_ACCOUNT_DENIED'; END IF;\n SELECT to_jsonb(a)||to_jsonb(b) INTO result FROM (\n  SELECT 'bank'::text kind,id account_id,id bank_account_id,null::uuid cash_location_id,short_name name_th,short_name name_en,bank_name,account_number,is_active FROM public.finance_bank_accounts WHERE id=p_bank\n  UNION ALL SELECT 'cash',id,null,id,name_th,name_en,null,null,is_active FROM public.finance_cash_locations WHERE id=p_cash\n ) a CROSS JOIN LATERAL public.expense_account_balance_private(a.bank_account_id,a.cash_location_id) b;\n RETURN result;\nEND;\n$function$\n",
+      "anon_execute": false,
+      "service_execute": false,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres}",
+      "name": "finance078_require_payout",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "finance078_require_payout(uuid,text)",
+      "definition": "CREATE OR REPLACE FUNCTION public.finance078_require_payout(p_id uuid, p_right text)\n RETURNS void\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE p public.finance_payouts%rowtype;\nBEGIN\n SELECT * INTO p FROM public.finance_payouts WHERE id=p_id;\n IF p.id IS NULL OR NOT public.expense_account_allowed(p.bank_account_id,p.cash_location_id,p_right) THEN RAISE EXCEPTION 'EXPENSE_ACCOUNT_DENIED'; END IF;\n IF NOT public.finance078_admin() AND p.source_model='expense_v1' AND NOT EXISTS(\n  SELECT 1 FROM public.finance_expenses e WHERE e.id=(p.choices_json#>>'{0,expense_id}')::uuid AND e.status='accepted' AND e.reviewed_by IS NOT NULL)\n THEN RAISE EXCEPTION 'FINANCE_APPROVED_SOURCE_REQUIRED'; END IF;\nEND;\n$function$\n",
+      "anon_execute": false,
+      "service_execute": false,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "name": "finance_bangkok_completed_day_end",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "finance_bangkok_completed_day_end(date)",
+      "definition": "CREATE OR REPLACE FUNCTION public.finance_bangkok_completed_day_end(p_calendar_date date)\n RETURNS timestamp with time zone\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select case\n    when p_calendar_date is null then null\n    else (\n      ((p_calendar_date + 1)::timestamp at time zone 'Asia/Bangkok')\n      - interval '1 microsecond'\n    )\n  end;\n$function$\n",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres,authenticated=X/postgres}",
+      "name": "get_finance_account_statement",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "get_finance_account_statement(uuid,uuid,date,date,text,text,integer)",
+      "definition": "CREATE OR REPLACE FUNCTION public.get_finance_account_statement(p_bank uuid, p_cash uuid, p_from date, p_to date, p_type text DEFAULT 'all'::text, p_search text DEFAULT ''::text, p_offset integer DEFAULT 0)\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare o public.finance_account_opening_balances%rowtype; start_at timestamptz; end_at timestamptz; result jsonb; covered boolean;\nbegin\n if public.expense_account_allowed(p_bank,p_cash,'view_movements') is distinct from true then raise exception 'TREASURY_PERMISSION_DENIED'; end if;\n if p_from is null or p_to is null or p_to<p_from or p_offset is null or p_offset<0 or p_offset>100000 or p_search is null or length(p_search)>200\n  or p_type is null or p_type not in ('all','payment','direct_money_receipt','company_purchase','employee_claim','participant_payout','tax_remittance','transfer','other') then raise exception 'STATEMENT_FILTER_INVALID'; end if;\n start_at:=p_from::timestamp at time zone 'Asia/Bangkok'; end_at:=(p_to+1)::timestamp at time zone 'Asia/Bangkok';\n select * into o from public.finance_account_opening_balances where bank_account_id is not distinct from p_bank and cash_location_id is not distinct from p_cash and currency='THB' and status='confirmed';\n covered:=o.id is not null and start_at>o.as_of;\n with history as materialized (\n  select c.*,case when c.occurred_at>o.as_of then o.balance_amount+sum(case when c.occurred_at>o.as_of then case c.direction when 'inflow' then c.cash_amount else -c.cash_amount end else 0 end)\n   over(order by c.occurred_at,c.confirmed_at,c.id rows between unbounded preceding and current row) end balance\n  from public.finance_cash_transactions c where c.bank_account_id is not distinct from p_bank and c.cash_location_id is not distinct from p_cash and c.currency='THB' and c.status='confirmed' and c.occurred_at<end_at\n ), enriched as materialized (\n  select h.id,h.occurred_at,h.confirmed_at,h.direction,h.cash_amount,h.balance,h.reference_no,case when leg.transfer_id is not null then t.note when e.id is not null then coalesce(nullif(e.description,''),e.category) else h.description end description,h.reversal_of_transaction_id,\n   coalesce(cl.name,payment.payer_name,dm.payer_name) client,coalesce(payment_matter.matter,nullif(concat_ws(' · ',to_jsonb(cs)->>'file_no',to_jsonb(cs)->>'title'),''),nullif(concat_ws(' · ',to_jsonb(am)->>'matter_no',to_jsonb(am)->>'title'),'')) matter,\n   coalesce(nullif(u.staff_name,''),u.full_name) confirmed_by,\n   case when leg.transfer_id is not null then 'transfer' when h.source_payment_id is not null then 'payment' when h.source_direct_money_receipt_id is not null then 'direct_money_receipt'\n    when h.source_tax_remittance_id is not null then 'tax_remittance' when p.source_model='expense_v1' then coalesce(e.origin,'other') when h.source_payout_id is not null then 'participant_payout' else 'other' end kind,\n   coalesce(e.reference,receipts.reference,dm.reference_no,payment.internal_reference,h.reference_no) reference,\n   case when leg.transfer_id is not null then '/finance/statement/transfers'\n    when payment.id is not null then '/finance/payments/'||payment.id when dm.id is not null then '/finance/direct-money/'||dm.id\n    when h.source_tax_remittance_id is not null and public.tax_position_can_view() then '/finance/tax-position/filings' when e.id is not null then '/finance/expenses/'||case e.origin when 'employee_claim' then 'claims/' else '' end||e.id\n    when h.source_payout_id is not null and public.current_user_can_view_finance_payments() then '/finance/payouts/'||h.source_payout_id end href,\n   coalesce(e.vendor_name,dm.payer_name) party,leg.transfer_id,case when leg.transfer_id is not null then\n    (select coalesce(a.name_th,a.name_en) from public.finance_treasury_accounts a where a.bank_account_id is not distinct from case h.direction when 'outflow' then t.to_bank_id else t.from_bank_id end\n      and a.cash_location_id is not distinct from case h.direction when 'outflow' then t.to_cash_id else t.from_cash_id end) end counterpart,t.note transfer_note\n  from history h left join public.finance_payouts p on p.id=h.source_payout_id left join public.finance_payout_allocations pa on pa.payout_id=p.id and pa.expense_id is not null\n  left join public.finance_expenses e on e.id=pa.expense_id and public.expense_can_read(e.id) left join public.finance_payments payment on payment.id=h.source_payment_id and public.current_user_can_view_finance_payments()\n  left join public.finance_direct_money_receipts dm on dm.id=h.source_direct_money_receipt_id and public.current_user_can_view_finance_payments()\n  left join lateral(select min(r.receipt_no) reference from public.finance_receipts r where r.status='issued' and (r.payment_id=payment.id or r.direct_money_receipt_id=dm.id)) receipts on true\n  left join lateral(select string_agg(distinct coalesce(nullif(concat_ws(' · ',to_jsonb(c)->>'file_no',to_jsonb(c)->>'title'),''),nullif(concat_ws(' · ',to_jsonb(a)->>'matter_no',to_jsonb(a)->>'title'),'')),' / ') matter\n   from public.finance_payment_effective_invoice_allocations allocation join public.finance_invoices i on i.id=allocation.invoice_id\n   left join public.cases c on c.id=i.case_id left join public.advisory_matters a on a.id=i.advisory_matter_id where allocation.payment_id=payment.id) payment_matter on true\n  left join public.clients cl on cl.id=coalesce(e.client_id,payment.client_id,dm.client_id)\n  left join public.cases cs on cs.id=coalesce(e.case_id,dm.case_id) left join public.advisory_matters am on am.id=coalesce(e.advisory_matter_id,dm.advisory_matter_id)\n  left join public.user_profiles u on u.id=h.confirmed_by_user_id\n  left join public.finance_treasury_transfer_legs leg on leg.cash_transaction_id=h.id left join public.finance_treasury_transfers t on t.id=leg.transfer_id\n  where h.occurred_at>=start_at\n ), filtered as materialized (\n  select * from enriched where (p_type='all' or kind=p_type) and (btrim(p_search)='' or strpos(lower(concat_ws(' ',reference,description,party,client,matter,counterpart,transfer_note)),lower(btrim(p_search)))>0)\n ), page as(select * from filtered order by occurred_at desc,confirmed_at desc,id desc limit 50 offset p_offset)\n select jsonb_build_object('rows',(select coalesce(jsonb_agg(to_jsonb(p) order by occurred_at desc,confirmed_at desc,id desc),'[]') from page p),\n  'count',(select count(*) from filtered),'balance_covered',covered,'opening_start',((o.as_of at time zone 'Asia/Bangkok')::date+1),\n  'opening',case when covered then o.balance_amount+(select coalesce(sum(case direction when 'inflow' then cash_amount else -cash_amount end),0) from history where occurred_at>o.as_of and occurred_at<start_at) end,\n  'inflow',(select coalesce(sum(cash_amount) filter(where direction='inflow'),0) from history where occurred_at>=start_at),\n  'outflow',(select coalesce(sum(cash_amount) filter(where direction='outflow'),0) from history where occurred_at>=start_at),\n  'closing',case when covered then o.balance_amount+(select coalesce(sum(case direction when 'inflow' then cash_amount else -cash_amount end),0) from history where occurred_at>o.as_of) end) into result;\n if not public.expense_account_allowed(p_bank,p_cash,'view_balance') then\n result:=result||jsonb_build_object('opening',null,'closing',null,'opening_start',null,'balance_covered',false,'rows',(select coalesce(jsonb_agg(v-'balance' order by ord),'[]') from jsonb_array_elements(result->'rows') with ordinality x(v,ord))); end if;\n return result;\nend;\n$function$\n",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": true
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres,authenticated=X/postgres}",
+      "name": "get_finance_expense_obligations",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "get_finance_expense_obligations(integer)",
+      "definition": "CREATE OR REPLACE FUNCTION public.get_finance_expense_obligations(p_offset integer DEFAULT 0)\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n if not public.expense_can_view_all() then raise exception 'EXPENSE_PERMISSION_DENIED'; end if;\n if p_offset is null or p_offset<0 or p_offset>100000 then raise exception 'EXPENSE_INPUT_INVALID'; end if;\n return jsonb_build_object('rows',(select coalesce(jsonb_agg(to_jsonb(x) order by due_on nulls last,created_at,id),'[]') from\n  (select o.*,coalesce(public.company_purchase_request_recipient(e.id),p.legal_name) as payee_name,e.description,e.reference,e.origin,\n   case when w.obligation_id is not null then 'waived' when a.id is not null then 'settled' else 'open' end status,\n   a.payout_id from public.finance_expense_obligations o join public.finance_expenses e on e.id=o.expense_id\n   left join public.finance_payees p on p.id=o.payee_id left join public.finance_expense_obligation_waivers w on w.obligation_id=o.id\n   left join public.finance_payout_allocations a on a.expense_obligation_id=o.id order by due_on nulls last,o.created_at,o.id limit 50 offset p_offset) x),\n  'has_next',(select count(*)>p_offset+50 from public.finance_expense_obligations));\nend;\n$function$\n",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": true
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres,authenticated=X/postgres}",
+      "name": "get_finance_expenses",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "get_finance_expenses(uuid,boolean,integer)",
+      "definition": "CREATE OR REPLACE FUNCTION public.get_finance_expenses(p_id uuid DEFAULT NULL::uuid, p_claims boolean DEFAULT false, p_offset integer DEFAULT 0)\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n if auth.uid() is null or not exists(select 1 from public.user_profiles where id=auth.uid() and active) then raise exception 'EXPENSE_PERMISSION_DENIED'; end if;\n if p_offset is null or p_offset<0 or p_offset>100000 then raise exception 'EXPENSE_INPUT_INVALID'; end if;\n if p_id is not null then return public.get_finance_expenses_before_requests(p_id,p_claims,p_offset); end if;\n return jsonb_build_object('access',public.get_finance_expense_access(),'accounts',public.get_finance_expense_accounts(),\n  'rows',(select coalesce(jsonb_agg(public.expense_document(x.id) order by x.created_at desc,x.id),'[]') from\n   (select e.id,e.created_at from public.finance_expenses e where public.expense_can_read(e.id) and (not p_claims or e.origin in ('employee_claim','legacy_claim'))\n    and not exists(select 1 from public.finance_expense_request_items i where i.expense_id=e.id and (not i.active or public.expense_request_can_read(i.request_id))) order by e.created_at desc,e.id limit 50 offset p_offset) x),\n  'has_next',(select count(*)>p_offset+50 from public.finance_expenses e where public.expense_can_read(e.id) and (not p_claims or e.origin in ('employee_claim','legacy_claim'))\n    and not exists(select 1 from public.finance_expense_request_items i where i.expense_id=e.id and (not i.active or public.expense_request_can_read(i.request_id)))));\nend;\n$function$\n",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": true
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "name": "payout_assert",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "payout_assert(uuid)",
+      "definition": "CREATE OR REPLACE FUNCTION public.payout_assert(p_id uuid)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare p public.finance_payouts%rowtype;a public.finance_payout_allocations%rowtype;c public.finance_cash_transactions%rowtype;\n w public.finance_outgoing_wht_obligations%rowtype;e public.finance_expenses%rowtype;s public.finance_expense_settlements%rowtype;f jsonb;\nbegin\n select * into strict p from public.finance_payouts where id=p_id;\n if p.source_model='revenue_distribution_v1' then perform public.payout_assert_before_expense(p_id);return; end if;\n if jsonb_array_length(p.choices_json)<>1 then raise exception 'EXPENSE_PAYOUT_INTEGRITY'; end if;\n f:=p.choices_json->0;select * into e from public.finance_expenses where id=(f->>'expense_id')::uuid;\n select * into s from public.finance_expense_settlements where expense_id=e.id;\n if e.id is null or s.id is null or f->'settlement' is distinct from to_jsonb(s) or s.payee_id is distinct from p.payee_id\n  or p.gross_amount<>s.amount or p.gross_amount is distinct from (f->>'gross')::numeric or p.wht_amount is distinct from (f->>'wht')::numeric\n  or p.wht_amount is distinct from round((f->>'wht_base')::numeric*(f->>'rate')::numeric/100,2)\n  or (p.wht_amount>0 and (e.personally_paid or s.mode='reimburse' or f->>'actual_withholding' is distinct from 'true'))\n then raise exception 'EXPENSE_PAYOUT_INTEGRITY'; end if;\n if (f ? 'recipient') and (public.company_purchase_request_recipient(e.id) is null or p.payee_id is not null\n  or f->'recipient' is distinct from jsonb_build_object('legal_name',public.company_purchase_request_recipient(e.id),'identity_source','company_purchase_request','expense_id',e.id)\n  or (p.status='confirmed' and p.confirmed_snapshot_json->'payee' is distinct from f->'recipient'))\n  or (public.company_purchase_request_recipient(e.id) is not null and not (f ? 'recipient'))\n then raise exception 'EXPENSE_REQUEST_RECIPIENT_INTEGRITY';end if;\n if p.status<>'confirmed' then\n  if exists(select 1 from public.finance_payout_allocations where payout_id=p_id)\n   or exists(select 1 from public.finance_cash_transactions where source_payout_id=p_id)\n   or exists(select 1 from public.finance_outgoing_wht_obligations where payout_source_id=p_id) then raise exception 'EXPENSE_PAYOUT_INTEGRITY'; end if;\n  return;\n end if;\n select * into a from public.finance_payout_allocations where payout_id=p_id;\n if (select count(*) from public.finance_payout_allocations where payout_id=p_id)<>1 or a.expense_id<>e.id\n  or a.expense_obligation_id is distinct from (f->>'obligation_id')::uuid or a.evidence_json is distinct from f\n  or a.entitlement_id is not null or a.gross_amount<>p.gross_amount or a.wht_amount<>p.wht_amount\n  or a.wht_base is distinct from (f->>'wht_base')::numeric or a.rate is distinct from (f->>'rate')::numeric\n  or a.treatment is distinct from f->>'treatment'\n  or exists(select 1 from public.finance_expense_obligation_waivers where obligation_id=a.expense_obligation_id)\n  or (a.expense_obligation_id is not null and not exists(select 1 from public.finance_expense_obligations o where o.id=a.expense_obligation_id\n   and o.expense_id=e.id and o.payee_id is not distinct from p.payee_id and o.gross_amount=p.gross_amount and to_jsonb(o)=f->'obligation'))\n  or p.confirmed_snapshot_json->'choices' is distinct from p.choices_json\n  or (p.confirmed_snapshot_json->>'gross')::numeric is distinct from p.gross_amount\n  or (p.confirmed_snapshot_json->>'wht')::numeric is distinct from p.wht_amount\n  or (p.confirmed_snapshot_json->>'net')::numeric is distinct from p.net_amount\n  or (p.confirmed_snapshot_json->>'paid_on')::date is distinct from p.paid_on\n  or (p.confirmed_snapshot_json->>'bank_account_id')::uuid is distinct from p.bank_account_id\n  or (p.confirmed_snapshot_json->>'cash_location_id')::uuid is distinct from p.cash_location_id\n then raise exception 'EXPENSE_PAYOUT_ALLOCATION_INTEGRITY'; end if;\n select * into c from public.finance_cash_transactions where source_payout_id=p_id;\n if c.id is null or c.direction<>'outflow' or c.status<>'confirmed' or c.cash_amount<>p.net_amount or c.currency<>p.currency\n  or c.bank_account_id is distinct from p.bank_account_id or c.cash_location_id is distinct from p.cash_location_id\n  or c.occurred_at<>public.finance_bangkok_completed_day_end(p.paid_on)\n  or not exists(select 1 from public.finance_cash_transaction_audit_events where cash_transaction_id=c.id and event_type='confirmed'\n    and event_payload_json->'payout'=p.confirmed_snapshot_json)\n then raise exception 'EXPENSE_PAYOUT_CASH_INTEGRITY'; end if;\n select * into w from public.finance_outgoing_wht_obligations where source_line_id=a.id;\n if (p.wht_amount=0 and w.id is not null) or (p.wht_amount>0 and (w.id is null or w.payout_source_id<>p_id or w.gross_base<>a.wht_base\n  or w.explicit_rate<>a.rate or w.withheld_amount<>p.wht_amount or w.withheld_on<>p.paid_on or w.payee_json is distinct from p.confirmed_snapshot_json->'payee'\n  or w.evidence_json is distinct from f or w.source_fingerprint<>md5(f::text)))\n  or not exists(select 1 from public.finance_payout_audit where payout_id=p_id and event_type='confirmed' and version=p.version and evidence_json=p.confirmed_snapshot_json)\n  or not exists(select 1 from public.finance_expense_audit where expense_id=e.id and event_type='payment_confirmed' and evidence_json=p.confirmed_snapshot_json)\n then raise exception 'EXPENSE_PAYOUT_TAX_AUDIT_INTEGRITY'; end if;\nend;\n$function$\n",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "name": "payout_integrity",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "payout_integrity()",
+      "definition": "CREATE OR REPLACE FUNCTION public.payout_integrity()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n if tg_table_name='finance_payouts' then perform public.payout_assert(new.id);\n elsif tg_table_name='finance_cash_transactions' then\n  if new.source_payout_id is not null then perform public.payout_assert(new.source_payout_id); end if;\n  if new.reversal_of_transaction_id is not null and exists(select 1 from public.finance_cash_transactions where id=new.reversal_of_transaction_id and source_payout_id is not null)\n  then raise exception 'PAYOUT_REVERSAL_NOT_AVAILABLE'; end if;\n elsif tg_table_name='finance_outgoing_wht_obligations' then perform public.payout_assert(new.payout_source_id);\n else perform public.payout_assert(new.payout_id); end if;\n return null;\nend;\n$function$\n",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres,authenticated=X/postgres}",
+      "name": "prepare_finance_expense_payout",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "prepare_finance_expense_payout(uuid,uuid,integer,date,uuid,uuid,boolean,text)",
+      "definition": "CREATE OR REPLACE FUNCTION public.prepare_finance_expense_payout(p_id uuid, p_expense uuid, p_version integer, p_paid_on date, p_bank uuid, p_cash uuid, p_actual_wht boolean, p_note text)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare e public.finance_expenses%rowtype;p public.finance_payouts%rowtype;c jsonb;\nbegin\n if not public.expense_account_allowed(p_bank,p_cash,'record_outflow') then raise exception 'EXPENSE_ACCOUNT_DENIED'; end if;\n perform pg_advisory_xact_lock(hashtextextended('expense:'||p_expense,0));\n select * into strict e from public.finance_expenses where id=p_expense for update;\n if not public.finance078_admin() and (e.status<>'accepted' or e.reviewed_by is null) then raise exception 'FINANCE_APPROVED_SOURCE_REQUIRED'; end if;\n if p_id is null or p_paid_on is null or p_paid_on<e.expense_date or p_paid_on>(now() at time zone 'Asia/Bangkok')::date\n  or not public.treasury_location_active(p_bank,p_cash) then raise exception 'EXPENSE_PAYMENT_INVALID'; end if;\n select * into p from public.finance_payouts where id=p_id for update;\n if p.version is distinct from p_version or (p.id is not null and (p.source_model<>'expense_v1' or p.status<>'draft'\n  or p.choices_json#>>'{0,expense_id}'<>p_expense::text)) then raise exception 'EXPENSE_STALE'; end if;\n c:=public.expense_payout_choice(p_expense,p_actual_wht);\n if (c#>>'{settlement,mode}'='company_bank' and p_bank is null) or (c#>>'{settlement,mode}'='company_cash' and p_cash is null)\n then raise exception 'EXPENSE_ACCOUNT_KIND_INVALID'; end if;\n if exists(select 1 from public.finance_payouts where source_model='expense_v1' and status='draft' and id<>p_id\n  and choices_json#>>'{0,expense_id}'=p_expense::text) then raise exception 'EXPENSE_PAYMENT_DRAFT_EXISTS'; end if;\n if p.id is null then\n  insert into public.finance_payouts(id,source_model,payee_id,paid_on,bank_account_id,cash_location_id,choices_json,gross_amount,wht_amount,net_amount,note,created_by,updated_by)\n  values(p_id,'expense_v1',(c->>'payee_id')::uuid,p_paid_on,p_bank,p_cash,jsonb_build_array(c),(c->>'gross')::numeric,(c->>'wht')::numeric,\n   (c->>'gross')::numeric-(c->>'wht')::numeric,coalesce(p_note,''),auth.uid(),auth.uid());\n else\n  update public.finance_payouts set paid_on=p_paid_on,bank_account_id=p_bank,cash_location_id=p_cash,choices_json=jsonb_build_array(c),\n   payee_id=(c->>'payee_id')::uuid,gross_amount=(c->>'gross')::numeric,wht_amount=(c->>'wht')::numeric,net_amount=(c->>'gross')::numeric-(c->>'wht')::numeric,\n   note=coalesce(p_note,''),version=version+1,updated_at=clock_timestamp(),updated_by=auth.uid() where id=p_id;\n end if;\n insert into public.finance_payout_audit(payout_id,event_type,version,actor_id,evidence_json)\n select p_id,'saved',version,auth.uid(),to_jsonb(x) from public.finance_payouts x where id=p_id;\n return p_id;\nend;\n$function$\n",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": true
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "name": "protect_finance_cash_audit_event",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "protect_finance_cash_audit_event()",
+      "definition": "CREATE OR REPLACE FUNCTION public.protect_finance_cash_audit_event()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n  raise exception 'Finance Cash audit events are append-only';\nend;\n$function$\n",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "name": "record_finance_cash_transaction_audit_event",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "record_finance_cash_transaction_audit_event(uuid,text,jsonb)",
+      "definition": "CREATE OR REPLACE FUNCTION public.record_finance_cash_transaction_audit_event(p_cash_transaction_id uuid, p_event_type text, p_event_payload_json jsonb)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n  v_actor_email text;\n  v_actor_name text;\nbegin\n  if p_cash_transaction_id is null then\n    raise exception 'Cash Transaction audit requires a Cash Transaction';\n  end if;\n  if jsonb_typeof(coalesce(p_event_payload_json, '{}'::jsonb)) <> 'object' then\n    raise exception 'Cash Transaction audit payload must be an object';\n  end if;\n\n  select\n    profile.email,\n    coalesce(\n      nullif(btrim(profile.full_name), ''),\n      nullif(btrim(profile.staff_name), ''),\n      profile.email\n    )\n  into v_actor_email, v_actor_name\n  from public.user_profiles as profile\n  where profile.id = auth.uid();\n\n  insert into public.finance_cash_transaction_audit_events (\n    cash_transaction_id,\n    event_type,\n    event_payload_json,\n    actor_user_id,\n    actor_email,\n    actor_name\n  ) values (\n    p_cash_transaction_id,\n    p_event_type,\n    coalesce(p_event_payload_json, '{}'::jsonb),\n    auth.uid(),\n    v_actor_email,\n    v_actor_name\n  );\nend;\n$function$\n",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "name": "treasury_location_active",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "treasury_location_active(uuid,uuid)",
+      "definition": "CREATE OR REPLACE FUNCTION public.treasury_location_active(p_bank uuid, p_cash uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n select num_nonnulls(p_bank,p_cash)=1 and (exists(select 1 from public.finance_bank_accounts where id=p_bank and is_active)\n or exists(select 1 from public.finance_cash_locations where id=p_cash and is_active));\n$function$\n",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,service_role=X/postgres}",
+      "name": "validate_finance_cash_transaction_integrity",
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "signature": "validate_finance_cash_transaction_integrity(uuid)",
+      "definition": "CREATE OR REPLACE FUNCTION public.validate_finance_cash_transaction_integrity(p_cash_transaction_id uuid)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare c public.finance_cash_transactions%rowtype; o public.finance_cash_transactions%rowtype; opening public.finance_account_opening_balances%rowtype;\n p public.finance_payments%rowtype; d public.finance_direct_money_receipts%rowtype;\nbegin\n select * into c from public.finance_cash_transactions where id=p_cash_transaction_id; if not found then return; end if;\n if c.status='confirmed' then\n  if not public.treasury_location_active(c.bank_account_id,c.cash_location_id) then raise exception 'TREASURY_LOCATION_REQUIRED'; end if;\n  select * into opening from public.finance_account_opening_balances where bank_account_id is not distinct from c.bank_account_id\n   and cash_location_id is not distinct from c.cash_location_id and currency=c.currency and status='confirmed';\n  if opening.id is null then raise exception 'FINANCE_CASH_OPENING_BALANCE_REQUIRED'; end if;\n  if c.occurred_at<=opening.as_of then raise exception 'FINANCE_CASH_TRANSACTION_BEFORE_CUTOVER'; end if;\n end if;\n if c.reversal_of_transaction_id is not null then\n  select * into o from public.finance_cash_transactions where id=c.reversal_of_transaction_id;\n  if o.source_snapshot_json is not null then raise exception 'TREASURY_CASH_CORRECTION_WORKFLOW_REQUIRED'; end if;\n  if o.id is null or o.status<>'confirmed' or o.reversal_of_transaction_id is not null or c.status<>'confirmed'\n   or c.direction=o.direction or c.cash_amount<>o.cash_amount or c.currency<>o.currency\n   or c.bank_account_id is distinct from o.bank_account_id or c.cash_location_id is distinct from o.cash_location_id\n   or c.source_payment_id is distinct from o.source_payment_id or c.source_direct_money_receipt_id is distinct from o.source_direct_money_receipt_id\n   or c.occurred_at<o.occurred_at then raise exception 'TREASURY_REVERSAL_INTEGRITY'; end if;\n end if;\n if c.source_payment_id is not null then\n  select * into p from public.finance_payments where id=c.source_payment_id;\n  if p.id is null or p.status not in('confirmed','reversed') or p.cash_amount<=0 or c.cash_amount<>p.cash_amount or c.currency<>p.currency\n   or c.bank_account_id is distinct from p.receiving_bank_account_id then raise exception 'TREASURY_SOURCE_CHANGED'; end if;\n end if;\n if c.source_direct_money_receipt_id is not null then\n  select * into d from public.finance_direct_money_receipts where id=c.source_direct_money_receipt_id;\n  if d.id is null or d.status not in('confirmed','reversed') or c.cash_amount<>d.cash_amount or c.currency<>d.currency\n   or c.bank_account_id is distinct from d.receiving_bank_account_id\n   or (d.receiving_cash_location_id is not null and c.cash_location_id is distinct from d.receiving_cash_location_id)\n  then raise exception 'TREASURY_SOURCE_CHANGED'; end if;\n end if;\n if c.source_snapshot_json is not null then\n  if c.status<>'confirmed' or c.direction<>'inflow' or c.reversal_of_transaction_id is not null\n   or c.source_snapshot_json->>'source_id' is distinct from coalesce(c.source_payment_id,c.source_direct_money_receipt_id)::text\n   or c.source_snapshot_json->>'source_type' is distinct from (case when c.source_payment_id is not null then 'payment' else 'direct_money_receipt' end)\n   or c.source_snapshot_json->>'source_leg' is distinct from 'original'\n   or c.source_snapshot_json->>'status' is distinct from 'confirmed'\n   or c.source_snapshot_json->>'currency' is distinct from c.currency\n   or (c.source_snapshot_json->>'bank_account_id')::uuid is distinct from c.bank_account_id\n   or (c.source_snapshot_json->>'cash_location_id')::uuid is distinct from c.cash_location_id\n   or c.occurred_at is distinct from public.finance_bangkok_completed_day_end((c.source_snapshot_json->>'received_on')::date)\n   or (c.source_snapshot_json->>'cash_amount')::numeric is distinct from c.cash_amount\n   or not exists(select 1 from public.finance_cash_transaction_audit_events a where a.cash_transaction_id=c.id and a.event_type='confirmed'\n     and a.event_payload_json->'source'=c.source_snapshot_json)\n  then raise exception 'TREASURY_SOURCE_EVIDENCE_REQUIRED'; end if;\n end if;\nend;\n$function$\n",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    }
+  ],
+  "tables": [
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}",
+      "rls": true,
+      "kind": "r",
+      "name": "finance_account_opening_balances",
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "bank_account_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "currency",
+          "type": "text",
+          "default": "'THB'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "as_of",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "balance_amount",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "status",
+          "type": "text",
+          "default": "'draft'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "evidence_reference",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "note",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "supersedes_opening_balance_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_by_user_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "updated_by_user_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "confirmed_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "confirmed_by_user_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "cancelled_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "cancelled_by_user_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "cancel_reason",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "superseded_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "superseded_by_user_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "cash_location_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "finance_account_opening_balances_pkey",
+          "definition": "CREATE UNIQUE INDEX finance_account_opening_balances_pkey ON public.finance_account_opening_balances USING btree (id)"
+        },
+        {
+          "name": "idx_finance_opening_balances_account_as_of",
+          "definition": "CREATE INDEX idx_finance_opening_balances_account_as_of ON public.finance_account_opening_balances USING btree (bank_account_id, currency, as_of DESC)"
+        },
+        {
+          "name": "idx_finance_opening_balances_status",
+          "definition": "CREATE INDEX idx_finance_opening_balances_status ON public.finance_account_opening_balances USING btree (status, as_of DESC)"
+        },
+        {
+          "name": "treasury_opening_cash_current",
+          "definition": "CREATE UNIQUE INDEX treasury_opening_cash_current ON public.finance_account_opening_balances USING btree (cash_location_id, currency) WHERE (status = 'confirmed'::text)"
+        },
+        {
+          "name": "treasury_opening_cash_initial",
+          "definition": "CREATE UNIQUE INDEX treasury_opening_cash_initial ON public.finance_account_opening_balances USING btree (cash_location_id, currency) WHERE ((status = 'draft'::text) AND (supersedes_opening_balance_id IS NULL))"
+        },
+        {
+          "name": "uq_finance_opening_balances_current",
+          "definition": "CREATE UNIQUE INDEX uq_finance_opening_balances_current ON public.finance_account_opening_balances USING btree (bank_account_id, currency) WHERE (status = 'confirmed'::text)"
+        },
+        {
+          "name": "uq_finance_opening_balances_initial_draft",
+          "definition": "CREATE UNIQUE INDEX uq_finance_opening_balances_initial_draft ON public.finance_account_opening_balances USING btree (bank_account_id, currency) WHERE ((status = 'draft'::text) AND (supersedes_opening_balance_id IS NULL))"
+        },
+        {
+          "name": "uq_finance_opening_balances_supersedes",
+          "definition": "CREATE UNIQUE INDEX uq_finance_opening_balances_supersedes ON public.finance_account_opening_balances USING btree (supersedes_opening_balance_id) WHERE ((supersedes_opening_balance_id IS NOT NULL) AND (status <> 'cancelled'::text))"
+        }
+      ],
+      "policies": [
+        {
+          "cmd": "SELECT",
+          "qual": "treasury_can_view(bank_account_id, cash_location_id)",
+          "roles": [
+            "authenticated"
+          ],
+          "tablename": "finance_account_opening_balances",
+          "permissive": "PERMISSIVE",
+          "policyname": "finance cash viewers select opening balances",
+          "schemaname": "public",
+          "with_check": null
+        }
+      ],
+      "triggers": [
+        {
+          "name": "finance_opening_balance_integrity",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER finance_opening_balance_integrity AFTER INSERT OR DELETE OR UPDATE ON public.finance_account_opening_balances DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION enforce_finance_opening_balance_integrity()"
+        },
+        {
+          "name": "finance_opening_balance_lifecycle_guard",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER finance_opening_balance_lifecycle_guard BEFORE INSERT OR DELETE OR UPDATE ON public.finance_account_opening_balances FOR EACH ROW EXECUTE FUNCTION enforce_finance_opening_balance_lifecycle()"
+        },
+        {
+          "name": "treasury_opening_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER treasury_opening_no_truncate BEFORE TRUNCATE ON public.finance_account_opening_balances FOR EACH STATEMENT EXECUTE FUNCTION protect_finance_cash_audit_event()"
+        }
+      ],
+      "force_rls": false,
+      "anon_select": false,
+      "constraints": [
+        {
+          "name": "finance_account_opening_balan_supersedes_opening_balance_i_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (supersedes_opening_balance_id) REFERENCES finance_account_opening_balances(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_account_opening_balances_bank_account_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (bank_account_id) REFERENCES finance_bank_accounts(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_account_opening_balances_cancelled_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (cancelled_by_user_id) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_account_opening_balances_cash_location_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (cash_location_id) REFERENCES finance_cash_locations(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_account_opening_balances_confirmed_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (confirmed_by_user_id) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_account_opening_balances_created_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_account_opening_balances_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_account_opening_balances_superseded_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (superseded_by_user_id) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_account_opening_balances_updated_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (updated_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_opening_balance_integrity",
+          "validated": true,
+          "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+        },
+        {
+          "name": "finance_opening_balances_currency_check",
+          "validated": true,
+          "definition": "CHECK ((currency ~ '^[A-Z]{3}$'::text))"
+        },
+        {
+          "name": "finance_opening_balances_lifecycle_metadata_check",
+          "validated": true,
+          "definition": "CHECK ((((status = 'draft'::text) AND (confirmed_at IS NULL) AND (confirmed_by_user_id IS NULL) AND (cancelled_at IS NULL) AND (cancelled_by_user_id IS NULL) AND (cancel_reason IS NULL) AND (superseded_at IS NULL) AND (superseded_by_user_id IS NULL)) OR ((status = 'confirmed'::text) AND (confirmed_at IS NOT NULL) AND (confirmed_by_user_id IS NOT NULL) AND (cancelled_at IS NULL) AND (cancelled_by_user_id IS NULL) AND (cancel_reason IS NULL) AND (superseded_at IS NULL) AND (superseded_by_user_id IS NULL)) OR ((status = 'cancelled'::text) AND (confirmed_at IS NULL) AND (confirmed_by_user_id IS NULL) AND (cancelled_at IS NOT NULL) AND (cancelled_by_user_id IS NOT NULL) AND (NULLIF(btrim(COALESCE(cancel_reason, ''::text)), ''::text) IS NOT NULL) AND (superseded_at IS NULL) AND (superseded_by_user_id IS NULL)) OR ((status = 'superseded'::text) AND (confirmed_at IS NOT NULL) AND (confirmed_by_user_id IS NOT NULL) AND (cancelled_at IS NULL) AND (cancelled_by_user_id IS NULL) AND (cancel_reason IS NULL) AND (superseded_at IS NOT NULL) AND (superseded_by_user_id IS NOT NULL))))"
+        },
+        {
+          "name": "finance_opening_balances_no_self_supersession_check",
+          "validated": true,
+          "definition": "CHECK (((supersedes_opening_balance_id IS NULL) OR (supersedes_opening_balance_id <> id)))"
+        },
+        {
+          "name": "finance_opening_balances_status_check",
+          "validated": true,
+          "definition": "CHECK ((status = ANY (ARRAY['draft'::text, 'confirmed'::text, 'cancelled'::text, 'superseded'::text])))"
+        },
+        {
+          "name": "finance_opening_balances_text_length_check",
+          "validated": true,
+          "definition": "CHECK (((length(COALESCE(evidence_reference, ''::text)) <= 1000) AND (length(COALESCE(note, ''::text)) <= 4000) AND (length(COALESCE(cancel_reason, ''::text)) <= 2000)))"
+        },
+        {
+          "name": "treasury_opening_location",
+          "validated": true,
+          "definition": "CHECK ((num_nonnulls(bank_account_id, cash_location_id) = 1))"
+        }
+      ],
+      "service_select": true,
+      "authenticated_write": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}",
+      "rls": true,
+      "kind": "r",
+      "name": "finance_cash_transaction_audit_events",
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "cash_transaction_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "event_type",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "event_payload_json",
+          "type": "jsonb",
+          "default": "'{}'::jsonb",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "actor_user_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "actor_email",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "actor_name",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "finance_cash_transaction_audit_events_pkey",
+          "definition": "CREATE UNIQUE INDEX finance_cash_transaction_audit_events_pkey ON public.finance_cash_transaction_audit_events USING btree (id)"
+        },
+        {
+          "name": "idx_finance_cash_transaction_audit_transaction",
+          "definition": "CREATE INDEX idx_finance_cash_transaction_audit_transaction ON public.finance_cash_transaction_audit_events USING btree (cash_transaction_id, created_at)"
+        }
+      ],
+      "policies": [
+        {
+          "cmd": "SELECT",
+          "qual": "(current_user_can_view_finance_cash_transactions() AND (EXISTS ( SELECT 1\n   FROM finance_cash_transactions cash_transaction\n  WHERE ((cash_transaction.id = finance_cash_transaction_audit_events.cash_transaction_id) AND current_user_can_view_finance_cash_bank_account(cash_transaction.bank_account_id)))))",
+          "roles": [
+            "public"
+          ],
+          "tablename": "finance_cash_transaction_audit_events",
+          "permissive": "PERMISSIVE",
+          "policyname": "finance cash viewers select transaction audit",
+          "schemaname": "public",
+          "with_check": null
+        },
+        {
+          "cmd": "SELECT",
+          "qual": "finance078_admin()",
+          "roles": [
+            "authenticated"
+          ],
+          "tablename": "finance_cash_transaction_audit_events",
+          "permissive": "RESTRICTIVE",
+          "policyname": "finance078_cash_audit_scope",
+          "schemaname": "public",
+          "with_check": null
+        }
+      ],
+      "triggers": [
+        {
+          "name": "finance_cash_transaction_audit_immutability",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER finance_cash_transaction_audit_immutability BEFORE DELETE OR UPDATE ON public.finance_cash_transaction_audit_events FOR EACH ROW EXECUTE FUNCTION protect_finance_cash_audit_event()"
+        }
+      ],
+      "force_rls": false,
+      "anon_select": false,
+      "constraints": [
+        {
+          "name": "finance_cash_transaction_audit_events_actor_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (actor_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_cash_transaction_audit_events_cash_transaction_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (cash_transaction_id) REFERENCES finance_cash_transactions(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_cash_transaction_audit_events_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_cash_transaction_audit_payload_check",
+          "validated": true,
+          "definition": "CHECK ((jsonb_typeof(event_payload_json) = 'object'::text))"
+        },
+        {
+          "name": "finance_cash_transaction_audit_type_check",
+          "validated": true,
+          "definition": "CHECK ((event_type = ANY (ARRAY['draft_created'::text, 'draft_saved'::text, 'confirmed'::text, 'cancelled'::text, 'reversal_created'::text])))"
+        }
+      ],
+      "service_select": true,
+      "authenticated_write": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}",
+      "rls": true,
+      "kind": "r",
+      "name": "finance_cash_transactions",
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "direction",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "transaction_type",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "bank_account_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "cash_amount",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "currency",
+          "type": "text",
+          "default": "'THB'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "status",
+          "type": "text",
+          "default": "'draft'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "source_payment_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "reference_no",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "description",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "note",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "reversal_of_transaction_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_by_user_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "updated_by_user_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "confirmed_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "confirmed_by_user_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "cancelled_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "cancelled_by_user_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "cancel_reason",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "cash_location_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "source_direct_money_receipt_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "source_snapshot_json",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "source_payout_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "source_tax_remittance_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "finance_cash_transactions_pkey",
+          "definition": "CREATE UNIQUE INDEX finance_cash_transactions_pkey ON public.finance_cash_transactions USING btree (id)"
+        },
+        {
+          "name": "finance_cash_transactions_source_payout_id_key",
+          "definition": "CREATE UNIQUE INDEX finance_cash_transactions_source_payout_id_key ON public.finance_cash_transactions USING btree (source_payout_id)"
+        },
+        {
+          "name": "finance_cash_transactions_source_tax_remittance_id_key",
+          "definition": "CREATE UNIQUE INDEX finance_cash_transactions_source_tax_remittance_id_key ON public.finance_cash_transactions USING btree (source_tax_remittance_id)"
+        },
+        {
+          "name": "idx_finance_cash_transactions_account_date",
+          "definition": "CREATE INDEX idx_finance_cash_transactions_account_date ON public.finance_cash_transactions USING btree (bank_account_id, currency, occurred_at DESC)"
+        },
+        {
+          "name": "idx_finance_cash_transactions_source_payment",
+          "definition": "CREATE INDEX idx_finance_cash_transactions_source_payment ON public.finance_cash_transactions USING btree (source_payment_id) WHERE (source_payment_id IS NOT NULL)"
+        },
+        {
+          "name": "idx_finance_cash_transactions_status_date",
+          "definition": "CREATE INDEX idx_finance_cash_transactions_status_date ON public.finance_cash_transactions USING btree (status, occurred_at DESC)"
+        },
+        {
+          "name": "treasury_cash_direct_original",
+          "definition": "CREATE UNIQUE INDEX treasury_cash_direct_original ON public.finance_cash_transactions USING btree (source_direct_money_receipt_id) WHERE ((source_direct_money_receipt_id IS NOT NULL) AND (reversal_of_transaction_id IS NULL))"
+        },
+        {
+          "name": "treasury_cash_location_date",
+          "definition": "CREATE INDEX treasury_cash_location_date ON public.finance_cash_transactions USING btree (cash_location_id, currency, occurred_at DESC)"
+        },
+        {
+          "name": "uq_finance_cash_transactions_reversal",
+          "definition": "CREATE UNIQUE INDEX uq_finance_cash_transactions_reversal ON public.finance_cash_transactions USING btree (reversal_of_transaction_id) WHERE (reversal_of_transaction_id IS NOT NULL)"
+        },
+        {
+          "name": "uq_finance_cash_transactions_source_payment",
+          "definition": "CREATE UNIQUE INDEX uq_finance_cash_transactions_source_payment ON public.finance_cash_transactions USING btree (source_payment_id) WHERE ((source_payment_id IS NOT NULL) AND (reversal_of_transaction_id IS NULL))"
+        }
+      ],
+      "policies": [
+        {
+          "cmd": "SELECT",
+          "qual": "treasury_can_view(bank_account_id, cash_location_id)",
+          "roles": [
+            "authenticated"
+          ],
+          "tablename": "finance_cash_transactions",
+          "permissive": "PERMISSIVE",
+          "policyname": "finance cash viewers select transactions",
+          "schemaname": "public",
+          "with_check": null
+        },
+        {
+          "cmd": "SELECT",
+          "qual": "expense_account_allowed(bank_account_id, cash_location_id, 'view_movements'::text)",
+          "roles": [
+            "authenticated"
+          ],
+          "tablename": "finance_cash_transactions",
+          "permissive": "PERMISSIVE",
+          "policyname": "finance078_cash_movements_read",
+          "schemaname": "public",
+          "with_check": null
+        },
+        {
+          "cmd": "SELECT",
+          "qual": "expense_account_allowed(bank_account_id, cash_location_id, 'view_movements'::text)",
+          "roles": [
+            "authenticated"
+          ],
+          "tablename": "finance_cash_transactions",
+          "permissive": "RESTRICTIVE",
+          "policyname": "finance078_cash_movements_scope",
+          "schemaname": "public",
+          "with_check": null
+        }
+      ],
+      "triggers": [
+        {
+          "name": "finance078_effective_lifecycle_guard",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER finance078_effective_lifecycle_guard BEFORE UPDATE ON public.finance_cash_transactions FOR EACH ROW EXECUTE FUNCTION finance078_effective_lifecycle_guard()"
+        },
+        {
+          "name": "finance_cash_transaction_integrity",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER finance_cash_transaction_integrity AFTER INSERT OR DELETE OR UPDATE ON public.finance_cash_transactions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION enforce_finance_cash_transaction_integrity()"
+        },
+        {
+          "name": "finance_cash_transaction_lifecycle_guard",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER finance_cash_transaction_lifecycle_guard BEFORE INSERT OR DELETE OR UPDATE ON public.finance_cash_transactions FOR EACH ROW EXECUTE FUNCTION enforce_finance_cash_transaction_lifecycle()"
+        },
+        {
+          "name": "payout_cash_integrity",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER payout_cash_integrity AFTER INSERT OR UPDATE ON public.finance_cash_transactions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION payout_integrity()"
+        },
+        {
+          "name": "statement_transfer_cash_integrity",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER statement_transfer_cash_integrity AFTER INSERT OR UPDATE ON public.finance_cash_transactions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION statement_transfer_integrity()"
+        },
+        {
+          "name": "tax_remittance_cash_integrity",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER tax_remittance_cash_integrity AFTER INSERT OR UPDATE ON public.finance_cash_transactions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION tax_filing_integrity()"
+        },
+        {
+          "name": "tax_remittance_no_generic_reversal",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER tax_remittance_no_generic_reversal BEFORE INSERT ON public.finance_cash_transactions FOR EACH ROW EXECUTE FUNCTION tax_filing_cash_reversal_guard()"
+        },
+        {
+          "name": "treasury_cash_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER treasury_cash_no_truncate BEFORE TRUNCATE ON public.finance_cash_transactions FOR EACH STATEMENT EXECUTE FUNCTION protect_finance_cash_audit_event()"
+        }
+      ],
+      "force_rls": false,
+      "anon_select": false,
+      "constraints": [
+        {
+          "name": "finance_cash_transaction_integrity",
+          "validated": true,
+          "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+        },
+        {
+          "name": "finance_cash_transactions_amount_check",
+          "validated": true,
+          "definition": "CHECK ((cash_amount > (0)::numeric))"
+        },
+        {
+          "name": "finance_cash_transactions_bank_account_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (bank_account_id) REFERENCES finance_bank_accounts(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_cash_transactions_cancelled_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (cancelled_by_user_id) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_cash_transactions_cash_location_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (cash_location_id) REFERENCES finance_cash_locations(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_cash_transactions_confirmed_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (confirmed_by_user_id) REFERENCES user_profiles(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_cash_transactions_created_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "finance_cash_transactions_currency_check",
+          "validated": true,
+          "definition": "CHECK ((currency ~ '^[A-Z]{3}$'::text))"
+        },
+        {
+          "name": "finance_cash_transactions_direction_check",
+          "validated": true,
+          "definition": "CHECK ((direction = ANY (ARRAY['inflow'::text, 'outflow'::text])))"
+        },
+        {
+          "name": "finance_cash_transactions_lifecycle_metadata_check",
+          "validated": true,
+          "definition": "CHECK ((((status = 'draft'::text) AND (confirmed_at IS NULL) AND (confirmed_by_user_id IS NULL) AND (cancelled_at IS NULL) AND (cancelled_by_user_id IS NULL) AND (cancel_reason IS NULL)) OR ((status = 'confirmed'::text) AND (confirmed_at IS NOT NULL) AND (confirmed_by_user_id IS NOT NULL) AND (cancelled_at IS NULL) AND (cancelled_by_user_id IS NULL) AND (cancel_reason IS NULL)) OR ((status = 'cancelled'::text) AND (confirmed_at IS NULL) AND (confirmed_by_user_id IS NULL) AND (cancelled_at IS NOT NULL) AND (cancelled_by_user_id IS NOT NULL) AND (NULLIF(btrim(COALESCE(cancel_reason, ''::text)), ''::text) IS NOT NULL))))"
+        },
+        {
+          "name": "finance_cash_transactions_no_self_reversal_check",
+          "validated": true,
+          "definition": "CHECK (((reversal_of_transaction_id IS NULL) OR (reversal_of_transaction_id <> id)))"
+        },
+        {
+          "name": "finance_cash_transactions_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_cash_transactions_reversal_of_transaction_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (reversal_of_transaction_id) REFERENCES finance_cash_transactions(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_cash_transactions_source_contract_check",
+          "validated": true,
+          "definition": "CHECK ((((reversal_of_transaction_id IS NULL) AND (((transaction_type = 'customer_payment'::text) AND (source_payment_id IS NOT NULL) AND (source_direct_money_receipt_id IS NULL) AND (direction = 'inflow'::text)) OR ((transaction_type = 'direct_money_receipt'::text) AND (source_direct_money_receipt_id IS NOT NULL) AND (source_payment_id IS NULL) AND (direction = 'inflow'::text) AND (source_snapshot_json IS NOT NULL)) OR ((transaction_type <> ALL (ARRAY['customer_payment'::text, 'direct_money_receipt'::text, 'reversal'::text])) AND (source_payment_id IS NULL) AND (source_direct_money_receipt_id IS NULL)))) OR ((reversal_of_transaction_id IS NOT NULL) AND (transaction_type = 'reversal'::text) AND (status = 'confirmed'::text))))"
+        },
+        {
+          "name": "finance_cash_transactions_source_direct_money_receipt_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (source_direct_money_receipt_id) REFERENCES finance_direct_money_receipts(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_cash_transactions_source_payment_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (source_payment_id) REFERENCES finance_payments(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "finance_cash_transactions_source_payout_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (source_payout_id) REFERENCES finance_payouts(id)"
+        },
+        {
+          "name": "finance_cash_transactions_source_payout_id_key",
+          "validated": true,
+          "definition": "UNIQUE (source_payout_id)"
+        },
+        {
+          "name": "finance_cash_transactions_source_tax_remittance_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (source_tax_remittance_id) REFERENCES finance_tax_remittances(id)"
+        },
+        {
+          "name": "finance_cash_transactions_source_tax_remittance_id_key",
+          "validated": true,
+          "definition": "UNIQUE (source_tax_remittance_id)"
+        },
+        {
+          "name": "finance_cash_transactions_status_check",
+          "validated": true,
+          "definition": "CHECK ((status = ANY (ARRAY['draft'::text, 'confirmed'::text, 'cancelled'::text])))"
+        },
+        {
+          "name": "finance_cash_transactions_text_length_check",
+          "validated": true,
+          "definition": "CHECK (((length(COALESCE(reference_no, ''::text)) <= 500) AND (length(COALESCE(description, ''::text)) <= 1000) AND (length(COALESCE(note, ''::text)) <= 4000) AND (length(COALESCE(cancel_reason, ''::text)) <= 2000)))"
+        },
+        {
+          "name": "finance_cash_transactions_type_check",
+          "validated": true,
+          "definition": "CHECK ((transaction_type = ANY (ARRAY['customer_payment'::text, 'direct_money_receipt'::text, 'manual_inflow'::text, 'manual_outflow'::text, 'expense_claim'::text, 'refund'::text, 'tax_payment'::text, 'transfer'::text, 'reversal'::text, 'other'::text])))"
+        },
+        {
+          "name": "finance_cash_transactions_type_direction_check",
+          "validated": true,
+          "definition": "CHECK ((((transaction_type <> 'manual_inflow'::text) OR (direction = 'inflow'::text)) AND ((transaction_type <> ALL (ARRAY['manual_outflow'::text, 'expense_claim'::text, 'refund'::text, 'tax_payment'::text])) OR (direction = 'outflow'::text))))"
+        },
+        {
+          "name": "finance_cash_transactions_updated_by_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (updated_by_user_id) REFERENCES user_profiles(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "payout_cash_integrity",
+          "validated": true,
+          "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+        },
+        {
+          "name": "payout_cash_source",
+          "validated": true,
+          "definition": "CHECK (((source_payout_id IS NULL) OR ((transaction_type = 'other'::text) AND (direction = 'outflow'::text) AND (status = 'confirmed'::text) AND (source_payment_id IS NULL) AND (source_direct_money_receipt_id IS NULL) AND (reversal_of_transaction_id IS NULL) AND (source_snapshot_json IS NULL))))"
+        },
+        {
+          "name": "statement_transfer_cash_integrity",
+          "validated": true,
+          "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+        },
+        {
+          "name": "tax_remittance_cash_integrity",
+          "validated": true,
+          "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+        },
+        {
+          "name": "tax_remittance_cash_source",
+          "validated": true,
+          "definition": "CHECK (((source_tax_remittance_id IS NULL) OR ((direction = 'outflow'::text) AND (transaction_type = 'other'::text) AND (status = 'confirmed'::text) AND (source_payment_id IS NULL) AND (source_direct_money_receipt_id IS NULL) AND (source_payout_id IS NULL) AND (reversal_of_transaction_id IS NULL) AND (source_snapshot_json IS NULL))))"
+        },
+        {
+          "name": "treasury_cash_evidence",
+          "validated": true,
+          "definition": "CHECK (((source_snapshot_json IS NULL) OR (jsonb_typeof(source_snapshot_json) = 'object'::text)))"
+        },
+        {
+          "name": "treasury_cash_location",
+          "validated": true,
+          "definition": "CHECK ((num_nonnulls(bank_account_id, cash_location_id) = 1))"
+        },
+        {
+          "name": "treasury_cash_source",
+          "validated": true,
+          "definition": "CHECK ((num_nonnulls(source_payment_id, source_direct_money_receipt_id) <= 1))"
+        }
+      ],
+      "service_select": true,
+      "authenticated_write": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+      "rls": true,
+      "kind": "r",
+      "name": "finance_expense_audit",
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "expense_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "event_type",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "actor_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "evidence_json",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "finance_expense_audit_pkey",
+          "definition": "CREATE UNIQUE INDEX finance_expense_audit_pkey ON public.finance_expense_audit USING btree (id)"
+        }
+      ],
+      "policies": [],
+      "triggers": [
+        {
+          "name": "expense_history_immutable",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_history_immutable BEFORE DELETE OR UPDATE ON public.finance_expense_audit FOR EACH ROW EXECUTE FUNCTION expense_immutable()"
+        },
+        {
+          "name": "expense_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_no_truncate BEFORE TRUNCATE ON public.finance_expense_audit FOR EACH STATEMENT EXECUTE FUNCTION expense_immutable()"
+        }
+      ],
+      "force_rls": false,
+      "anon_select": false,
+      "constraints": [
+        {
+          "name": "finance_expense_audit_actor_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (actor_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_expense_audit_event_type_check",
+          "validated": true,
+          "definition": "CHECK ((event_type = ANY (ARRAY['saved'::text, 'submitted'::text, 'accepted'::text, 'rejected'::text, 'tax_reviewed'::text, 'settlement_decided'::text, 'waived'::text, 'legacy_bridged'::text, 'payment_confirmed'::text])))"
+        },
+        {
+          "name": "finance_expense_audit_evidence_json_check",
+          "validated": true,
+          "definition": "CHECK ((jsonb_typeof(evidence_json) = 'object'::text))"
+        },
+        {
+          "name": "finance_expense_audit_expense_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (expense_id) REFERENCES finance_expenses(id)"
+        },
+        {
+          "name": "finance_expense_audit_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "service_select": true,
+      "authenticated_write": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+      "rls": true,
+      "kind": "r",
+      "name": "finance_expense_obligation_waivers",
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "obligation_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "reason",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "disposition",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "finance_expense_obligation_waivers_pkey",
+          "definition": "CREATE UNIQUE INDEX finance_expense_obligation_waivers_pkey ON public.finance_expense_obligation_waivers USING btree (obligation_id)"
+        }
+      ],
+      "policies": [],
+      "triggers": [
+        {
+          "name": "expense_history_immutable",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_history_immutable BEFORE DELETE OR UPDATE ON public.finance_expense_obligation_waivers FOR EACH ROW EXECUTE FUNCTION expense_immutable()"
+        },
+        {
+          "name": "expense_integrity",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER expense_integrity AFTER INSERT OR UPDATE ON public.finance_expense_obligation_waivers DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION expense_integrity()"
+        },
+        {
+          "name": "expense_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_no_truncate BEFORE TRUNCATE ON public.finance_expense_obligation_waivers FOR EACH STATEMENT EXECUTE FUNCTION expense_immutable()"
+        }
+      ],
+      "force_rls": false,
+      "anon_select": false,
+      "constraints": [
+        {
+          "name": "expense_integrity",
+          "validated": true,
+          "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+        },
+        {
+          "name": "finance_expense_obligation_waivers_created_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_expense_obligation_waivers_disposition_check",
+          "validated": true,
+          "definition": "CHECK ((disposition = 'person_paid_no_reimbursement'::text))"
+        },
+        {
+          "name": "finance_expense_obligation_waivers_obligation_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (obligation_id) REFERENCES finance_expense_obligations(id)"
+        },
+        {
+          "name": "finance_expense_obligation_waivers_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (obligation_id)"
+        },
+        {
+          "name": "finance_expense_obligation_waivers_reason_check",
+          "validated": true,
+          "definition": "CHECK (((length(btrim(reason)) >= 1) AND (length(btrim(reason)) <= 2000)))"
+        }
+      ],
+      "service_select": true,
+      "authenticated_write": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+      "rls": true,
+      "kind": "r",
+      "name": "finance_expense_obligations",
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "expense_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "settlement_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "source_type",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "payee_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "gross_amount",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "currency",
+          "type": "text",
+          "default": "'THB'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "due_on",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "finance_expense_obligations_expense_id_key",
+          "definition": "CREATE UNIQUE INDEX finance_expense_obligations_expense_id_key ON public.finance_expense_obligations USING btree (expense_id)"
+        },
+        {
+          "name": "finance_expense_obligations_pkey",
+          "definition": "CREATE UNIQUE INDEX finance_expense_obligations_pkey ON public.finance_expense_obligations USING btree (id)"
+        },
+        {
+          "name": "finance_expense_obligations_settlement_id_key",
+          "definition": "CREATE UNIQUE INDEX finance_expense_obligations_settlement_id_key ON public.finance_expense_obligations USING btree (settlement_id)"
+        }
+      ],
+      "policies": [],
+      "triggers": [
+        {
+          "name": "expense_history_immutable",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_history_immutable BEFORE DELETE OR UPDATE ON public.finance_expense_obligations FOR EACH ROW EXECUTE FUNCTION expense_immutable()"
+        },
+        {
+          "name": "expense_integrity",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER expense_integrity AFTER INSERT OR UPDATE ON public.finance_expense_obligations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION expense_integrity()"
+        },
+        {
+          "name": "expense_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_no_truncate BEFORE TRUNCATE ON public.finance_expense_obligations FOR EACH STATEMENT EXECUTE FUNCTION expense_immutable()"
+        }
+      ],
+      "force_rls": false,
+      "anon_select": false,
+      "constraints": [
+        {
+          "name": "expense_integrity",
+          "validated": true,
+          "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+        },
+        {
+          "name": "expense_obligation_recipient_kind",
+          "validated": true,
+          "definition": "CHECK (((payee_id IS NOT NULL) OR (source_type = 'supplier_payable'::text)))"
+        },
+        {
+          "name": "finance_expense_obligations_created_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_expense_obligations_currency_check",
+          "validated": true,
+          "definition": "CHECK ((currency = 'THB'::text))"
+        },
+        {
+          "name": "finance_expense_obligations_expense_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (expense_id) REFERENCES finance_expenses(id)"
+        },
+        {
+          "name": "finance_expense_obligations_expense_id_key",
+          "validated": true,
+          "definition": "UNIQUE (expense_id)"
+        },
+        {
+          "name": "finance_expense_obligations_gross_amount_check",
+          "validated": true,
+          "definition": "CHECK ((gross_amount > (0)::numeric))"
+        },
+        {
+          "name": "finance_expense_obligations_payee_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (payee_id) REFERENCES finance_payees(id)"
+        },
+        {
+          "name": "finance_expense_obligations_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_expense_obligations_settlement_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (settlement_id) REFERENCES finance_expense_settlements(id)"
+        },
+        {
+          "name": "finance_expense_obligations_settlement_id_key",
+          "validated": true,
+          "definition": "UNIQUE (settlement_id)"
+        },
+        {
+          "name": "finance_expense_obligations_source_type_check",
+          "validated": true,
+          "definition": "CHECK ((source_type = ANY (ARRAY['employee_reimbursement'::text, 'supplier_payable'::text])))"
+        }
+      ],
+      "service_select": true,
+      "authenticated_write": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+      "rls": true,
+      "kind": "r",
+      "name": "finance_expense_settlements",
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "expense_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "mode",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "payee_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "amount",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "reason",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "finance_expense_settlements_expense_id_key",
+          "definition": "CREATE UNIQUE INDEX finance_expense_settlements_expense_id_key ON public.finance_expense_settlements USING btree (expense_id)"
+        },
+        {
+          "name": "finance_expense_settlements_pkey",
+          "definition": "CREATE UNIQUE INDEX finance_expense_settlements_pkey ON public.finance_expense_settlements USING btree (id)"
+        }
+      ],
+      "policies": [],
+      "triggers": [
+        {
+          "name": "expense_history_immutable",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_history_immutable BEFORE DELETE OR UPDATE ON public.finance_expense_settlements FOR EACH ROW EXECUTE FUNCTION expense_immutable()"
+        },
+        {
+          "name": "expense_integrity",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER expense_integrity AFTER INSERT OR UPDATE ON public.finance_expense_settlements DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION expense_integrity()"
+        },
+        {
+          "name": "expense_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_no_truncate BEFORE TRUNCATE ON public.finance_expense_settlements FOR EACH STATEMENT EXECUTE FUNCTION expense_immutable()"
+        }
+      ],
+      "force_rls": false,
+      "anon_select": false,
+      "constraints": [
+        {
+          "name": "expense_integrity",
+          "validated": true,
+          "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+        },
+        {
+          "name": "finance_expense_settlements_amount_check",
+          "validated": true,
+          "definition": "CHECK ((amount >= (0)::numeric))"
+        },
+        {
+          "name": "finance_expense_settlements_check",
+          "validated": true,
+          "definition": "CHECK ((((mode = 'supplier_unpaid'::text) AND (amount > (0)::numeric)) OR ((mode = 'reimburse'::text) AND (payee_id IS NOT NULL) AND (amount > (0)::numeric)) OR ((mode = ANY (ARRAY['company_bank'::text, 'company_cash'::text])) AND (amount > (0)::numeric)) OR ((mode = ANY (ARRAY['undecided'::text, 'no_reimbursement'::text])) AND (amount = (0)::numeric))))"
+        },
+        {
+          "name": "finance_expense_settlements_created_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_expense_settlements_expense_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (expense_id) REFERENCES finance_expenses(id)"
+        },
+        {
+          "name": "finance_expense_settlements_expense_id_key",
+          "validated": true,
+          "definition": "UNIQUE (expense_id)"
+        },
+        {
+          "name": "finance_expense_settlements_mode_check",
+          "validated": true,
+          "definition": "CHECK ((mode = ANY (ARRAY['undecided'::text, 'company_bank'::text, 'company_cash'::text, 'supplier_unpaid'::text, 'reimburse'::text, 'no_reimbursement'::text])))"
+        },
+        {
+          "name": "finance_expense_settlements_payee_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (payee_id) REFERENCES finance_payees(id)"
+        },
+        {
+          "name": "finance_expense_settlements_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_expense_settlements_reason_check",
+          "validated": true,
+          "definition": "CHECK ((length(btrim(reason)) <= 2000))"
+        }
+      ],
+      "service_select": true,
+      "authenticated_write": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+      "rls": true,
+      "kind": "r",
+      "name": "finance_expense_tax_reviews",
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "expense_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "revision",
+          "type": "integer",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "supersedes_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "vat_state",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "vat_base",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "vat_rate",
+          "type": "numeric(7,4)",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "vat_amount",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "eligibility",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "supplier_tax_id",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "tax_document_reference",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "tax_document_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "company_name_status",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "wht_state",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "wht_base",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "wht_rate",
+          "type": "numeric(7,4)",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "wht_amount",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "wht_exception",
+          "type": "boolean",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "reason",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "request_json",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "reviewed_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "reviewed_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "finance_expense_tax_reviews_expense_id_revision_key",
+          "definition": "CREATE UNIQUE INDEX finance_expense_tax_reviews_expense_id_revision_key ON public.finance_expense_tax_reviews USING btree (expense_id, revision)"
+        },
+        {
+          "name": "finance_expense_tax_reviews_pkey",
+          "definition": "CREATE UNIQUE INDEX finance_expense_tax_reviews_pkey ON public.finance_expense_tax_reviews USING btree (id)"
+        },
+        {
+          "name": "finance_expense_tax_reviews_supersedes_id_key",
+          "definition": "CREATE UNIQUE INDEX finance_expense_tax_reviews_supersedes_id_key ON public.finance_expense_tax_reviews USING btree (supersedes_id)"
+        }
+      ],
+      "policies": [],
+      "triggers": [
+        {
+          "name": "expense_history_immutable",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_history_immutable BEFORE DELETE OR UPDATE ON public.finance_expense_tax_reviews FOR EACH ROW EXECUTE FUNCTION expense_immutable()"
+        },
+        {
+          "name": "expense_integrity",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER expense_integrity AFTER INSERT OR UPDATE ON public.finance_expense_tax_reviews DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION expense_integrity()"
+        },
+        {
+          "name": "expense_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_no_truncate BEFORE TRUNCATE ON public.finance_expense_tax_reviews FOR EACH STATEMENT EXECUTE FUNCTION expense_immutable()"
+        }
+      ],
+      "force_rls": false,
+      "anon_select": false,
+      "constraints": [
+        {
+          "name": "expense_integrity",
+          "validated": true,
+          "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+        },
+        {
+          "name": "expense_review_vat_amount",
+          "validated": true,
+          "definition": "CHECK ((((vat_state = 'exists'::text) AND (vat_base > (0)::numeric) AND (vat_rate >= (0)::numeric) AND (vat_rate <= (100)::numeric) AND (num_nonnulls(vat_base, vat_rate, vat_amount) = 3) AND ((vat_amount = round(((vat_base * vat_rate) / (100)::numeric), 2)) OR (((request_json ->> 'schema_version'::text) = '2'::text) AND ((request_json ->> 'vat_mode'::text) = 'inclusive'::text) AND (vat_base = round((((request_json #>> '{calculation,declared_amount}'::text[]))::numeric / ((1)::numeric + (vat_rate / (100)::numeric))), 2)) AND (vat_amount = (((request_json #>> '{calculation,declared_amount}'::text[]))::numeric - vat_base))))) OR ((vat_state <> 'exists'::text) AND (num_nonnulls(vat_base, vat_rate, vat_amount) = 0))))"
+        },
+        {
+          "name": "finance_expense_tax_reviews_check1",
+          "validated": true,
+          "definition": "CHECK (((eligibility <> 'eligible'::text) OR ((vat_state = 'exists'::text) AND (company_name_status = 'yes'::text) AND (supplier_tax_id IS NOT NULL) AND (NULLIF(btrim(tax_document_reference), ''::text) IS NOT NULL) AND (tax_document_date IS NOT NULL))))"
+        },
+        {
+          "name": "finance_expense_tax_reviews_check2",
+          "validated": true,
+          "definition": "CHECK (((vat_state <> 'pending'::text) OR (eligibility = 'pending'::text)))"
+        },
+        {
+          "name": "finance_expense_tax_reviews_check3",
+          "validated": true,
+          "definition": "CHECK (((vat_state <> 'none'::text) OR (eligibility = 'ineligible'::text)))"
+        },
+        {
+          "name": "finance_expense_tax_reviews_check4",
+          "validated": true,
+          "definition": "CHECK ((((wht_state = 'withhold'::text) AND (wht_base > (0)::numeric) AND (wht_rate > (0)::numeric) AND (wht_rate < (100)::numeric) AND (wht_amount = round(((wht_base * wht_rate) / (100)::numeric), 2)) AND (num_nonnulls(wht_base, wht_rate, wht_amount) = 3)) OR ((wht_state <> 'withhold'::text) AND (num_nonnulls(wht_base, wht_rate, wht_amount) = 0))))"
+        },
+        {
+          "name": "finance_expense_tax_reviews_company_name_status_check",
+          "validated": true,
+          "definition": "CHECK ((company_name_status = ANY (ARRAY['yes'::text, 'no'::text, 'unknown'::text])))"
+        },
+        {
+          "name": "finance_expense_tax_reviews_eligibility_check",
+          "validated": true,
+          "definition": "CHECK ((eligibility = ANY (ARRAY['eligible'::text, 'ineligible'::text, 'pending'::text])))"
+        },
+        {
+          "name": "finance_expense_tax_reviews_expense_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (expense_id) REFERENCES finance_expenses(id)"
+        },
+        {
+          "name": "finance_expense_tax_reviews_expense_id_revision_key",
+          "validated": true,
+          "definition": "UNIQUE (expense_id, revision)"
+        },
+        {
+          "name": "finance_expense_tax_reviews_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_expense_tax_reviews_reason_check",
+          "validated": true,
+          "definition": "CHECK ((((length(btrim(reason)) >= 1) AND (length(btrim(reason)) <= 2000)) OR ((reason = ''::text) AND (revision = 1) AND (NOT wht_exception) AND ((request_json ->> 'schema_version'::text) = '2'::text))))"
+        },
+        {
+          "name": "finance_expense_tax_reviews_request_json_check",
+          "validated": true,
+          "definition": "CHECK ((jsonb_typeof(request_json) = 'object'::text))"
+        },
+        {
+          "name": "finance_expense_tax_reviews_reviewed_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (reviewed_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_expense_tax_reviews_revision_check",
+          "validated": true,
+          "definition": "CHECK ((revision > 0))"
+        },
+        {
+          "name": "finance_expense_tax_reviews_supersedes_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (supersedes_id) REFERENCES finance_expense_tax_reviews(id)"
+        },
+        {
+          "name": "finance_expense_tax_reviews_supersedes_id_key",
+          "validated": true,
+          "definition": "UNIQUE (supersedes_id)"
+        },
+        {
+          "name": "finance_expense_tax_reviews_supplier_tax_id_check",
+          "validated": true,
+          "definition": "CHECK ((supplier_tax_id ~ '^[0-9]{13}$'::text))"
+        },
+        {
+          "name": "finance_expense_tax_reviews_vat_state_check",
+          "validated": true,
+          "definition": "CHECK ((vat_state = ANY (ARRAY['none'::text, 'exists'::text, 'pending'::text])))"
+        },
+        {
+          "name": "finance_expense_tax_reviews_wht_state_check",
+          "validated": true,
+          "definition": "CHECK ((wht_state = ANY (ARRAY['none'::text, 'withhold'::text, 'pending'::text])))"
+        }
+      ],
+      "service_select": true,
+      "authenticated_write": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+      "rls": true,
+      "kind": "r",
+      "name": "finance_expenses",
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "origin",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "legacy_claim_id",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "reference",
+          "type": "text",
+          "default": "('EXP-'::text || upper((id)::text))",
+          "identity": "",
+          "not_null": false,
+          "generated": "s"
+        },
+        {
+          "acl": null,
+          "name": "status",
+          "type": "text",
+          "default": "'draft'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "version",
+          "type": "integer",
+          "default": "1",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "expense_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "description",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "category",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "vendor_name",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "supplier_payee_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "claimant_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "client_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "case_id",
+          "type": "bigint",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "advisory_matter_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "currency",
+          "type": "text",
+          "default": "'THB'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "gross_amount",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "personally_paid",
+          "type": "boolean",
+          "default": "false",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "reimbursement_requested",
+          "type": "numeric(14,2)",
+          "default": "0",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "vat_awareness",
+          "type": "text",
+          "default": "'unknown'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "wht_awareness",
+          "type": "text",
+          "default": "'unknown'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "note",
+          "type": "text",
+          "default": "''::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "submitted_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "reviewed_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "reviewed_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "review_reason",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "updated_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "creator_payment_fact",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "expense_claim_owner",
+          "definition": "CREATE INDEX expense_claim_owner ON public.finance_expenses USING btree (claimant_id, created_at, id)"
+        },
+        {
+          "name": "expense_review_queue",
+          "definition": "CREATE INDEX expense_review_queue ON public.finance_expenses USING btree (status, expense_date, id)"
+        },
+        {
+          "name": "finance_expenses_legacy_claim_id_key",
+          "definition": "CREATE UNIQUE INDEX finance_expenses_legacy_claim_id_key ON public.finance_expenses USING btree (legacy_claim_id)"
+        },
+        {
+          "name": "finance_expenses_pkey",
+          "definition": "CREATE UNIQUE INDEX finance_expenses_pkey ON public.finance_expenses USING btree (id)"
+        },
+        {
+          "name": "finance_expenses_reference_key",
+          "definition": "CREATE UNIQUE INDEX finance_expenses_reference_key ON public.finance_expenses USING btree (reference)"
+        }
+      ],
+      "policies": [],
+      "triggers": [
+        {
+          "name": "expense_history_immutable",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_history_immutable BEFORE DELETE OR UPDATE ON public.finance_expenses FOR EACH ROW EXECUTE FUNCTION expense_immutable()"
+        },
+        {
+          "name": "expense_integrity",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER expense_integrity AFTER INSERT OR UPDATE ON public.finance_expenses DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION expense_integrity()"
+        },
+        {
+          "name": "expense_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_no_truncate BEFORE TRUNCATE ON public.finance_expenses FOR EACH STATEMENT EXECUTE FUNCTION expense_immutable()"
+        },
+        {
+          "name": "expense_request_submission_time",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_request_submission_time BEFORE UPDATE ON public.finance_expenses FOR EACH ROW EXECUTE FUNCTION expense_request_guard()"
+        }
+      ],
+      "force_rls": false,
+      "anon_select": false,
+      "constraints": [
+        {
+          "name": "expense_creator_payment_fact_contract",
+          "validated": true,
+          "definition": "CHECK (((creator_payment_fact IS NULL) OR ((origin = 'company_purchase'::text) AND (creator_payment_fact = ANY (ARRAY['unpaid'::text, 'company_paid'::text, 'personal_paid'::text, 'unknown'::text])))))"
+        },
+        {
+          "name": "expense_integrity",
+          "validated": true,
+          "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+        },
+        {
+          "name": "expense_review_actor_reason",
+          "validated": true,
+          "definition": "CHECK ((((status = ANY (ARRAY['accepted'::text, 'rejected'::text])) = ((reviewed_at IS NOT NULL) AND (reviewed_by IS NOT NULL))) AND ((status <> ALL (ARRAY['accepted'::text, 'rejected'::text])) OR ((origin = 'company_purchase'::text) AND (NOT personally_paid) AND (status = 'accepted'::text)) OR (NULLIF(btrim(review_reason), ''::text) IS NOT NULL))))"
+        },
+        {
+          "name": "finance_expenses_advisory_matter_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (advisory_matter_id) REFERENCES advisory_matters(id)"
+        },
+        {
+          "name": "finance_expenses_case_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (case_id) REFERENCES cases(id)"
+        },
+        {
+          "name": "finance_expenses_category_check",
+          "validated": true,
+          "definition": "CHECK (((length(btrim(category)) >= 1) AND (length(btrim(category)) <= 150)))"
+        },
+        {
+          "name": "finance_expenses_check",
+          "validated": true,
+          "definition": "CHECK (((reimbursement_requested >= (0)::numeric) AND (reimbursement_requested <= gross_amount)))"
+        },
+        {
+          "name": "finance_expenses_check1",
+          "validated": true,
+          "definition": "CHECK (((origin = 'legacy_claim'::text) = (legacy_claim_id IS NOT NULL)))"
+        },
+        {
+          "name": "finance_expenses_check2",
+          "validated": true,
+          "definition": "CHECK (((origin <> 'employee_claim'::text) OR (claimant_id = created_by)))"
+        },
+        {
+          "name": "finance_expenses_check3",
+          "validated": true,
+          "definition": "CHECK (((NOT personally_paid) OR (claimant_id IS NOT NULL)))"
+        },
+        {
+          "name": "finance_expenses_check4",
+          "validated": true,
+          "definition": "CHECK ((personally_paid OR (reimbursement_requested = (0)::numeric)))"
+        },
+        {
+          "name": "finance_expenses_check5",
+          "validated": true,
+          "definition": "CHECK (((case_id IS NULL) OR (advisory_matter_id IS NULL)))"
+        },
+        {
+          "name": "finance_expenses_check6",
+          "validated": true,
+          "definition": "CHECK (((status = 'draft'::text) OR (submitted_at IS NOT NULL)))"
+        },
+        {
+          "name": "finance_expenses_claimant_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (claimant_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_expenses_client_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (client_id) REFERENCES clients(id)"
+        },
+        {
+          "name": "finance_expenses_created_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_expenses_currency_check",
+          "validated": true,
+          "definition": "CHECK ((currency = 'THB'::text))"
+        },
+        {
+          "name": "finance_expenses_description_check",
+          "validated": true,
+          "definition": "CHECK ((length(btrim(description)) <= 2000))"
+        },
+        {
+          "name": "finance_expenses_gross_amount_check",
+          "validated": true,
+          "definition": "CHECK ((gross_amount > (0)::numeric))"
+        },
+        {
+          "name": "finance_expenses_legacy_claim_id_key",
+          "validated": true,
+          "definition": "UNIQUE (legacy_claim_id)"
+        },
+        {
+          "name": "finance_expenses_note_check",
+          "validated": true,
+          "definition": "CHECK ((length(note) <= 2000))"
+        },
+        {
+          "name": "finance_expenses_origin_check",
+          "validated": true,
+          "definition": "CHECK ((origin = ANY (ARRAY['company_purchase'::text, 'employee_claim'::text, 'legacy_claim'::text])))"
+        },
+        {
+          "name": "finance_expenses_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_expenses_reference_key",
+          "validated": true,
+          "definition": "UNIQUE (reference)"
+        },
+        {
+          "name": "finance_expenses_reviewed_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (reviewed_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_expenses_status_check",
+          "validated": true,
+          "definition": "CHECK ((status = ANY (ARRAY['draft'::text, 'submitted'::text, 'accepted'::text, 'rejected'::text])))"
+        },
+        {
+          "name": "finance_expenses_supplier_payee_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (supplier_payee_id) REFERENCES finance_payees(id)"
+        },
+        {
+          "name": "finance_expenses_updated_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (updated_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_expenses_vat_awareness_check",
+          "validated": true,
+          "definition": "CHECK ((vat_awareness = ANY (ARRAY['yes'::text, 'no'::text, 'unknown'::text])))"
+        },
+        {
+          "name": "finance_expenses_vendor_name_check",
+          "validated": true,
+          "definition": "CHECK ((length(vendor_name) <= 300))"
+        },
+        {
+          "name": "finance_expenses_version_check",
+          "validated": true,
+          "definition": "CHECK ((version > 0))"
+        },
+        {
+          "name": "finance_expenses_wht_awareness_check",
+          "validated": true,
+          "definition": "CHECK ((wht_awareness = ANY (ARRAY['yes'::text, 'no'::text, 'unknown'::text])))"
+        }
+      ],
+      "service_select": true,
+      "authenticated_write": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}",
+      "rls": true,
+      "kind": "r",
+      "name": "finance_outgoing_wht_obligations",
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "payout_source_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "source_line_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "source_fingerprint",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "payee_json",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "gross_base",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "explicit_treatment",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "explicit_rate",
+          "type": "numeric(7,4)",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "withheld_amount",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "withheld_on",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "period_month",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "currency",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "evidence_json",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "filing_status",
+          "type": "text",
+          "default": "'unfiled'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "remittance_status",
+          "type": "text",
+          "default": "'not_remitted'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "remitted_amount",
+          "type": "numeric(14,2)",
+          "default": "0",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "finance_outgoing_wht_obligati_payout_source_id_source_line__key",
+          "definition": "CREATE UNIQUE INDEX finance_outgoing_wht_obligati_payout_source_id_source_line__key ON public.finance_outgoing_wht_obligations USING btree (payout_source_id, source_line_id, source_fingerprint)"
+        },
+        {
+          "name": "finance_outgoing_wht_obligations_pkey",
+          "definition": "CREATE UNIQUE INDEX finance_outgoing_wht_obligations_pkey ON public.finance_outgoing_wht_obligations USING btree (id)"
+        },
+        {
+          "name": "payout_wht_once",
+          "definition": "CREATE UNIQUE INDEX payout_wht_once ON public.finance_outgoing_wht_obligations USING btree (source_line_id)"
+        }
+      ],
+      "policies": [
+        {
+          "cmd": "SELECT",
+          "qual": "tax_position_can_view()",
+          "roles": [
+            "authenticated"
+          ],
+          "tablename": "finance_outgoing_wht_obligations",
+          "permissive": "PERMISSIVE",
+          "policyname": "tax_position_read",
+          "schemaname": "public",
+          "with_check": null
+        }
+      ],
+      "triggers": [
+        {
+          "name": "payout_wht_immutable",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER payout_wht_immutable BEFORE DELETE OR UPDATE ON public.finance_outgoing_wht_obligations FOR EACH ROW EXECUTE FUNCTION tax_position_immutable()"
+        },
+        {
+          "name": "payout_wht_integrity",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER payout_wht_integrity AFTER INSERT ON public.finance_outgoing_wht_obligations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION payout_integrity()"
+        },
+        {
+          "name": "tax_position_no_rewrite",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER tax_position_no_rewrite BEFORE DELETE OR UPDATE ON public.finance_outgoing_wht_obligations FOR EACH ROW EXECUTE FUNCTION tax_position_immutable()"
+        },
+        {
+          "name": "tax_position_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER tax_position_no_truncate BEFORE TRUNCATE ON public.finance_outgoing_wht_obligations FOR EACH STATEMENT EXECUTE FUNCTION tax_position_immutable()"
+        }
+      ],
+      "force_rls": false,
+      "anon_select": false,
+      "constraints": [
+        {
+          "name": "finance_outgoing_wht_obligati_payout_source_id_source_line__key",
+          "validated": true,
+          "definition": "UNIQUE (payout_source_id, source_line_id, source_fingerprint)"
+        },
+        {
+          "name": "finance_outgoing_wht_obligations_check",
+          "validated": true,
+          "definition": "CHECK ((withheld_amount = round(((gross_base * explicit_rate) / (100)::numeric), 2)))"
+        },
+        {
+          "name": "finance_outgoing_wht_obligations_check1",
+          "validated": true,
+          "definition": "CHECK ((period_month = (date_trunc('month'::text, (withheld_on)::timestamp with time zone))::date))"
+        },
+        {
+          "name": "finance_outgoing_wht_obligations_check2",
+          "validated": true,
+          "definition": "CHECK (((remitted_amount >= (0)::numeric) AND (remitted_amount <= withheld_amount)))"
+        },
+        {
+          "name": "finance_outgoing_wht_obligations_currency_check",
+          "validated": true,
+          "definition": "CHECK ((currency = 'THB'::text))"
+        },
+        {
+          "name": "finance_outgoing_wht_obligations_evidence_json_check",
+          "validated": true,
+          "definition": "CHECK ((jsonb_typeof(evidence_json) = 'object'::text))"
+        },
+        {
+          "name": "finance_outgoing_wht_obligations_explicit_rate_check",
+          "validated": true,
+          "definition": "CHECK (((explicit_rate > (0)::numeric) AND (explicit_rate <= (100)::numeric)))"
+        },
+        {
+          "name": "finance_outgoing_wht_obligations_filing_status_check",
+          "validated": true,
+          "definition": "CHECK ((filing_status = ANY (ARRAY['unfiled'::text, 'filed'::text])))"
+        },
+        {
+          "name": "finance_outgoing_wht_obligations_gross_base_check",
+          "validated": true,
+          "definition": "CHECK ((gross_base > (0)::numeric))"
+        },
+        {
+          "name": "finance_outgoing_wht_obligations_payee_json_check",
+          "validated": true,
+          "definition": "CHECK ((jsonb_typeof(payee_json) = 'object'::text))"
+        },
+        {
+          "name": "finance_outgoing_wht_obligations_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_outgoing_wht_obligations_remittance_status_check",
+          "validated": true,
+          "definition": "CHECK ((remittance_status = ANY (ARRAY['not_remitted'::text, 'partially_remitted'::text, 'remitted'::text])))"
+        },
+        {
+          "name": "payout_wht_component",
+          "validated": true,
+          "definition": "FOREIGN KEY (source_line_id) REFERENCES finance_payout_allocations(id)"
+        },
+        {
+          "name": "payout_wht_integrity",
+          "validated": true,
+          "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+        },
+        {
+          "name": "payout_wht_source",
+          "validated": true,
+          "definition": "FOREIGN KEY (payout_source_id) REFERENCES finance_payouts(id)"
+        }
+      ],
+      "service_select": true,
+      "authenticated_write": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+      "rls": true,
+      "kind": "r",
+      "name": "finance_payee_destinations",
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "payee_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "bank_name",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "account_name",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "account_number",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "is_active",
+          "type": "boolean",
+          "default": "true",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "finance_payee_destinations_payee_id_id_key",
+          "definition": "CREATE UNIQUE INDEX finance_payee_destinations_payee_id_id_key ON public.finance_payee_destinations USING btree (payee_id, id)"
+        },
+        {
+          "name": "finance_payee_destinations_pkey",
+          "definition": "CREATE UNIQUE INDEX finance_payee_destinations_pkey ON public.finance_payee_destinations USING btree (id)"
+        },
+        {
+          "name": "payout_destination_current",
+          "definition": "CREATE UNIQUE INDEX payout_destination_current ON public.finance_payee_destinations USING btree (payee_id) WHERE is_active"
+        }
+      ],
+      "policies": [],
+      "triggers": [
+        {
+          "name": "payout_immutable",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER payout_immutable BEFORE DELETE OR UPDATE ON public.finance_payee_destinations FOR EACH ROW EXECUTE FUNCTION payout_immutable()"
+        },
+        {
+          "name": "payout_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER payout_no_truncate BEFORE TRUNCATE ON public.finance_payee_destinations FOR EACH STATEMENT EXECUTE FUNCTION payout_immutable()"
+        }
+      ],
+      "force_rls": false,
+      "anon_select": false,
+      "constraints": [
+        {
+          "name": "finance_payee_destinations_account_name_check",
+          "validated": true,
+          "definition": "CHECK (((length(btrim(account_name)) >= 1) AND (length(btrim(account_name)) <= 300)))"
+        },
+        {
+          "name": "finance_payee_destinations_account_number_check",
+          "validated": true,
+          "definition": "CHECK (((length(btrim(account_number)) >= 4) AND (length(btrim(account_number)) <= 50)))"
+        },
+        {
+          "name": "finance_payee_destinations_bank_name_check",
+          "validated": true,
+          "definition": "CHECK (((length(btrim(bank_name)) >= 1) AND (length(btrim(bank_name)) <= 200)))"
+        },
+        {
+          "name": "finance_payee_destinations_created_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_payee_destinations_payee_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (payee_id) REFERENCES finance_payees(id)"
+        },
+        {
+          "name": "finance_payee_destinations_payee_id_id_key",
+          "validated": true,
+          "definition": "UNIQUE (payee_id, id)"
+        },
+        {
+          "name": "finance_payee_destinations_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "service_select": true,
+      "authenticated_write": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+      "rls": true,
+      "kind": "r",
+      "name": "finance_payees",
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "kind",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "profile_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "entity_type",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "legal_name",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "tax_id",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "is_active",
+          "type": "boolean",
+          "default": "true",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "version",
+          "type": "integer",
+          "default": "1",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "updated_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "finance_payees_pkey",
+          "definition": "CREATE UNIQUE INDEX finance_payees_pkey ON public.finance_payees USING btree (id)"
+        },
+        {
+          "name": "finance_payees_profile_id_key",
+          "definition": "CREATE UNIQUE INDEX finance_payees_profile_id_key ON public.finance_payees USING btree (profile_id)"
+        }
+      ],
+      "policies": [],
+      "triggers": [
+        {
+          "name": "payout_immutable",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER payout_immutable BEFORE DELETE OR UPDATE ON public.finance_payees FOR EACH ROW EXECUTE FUNCTION payout_immutable()"
+        },
+        {
+          "name": "payout_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER payout_no_truncate BEFORE TRUNCATE ON public.finance_payees FOR EACH STATEMENT EXECUTE FUNCTION payout_immutable()"
+        }
+      ],
+      "force_rls": false,
+      "anon_select": false,
+      "constraints": [
+        {
+          "name": "finance_payees_check",
+          "validated": true,
+          "definition": "CHECK ((((kind = 'internal'::text) AND (profile_id = id) AND (entity_type = 'natural_person'::text)) OR ((kind = 'external'::text) AND (profile_id IS NULL))))"
+        },
+        {
+          "name": "finance_payees_created_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_payees_entity_type_check",
+          "validated": true,
+          "definition": "CHECK ((entity_type = ANY (ARRAY['natural_person'::text, 'juristic_person'::text])))"
+        },
+        {
+          "name": "finance_payees_kind_check",
+          "validated": true,
+          "definition": "CHECK ((kind = ANY (ARRAY['internal'::text, 'external'::text])))"
+        },
+        {
+          "name": "finance_payees_legal_name_check",
+          "validated": true,
+          "definition": "CHECK (((length(btrim(legal_name)) >= 1) AND (length(btrim(legal_name)) <= 300)))"
+        },
+        {
+          "name": "finance_payees_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_payees_profile_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (profile_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_payees_profile_id_key",
+          "validated": true,
+          "definition": "UNIQUE (profile_id)"
+        },
+        {
+          "name": "finance_payees_tax_id_check",
+          "validated": true,
+          "definition": "CHECK ((tax_id ~ '^[0-9]{13}$'::text))"
+        },
+        {
+          "name": "finance_payees_updated_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (updated_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_payees_version_check",
+          "validated": true,
+          "definition": "CHECK ((version > 0))"
+        }
+      ],
+      "service_select": true,
+      "authenticated_write": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+      "rls": true,
+      "kind": "r",
+      "name": "finance_payout_allocations",
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "payout_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "entitlement_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "gross_amount",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "treatment",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "rate",
+          "type": "numeric(7,4)",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "wht_amount",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "evidence_json",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "expense_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "expense_obligation_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "wht_base",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "finance_payout_allocations_entitlement_id_key",
+          "definition": "CREATE UNIQUE INDEX finance_payout_allocations_entitlement_id_key ON public.finance_payout_allocations USING btree (entitlement_id)"
+        },
+        {
+          "name": "finance_payout_allocations_expense_id_key",
+          "definition": "CREATE UNIQUE INDEX finance_payout_allocations_expense_id_key ON public.finance_payout_allocations USING btree (expense_id)"
+        },
+        {
+          "name": "finance_payout_allocations_expense_obligation_id_key",
+          "definition": "CREATE UNIQUE INDEX finance_payout_allocations_expense_obligation_id_key ON public.finance_payout_allocations USING btree (expense_obligation_id)"
+        },
+        {
+          "name": "finance_payout_allocations_pkey",
+          "definition": "CREATE UNIQUE INDEX finance_payout_allocations_pkey ON public.finance_payout_allocations USING btree (id)"
+        }
+      ],
+      "policies": [],
+      "triggers": [
+        {
+          "name": "payout_allocation_integrity",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER payout_allocation_integrity AFTER INSERT ON public.finance_payout_allocations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION payout_integrity()"
+        },
+        {
+          "name": "payout_immutable",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER payout_immutable BEFORE DELETE OR UPDATE ON public.finance_payout_allocations FOR EACH ROW EXECUTE FUNCTION payout_immutable()"
+        },
+        {
+          "name": "payout_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER payout_no_truncate BEFORE TRUNCATE ON public.finance_payout_allocations FOR EACH STATEMENT EXECUTE FUNCTION payout_immutable()"
+        }
+      ],
+      "force_rls": false,
+      "anon_select": false,
+      "constraints": [
+        {
+          "name": "expense_allocation_source",
+          "validated": true,
+          "definition": "CHECK (((num_nonnulls(entitlement_id, expense_id) = 1) AND ((expense_obligation_id IS NULL) OR (expense_id IS NOT NULL)) AND ((expense_id IS NULL) OR (wht_base IS NOT NULL))))"
+        },
+        {
+          "name": "finance_payout_allocations_check",
+          "validated": true,
+          "definition": "CHECK ((wht_amount = round(((COALESCE(wht_base, gross_amount) * rate) / (100)::numeric), 2)))"
+        },
+        {
+          "name": "finance_payout_allocations_check1",
+          "validated": true,
+          "definition": "CHECK ((((treatment = 'none'::text) AND (rate = (0)::numeric)) OR ((treatment = 'withhold'::text) AND (rate > (0)::numeric) AND (rate < (100)::numeric))))"
+        },
+        {
+          "name": "finance_payout_allocations_entitlement_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (entitlement_id) REFERENCES finance_payable_entitlements(id)"
+        },
+        {
+          "name": "finance_payout_allocations_entitlement_id_key",
+          "validated": true,
+          "definition": "UNIQUE (entitlement_id)"
+        },
+        {
+          "name": "finance_payout_allocations_evidence_json_check",
+          "validated": true,
+          "definition": "CHECK ((jsonb_typeof(evidence_json) = 'object'::text))"
+        },
+        {
+          "name": "finance_payout_allocations_expense_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (expense_id) REFERENCES finance_expenses(id)"
+        },
+        {
+          "name": "finance_payout_allocations_expense_id_key",
+          "validated": true,
+          "definition": "UNIQUE (expense_id)"
+        },
+        {
+          "name": "finance_payout_allocations_expense_obligation_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (expense_obligation_id) REFERENCES finance_expense_obligations(id)"
+        },
+        {
+          "name": "finance_payout_allocations_expense_obligation_id_key",
+          "validated": true,
+          "definition": "UNIQUE (expense_obligation_id)"
+        },
+        {
+          "name": "finance_payout_allocations_gross_amount_check",
+          "validated": true,
+          "definition": "CHECK ((gross_amount > (0)::numeric))"
+        },
+        {
+          "name": "finance_payout_allocations_payout_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (payout_id) REFERENCES finance_payouts(id)"
+        },
+        {
+          "name": "finance_payout_allocations_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_payout_allocations_treatment_check",
+          "validated": true,
+          "definition": "CHECK ((treatment = ANY (ARRAY['none'::text, 'withhold'::text])))"
+        },
+        {
+          "name": "finance_payout_allocations_wht_base_check",
+          "validated": true,
+          "definition": "CHECK ((wht_base >= (0)::numeric))"
+        },
+        {
+          "name": "payout_allocation_integrity",
+          "validated": true,
+          "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+        }
+      ],
+      "service_select": true,
+      "authenticated_write": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+      "rls": true,
+      "kind": "r",
+      "name": "finance_payout_audit",
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "payout_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "event_type",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "version",
+          "type": "integer",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "actor_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "evidence_json",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "finance_payout_audit_payout_id_version_key",
+          "definition": "CREATE UNIQUE INDEX finance_payout_audit_payout_id_version_key ON public.finance_payout_audit USING btree (payout_id, version)"
+        },
+        {
+          "name": "finance_payout_audit_pkey",
+          "definition": "CREATE UNIQUE INDEX finance_payout_audit_pkey ON public.finance_payout_audit USING btree (id)"
+        }
+      ],
+      "policies": [],
+      "triggers": [
+        {
+          "name": "payout_audit_integrity",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER payout_audit_integrity AFTER INSERT ON public.finance_payout_audit DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION payout_integrity()"
+        },
+        {
+          "name": "payout_immutable",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER payout_immutable BEFORE DELETE OR UPDATE ON public.finance_payout_audit FOR EACH ROW EXECUTE FUNCTION payout_immutable()"
+        },
+        {
+          "name": "payout_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER payout_no_truncate BEFORE TRUNCATE ON public.finance_payout_audit FOR EACH STATEMENT EXECUTE FUNCTION payout_immutable()"
+        }
+      ],
+      "force_rls": false,
+      "anon_select": false,
+      "constraints": [
+        {
+          "name": "finance_payout_audit_actor_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (actor_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_payout_audit_event_type_check",
+          "validated": true,
+          "definition": "CHECK ((event_type = ANY (ARRAY['saved'::text, 'confirmed'::text, 'cancelled'::text])))"
+        },
+        {
+          "name": "finance_payout_audit_evidence_json_check",
+          "validated": true,
+          "definition": "CHECK ((jsonb_typeof(evidence_json) = 'object'::text))"
+        },
+        {
+          "name": "finance_payout_audit_payout_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (payout_id) REFERENCES finance_payouts(id)"
+        },
+        {
+          "name": "finance_payout_audit_payout_id_version_key",
+          "validated": true,
+          "definition": "UNIQUE (payout_id, version)"
+        },
+        {
+          "name": "finance_payout_audit_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "payout_audit_integrity",
+          "validated": true,
+          "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+        }
+      ],
+      "service_select": true,
+      "authenticated_write": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+      "rls": true,
+      "kind": "r",
+      "name": "finance_payouts",
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "payee_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "status",
+          "type": "text",
+          "default": "'draft'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "version",
+          "type": "integer",
+          "default": "1",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "paid_on",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "bank_account_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "cash_location_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "currency",
+          "type": "text",
+          "default": "'THB'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "choices_json",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "gross_amount",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "wht_amount",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "net_amount",
+          "type": "numeric(14,2)",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "note",
+          "type": "text",
+          "default": "''::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "confirmed_snapshot_json",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "confirmed_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "confirmed_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "cancelled_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "cancelled_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "updated_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "source_model",
+          "type": "text",
+          "default": "'revenue_distribution_v1'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "finance_payouts_pkey",
+          "definition": "CREATE UNIQUE INDEX finance_payouts_pkey ON public.finance_payouts USING btree (id)"
+        }
+      ],
+      "policies": [],
+      "triggers": [
+        {
+          "name": "expense_payout_model_guard",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_payout_model_guard BEFORE UPDATE ON public.finance_payouts FOR EACH ROW EXECUTE FUNCTION expense_payout_model_guard()"
+        },
+        {
+          "name": "payout_immutable",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER payout_immutable BEFORE DELETE OR UPDATE ON public.finance_payouts FOR EACH ROW EXECUTE FUNCTION payout_immutable()"
+        },
+        {
+          "name": "payout_integrity",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER payout_integrity AFTER INSERT OR UPDATE ON public.finance_payouts DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION payout_integrity()"
+        },
+        {
+          "name": "payout_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER payout_no_truncate BEFORE TRUNCATE ON public.finance_payouts FOR EACH STATEMENT EXECUTE FUNCTION payout_immutable()"
+        }
+      ],
+      "force_rls": false,
+      "anon_select": false,
+      "constraints": [
+        {
+          "name": "expense_payout_payee_contract",
+          "validated": true,
+          "definition": "CHECK (((source_model = 'expense_v1'::text) OR (payee_id IS NOT NULL)))"
+        },
+        {
+          "name": "finance_payouts_bank_account_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (bank_account_id) REFERENCES finance_bank_accounts(id)"
+        },
+        {
+          "name": "finance_payouts_cancelled_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (cancelled_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_payouts_cash_location_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (cash_location_id) REFERENCES finance_cash_locations(id)"
+        },
+        {
+          "name": "finance_payouts_check",
+          "validated": true,
+          "definition": "CHECK (((net_amount > (0)::numeric) AND (net_amount = (gross_amount - wht_amount))))"
+        },
+        {
+          "name": "finance_payouts_check1",
+          "validated": true,
+          "definition": "CHECK ((num_nonnulls(bank_account_id, cash_location_id) = 1))"
+        },
+        {
+          "name": "finance_payouts_check2",
+          "validated": true,
+          "definition": "CHECK (((status = 'confirmed'::text) = ((confirmed_at IS NOT NULL) AND (confirmed_by IS NOT NULL) AND (confirmed_snapshot_json IS NOT NULL))))"
+        },
+        {
+          "name": "finance_payouts_check3",
+          "validated": true,
+          "definition": "CHECK (((status = 'cancelled'::text) = ((cancelled_at IS NOT NULL) AND (cancelled_by IS NOT NULL))))"
+        },
+        {
+          "name": "finance_payouts_choices_json_check",
+          "validated": true,
+          "definition": "CHECK (((jsonb_typeof(choices_json) = 'array'::text) AND ((jsonb_array_length(choices_json) >= 1) AND (jsonb_array_length(choices_json) <= 100))))"
+        },
+        {
+          "name": "finance_payouts_confirmed_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (confirmed_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_payouts_created_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (created_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_payouts_currency_check",
+          "validated": true,
+          "definition": "CHECK ((currency = 'THB'::text))"
+        },
+        {
+          "name": "finance_payouts_gross_amount_check",
+          "validated": true,
+          "definition": "CHECK ((gross_amount > (0)::numeric))"
+        },
+        {
+          "name": "finance_payouts_note_check",
+          "validated": true,
+          "definition": "CHECK ((length(note) <= 2000))"
+        },
+        {
+          "name": "finance_payouts_payee_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (payee_id) REFERENCES finance_payees(id)"
+        },
+        {
+          "name": "finance_payouts_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_payouts_source_model_check",
+          "validated": true,
+          "definition": "CHECK ((source_model = ANY (ARRAY['revenue_distribution_v1'::text, 'expense_v1'::text])))"
+        },
+        {
+          "name": "finance_payouts_status_check",
+          "validated": true,
+          "definition": "CHECK ((status = ANY (ARRAY['draft'::text, 'confirmed'::text, 'cancelled'::text])))"
+        },
+        {
+          "name": "finance_payouts_updated_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (updated_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_payouts_version_check",
+          "validated": true,
+          "definition": "CHECK ((version > 0))"
+        },
+        {
+          "name": "finance_payouts_wht_amount_check",
+          "validated": true,
+          "definition": "CHECK ((wht_amount >= (0)::numeric))"
+        },
+        {
+          "name": "payout_integrity",
+          "validated": true,
+          "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+        }
+      ],
+      "service_select": true,
+      "authenticated_write": false
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+      "rls": true,
+      "kind": "r",
+      "name": "finance_treasury_account_authorities",
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "user_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "bank_account_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "cash_location_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "view_balance",
+          "type": "boolean",
+          "default": "false",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "view_movements",
+          "type": "boolean",
+          "default": "false",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "record_outflow",
+          "type": "boolean",
+          "default": "false",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "confirm_outflow",
+          "type": "boolean",
+          "default": "false",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "version",
+          "type": "integer",
+          "default": "1",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "updated_by",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "expense_account_bank_authority",
+          "definition": "CREATE UNIQUE INDEX expense_account_bank_authority ON public.finance_treasury_account_authorities USING btree (user_id, bank_account_id) WHERE (bank_account_id IS NOT NULL)"
+        },
+        {
+          "name": "expense_account_cash_authority",
+          "definition": "CREATE UNIQUE INDEX expense_account_cash_authority ON public.finance_treasury_account_authorities USING btree (user_id, cash_location_id) WHERE (cash_location_id IS NOT NULL)"
+        },
+        {
+          "name": "finance_treasury_account_authorities_pkey",
+          "definition": "CREATE UNIQUE INDEX finance_treasury_account_authorities_pkey ON public.finance_treasury_account_authorities USING btree (id)"
+        }
+      ],
+      "policies": [],
+      "triggers": [
+        {
+          "name": "expense_history_immutable",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_history_immutable BEFORE DELETE OR UPDATE ON public.finance_treasury_account_authorities FOR EACH ROW EXECUTE FUNCTION expense_immutable()"
+        },
+        {
+          "name": "expense_no_truncate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER expense_no_truncate BEFORE TRUNCATE ON public.finance_treasury_account_authorities FOR EACH STATEMENT EXECUTE FUNCTION expense_immutable()"
+        }
+      ],
+      "force_rls": false,
+      "anon_select": false,
+      "constraints": [
+        {
+          "name": "finance_treasury_account_authorities_bank_account_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (bank_account_id) REFERENCES finance_bank_accounts(id)"
+        },
+        {
+          "name": "finance_treasury_account_authorities_cash_location_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (cash_location_id) REFERENCES finance_cash_locations(id)"
+        },
+        {
+          "name": "finance_treasury_account_authorities_check",
+          "validated": true,
+          "definition": "CHECK ((num_nonnulls(bank_account_id, cash_location_id) = 1))"
+        },
+        {
+          "name": "finance_treasury_account_authorities_check1",
+          "validated": true,
+          "definition": "CHECK (((NOT confirm_outflow) OR record_outflow))"
+        },
+        {
+          "name": "finance_treasury_account_authorities_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "finance_treasury_account_authorities_updated_by_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (updated_by) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_treasury_account_authorities_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (user_id) REFERENCES user_profiles(id)"
+        },
+        {
+          "name": "finance_treasury_account_authorities_version_check",
+          "validated": true,
+          "definition": "CHECK ((version > 0))"
+        }
+      ],
+      "service_select": true,
+      "authenticated_write": false
+    }
+  ]
+}

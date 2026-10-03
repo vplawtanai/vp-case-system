@@ -1,0 +1,6 @@
+{
+  "source": "Human-reviewed fresh 088 Production SELECT-only Preflight PASS; exact reviewed values, not local fixture hashes",
+  "candidate_sha256": "79ebc328357144bc11ce3884924fc9361f1889fe8609adc602c05062ff8828cd",
+  "rows_sha256": "f729f91c43b25dc5103e267139444243fdc07cd34c6c1bca3813d7523e91ebff",
+  "preserved_sha256": "6762f93d45ac5ffa51633fbce5f72eb9ce1b3b907492036dfa5da7fcd308fb63"
+}
