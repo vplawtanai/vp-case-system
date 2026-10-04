@@ -9,9 +9,10 @@ import {PayeeModal} from '../payouts/payee-modal';
 import type {Payee} from '../payouts/shared';
 import {payrollRequest} from './client';
 import {payrollText,payrollError,type PayrollLabel} from './labels';
-import {effective,payrollPeopleOptions,netPay,accountKey,type PayrollData,type Person} from './model';
+import {effective,payrollPeopleOptions,netPay,accountKey,type Person} from './model';
 import {mt,monthLabel,dateLabel,shiftMonth,selectedNet,lineIdentity,monthlyFacts,knownMonthlyFacts,monthlyError,monthlyText,type MonthlyRow,type WorkspaceData,type MonthlyLabel} from './monthly';
 import {st,workspacePeople,recurringRate,readyForConfirmation,type SingleLabel} from './single-page';
+import {setupTarget,setupChange,setupLabel,type SetupIntent} from './setup';
 import css from './payroll.module.css';
 const Feedback=createContext('');
 function DetailModal(props:DetailModalProps){const error=useContext(Feedback);return <BaseModal {...props}>{error&&<p className={css.error} role="alert">{error}</p>}{props.children}</BaseModal>;}
@@ -93,10 +94,13 @@ function CorrectionModal({correction,hash,busy,onClose,onChange}:{correction:{ki
  const {locale}=useI18n(),title=st(locale,correction.kind==='setup'?'deleteSetup':correction.kind==='rate'?'deleteRate':'reset');
  return <DetailModal open title={title} size="confirm" onClose={onClose} closeOnBackdrop={!busy}><PayrollForm className={css.form} onSubmit={async e=>{const reason=String(new FormData(e.currentTarget).get('reason')||'').trim();if(await onChange({action:'correct',payload:{...correction,expected_hash:hash,reason}}))onClose();}}><strong>{correction.name}</strong><p>{st(locale,correction.kind==='line'?'resetHint':'deleteHint')}</p>{correction.kind!=='line'&&correction.affected>0&&<p className={css.warning}>{st(locale,'affected').replace('{n}',String(correction.affected))}</p>}<Field label={payrollText(locale,'reason')}><textarea name="reason" required maxLength={2000} disabled={busy}/></Field><div className={css.actions}><button type="button" className={ui.secondary} disabled={busy} onClick={onClose}>{st(locale,'cancel')}</button><button className={ui.danger} disabled={busy||!hash}>{st(locale,'confirmDelete')}</button></div></PayrollForm></DetailModal>;
 }
-function PersonForm({mode,data,person,t,busy,onClose,onChange}:{mode:'engagement'|'end_engagement'|'rate';data:PayrollData;person:Person|null;t:Text;busy:boolean;onClose:()=>void;onChange:Change}){
+function PersonForm({mode,data,person,t,busy,onClose,onChange}:{mode:'engagement'|'end_engagement'|'rate';data:WorkspaceData;person:Person|null;t:Text;busy:boolean;onClose:()=>void;onChange:Change}){
  const {locale}=useI18n(),s=(k:SingleLabel)=>st(locale,k),options=person?payrollPeopleOptions(data.people_options):data.new_people_options;
  const [id]=useState(()=>crypto.randomUUID()),[selected,setSelected]=useState(person?.id||''),option=options.find(p=>p.id===selected);
- const [kind,setKind]=useState(effective(person?.engagements||[],data.today)?.kind||'employee');
+ const target=setupTarget(person,mode==='rate'?'rate':'engagement',data.monthly.month);
+ const [kind,setKind]=useState(target&&'kind'in target?target.kind:'employee');
+ const [intent,setIntent]=useState<SetupIntent>('correct'),[error,setError]=useState('');
+ const [date,setDate]=useState(mode==='end_engagement'?data.today:target?.effective_from||data.today);
  const ending=mode==='end_engagement',creating=!person;
  async function submit(e:FormEvent<HTMLFormElement>){
   e.preventDefault();if(!option)return;
@@ -104,15 +108,21 @@ function PersonForm({mode,data,person,t,busy,onClose,onChange}:{mode:'engagement
   const base={id,payee_id:option.id,effective_from:effectiveFrom,reason:String(f.get('reason'))};
   const destination=creating&&['bank_name','account_name','account_number'].some(k=>String(f.get(k)||'').trim())?{bank_name:String(f.get('bank_name')).trim(),account_name:String(f.get('account_name')||'').trim(),account_number:String(f.get('account_number')||'').trim()}:undefined;
   const payload=creating?{...base,kind,monthly_amount:Number(f.get('monthly_amount')),destination,tax_id:String(f.get('tax_id')||'').trim()}:{...base,...(mode==='rate'?{monthly_amount:Number(f.get('monthly_amount'))}:{kind:ending?(effective(person?.engagements||[],effectiveFrom)?.kind||kind):kind,active:!ending})};
-  if(await onChange({action:creating?'setup':mode==='rate'?'rate':'engagement',payload}))onClose();
+  try{
+   setError('');
+   const body=person&&!ending?setupChange({kind:mode==='rate'?'rate':'engagement',intent,person,target,hash:data.corrections[person.id]?.hash,id,
+    values:{effective_from:effectiveFrom,reason:base.reason,...(mode==='rate'?{monthly_amount:Number(f.get('monthly_amount'))}:{kind})}}):{action:creating?'setup':'engagement',payload};
+   if(await onChange(body))onClose();
+  }catch(e){setError(payrollError(locale,e));}
  }
  const title=mode==='rate'?s('editRate'):t(ending?'endEngagement':person?'changeEngagement':'addPerson');
  return <DetailModal open title={title} size="edit" onClose={onClose} closeOnBackdrop={!busy}><PayrollForm className={css.form} onSubmit={submit}>
-  <p className={css.notice}>{t(ending?'endEngagementHint':'effectiveHint')}</p>
+  {error&&<p className={css.error} role="alert">{error}</p>}
+  {person&&target&&!ending?<><div className={css.actions}>{(['correct','future'] as const).map(value=><label className={css.check} key={value}><input type="radio" name="setup_intent" value={value} checked={intent===value} disabled={busy} onChange={()=>{setIntent(value);setError('');setDate(value==='correct'?target.effective_from:shiftMonth((target.effective_from>data.today?target.effective_from:data.today).slice(0,7)+'-01',1));}}/>{setupLabel(locale,value)}</label>)}</div><p className={css.notice}>{setupLabel(locale,intent==='correct'?'correctionHint':'futureHint')}</p></>:<p className={css.notice}>{t(ending?'endEngagementHint':'effectiveHint')}</p>}
   {person?<strong>{person.legal_name}</strong>:<div className={css.field}><label htmlFor="payroll-person">{t('name')}</label><SearchableCombobox id="payroll-person" label={t('name')} value={selected} disabled={busy} onChange={setSelected} options={data.new_people_options.map(p=>({value:p.id,label:{th:p.display_label,en:p.display_label}}))} placeholder={t('searchPeople')} requiredMessage={t('selectPerson')}/><p className={css.muted}>{t('eligiblePeopleHint')}</p>{!options.length&&<p>{t('noEligiblePeople')}</p>}</div>}
   {mode!=='rate'&&!ending&&<><Field label={t('kind')}><select value={kind} onChange={e=>setKind(e.target.value as typeof kind)} disabled={busy}><option value="employee">{t('employee')}</option><option value="contractor">{t('contractor')}</option></select></Field>{kind==='contractor'&&<p className={css.notice}>{t('contractorHint')}</p>}</>}
-  {(mode==='rate'||creating)&&<Field label={s('recurring')}><input name="monthly_amount" type="number" min="0.01" step="0.01" required disabled={busy} defaultValue={person?effective(person.rates,data.today)?.monthly_amount:undefined}/></Field>}
-  <Field label={t('effective')}><input name="effective_from" type="date" required disabled={busy} defaultValue={data.today}/></Field>
+  {(mode==='rate'||creating)&&<Field label={s('recurring')}><input name="monthly_amount" type="number" min="0.01" step="0.01" required disabled={busy} defaultValue={target&&'monthly_amount'in target?target.monthly_amount:undefined}/></Field>}
+  <Field label={t('effective')}><input name="effective_from" type="date" required disabled={busy} value={date} onChange={e=>setDate(e.target.value)}/></Field>
   <Field label={t('reason')}><textarea name="reason" required maxLength={2000} disabled={busy}/></Field>
   {creating&&option&&<div className={css.form} key={option.id}><strong>{s('bank')}</strong><p className={css.muted}>{s('bankHint')}</p><Field label={s('taxId')}><input name="tax_id" inputMode="numeric" pattern="[0-9]{13}" maxLength={13} defaultValue={option.tax_id||''} disabled={busy}/></Field><div className={css.formGrid}><Field label={s('bankName')}><input name="bank_name" maxLength={200} defaultValue={option.destination?.bank_name||''} disabled={busy}/></Field><Field label={s('accountName')}><input name="account_name" maxLength={200} defaultValue={option.destination?.account_name||''} disabled={busy}/></Field><Field label={s('accountNumber')}><input name="account_number" maxLength={50} defaultValue={option.destination?.account_number||''} disabled={busy}/></Field></div></div>}
   <div className={css.actions}><button type="button" className={ui.secondary} disabled={busy} onClick={onClose}>{s('cancel')}</button><button className={ending?ui.danger:ui.primary} disabled={busy||!option}>{t(ending?'endEngagement':'save')}</button></div>

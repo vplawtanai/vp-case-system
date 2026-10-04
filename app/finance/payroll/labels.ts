@@ -1,3 +1,4 @@
+import {setupError} from './setup';
 const labels={
  readinessMonth:['ความพร้อมสำหรับงวด {month}','Readiness for {month}'],
  readyPeriod:['พร้อมสร้างงวด','Ready to create a period'],
@@ -32,7 +33,7 @@ const labels={
 } as const;
 export type PayrollLabel=keyof typeof labels;
 export function payrollText(locale:string,key:PayrollLabel){return labels[key][locale==='en'?1:0];}
-export function payrollError(locale:string,error:unknown){const code=String((error as {message?:string})?.message||error);let key:PayrollLabel='failed';
+export function payrollError(locale:string,error:unknown){const code=String((error as {message?:string})?.message||error);const setup=setupError(locale,code);if(setup)return setup;let key:PayrollLabel='failed';
  const issue=(error as {issue?:{person?:string;reason?:string;service_from?:string;service_to?:string}})?.issue;
  if(code==='PAYROLL_RATE_MISSING'&&issue?.reason==='no_rate_overlap'&&issue.person&&issue.service_from&&issue.service_to)return payrollText(locale,'missingRatePerson').replace('{person}',issue.person).replace('{from}',issue.service_from).replace('{to}',issue.service_to);
  if(/PERSON_NOT_ELIGIBLE/.test(code))key='personNotEligible';else if(/INTERNAL_PERSON_REQUIRED/.test(code))key='internalOnly';else if(/MIXED_ENGAGEMENT_MONTH/.test(code))key='mixedMonth';else if(/ADMIN_REQUIRED|UNAUTHORIZED/.test(code))key='denied';else if(/RATE_MISSING/.test(code))key='rateMissing';else if(/DRAFT_SOURCES_CHANGED/.test(code))key='sourceChanged';else if(/STALE|PAYEE_CHANGED|DESTINATION_CHANGED/.test(code))key='stale';else if(/REVIEW_REQUIRED|REVIEW_EVIDENCE_REQUIRED|BASE_REASON_REQUIRED/.test(code))key='reviewRequired';else if(/ACCOUNT_DENIED/.test(code))key='accountDenied';else if(/DESTINATION_REQUIRED|PAYEE_OR_TAX_ID_REQUIRED/.test(code))key='destinationRequired';else if(/OPENING_BALANCE|BEFORE_CUTOVER/.test(code))key='openingRequired';else if(/ALREADY_PREPARED/.test(code))key='alreadyPrepared';else if(/RETRY_CHANGED/.test(code))key='retryChanged';else if(/APPROVED_HISTORY|HISTORY_IMMUTABLE/.test(code))key='historyLocked';else if(/NO_ELIGIBLE/.test(code))key='noEligible';else if(/INVALID|REQUIRED/.test(code))key='inputInvalid';return payrollText(locale,key);}

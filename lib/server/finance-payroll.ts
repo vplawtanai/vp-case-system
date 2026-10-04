@@ -44,7 +44,7 @@ export async function handlePayrollRequest(request:Request,supplied?:PeopleClien
    const token=request.headers.get('authorization')?.slice(7)||'';if(!/^[A-Za-z0-9._-]+$/.test(token))throw new PayrollError('PAYROLL_UNAUTHORIZED',401);
    const response=reply({ready:true});response.headers.set('Set-Cookie',`${PAYROLL_COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/finance/payroll; Max-Age=1800${new URL(request.url).protocol==='https:'?'; Secure':''}`);return response;
   }
-  if(['engagement','rate','setup'].includes(b.action)){
+  if(['engagement','rate','setup','setup_correct'].includes(b.action)){
    // Check the caller-visible internal People projection, not client-supplied
    // profile/kind fields. Keep the generic, already-applied 089 RPC unchanged.
    const data=await readPayroll(caller);
@@ -56,7 +56,9 @@ export async function handlePayrollRequest(request:Request,supplied?:PeopleClien
    if(b.action==='engagement'&&!person?.engagements.length&&b.payload.active!==true)throw new PayrollError('PAYROLL_NEW_ENGAGEMENT_ACTIVE_REQUIRED');
   }
   let result;
-  if(b.action==='correct'){
+  if(b.action==='setup_correct'){
+   result=await caller.rpc('payroll093_correct',{p_kind:b.payload?.kind,p_payee:b.payload?.payee_id,p_target:b.payload?.target,p_expected_hash:b.payload?.expected_hash,p_values:b.payload?.values,p_request_id:b.request_id});
+  }else if(b.action==='correct'){
    result=await caller.rpc('payroll092_correct',{p_action:b.payload?.kind,p_payee:b.payload?.payee_id,p_target:b.payload?.target||null,p_expected_hash:b.payload?.expected_hash,p_reason:b.payload?.reason,p_request_id:b.request_id});
   }else if(b.action==='setup'){
    // One modal, existing audited contracts. Each step has a stable retry ID;

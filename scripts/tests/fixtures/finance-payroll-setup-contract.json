@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "payroll089_protect()": "1f204898f3018b1f5ea2bd8eb62b474d24d6ae2d5a84bc894c9e0ff8fa086ce0",
+    "payroll089_manage(text,jsonb,uuid)": "c9e83d59930459beaec9aa7ae9391ed48cc6f01095428a50ed03aa785ebc54a5",
+    "payroll093_affected(text,uuid,date)": "4c3b61cc0cb6cbfafaf2242eae217c3538ff9a134fb0e3d20986aad443e5b43e",
+    "payroll093_engagement_check(uuid,uuid,text,boolean,date)": "c8546ffc40db14761595ddb9f6304a71c8119eabf8baf6d739f1c54562284a95",
+    "payroll093_correct(text,uuid,uuid,text,jsonb,uuid)": "5a8f96dee49f6266928732580350c96b8c18f55310effbb9bad945750cc6ce87"
+  },
+  "tables": {}
+}
