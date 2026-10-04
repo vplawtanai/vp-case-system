@@ -2,10 +2,10 @@ import {isAssignablePerson,type PeopleProfile} from '../../../lib/people';
 export const PAYROLL_COOKIE = 'vp-payroll-session';
 export type Engagement = {id:string; kind:'employee'|'contractor'; active:boolean; effective_from:string; reason:string};
 export type Rate = {id:string; monthly_amount:number; effective_from:string; reason:string};
-export type Person = {id:string;profile_id:string|null;legal_name:string;version:number;is_active:boolean;tax_id:string|null;destination:{id:string}|null;engagements:Engagement[];rates:Rate[]};
+export type Person = {id:string;profile_id:string|null;legal_name:string;version:number;is_active:boolean;tax_id:string|null;destination:{id:string;bank_name?:string;account_number?:string;is_active?:boolean}|null;engagements:Engagement[];rates:Rate[]};
 export type Period = {id:string;month:string;target_payment_date:string;status:'draft'|'approved';payment_status:'draft'|'approved'|'partially_paid'|'paid';version:number;note:string;line_count:number;net_total:number};
 export type Payment = {id:string;version:number;status:'draft'|'confirmed';bank_account_id:string|null;cash_location_id:string|null;paid_on:string;prepare:{payee_version:number;destination_id:string|null}};
-export type Line = {id:string;period_id:string;payee_id:string;kind:'employee'|'contractor';name:string;service_from:string;service_to:string;base_amount:number;additions:number;deductions:number;employee_ss:number;employer_ss:number;wht_treatment:'none'|'withhold';wht_amount:number;gross_amount:number;net_amount:number;requires_base_review:boolean;reviewed:boolean;adjustment_reason:string;note:string;payment:Payment|null};
+export type Line = {id:string;period_id:string;payee_id:string;kind:'employee'|'contractor';name:string;service_from:string;service_to:string;base_amount:number;additions:number;deductions:number;employee_ss:number;employer_ss:number;wht_treatment:'none'|'withhold';wht_amount:number;gross_amount:number;net_amount:number;requires_base_review:boolean;reviewed:boolean;adjustment_reason:string;note:string;payment:Payment|null;source_json?:{manual_review_reasons?:ReviewReason[];rate_intervals?:{rate:Rate;overlap_from:string;overlap_to:string}[]}};
 export type Obligation = {id:string;month:string;name:string;kind:'employee_wht'|'contractor_wht'|'employee_ss'|'employer_ss';amount:number;status:'pending'};
 export type Account = {bank_account_id:string|null;cash_location_id:string|null;name_th:string;name_en:string};
 export type PayrollNewPerson = import('../payouts/shared').Payee & {display_label:string};
@@ -70,4 +70,35 @@ export function paymentItems(lines:Line[],people:Person[],accounts:Account[],cho
   if(!l.payment||l.payment.status!=='draft')throw Error('PAYROLL_PAYMENT_STALE');
   return {line_id:l.id,payout_id:l.payment.id,payout_version:l.payment.version,payee_version:person.version,destination_id:l.payment.bank_account_id?person.destination?.id||null:null};
  });
+}
+
+// Read-only guidance using the same half-open effective intervals as 090.
+// The database owns draft creation, review and approval.
+export type ReviewReason='engagement_starts_mid_month'|'engagement_ends_mid_month'|'rate_starts_after_service_start'|'rate_ends_before_service_end'|'rate_changes_during_service';
+export function payrollMonthReadiness(person:Person,month:string){
+ const from=month.slice(0,7)+'-01';
+ const end=new Date(Date.UTC(Number(from.slice(0,4)),Number(from.slice(5,7)),1)).toISOString().slice(0,10);
+ const events=[...person.engagements].sort((a,b)=>a.effective_from.localeCompare(b.effective_from));
+ const rates=[...person.rates].sort((a,b)=>a.effective_from.localeCompare(b.effective_from));
+ const segments=events.flatMap((e,i)=>{
+  const start=e.effective_from>from?e.effective_from:from,until=events[i+1]?.effective_from||'9999-12-31',to=until<end?until:end;
+  if(!e.active||start>=to)return [];
+  const overlapping=rates.flatMap((r,j)=>{const until=rates[j+1]?.effective_from||'9999-12-31';return r.effective_from<to&&until>start?[{rate:r,until}]:[];});
+  const reasons:ReviewReason[]=[];
+  if(start>from)reasons.push('engagement_starts_mid_month');
+  if(to<end)reasons.push('engagement_ends_mid_month');
+  if(overlapping[0]?.rate.effective_from>start)reasons.push('rate_starts_after_service_start');
+  if(overlapping.some(r=>r.until<to))reasons.push('rate_ends_before_service_end');
+  if(overlapping.length>1)reasons.push('rate_changes_during_service');
+  return [{from:start,to,rates:overlapping.map(r=>r.rate),reasons}];
+ });
+ const missing=!segments.length?'engagement':segments.some(s=>!s.rates.length)?'rate':segments.length>1?'mixed':!person.is_active?'payee':null;
+ return {missing,reasons:[...new Set(segments.flatMap(s=>s.reasons))],segments} as const;
+}
+export function payrollPaymentReadiness(person:Person){
+ const recipient=person.is_active&&person.version>0&&!!person.legal_name.trim();
+ const destination=person.destination;
+ const bank=recipient&&!!destination?.id&&destination.is_active!==false&&!!destination.bank_name?.trim()&&!!destination.account_number?.trim();
+ const last=destination?.account_number?.replace(/\D/g,'').slice(-4)||'';
+ return {recipient,bank,summary:bank?`${destination!.bank_name} \u2022\u2022\u2022\u2022${last}`:''};
 }

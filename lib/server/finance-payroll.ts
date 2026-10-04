@@ -21,6 +21,7 @@ async function readPeople(caller:SupabaseClient):Promise<PeopleProfile[]>{
  if(!Array.isArray(r.data))throw new PayrollError('PAYROLL_FAILED');return r.data;
 }
 export async function handlePayrollRequest(request:Request,supplied?:PeopleClients){
+ let periodPeople:PayrollData['people']|undefined;
  try{
   const caller=(supplied||peopleClientsFor(request)).caller;await authorizePayroll(caller);
   if(request.method==='GET'){
@@ -55,6 +56,7 @@ export async function handlePayrollRequest(request:Request,supplied?:PeopleClien
    if(!data||!Array.isArray(data.people)||!Array.isArray(data.people_options)||!Array.isArray(data.periods))throw new PayrollError('PAYROLL_FAILED');
    const month=b.action==='create_period'?b.payload?.month:data.periods.find(p=>p.id===b.payload?.period_id)?.month;
    if(typeof month!=='string')throw new PayrollError('PAYROLL_MONTH_INVALID');
+   periodPeople=data.people;
    if(hasExternalPayrollSource(data,month))throw new PayrollError('PAYROLL_INTERNAL_PERSON_REQUIRED');
   }
   let result;
@@ -62,5 +64,18 @@ export async function handlePayrollRequest(request:Request,supplied?:PeopleClien
   else if(['engagement','rate','create_period','line','period','approve','reload_period'].includes(b.action))result=await caller.rpc('payroll089_manage',{p_action:b.action,p_payload:b.payload,p_request_id:b.request_id});
   else throw new PayrollError('PAYROLL_INPUT_INVALID');
   if(result.error)throw result.error;return reply(result.data);
- }catch(e){const error=e as {message?:string;status?:number};return reply({error:error.message?.match(/(?:PAYROLL|FINANCE_CASH)_[A-Z_]+/)?.[0]||'PAYROLL_FAILED'},e instanceof PayrollError?e.status:409);}
+ }catch(e){
+  const error=e as {message?:string;status?:number;details?:string},code=error.message?.match(/(?:PAYROLL|FINANCE_CASH)_[A-Z_]+/)?.[0]||'PAYROLL_FAILED';
+  // Only an authorized Admin with caller-visible People gets specific evidence.
+  // Never return raw SQL/detail or bank data.
+  let issue;
+  if(code==='PAYROLL_RATE_MISSING'&&periodPeople){
+   try{const detail=JSON.parse(error.details||'null');
+    const person=periodPeople.find(p=>p.id===detail?.payee_id);
+    if(person&&detail.reason==='no_rate_overlap'&&/^\d{4}-\d{2}-01$/.test(detail.month)&&/^\d{4}-\d{2}-\d{2}$/.test(detail.service_from)&&/^\d{4}-\d{2}-\d{2}$/.test(detail.service_to))
+     issue={person:person.legal_name,month:detail.month,service_from:detail.service_from,service_to:detail.service_to,reason:'no_rate_overlap'};
+   }catch{/* Malformed diagnostics remain a generic fail-closed error. */}
+  }
+  return reply({error:code,...(issue?{issue}:{})},e instanceof PayrollError?e.status:409);
+ }
 }

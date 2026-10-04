@@ -1,4 +1,25 @@
 const labels={
+ readinessMonth:['ความพร้อมสำหรับงวด {month}','Readiness for {month}'],
+ readyPeriod:['พร้อมสร้างงวด','Ready to create a period'],
+ manualAmount:['ต้องตรวจสอบยอดในงวด','Period amount needs review'],
+ missingSetup:['ยังขาด: {requirement}','Missing: {requirement}'],
+ missingEngagement:['การจ้างงานที่มีผลในเดือนนี้','an engagement effective in this month'],
+ missingRate:['อัตราค่าตอบแทนที่ทับซ้อนช่วงการจ้างในเดือนนี้','a compensation rate overlapping this month’s engagement'],
+ missingPayee:['ผู้รับเงินที่เปิดใช้งาน','an active payee'],
+ missingBank:['บัญชีรับเงิน','a payment destination'],
+ recipientSaved:['ตั้งค่าผู้รับเงินแล้ว','Recipient set up'],
+ bankSaved:['ตั้งค่าบัญชีรับเงินแล้ว','Payment destination set up'],
+ engagementEffective:['การจ้างมีผลตั้งแต่','Engagement effective from'],
+ compensationEffective:['ค่าตอบแทนมีผลตั้งแต่','Compensation effective from'],
+ periodReviewHint:['สร้างร่างได้ แต่ต้องระบุยอดจริงพร้อมเหตุผลก่อนอนุมัติ ระบบไม่เฉลี่ยยอดอัตโนมัติ','A draft can be created. Enter the actual amount and reason before approval; no automatic proration.'],
+ draftPlaceholder:['ยังไม่ระบุยอดจริง (ยอดร่าง 0.00)','Actual amount not entered (draft placeholder 0.00)'],
+ reviewCompleted:['ตรวจสอบยอดแล้ว','Amount review completed'],
+ missingRatePerson:['{person}: ไม่มีอัตราค่าตอบแทนที่มีผลทับซ้อนช่วง {from} – {to} กรุณาเพิ่มอัตราที่มีผลในช่วงนี้แล้วลองสร้าง/โหลดงวดใหม่','{person}: no compensation rate overlaps {from} – {to}. Add an effective rate for this interval, then create/reload the period.'],
+ reviewEngagementStart:['การจ้างเริ่ม {date} หลังวันแรกของเดือน','Engagement starts on {date}, after the month begins'],
+ reviewEngagementEnd:['การจ้างสิ้นสุดช่วงจ่าย {date} ก่อนสิ้นเดือน','The service interval ends on {date}, before month end'],
+ reviewRateStart:['อัตราค่าตอบแทนเริ่มมีผล {date} กรุณาตรวจสอบยอดเดือนนี้','Compensation starts on {date}. Review this month’s amount'],
+ reviewRateEnd:['อัตราค่าตอบแทนเดิมสิ้นสุดระหว่างช่วงจ่าย กรุณาตรวจสอบยอด','A rate ends during the service interval. Review the amount'],
+ reviewRateChange:['มีหลายอัตราค่าตอบแทนในช่วงจ่าย กรุณาระบุยอดที่ตรวจสอบแล้ว','Multiple rates apply during the service interval. Enter the reviewed amount'],
  searchPeople:['ค้นหาชื่อหรืออีเมลบุคลากร','Search people by name or email'],
  selectPerson:['กรุณาเลือกบุคลากร','Please select a person'],
  eligiblePeopleHint:['เลือกได้เฉพาะบุคลากรที่เปิดใช้งาน เป็นบัญชีใช้งานจริง และรับมอบหมายงานได้','Only active, operational, assignable people can be added.'],
@@ -12,4 +33,17 @@ const labels={
 export type PayrollLabel=keyof typeof labels;
 export function payrollText(locale:string,key:PayrollLabel){return labels[key][locale==='en'?1:0];}
 export function payrollError(locale:string,error:unknown){const code=String((error as {message?:string})?.message||error);let key:PayrollLabel='failed';
+ const issue=(error as {issue?:{person?:string;reason?:string;service_from?:string;service_to?:string}})?.issue;
+ if(code==='PAYROLL_RATE_MISSING'&&issue?.reason==='no_rate_overlap'&&issue.person&&issue.service_from&&issue.service_to)return payrollText(locale,'missingRatePerson').replace('{person}',issue.person).replace('{from}',issue.service_from).replace('{to}',issue.service_to);
  if(/PERSON_NOT_ELIGIBLE/.test(code))key='personNotEligible';else if(/INTERNAL_PERSON_REQUIRED/.test(code))key='internalOnly';else if(/MIXED_ENGAGEMENT_MONTH/.test(code))key='mixedMonth';else if(/ADMIN_REQUIRED|UNAUTHORIZED/.test(code))key='denied';else if(/RATE_MISSING/.test(code))key='rateMissing';else if(/DRAFT_SOURCES_CHANGED/.test(code))key='sourceChanged';else if(/STALE|PAYEE_CHANGED|DESTINATION_CHANGED/.test(code))key='stale';else if(/REVIEW_REQUIRED|REVIEW_EVIDENCE_REQUIRED|BASE_REASON_REQUIRED/.test(code))key='reviewRequired';else if(/ACCOUNT_DENIED/.test(code))key='accountDenied';else if(/DESTINATION_REQUIRED|PAYEE_OR_TAX_ID_REQUIRED/.test(code))key='destinationRequired';else if(/OPENING_BALANCE|BEFORE_CUTOVER/.test(code))key='openingRequired';else if(/ALREADY_PREPARED/.test(code))key='alreadyPrepared';else if(/RETRY_CHANGED/.test(code))key='retryChanged';else if(/APPROVED_HISTORY|HISTORY_IMMUTABLE/.test(code))key='historyLocked';else if(/NO_ELIGIBLE/.test(code))key='noEligible';else if(/INVALID|REQUIRED/.test(code))key='inputInvalid';return payrollText(locale,key);}
+
+export function payrollReviewMessages(locale:string,line:import('./model').Line):string[]{
+ const reasons=line.source_json?.manual_review_reasons;
+ if(!reasons?.length)return line.requires_base_review?[payrollText(locale,'baseReview')]:[];
+ const date=(s:string)=>new Intl.DateTimeFormat(locale==='th'?'th-TH':'en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Bangkok'}).format(new Date(s+'T12:00:00+07:00'));
+ return reasons.map(reason=>{
+  const keys:Record<import('./model').ReviewReason,PayrollLabel>={engagement_starts_mid_month:'reviewEngagementStart',engagement_ends_mid_month:'reviewEngagementEnd',rate_starts_after_service_start:'reviewRateStart',rate_ends_before_service_end:'reviewRateEnd',rate_changes_during_service:'reviewRateChange'};
+  const value=reason==='engagement_ends_mid_month'?line.service_to:reason==='rate_starts_after_service_start'?line.source_json?.rate_intervals?.[0]?.overlap_from||line.service_from:line.service_from;
+  return payrollText(locale,keys[reason]||'baseReview').replace('{date}',date(value));
+ });
+}
