@@ -4,11 +4,12 @@ import {ArrowLeft,CalendarDays,LockKeyhole,Plus,RefreshCw,Users,Wallet} from 'lu
 import BaseModal,{type DetailModalProps} from '../../components/DetailModal';
 import ui from '../../components/ui/vp-ui.module.css';
 import {useI18n} from '../../../lib/i18n/provider';
+import {SearchableCombobox} from '../expenses/searchable-combobox';
 import {PayeeModal} from '../payouts/payee-modal';
 import type {Payee} from '../payouts/shared';
 import {payrollRequest} from './client';
 import {payrollText,payrollError,type PayrollLabel} from './labels';
-import {effective,payrollLandingTab,payrollPeopleOptions,payrollSetupPeople,netPay,selectedTotal,reviewInput,paymentItems,accountKey,type PayrollData,type Person,type Period,type Line} from './model';
+import {effective,payrollLandingTab,payrollPeopleOptions,payrollSetupPeople,hasPayrollHistory,netPay,selectedTotal,reviewInput,paymentItems,accountKey,type PayrollData,type Person,type Period,type Line} from './model';
 import css from './payroll.module.css';
 const Feedback=createContext('');
 function DetailModal(props:DetailModalProps){const error=useContext(Feedback);return <BaseModal {...props}>{error&&<p className={css.error} role="alert">{error}</p>}{props.children}</BaseModal>;}
@@ -36,10 +37,10 @@ export default function PayrollWorkspace(){
  const {locale}=useI18n(),t:Text=k=>payrollText(locale,k),money=(n:number)=>Number(n).toLocaleString(locale,{minimumFractionDigits:2,maximumFractionDigits:2});
  const [data,setData]=useState<PayrollData|null>(null),[tab,setTab]=useState<'people'|'periods'|'obligations'|null>(null),[periodId,setPeriodId]=useState('');
  const [busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[error,setError]=useState<unknown>(null),[notice,setNotice]=useState<PayrollLabel|null>(null),[stale,setStale]=useState(false);
- const [modal,setModal]=useState<'period'|'edit_period'|'engagement'|'rate'|'approve'|'prepare'|'confirm'|'cancel'|'reset'|null>(null),[person,setPerson]=useState<Person|null>(null),[line,setLine]=useState<Line|null>(null),[payee,setPayee]=useState<Payee|undefined>(undefined),[selected,setSelected]=useState<string[]>([]);
+ const [modal,setModal]=useState<'period'|'edit_period'|'engagement'|'end_engagement'|'rate'|'approve'|'prepare'|'confirm'|'cancel'|'reset'|null>(null),[person,setPerson]=useState<Person|null>(null),[line,setLine]=useState<Line|null>(null),[payee,setPayee]=useState<Payee|undefined>(undefined),[selected,setSelected]=useState<string[]>([]);
  const lock=useRef(false),sequence=useRef(0),pending=useRef<{body:string;id:string}|null>(null);
  const invalidate=useCallback(()=>{sequence.current++;},[]);
- const load=useCallback(async(id=periodId)=>{const seq=++sequence.current;setLoading(true);try{const result=await payrollRequest(undefined,id);if(seq!==sequence.current)return;if(!Array.isArray(result.lines)||!Array.isArray(result.people)||!Array.isArray(result.people_options)||!Array.isArray(result.periods))throw Error('PAYROLL_FAILED');setData(result);setTab(current=>current??payrollLandingTab({...result,people:payrollSetupPeople(result)}));setStale(false);}finally{if(seq===sequence.current)setLoading(false);}},[periodId]);
+ const load=useCallback(async(id=periodId)=>{const seq=++sequence.current;setLoading(true);try{const result=await payrollRequest(undefined,id);if(seq!==sequence.current)return;if(!Array.isArray(result.lines)||!Array.isArray(result.people)||!Array.isArray(result.people_options)||!Array.isArray(result.new_people_options)||!Array.isArray(result.periods))throw Error('PAYROLL_FAILED');setData(result);setTab(current=>current??payrollLandingTab({...result,people:payrollSetupPeople(result)}));setStale(false);}finally{if(seq===sequence.current)setLoading(false);}},[periodId]);
  useEffect(()=>{void load().catch(e=>{setStale(true);setError(e);});return invalidate;},[load,locale,invalidate]);
  async function mutate(body:Body){
   if(lock.current||stale)return false;lock.current=true;setBusy(true);setError('');setNotice(null);
@@ -76,9 +77,9 @@ export default function PayrollWorkspace(){
      {l.requires_base_review&&<p className={css.warning}>{t('baseReview')}</p>}{period.status==='draft'&&<button className={ui.secondary} disabled={blocked} onClick={()=>setLine(l)}>{t('review')}</button>}{l.note&&<p className={css.muted}>{l.note}</p>}</article>)}</div></section>)}
    </>}
    {tab==='people'&&<><div className={css.toolbar}><h2>{t('people')}</h2><div className={css.actions}><button className={ui.primary} disabled={blocked} onClick={()=>{setPerson(null);setModal('engagement');}}><Plus size={16}/>{t('addPerson')}</button></div></div><p className={css.notice}>{t('identityHint')}</p>
-    {!setupPeople.some(p=>p.engagements.length)?<Empty>{t('emptyPeople')}</Empty>:<div className={css.cards}>{setupPeople.filter(p=>p.engagements.length).map(p=>{const engagement=effective(p.engagements,data.today),rate=effective(p.rates,data.today);return <article className={css.card} key={p.id} data-track={engagement?.kind}><div className={css.toolbar}><h3>{p.legal_name}</h3>{engagement&&<span className={css.badge}>{t(engagement.kind)}</span>}</div><p className={css.muted}>{t(!engagement?'notStarted':engagement.active?'active':'inactive')}</p><p className={css.money}>{rate?money(rate.monthly_amount):'—'} <small>THB</small></p><p className={css.muted}>{t('effective')}: {rate?.effective_from||'—'}</p><button className={ui.primary} disabled={blocked} onClick={()=>{setPerson(p);setModal('rate');}}>{t('changeRate')}</button><button className={ui.secondary} disabled={blocked} onClick={()=>{setPerson(p);setModal('engagement');}}>{t('changeEngagement')}</button><button className={ui.secondary} disabled={blocked} onClick={()=>setPayee(payrollPeopleOptions(data.people_options).find(y=>y.id===p.id))}>{t('paymentIdentity')}</button><details><summary>{t('history')}</summary><div className={css.history}>{p.rates.map(r=><article key={r.id}><strong>{r.effective_from} · {money(r.monthly_amount)} THB</strong><p className={css.muted}>{r.reason}</p></article>)}</div></details><details><summary>{t('engagementHistory')}</summary><div className={css.history}>{p.engagements.map(e=><article key={e.id}><strong>{e.effective_from} · {t(e.kind)} · {t(e.active?'active':'inactive')}</strong><p className={css.muted}>{e.reason}</p></article>)}</div></details></article>;})}</div>}</>}
+    {!setupPeople.some(hasPayrollHistory)?<Empty>{t('emptyPeople')}</Empty>:<div className={css.cards}>{setupPeople.filter(hasPayrollHistory).map(p=>{const engagement=effective(p.engagements,data.today),rate=effective(p.rates,data.today);return <article className={css.card} key={p.id} data-track={engagement?.kind}><div className={css.toolbar}><h3>{p.legal_name}</h3>{engagement&&<span className={css.badge}>{t(engagement.kind)}</span>}</div><p className={css.muted}>{t(!engagement?'notStarted':engagement.active?'active':'inactive')}</p><p className={css.money}>{rate?money(rate.monthly_amount):'—'} <small>THB</small></p><p className={css.muted}>{t('effective')}: {rate?.effective_from||'—'}</p><button className={ui.primary} disabled={blocked} onClick={()=>{setPerson(p);setModal('rate');}}>{t('changeRate')}</button><button className={ui.secondary} disabled={blocked} onClick={()=>{setPerson(p);setModal('engagement');}}>{t(engagement&&!engagement.active?'resumeEngagement':'changeEngagement')}</button>{engagement?.active&&<button className={ui.secondary} disabled={blocked} onClick={()=>{setPerson(p);setModal('end_engagement');}}>{t('endEngagement')}</button>}<button className={ui.secondary} disabled={blocked} onClick={()=>setPayee(payrollPeopleOptions(data.people_options).find(y=>y.id===p.id))}>{t('paymentIdentity')}</button><details><summary>{t('history')}</summary><div className={css.history}>{p.rates.map(r=><article key={r.id}><strong>{r.effective_from} · {money(r.monthly_amount)} THB</strong><p className={css.muted}>{r.reason}</p></article>)}</div></details><details><summary>{t('engagementHistory')}</summary><div className={css.history}>{p.engagements.map(e=><article key={e.id}><strong>{e.effective_from} · {t(e.kind)} · {t(e.active?'active':'inactive')}</strong><p className={css.muted}>{e.reason}</p></article>)}</div></details></article>;})}</div>}</>}
    {tab==='obligations'&&<><h2>{t('obligations')}</h2><p className={css.notice}>{t('obligationHint')}</p>{data.obligations.length?<div className={css.cards}>{data.obligations.map(o=><article className={css.card} key={o.id}><span className={css.badge}>{t('pending')}</span><h3>{t(o.kind)}</h3><p>{o.name}</p><p className={css.muted}>{monthName(o.month,locale)}</p><strong className={css.money}>{money(o.amount)} THB</strong></article>)}</div>:<Empty>{t('empty')}</Empty>}</>}
-   {(modal==='rate'||modal==='engagement')&&<PersonForm mode={modal} data={data} person={person} t={t} busy={busy} onClose={close} onChange={mutate} onPayee={p=>setPayee(p)}/>}
+   {(modal==='rate'||modal==='engagement'||modal==='end_engagement')&&<PersonForm mode={modal} data={data} person={person} t={t} busy={busy} onClose={close} onChange={mutate} onPayee={p=>setPayee(p)}/>}
    {(modal==='period'||modal==='edit_period')&&<PeriodForm period={modal==='edit_period'?period:undefined} today={data.today} t={t} busy={busy} onClose={close} onChange={mutate}/>}
    {line&&period&&<LineForm key={line.id} line={line} period={period} t={t} busy={busy} onClose={close} onChange={mutate} money={money}/>}
    {(modal==='approve'||modal==='reset')&&period&&<Approval mode={modal} period={period} lines={lines} t={t} busy={busy} onClose={close} onChange={mutate} money={money}/>}
@@ -87,15 +88,37 @@ export default function PayrollWorkspace(){
   </>}
  </main></Feedback.Provider>;
 }
-function PersonForm({mode,data,person,t,busy,onClose,onChange,onPayee}:{mode:'engagement'|'rate';data:PayrollData;person:Person|null;t:Text;busy:boolean;onClose:()=>void;onChange:Change;onPayee:(p:Payee)=>void}){
- const options=payrollPeopleOptions(data.people_options);
+function PersonForm({mode,data,person,t,busy,onClose,onChange,onPayee}:{mode:'engagement'|'end_engagement'|'rate';data:PayrollData;person:Person|null;t:Text;busy:boolean;onClose:()=>void;onChange:Change;onPayee:(p:Payee)=>void}){
+ const options=person?payrollPeopleOptions(data.people_options):data.new_people_options;
  const [id]=useState(()=>crypto.randomUUID()),[selected,setSelected]=useState(person?.id||''),option=options.find(p=>p.id===selected);
  const [kind,setKind]=useState(effective(person?.engagements||[],data.today)?.kind||'employee');
- async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();if(!option?.version)return;const f=new FormData(e.currentTarget),payload={id,payee_id:option.id,effective_from:String(f.get('effective_from')),reason:String(f.get('reason')), ...(mode==='rate'?{monthly_amount:Number(f.get('monthly_amount'))}:{kind,active:f.get('active')==='yes'})};if(await onChange({action:mode,payload}))onClose();}
- return <DetailModal open title={t(mode==='rate'?'changeRate':person?'changeEngagement':'addPerson')} size="edit" onClose={onClose} closeOnBackdrop={!busy}><PayrollForm className={css.form} onSubmit={submit}><p className={css.notice}>{t('effectiveHint')}</p><Field label={t('name')}><select value={selected} required disabled={busy||!!person} onChange={e=>setSelected(e.target.value)}><option value="">{t('select')}</option>{options.map(p=><option key={p.id} value={p.id}>{p.legal_name}</option>)}</select></Field>
+ const ending=mode==='end_engagement';
+ async function submit(e:FormEvent<HTMLFormElement>){
+  e.preventDefault();if(!option?.version)return;
+  const f=new FormData(e.currentTarget),effectiveFrom=String(f.get('effective_from'));
+  const payload={id,payee_id:option.id,effective_from:effectiveFrom,reason:String(f.get('reason')),
+   ...(mode==='rate'?{monthly_amount:Number(f.get('monthly_amount'))}:{kind:ending?(effective(person?.engagements||[],effectiveFrom)?.kind||kind):kind,active:!ending})};
+  if(await onChange({action:mode==='rate'?'rate':'engagement',payload}))onClose();
+ }
+ const title=t(mode==='rate'?'changeRate':ending?'endEngagement':person?(effective(person.engagements,data.today)?.active===false?'resumeEngagement':'changeEngagement'):'addPerson');
+ return <DetailModal open title={title} size="edit" onClose={onClose} closeOnBackdrop={!busy}><PayrollForm className={css.form} onSubmit={submit}>
+  <p className={css.notice}>{t(ending?'endEngagementHint':'effectiveHint')}</p>
+  {person?<Field label={t('name')}><input value={person.legal_name} readOnly/></Field>:<div className={css.field}>
+   <label htmlFor="payroll-person">{t('name')}</label>
+   <SearchableCombobox id="payroll-person" label={t('name')} value={selected} disabled={busy} onChange={setSelected}
+    options={data.new_people_options.map(p=>({value:p.id,label:{th:p.display_label,en:p.display_label}}))}
+    placeholder={t('searchPeople')} requiredMessage={t('selectPerson')}/>
+   <p className={css.muted}>{t('eligiblePeopleHint')}</p>
+   {!options.length&&<p className={css.notice}>{t('noEligiblePeople')}</p>}
+  </div>}
   {option&&!option.version?<><p className={css.warning}>{t('destinationRequired')}</p><button type="button" className={ui.secondary} onClick={()=>onPayee(option)}>{t('paymentIdentity')}</button></>:null}
-  {mode==='rate'?<Field label={t('rate')}><input name="monthly_amount" type="number" min="0.01" step="0.01" required disabled={busy}/></Field>:<><Field label={t('kind')}><select value={kind} onChange={e=>setKind(e.target.value as typeof kind)} disabled={busy}><option value="employee" disabled={!option?.profile_id}>{t('employee')}</option><option value="contractor">{t('contractor')}</option></select></Field><Field label={t('active')}><select name="active" defaultValue="yes" disabled={busy}><option value="yes">{t('active')}</option><option value="no">{t('inactive')}</option></select></Field>{kind==='contractor'&&<p className={css.notice}>{t('contractorHint')}</p>}</>}
-  <Field label={t('effective')}><input name="effective_from" type="date" required disabled={busy} defaultValue={data.today}/></Field><Field label={t('reason')}><textarea name="reason" required maxLength={2000} disabled={busy}/></Field><button className={ui.primary} disabled={busy||!option?.version}>{t('save')}</button>
+  {mode==='rate'?<Field label={t('rate')}><input name="monthly_amount" type="number" min="0.01" step="0.01" required disabled={busy}/></Field>:ending?<p>{t(kind)}</p>:<>
+   <Field label={t('kind')}><select value={kind} onChange={e=>setKind(e.target.value as typeof kind)} disabled={busy}><option value="employee">{t('employee')}</option><option value="contractor">{t('contractor')}</option></select></Field>
+   {kind==='contractor'&&<p className={css.notice}>{t('contractorHint')}</p>}
+  </>}
+  <Field label={t('effective')}><input name="effective_from" type="date" required disabled={busy} defaultValue={data.today}/></Field>
+  <Field label={t('reason')}><textarea name="reason" required maxLength={2000} disabled={busy}/></Field>
+  <button className={ending?ui.danger:ui.primary} disabled={busy||!option?.version}>{t(ending?'endEngagement':'save')}</button>
  </PayrollForm></DetailModal>;
 }
 function PeriodForm({period,today,t,busy,onClose,onChange}:{period?:Period;today:string;t:Text;busy:boolean;onClose:()=>void;onChange:Change}){

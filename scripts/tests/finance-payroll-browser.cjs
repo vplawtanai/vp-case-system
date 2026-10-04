@@ -5,12 +5,15 @@ const root=path.resolve(__dirname,'../..'),out=fs.mkdtempSync(path.join(os.tmpdi
 const id=n=>'90000000-0000-4000-8000-'+String(n).padStart(12,'0');
 const people=[1,2,3].map((n)=>({id:id(n),profile_id:id(n),legal_name:['พนักงานตัวอย่าง A','พนักงานตัวอย่าง B','ผู้รับจ้างตัวอย่าง C'][n-1],version:1,is_active:true,tax_id:'1234567890123',destination:{id:id(100+n)},engagements:[{id:id(110+n),kind:n===3?'contractor':'employee',active:true,effective_from:'2026-01-01',reason:'Synthetic engagement'}],rates:[{id:id(120+n),monthly_amount:[23000,20000,15000][n-1],effective_from:'2026-01-01',reason:'Synthetic rate'}]}));
 const external={...people[2],id:id(4),profile_id:null,legal_name:'External vendor - not Payroll'};
-const sourcePeople=[...people,external];
+const candidates=[6,7,8,9,10,11].map(n=>({...people[0],id:id(n),profile_id:id(n),legal_name:'Same VP name',engagements:[],rates:[]}));
+const sourcePeople=[...people,external,...candidates];
+const profiles=sourcePeople.filter(p=>p.profile_id).map(p=>({id:p.id,staff_name:p.legal_name,full_name:p.legal_name,email:'staff'+Number(p.id.slice(-12))+'@example.invalid',active:![id(1),id(9)].includes(p.id),account_type:[id(3),id(8)].includes(p.id)?'uat':p.id===id(11)?null:'operational',assignable:![id(2),id(10)].includes(p.id)}));
 const data={today:'2026-10-03',people:sourcePeople,people_options:sourcePeople.map(p=>({...p,kind:p.profile_id?'internal':'external',entity_type:'natural_person'})),accounts:[{bank_account_id:id(90),cash_location_id:null,name_th:'KTB · บัญชีบริษัท',name_en:'KTB · Company account'}],periods:[{id:id(80),month:'2026-09-01',target_payment_date:'2026-09-30',status:'approved',payment_status:'approved',version:5,note:'Synthetic',line_count:3,net_total:56500},{id:id(81),month:'2026-10-01',target_payment_date:'2026-10-31',status:'draft',payment_status:'draft',version:1,note:'Draft',line_count:3,net_total:56500}],lines:[],obligations:[]};
 const lines=people.map((p,n)=>({id:id(20+n),period_id:id(80),payee_id:p.id,kind:n===2?'contractor':'employee',name:p.legal_name,service_from:'2026-09-01',service_to:'2026-09-30',base_amount:[23000,20000,15000][n],additions:0,deductions:0,employee_ss:n<2?750:0,employer_ss:n<2?750:0,wht_treatment:'none',wht_amount:0,gross_amount:[23000,20000,15000][n],net_amount:[22250,19250,15000][n],requires_base_review:false,reviewed:true,adjustment_reason:'',note:'Reviewed synthetic facts',payment:null}));
 const write=(n,s)=>{const p=path.join(out,n);fs.writeFileSync(p,s);return p;};
 const loader=write('loader.cjs',`module.exports=function(s){if(this.resourcePath.endsWith('.css')){const p=require('node:path').basename(this.resourcePath).replaceAll('.','_')+'_';return 'module.exports={__esModule:true,default:new Proxy({}, {get:(_,k)=>'+JSON.stringify(p)+'+k})};'}return require(${JSON.stringify(require.resolve('typescript'))}).transpileModule(s,{compilerOptions:{module:99,target:9,jsx:4,esModuleInterop:true}}).outputText};`);
-const adapter=write('adapter.js',`window.writes=[];window.cash=[];window.failRead=false;const data=${JSON.stringify(data)},lines=${JSON.stringify(lines)};
+const adapter=write('adapter.js',`import{newPayrollPeople}from'${root}/app/finance/payroll/model.ts';
+const profiles=${JSON.stringify(profiles)};window.writes=[];window.cash=[];window.failRead=false;const data=${JSON.stringify(data)},lines=${JSON.stringify(lines)};
 const setup=new URLSearchParams(location.search).get('setup');
 if(setup){
  data.periods=[];
@@ -21,8 +24,9 @@ if(setup){
 }
 export async function payrollRequest(body,period){
  if(!body&&location.search.includes('slow=1'))await new Promise(r=>setTimeout(r,700));
- if(!body){if(window.failRead){window.failRead=false;throw Error('synthetic readback');}return structuredClone({...data,lines:period?lines.map(l=>({...l,period_id:period,reviewed:period===data.periods[1].id?false:l.reviewed})):[]});}
+ if(!body){if(window.failRead){window.failRead=false;throw Error('synthetic readback');}return structuredClone({...data,new_people_options:newPayrollPeople(data,profiles),lines:period?lines.map(l=>({...l,period_id:period,reviewed:period===data.periods[1].id?false:l.reviewed})):[]});}
  window.writes.push(structuredClone(body));await new Promise(r=>setTimeout(r,140));
+ if(body.action==='engagement'){const p=data.people.find(p=>p.id===body.payload.payee_id);p.engagements.push({...body.payload});}
  if(body.action==='rate'){const p=data.people.find(p=>p.id===body.payload.payee_id);p.rates.push({...body.payload});if(setup==='missing-rate')sessionStorage.setItem('payroll-fixture-rates',JSON.stringify(p.rates));}
  if(body.action==='line'){const l=lines.find(l=>l.id===body.payload.line_id);Object.assign(l,body.payload,{reviewed:true,net_amount:Number(body.payload.base_amount)+Number(body.payload.additions)-Number(body.payload.deductions)-Number(body.payload.employee_ss)-Number(body.payload.wht_amount)});}
  if(body.action==='prepare')for(const i of body.items){const l=lines.find(l=>l.id===i.line_id);l.payment={id:i.payout_id,version:1,status:'draft',bank_account_id:i.bank_account_id,cash_location_id:i.cash_location_id,paid_on:i.paid_on,prepare:i};}
@@ -41,7 +45,7 @@ const image=write('image.tsx',`import React from'react';export default function 
 const entry=write('entry.tsx',`import React from'react';import{createRoot}from'react-dom/client';import{UiLocaleProvider}from'${root}/lib/i18n/provider.tsx';import{cookieUiLocale}from'${root}/lib/i18n/core.ts';import Payroll from'${root}/app/finance/payroll/workspace.tsx';import PayrollLayout from'${root}/app/finance/payroll/layout.tsx';const p=new URLSearchParams(location.search);createRoot(document.getElementById('root')).render(<UiLocaleProvider initialLocale={p.get('locale')||cookieUiLocale(document.cookie)||'th'} pathname={location.pathname}><PayrollLayout>{location.pathname.startsWith('/finance/payroll')?<Payroll/>:<main>Navigation fixture</main>}</PayrollLayout></UiLocaleProvider>);`);
 async function main(){
  await new Promise((resolve,reject)=>require('next/dist/compiled/webpack/webpack').webpack({mode:'development',context:root,entry,output:{path:out,filename:'bundle.js'},resolve:{extensions:['.tsx','.ts','.js'],modules:[root+'/node_modules'],alias:{[root+'/app/finance/payroll/client']:adapter,[root+'/lib/supabase']:supabase,'next/navigation':navigation,'next/link':link,'next/image':image}},module:{rules:[{test:/\.(tsx?|css|js)$/,exclude:/node_modules/,use:loader}]},devtool:false},(e,s)=>e||s.hasErrors()?reject(e||Error(s.toString({all:false,errors:true}))):resolve()));
- const files=['app/components/ui/vp-ui.module.css','app/components/DetailModal.module.css','app/finance/payroll/payroll.module.css','app/finance/payouts/payout.module.css','app/components/AppSidebar.module.css','app/components/LanguageSelector.module.css','app/finance/finance-sidebar.module.css'];
+ const files=['app/components/ui/vp-ui.module.css','app/components/DetailModal.module.css','app/finance/payroll/payroll.module.css','app/finance/payouts/payout.module.css','app/finance/expenses/claim-category-combobox.module.css','app/components/AppSidebar.module.css','app/components/LanguageSelector.module.css','app/finance/finance-sidebar.module.css'];
  const css=files.map(f=>fs.readFileSync(root+'/'+f,'utf8').replace(/\.([A-Za-z_][A-Za-z_0-9-]*)/g,(_,k)=>'.'+path.basename(f).replaceAll('.','_')+'_'+k).replace(/:global\(([^)]+)\)/g,'$1')).join('\n');
  const server=http.createServer((req,res)=>{if(req.url==='/branding/vp-partners-logo.png'){res.setHeader('Content-Type','image/png');return res.end(fs.readFileSync(root+'/public/branding/vp-partners-logo.png'));}if(req.url==='/bundle.js'){res.setHeader('Content-Type','text/javascript');return res.end(fs.readFileSync(out+'/bundle.js'));}res.setHeader('Content-Type','text/html');res.end(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;color:#193956;background:#f7f9fc}${css}</style><div id="root"></div><script src="/bundle.js"></script>`);});
  await new Promise(r=>server.listen(0,'127.0.0.1',r));let browser;
@@ -77,20 +81,40 @@ async function main(){
    await page.getByRole('tab',{name:t('people'),exact:true}).click();
    assert.equal(await page.getByText(external.legal_name,{exact:true}).count(),0);
    assert.equal(await page.getByRole('button',{name:/Add external contractor|\u0e40\u0e1e\u0e34\u0e48\u0e21\u0e1c\u0e39\u0e49\u0e23\u0e31\u0e1a\u0e08\u0e49\u0e32\u0e07\u0e20\u0e32\u0e22\u0e19\u0e2d\u0e01/}).count(),0);
-   for(const kind of ['employee','contractor']){
+   // Historical people survive later inactive/non-assignable/UAT classification.
+   for(const p of people)await page.getByRole('heading',{name:p.legal_name,exact:true}).waitFor();
+   for(const [index,kind] of ['employee','contractor'].entries()){
     await page.getByRole('button',{name:t('addPerson'),exact:true}).click();
-    await d.waitFor();const personSelect=d.getByRole('combobox').first();await personSelect.waitFor();
-    assert.deepEqual(await personSelect.locator('option').evaluateAll(options=>options.map(o=>o.value)),['',...people.map(p=>p.id)]);
-    await personSelect.selectOption(people[2].id);await d.getByRole('combobox').nth(1).selectOption(kind);
+    await d.waitFor();const personSearch=d.getByRole('combobox').first();await personSearch.waitFor();
+    await personSearch.click();
+    assert.deepEqual(await d.getByRole('listbox').getByRole('option').evaluateAll(options=>options.map(o=>o.dataset.value)),[id(6),id(7)].slice(index));
+    assert.equal(await d.locator('select').count(),1,'Only engagement type, no create-time status');
+    assert.equal(await d.locator('[name="active"]').count(),0);
+    await personSearch.fill('staff'+(6+index)+'@');
+    const option=d.getByRole('listbox').getByRole('option');await option.waitFor();assert.equal(await option.count(),1);
+    assert.ok((await option.innerText()).includes('Same VP name'));
+    if(index===0)await personSearch.press('Enter');else await option.click();
+    await d.locator('select').selectOption(kind);
+    if(kind==='contractor')await d.getByText(t('contractorHint'),{exact:true}).waitFor();
+    assert.equal(await d.getByLabel(t('employee_ss'),{exact:true}).count(),0);
+    assert.equal(await d.getByLabel(t('employer_ss'),{exact:true}).count(),0);
+    await d.getByLabel(t('effective'),{exact:true}).fill('2026-10-15');
     await d.getByLabel(t('reason'),{exact:true}).fill('Internal VP setup - synthetic only');
     assert.equal(await d.evaluate(e=>e.scrollWidth>e.clientWidth+1),false);
-    await page.screenshot({path:out+`/internal-${kind}-${locale}-${width}.png`});
+    await page.screenshot({path:out+`/eligible-${kind}-${locale}-${width}.png`});
     const before=await page.evaluate(()=>window.writes.length);
     await d.getByRole('button',{name:t('save'),exact:true}).click();await d.waitFor({state:'hidden'});
     assert.equal(await page.evaluate(()=>window.writes.length),before+1);
-    assert.equal(await page.evaluate(()=>window.writes.at(-1).payload.payee_id),people[2].id);
-    assert.equal(await page.evaluate(()=>window.writes.at(-1).payload.kind),kind);
+    const payload=await page.evaluate(()=>window.writes.at(-1).payload);
+    assert.equal(payload.payee_id,id(6+index));assert.equal(payload.kind,kind);assert.equal(payload.active,true);assert.equal(payload.effective_from,'2026-10-15');
    }
+   // End is a separate controlled, effective-dated history action (synthetic only).
+   await page.getByRole('button',{name:t('endEngagement'),exact:true}).first().click();
+   await d.getByText(t('endEngagementHint'),{exact:true}).waitFor();
+   await d.getByLabel(t('effective'),{exact:true}).fill('2026-11-01');await d.getByLabel(t('reason'),{exact:true}).fill('Synthetic future end');
+   await d.getByRole('button',{name:t('endEngagement'),exact:true}).click();await d.waitFor({state:'hidden'});
+   assert.equal(await page.evaluate(()=>window.writes.at(-1).payload.active),false);
+   assert.equal(await page.evaluate(()=>window.writes.at(-1).payload.effective_from),'2026-11-01');
    // The shared payment identity modal opens only with a bound internal person.
    await page.getByRole('button',{name:t('paymentIdentity'),exact:true}).first().click();
    await d.locator('input[disabled]').first().waitFor();
@@ -134,7 +158,7 @@ async function main(){
   await page.goto(url);await page.getByRole('heading',{name:payrollText('th','title'),exact:true}).waitFor();
   assert.equal(await page.locator('html').getAttribute('lang'),'th');
   const t=k=>payrollText('en',k);await page.goto(url+'?locale=en&readfail=1');await page.getByRole('button',{name:t('view'),exact:true}).first().click();await page.getByLabel(t('selectAll')).check();await page.getByRole('button',{name:t('prepare'),exact:true}).click();const d=page.getByRole('dialog');await d.locator('select').first().waitFor();for(const s of await d.locator('select').all())await s.selectOption(id(90));await d.getByRole('button',{name:t('prepare'),exact:true}).click();await d.waitFor({state:'hidden'});await page.getByText(t('savedReadFailed'),{exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.writes.length),1);await page.getByRole('button',{name:t('reload'),exact:true}).click();await page.getByRole('button',{name:t('confirm'),exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.writes.length),1);
-  assert.deepEqual(errors,[]);console.log('PASS internal-only People options/cards and Employee/Contractor setup, no external creation, bound internal identity modal, setup-aware People/Pay periods landing and tab order, manual tab persistence, shared Finance shell/active navigation, live TH/EN switching and persisted language, localized validation, TH/EN 1440/390, separate tracks, manual review/net, people history, no SS for contractors, selected separate payments, double click, save/read-back recovery, no overflow/runtime errors. '+out);
+  assert.deepEqual(errors,[]);console.log('PASS active/operational/assignable new People search, same-name identities, retained historical People, active create without status, effective-dated end, internal-only People options/cards and Employee/Contractor setup, no external creation, bound internal identity modal, setup-aware People/Pay periods landing and tab order, manual tab persistence, shared Finance shell/active navigation, live TH/EN switching and persisted language, localized validation, TH/EN 1440/390, separate tracks, manual review/net, people history, no SS for contractors, selected separate payments, double click, save/read-back recovery, no overflow/runtime errors. '+out);
  }finally{if(browser)await browser.close();await new Promise(r=>server.close(r));}
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});

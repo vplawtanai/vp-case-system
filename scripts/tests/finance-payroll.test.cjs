@@ -4,9 +4,9 @@ const root=path.resolve(__dirname,'../..');
 function load(file,overrides={}){const full=path.resolve(root,file);if(full.endsWith('.json'))return JSON.parse(fs.readFileSync(full));const box={exports:{},Response,Request,URL,FormData,console,process:{env:{}},require:n=>{if(n in overrides)return overrides[n];if(n==='server-only')return{};if(n.startsWith('.')){let p=path.resolve(path.dirname(full),n);if(!fs.existsSync(p))p+=fs.existsSync(p+'.ts')?'.ts':'.tsx';return load(p);}return require(n);}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(full,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText,box);return box.exports;}
 const server=load('lib/server/finance-payroll.ts'),model=load('app/finance/payroll/model.ts'),labels=load('app/finance/payroll/labels.ts');
 function fixture(profile={role:'admin',active:true,must_change_password:false}){
- const calls=[],data={people:[],people_options:[{id:'internal',profile_id:'internal',kind:'internal',entity_type:'natural_person',version:1}],periods:[{id:'period',month:'2026-10-01'}]};
- const caller={auth:{getUser:async()=>({data:{user:{id:'actor'}}})},from:()=>{const q={select:()=>q,eq:()=>q,single:async()=>({data:profile})};return q;},rpc:async(name,args)=>{calls.push({name,args});return{data:name==='get_finance_payees'?data.people_options:name==='payroll089_read'?data:{ok:true}};}};
- return{caller,calls,data,privileged:()=>{throw Error('Privileged client forbidden');}};
+ const calls=[],profiles=[{id:'internal',active:true,account_type:'operational',assignable:true,staff_name:'VP Person',email:'person@example.invalid'}],data={people:[],people_options:[{id:'internal',profile_id:'internal',kind:'internal',entity_type:'natural_person',version:1}],periods:[{id:'period',month:'2026-10-01'}]};
+ const caller={auth:{getUser:async()=>({data:{user:{id:'actor'}}})},from:()=>{const q={select:()=>q,eq:()=>q,single:async()=>({data:profile})};return q;},rpc:async(name,args)=>{calls.push({name,args});return{data:name==='get_finance_payees'?data.people_options:name==='payroll089_read'?data:name==='people_admin_get_users'?profiles:{ok:true}};}};
+ return{caller,calls,data,profiles,privileged:()=>{throw Error('Privileged client forbidden');}};
 }
 async function request(f,body,origin='https://local.invalid'){return server.handlePayrollRequest(new Request('https://local.invalid/api/finance/payroll',{method:body?'POST':'GET',headers:{Authorization:'Bearer synthetic.token',Origin:origin},...(body?{body:JSON.stringify(body)}:{})}),f);}
 test('089 server rejects all non-Admin/inactive/forced-password personas before RPC',async()=>{
@@ -16,7 +16,7 @@ test('089 server rejects all non-Admin/inactive/forced-password personas before 
 test('089 authenticated Admin only, caller RPC, scoped cookie, no-store, CSRF and request routing',async()=>{
  const f=fixture();let r=await request(f,{action:'session'});assert.equal(r.status,200);assert.match(r.headers.get('set-cookie'),/HttpOnly; SameSite=Strict; Path=\/finance\/payroll; Max-Age=1800; Secure/);assert.equal(r.headers.get('cache-control'),'no-store');
  assert.equal((await request(f,{action:'approve'},'https://hostile.invalid')).status,403);assert.equal((await request(f,{action:'unknown'})).status,400);
- for(const action of ['engagement','rate','create_period','line','reload_period','approve']){r=await request(f,{action,payload:{payee_id:'internal',month:'2026-10-01',period_id:'period'},request_id:'stable-request'});assert.equal(r.status,200);assert.equal(f.calls.at(-1).name,'payroll089_manage');assert.equal(f.calls.at(-1).args.p_request_id,'stable-request');}
+ for(const action of ['engagement','rate','create_period','line','reload_period','approve']){r=await request(f,{action,payload:{payee_id:'internal',active:true,month:'2026-10-01',period_id:'period'},request_id:'stable-request'});assert.equal(r.status,200);assert.equal(f.calls.at(-1).name,'payroll089_manage');assert.equal(f.calls.at(-1).args.p_request_id,'stable-request');}
  for(const action of ['prepare','confirm','cancel']){await request(f,{action,items:[{line_id:'line',payout_id:'payout'}],request_id:'stable-payment',acknowledged:true});assert.equal(f.calls.at(-1).name,'payroll089_payment_batch');assert.equal(f.calls.at(-1).args.p_items.length,1);}
  const denied=load('app/finance/payroll/page.tsx',{'next/headers':{cookies:async()=>({get:()=>({value:'synthetic'})})},'next/navigation':{notFound(){throw Error('SERVER_DENIED');},redirect(){throw Error('REDIRECT');}},'../../../lib/server/finance-payroll':{PayrollError:server.PayrollError,payrollPageAllowed:async()=>{throw new server.PayrollError('PAYROLL_ADMIN_REQUIRED',403);}},'./workspace':{default:()=>null}});await assert.rejects(denied.default(),/SERVER_DENIED/);
 });
@@ -134,4 +134,51 @@ test('Existing external engagement cannot silently seed a new/reloaded Payroll p
  assert.equal(model.hasExternalPayrollSource({...f.data,people:[{...outside,id:'internal',profile_id:'internal'}]},'2026-10-01'),false,'Internal Contractor is eligible');
  assert.throws(()=>model.hasExternalPayrollSource(f.data,'invalid'),/PAYROLL_MONTH_INVALID/);
  for(const locale of ['th','en'])assert.equal(labels.payrollError(locale,Error('PAYROLL_INTERNAL_PERSON_REQUIRED')),labels.payrollText(locale,'internalOnly'));
+});
+
+test('New Payroll eligibility uses exact People flags and preserves same-name identities',()=>{
+ const f=fixture(),base=f.profiles[0];
+ const profiles=[base,...[{active:false},{account_type:'uat'},{account_type:null},{assignable:false},{active:'true'},{assignable:null}].map((patch,i)=>({...base,id:'excluded-'+i,...patch})),{...base,id:'second',email:'second@example.invalid'},{...base,id:'no-email',email:null}];
+ f.data.people_options=profiles.map(p=>({id:p.id,profile_id:p.id,kind:'internal',entity_type:'natural_person',legal_name:'Same name',version:1}));
+ const options=model.newPayrollPeople(f.data,profiles);
+ assert.deepEqual(Array.from(options,p=>p.id),['internal','second','no-email']);
+ assert.equal(options[0].display_label,'VP Person · person@example.invalid');
+ assert.equal(options[1].display_label,'VP Person · second@example.invalid');
+ assert.equal(options[2].display_label,'VP Person · no-email');
+ const duplicate=model.newPayrollPeople(f.data,[base,{...base,id:'second'}]);
+ assert.equal(new Set(duplicate.map(p=>p.display_label)).size,2,'No name/email deduplication');
+ f.data.people=[{id:'internal',profile_id:'internal',engagements:[{active:true}],rates:[]}];
+ assert.equal(model.newPayrollPeople(f.data,profiles).some(p=>p.id==='internal'),false,'Existing people use their history card, not Add');
+ assert.equal(model.payrollSetupPeople(f.data).length,1,'Existing history stays visible independently of new eligibility');
+});
+
+test('Payroll API rechecks current new-person eligibility and creation is active only',async()=>{
+ for(const patch of [{active:false},{account_type:'uat'},{account_type:null},{assignable:false}])for(const action of ['engagement','rate']){
+  const f=fixture();Object.assign(f.profiles[0],patch);
+  const r=await request(f,{action,payload:{payee_id:'internal',kind:'contractor',active:true,assignable:true,account_type:'operational'}});
+  assert.equal(r.status,400);assert.equal((await r.json()).error,'PAYROLL_PERSON_NOT_ELIGIBLE');
+  assert.equal(f.calls.some(c=>c.name==='payroll089_manage'),false,'Forged client eligibility is ignored');
+ }
+ for(const active of [false,undefined]){
+  const f=fixture(),r=await request(f,{action:'engagement',payload:{payee_id:'internal',kind:'employee',active}});
+  assert.equal(r.status,400);assert.equal((await r.json()).error,'PAYROLL_NEW_ENGAGEMENT_ACTIVE_REQUIRED');
+  assert.equal(f.calls.some(c=>c.name==='payroll089_manage'),false);
+ }
+ const f=fixture();f.caller.rpc=async name=>{f.calls.push({name});return name==='payroll089_read'?{data:f.data}:{error:{message:'Roster unavailable'}};};
+ assert.notEqual((await request(f,{action:'engagement',payload:{payee_id:'internal',active:true}})).status,200);
+ assert.equal(f.calls.some(c=>c.name==='payroll089_manage'),false,'Missing eligibility evidence fails closed');
+});
+
+test('Historical Payroll remains readable/editable after account eligibility changes; ending appends dated facts',async()=>{
+ const f=fixture();Object.assign(f.profiles[0],{active:false,account_type:'uat',assignable:false});
+ f.data.people=[{id:'internal',profile_id:'internal',engagements:[{id:'old',kind:'contractor',active:true,effective_from:'2026-01-01'}],rates:[{id:'rate',monthly_amount:15000,effective_from:'2026-01-01'}]}];
+ const before=JSON.stringify(f.data),read=await request(f),body=await read.json();
+ assert.equal(read.status,200);assert.deepEqual(body.people,f.data.people);assert.deepEqual(body.new_people_options,[]);
+ for(const action of ['rate','engagement']){
+  const payload={id:'new-history',payee_id:'internal',kind:'contractor',active:false,effective_from:'2026-11-01',reason:'End engagement',monthly_amount:16000};
+  assert.equal((await request(f,{action,payload,request_id:'history-request'})).status,200);
+  assert.deepEqual(JSON.parse(JSON.stringify(f.calls.at(-1).args.p_payload)),payload);
+ }
+ assert.equal(JSON.stringify(f.data),before,'No historical objects filtered, rewritten or mutated');
+ for(const locale of ['th','en'])assert.equal(labels.payrollError(locale,Error('PAYROLL_PERSON_NOT_ELIGIBLE')),labels.payrollText(locale,'personNotEligible'));
 });

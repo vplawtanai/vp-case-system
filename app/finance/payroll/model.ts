@@ -1,3 +1,4 @@
+import {isAssignablePerson,type PeopleProfile} from '../../../lib/people';
 export const PAYROLL_COOKIE = 'vp-payroll-session';
 export type Engagement = {id:string; kind:'employee'|'contractor'; active:boolean; effective_from:string; reason:string};
 export type Rate = {id:string; monthly_amount:number; effective_from:string; reason:string};
@@ -7,7 +8,8 @@ export type Payment = {id:string;version:number;status:'draft'|'confirmed';bank_
 export type Line = {id:string;period_id:string;payee_id:string;kind:'employee'|'contractor';name:string;service_from:string;service_to:string;base_amount:number;additions:number;deductions:number;employee_ss:number;employer_ss:number;wht_treatment:'none'|'withhold';wht_amount:number;gross_amount:number;net_amount:number;requires_base_review:boolean;reviewed:boolean;adjustment_reason:string;note:string;payment:Payment|null};
 export type Obligation = {id:string;month:string;name:string;kind:'employee_wht'|'contractor_wht'|'employee_ss'|'employer_ss';amount:number;status:'pending'};
 export type Account = {bank_account_id:string|null;cash_location_id:string|null;name_th:string;name_en:string};
-export type PayrollData = {people:Person[];people_options:import('../payouts/shared').Payee[];periods:Period[];lines:Line[];obligations:Obligation[];accounts:Account[];today:string};
+export type PayrollNewPerson = import('../payouts/shared').Payee & {display_label:string};
+export type PayrollData = {people:Person[];people_options:import('../payouts/shared').Payee[];new_people_options:PayrollNewPerson[];periods:Period[];lines:Line[];obligations:Obligation[];accounts:Account[];today:string};
 // Finance's internal payee identity is the existing user_profile ID. External
 // payees remain valid in Expense/Payables, but are not a Payroll setup source.
 export const isInternalPayrollIdentity=(person:{id:string;profile_id:string|null})=>!!person.profile_id&&person.id===person.profile_id;
@@ -17,6 +19,19 @@ export function payrollPeopleOptions(options:PayrollData['people_options']){
 export function payrollSetupPeople(data:Pick<PayrollData,'people'|'people_options'>){
  const ids=new Set(payrollPeopleOptions(data.people_options).map(p=>p.id));
  return data.people.filter(p=>isInternalPayrollIdentity(p)&&ids.has(p.id));
+}
+export const hasPayrollHistory=(person:Person|undefined)=>!!person&&(person.engagements.length>0||person.rates.length>0);
+// Eligibility applies to first entry only, never to historical People or period facts.
+export function newPayrollPeople(data:Pick<PayrollData,'people'|'people_options'>,profiles:PeopleProfile[]):PayrollNewPerson[]{
+ const existing=new Set(data.people.filter(hasPayrollHistory).map(p=>p.id));
+ const options=payrollPeopleOptions(data.people_options).flatMap(payee=>{
+  const profile=profiles.find(p=>p.id===payee.profile_id);
+  if(!profile||!isAssignablePerson(profile)||existing.has(payee.id))return [];
+  const name=profile.staff_name?.trim()||profile.full_name?.trim()||payee.legal_name;
+  return [{...payee,display_label:`${name} · ${profile.email?.trim()||profile.id}`}];
+ });
+ // Never merge identities by name. Even identical names/emails retain distinct IDs.
+ return options.map(p=>({...p,display_label:options.filter(x=>x.display_label===p.display_label).length>1?`${p.display_label} · ${p.id}`:p.display_label}));
 }
 // Do not silently turn an existing external engagement into new Payroll lines.
 // This is an application scope check only; the RPC still owns period validation.
