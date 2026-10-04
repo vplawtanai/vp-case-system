@@ -1,4 +1,5 @@
 import 'server-only';
+import {createHash} from 'node:crypto';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {peopleClientsFor,type PeopleClients} from './people-admin';
 import {PAYROLL_COOKIE,payrollPeopleOptions,hasPayrollHistory,newPayrollPeople,type PayrollData} from '../../app/finance/payroll/model';
@@ -27,9 +28,12 @@ export async function handlePayrollRequest(request:Request,supplied?:PeopleClien
   if(request.method==='GET'){
    const url=new URL(request.url),period=url.searchParams.get('period'),month=url.searchParams.get('month');
    if(month&&!/^\d{4}-(0[1-9]|1[0-2])-01$/.test(month))throw new PayrollError('PAYROLL_MONTH_INVALID');
-   const [data,profiles]=await Promise.all([readPayroll(caller,period||null),readPeople(caller)]);
-   const monthly=await caller.rpc('payroll091_month',{p_month:month||data.today.slice(0,7)+'-01'});if(monthly.error)throw monthly.error;
-   return reply({...data,new_people_options:newPayrollPeople(data,profiles),monthly:monthly.data});
+   // One statement snapshot binds the table/modal facts to correction tokens.
+   const [snapshot,profiles]=await Promise.all([caller.rpc('payroll092_read',{p_month:month||null,p_period:period||null}),readPeople(caller)]);
+   if(snapshot.error)throw snapshot.error;
+   const data=snapshot.data;
+   if(!data||!Array.isArray(data.people)||!Array.isArray(data.monthly?.rows)||!data.corrections)throw new PayrollError('PAYROLL_FAILED');
+   return reply({...data,new_people_options:newPayrollPeople(data,profiles)});
   }
   if(request.method!=='POST')return reply({error:'PAYROLL_INPUT_INVALID'},405);
   if(request.headers.get('origin')!==new URL(request.url).origin)throw new PayrollError('PAYROLL_ADMIN_REQUIRED',403);
@@ -40,7 +44,7 @@ export async function handlePayrollRequest(request:Request,supplied?:PeopleClien
    const token=request.headers.get('authorization')?.slice(7)||'';if(!/^[A-Za-z0-9._-]+$/.test(token))throw new PayrollError('PAYROLL_UNAUTHORIZED',401);
    const response=reply({ready:true});response.headers.set('Set-Cookie',`${PAYROLL_COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/finance/payroll; Max-Age=1800${new URL(request.url).protocol==='https:'?'; Secure':''}`);return response;
   }
-  if(['engagement','rate'].includes(b.action)){
+  if(['engagement','rate','setup'].includes(b.action)){
    // Check the caller-visible internal People projection, not client-supplied
    // profile/kind fields. Keep the generic, already-applied 089 RPC unchanged.
    const data=await readPayroll(caller);
@@ -52,7 +56,26 @@ export async function handlePayrollRequest(request:Request,supplied?:PeopleClien
    if(b.action==='engagement'&&!person?.engagements.length&&b.payload.active!==true)throw new PayrollError('PAYROLL_NEW_ENGAGEMENT_ACTIVE_REQUIRED');
   }
   let result;
-  if(['monthly_save','monthly_reload','monthly_pay'].includes(b.action)){
+  if(b.action==='correct'){
+   result=await caller.rpc('payroll092_correct',{p_action:b.payload?.kind,p_payee:b.payload?.payee_id,p_target:b.payload?.target||null,p_expected_hash:b.payload?.expected_hash,p_reason:b.payload?.reason,p_request_id:b.request_id});
+  }else if(b.action==='setup'){
+   // One modal, existing audited contracts. Each step has a stable retry ID;
+   // partial setup may be completed by retry or removed with the 092 correction.
+   const p=b.payload;
+   if(!p||!['employee','contractor'].includes(p.kind)||!/^\d{4}-\d{2}-\d{2}$/.test(p.effective_from)||!/^\d{1,12}(\.\d{1,2})?$/.test(String(p.monthly_amount))||Number(p.monthly_amount)<=0||typeof p.reason!=='string'||!p.reason.trim()||p.reason.length>2000||typeof b.request_id!=='string'||!/^[0-9a-f-]{36}$/.test(b.request_id))throw new PayrollError('PAYROLL_INPUT_INVALID');
+   const d=await readPayroll(caller),option=payrollPeopleOptions(d.people_options).find(x=>x.id===p.payee_id)!;
+   const dest=p.destination;
+   if(dest&&(!['bank_name','account_name','account_number'].every(k=>typeof dest[k]==='string'&&dest[k].trim())||dest.account_number.length<4||dest.account_number.length>50))throw new PayrollError('PAYROLL_INPUT_INVALID');
+   if(p.tax_id&&!/^\d{13}$/.test(p.tax_id))throw new PayrollError('PAYROLL_INPUT_INVALID');
+   if(!option.version||dest||p.tax_id){
+    const saved=await caller.rpc('save_finance_payee',{p_id:option.id,p_profile_id:option.profile_id,p_expected_version:option.version,
+     p_input:{legal_name:option.legal_name,entity_type:'natural_person',is_active:option.is_active,tax_id:p.tax_id||option.tax_id||null,destination:dest||option.destination||null}});
+    if(saved.error)throw saved.error;
+   }
+   const child=(name:string)=>createHash('md5').update('payroll-setup:'+b.request_id+':'+name).digest('hex');
+   const engagement=await caller.rpc('payroll089_manage',{p_action:'engagement',p_payload:{id:child('engagement'),payee_id:p.payee_id,kind:p.kind,active:true,effective_from:p.effective_from,reason:p.reason},p_request_id:child('engagement-request')});if(engagement.error)throw engagement.error;
+   result=await caller.rpc('payroll089_manage',{p_action:'rate',p_payload:{id:child('rate'),payee_id:p.payee_id,monthly_amount:p.monthly_amount,effective_from:p.effective_from,reason:p.reason},p_request_id:child('rate-request')});
+  }else if(['monthly_save','monthly_reload','monthly_pay'].includes(b.action)){
    if(typeof b.month!=='string'||!/^\d{4}-(0[1-9]|1[0-2])-01$/.test(b.month))throw new PayrollError('PAYROLL_MONTH_INVALID');
    periodPeople=(await readPayroll(caller)).people;
    result=await caller.rpc('payroll091_manage',{p_action:b.action.slice(8),p_month:b.month,p_items:b.items,p_request_id:b.request_id,p_acknowledged:b.acknowledged===true});
