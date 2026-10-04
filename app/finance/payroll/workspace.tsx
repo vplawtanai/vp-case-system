@@ -1,6 +1,6 @@
 'use client';
 import {useCallback,useEffect,useRef,useState,useContext,createContext,type FormEvent,type ReactNode,type ComponentProps} from 'react';
-import {ChevronLeft,ChevronRight,LockKeyhole,Plus,RefreshCw,Pencil,MoreHorizontal} from 'lucide-react';
+import {ChevronLeft,ChevronRight,LockKeyhole,Plus,RefreshCw,MoreHorizontal} from 'lucide-react';
 import BaseModal,{type DetailModalProps} from '../../components/DetailModal';
 import ui from '../../components/ui/vp-ui.module.css';
 import {useI18n} from '../../../lib/i18n/provider';
@@ -57,14 +57,13 @@ export default function PayrollWorkspace(){
    {!workspacePeople(data,includeInactive).length?<Empty>{m('emptyMonth')}</Empty>:<div className={css.tableWrap}><table className={`${css.table} ${css.monthTable}`}><thead><tr><th aria-label={t('select')}/><th>{t('name')}</th><th>{t('kind')}</th><th>{s('recurring')}</th><th>{s('extras')}</th><th>{s('deductions')}</th><th>{m('socialSecurity')}</th><th>{t('wht')}</th><th>{t('net')}</th><th>{s('status')}</th><th>{m('actions')}</th></tr></thead><tbody>{workspacePeople(data,includeInactive).map(({row:r,person:p})=>{
     const rate=recurringRate(p,monthly.month),editable=!r.line?.frozen_json&&!!r.source&&!r.issues.some(x=>['missing_rate','mixed_engagement','no_engagement','source_changed'].includes(x));
     const amount=rate?.monthly_amount??r.recurring_amount,known=knownMonthlyFacts(r),frozen=!!r.line?.frozen_json;
-    const monthlyButton=(label:string,value:string)=> <button className={css.cellEdit} disabled={blocked||!editable} aria-label={label+' · '+r.name} onClick={()=>edit(r,p)}>{value}{editable&&<Pencil size={12} aria-hidden/>}</button>;
     return <tr key={r.payee_id} data-person={r.payee_id} data-selected={selected.includes(r.payee_id)}><td><input type="checkbox" aria-label={t('select')+': '+r.name} disabled={blocked||!readyForConfirmation(r)} checked={selected.includes(r.payee_id)} onChange={e=>setSelected(v=>e.target.checked?[...v,r.payee_id]:v.filter(id=>id!==r.payee_id))}/></td>
-     <td data-label={t('name')}><strong>{r.name}</strong><button className={css.bankLink} disabled={blocked} onClick={()=>bank(r.payee_id)}>{r.destination?.summary||s('bank')}<Pencil size={11}/></button></td>
-     <td data-label={t('kind')}><button className={`${css.badge} ${css.cellEdit}`} disabled={blocked||!p} onClick={()=>setup(p||null,'engagement')}>{r.kind?t(r.kind):'—'}<Pencil size={11}/></button></td>
-     <td data-label={s('recurring')}><button className={css.cellEdit} disabled={blocked||!p} aria-label={s('editRate')+' · '+r.name} onClick={()=>setup(p||null,'rate')}>{amount==null?'—':money(amount)}<Pencil size={12}/></button><small>{rate?dateLabel(rate.effective_from,locale):m('missing_rate')}</small>{r.line?.reviewed&&Number(r.line.base_amount)!==Number(amount)&&<small>{m('actualMonthlyAmount')}: {money(r.line.base_amount)}</small>}</td>
-     <td data-label={s('extras')}>{monthlyButton(s('extras'),money(r.line?.additions||0))}</td><td data-label={s('deductions')}>{monthlyButton(s('deductions'),money(r.line?.deductions||0))}</td>
-     <td data-label={m('socialSecurity')}>{r.kind==='contractor'?m('noSS'):monthlyButton(m('socialSecurity'),known.employee_ss===undefined?'—':money(known.employee_ss)+' / '+money(known.employer_ss||0))}</td>
-     <td data-label={t('wht')}>{monthlyButton(t('wht'),known.wht_amount===undefined?'—':money(known.wht_amount))}</td><td data-label={t('net')}><strong>{r.line?.reviewed?money(r.line.net_amount):'—'}</strong></td>
+     <td data-label={t('name')}><strong>{r.name}</strong><button className={css.bankLink} disabled={blocked} onClick={()=>bank(r.payee_id)}>{r.destination?.summary||s('bank')}</button></td>
+     <td data-label={t('kind')}><button className={`${css.badge} ${css.cellEdit}`} disabled={blocked||!p} onClick={()=>setup(p||null,'engagement')}>{r.kind?t(r.kind):'—'}</button></td>
+     <td data-label={s('recurring')}><button className={css.cellEdit} disabled={blocked||!p} aria-label={s('editRate')+' · '+r.name} onClick={()=>setup(p||null,'rate')}>{amount==null?'—':money(amount)}</button><small>{rate?dateLabel(rate.effective_from,locale):m('missing_rate')}</small>{r.line?.reviewed&&Number(r.line.base_amount)!==Number(amount)&&<small>{m('actualMonthlyAmount')}: {money(r.line.base_amount)}</small>}</td>
+     <td data-label={s('extras')}>{money(r.line?.additions||0)}</td><td data-label={s('deductions')}>{money(r.line?.deductions||0)}</td>
+     <td data-label={m('socialSecurity')}>{r.kind==='contractor'?m('noSS'):known.employee_ss===undefined?'—':money(known.employee_ss)+' / '+money(known.employer_ss||0)}</td>
+     <td data-label={t('wht')}>{known.wht_amount===undefined?'—':money(known.wht_amount)}</td><td data-label={t('net')}><strong>{r.line?.reviewed?money(r.line.net_amount):'—'}</strong></td>
      <td data-label={s('status')}><span className={r.state==='paid'?css.readyState:css.reviewState}>{m(r.state)}</span>{r.issues.filter(x=>x!=='monthly_facts_required').map(x=><small key={x}>{issueText(x)}</small>)}</td>
      <td><div className={css.rowActions}>{readyForConfirmation(r)&&<button className={ui.primary} disabled={blocked} onClick={()=>openPay(r)}>{r.line?.net_amount===0?m('finishZero'):m('pay')}</button>}
       {editable&&<button className={ui.secondary} disabled={blocked} onClick={()=>edit(r,p)}>{s('edit')}</button>}
