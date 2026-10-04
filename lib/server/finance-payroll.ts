@@ -1,7 +1,7 @@
 import 'server-only';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {peopleClientsFor,type PeopleClients} from './people-admin';
-import {PAYROLL_COOKIE,payrollPeopleOptions,hasExternalPayrollSource,hasPayrollHistory,newPayrollPeople,type PayrollData} from '../../app/finance/payroll/model';
+import {PAYROLL_COOKIE,payrollPeopleOptions,hasPayrollHistory,newPayrollPeople,type PayrollData} from '../../app/finance/payroll/model';
 import type {PeopleProfile} from '../people';
 export class PayrollError extends Error {constructor(message:string,public status=400){super(message);}}
 export async function authorizePayroll(caller:SupabaseClient){
@@ -25,9 +25,11 @@ export async function handlePayrollRequest(request:Request,supplied?:PeopleClien
  try{
   const caller=(supplied||peopleClientsFor(request)).caller;await authorizePayroll(caller);
   if(request.method==='GET'){
-   const period=new URL(request.url).searchParams.get('period');
+   const url=new URL(request.url),period=url.searchParams.get('period'),month=url.searchParams.get('month');
+   if(month&&!/^\d{4}-(0[1-9]|1[0-2])-01$/.test(month))throw new PayrollError('PAYROLL_MONTH_INVALID');
    const [data,profiles]=await Promise.all([readPayroll(caller,period||null),readPeople(caller)]);
-   return reply({...data,new_people_options:newPayrollPeople(data,profiles)});
+   const monthly=await caller.rpc('payroll091_month',{p_month:month||data.today.slice(0,7)+'-01'});if(monthly.error)throw monthly.error;
+   return reply({...data,new_people_options:newPayrollPeople(data,profiles),monthly:monthly.data});
   }
   if(request.method!=='POST')return reply({error:'PAYROLL_INPUT_INVALID'},405);
   if(request.headers.get('origin')!==new URL(request.url).origin)throw new PayrollError('PAYROLL_ADMIN_REQUIRED',403);
@@ -49,19 +51,15 @@ export async function handlePayrollRequest(request:Request,supplied?:PeopleClien
    }
    if(b.action==='engagement'&&!person?.engagements.length&&b.payload.active!==true)throw new PayrollError('PAYROLL_NEW_ENGAGEMENT_ACTIVE_REQUIRED');
   }
-  if(['create_period','reload_period'].includes(b.action)){
-   const read=await caller.rpc('payroll089_read',{p_period:b.action==='reload_period'?b.payload?.period_id:null});
-   if(read.error)throw read.error;
-   const data=read.data as PayrollData;
-   if(!data||!Array.isArray(data.people)||!Array.isArray(data.people_options)||!Array.isArray(data.periods))throw new PayrollError('PAYROLL_FAILED');
-   const month=b.action==='create_period'?b.payload?.month:data.periods.find(p=>p.id===b.payload?.period_id)?.month;
-   if(typeof month!=='string')throw new PayrollError('PAYROLL_MONTH_INVALID');
-   periodPeople=data.people;
-   if(hasExternalPayrollSource(data,month))throw new PayrollError('PAYROLL_INTERNAL_PERSON_REQUIRED');
-  }
   let result;
-  if(['prepare','confirm','cancel'].includes(b.action))result=await caller.rpc('payroll089_payment_batch',{p_action:b.action,p_items:b.items,p_request_id:b.request_id,p_acknowledged:b.acknowledged===true});
-  else if(['engagement','rate','create_period','line','period','approve','reload_period'].includes(b.action))result=await caller.rpc('payroll089_manage',{p_action:b.action,p_payload:b.payload,p_request_id:b.request_id});
+  if(['monthly_save','monthly_reload','monthly_pay'].includes(b.action)){
+   if(typeof b.month!=='string'||!/^\d{4}-(0[1-9]|1[0-2])-01$/.test(b.month))throw new PayrollError('PAYROLL_MONTH_INVALID');
+   periodPeople=(await readPayroll(caller)).people;
+   result=await caller.rpc('payroll091_manage',{p_action:b.action.slice(8),p_month:b.month,p_items:b.items,p_request_id:b.request_id,p_acknowledged:b.acknowledged===true});
+  }else if(b.action==='cancel')result=await caller.rpc('payroll089_payment_batch',{p_action:'cancel',p_items:b.items,p_request_id:b.request_id,p_acknowledged:b.acknowledged===true});
+  else if(['engagement','rate'].includes(b.action))result=await caller.rpc('payroll089_manage',{p_action:b.action,p_payload:b.payload,p_request_id:b.request_id});
+  // The old DB APIs remain available for compatibility. This application no
+  // longer offers whole-period approval/reload or separate prepare/confirm.
   else throw new PayrollError('PAYROLL_INPUT_INVALID');
   if(result.error)throw result.error;return reply(result.data);
  }catch(e){
@@ -76,6 +74,7 @@ export async function handlePayrollRequest(request:Request,supplied?:PeopleClien
      issue={person:person.legal_name,month:detail.month,service_from:detail.service_from,service_to:detail.service_to,reason:'no_rate_overlap'};
    }catch{/* Malformed diagnostics remain a generic fail-closed error. */}
   }
+  if(!issue&&periodPeople){try{const detail=JSON.parse(error.details||'null'),person=periodPeople.find(p=>p.id===detail?.payee_id);if(person)issue={person:person.legal_name,reason:'selected_person'};}catch{/* no raw details */}}
   return reply({error:code,...(issue?{issue}:{})},e instanceof PayrollError?e.status:409);
  }
 }

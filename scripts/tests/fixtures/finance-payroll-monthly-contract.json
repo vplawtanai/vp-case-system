@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "payroll089_protect()": "28142a2ea33c6e8a31f1c273869710b8843bc2b6699971b36f0003636a7ec527",
+    "payroll089_manage(text,jsonb,uuid)": "57f09fd5a393597513873ffbe9e96bcf7af7c10d255a3427ad204b81c3139235",
+    "payroll089_period_assert()": "a22a6ed7d7dea305ec24fa412f729fa3154191126632da93a3dd5abd37e6bc51",
+    "payroll091_source(date,uuid)": "3b150c03dc27fe336fa5cb042a99bf8196f2ca4ec746bf055b47bc550d85bf7a",
+    "payroll091_month(date)": "6ebafee0080c1e6b8767d8af336bd2931597b601a530bc1af1f8d98699ebe0ff",
+    "payroll091_manage(text,date,jsonb,uuid,boolean)": "63f24b18334b7b04e0806640b19db402a2919485e376d96e9162961e6d51b351"
+  },
+  "tables": {
+    "finance_payroll_periods": "e0f164134a308370267ee2fb1adf0e78b7d5f35b8a06fe0b771a080bf72b1324"
+  }
+}
