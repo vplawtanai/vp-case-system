@@ -2,7 +2,7 @@
 // Focused, synthetic-only validation of the floating detail panel. No Production access.
 const assert=require('node:assert/strict'),fs=require('node:fs');
 const {chromium}=require('/Users/paolawyer/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
-const base=process.argv[2],out='/private/tmp/vp094-floating-detail';
+const base=process.argv[2],out='/private/tmp/vp094-flat-detail';
 assert.match(base,/^http:\/\/127\.0\.0\.1:\d+$/);
 async function settle(page){await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));}
 async function layout(page){return page.getByRole('dialog').evaluate(dialog=>{
@@ -23,16 +23,34 @@ function stable(before,after){
    const page=await browser.newPage({viewport:{width,height:width===1440?780:1000}});
    page.on('pageerror',error=>errors.push(error.message));page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
    await page.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());
-   await page.goto(base+'?editable&locale='+locale+(fj1?'&fj1':'')+(tall?'&tall':''));
+   await page.goto(base+'?editable&detailfacts&locale='+locale+(fj1?'&fj1':'')+(tall?'&tall':''));
    const map=page.locator('section[data-ready=true]');await map.waitFor();await settle(page);
    const panel=map.locator('aside[aria-label]'),expand=panel.getByRole('button',{name:locale==='th'?'ดูรายละเอียด':'View details',exact:true});
    for(const selected of ['s0','s3']){
     await map.locator('[data-stage='+selected+']').click();await settle(page);
-    assert.equal(await panel.getAttribute('data-expanded'),'false');const before=await layout(page);
+    assert.equal(await panel.getAttribute('data-expanded'),'false');const before=await layout(page),compactText=await panel.innerText();
     await expand.click();await settle(page);assert.equal(await page.getByRole('dialog').count(),1);
     stable(before,await layout(page));
     const collapse=panel.getByRole('button',{name:locale==='th'?'ย่อรายละเอียด':'Collapse details',exact:true});
     const body=panel.getByRole('region',{name:locale==='th'?'รายละเอียดขั้นตอนทั้งหมด':'Full stage details',exact:true});
+    const stageName=await panel.locator('h3').first().innerText();
+    assert.equal(await panel.getByRole('heading',{name:stageName,exact:true}).count(),1,'Stage name has one visible heading');
+    assert.equal(await body.getByRole('heading',{name:/^(รายละเอียดขั้นตอน|Stage detail):/}).count(),0);
+    for(const duplicate of await body.locator('[data-journey-detail-heading],[data-journey-detail-state]').all())assert.equal(await duplicate.isVisible(),false);
+    const surfaces=await body.locator(':scope > section,:scope > div > section,[data-journey-detail-next],[data-journey-detail-routes] > div > span').evaluateAll(elements=>elements.map(element=>{
+     const css=getComputedStyle(element);return {radius:css.borderRadius,shadow:css.boxShadow,background:css.backgroundColor,sideBorder:css.borderLeftWidth};
+    }));
+    assert.ok(surfaces.length>0);for(const surface of surfaces)assert.deepEqual(surface,{radius:'0px',shadow:'none',background:'rgba(0, 0, 0, 0)',sideBorder:'0px'},'No nested detail/next-action/outcome card');
+    const detailText=await body.innerText();
+    for(const fact of ['2 / 4','75','SYNTHETIC NEXT ACTION','SYNTHETIC OWNER','2026-10-12','2026-10-05'])assert.ok(detailText.includes(fact),fact+' preserved');
+    if(!fj1){
+     assert.ok(detailText.includes((locale==='th'?'ครั้งที่':'Visit')+' '+(selected==='s3'?2:1)));
+     if(selected==='s0')for(const fact of ['SYNTHETIC ACTOR','SYNTHETIC REASON',locale==='th'?'ผลลัพธ์ตัวอย่าง':'Synthetic outcome'])assert.ok(detailText.includes(fact),fact+' preserved');
+     const routeRows=body.locator('[data-journey-detail-routes] > div');assert.equal(await routeRows.count(),selected==='s3'?3:1);
+     if(selected==='s3')assert.equal(await body.getByText(locale==='th'?'บังคับเหตุผล':'Reason required',{exact:true}).count(),2);
+    }
+    const action=body.getByRole('button',{name:locale==='th'?'เสร็จขั้นตอนนี้ → ไปขั้นถัดไป':'Complete stage → Next stage',exact:true});
+    if(!fj1)assert.equal(await action.count(),selected==='s3'?1:0);
     const geometry=await panel.evaluate(panel=>{
      const b=panel.getBoundingClientRect(),canvas=panel.parentElement.getBoundingClientRect(),node=panel.parentElement.querySelector('[data-stage][aria-pressed=true]').getBoundingClientRect();
      return {width:b.width,height:b.height,canvasHeight:canvas.height,inside:b.left>=canvas.left&&b.right<=canvas.right+1&&b.top>=canvas.top&&b.bottom<=canvas.bottom+1,opposite:(node.x+node.width/2<canvas.x+canvas.width/2)===(b.x+b.width/2>canvas.x+canvas.width/2),selectedObscured:Math.min(b.right,node.right)>Math.max(b.left,node.left)&&Math.min(b.bottom,node.bottom)>Math.max(b.top,node.top)};
@@ -50,9 +68,13 @@ function stable(before,after){
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
     await page.screenshot({path:out+`/${locale}-${fj1?'fj1':'fj2'}-${width}-${tall?'tall':'wide'}-${selected}.png`});
     await collapse.click();await settle(page);stable(before,await layout(page));
-    assert.equal(await body.count(),0);assert.equal(await expand.getAttribute('aria-expanded'),'false');
+    assert.equal(await body.count(),0);assert.equal(await expand.getAttribute('aria-expanded'),'false');assert.equal(await panel.innerText(),compactText,'Compact overlay unchanged');
    }
-   results.push({locale,journey:fj1?'FJ1':'FJ2',width,ratio:tall?'4:3':'wide',floating:true,internalScroll:true,headerFixed:true,layoutStable:true,oppositeSides:true});await page.close();
+   // Exercise the same current-stage action on this synthetic fixture only.
+   await expand.click();await settle(page);
+   await panel.getByRole('region').getByRole('button',{name:locale==='th'?'เสร็จขั้นตอนนี้ → ไปขั้นถัดไป':'Complete stage → Next stage',exact:true}).click();
+   assert.equal(await page.evaluate(()=>window.editRequests.at(-1).action),'stage_complete');
+   results.push({flatPanel:true,detailFactsPreserved:true,existingAction:true,locale,journey:fj1?'FJ1':'FJ2',width,ratio:tall?'4:3':'wide',floating:true,internalScroll:true,headerFixed:true,layoutStable:true,oppositeSides:true});await page.close();
   }
   for(const locale of ['th','en'])for(const fj1 of [false,true]){
    const page=await browser.newPage({viewport:{width:390,height:844}});

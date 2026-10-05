@@ -25,11 +25,18 @@
 .panel[data-expanded=true] .panelHeader{position:sticky;top:0;z-index:1;flex:0 0 auto;padding:10px 14px;border-bottom:1px solid #dbe5ed;background:#fff}
 .panelBody{min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-gutter:stable;padding:10px 12px 12px;overflow-anchor:none}
 .panelBody:focus-visible{outline:2px solid #1769b0;outline-offset:-2px}
-.panelBody>section{margin-top:0;padding:12px}.panelBody h3{font-size:14px}
+.panelBody>section,.panelBody>div>section{margin:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
+.panelBody [data-journey-detail-heading],.panelBody [data-journey-detail-state]{display:none}
+.panelBody h3{font-size:14px}
+.panelBody h4{margin:12px 0 6px}.panelBody>section>div:first-of-type{margin-top:0}
+.panelBody [data-journey-detail-routes]{gap:0}
+.panelBody [data-journey-detail-routes]>div{padding:8px 0;border-top:1px solid #e2e9f0}
+.panelBody [data-journey-detail-routes]>div>span{padding:0;border:0;border-radius:0;background:transparent}
+.panelBody [data-journey-detail-next]{padding:12px 0 0;border-top:1px solid #e2e9f0;border-radius:0;background:transparent}
 /* Fit the existing FJ-1 detail/progress content inside this panel only. */
 .panelBody>div{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;padding:0;background:transparent}
-.panelBody>div>aside{padding:10px;border-right:0;border-bottom:1px solid #dbe5ed}
-.panelBody>div>section{padding:12px}.panelBody dl{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.panelBody>div>aside{padding:0 0 10px;border-right:0;border-bottom:1px solid #dbe5ed}
+.panelBody dl{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .loading{display:none}
 @media(min-width:768px){.loading{display:block;border-radius:12px;background:#f2f5f8;border:1px solid #dce4ec;padding:20px;color:#526779;font-size:13px;text-align:center}.skeleton{height:min(54dvh,560px);display:flex;align-items:center;justify-content:center;gap:clamp(16px,5vw,72px)}.skeleton span{width:clamp(60px,12vw,150px);height:72px;border:1px solid #dbe3eb;border-radius:12px;background:#e6edf3}.loading p{margin:8px 0}}
 @container(max-width:1000px){.desktop .panel{width:218px;padding:9px 10px}.panel h3{font-size:12px!important}.panel p{font-size:10px}.desktop .panel .panelAction button{font-size:11px}.desktop button.expand{font-size:10px}}

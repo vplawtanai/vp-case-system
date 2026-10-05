@@ -74,7 +74,7 @@ export default function Journey({ snapshot, path:recordedPath=[], matter, stages
       </aside>
       <section ref={detailsRef} id="journey-stage-details" className={css.stageDetail} aria-live="polite" aria-label={a('stageDetails')}>
         <button type="button" className={css.returnToRoute} onClick={() => sceneRef.current?.scrollIntoView({ block: 'start' })}>{a('backToRoute')}</button>
-        <div className={css.detailHeading}><div><span className={css.eyebrow}>{a('stepNumber', { n: plan.indexOf(chosen) + 1 })}</span><h3>{journeyName(chosen,locale,label(chosen.stage_key,chosen.template_key))}</h3></div><span className={css.stateBadge} data-state={state}>{a(state)}</span></div>
+        <div className={css.detailHeading}><div><span className={css.eyebrow}>{a('stepNumber', { n: plan.indexOf(chosen) + 1 })}</span><h3 data-journey-detail-heading>{journeyName(chosen,locale,label(chosen.stage_key,chosen.template_key))}</h3></div><span className={css.stateBadge} data-state={state} data-journey-detail-state>{a(state)}</span></div>
         {state==='skipped'&&chosen.required===false&&<p className={css.skipReason}><strong>{a('fjSkipReason')}:</strong> {skipReasons[chosen.stage_key]||a('fjSkipReasonMissing')}</p>}
         <dl className={css.stageFacts}>
           <div><dt>{a('entered')}</dt><dd>{date(current?.entered_at || latest?.entered_at)}</dd></div>
@@ -83,7 +83,7 @@ export default function Journey({ snapshot, path:recordedPath=[], matter, stages
           <div><dt>{a('actual')}</dt><dd>{chosen.minutes === null ? a('notAvailable') : a('minutes', { n: chosen.minutes })}</dd></div>
         </dl>
         <div className={css.nextStage}><span>{a('followingStage')}</span><strong>{nextStage ? journeyName(nextStage,locale,label(nextStage.stage_key,nextStage.template_key)) : a('endOfRoute')}</strong><ArrowRight size={15} /></div>
-        <div className={css.matterNext}>
+        <div className={css.matterNext} data-journey-detail-next>
           <span>{a('matterNextAction')}</span><strong>{matter.next_action || a('noNext')}</strong>
           <dl><div><dt>{a('actor')}</dt><dd>{matter.next_owner_name || a('unassigned')}</dd></div><div><dt>{a('due')}</dt><dd>{date(matter.next_due)}</dd></div></dl>
         </div>
