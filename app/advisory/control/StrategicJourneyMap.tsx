@@ -20,6 +20,13 @@ export default function StrategicJourneyMap({matter,snapshot,stages,path,locale,
  const canvasRef=useRef<HTMLDivElement>(null),panelRef=useRef<HTMLElement>(null);
  const key=journeyArtworkKey(snapshot.family_key),anchors=key?journeyArtworkAnchors(key,snapshot.definition?.stages?.length||0):null;
  const ready=!!asset&&failed!==asset.url;
+ // Fit the entire intrinsic artwork in the viewport, including taller approved masters.
+ // This property is scoped to this open modal and is removed for mobile/fallback rendering.
+ useEffect(()=>{
+  const modal=canvasRef.current?.closest<HTMLElement>('[role=dialog]');if(!ready||!asset||!modal)return;
+  modal.style.setProperty('--journey-map-width',`calc((94dvh - 220px) * ${asset.width/asset.height} + 34px)`);
+  return()=>{modal.style.removeProperty('--journey-map-width');};
+ },[ready,asset]);
  // Measure the rendered captions (including TH/EN wraps), never move approved anchors.
  // Prefer bottom corners; if occupied, choose the least obstructed edge position.
  useEffect(()=>{

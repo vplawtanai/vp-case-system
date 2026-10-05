@@ -21,7 +21,7 @@
 .stepper [data-state="visited"] .stepDot,.stepper [data-state="finished"] .stepDot{background:#e4f3ec;color:#25725a;border-color:#b2d9c9}
 .stepper [data-state="skipped"] .stepDot{border-style:dashed;color:#806639}
 .mapModal{padding:18px!important}
-.mapModal [role="dialog"]{width:min(1400px,calc(100vw - 36px));max-height:94dvh;background:#f5f0e7;border:1px solid #a38a54;border-radius:12px;box-shadow:0 28px 100px #08121ab3}
+.mapModal [role="dialog"]{width:min(1400px,calc(100vw - 36px),var(--journey-map-width,1400px));max-height:94dvh;background:#f5f0e7;border:1px solid #a38a54;border-radius:12px;box-shadow:0 28px 100px #08121ab3}
 .mapModal [role="dialog"]>header{background:#f7f2e9;border-bottom:1px solid #d7c7ac;padding:18px 68px 16px 24px}
 .mapModal [role="dialog"]>header h2{font-size:23px;color:#1a2e3e}
 .mapModal [role="dialog"]>header button{border:1px solid #cfbea1;background:#fffaf0;color:#2a3941;border-radius:50%}
