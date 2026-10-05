@@ -9,6 +9,9 @@ export type VisualAsset = {
  overlay_ready:boolean; delete_pending:boolean; version:number; created_at:string; updated_at:string; master_url?:string; thumbnail_url?:string;
 };
 export type VisualMapping={scope:string;family_key:string;artwork_key:string};
+export function visualMappingCandidates(mappings:VisualMapping[],scope:'case'|'non_litigation',family:string){
+ return [[scope,family],['both',family],['both','universal']].flatMap(([s,f])=>mappings.filter(m=>m.scope===s&&m.family_key===f));
+}
 export const validKey=(value:unknown):value is string=>typeof value==='string'&&/^[a-z][a-z0-9_-]{2,79}$/.test(value);
 // Display codes refer to the immutable registry key, never a signed Storage URL.
 // Existing, manually named keys retain their original representation.
@@ -35,8 +38,7 @@ export function visualMetadata(input:unknown) {
 // Future readers resolve FAMILY identity, never Work Type. Only explicitly active
 // artwork is eligible; until an Admin maps both/universal the caller uses neutral UI.
 export function resolveVisualAsset(assets:VisualAsset[],mappings:VisualMapping[],scope:'case'|'non_litigation',family:string):VisualAsset|null {
- for(const [s,f]of [[scope,family],['both',family],['both','universal']]){
-  const map=mappings.find(m=>m.scope===s&&m.family_key===f);
+ for(const map of visualMappingCandidates(mappings,scope,family)){
   const asset=assets.find(a=>a.artwork_key===map?.artwork_key&&a.status==='active'&&!a.delete_pending&&(a.scope==='both'||a.scope===scope));
   if(asset)return asset;
  }return null;

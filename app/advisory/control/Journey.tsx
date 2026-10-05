@@ -1,5 +1,7 @@
 "use client";
-import {journeyName} from '../../../lib/advisory-flexible-journey';
+import StrategicJourneyMap from './StrategicJourneyMap';
+import type {JourneyPathVisit} from '../../../lib/advisory-controlled-journey';
+import {journeyName,type JourneySnapshot} from '../../../lib/advisory-flexible-journey';
 import {matterClosed} from '../../../lib/advisory-workflow';
 
 import { useRef, useState, type CSSProperties } from 'react';
@@ -10,6 +12,8 @@ import type { EditRequest } from './MatterEditor';
 import css from './journey.module.css';
 
 type Props = {
+  snapshot?: JourneySnapshot|null;
+  path?: JourneyPathVisit[];
   matter: Matter;
   stages: Stage[];
   canEdit: boolean;
@@ -19,7 +23,7 @@ type Props = {
   skipReasons?: Record<string,string>;
 };
 
-export default function Journey({ matter, stages, canEdit, onEdit, initialStage, skipReasons = {}, template = matter.template_key || defaultTemplate(matter.matter_type) }: Props) {
+export default function Journey({ snapshot, path:recordedPath=[], matter, stages, canEdit, onEdit, initialStage, skipReasons = {}, template = matter.template_key || defaultTemplate(matter.matter_type) }: Props) {
   const { a, label, date, locale } = useAdvisoryLabels();
   const [selected, setSelected] = useState(initialStage || matter.stage_key || '');
   const detailsRef = useRef<HTMLElement>(null);
@@ -39,18 +43,7 @@ export default function Journey({ matter, stages, canEdit, onEdit, initialStage,
   const points = plan.map((_, i) => ({ x: 7 + i * 86 / Math.max(1, plan.length - 1), y: [67, 45, 57, 33, 49, 29, 44, 28, 39][i % 9] }));
   const path = points.map((p, i) => `${i ? 'L' : 'M'}${p.x * 10},${p.y * 4}`).join(' ');
 
-  return <div className={css.mapContent}>
-    <div className={css.mapIntro}>
-      <div><span className={css.eyebrow}>{a('routeOverview')}</span><p>{a('journeyHint')}</p></div>
-      <div className={css.legend} aria-label={a('mapLegend')}>
-        <span data-state="visited"><Check size={13} />{a('visited')}</span>
-        <span data-state="current"><MapPin size={13} />{a('current')}</span>
-        <span data-state="planned"><span className={css.legendDot} />{a('planned')}</span>
-        {progress.skipped > 0 && <span data-state="skipped"><SkipForward size={13} />{a('skipped')}</span>}
-      </div>
-    </div>
-    {!matter.stage_key && !matterClosed(matter) && <p className={css.unsetNotice}>{a(stages.length?'noCurrentStage':'unset')} · {a(stages.length?'noCurrentStageHint':'stageUnsetHint')}</p>}
-    <div ref={sceneRef} data-linear={plan.length>9&&stages.some(s=>s.required!==undefined)||undefined} className={css.mapScene} style={{ '--stage-count': plan.length } as CSSProperties}>
+  const legacyMap=(<div ref={sceneRef} data-linear={plan.length>9&&stages.some(s=>s.required!==undefined)||undefined} className={css.mapScene} style={{ '--stage-count': plan.length } as CSSProperties}>
       <svg className={css.routeLines} viewBox="0 0 1000 400" preserveAspectRatio="none" aria-hidden="true">
         <path d={path} className={css.routeShadow} /><path d={path} className={css.mainRoute} />
         {plan.map((s, i) => stageState(s, matter.stage_key, matterClosed(matter)) === 'skipped' && i > 0 && i < plan.length - 1
@@ -69,7 +62,20 @@ export default function Journey({ matter, stages, canEdit, onEdit, initialStage,
         })}
       </ol>
       <div className={css.routeCaption}><Route size={16} /><span>{a('mainRoute')}</span>{progress.skipped > 0 && <span>{a('skipRouteHint')}</span>}</div>
+    </div>);
+
+  return <div className={css.mapContent}>
+    <div className={css.mapIntro}>
+      <div><span className={css.eyebrow}>{a('routeOverview')}</span><p>{a('journeyHint')}</p></div>
+      <div className={css.legend} aria-label={a('mapLegend')}>
+        <span data-state="visited"><Check size={13} />{a('visited')}</span>
+        <span data-state="current"><MapPin size={13} />{a('current')}</span>
+        <span data-state="planned"><span className={css.legendDot} />{a('planned')}</span>
+        {progress.skipped > 0 && <span data-state="skipped"><SkipForward size={13} />{a('skipped')}</span>}
+      </div>
     </div>
+    {!matter.stage_key && !matterClosed(matter) && <p className={css.unsetNotice}>{a(stages.length?'noCurrentStage':'unset')} · {a(stages.length?'noCurrentStageHint':'stageUnsetHint')}</p>}
+    {snapshot?<StrategicJourneyMap matter={matter} snapshot={snapshot} stages={stages} path={recordedPath} locale={locale} selected={chosen.stage_key} onSelect={key=>inspect(key)}>{legacyMap}</StrategicJourneyMap>:legacyMap}
     <div className={css.mapBottom}>
       <aside className={css.progressCard}>
         <Compass size={24} /><h3>{a('routeProgress')}</h3>

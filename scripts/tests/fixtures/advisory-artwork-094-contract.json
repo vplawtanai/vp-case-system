@@ -1,0 +1,25 @@
+{
+  "candidate_sha256": "7dff992aeb2aaad3c26603ed47fda27b91406d801e1e290fbb57c6713f6fe93f",
+  "rpc": {
+    "journey_artwork094_read(text)": {
+      "acl": [
+        [
+          "postgres",
+          "EXECUTE",
+          false
+        ],
+        [
+          "service_role",
+          "EXECUTE",
+          false
+        ]
+      ],
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public"
+      ],
+      "definition": "CREATE OR REPLACE FUNCTION public.journey_artwork094_read(p_artwork_key text)\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\nAS $function$\nDECLARE result jsonb;\nBEGIN\n IF p_artwork_key IS NULL OR p_artwork_key<>ALL(ARRAY['vp-img-7d8735910a68','vp-img-45be01527af4','vp-img-12f92e9a6b60','vp-img-4c8237b6ab72','vp-img-207f2702ed6c','vp-img-af2748cfe7d9','vp-img-379e81e18666','vp-img-8cb0b8b078e2']) THEN RAISE EXCEPTION 'ARTWORK094_NOT_ALLOWED' USING ERRCODE='42501'; END IF;\n SELECT jsonb_build_object('artwork_key',a.artwork_key,'master_path',a.master_path,'width',a.width,'height',a.height) INTO result\n FROM public.visual_assets a WHERE a.artwork_key=p_artwork_key AND a.asset_type IN ('journey','background','illustration') AND a.scope IN ('both','non_litigation') AND a.status='active' AND NOT a.delete_pending\n AND a.master_path ~ '^[0-9a-f-]{36}/[0-9a-f-]{36}/[0-9a-f-]{36}/master\\.webp$'\n AND split_part(a.master_path,'/',2)=a.id::text AND split_part(a.master_path,'/',1)=a.created_by::text\n AND a.width BETWEEN 1 AND 2560 AND a.height BETWEEN 1 AND 2560\n AND EXISTS(SELECT 1 FROM storage.objects o WHERE o.bucket_id='vp-visual-assets' AND o.name=a.master_path)\n AND EXISTS(SELECT 1 FROM storage.buckets b WHERE b.id='vp-visual-assets' AND b.public IS FALSE);\n IF result IS NULL THEN RAISE EXCEPTION 'ARTWORK094_UNAVAILABLE' USING ERRCODE='42501'; END IF;\n RETURN result;\nEND $function$\n",
+      "security_definer": true
+    }
+  }
+}

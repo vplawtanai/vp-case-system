@@ -67,7 +67,7 @@ export default function MatterJourney({ path=[],decisions=[],people=[],snapshot,
     </ol>}
     {(open || requestedOpen) && <DetailModal open size="workflow" className={css.mapModal} title={a('journey')} subtitle={`${matter.matter_no} · ${matter.title}`} closeLabel={a('closeMap')} onClose={() => { setOpen(false); onCloseMap?.(); }}>
       {!stages.length && !matterClosed(matter) && <div className={css.starterPicker}><label className={css.templateField}>{a('starterCatalog')}<select value={preset} onChange={e => { setPreset(e.target.value as typeof preset); setSelected(''); }}>{workPresets.map(p => <option key={p.key} value={p.key}>{a('preset.' + p.key)}</option>)}</select></label><p>{a('presetHint', { template: label(template) })} {a('previewOnly')}</p></div>}
-      <Journey key={template} matter={matter} stages={stages} skipReasons={skipReasons} canEdit={canEdit} initialStage={selected} template={template} onEdit={request=>{setOpen(false);onCloseMap?.();onEdit(request);}} />
+      <Journey snapshot={snapshot} path={path} key={template} matter={matter} stages={stages} skipReasons={skipReasons} canEdit={canEdit} initialStage={selected} template={template} onEdit={request=>{setOpen(false);onCloseMap?.();onEdit(request);}} />
     </DetailModal>}
   </section>;
 }
