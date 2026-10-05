@@ -30,9 +30,11 @@ export function useJourneyArtwork(matterId:string,snapshot?:JourneySnapshot|null
  useEffect(()=>{
   if(!eligible||!key)return;
   const media=window.matchMedia('(min-width:768px)');let live=true,run=0;
-  const unsubscribe=cache.subscribe(invalidated=>{if(live&&(!invalidated||invalidated===identity))setState({identity,asset:null,pending:false});});
+  // Initial auth scoping can invalidate the cache while resolution is still pending.
+  // Clear the capability immediately, but keep the neutral loading state until that work settles.
+  const unsubscribe=cache.subscribe(invalidated=>{if(live&&(!invalidated||invalidated===identity))setState(previous=>({identity,asset:null,pending:previous?.identity===identity&&previous.pending}));});
   async function load(){
-   const request=++run;if(!media.matches){setState(null);return;}
+   const request=++run;if(!media.matches){setState({identity,asset:null,pending:false});return;}
    setState({identity,asset:null,pending:true});
    const asset=await resolveArtwork(matterId,version,key!).catch(()=>null);
    if(live&&request===run)setState({identity,asset,pending:false});

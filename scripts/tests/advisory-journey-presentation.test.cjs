@@ -10,7 +10,10 @@ const path=[0,1,2,1].map((index,i)=>({id:'visit-'+i,stage_id:'stage-'+index,ente
 const actual=workspaceFixture('app/advisory/control/JourneyActualMap.tsx');
 const route=workspaceFixture('app/advisory/control/JourneyRouteMap.tsx');
 const editor=workspaceFixture('app/admin/journey-templates/JourneyRoutingEditor.tsx');
-const matter=workspaceFixture('app/advisory/control/ControlledJourney.tsx',[],{'../../components/DetailModal':{default:({children})=>React.createElement('dialog',{open:true},children)}});
+// This contract test explicitly exercises the resolved non-artwork fallback, not pending loading.
+const fallback=workspaceFixture('app/advisory/control/StrategicJourneyMap.tsx',[],{'./useJourneyArtwork':{useJourneyArtwork:()=>({asset:null,pending:false})}}).component();
+const pending=workspaceFixture('app/advisory/control/StrategicJourneyMap.tsx',[],{'./useJourneyArtwork':{useJourneyArtwork:()=>({asset:null,pending:true})}});
+const matter=workspaceFixture('app/advisory/control/ControlledJourney.tsx',[],{'../../components/DetailModal':{default:({children})=>React.createElement('dialog',{open:true},children)},'./StrategicJourneyMap':{default:fallback}});
 
 test('each stage begins at visit 1; loops count only that stage; records stay unchanged',()=>{
  const before=JSON.stringify(path);assert.deepEqual(stageVisitNumbers(path),[1,1,1,2]);assert.equal(JSON.stringify(path),before);assert.deepEqual(stageVisitNumbers([]),[]);
@@ -31,6 +34,10 @@ test('exact stage/outcome diagnostics distinguish invalid targets, unreachable s
  assert.deepEqual(journeyIssues({...definition,format:undefined}),[]);
 });
 for(const locale of ['th','en']){
+ test(locale+': pending artwork renders neutral feedback without mounting legacy map or stage detail',()=>{
+  const html=pending.render(locale,{}, {snapshot:{definition,version:1},matter:{id:'m'},stages,path,locale,selected:'review',onSelect(){},children:React.createElement('div',null,'LEGACY ARTWORK'),detail:React.createElement('div',null,'FULL DETAIL')});
+  assert.match(html,/role="status"/);assert.ok(html.includes(locale==='th'?'กำลังโหลดแผนที่งาน':'Loading journey map'));assert.doesNotMatch(html,/LEGACY ARTWORK|FULL DETAIL/);
+ });
  test(locale+': actual map is recorded visits only with per-stage numbering, loop and current state',()=>{
   const html=actual.render(locale,{}, {definition,locale,stages,path,decisions:[],closed:false,selectedVisit:'visit-3',onSelect(){},date:v=>v});
   assert.equal((html.match(/data-current="true"/g)||[]).length,1);assert.equal((html.match(/data-loop="true"/g)||[]).length,1);
