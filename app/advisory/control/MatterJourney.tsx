@@ -1,4 +1,5 @@
 "use client";
+import {useJourneyArtwork} from './useJourneyArtwork';
 import {journeyName,type JourneySnapshot} from '../../../lib/advisory-flexible-journey';
 import ControlledJourney from './ControlledJourney';
 import type {JourneyDecision,JourneyPathVisit} from '../../../lib/advisory-controlled-journey';
@@ -19,6 +20,7 @@ import css from './journey.module.css';
 type Props = { path?:JourneyPathVisit[];decisions?:JourneyDecision[];people?:Person[];snapshot?:JourneySnapshot|null; matter: Matter; stages: Stage[]; canEdit: boolean; onEdit: (request: EditRequest) => void; compact?: boolean; requestedOpen?: boolean; onCloseMap?: () => void };
 
 export default function MatterJourney({ path=[],decisions=[],people=[],snapshot, matter, stages, canEdit, onEdit, compact = false, requestedOpen = false, onCloseMap }: Props) {
+  useJourneyArtwork(matter.id,snapshot?.definition.format===2?null:snapshot);
   const { a, label, locale, date } = useAdvisoryLabels();
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState('');

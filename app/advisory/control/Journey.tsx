@@ -30,7 +30,7 @@ export default function Journey({ snapshot, path:recordedPath=[], matter, stages
   const sceneRef = useRef<HTMLDivElement>(null);
   function inspect(key: string) {
     setSelected(key);
-    if (window.matchMedia('(max-width:1023px)').matches) requestAnimationFrame(() => detailsRef.current?.scrollIntoView({ block: 'start' }));
+    if (sceneRef.current && window.matchMedia('(max-width:1023px)').matches) requestAnimationFrame(() => detailsRef.current?.scrollIntoView({ block: 'start' }));
   }
   const plan = journeyPlan(matter, stages, template);
   const chosen = plan.find(s => s.stage_key === selected) || plan[0];
@@ -64,19 +64,7 @@ export default function Journey({ snapshot, path:recordedPath=[], matter, stages
       <div className={css.routeCaption}><Route size={16} /><span>{a('mainRoute')}</span>{progress.skipped > 0 && <span>{a('skipRouteHint')}</span>}</div>
     </div>);
 
-  return <div className={css.mapContent}>
-    <div className={css.mapIntro}>
-      <div><span className={css.eyebrow}>{a('routeOverview')}</span><p>{a('journeyHint')}</p></div>
-      <div className={css.legend} aria-label={a('mapLegend')}>
-        <span data-state="visited"><Check size={13} />{a('visited')}</span>
-        <span data-state="current"><MapPin size={13} />{a('current')}</span>
-        <span data-state="planned"><span className={css.legendDot} />{a('planned')}</span>
-        {progress.skipped > 0 && <span data-state="skipped"><SkipForward size={13} />{a('skipped')}</span>}
-      </div>
-    </div>
-    {!matter.stage_key && !matterClosed(matter) && <p className={css.unsetNotice}>{a(stages.length?'noCurrentStage':'unset')} · {a(stages.length?'noCurrentStageHint':'stageUnsetHint')}</p>}
-    {snapshot?<StrategicJourneyMap matter={matter} snapshot={snapshot} stages={stages} path={recordedPath} locale={locale} selected={chosen.stage_key} onSelect={key=>inspect(key)}>{legacyMap}</StrategicJourneyMap>:legacyMap}
-    <div className={css.mapBottom}>
+  const stageDetail=(<div className={css.mapBottom}>
       <aside className={css.progressCard}>
         <Compass size={24} /><h3>{a('routeProgress')}</h3>
         <strong>{progress.visited} <small>/ {progress.total}</small></strong>
@@ -107,6 +95,19 @@ export default function Journey({ snapshot, path:recordedPath=[], matter, stages
         {canEdit&&!matterClosed(matter)&&chosen.required===false&&['planned','current'].includes(state)&&<div className={css.mapActions}><button type="button" onClick={()=>onEdit({action:'stage_skip',title:a('skip'),values:{stage_key:chosen.stage_key,stage_name:journeyName(chosen,locale)}})}>{a('skip')}</button></div>}
         {chosen.stage_key === 'close' && !matterClosed(matter) && <p className={css.progressHint}>{a('closeFromMatter')}</p>}
       </section>
+    </div>);
+  return <div className={css.mapContent}>
+    <div className={css.mapIntro}>
+      <div><span className={css.eyebrow}>{a('routeOverview')}</span><p>{a('journeyHint')}</p></div>
+      <div className={css.legend} aria-label={a('mapLegend')}>
+        <span data-state="visited"><Check size={13} />{a('visited')}</span>
+        <span data-state="current"><MapPin size={13} />{a('current')}</span>
+        <span data-state="planned"><span className={css.legendDot} />{a('planned')}</span>
+        {progress.skipped > 0 && <span data-state="skipped"><SkipForward size={13} />{a('skipped')}</span>}
+      </div>
     </div>
+    {!matter.stage_key && !matterClosed(matter) && <p className={css.unsetNotice}>{a(stages.length?'noCurrentStage':'unset')} · {a(stages.length?'noCurrentStageHint':'stageUnsetHint')}</p>}
+    {snapshot?<StrategicJourneyMap detail={stageDetail} primaryAction={canEdit&&!matterClosed(matter)&&state==='current'&&<button type="button" className={css.primary} onClick={()=>onEdit({action:'stage_complete',title:a('completeStage')})}>{locale==='en'?'Complete stage':'เสร็จขั้นตอน'}</button>} matter={matter} snapshot={snapshot} stages={stages} path={recordedPath} locale={locale} selected={chosen.stage_key} onSelect={key=>inspect(key)}>{legacyMap}</StrategicJourneyMap>:<>{legacyMap}{stageDetail}</>}
+
   </div>;
 }

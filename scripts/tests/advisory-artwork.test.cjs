@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),ts=require('typescript');
 const root=path.resolve(__dirname,'../..');
-function load(file){const full=path.resolve(root,file);if(full.endsWith('.json'))return JSON.parse(fs.readFileSync(full));const box={exports:{},Response,Request,URL,Date,console,process:{env:{}},require:n=>{if(n==='server-only')return {};if(n.startsWith('.')){const p=path.resolve(path.dirname(full),n);return load(fs.existsSync(p)?p:p+'.ts');}return require(n);}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(full,'utf8'),{compilerOptions:{module:1,target:9,esModuleInterop:true}}).outputText,box);return box.exports;}
+function load(file){const full=path.resolve(root,file);if(full.endsWith('.json'))return JSON.parse(fs.readFileSync(full));const box={exports:{},Response,Request,URL,Date,performance,console,process:{env:{}},require:n=>{if(n==='server-only')return {};if(n.startsWith('.')){const p=path.resolve(path.dirname(full),n);return load(fs.existsSync(p)?p:p+'.ts');}return require(n);}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(full,'utf8'),{compilerOptions:{module:1,target:9,esModuleInterop:true}}).outputText,box);return box.exports;}
 const app=load('lib/server/advisory-artwork.ts'),map=load('lib/advisory-journey-artwork.ts'),config=require('../../lib/advisory-journey-artwork-config.json'),catalog=require('../../lib/advisory-journey-catalog.json');
 const id='00000000-0000-4000-8000-000000000001',key=config.families.general_advisory,master=`${id}/${id}/${id}/master.webp`;
 function fixture(options={}){
@@ -19,7 +19,7 @@ test('browser cannot choose artwork or enumerate IDs/extra parameters',async()=>
 });
 test('all families use the frozen family identity; narrow output, no metadata leak, 180s signature, no caching',async()=>{
  for(const family of catalog.families.map(f=>f.key).concat('unknown_family')){
-  const f=fixture({family,count:6}),r=await request(f);assert.equal(r.status,200);assert.equal(r.body.artwork.code,map.journeyArtworkKey(family));assert.deepEqual(Object.keys(r.body.artwork).sort(),['code','expires_at','height','url','width']);assert.ok(r.body.artwork.expires_at>Date.now()+175000&&r.body.artwork.expires_at<=Date.now()+180000);assert.match(r.headers.get('cache-control'),/no-store/);
+  const f=fixture({family,count:6}),r=await request(f);assert.equal(r.status,200);assert.equal(r.body.artwork.code,map.journeyArtworkKey(family));assert.deepEqual(Object.keys(r.body.artwork).sort(),['code','expires_at','height','url','width']);assert.ok(r.body.artwork.expires_at>Date.now()+175000&&r.body.artwork.expires_at<=Date.now()+180000);assert.match(r.headers.get('cache-control'),/no-store/);assert.match(r.headers.get('server-timing'),/^auth;dur=[0-9.]+, matter;dur=[0-9.]+, family;dur=[0-9.]+, artwork;dur=[0-9.]+, sign;dur=[0-9.]+$/);
   assert.equal(f.calls[0][1],'advisory_control_read');assert.equal(f.calls[2][1],'journey_artwork094_read');assert.equal(f.calls[2][2].p_artwork_key,r.body.artwork.code);assert.deepEqual(f.calls[3],['signed','vp-visual-assets',master,180]);
  }
  for(const type of catalog.work_types)assert.ok(config.families[type.family],type.key);
@@ -46,5 +46,5 @@ test('actual edges only from real visits; loops retained; unchosen optional/cond
 });
 test('copy confirmation labels and timer; mutation contracts remain outside presentation component',()=>{
  const source=fs.readFileSync(root+'/app/admin/visual-assets/VisualAssetLibrary.tsx','utf8'),labels=fs.readFileSync(root+'/app/admin/visual-assets/labels.ts','utf8');assert.match(source,/navigator.clipboard.writeText/);assert.match(source,/1800/);assert.match(source,/done\?<Check/);assert.match(source,/timers.forEach\(clearTimeout\)/);assert.match(labels,/คัดลอกรหัสแล้ว','Code copied/);
- const component=fs.readFileSync(root+'/app/advisory/control/StrategicJourneyMap.tsx','utf8');assert.doesNotMatch(component,/advisory_control_write|service_role|\.upload\(/);assert.match(component,/min-width:768px/);assert.match(component,/setState\(null\)/);
+ const component=fs.readFileSync(root+'/app/advisory/control/StrategicJourneyMap.tsx','utf8');assert.doesNotMatch(component,/advisory_control_write|service_role|\.upload\(/);const hook=fs.readFileSync(root+'/app/advisory/control/useJourneyArtwork.ts','utf8');assert.match(hook,/min-width:768px/);assert.match(hook,/setState\(null\)/);assert.match(hook,/cache:'no-store'/);
 });
