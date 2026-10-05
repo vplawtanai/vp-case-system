@@ -1,6 +1,6 @@
 'use client';
 /* eslint-disable @next/next/no-img-element -- Exact private artwork at intrinsic ratio; no cropping or optimization proxy. */
-import {useEffect,useId,useRef,useState,type ReactNode} from 'react';
+import {useEffect,useLayoutEffect,useId,useRef,useState,type ReactNode} from 'react';
 import {Check,ChevronDown,ChevronUp,MapPin,SkipForward} from 'lucide-react';
 import {artworkEdges,journeyArtworkAnchors,journeyArtworkKey} from '../../../lib/advisory-journey-artwork';
 import {journeyName,type JourneySnapshot} from '../../../lib/advisory-flexible-journey';
@@ -30,7 +30,7 @@ export default function StrategicJourneyMap({matter,snapshot,stages,path,locale,
  },[ready,asset]);
  // Measure the rendered captions (including TH/EN wraps), never move approved anchors.
  // Start at the bottom corner opposite the selected stage, then avoid other labels on that side.
- useEffect(()=>{
+ useLayoutEffect(()=>{
   const canvas=canvasRef.current,panel=panelRef.current;if(!ready||!canvas||!panel)return;
   function place(){
    const box=canvas!.getBoundingClientRect(),size=panel!.getBoundingClientRect(),gap=12;
@@ -54,7 +54,7 @@ export default function StrategicJourneyMap({matter,snapshot,stages,path,locale,
   }
   const observer=new ResizeObserver(place);observer.observe(canvas);observer.observe(panel);place();
   return()=>observer.disconnect();
- },[ready,selected,selectedX,selectedVisit,locale,asset]);
+ },[ready,selected,selectedX,selectedVisit,locale,asset,expanded]);
  if(pending)return <section className={css.loading} role="status" aria-live="polite"><div className={css.skeleton} aria-hidden="true"><span/><span/><span/></div><p>{en?'Loading journey map…':'กำลังโหลดแผนที่งาน…'}</p></section>;
  if(!ready||!asset||!anchors)return <>{children}{detail}</>;
  const definition=snapshot.definition,keys=Object.fromEntries(stages.map(s=>[s.id,s.stage_key])),counts=stageVisitNumbers(path),closed=matterClosed(matter);
@@ -83,17 +83,19 @@ export default function StrategicJourneyMap({matter,snapshot,stages,path,locale,
      <span className={css.caption}><strong>{journeyName(s,locale)}</strong><small>{en?{current:'Current',completed:'Completed',visited:'Visited',skipped:'Skipped',future:s.conditional?'Not activated':'Not visited'}[status]:{current:'ขั้นตอนปัจจุบัน',completed:'เสร็จแล้ว',visited:'ผ่านขั้นตอนแล้ว',skipped:'ข้ามแล้ว',future:s.conditional?'ยังไม่เปิดขั้นตอน':'ยังไม่เข้าขั้นตอน'}[status]}{!s.required&&` · ${en?'Optional':'ทางเลือก'}`}{s.conditional&&` · ${en?'Conditional':'ตามเงื่อนไข'}`}</small>{visits.length>1&&<small>{en?'Visit':'ครั้งที่'} {visits.length}</small>}{current&&['waiting_client','waiting_external','waiting_internal','on_hold'].includes(matter.work_state||'')&&<small className={css.waiting}>{t('advisory.enum.'+matter.work_state)}</small>}{current&&matter.has_overdue_work&&<small className={css.overdue}>{en?'Overdue work':'มีงานเลยกำหนด'}</small>}</span>
     </button>;
    })}
-   {detail&&<aside ref={panelRef} className={css.panel} style={position} data-state={status} aria-label={en?'Stage detail':'รายละเอียดขั้นตอน'}>
+   {detail&&<aside ref={panelRef} className={css.panel} style={position} data-state={status} data-expanded={expanded} aria-label={en?'Stage detail':'รายละเอียดขั้นตอน'}>
+    <div className={css.panelHeader}>
     <h3>{journeyName(focused,locale)}</h3>
     <p className={css.panelState}><strong>{stateLabel}</strong> · {en?(focused.required?'Required':'Optional'):(focused.required?'บังคับ':'ทางเลือก')}{focused.conditional&&` · ${en?'Conditional':'ตามเงื่อนไข'}`}</p>
-    {visit&&<p className={css.panelDate}>{en?'Visit':'ครั้งที่'} {counts[path.indexOf(visit)]} · {date(visit.entered_at,true)}</p>}
-    <div className={css.panelControls}>{status==='current'&&primaryAction&&<div className={css.panelAction}>{primaryAction}</div>}
-    <button type="button" className={css.expand} aria-expanded={expanded} aria-controls={marker+'-details'} onClick={()=>setExpanded(value=>!value)}>{expanded?(en?'Hide details':'ย่อรายละเอียด'):(en?'View details':'ดูรายละเอียด')}{expanded?<ChevronUp size={14}/>:<ChevronDown size={14}/>}</button></div>
+    {!expanded&&visit&&<p className={css.panelDate}>{en?'Visit':'ครั้งที่'} {counts[path.indexOf(visit)]} · {date(visit.entered_at,true)}</p>}
+    <div className={css.panelControls}>{!expanded&&status==='current'&&primaryAction&&<div className={css.panelAction}>{primaryAction}</div>}
+    <button type="button" className={css.expand} aria-expanded={expanded} aria-controls={marker+'-details'} onClick={()=>setExpanded(value=>!value)}>{expanded?(en?'Collapse details':'ย่อรายละเอียด'):(en?'View details':'ดูรายละเอียด')}{expanded?<ChevronUp size={14}/>:<ChevronDown size={14}/>}</button></div>
+    </div>
+    {expanded&&<div className={css.panelBody} id={marker+'-details'} role="region" aria-label={en?'Full stage details':'รายละเอียดขั้นตอนทั้งหมด'} tabIndex={0}>{detail}</div>}
    </aside>}
   </div>
   <p className={css.hint}>{view==='actual'?(en?'Recorded visits only. Select a visit to inspect its history.':'เส้นทางจากการเข้าขั้นตอนจริง เลือกครั้งที่เข้าขั้นตอนเพื่อดูประวัติ'):(en?'Possible routes from this matter’s frozen journey; unchosen routes are not skips.':'เส้นทางที่เป็นไปได้จากรูปแบบที่บันทึกไว้ การไม่เลือกเส้นทางไม่ใช่การข้ามขั้นตอน')}</p>
   {view==='actual'&&<ol className={css.visits}>{path.map((v,i)=>{const k=keys[v.stage_id],s=definition.stages.find(s=>s.key===k);return s?<li key={v.id}><button type="button" onClick={()=>onSelect(k,v)} data-loop={counts[i]>1}>{i+1}. {journeyName(s,locale)} · {en?'Visit':'ครั้งที่'} {counts[i]}{counts[i]>1&&` ↶ ${en?'Return':'วนกลับ'}`}</button></li>:null;})}</ol>}
- {expanded&&<div className={css.expanded} id={marker+'-details'}>{detail}<button type="button" className={css.expand} onClick={()=>{setExpanded(false);panelRef.current?.querySelector<HTMLButtonElement>('button[aria-expanded]')?.focus();}}>{en?'Hide details':'ย่อรายละเอียด'}<ChevronUp size={14}/></button></div>}
  </section>
  </>;
 }

@@ -21,8 +21,15 @@
 .hint{margin:7px 0 4px;font-size:10px;line-height:1.4}
 .visits{flex-wrap:nowrap;overflow-x:auto;max-height:42px;padding:2px 0 5px;scrollbar-width:thin;overscroll-behavior-x:contain}
 .visits li{flex:0 0 auto}.desktop .visits button{white-space:nowrap;padding:4px 7px;font-size:10px}
-.expanded{margin-top:10px;border-top:1px solid #dbe5ed;max-height:340px;overflow:auto;overscroll-behavior:contain;padding:0 4px 12px}
-.expanded>section{margin-top:10px}.expanded h3{font-size:14px}
+.desktop .panel[data-expanded=true]{display:flex;flex-direction:column;width:420px;max-width:calc(100% - 24px);max-height:60%;padding:0;overflow:hidden;background:#fffffff5}
+.panel[data-expanded=true] .panelHeader{position:sticky;top:0;z-index:1;flex:0 0 auto;padding:10px 14px;border-bottom:1px solid #dbe5ed;background:#fff}
+.panelBody{min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-gutter:stable;padding:10px 12px 12px;overflow-anchor:none}
+.panelBody:focus-visible{outline:2px solid #1769b0;outline-offset:-2px}
+.panelBody>section{margin-top:0;padding:12px}.panelBody h3{font-size:14px}
+/* Fit the existing FJ-1 detail/progress content inside this panel only. */
+.panelBody>div{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;padding:0;background:transparent}
+.panelBody>div>aside{padding:10px;border-right:0;border-bottom:1px solid #dbe5ed}
+.panelBody>div>section{padding:12px}.panelBody dl{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .loading{display:none}
 @media(min-width:768px){.loading{display:block;border-radius:12px;background:#f2f5f8;border:1px solid #dce4ec;padding:20px;color:#526779;font-size:13px;text-align:center}.skeleton{height:min(54dvh,560px);display:flex;align-items:center;justify-content:center;gap:clamp(16px,5vw,72px)}.skeleton span{width:clamp(60px,12vw,150px);height:72px;border:1px solid #dbe3eb;border-radius:12px;background:#e6edf3}.loading p{margin:8px 0}}
 @container(max-width:1000px){.desktop .panel{width:218px;padding:9px 10px}.panel h3{font-size:12px!important}.panel p{font-size:10px}.desktop .panel .panelAction button{font-size:11px}.desktop button.expand{font-size:10px}}
