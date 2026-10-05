@@ -1,5 +1,6 @@
 "use client";
 
+import { advisoryOperational } from '../../../lib/advisory-operational';
 import { useEffect, useMemo, useState } from "react";
 import AuthGuard from "../../components/AuthGuard";
 import AppTopNav from "../../components/AppTopNav";
@@ -263,7 +264,7 @@ export default function DailyWorkloadReportPage() {
         "id, advisory_matter_id, advisory_issue_id, client_id, work_date, staff_name, work_type, work_other, minutes, billable, note, created_by_user_id, created_by_email, created_by_name";
       const advisoryBaseQuery = () =>
         supabase
-          .from("advisory_time_logs")
+          .from(advisoryOperational.time)
           .select(advisorySelect)
           .eq("work_date", selectedDate)
           .is("deleted_at", null);
@@ -338,13 +339,13 @@ export default function DailyWorkloadReportPage() {
           : Promise.resolve({ data: [], error: null }),
         matterIds.length > 0
           ? supabase
-              .from("advisory_matters")
+              .from(advisoryOperational.matters)
               .select("id, client_id, matter_no, title")
               .in("id", matterIds)
           : Promise.resolve({ data: [], error: null }),
         issueIds.length > 0
           ? supabase
-              .from("advisory_issues")
+              .from(advisoryOperational.issues)
               .select("id, advisory_matter_id, issue_no, title")
               .in("id", issueIds)
           : Promise.resolve({ data: [], error: null }),

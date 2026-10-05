@@ -15,7 +15,7 @@ function backend({count=2,denied=false,fail=false}={}){
   if(table==='advisory076_allowed')return Response.json(!denied);
   if(fail)return Response.json({message:'Evidence unavailable'},{status:503});
   let data;
-  if(table==='advisory_matters'){
+  if(table==='advisory_operational_matters'){
    assert.match(u.searchParams.get('select'),/new_creation:advisory_matter_activities\(\)/);
    assert.equal(u.searchParams.get('new_creation.kind'),'eq.create');assert.equal(u.searchParams.get('new_creation'),'is.null');
    data=rows.filter(r=>!r.newCreate&&(!u.searchParams.has('id')||'eq.'+r.id===u.searchParams.get('id')));
@@ -26,10 +26,10 @@ function backend({count=2,denied=false,fail=false}={}){
 }
 test('Matter origin query excludes New creation and retains an adopted Legacy matter; no snapshot/date/number cutoff',async()=>{
  const {db,calls}=backend();assert.deepEqual((await readLegacyMatters(db)).map(r=>r.id),['old-0','old-1']);
- assert.deepEqual(calls.map(c=>c.table),['advisory076_allowed','advisory_matters']);
+ assert.deepEqual(calls.map(c=>c.table),['advisory076_allowed','advisory_operational_matters']);
 });
 test('archive listing paginates beyond server page size without dropping origin evidence',async()=>{
- const {db,calls}=backend({count:501});assert.equal((await readLegacyMatters(db)).length,501);assert.equal(calls.filter(c=>c.table==='advisory_matters').length,3);
+ const {db,calls}=backend({count:501});assert.equal((await readLegacyMatters(db)).length,501);assert.equal(calls.filter(c=>c.table==='advisory_operational_matters').length,3);
 });
 test('permission/evidence failures fail closed, never show all matters',async()=>{
  const b=backend({denied:true});await assert.rejects(readLegacyMatters(b.db),/READ_DENIED/);assert.equal(b.calls.length,1);

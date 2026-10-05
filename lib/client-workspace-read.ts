@@ -1,3 +1,4 @@
+import { advisoryOperational } from './advisory-operational';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {buildPermissions} from './permissions';
 import type {ClientRecord,ClientMatter,ClientCase,ClientTask,ClientActivity,CaseTask,CaseDate,CaseNote,WorkspaceData} from './client-workspace';
@@ -41,7 +42,7 @@ export async function readClientWorkspace(db:SupabaseClient,clientId:string):Pro
  if(cases?.some(c=>c.client_id!==client.id))throw Error('CLIENT_READ_FAILED');
  const matterIds=matters.map(m=>m.id),caseIds=(cases||[]).map(c=>c.id);
  const [tasks,activities,overdue,caseTasks,deadlines,hearings,enforcements,caseNotes]=await Promise.all([
-  linkedRows<ClientTask>(db,'advisory_issue_tasks','id,advisory_matter_id,title,status,priority,assignee_name,due_date,completed_at','advisory_matter_id',matterIds,true),
+  linkedRows<ClientTask>(db,advisoryOperational.tasks,'id,advisory_matter_id,title,status,priority,assignee_name,due_date,completed_at','advisory_matter_id',matterIds,true),
   linkedRows<ClientActivity>(db,'advisory_matter_activities','id,matter_id,kind,occurred_at,detail','matter_id',matterIds),
   (async()=>{const rows:(OverdueItem & {matter_id:string})[]=[];for(const id of matterIds){const r=await db.rpc('advisory_overdue_work',{p_matter_id:id});if(r.error||!Array.isArray(r.data))throw Error('CLIENT_READ_FAILED');rows.push(...r.data);}return rows;})(),
   linkedRows<CaseTask>(db,'case_tasks','id,case_id,task_type,task_other,due_date,status','case_id',caseIds,true),

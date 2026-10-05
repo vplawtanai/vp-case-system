@@ -1,5 +1,6 @@
 "use client";
 
+import { advisoryOperational } from '../../lib/advisory-operational';
 import AuthGuard from "../components/AuthGuard";
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
@@ -481,14 +482,14 @@ export default function DashboardPage() {
       const [advisoryMattersRes, advisoryIssuesRes, advisoryTasksRes] =
         await Promise.all([
           supabase
-            .from("advisory_matters")
+            .from(advisoryOperational.matters)
             .select("id, client_id, matter_no, title, status, responsible_lawyer, updated_at"),
           supabase
-            .from("advisory_issues")
+            .from(advisoryOperational.issues)
             .select("id, advisory_matter_id, issue_no, title, issue_type, status, priority, responsible_person, due_date")
             .is("deleted_at", null),
           supabase
-            .from("advisory_issue_tasks")
+            .from(advisoryOperational.tasks)
             .select(
               "id, advisory_matter_id, advisory_issue_id, client_id, title, task_type, status, priority, assignee_name, due_date"
             )
@@ -529,7 +530,7 @@ export default function DashboardPage() {
         if (loadedOfficeWorkLogs === null) return;
         if (canSeeAnyWorkloadData) {
           const { data, error } = await supabase
-            .from("advisory_time_logs")
+            .from(advisoryOperational.time)
             .select(
               "id, advisory_matter_id, advisory_issue_id, client_id, work_date, staff_name, work_type, work_other, minutes, billable, note, created_at, updated_at"
             )
@@ -630,7 +631,7 @@ export default function DashboardPage() {
             .in("case_id", caseIds)
             .is("deleted_at", null),
           supabase
-            .from("advisory_time_logs")
+            .from(advisoryOperational.time)
             .select(
               "id, advisory_matter_id, advisory_issue_id, client_id, work_date, staff_name, work_type, work_other, minutes, billable, note, created_at, updated_at"
             )

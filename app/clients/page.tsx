@@ -1,5 +1,6 @@
 "use client";
 
+import { advisoryOperational } from '../../lib/advisory-operational';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ClientFormFields, { emptyForm, clientTypeOptions, statusOptions, type ClientFormValues } from "./ClientFormFields";
 import ClientEditForm from "./ClientEditForm";
@@ -409,7 +410,7 @@ export default function ClientsPage() {
             .select("id", { count: "exact", head: true })
             .eq("client_id", client.id),
           supabase
-            .from("advisory_matters")
+            .from(advisoryOperational.matters)
             .select("id", { count: "exact", head: true })
             .eq("client_id", client.id),
         ]);

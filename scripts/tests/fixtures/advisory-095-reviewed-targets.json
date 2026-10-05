@@ -1,0 +1,73 @@
+{
+  "source": "Human-reviewed Production preview supplied 2026-10-05",
+  "source_sha256": "b760fc6cc3fbdd6424fc97e66acec5bb005ee57b904ed685cbb20ef5fc1a3a27",
+  "targets": [
+    {
+      "matter_no": "ADV-2026-013",
+      "id": "8f375864-0fb3-4d17-9e07-d4f6d76cf4fe"
+    },
+    {
+      "matter_no": "ADV-2026-014",
+      "id": "7583d780-9e98-4852-bf5a-98c40fbf8072"
+    },
+    {
+      "matter_no": "ADV-2026-015",
+      "id": "02e5ba61-af9b-4dc0-8729-9e334639b652"
+    },
+    {
+      "matter_no": "ADV-2026-016",
+      "id": "c9aa7141-ed6a-4cdd-926a-ad261fb93dd6"
+    },
+    {
+      "matter_no": "ADV-2026-017",
+      "id": "47bfb55e-3ac5-445c-b335-5d48417f793e"
+    },
+    {
+      "matter_no": "ADV-2026-018",
+      "id": "7442060f-5a6b-4235-a826-597a6a53bb37"
+    },
+    {
+      "matter_no": "ADV-2026-019",
+      "id": "b02ba4f6-ccc8-43df-91d1-9d584ef6a7e0"
+    },
+    {
+      "matter_no": "ADV-2026-020",
+      "id": "6c717f2e-aff6-44af-9774-e910d7a61047"
+    },
+    {
+      "matter_no": "ADV-2026-021",
+      "id": "35583652-f594-4d7b-8f6a-24991df14dad"
+    },
+    {
+      "matter_no": "ADV-2026-022",
+      "id": "50221a99-f188-4f18-9017-b6f3302a5c2f"
+    },
+    {
+      "matter_no": "ADV-2026-023",
+      "id": "8cf4af68-18cd-415f-a56e-578e4ccaa2d1"
+    }
+  ],
+  "protected_numbers": [
+    "ADV-2026-004",
+    "ADV-2026-005",
+    "ADV-2026-006",
+    "ADV-2026-007",
+    "ADV-2026-008",
+    "ADV-2026-009",
+    "ADV-2026-010",
+    "ADV-2026-011",
+    "ADV-2026-012"
+  ],
+  "special_evidence": {
+    "audit_required": "ADV-2026-014",
+    "time_matter": "ADV-2026-023",
+    "time_minutes": 90,
+    "snapshot_matters": [
+      "ADV-2026-019",
+      "ADV-2026-020",
+      "ADV-2026-021",
+      "ADV-2026-022",
+      "ADV-2026-023"
+    ]
+  }
+}

@@ -1,3 +1,4 @@
+import { advisoryOperational } from './advisory-operational';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type ArchiveRow = { id: string; [key: string]: unknown };
@@ -22,7 +23,7 @@ export type ArchiveDetail = {
 // the private request ledger or use a snapshot/control/date as an origin proxy.
 // Filtering in the same request avoids a fetch-IDs-then-list race/truncation.
 export function legacyMatterQuery(db: SupabaseClient) {
-  return db.from('advisory_matters')
+  return db.from(advisoryOperational.matters)
     .select('*,client:clients(name),new_creation:advisory_matter_activities()')
     .eq('new_creation.kind', 'create').is('new_creation', null);
 }

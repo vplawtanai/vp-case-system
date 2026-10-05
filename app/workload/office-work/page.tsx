@@ -1,5 +1,6 @@
 "use client";
 
+import { advisoryOperational } from '../../../lib/advisory-operational';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import AuthGuard from "../../components/AuthGuard";
@@ -204,7 +205,7 @@ export default function OfficeWorkPage() {
         supabase.from("user_profiles").select("id, full_name, staff_name, email").eq("active", true).order("full_name", { ascending: true }),
         supabase.from("clients").select("id, name").order("name", { ascending: true }),
         supabase.from("cases").select("id, file_no, title, client_name").order("id", { ascending: false }),
-        supabase.from("advisory_matters").select("id, matter_no, title").order("created_at", { ascending: false }),
+        supabase.from(advisoryOperational.matters).select("id, matter_no, title").order("created_at", { ascending: false }),
       ]);
 
       if (logsRes.error) {

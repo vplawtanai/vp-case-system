@@ -1,5 +1,6 @@
 "use client";
 
+import { advisoryOperational } from '../../../lib/advisory-operational';
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AuthGuard from "../../components/AuthGuard";
@@ -178,12 +179,12 @@ export default function AdvisoryReportsPage() {
           completedTasksRes,
         ] = await Promise.all([
           supabase.from("clients").select("id, name"),
-          supabase.from("advisory_matters").select("id, client_id, matter_no, title"),
+          supabase.from(advisoryOperational.matters).select("id, client_id, matter_no, title"),
           supabase
-            .from("advisory_issues")
+            .from(advisoryOperational.issues)
             .select("id, advisory_matter_id, issue_no, title"),
           supabase
-            .from("advisory_time_logs")
+            .from(advisoryOperational.time)
             .select(
               "id, advisory_matter_id, advisory_issue_id, client_id, work_date, staff_name, work_type, minutes, billable, note"
             )
@@ -191,7 +192,7 @@ export default function AdvisoryReportsPage() {
             .lt("work_date", nextMonth)
             .is("deleted_at", null),
           supabase
-            .from("advisory_advice_records")
+            .from(advisoryOperational.advice)
             .select(
               "id, advisory_matter_id, advisory_issue_id, client_id, advice_date, channel, responsible_person, question, advice_given, follow_up"
             )
@@ -199,7 +200,7 @@ export default function AdvisoryReportsPage() {
             .lt("advice_date", nextMonth)
             .is("deleted_at", null),
           supabase
-            .from("advisory_issue_tasks")
+            .from(advisoryOperational.tasks)
             .select(
               "id, advisory_matter_id, advisory_issue_id, client_id, title, task_type, status, priority, assignee_name, due_date, completed_at, note"
             )
@@ -207,7 +208,7 @@ export default function AdvisoryReportsPage() {
             .lt("due_date", nextMonth)
             .is("deleted_at", null),
           supabase
-            .from("advisory_issue_tasks")
+            .from(advisoryOperational.tasks)
             .select(
               "id, advisory_matter_id, advisory_issue_id, client_id, title, task_type, status, priority, assignee_name, due_date, completed_at, note"
             )

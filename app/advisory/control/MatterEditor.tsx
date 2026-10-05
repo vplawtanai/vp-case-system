@@ -1,4 +1,5 @@
 "use client";
+import { advisoryOperational } from '../../../lib/advisory-operational';
 import {journeyName,resolveJourneySelection,type JourneyVariant} from '../../../lib/advisory-flexible-journey';
 import {useEffect,useRef,useState,type FormEvent} from 'react';
 import {useRouter} from 'next/navigation';
@@ -18,7 +19,7 @@ export default function MatterEditor({request,matter,people,stages,onClose,onSav
  const v=request.values||{},act=request.action; const [teamRole,setTeamRole]=useState(String(v.role||'lead'));const [workType,setWorkType]=useState(String(v.matter_type||'general_advisory'));
  const [journeyVariants,setJourneyVariants]=useState<JourneyVariant[]>([]);
  useEffect(()=>{if(act!=='create')return;let live=true;const timer=setTimeout(()=>{void Promise.resolve(supabase.from('clients').select('id,name').ilike('name','%'+search.trim().replace(/[\\%_]/g,'\\$&')+'%').order('name').limit(30)).then(r=>{if(live){setClients(r.error?[]:r.data||[]);setClientsError(!!r.error);setClientsLoading(false);}}).catch(()=>{if(live){setClients([]);setClientsError(true);setClientsLoading(false);}});},180);return()=>{live=false;clearTimeout(timer);};},[search,act]);
- useEffect(()=>{if(act!=='task_save'||!matter)return;let live=true;void supabase.from('advisory_issues').select('id,title').eq('advisory_matter_id',matter.id).is('deleted_at',null).order('created_at',{ascending:false}).limit(100).then(r=>{if(live)setIssues(r.data||[]);});return()=>{live=false;};},[act,matter]);
+ useEffect(()=>{if(act!=='task_save'||!matter)return;let live=true;void supabase.from(advisoryOperational.issues).select('id,title').eq('advisory_matter_id',matter.id).is('deleted_at',null).order('created_at',{ascending:false}).limit(100).then(r=>{if(live)setIssues(r.data||[]);});return()=>{live=false;};},[act,matter]);
  async function save(e:FormEvent<HTMLFormElement>){e.preventDefault();if(submitLock.current)return;if(act==='create'&&!client){setError(a('requiredFields'));return;}setError('');const fields=Object.fromEntries(new FormData(e.currentTarget));
  if(act==='create'&&!String(fields.lead_id||'').trim()){setLeadError(true);(e.currentTarget.elements.namedItem('lead_id') as HTMLSelectElement|null)?.focus();return;}
  setLeadError(false);const journey=act==='create'?resolveJourneySelection(journeyVariants,createJourneyFamily(workType),fields.journey_version_id):null;

@@ -15,7 +15,7 @@ test('caller-scoped read loads every page and matches shared client_id, never cl
  assert.ok(!data.tasks.some(t=>['foreign','removed'].includes(t.id)));
  const clients=await readClientDirectory(db);assert.equal(clients.length,3);assert.equal(clients.filter(c=>c.name==='ABC Trade').length,2);
  assert.ok(calls.some(c=>c.name==='advisory_control_read'&&c.args.p_query.offset===3));
- assert.ok(calls.some(c=>c.table==='advisory_issue_tasks'&&c.start===3));
+ assert.ok(calls.some(c=>c.table==='advisory_operational_tasks'&&c.start===3));
  assert.ok(calls.filter(c=>c.table==='cases').every(c=>c.filters.some(([op,k,v])=>op==='eq'&&k==='client_id'&&v==='client-a')));
  assert.ok(calls.every(c=>!c.table||c.fields!=='*'));assert.ok(calls.every(c=>!c.name||['advisory_control_read','advisory_overdue_work'].includes(c.name)));
 });
@@ -41,7 +41,7 @@ test('inactive/forced-password/unauthorized profiles are denied before client re
 });
 test('existing permitted non-admin can read; unavailable source is not reported as an empty total',async()=>{
  const f=fixture();f.profile.role='lawyer';const {db,state}=database(f);assert.equal((await readClientWorkspace(db,'client-a')).cases.length,2);
- for(const source of ['cases','case_notes','advisory_issue_tasks','advisory_overdue_work','advisory_control_read']){state.fail=source;await assert.rejects(readClientWorkspace(db,'client-a'),/CLIENT_READ_FAILED/);}
+ for(const source of ['cases','case_notes','advisory_operational_tasks','advisory_overdue_work','advisory_control_read']){state.fail=source;await assert.rejects(readClientWorkspace(db,'client-a'),/CLIENT_READ_FAILED/);}
  state.fail=null;await assert.rejects(readClientWorkspace(db,'deleted-client'),/CLIENT_READ_FAILED/);
 });
 test('true empty client shows no fabricated activity/history; distinct same-name client stays isolated',async()=>{

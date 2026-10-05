@@ -1,4 +1,5 @@
 "use client";
+import { advisoryOperational } from '../../../lib/advisory-operational';
 import {useEffect,useRef,useState,type FormEvent} from 'react';
 import {CheckCircle2,AlertCircle} from 'lucide-react';
 import DetailModal from '../../components/DetailModal';
@@ -14,7 +15,7 @@ export default function MatterWorkflowDialog({mode,matter,onClose,onSaved,onFini
  const {a,label,locale}=useAdvisoryLabels(),{checks,loading,error:loadError,reload}=useWorkflowChecks(matter),{write,busy,error}=useMatterWrite(matter);
  const [blockingTasks,setBlockingTasks]=useState<{id:string;title:string}[]>([]),[taskLoadError,setTaskLoadError]=useState(false);
  const currentStage=checks?.current_stage_id,blockingCount=checks?.current_stage_open_tasks;
- useEffect(()=>{let live=true;if(mode!=='stage_complete'||!currentStage||!blockingCount)return;void Promise.resolve(supabase.from('advisory_issue_tasks').select('id,title').eq('advisory_matter_id',matter.id).eq('stage_id',currentStage).is('deleted_at',null).not('status','in','(completed,cancelled)').order('title').order('id').limit(20)).then(r=>{if(live){setBlockingTasks(r.data||[]);setTaskLoadError(!!r.error);}}).catch(()=>{if(live)setTaskLoadError(true);});return()=>{live=false;};},[mode,matter.id,currentStage,blockingCount]);
+ useEffect(()=>{let live=true;if(mode!=='stage_complete'||!currentStage||!blockingCount)return;void Promise.resolve(supabase.from(advisoryOperational.tasks).select('id,title').eq('advisory_matter_id',matter.id).eq('stage_id',currentStage).is('deleted_at',null).not('status','in','(completed,cancelled)').order('title').order('id').limit(20)).then(r=>{if(live){setBlockingTasks(r.data||[]);setTaskLoadError(!!r.error);}}).catch(()=>{if(live)setTaskLoadError(true);});return()=>{live=false;};},[mode,matter.id,currentStage,blockingCount]);
  const [decision,setDecision]=useState<{visitId:string|null;key:string;reason:string}>({visitId:null,key:'',reason:''}),[submitting,setSubmitting]=useState(false);const submitLock=useRef(false);
  const branch=decision.visitId===checks?.current_visit_id?decision.key:'',reason=decision.visitId===checks?.current_visit_id?decision.reason:'';
  const outcomes=checks?.outcomes||[],selectedOutcome=outcomeChoice(outcomes,branch),controlled=checks?.journey_format===2;

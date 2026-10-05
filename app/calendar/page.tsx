@@ -1,5 +1,6 @@
 "use client";
 
+import { advisoryOperational } from '../../lib/advisory-operational';
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { CSSProperties } from "react";
@@ -216,7 +217,7 @@ export default function CalendarPage() {
       ] = await Promise.all([
         supabase.from("cases").select("id, file_no, title, client_name"),
         supabase.from("clients").select("id, name"),
-        supabase.from("advisory_matters").select("id, client_id, matter_no, title"),
+        supabase.from(advisoryOperational.matters).select("id, client_id, matter_no, title"),
         supabase
           .from("case_deadlines")
           .select(
@@ -236,13 +237,13 @@ export default function CalendarPage() {
           )
           .is("deleted_at", null),
         supabase
-          .from("advisory_issues")
+          .from(advisoryOperational.issues)
           .select(
             "id, advisory_matter_id, client_id, issue_no, title, issue_type, status, priority, responsible_person, due_date, deleted_at"
           )
           .is("deleted_at", null),
         supabase
-          .from("advisory_issue_tasks")
+          .from(advisoryOperational.tasks)
           .select(
             "id, advisory_matter_id, advisory_issue_id, client_id, title, task_type, status, priority, assignee_name, due_date, deleted_at"
           )
