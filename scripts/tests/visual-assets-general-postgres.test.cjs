@@ -89,6 +89,19 @@ test('Active Admin ceiling and raw-write protections remain unchanged', () => {
   denied('begin;set local role anon;' + rpc('create', 21, image(21)) + ';rollback;', /permission denied/);
 });
 
+test('existing edit contract activates drafts and retires active images without changing identity or files', () => {
+  const rows = sql('begin;' + stored(21) + auth() + rpc('create', 21, image(21)) + ';'
+    + rpc('edit', 21, {...image(21), status: 'active'}, 1) + ';'
+    + rpc('edit', 21, {...image(21), status: 'retired'}, 2) + ';rollback;').split('\n').map(JSON.parse);
+  assert.deepEqual(rows.map(r => r.status), ['draft','active','retired']);
+  assert.deepEqual(rows.map(r => r.version), [1,2,3]);
+  for (const row of rows) for (const key of ['id','artwork_key','master_path','thumbnail_path','sha256','width','height','overlay_ready']) assert.equal(row[key], rows[0][key], key);
+  for (const n of [2,3,4,5,6]) denied('begin;' + auth(n) + rpc('edit',20,{...image(20),status:'retired'},1) + ';rollback;', /VISUAL_FORBIDDEN/);
+  denied('begin;' + auth() + rpc('edit',20,{...image(20),status:'retired'},1) + ';rollback;', /VISUAL_IN_USE/);
+  denied('begin;' + stored(21) + auth() + rpc('create',21,image(21)) + ';' + rpc('edit',21,{...image(21),status:'active'},0) + ';rollback;', /VISUAL_CONFLICT/);
+  denied('begin;' + stored(21) + auth() + rpc('create',21,image(21)) + ';' + rpc('delete_begin',21,{},1) + ';' + rpc('edit',21,{...image(21),status:'active'},2) + ';rollback;', /VISUAL_INVALID/);
+});
+
 test('Post-Apply verifier remains fail-closed for row/storage/security/schema changes and unreviewed baseline', () => {
   assert.equal(inspect(gate.verifierSql()).gate_pass, false);
   for (const change of [

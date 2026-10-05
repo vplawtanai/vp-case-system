@@ -109,3 +109,19 @@ test('editing a general image accepts false attestation without inventing overla
  const f=fixture(),r=await request(f,{action:'edit',id:id(20),version:1,metadata:{...metadata,overlay_ready:false}});
  assert.equal(r.status,200);const call=f.calls.find(c=>c[0]==='rpc');assert.equal(call[2].p_action,'edit');assert.equal(call[2].p_data.overlay_ready,false);
 });
+test('activation and retirement reuse the Admin edit API with the exact asset/version and metadata',async()=>{
+ for(const status of ['active','retired']){
+  const f=fixture(),data={...metadata,status,overlay_ready:false};
+  const r=await request(f,{action:'edit',id:id(20),version:7,metadata:data});
+  assert.equal(r.status,200);
+  assert.deepEqual(JSON.parse(JSON.stringify(f.calls)),[['rpc','visual_assets_write',{p_action:'edit',p_id:id(20),p_version:7,p_data:data}]]);
+  for(const profile of [{role:'lawyer',active:true,must_change_password:false},{role:'admin',active:false,must_change_password:false}]){
+   const denied=fixture(profile);assert.equal((await request(denied,{action:'edit',id:id(20),version:7,metadata:data})).status,403);assert.deepEqual(denied.calls,[]);
+  }
+ }
+ for(const code of ['VISUAL_CONFLICT','VISUAL_IN_USE','VISUAL_INVALID']){
+  const f=fixture();f.caller.rpc=async()=>({data:null,error:{message:code}});
+  const r=await request(f,{action:'edit',id:id(20),version:7,metadata});
+  assert.equal(r.status,409);assert.equal(r.body.error,code);
+ }
+});
