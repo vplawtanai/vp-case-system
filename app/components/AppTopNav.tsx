@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronDown, Menu, UserRound } from "lucide-react";
 import { supabase } from "../../lib/supabase";
-import { buildPermissions } from "../../lib/permissions";
+import { buildPermissions, isInternalUser } from "../../lib/permissions";
 import type { UserPermissions, UserRole } from "../../lib/permissions";
 import { useI18n } from "../../lib/i18n/provider";
 import LanguageSelector from "./LanguageSelector";
@@ -158,7 +158,7 @@ export default function AppTopNav({
         title: t("common.nav.clientWork"),
         items: [
           { page: "cases" as const, label: t("common.nav.cases"), icon: "cases" as const, href: "/cases", visible: permissions.canViewCases },
-          { page: "advisory" as const, label: t("common.nav.advisory"), icon: "advisory" as const, href: "/advisory", visible: permissions.role === "admin" },
+          { page: "advisory" as const, label: t("common.nav.advisory"), icon: "advisory" as const, href: "/advisory", visible: isInternalUser(profile.role) && profile.active === true && profile.must_change_password === false },
         ],
       },
       {
