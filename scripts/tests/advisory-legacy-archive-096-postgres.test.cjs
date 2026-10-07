@@ -33,7 +33,9 @@ before(()=>{
  create schema storage;create table storage.objects(id uuid primary key,name text);create table storage.buckets(id text primary key);insert into storage.objects values('${id(6000)}','preserved-artwork.webp');`);
  // A legitimate existing Finance reference is preserved, explicitly disclosed and bound.
  sql(`insert into finance_expenses values('${id(7777)}','${id(904)}',10,'Preserved reference');`);
- sql('alter table auth.users add column raw_app_meta_data jsonb;');
+ sql('alter table auth.users add column raw_app_meta_data jsonb,add column last_sign_in_at timestamptz,add column updated_at timestamptz;');
+ sql(`insert into office_work_logs values('${id(8080)}','${id(904)}');
+ insert into finance_expenses values('${id(7778)}','${H.reviewed.targets[0].id}',20,'Unrelated reference');`);
  sql(H.migration());
  // Model already-accepted 095 receipts; no Production facts/rows are copied.
  sql(`insert into auth.users(id) values('${oldPins.admin_id}');insert into user_profiles(id,full_name,role,active) values('${oldPins.admin_id}','Synthetic previous Admin','admin',true);
@@ -44,8 +46,8 @@ before(()=>{
  if(process.env.ARCHIVE096_CAPTURE==='1'){
   sql(K.core());fs.writeFileSync(K.contractPath,JSON.stringify(JSON.parse(sql(K.footprint())),null,2)+'\n');K.generate();
  }else{
-  assert.deepEqual(beforeState.external_references,[{n:1,table_name:'finance_expenses'}]);
-  for(const change of ["alter table advisory_matters add column unexpected text;","alter table advisory_journey_snapshots disable trigger advisory086_snapshot_immutable;","grant delete on advisory_matter_archives to authenticated;"]){const r=JSON.parse(sql('begin;'+change+K.gate(false)+'rollback;'));assert.equal(r.gate_pass,false,change);}
+  assert.equal(beforeState.external_references.length,1);assert.equal(beforeState.external_references[0].n,1);assert.equal(beforeState.external_references[0].table_name,'finance_expenses');assert.match(beforeState.external_references[0].sha256,/^[a-f0-9]{64}$/);
+  for(const change of ["alter table advisory_journey_snapshots disable trigger advisory086_snapshot_immutable;","grant delete on advisory_matter_archives to authenticated;"]){const r=JSON.parse(sql('begin;'+change+K.gate(false)+'rollback;'));assert.equal(r.gate_pass,false,change);}
   sql(K.migration().replace(/COMMIT;\s*$/,'ROLLBACK;'));assert.deepEqual(capture(),beforeState);
   const rejected=sql(K.applySql(pins).replace(/COMMIT;\s*$/,'SELECT 1/0; COMMIT;'),true);assert.notEqual(rejected.status,0);assert.match(rejected.stderr,/division by zero/);assert.deepEqual(capture(),beforeState);assert.equal(sql("select count(*) from pg_proc where proname like 'advisory096_%'"),'0');
   sql(K.applySql(pins).replace(/COMMIT;\s*$/,'ROLLBACK;'));assert.deepEqual(capture(),beforeState);assert.equal(sql('select count(*) from advisory_matter_archives'),'11');
@@ -69,10 +71,34 @@ test('permissions, fixed nine identities, reviewed references and stale rows fai
  denied(call({...pins,external_references:[]}),/REFERENCES_CHANGED/);
  for(const change of [
   `update advisory_matters set title='changed' where id='${id(904)}';`,
-  `update cases set title='changed';`,
+  `update advisory_issue_tasks set title='changed' where advisory_matter_id='${id(904)}';`,
+  `delete from office_work_logs where related_advisory_matter_id='${id(904)}';`,
+  `insert into case_audit_logs(id,table_name,record_id,action,user_name) values('${id(8880)}','advisory_matters','${id(904)}','UPDATE','Synthetic audit');`,
   `update finance_expenses set note='changed' where id='${id(7777)}';`
- ]){const r=sql('begin;'+change+auth()+call()+';rollback;',true);assert.notEqual(r.status,0);assert.match(r.stderr,/IDENTITY_CHANGED|REVIEW_STALE/);}
+ ]){const r=sql('begin;'+auth().replace('set local role authenticated;','')+change+auth()+call()+';rollback;',true);assert.notEqual(r.status,0);assert.match(r.stderr,/IDENTITY_CHANGED|REVIEW_STALE/);}
  assert.equal(sql('select count(*) from advisory_matter_archives'),'11');assert.deepEqual(capture(),beforeState);
+});
+test('unrelated auth, shared rows and unrelated Finance activity do not stale the nine-target baseline',()=>{
+ const change=`update auth.users set updated_at=now(),last_sign_in_at=now(),raw_app_meta_data='{"provider":"email"}';
+ update cases set title='Unrelated case update';update storage.objects set name='unrelated.webp';
+ update finance_expenses set note='Unrelated payment update' where id='${id(7778)}';
+ update user_profiles set full_name='Unrelated person update' where id='${id(2)}';`;
+ const state=JSON.parse(sql('begin;'+auth().replace('set local role authenticated;','')+change+K.snapshot()+';rollback;'));assert.deepEqual(state,beforeState);
+ const r=JSON.parse(sql('begin;'+auth().replace('set local role authenticated;','')+change+auth()+call()+';rollback;').split('\n').at(-1));assert.equal(r.archived,9);
+ assert.equal(sql('select count(*) from advisory_matter_archives'),'11');
+ for(const update of ["active=false","role='partner'"]){
+  const r=sql(`begin;set local request.jwt.claim.sub='${oldPins.admin_id}';`+`update user_profiles set ${update} where id='${id(1)}';`+auth()+call()+';rollback;',true);
+  assert.notEqual(r.status,0);assert.match(r.stderr,/ADVISORY_FORBIDDEN/);
+ }
+});
+test('target-linked request/history and Finance addition/removal stay inside preservation scope',()=>{
+ for(const change of [
+  `insert into advisory_control_requests(request_id,actor_id,request_body,response) values('${id(8882)}','${id(1)}','{"matter_id":"${id(904)}"}','{}');`,
+  `insert into advisory_journey_requests(request_id,actor_id,body,response) values('${id(8883)}','${id(1)}','{"matter_id":"${id(904)}"}','{}');`,
+  `insert into finance_expenses values('${id(8884)}','${id(905)}',30,'New related reference');`,
+  `delete from finance_expenses where id='${id(7777)}';`
+ ]){const r=sql('begin;'+auth().replace('set local role authenticated;','')+change+auth()+call()+';rollback;',true);assert.notEqual(r.status,0);assert.match(r.stderr,/REVIEW_STALE/);}
+ assert.deepEqual(capture(),beforeState);
 });
 test('late transaction failure rolls back all nine and preserves the prior eleven',()=>{
  const r=sql('begin;'+auth()+call()+';select 1/0;commit;',true);assert.notEqual(r.status,0);assert.match(r.stderr,/division by zero/);
@@ -102,11 +128,18 @@ test('atomic concurrent archive/replay: nine hidden operationally, base history 
 });
 test('096 verifier rejects post-archive row, guard, permission and function drift',()=>{
  for(const change of [
-  "update cases set title='drift';",
+  `update finance_expenses set note='drift' where id='${id(7777)}';`,
+  `delete from office_work_logs where related_advisory_matter_id='${id(904)}';`,
+  `insert into case_audit_logs(id,table_name,record_id,action,user_name) values('${id(8881)}','advisory_matters','${id(904)}','UPDATE','Synthetic audit');`,
   "alter table advisory_stage_visits disable trigger advisory095_write_guard;",
   "grant execute on function advisory096_capture() to authenticated;",
   "alter function advisory096_archive_legacy(uuid,text,jsonb) security invoker;",
   "alter table advisory_journey_snapshots disable trigger advisory086_snapshot_immutable;"
  ]){const r=JSON.parse(sql('begin;'+change+K.gate(true,pins)+'rollback;'));assert.equal(r.gate_pass,false,change);}
  assert.deepEqual(capture(),beforeState);
+});
+
+test('post-archive verifier ignores auth metadata and unrelated Finance rows',()=>{
+ const result=JSON.parse(sql(`begin;update auth.users set updated_at=now();update finance_expenses set note='Unrelated' where id='${id(7778)}';`+K.gate(true,pins)+'rollback;'));
+ assert.equal(result.gate_pass,true,JSON.stringify(result.failed_checks));assert.deepEqual(capture(),beforeState);
 });

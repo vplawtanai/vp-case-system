@@ -4,7 +4,7 @@ const K=require('./advisory-legacy-archive-096-artifacts.cjs'),{H,A}=K;
 test('immutable 095 candidate and accepted guard/read contracts are not regenerated',()=>{
  assert.equal(A.hash(fs.readFileSync(H.candidate,'utf8')),'411182e4bed6f1ca2b4505aa765a1ef7aa0774f22f00e0769e5dffd72cec63c7');
  assert.equal(fs.readFileSync(H.candidate,'utf8'),H.migration());
- const sql=K.migration();assert.doesNotMatch(sql.replace(/'(?:''|[^'])*'/g,"''"),/CREATE TABLE public|ALTER TABLE|DROP (TABLE|FUNCTION)|CREATE OR REPLACE FUNCTION|DISABLE TRIGGER|session_replication_role/i);
+ const sql=K.migration();assert.doesNotMatch(sql.replace(/^\s*--.*$/gm,'').replace(/'(?:''|[^'])*'/g,"''"),/CREATE TABLE public|ALTER TABLE|DROP (TABLE|FUNCTION)|CREATE OR REPLACE FUNCTION|DISABLE TRIGGER|session_replication_role/i);
  assert.equal((sql.match(/CREATE FUNCTION public\.advisory096_/g)||[]).length,2);
  assert.match(sql,/ADVISORY096_ACCEPTED095_DRIFT/);assert.match(sql,/ADVISORY096_INSTALLED_CONTRACT_DRIFT/);
 });
@@ -26,7 +26,7 @@ test('unreviewed Apply cannot run; reviewed UUIDs, hashes, actor and fresh reque
  assert.throws(()=>K.validate({request_id:JSON.parse(fs.readFileSync(H.pinsPath)).request_id}));
  const sql=K.applySql();assert.equal((sql.match(/^BEGIN;/gm)||[]).length,1);assert.equal((sql.match(/^COMMIT;/gm)||[]).length,1);
  assert.ok(sql.indexOf('CREATE FUNCTION public.advisory096_archive_legacy')<sql.indexOf('SELECT public.advisory096_archive_legacy'));
- assert.match(sql,/SET LOCAL ROLE authenticated/);assert.doesNotMatch(sql.replace(/'(?:''|[^'])*'/g,"''"),/LIMIT 1|first.admin/i);
+ assert.match(sql,/SET LOCAL ROLE authenticated/);assert.doesNotMatch(sql.replace(/^\s*--.*$/gm,'').replace(/'(?:''|[^'])*'/g,"''"),/LIMIT 1|first.admin/i);
 });
 test('095 verifier explicitly retires its old protected-nine/count assertion after 096; never falsely passes',()=>{
  const old=H.gate(true,JSON.parse(fs.readFileSync(H.pinsPath)));
@@ -39,4 +39,16 @@ test('baseline binder refuses an unreviewed or wrong candidate without changing 
  const before=fs.readFileSync(K.pinsPath,'utf8');
  const r=spawnSync(process.execPath,['scripts/tests/advisory-legacy-archive-096-artifacts.cjs','--bind',file,'00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000002'],{encoding:'utf8'});
  assert.notEqual(r.status,0);assert.equal(fs.readFileSync(K.pinsPath,'utf8'),before);fs.rmSync(dir,{recursive:true});
+});
+
+test('096 preservation is scoped: no auth/shared whole-table fingerprints or locks',()=>{
+ const snapshot=K.snapshot();
+ assert.doesNotMatch(snapshot,/auth\.users|pg_auth_members|rolsuper|rolinherit|rolbypassrls|storage\.(objects|buckets)|n\.nspname='auth'/i);
+ assert.doesNotMatch(snapshot,/advisory095_capture\(\)/);
+ assert.match(snapshot,/c\.relname LIKE 'finance_%'/);assert.match(snapshot,/targets_and_history/);
+ for(const table of K.scopedTables)assert.match(snapshot,new RegExp('public\\.'+table+'\\b'));
+ const core=fs.readFileSync('scripts/sql/advisory_archive_096_contract.sql','utf8');
+ assert.doesNotMatch(core,/auth\.users|storage\.|FROM pg_class/);
+ assert.match(core,/user_profiles WHERE id=actor FOR SHARE/);
+ assert.match(core,/advisory086_admin\(\)/);
 });

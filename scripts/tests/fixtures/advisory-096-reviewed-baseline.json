@@ -1,11 +1,73 @@
 {
-  "candidate_sha256": null,
-  "rows_sha256": null,
-  "preserved_sha256": null,
-  "targets_sha256": null,
-  "prior_archives_sha256": null,
-  "targets": null,
-  "external_references": null,
-  "admin_id": null,
-  "request_id": null
+  "candidate_sha256": "f5bc981d03da99cde617b7a406f46b4b17eadafc16232a008671a4003ffdbf87",
+  "rows_sha256": "e80b0e76ad1d4ea82da3655a3e58be1382586e5ca48fb163a4a86caf4b00527f",
+  "preserved_sha256": "4bfb020aa654a727211ad08498978ce1afdea7375313fb97f93cdfb83f57261a",
+  "targets_sha256": "bb249e154d9071ba46b9d18f35c99c7db6d6d9eb31f9d4811e43d524c5e4da20",
+  "prior_archives_sha256": "5d48b6024fcb128927e91f47660c856e74d2c800cecb797c1117de02336e6217",
+  "targets": [
+    {
+      "id": "4010af8b-98b7-47d6-bf08-cb0dc5f92756",
+      "sha256": "288fd4dedb30508f3c381badafde3cdf8920999d20354daaed4ea0925afe5493",
+      "matter_no": "ADV-2026-004"
+    },
+    {
+      "id": "551e7725-4122-4f7a-8054-752b00a37445",
+      "sha256": "6b582d63469aca04f8378cafe2b7eeba98c6a6299dac16e5966d6be98c586c29",
+      "matter_no": "ADV-2026-005"
+    },
+    {
+      "id": "c6e472e0-6563-49e2-b0ab-dffd7d1f8b5e",
+      "sha256": "935ab676e95f065443375dfc03b1fd83a05d6f0d551559ab77ba59b78c299b2f",
+      "matter_no": "ADV-2026-006"
+    },
+    {
+      "id": "3e9f1d4c-0b16-4dcd-a5ab-5614cf5e517a",
+      "sha256": "df06b7202bfacf9f06602d77e6585ee67d4a531cd5698a3b4b21c6ffa742b673",
+      "matter_no": "ADV-2026-007"
+    },
+    {
+      "id": "21c30d86-e6a0-45d0-ae84-f52e89d91cdb",
+      "sha256": "f4b17f47cc62514e48d2992ed9a2de024c2b6deb8b33cf38172e6a820722e580",
+      "matter_no": "ADV-2026-008"
+    },
+    {
+      "id": "e968942a-c640-450c-9380-ffddd6b879c0",
+      "sha256": "a53a93d1ebd9f8d896f034a94d8dea5a4be4a4a66c3d06c3f4efac627fb70842",
+      "matter_no": "ADV-2026-009"
+    },
+    {
+      "id": "828c6a9f-2214-4857-a375-6e276004a7bc",
+      "sha256": "8a4d8367e45a0a61bcb8531f5510ff75b477f3f6a6142b3c14fba93c38f9ce88",
+      "matter_no": "ADV-2026-010"
+    },
+    {
+      "id": "81ac20aa-71b6-481c-a26c-dddd04b1b36a",
+      "sha256": "fb55211fd56e7d2c82897e39b62079e918522457c9389e32a8bbc8506a1ae7c0",
+      "matter_no": "ADV-2026-011"
+    },
+    {
+      "id": "cf646d53-8aba-4627-8cdf-abcbd218de8a",
+      "sha256": "dcbbf0d65c94ac53e61b08493b06e4153f8185e20c75413458fb19e27be6060b",
+      "matter_no": "ADV-2026-012"
+    }
+  ],
+  "external_references": [
+    {
+      "n": 63,
+      "sha256": "2d8bd1cd54c62d6cf572dbc573f9c02b3e7c8a3b1e85279e4f147dffb761b834",
+      "table_name": "finance_company_ledger"
+    },
+    {
+      "n": 17,
+      "sha256": "eccab4661df6515f85d36febbaefde724190d76869b84ebee1f5b74686881bb5",
+      "table_name": "finance_compensation_batches"
+    },
+    {
+      "n": 47,
+      "sha256": "1f6d3b70e1c53751217a916bc304e6ba6a02e6584bfd3c480d0c1a05fb0d70b2",
+      "table_name": "finance_expense_claims"
+    }
+  ],
+  "admin_id": "52b8fea2-2558-4b76-a92b-2d332c0fee8e",
+  "request_id": "090e8ada-2cbf-430f-84ed-c0e0a863a8d2"
 }

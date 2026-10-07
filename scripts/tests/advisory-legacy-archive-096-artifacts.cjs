@@ -14,35 +14,60 @@ const priorValues=H.reviewed.targets.map(t=>`(${q(t.id)}::uuid,${q(t.matter_no)}
 const priorBaseline=H.baseline(reviewed095);
 const keys=['rows_sha256','preserved_sha256','targets_sha256','prior_archives_sha256','targets','external_references'];
 const baseline=p=>Object.fromEntries(keys.map(k=>[k,p[k]??null]));
-// Normalize only additions already pinned by the exact 095 footprint. Retain
-// all original lifecycle/audit/snapshot definitions, grants and enabled flags.
+// Reuse the installed archive guards/views, not 095's whole-database capture.
+const archive095=structuredClone(accepted095);
+for(const sig of ['advisory095_capture()','advisory095_targets()','advisory095_archive_uat(uuid,text,jsonb)'])delete archive095.functions[sig];
+function archiveFootprint(){return H.footprint().replace("p.proname LIKE 'advisory095_%'", "p.proname IN ('advisory095_operational','advisory095_write_guard','advisory095_archive_immutable')");}
+const historyTables=['advisory_control_requests','advisory_journey_requests','case_audit_logs'];
+const related={...H.owned,office_work_logs:'related_advisory_matter_id'};
+const scopedTables=[...Object.keys(related),...historyTables];
 function foundationSql(){
- const current=structuredClone(H.G.afterContract);
- for(const sig of H.changedFunctions)current.functions[sig]=accepted095.functions[sig];
- let sql=H.foundationSql();
- const old=j(H.G.afterContract);assert.ok(sql.includes(old));sql=sql.replace(old,j(current));
- for(const [before,after]of [
-  ["AND NOT g.tgisinternal)","AND NOT g.tgisinternal AND g.tgname NOT LIKE 'advisory095_%')"],
-  ["and not tgisinternal)","and not tgisinternal and tgname not like 'advisory095_%')"],
-  ["'advisory_journey_snapshots','advisory_journey_requests')))","'advisory_journey_snapshots','advisory_journey_requests','advisory_matter_archives')))"]
- ]){assert.ok(sql.includes(before),before);sql=sql.replaceAll(before,after);}
- return sql;
+ const accepted=JSON.parse(fs.readFileSync(H.G.footprintPath));
+ // Only the Admin check and immutable snapshot/request history used by this operation.
+ const funcs=['advisory086_admin()','advisory086_immutable()'];
+ const tables=['advisory_journey_snapshots','advisory_journey_requests'];
+ const sql=H.G.footprint().replaceAll("and not tgisinternal)","and not tgisinternal and tgname not like 'advisory095_%')");
+ return `WITH journey AS (${sql}) SELECT jsonb_build_object(
+ ${funcs.map(k=>q(k)+`,j#>ARRAY['functions',${q(k)}]=${j(accepted.functions[k])}`).concat(tables.map(k=>q(k)+`,j#>ARRAY['tables',${q(k)}]=${j(accepted.tables[k])}`)).join(',')}) FROM journey x(j)`;
 }
 function snapshot(){
- let inherited=H.snapshot();
- const old='WITH targets(id,matter_no) AS (VALUES '+priorValues+'),';assert.ok(inherited.startsWith(old));
- inherited=inherited.replace(old,`WITH targets AS (SELECT id,matter_no FROM public.advisory_matters WHERE matter_no=ANY(${numberSql})),`)
-  .replaceAll('count(*)=11','count(*)=9')
-  .replace("p.proname NOT LIKE 'advisory095_%'", "p.proname NOT LIKE 'advisory095_%' AND p.proname NOT LIKE 'advisory096_%'");
- return `WITH original AS (${inherited}), prior(id,matter_no) AS (VALUES ${priorValues}),installed AS (${H.footprint()}), foundation AS (${foundationSql()})
- SELECT s||jsonb_build_object(
- 'targets_exact',(s->>'targets_exact')::boolean AND (SELECT array_agg(matter_no ORDER BY matter_no COLLATE "C")=${numberSql} FROM public.advisory_matters WHERE matter_no=ANY(${numberSql})),
+ const children=Object.entries(related).map(([table,col])=>`SELECT t.matter_no,${q(table)} table_name,to_jsonb(c) facts FROM public.${table} c JOIN targets t ON c.${col}=t.id`).join(' UNION ALL\n');
+ // Keep the existing reference discovery, but fingerprint only matching Finance rows.
+ const old=H.snapshot();
+ const refs=old.slice(old.indexOf('ref_columns AS ('),old.indexOf(',\n refs AS MATERIALIZED'))
+  .replace("(c.relname LIKE 'finance_%' OR c.relname='cases' OR c.relname LIKE 'case_%') AND c.relname<>'case_audit_logs'", "c.relname LIKE 'finance_%'");
+ return `WITH targets AS MATERIALIZED (SELECT id,matter_no FROM public.advisory_matters WHERE matter_no=ANY(${numberSql})),
+ child_rows AS MATERIALIZED (${children}),
+ tokens AS MATERIALIZED (SELECT array_agg(DISTINCT token) ids FROM (
+  SELECT id::text token FROM targets UNION SELECT matter_no FROM targets UNION SELECT facts->>'id' FROM child_rows) x WHERE token IS NOT NULL),
+ extra_history AS MATERIALIZED (
+ ${historyTables.map(table=>`SELECT t.matter_no,${q(table)} table_name,to_jsonb(a) facts FROM public.${table} a CROSS JOIN targets t
+ WHERE ${table==='case_audit_logs'?"a.table_name LIKE 'advisory_%' AND ":''}EXISTS(SELECT 1 FROM child_rows c WHERE c.matter_no=t.matter_no AND (
+ strpos(to_jsonb(a)::text,t.id::text)>0 OR strpos(to_jsonb(a)::text,t.matter_no)>0 OR strpos(to_jsonb(a)::text,c.facts->>'id')>0))`).join(' UNION ALL\n')}
+ ), all_rows AS MATERIALIZED (SELECT * FROM child_rows UNION ALL SELECT * FROM extra_history),
+ counts AS MATERIALIZED (SELECT t.matter_no,k.table_name,count(c.facts) count,
+ ${digest("coalesce(jsonb_agg(c.facts ORDER BY c.facts::text COLLATE \"C\") FILTER(WHERE c.facts IS NOT NULL),'[]'::jsonb)")} sha256
+ FROM targets t CROSS JOIN unnest(ARRAY[${scopedTables.map(q).join(',')}]) k(table_name)
+ LEFT JOIN all_rows c ON c.matter_no=t.matter_no AND c.table_name=k.table_name GROUP BY t.matter_no,k.table_name),
+ ${refs},
+ refs AS MATERIALIZED (SELECT r.relname table_name,x.evidence::jsonb evidence FROM (SELECT nspname,relname,string_agg(format('EXISTS(SELECT 1 FROM unnest(%L::text[]) tok WHERE strpos(coalesce(r.%I::text,''''),tok)>0)',tokens.ids::text,attname),' OR ' ORDER BY attname) predicate FROM ref_columns CROSS JOIN tokens GROUP BY nspname,relname) r
+ CROSS JOIN LATERAL XMLTABLE('/table/row' PASSING query_to_xml(format(
+ 'SELECT jsonb_build_object(''n'',count(*),''sha256'',encode(sha256(convert_to(coalesce(jsonb_agg(to_jsonb(r) ORDER BY to_jsonb(r)::text COLLATE "C"),''[]''::jsonb)::text,''UTF8'')),''hex''))::text evidence FROM %I.%I r WHERE %s',r.nspname,r.relname,r.predicate),false,false,'') COLUMNS evidence text PATH 'evidence') x WHERE (x.evidence::jsonb->>'n')::bigint>0),
+ prior(id,matter_no) AS (VALUES ${priorValues}),installed AS (${archiveFootprint()}),foundation AS (${foundationSql()}),
+ raw AS (SELECT (SELECT coalesce(jsonb_agg(to_jsonb(c) ORDER BY matter_no COLLATE "C",table_name COLLATE "C"),'[]') FROM counts c) rows,
+ (SELECT coalesce(jsonb_agg(jsonb_build_object('id',t.id,'matter_no',t.matter_no,'sha256',${digest('to_jsonb(m)')}) ORDER BY t.matter_no COLLATE "C"),'[]') FROM targets t JOIN public.advisory_matters m ON m.id=t.id) targets,
+ (SELECT coalesce(jsonb_agg(jsonb_build_object('table_name',table_name)||evidence ORDER BY table_name COLLATE "C"),'[]') FROM refs) external_references)
+ SELECT jsonb_build_object(
+ 'rows_sha256',${digest("jsonb_build_object('targets_and_history',rows,'finance_references',external_references)")},
+ 'preserved_sha256',${digest("jsonb_build_object('archive_contract',f,'history_guards',foundation)")},'targets_sha256',${digest('targets')},
+ 'row_fingerprints',rows,'targets',targets,'external_references',external_references,
+ 'targets_exact',(SELECT count(*)=9 AND array_agg(matter_no ORDER BY matter_no COLLATE "C")=${numberSql} FROM public.advisory_matters WHERE matter_no=ANY(${numberSql})),
  'legacy_origin_readable',NOT EXISTS(SELECT 1 FROM public.advisory_matter_activities a JOIN public.advisory_matters m ON m.id=a.matter_id WHERE m.matter_no=ANY(${numberSql}) AND a.kind='create'),
- 'contract095_exact',f=${j(accepted095)},
+ 'contract095_exact',f=${j(archive095)},
  'foundation_exact',NOT EXISTS(SELECT 1 FROM jsonb_each(foundation) x WHERE x.value IS DISTINCT FROM 'true'::jsonb),
  'prior_archives_sha256',${digest("(SELECT coalesce(jsonb_agg(to_jsonb(a) ORDER BY a.matter_id),'[]') FROM public.advisory_matter_archives a JOIN prior p ON p.id=a.matter_id)")},
- 'prior_archive_exact',(SELECT count(*)=11 AND coalesce(bool_and(a.matter_no=p.matter_no AND a.reviewed_baseline=${j(priorBaseline)} AND a.archived_by=${q(reviewed095.admin_id)}::uuid AND a.request_id=${q(reviewed095.request_id)}::uuid AND a.reviewed_matter_sha256=${digest('to_jsonb(m)')}),false) FROM prior p JOIN public.advisory_matter_archives a ON a.matter_id=p.id JOIN public.advisory_matters m ON m.id=p.id)
- ) FROM original x(s),installed y(f),foundation z(foundation)`;
+ 'prior_archive_exact',(SELECT count(*)=11 AND coalesce(bool_and(a.matter_no=p.matter_no AND a.reviewed_baseline=${j(priorBaseline)} AND a.archived_by=${q(reviewed095.admin_id)}::uuid AND a.request_id=${q(reviewed095.request_id)}::uuid),false) FROM prior p JOIN public.advisory_matter_archives a ON a.matter_id=p.id)
+ ) FROM raw,installed y(f),foundation z(foundation)`;
 }
 function footprint(){return `SELECT coalesce(jsonb_object_agg(p.oid::regprocedure::text,jsonb_build_object('definition',pg_get_functiondef(p.oid),'owner',pg_get_userbyid(p.proowner),'acl',p.proacl::text,'definer',p.prosecdef,'config',p.proconfig,'anon',has_function_privilege('anon',p.oid,'EXECUTE'),'authenticated',has_function_privilege('authenticated',p.oid,'EXECUTE'),'service_role',has_function_privilege('service_role',p.oid,'EXECUTE'))),'{}') FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.prokind='f' AND p.proname LIKE 'advisory096_%'`;}
 const expected=()=>fs.existsSync(contractPath)?JSON.parse(fs.readFileSync(contractPath)):{};
@@ -59,8 +84,8 @@ BEGIN; SET LOCAL lock_timeout='5s'; SET LOCAL statement_timeout='120s';
 DO $guard$ DECLARE f jsonb; BEGIN
  IF current_user<>'postgres' THEN RAISE EXCEPTION 'ADVISORY096_OWNER_REQUIRED'; END IF;
  IF EXISTS(SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname LIKE 'advisory096_%') THEN RAISE EXCEPTION 'ADVISORY096_ALREADY_PRESENT'; END IF;
- ${H.footprint()} INTO f;
- IF f IS DISTINCT FROM ${j(accepted095)} THEN RAISE EXCEPTION 'ADVISORY096_ACCEPTED095_DRIFT'; END IF;
+ ${archiveFootprint()} INTO f;
+ IF f IS DISTINCT FROM ${j(archive095)} THEN RAISE EXCEPTION 'ADVISORY096_ACCEPTED095_DRIFT'; END IF;
 END $guard$;
 CREATE TEMP TABLE advisory096_before ON COMMIT DROP AS ${snapshot()};
 DO $foundation$ DECLARE s jsonb; BEGIN SELECT * INTO s FROM advisory096_before;
@@ -99,7 +124,7 @@ WITH state AS MATERIALIZED (${snapshot()}),installed AS (${footprint()}),checks 
 SELECT jsonb_build_object('gate_pass',v='[]'::jsonb,'failed_checks',v,'checks',c,'candidate_sha256',${q(A.hash(migration()))},'accepted095_sha256',${q(reviewed095.candidate_sha256)},
  ${keys.map(k=>q(k)+`,s->${q(k)}`).join(',')},'row_fingerprints',s->'row_fingerprints',
  'eligible_human_apply_admins',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'name',coalesce(nullif(staff_name,''),full_name)) ORDER BY id),'[]') FROM public.user_profiles WHERE role='admin' AND active AND NOT must_change_password),
- 'verification_scope','096 including preserved 095 contract and receipts','production_mutation',false,'business_rpc_executed',false)
+ 'verification_scope','096: nine targets, related history, linked Finance rows, archive guards and receipts; no auth/shared whole-table fingerprints','production_mutation',false,'business_rpc_executed',false)
 FROM state x(s),checks,failed;
 `;}
 function applySql(p={}){validate(p);return `-- HUMAN APPLY ONLY: install 096 + archive exact nine atomically. Requires a NEW reviewed Preflight.
@@ -115,7 +140,7 @@ RESET ROLE;
 COMMIT;
 `;}
 function generate(){const p=JSON.parse(fs.readFileSync(pinsPath));for(const [file,text]of [[candidate,migration()],[preflight,gate(false)],[apply,applySql(p)],[verifier,gate(true,p)]])fs.writeFileSync(file,text);}
-module.exports={H,A,q,root,candidate,preflight,apply,verifier,contractPath,pinsPath,numbers,numberSql,keys,baseline,snapshot,footprint,core,migration,gate,applySql,generate,validate};
+module.exports={H,A,q,root,scopedTables,archiveFootprint,candidate,preflight,apply,verifier,contractPath,pinsPath,numbers,numberSql,keys,baseline,snapshot,footprint,core,migration,gate,applySql,generate,validate};
 if(require.main===module){const op=process.argv[2];if(op==='--generate')generate();else if(op==='--check'){const p=JSON.parse(fs.readFileSync(pinsPath));for(const [f,s]of [[candidate,migration()],[preflight,gate(false)],[apply,applySql(p)],[verifier,gate(true,p)]])assert.equal(fs.readFileSync(f,'utf8'),s,f);}else if(op==='--bind'){
  // Only a Human-reviewed saved Preflight result; never infer actor or generate targets.
  const [file,admin_id,request_id]=process.argv.slice(3);assert.equal(process.argv.length,6);const result=JSON.parse(fs.readFileSync(file));assert.equal(result.gate_pass,true);assert.deepEqual(result.failed_checks,[]);assert.equal(result.candidate_sha256,A.hash(migration()));assert.equal(result.accepted095_sha256,reviewed095.candidate_sha256);assert.ok(result.eligible_human_apply_admins.some(a=>a.id===admin_id));const p={candidate_sha256:result.candidate_sha256,...baseline(result),admin_id,request_id};validate(p);assert.ok(keys.every(k=>p[k]!=null));fs.writeFileSync(pinsPath,JSON.stringify(p,null,2)+'\n');fs.writeFileSync(apply,applySql(p));fs.writeFileSync(verifier,gate(true,p));

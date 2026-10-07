@@ -11,13 +11,20 @@ BEGIN
   OR jsonb_typeof(p_reviewed->'external_references') IS DISTINCT FROM 'array'
  THEN RAISE EXCEPTION 'ADVISORY096_REVIEW_REQUIRED'; END IF;
  PERFORM pg_advisory_xact_lock(hashtextextended('advisory096-fixed-legacy-batch',0));
- -- Coordinate with all existing writers and 095. No existing business table is written.
- FOR r IN SELECT n.nspname,c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-  WHERE c.relkind IN ('r','p') AND NOT c.relispartition AND
-   (n.nspname='public' OR n.nspname='auth' AND c.relname='users'
-    OR n.nspname='storage' AND c.relname IN ('buckets','objects'))
-  AND c.relname<>'advisory_matter_archives' ORDER BY n.nspname COLLATE "C",c.relname COLLATE "C"
- LOOP EXECUTE format('LOCK TABLE %I.%I IN SHARE MODE',r.nspname,r.relname); END LOOP;
+ -- Coordinate only the target-history tables and Finance tables with target references.
+ -- No auth/Storage/shared-data fingerprint or whole-database lock.
+ SELECT public.advisory096_capture() INTO state;
+ FOR r IN SELECT relname FROM (
+  SELECT unnest(ARRAY['advisory_matters','advisory_issues','advisory_issue_tasks','advisory_time_logs',
+   'advisory_advice_records','advisory_matter_control','advisory_matter_team','advisory_matter_stages',
+   'advisory_stage_visits','advisory_journey_snapshots','advisory_matter_activities',
+   'advisory_work_state_events','advisory_deliverables','advisory_control_requests',
+   'advisory_journey_requests','case_audit_logs','office_work_logs']) relname
+  UNION SELECT value->>'table_name' FROM jsonb_array_elements(state->'external_references')
+ ) scoped ORDER BY relname COLLATE "C"
+ LOOP EXECUTE format('LOCK TABLE public.%I IN SHARE MODE',r.relname); END LOOP;
+ -- Keep only the applying Admin's eligibility stable for this transaction.
+ PERFORM 1 FROM public.user_profiles WHERE id=actor FOR SHARE;
  LOCK TABLE public.advisory_matter_archives IN EXCLUSIVE MODE;
  IF NOT coalesce(public.advisory086_admin(),false) THEN RAISE EXCEPTION 'ADVISORY_FORBIDDEN' USING ERRCODE='42501'; END IF;
  PERFORM m.id FROM public.advisory_matters m WHERE m.matter_no=ANY(expected_numbers) ORDER BY m.id FOR UPDATE;
