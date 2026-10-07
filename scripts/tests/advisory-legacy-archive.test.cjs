@@ -2,12 +2,13 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
 const {workspaceFixture}=require('./i18n-workspace-fixture.cjs');
 const {createClient}=require('@supabase/supabase-js');
-const {readLegacyMatters,readLegacyDetail}=require('../../lib/advisory-legacy-archive.ts');
+const {readLegacyMatters,readLegacyDetail,legacyArchiveExcludedMatterIds}=require('../../lib/advisory-legacy-archive.ts');
 const {useI18n}=require('../../lib/i18n/provider.tsx');
 const {messages}=require('../../lib/i18n/catalog.ts');
 function backend({count=2,denied=false,fail=false}={}){
- const calls=[];const rows=Array.from({length:count},(_,i)=>({id:'old-'+i,title:'Original matter '+i,matter_no:'ADV-OLD-'+i,status:'active',client_id:'client',client:{name:'Historical client'},created_at:'2026-01-01',hasControl:i===1,hasSnapshot:false}));
+ const calls=[];const rows=Array.from({length:count},(_,i)=>({id:'old-'+i,title:'Original matter '+i,matter_no:'ADV-OLD-'+i,status:'active',client_id:'client',client:{name:'Historical client'},created_at:'2026-01-01',hasControl:i===1,hasSnapshot:false,archived:true}));
  rows.push({id:'new',title:'New matter with no snapshot',newCreate:true,hasSnapshot:false});
+ for(const id of legacyArchiveExcludedMatterIds)rows.push({id,title:'UAT without create evidence',newCreate:false,archived:true});
  const children={advisory_issues:[{id:'issue',advisory_matter_id:'old-0',title:'Historical issue',next_action:'Original issue next action',deleted_at:'2026-01-02'}],advisory_issue_tasks:[{id:'task',advisory_matter_id:'old-0',advisory_issue_id:'issue',title:'Task added from New UI',status:'pending'}],advisory_time_logs:[{id:'time',advisory_matter_id:'old-0',advisory_issue_id:'issue',minutes:90,note:'Preserved time',deleted_at:'2026-01-02'}],advisory_advice_records:[{id:'advice',advisory_matter_id:'old-0',advisory_issue_id:'issue',question:'Original question',advice_given:'Original advice'}],case_audit_logs:[]};
  const db=createClient('https://archive-test.invalid','synthetic-key',{auth:{persistSession:false,autoRefreshToken:false},global:{fetch:async(input,init)=>{
   const u=new URL(input),table=u.pathname.split('/').pop();calls.push({table,method:init.method,query:u.searchParams});
@@ -15,10 +16,13 @@ function backend({count=2,denied=false,fail=false}={}){
   if(table==='advisory076_allowed')return Response.json(!denied);
   if(fail)return Response.json({message:'Evidence unavailable'},{status:503});
   let data;
-  if(table==='advisory_operational_matters'){
+  if(table==='advisory_matters'){
    assert.match(u.searchParams.get('select'),/new_creation:advisory_matter_activities\(\)/);
    assert.equal(u.searchParams.get('new_creation.kind'),'eq.create');assert.equal(u.searchParams.get('new_creation'),'is.null');
-   data=rows.filter(r=>!r.newCreate&&(!u.searchParams.has('id')||'eq.'+r.id===u.searchParams.get('id')));
+   assert.equal(u.searchParams.get('id')?.startsWith('not.in.'),true);
+   const excluded=u.searchParams.get('id').slice(8,-1).split(',');
+   const exactId=u.searchParams.getAll('id').find(v=>v.startsWith('eq.'));
+   data=rows.filter(r=>!excluded.includes(r.id)&&!r.newCreate&&(!exactId||'eq.'+r.id===exactId));
   }else{data=children[table];assert.ok(data,'Unexpected read '+table);}
   const offset=Number(u.searchParams.get('offset')||0),limit=Number(u.searchParams.get('limit')||1000);data=data.slice(offset,offset+limit);
   const accept=new Headers(init.headers).get('accept');return Response.json(accept?.includes('vnd.pgrst.object')?data[0]??null:data);
@@ -26,10 +30,10 @@ function backend({count=2,denied=false,fail=false}={}){
 }
 test('Matter origin query excludes New creation and retains an adopted Legacy matter; no snapshot/date/number cutoff',async()=>{
  const {db,calls}=backend();assert.deepEqual((await readLegacyMatters(db)).map(r=>r.id),['old-0','old-1']);
- assert.deepEqual(calls.map(c=>c.table),['advisory076_allowed','advisory_operational_matters']);
+ assert.deepEqual(calls.map(c=>c.table),['advisory076_allowed','advisory_matters']);
 });
 test('archive listing paginates beyond server page size without dropping origin evidence',async()=>{
- const {db,calls}=backend({count:501});assert.equal((await readLegacyMatters(db)).length,501);assert.equal(calls.filter(c=>c.table==='advisory_operational_matters').length,3);
+ const {db,calls}=backend({count:501});assert.equal((await readLegacyMatters(db)).length,501);assert.equal(calls.filter(c=>c.table==='advisory_matters').length,3);
 });
 test('permission/evidence failures fail closed, never show all matters',async()=>{
  const b=backend({denied:true});await assert.rejects(readLegacyMatters(b.db),/READ_DENIED/);assert.equal(b.calls.length,1);
@@ -69,4 +73,10 @@ test('English covers only the translated archive routes and retains unrelated ro
  const {effectiveUiLocale,uiModule}=require('../../lib/i18n/core.ts');
  for(const route of ['/advisory/records','/advisory/00000000-0000-4000-8000-000000000101/records','/advisory/00000000-0000-4000-8000-000000000101/issues/issue'])assert.equal(effectiveUiLocale('en',route),'en');
  assert.equal(uiModule('/advisory/reports'),'other');assert.equal(uiModule('/finance'),'finance');
+});
+
+test('095 UAT identities stay excluded from listing and deep links, including rows without create Activity',async()=>{
+ assert.deepEqual([...legacyArchiveExcludedMatterIds],require('./fixtures/advisory-095-reviewed-targets.json').targets.map(t=>t.id));
+ for(const id of legacyArchiveExcludedMatterIds){const {db,calls}=backend();assert.equal(await readLegacyDetail(db,id),null);assert.equal(calls.length,2);}
+ const {db}=backend();const matters=await readLegacyMatters(db);assert.equal(matters.length,2);assert.ok(matters.every(m=>m.archived));
 });

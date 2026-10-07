@@ -122,7 +122,9 @@ checks AS (SELECT jsonb_build_object('owner',current_user='postgres','targets_ex
  :`'accepted_read_guard_contract',f=${j(priorFunctions)},'accepted_advisory_foundation',NOT EXISTS(SELECT 1 FROM jsonb_each(foundation) v WHERE v.value IS DISTINCT FROM 'true'::jsonb),'no_existing_archive_contract',to_regclass('public.advisory_matter_archives') IS NULL AND NOT EXISTS(SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname LIKE 'advisory095_%') AND NOT EXISTS(SELECT 1 FROM pg_class WHERE relnamespace='public'::regnamespace AND relname IN(${Object.values(views).map(q).join(',')}))`}) value
  FROM state x(s),functions y(f),installed z(i),foundation w(foundation)),
 failed AS(SELECT coalesce(jsonb_agg(key ORDER BY key COLLATE "C"),'[]') value FROM checks,jsonb_each(checks.value) c(key,passed) WHERE passed IS DISTINCT FROM 'true'::jsonb)
-SELECT jsonb_build_object('gate_pass',failed.value='[]'::jsonb,'failed_checks',failed.value,'checks',checks.value,
+${post?`SELECT jsonb_build_object('gate_pass',failed.value='[]'::jsonb AND to_regprocedure('public.advisory096_archive_legacy(uuid,text,jsonb)') IS NULL,
+ 'failed_checks',CASE WHEN to_regprocedure('public.advisory096_archive_legacy(uuid,text,jsonb)') IS NOT NULL THEN '["SUPERSEDED_BY_096_USE_CURRENT_VERIFIER"]'::jsonb ELSE failed.value END,
+ 'checks',CASE WHEN to_regprocedure('public.advisory096_archive_legacy(uuid,text,jsonb)') IS NOT NULL THEN '{}'::jsonb ELSE checks.value END,`: "SELECT jsonb_build_object('gate_pass',failed.value='[]'::jsonb,'failed_checks',failed.value,'checks',checks.value,"}
  'candidate_sha256','${sha}','rows_sha256',s->'rows_sha256','preserved_sha256',s->'preserved_sha256','targets_sha256',s->'targets_sha256',
  'row_fingerprints',s->'row_fingerprints','target_fingerprints',s->'targets','external_references',s->'external_references','reviewed_special_evidence',s->'reviewed_special_evidence',
  'eligible_human_apply_admins',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'name',coalesce(nullif(staff_name,''),full_name)) ORDER BY id),'[]') FROM public.user_profiles WHERE role='admin' AND active AND NOT must_change_password),

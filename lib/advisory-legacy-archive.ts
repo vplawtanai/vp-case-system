@@ -1,5 +1,16 @@
-import { advisoryOperational } from './advisory-operational';
 import type { SupabaseClient } from '@supabase/supabase-js';
+
+// Human-reviewed 095 UAT identities. These never belong in the real Legacy
+// Archive, even if a UAT record has no New-create Activity. Keep in sync with
+// advisory-095-reviewed-targets.json (covered by the archive contract test).
+export const legacyArchiveExcludedMatterIds = [
+  '8f375864-0fb3-4d17-9e07-d4f6d76cf4fe', '7583d780-9e98-4852-bf5a-98c40fbf8072',
+  '02e5ba61-af9b-4dc0-8729-9e334639b652', 'c9aa7141-ed6a-4cdd-926a-ad261fb93dd6',
+  '47bfb55e-3ac5-445c-b335-5d48417f793e', '7442060f-5a6b-4235-a826-597a6a53bb37',
+  'b02ba4f6-ccc8-43df-91d1-9d584ef6a7e0', '6c717f2e-aff6-44af-9774-e910d7a61047',
+  '35583652-f594-4d7b-8f6a-24991df14dad', '50221a99-f188-4f18-9017-b6f3302a5c2f',
+  '8cf4af68-18cd-415f-a56e-578e4ccaa2d1',
+] as const;
 
 export type ArchiveRow = { id: string; [key: string]: unknown };
 export type ArchiveMatter = ArchiveRow & {
@@ -23,8 +34,11 @@ export type ArchiveDetail = {
 // the private request ledger or use a snapshot/control/date as an origin proxy.
 // Filtering in the same request avoids a fetch-IDs-then-list race/truncation.
 export function legacyMatterQuery(db: SupabaseClient) {
-  return db.from(advisoryOperational.matters)
+  // Historical read only: operational archive markers must not hide history.
+  // Base-table RLS and the existing read permission check still apply.
+  return db.from('advisory_matters')
     .select('*,client:clients(name),new_creation:advisory_matter_activities()')
+    .not('id', 'in', `(${legacyArchiveExcludedMatterIds.join(',')})`)
     .eq('new_creation.kind', 'create').is('new_creation', null);
 }
 async function requireArchiveRead(db: SupabaseClient) {

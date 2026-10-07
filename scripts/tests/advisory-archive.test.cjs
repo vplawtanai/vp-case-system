@@ -2,7 +2,7 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const H=require('./advisory-archive-artifacts.cjs');
 const read=p=>fs.readFileSync(path.join(H.root,p),'utf8');
-const paths=['app/dashboard/page.tsx','app/calendar/page.tsx','app/advisory/reports/page.tsx','app/reports/daily-workload/page.tsx','app/reports/workload-summary/page.tsx','app/workload/office-work/page.tsx','app/clients/page.tsx','app/advisory/control/MatterTime.tsx','app/advisory/control/MatterNextAction.tsx','app/advisory/control/MatterEditor.tsx','app/advisory/control/MatterWorkflowDialog.tsx','lib/advisory-legacy-archive.ts','lib/client-workspace-read.ts'];
+const paths=['app/dashboard/page.tsx','app/calendar/page.tsx','app/advisory/reports/page.tsx','app/reports/daily-workload/page.tsx','app/reports/workload-summary/page.tsx','app/workload/office-work/page.tsx','app/clients/page.tsx','app/advisory/control/MatterTime.tsx','app/advisory/control/MatterNextAction.tsx','app/advisory/control/MatterEditor.tsx','app/advisory/control/MatterWorkflowDialog.tsx','lib/client-workspace-read.ts'];
 test('reviewed allowlist is exact, independent of names/dates/origin and never includes protected Matters',()=>{
  assert.equal(new Set(H.reviewed.targets.map(t=>t.id)).size,11);assert.equal(H.reviewed.targets[0].id,'8f375864-0fb3-4d17-9e07-d4f6d76cf4fe');assert.equal(H.reviewed.targets[10].id,'8cf4af68-18cd-415f-a56e-578e4ccaa2d1');
  for(const t of H.reviewed.targets){assert.match(t.id,/^[0-9a-f-]{36}$/);assert.ok(!H.reviewed.protected_numbers.includes(t.matter_no));}
