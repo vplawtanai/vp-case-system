@@ -1,0 +1,7120 @@
+{
+  "provenance": {
+    "source": "Production Phase 0 SELECT-only catalog",
+    "captured_at": "2026-10-07T19:21:26.92173+00:00",
+    "project": "rtualftvaapjburgjfgb"
+  },
+  "tables": {
+    "cases": {
+      "acl": [
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "bigint",
+          "default": null,
+          "identity": "d",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "file_no",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "title",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "client_name",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "status",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "phase",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "owner_name",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "court_name",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "case_number",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "case_type",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "case_subtype",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "issue_text",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "claim_amount",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "physical_storage_type",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "physical_storage_detail",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "judgment_first_instance",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "judgment_appeal",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "judgment_supreme",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "enforcement_period_days",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "enforcement_notice_result",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "enforcement_notice_method",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "enforcement_notice_date",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "enforcement_due_date",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "enforcement_ready",
+          "type": "boolean",
+          "default": "false",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "enforcement_ready_text",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "enforcement_issued",
+          "type": "boolean",
+          "default": "false",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "enforcement_issued_date",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "client_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "cases_pkey",
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX cases_pkey ON public.cases USING btree (id)"
+        }
+      ],
+      "policies": [
+        {
+          "name": "cases_insert_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": null,
+          "command": "a",
+          "permissive": true,
+          "with_check": "can_create_case()"
+        },
+        {
+          "name": "cases_select_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "can_view_case_data()",
+          "command": "r",
+          "permissive": true,
+          "with_check": null
+        },
+        {
+          "name": "cases_update_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "can_write_case_data()",
+          "command": "w",
+          "permissive": true,
+          "with_check": "can_write_case_data()"
+        }
+      ],
+      "triggers": [],
+      "rls_forced": false,
+      "constraints": [
+        {
+          "name": "cases_client_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (client_id) REFERENCES clients(id)"
+        },
+        {
+          "name": "cases_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "rls_enabled": true,
+      "api_role_privileges": {
+        "anon": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "service_role": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "authenticated": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        }
+      }
+    },
+    "parties": {
+      "acl": [
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "case_id",
+          "type": "bigint",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "role",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "entity_type",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "title",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "first_name",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "last_name",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "company_name",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "id_number",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "phone",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "address_no",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "moo",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "village_name",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "building",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "floor",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "room",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "soi",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "road",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "subdistrict",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "district",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "province",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "postal_code",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "order_no",
+          "type": "integer",
+          "default": "0",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deleted_by",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "parties_pkey",
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX parties_pkey ON public.parties USING btree (id)"
+        }
+      ],
+      "policies": [
+        {
+          "name": "parties_insert_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": null,
+          "command": "a",
+          "permissive": true,
+          "with_check": "can_write_case_data()"
+        },
+        {
+          "name": "parties_select_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "can_view_case_data()",
+          "command": "r",
+          "permissive": true,
+          "with_check": null
+        },
+        {
+          "name": "parties_update_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "can_write_case_data()",
+          "command": "w",
+          "permissive": true,
+          "with_check": "can_write_case_data()"
+        }
+      ],
+      "triggers": [],
+      "rls_forced": false,
+      "constraints": [
+        {
+          "name": "fk_case",
+          "validated": true,
+          "definition": "FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "parties_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "rls_enabled": true,
+      "api_role_privileges": {
+        "anon": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "service_role": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "authenticated": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        }
+      }
+    },
+    "case_fees": {
+      "acl": [
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "case_id",
+          "type": "bigint",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "fee_type",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "amount",
+          "type": "numeric",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "status",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "note",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp without time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "case_fees_pkey",
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX case_fees_pkey ON public.case_fees USING btree (id)"
+        }
+      ],
+      "policies": [],
+      "triggers": [],
+      "rls_forced": false,
+      "constraints": [
+        {
+          "name": "case_fees_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "rls_enabled": false,
+      "api_role_privileges": {
+        "anon": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "service_role": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "authenticated": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        }
+      }
+    },
+    "case_notes": {
+      "acl": [
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "case_id",
+          "type": "bigint",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "note_no",
+          "type": "integer",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "note_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "author_name",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "note_type",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "note_title",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "note_text",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "important",
+          "type": "boolean",
+          "default": "false",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deleted_by",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "case_notes_pkey",
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX case_notes_pkey ON public.case_notes USING btree (id)"
+        },
+        {
+          "name": "idx_case_notes_case_id",
+          "valid": true,
+          "definition": "CREATE INDEX idx_case_notes_case_id ON public.case_notes USING btree (case_id)"
+        },
+        {
+          "name": "idx_case_notes_note_date",
+          "valid": true,
+          "definition": "CREATE INDEX idx_case_notes_note_date ON public.case_notes USING btree (note_date)"
+        },
+        {
+          "name": "idx_case_notes_note_no",
+          "valid": true,
+          "definition": "CREATE INDEX idx_case_notes_note_no ON public.case_notes USING btree (case_id, note_no)"
+        }
+      ],
+      "policies": [
+        {
+          "name": "case_notes_insert_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": null,
+          "command": "a",
+          "permissive": true,
+          "with_check": "can_write_case_data()"
+        },
+        {
+          "name": "case_notes_select_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "can_view_case_data()",
+          "command": "r",
+          "permissive": true,
+          "with_check": null
+        },
+        {
+          "name": "case_notes_update_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "can_write_case_data()",
+          "command": "w",
+          "permissive": true,
+          "with_check": "can_write_case_data()"
+        }
+      ],
+      "triggers": [],
+      "rls_forced": false,
+      "constraints": [
+        {
+          "name": "case_notes_case_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "case_notes_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "rls_enabled": true,
+      "api_role_privileges": {
+        "anon": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "service_role": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "authenticated": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        }
+      }
+    },
+    "case_tasks": {
+      "acl": [
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "case_id",
+          "type": "bigint",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "order_no",
+          "type": "integer",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "task_type",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "task_other",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "owner_name",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "assignee_name",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "start_date",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "due_date",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "status",
+          "type": "text",
+          "default": "'Pending'::text",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "note",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deleted_by",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "case_tasks_pkey",
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX case_tasks_pkey ON public.case_tasks USING btree (id)"
+        }
+      ],
+      "policies": [
+        {
+          "name": "case_tasks_insert_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": null,
+          "command": "a",
+          "permissive": true,
+          "with_check": "can_write_case_data()"
+        },
+        {
+          "name": "case_tasks_select_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "can_view_case_data()",
+          "command": "r",
+          "permissive": true,
+          "with_check": null
+        },
+        {
+          "name": "case_tasks_update_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "can_write_case_data()",
+          "command": "w",
+          "permissive": true,
+          "with_check": "can_write_case_data()"
+        }
+      ],
+      "triggers": [],
+      "rls_forced": false,
+      "constraints": [
+        {
+          "name": "case_tasks_case_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "case_tasks_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "rls_enabled": true,
+      "api_role_privileges": {
+        "anon": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "service_role": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "authenticated": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        }
+      }
+    },
+    "case_services": {
+      "acl": [
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "case_id",
+          "type": "bigint",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "service_type",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "service_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "receiver_name",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "note",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp without time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "case_services_pkey",
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX case_services_pkey ON public.case_services USING btree (id)"
+        }
+      ],
+      "policies": [],
+      "triggers": [],
+      "rls_forced": false,
+      "constraints": [
+        {
+          "name": "case_services_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "rls_enabled": false,
+      "api_role_privileges": {
+        "anon": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "service_role": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "authenticated": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        }
+      }
+    },
+    "case_timeline": {
+      "acl": [
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "case_id",
+          "type": "bigint",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "event_type",
+          "type": "text",
+          "default": "'hearing'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "event_date",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "event_time",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "appointment_type",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "appointment_other",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "note",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "order_no",
+          "type": "integer",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "event_end_time",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "status",
+          "type": "text",
+          "default": "'Scheduled'::text",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deleted_by",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "case_timeline_pkey",
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX case_timeline_pkey ON public.case_timeline USING btree (id)"
+        }
+      ],
+      "policies": [
+        {
+          "name": "case_timeline_insert_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": null,
+          "command": "a",
+          "permissive": true,
+          "with_check": "can_write_case_data()"
+        },
+        {
+          "name": "case_timeline_select_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "can_view_case_data()",
+          "command": "r",
+          "permissive": true,
+          "with_check": null
+        },
+        {
+          "name": "case_timeline_update_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "can_write_case_data()",
+          "command": "w",
+          "permissive": true,
+          "with_check": "can_write_case_data()"
+        }
+      ],
+      "triggers": [],
+      "rls_forced": false,
+      "constraints": [
+        {
+          "name": "case_timeline_case_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "case_timeline_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "rls_enabled": true,
+      "api_role_privileges": {
+        "anon": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "service_role": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "authenticated": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        }
+      }
+    },
+    "case_deadlines": {
+      "acl": [
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "case_id",
+          "type": "bigint",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "order_no",
+          "type": "integer",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deadline_type",
+          "type": "text",
+          "default": "'answer'::text",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deadline_other",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "party_label",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "party_other",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "procedure_type",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "service_method",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "trigger_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "original_due_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "current_due_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "status",
+          "type": "text",
+          "default": "'Active'::text",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "note",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deleted_by",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "case_deadlines_pkey",
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX case_deadlines_pkey ON public.case_deadlines USING btree (id)"
+        },
+        {
+          "name": "idx_case_deadlines_case_id",
+          "valid": true,
+          "definition": "CREATE INDEX idx_case_deadlines_case_id ON public.case_deadlines USING btree (case_id)"
+        },
+        {
+          "name": "idx_case_deadlines_current_due_date",
+          "valid": true,
+          "definition": "CREATE INDEX idx_case_deadlines_current_due_date ON public.case_deadlines USING btree (current_due_date)"
+        }
+      ],
+      "policies": [
+        {
+          "name": "case_deadlines_insert_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": null,
+          "command": "a",
+          "permissive": true,
+          "with_check": "can_write_case_data()"
+        },
+        {
+          "name": "case_deadlines_select_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "can_view_case_data()",
+          "command": "r",
+          "permissive": true,
+          "with_check": null
+        },
+        {
+          "name": "case_deadlines_update_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "can_write_case_data()",
+          "command": "w",
+          "permissive": true,
+          "with_check": "can_write_case_data()"
+        }
+      ],
+      "triggers": [],
+      "rls_forced": false,
+      "constraints": [
+        {
+          "name": "case_deadlines_case_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "case_deadlines_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "rls_enabled": true,
+      "api_role_privileges": {
+        "anon": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "service_role": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "authenticated": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        }
+      }
+    },
+    "case_fee_items": {
+      "acl": [
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "case_id",
+          "type": "bigint",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "fee_type",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "installment_no",
+          "type": "integer",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "description",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "amount",
+          "type": "numeric(12,2)",
+          "default": "0",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "paid_amount",
+          "type": "numeric(12,2)",
+          "default": "0",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "due_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "paid_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "status",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "note",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deleted_by",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "case_fee_items_pkey",
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX case_fee_items_pkey ON public.case_fee_items USING btree (id)"
+        },
+        {
+          "name": "idx_case_fee_items_case_id",
+          "valid": true,
+          "definition": "CREATE INDEX idx_case_fee_items_case_id ON public.case_fee_items USING btree (case_id)"
+        },
+        {
+          "name": "idx_case_fee_items_due_date",
+          "valid": true,
+          "definition": "CREATE INDEX idx_case_fee_items_due_date ON public.case_fee_items USING btree (due_date)"
+        }
+      ],
+      "policies": [
+        {
+          "name": "case_fee_items_insert_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": null,
+          "command": "a",
+          "permissive": true,
+          "with_check": "can_write_financial_data()"
+        },
+        {
+          "name": "case_fee_items_select_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "can_view_financial_data()",
+          "command": "r",
+          "permissive": true,
+          "with_check": null
+        },
+        {
+          "name": "case_fee_items_update_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "can_write_financial_data()",
+          "command": "w",
+          "permissive": true,
+          "with_check": "can_write_financial_data()"
+        }
+      ],
+      "triggers": [],
+      "rls_forced": false,
+      "constraints": [
+        {
+          "name": "case_fee_items_case_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "case_fee_items_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "rls_enabled": true,
+      "api_role_privileges": {
+        "anon": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "service_role": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "authenticated": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        }
+      }
+    },
+    "case_judgments": {
+      "acl": [
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "case_id",
+          "type": "bigint",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "court_level",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "judgment_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "summary_text",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "note",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deleted_by",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "case_judgments_pkey",
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX case_judgments_pkey ON public.case_judgments USING btree (id)"
+        },
+        {
+          "name": "idx_case_judgments_case_id",
+          "valid": true,
+          "definition": "CREATE INDEX idx_case_judgments_case_id ON public.case_judgments USING btree (case_id)"
+        }
+      ],
+      "policies": [
+        {
+          "name": "case_judgments_insert_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": null,
+          "command": "a",
+          "permissive": true,
+          "with_check": "can_write_case_data()"
+        },
+        {
+          "name": "case_judgments_select_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "can_view_case_data()",
+          "command": "r",
+          "permissive": true,
+          "with_check": null
+        },
+        {
+          "name": "case_judgments_update_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "can_write_case_data()",
+          "command": "w",
+          "permissive": true,
+          "with_check": "can_write_case_data()"
+        }
+      ],
+      "triggers": [],
+      "rls_forced": false,
+      "constraints": [
+        {
+          "name": "case_judgments_case_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "case_judgments_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "rls_enabled": true,
+      "api_role_privileges": {
+        "anon": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "service_role": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "authenticated": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        }
+      }
+    },
+    "case_time_logs": {
+      "acl": [
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "case_id",
+          "type": "bigint",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "work_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "staff_name",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "work_type",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "work_other",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "minutes",
+          "type": "integer",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "billable",
+          "type": "boolean",
+          "default": "true",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "note",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deleted_by",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_by_user_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_by_email",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_by_name",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "case_time_logs_pkey",
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX case_time_logs_pkey ON public.case_time_logs USING btree (id)"
+        },
+        {
+          "name": "idx_case_time_logs_case_id",
+          "valid": true,
+          "definition": "CREATE INDEX idx_case_time_logs_case_id ON public.case_time_logs USING btree (case_id)"
+        },
+        {
+          "name": "idx_case_time_logs_staff_name",
+          "valid": true,
+          "definition": "CREATE INDEX idx_case_time_logs_staff_name ON public.case_time_logs USING btree (staff_name)"
+        },
+        {
+          "name": "idx_case_time_logs_work_date",
+          "valid": true,
+          "definition": "CREATE INDEX idx_case_time_logs_work_date ON public.case_time_logs USING btree (work_date)"
+        }
+      ],
+      "policies": [
+        {
+          "name": "case_time_logs_insert_owner_rls",
+          "roles": [
+            "authenticated"
+          ],
+          "using": null,
+          "command": "a",
+          "permissive": true,
+          "with_check": "((EXISTS ( SELECT 1\n   FROM user_profiles p\n  WHERE ((p.id = auth.uid()) AND (p.active = true) AND (p.role = ANY (ARRAY['admin'::text, 'partner'::text, 'lawyer'::text, 'assistant_lawyer'::text, 'staff'::text]))))) AND (created_by_user_id = auth.uid()) AND (deleted_at IS NULL) AND (deleted_by IS NULL))"
+        },
+        {
+          "name": "case_time_logs_select_owner_rls",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "((EXISTS ( SELECT 1\n   FROM user_profiles p\n  WHERE ((p.id = auth.uid()) AND (p.active = true) AND (p.role = ANY (ARRAY['admin'::text, 'partner'::text]))))) OR ((deleted_at IS NULL) AND (EXISTS ( SELECT 1\n   FROM user_profiles p\n  WHERE ((p.id = auth.uid()) AND (p.active = true) AND (p.role = ANY (ARRAY['lawyer'::text, 'assistant_lawyer'::text, 'staff'::text]))))) AND ((created_by_user_id = auth.uid()) OR (created_by_email = (auth.jwt() ->> 'email'::text)))))",
+          "command": "r",
+          "permissive": true,
+          "with_check": null
+        },
+        {
+          "name": "case_time_logs_update_admin_partner_all_rls",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "(EXISTS ( SELECT 1\n   FROM user_profiles p\n  WHERE ((p.id = auth.uid()) AND (p.active = true) AND (p.role = ANY (ARRAY['admin'::text, 'partner'::text])))))",
+          "command": "w",
+          "permissive": true,
+          "with_check": "(EXISTS ( SELECT 1\n   FROM user_profiles p\n  WHERE ((p.id = auth.uid()) AND (p.active = true) AND (p.role = ANY (ARRAY['admin'::text, 'partner'::text])))))"
+        },
+        {
+          "name": "case_time_logs_update_own_rls",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "((deleted_at IS NULL) AND (EXISTS ( SELECT 1\n   FROM user_profiles p\n  WHERE ((p.id = auth.uid()) AND (p.active = true) AND (p.role = ANY (ARRAY['lawyer'::text, 'assistant_lawyer'::text, 'staff'::text]))))) AND ((created_by_user_id = auth.uid()) OR (created_by_email = (auth.jwt() ->> 'email'::text))))",
+          "command": "w",
+          "permissive": true,
+          "with_check": "((created_by_user_id = auth.uid()) AND (deleted_at IS NULL) AND (deleted_by IS NULL))"
+        }
+      ],
+      "triggers": [],
+      "rls_forced": false,
+      "constraints": [
+        {
+          "name": "case_time_logs_case_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "case_time_logs_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "rls_enabled": true,
+      "api_role_privileges": {
+        "anon": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "service_role": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "authenticated": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        }
+      }
+    },
+    "case_audit_logs": {
+      "acl": [
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "case_id",
+          "type": "bigint",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "table_name",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "record_id",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "action",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "user_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "user_email",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "user_name",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "user_role",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "old_data",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "new_data",
+          "type": "jsonb",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "note",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "case_audit_logs_pkey",
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX case_audit_logs_pkey ON public.case_audit_logs USING btree (id)"
+        },
+        {
+          "name": "idx_case_audit_logs_case_id",
+          "valid": true,
+          "definition": "CREATE INDEX idx_case_audit_logs_case_id ON public.case_audit_logs USING btree (case_id)"
+        },
+        {
+          "name": "idx_case_audit_logs_created_at",
+          "valid": true,
+          "definition": "CREATE INDEX idx_case_audit_logs_created_at ON public.case_audit_logs USING btree (created_at DESC)"
+        },
+        {
+          "name": "idx_case_audit_logs_record_id",
+          "valid": true,
+          "definition": "CREATE INDEX idx_case_audit_logs_record_id ON public.case_audit_logs USING btree (record_id)"
+        },
+        {
+          "name": "idx_case_audit_logs_table_name",
+          "valid": true,
+          "definition": "CREATE INDEX idx_case_audit_logs_table_name ON public.case_audit_logs USING btree (table_name)"
+        },
+        {
+          "name": "idx_case_audit_logs_user_id",
+          "valid": true,
+          "definition": "CREATE INDEX idx_case_audit_logs_user_id ON public.case_audit_logs USING btree (user_id)"
+        }
+      ],
+      "policies": [
+        {
+          "name": "case_audit_logs_insert_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": null,
+          "command": "a",
+          "permissive": true,
+          "with_check": "(EXISTS ( SELECT 1\n   FROM user_profiles up\n  WHERE ((up.id = auth.uid()) AND (up.active = true))))"
+        },
+        {
+          "name": "case_audit_logs_select_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "can_view_audit_logs()",
+          "command": "r",
+          "permissive": true,
+          "with_check": null
+        }
+      ],
+      "triggers": [],
+      "rls_forced": false,
+      "constraints": [
+        {
+          "name": "case_audit_logs_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "case_audit_logs_user_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL"
+        }
+      ],
+      "rls_enabled": true,
+      "api_role_privileges": {
+        "anon": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "service_role": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "authenticated": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        }
+      }
+    },
+    "file_no_counters": {
+      "acl": [
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "year",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "last_number",
+          "type": "integer",
+          "default": "0",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "file_no_counters_pkey",
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX file_no_counters_pkey ON public.file_no_counters USING btree (year)"
+        }
+      ],
+      "policies": [],
+      "triggers": [],
+      "rls_forced": false,
+      "constraints": [
+        {
+          "name": "file_no_counters_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (year)"
+        }
+      ],
+      "rls_enabled": false,
+      "api_role_privileges": {
+        "anon": {
+          "delete": false,
+          "insert": false,
+          "select": false,
+          "update": false,
+          "truncate": false
+        },
+        "service_role": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "authenticated": {
+          "delete": false,
+          "insert": false,
+          "select": false,
+          "update": false,
+          "truncate": false
+        }
+      }
+    },
+    "case_enforcements": {
+      "acl": [
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "case_id",
+          "type": "bigint",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "party_label",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "party_other",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "judgment_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "command_service_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "service_method",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "service_result",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "compliance_days",
+          "type": "integer",
+          "default": "30",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "extra_days",
+          "type": "integer",
+          "default": "0",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "original_due_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "final_due_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "writ_request_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "writ_issued_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "status",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "note",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "command_service_fee_paid_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deleted_by",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "case_enforcements_pkey",
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX case_enforcements_pkey ON public.case_enforcements USING btree (id)"
+        },
+        {
+          "name": "idx_case_enforcements_case_id",
+          "valid": true,
+          "definition": "CREATE INDEX idx_case_enforcements_case_id ON public.case_enforcements USING btree (case_id)"
+        },
+        {
+          "name": "idx_case_enforcements_final_due_date",
+          "valid": true,
+          "definition": "CREATE INDEX idx_case_enforcements_final_due_date ON public.case_enforcements USING btree (final_due_date)"
+        }
+      ],
+      "policies": [
+        {
+          "name": "case_enforcements_insert_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": null,
+          "command": "a",
+          "permissive": true,
+          "with_check": "can_write_case_data()"
+        },
+        {
+          "name": "case_enforcements_select_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "can_view_case_data()",
+          "command": "r",
+          "permissive": true,
+          "with_check": null
+        },
+        {
+          "name": "case_enforcements_update_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "can_write_case_data()",
+          "command": "w",
+          "permissive": true,
+          "with_check": "can_write_case_data()"
+        }
+      ],
+      "triggers": [],
+      "rls_forced": false,
+      "constraints": [
+        {
+          "name": "case_enforcements_case_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "case_enforcements_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "rls_enabled": true,
+      "api_role_privileges": {
+        "anon": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "service_role": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "authenticated": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        }
+      }
+    },
+    "case_court_filings": {
+      "acl": [
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "case_id",
+          "type": "bigint",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "filing_type",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "party_label",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "party_other",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "filed_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "summary_text",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "note",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deleted_by",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "case_court_filings_pkey",
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX case_court_filings_pkey ON public.case_court_filings USING btree (id)"
+        },
+        {
+          "name": "idx_case_court_filings_case_id",
+          "valid": true,
+          "definition": "CREATE INDEX idx_case_court_filings_case_id ON public.case_court_filings USING btree (case_id)"
+        },
+        {
+          "name": "idx_case_court_filings_filing_type",
+          "valid": true,
+          "definition": "CREATE INDEX idx_case_court_filings_filing_type ON public.case_court_filings USING btree (filing_type)"
+        }
+      ],
+      "policies": [
+        {
+          "name": "case_court_filings_insert_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": null,
+          "command": "a",
+          "permissive": true,
+          "with_check": "can_write_case_data()"
+        },
+        {
+          "name": "case_court_filings_select_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "can_view_case_data()",
+          "command": "r",
+          "permissive": true,
+          "with_check": null
+        },
+        {
+          "name": "case_court_filings_update_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "can_write_case_data()",
+          "command": "w",
+          "permissive": true,
+          "with_check": "can_write_case_data()"
+        }
+      ],
+      "triggers": [],
+      "rls_forced": false,
+      "constraints": [
+        {
+          "name": "case_court_filings_case_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "case_court_filings_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "rls_enabled": true,
+      "api_role_privileges": {
+        "anon": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "service_role": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "authenticated": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        }
+      }
+    },
+    "case_expense_items": {
+      "acl": [
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "case_id",
+          "type": "bigint",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "expense_type",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "description",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "amount",
+          "type": "numeric(12,2)",
+          "default": "0",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "expense_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "paid_by",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "reimbursable",
+          "type": "boolean",
+          "default": "true",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "reimbursed_amount",
+          "type": "numeric(12,2)",
+          "default": "0",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "status",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "note",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deleted_by",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "case_expense_items_pkey",
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX case_expense_items_pkey ON public.case_expense_items USING btree (id)"
+        },
+        {
+          "name": "idx_case_expense_items_case_id",
+          "valid": true,
+          "definition": "CREATE INDEX idx_case_expense_items_case_id ON public.case_expense_items USING btree (case_id)"
+        },
+        {
+          "name": "idx_case_expense_items_expense_date",
+          "valid": true,
+          "definition": "CREATE INDEX idx_case_expense_items_expense_date ON public.case_expense_items USING btree (expense_date)"
+        }
+      ],
+      "policies": [
+        {
+          "name": "case_expense_items_insert_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": null,
+          "command": "a",
+          "permissive": true,
+          "with_check": "can_write_financial_data()"
+        },
+        {
+          "name": "case_expense_items_select_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "can_view_financial_data()",
+          "command": "r",
+          "permissive": true,
+          "with_check": null
+        },
+        {
+          "name": "case_expense_items_update_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "can_write_financial_data()",
+          "command": "w",
+          "permissive": true,
+          "with_check": "can_write_financial_data()"
+        }
+      ],
+      "triggers": [],
+      "rls_forced": false,
+      "constraints": [
+        {
+          "name": "case_expense_items_case_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "case_expense_items_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "rls_enabled": true,
+      "api_role_privileges": {
+        "anon": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "service_role": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "authenticated": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        }
+      }
+    },
+    "case_enforcement_assets": {
+      "acl": [
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "enforcement_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "case_id",
+          "type": "bigint",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "search_agency",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "search_office",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "search_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "search_result",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "asset_type",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "asset_description",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "asset_identifier",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "asset_owner",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "estimated_value",
+          "type": "numeric",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "client_notified_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "client_approval_status",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "client_approval_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "client_reason",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "seizure_request_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "seizure_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "seizure_status",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "auction_announcement_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "auction_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "auction_round",
+          "type": "integer",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "auction_status",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "auction_result",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "sale_amount",
+          "type": "numeric",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "note",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deleted_by",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "case_enforcement_assets_pkey",
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX case_enforcement_assets_pkey ON public.case_enforcement_assets USING btree (id)"
+        },
+        {
+          "name": "idx_case_enforcement_assets_auction_date",
+          "valid": true,
+          "definition": "CREATE INDEX idx_case_enforcement_assets_auction_date ON public.case_enforcement_assets USING btree (auction_date)"
+        },
+        {
+          "name": "idx_case_enforcement_assets_case_id",
+          "valid": true,
+          "definition": "CREATE INDEX idx_case_enforcement_assets_case_id ON public.case_enforcement_assets USING btree (case_id)"
+        },
+        {
+          "name": "idx_case_enforcement_assets_enforcement_id",
+          "valid": true,
+          "definition": "CREATE INDEX idx_case_enforcement_assets_enforcement_id ON public.case_enforcement_assets USING btree (enforcement_id)"
+        }
+      ],
+      "policies": [
+        {
+          "name": "case_enforcement_assets_insert_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": null,
+          "command": "a",
+          "permissive": true,
+          "with_check": "can_write_case_data()"
+        },
+        {
+          "name": "case_enforcement_assets_select_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "can_view_case_data()",
+          "command": "r",
+          "permissive": true,
+          "with_check": null
+        },
+        {
+          "name": "case_enforcement_assets_update_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "can_write_case_data()",
+          "command": "w",
+          "permissive": true,
+          "with_check": "can_write_case_data()"
+        }
+      ],
+      "triggers": [],
+      "rls_forced": false,
+      "constraints": [
+        {
+          "name": "case_enforcement_assets_case_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "case_enforcement_assets_enforcement_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (enforcement_id) REFERENCES case_enforcements(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "case_enforcement_assets_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "rls_enabled": true,
+      "api_role_privileges": {
+        "anon": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "service_role": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "authenticated": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        }
+      }
+    },
+    "case_deadline_extensions": {
+      "acl": [
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "anon",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "authenticated",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "postgres",
+          "grantable": false,
+          "privilege": "UPDATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "DELETE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "INSERT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "MAINTAIN"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "REFERENCES"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "SELECT"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRIGGER"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "TRUNCATE"
+        },
+        {
+          "grantee": "service_role",
+          "grantable": false,
+          "privilege": "UPDATE"
+        }
+      ],
+      "owner": "postgres",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deadline_id",
+          "type": "uuid",
+          "default": null,
+          "identity": "",
+          "not_null": true,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "extension_no",
+          "type": "integer",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "requested_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "granted_until_date",
+          "type": "date",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "note",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        },
+        {
+          "acl": null,
+          "name": "deleted_by",
+          "type": "text",
+          "default": null,
+          "identity": "",
+          "not_null": false,
+          "generated": ""
+        }
+      ],
+      "indexes": [
+        {
+          "name": "case_deadline_extensions_pkey",
+          "valid": true,
+          "definition": "CREATE UNIQUE INDEX case_deadline_extensions_pkey ON public.case_deadline_extensions USING btree (id)"
+        },
+        {
+          "name": "idx_case_deadline_extensions_deadline_id",
+          "valid": true,
+          "definition": "CREATE INDEX idx_case_deadline_extensions_deadline_id ON public.case_deadline_extensions USING btree (deadline_id)"
+        }
+      ],
+      "policies": [
+        {
+          "name": "case_deadline_extensions_insert_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": null,
+          "command": "a",
+          "permissive": true,
+          "with_check": "can_write_case_data()"
+        },
+        {
+          "name": "case_deadline_extensions_select_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "can_view_case_data()",
+          "command": "r",
+          "permissive": true,
+          "with_check": null
+        },
+        {
+          "name": "case_deadline_extensions_update_policy",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "can_write_case_data()",
+          "command": "w",
+          "permissive": true,
+          "with_check": "can_write_case_data()"
+        }
+      ],
+      "triggers": [],
+      "rls_forced": false,
+      "constraints": [
+        {
+          "name": "case_deadline_extensions_deadline_id_fkey",
+          "validated": true,
+          "definition": "FOREIGN KEY (deadline_id) REFERENCES case_deadlines(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "case_deadline_extensions_pkey",
+          "validated": true,
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "rls_enabled": true,
+      "api_role_privileges": {
+        "anon": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "service_role": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        },
+        "authenticated": {
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "truncate": true
+        }
+      }
+    }
+  },
+  "functions": {
+    "can_create_case()": {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "execute": {
+        "anon": false,
+        "service_role": false,
+        "authenticated": true
+      },
+      "signature": "can_create_case()",
+      "definition": "CREATE OR REPLACE FUNCTION public.can_create_case()\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select exists (\n    select 1 from public.user_profiles up\n    where up.id = auth.uid() and up.active = true\n      and up.role in ('admin', 'partner', 'lawyer')\n  );\n$function$\n",
+      "volatility": "s",
+      "security_definer": true,
+      "acl": [
+        {
+          "grantee": "authenticated",
+          "privilege": "EXECUTE",
+          "grantable": false
+        },
+        {
+          "grantee": "postgres",
+          "privilege": "EXECUTE",
+          "grantable": false
+        }
+      ]
+    },
+    "can_view_audit_logs()": {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "execute": {
+        "anon": true,
+        "service_role": true,
+        "authenticated": true
+      },
+      "signature": "can_view_audit_logs()",
+      "definition": "CREATE OR REPLACE FUNCTION public.can_view_audit_logs()\n RETURNS boolean\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select exists (\n    select 1\n    from public.user_profiles up\n    where up.id = auth.uid()\n      and up.active = true\n      and up.role in ('admin', 'partner', 'lawyer')\n  );\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "acl": [
+        {
+          "grantee": "PUBLIC",
+          "privilege": "EXECUTE",
+          "grantable": false
+        },
+        {
+          "grantee": "anon",
+          "privilege": "EXECUTE",
+          "grantable": false
+        },
+        {
+          "grantee": "authenticated",
+          "privilege": "EXECUTE",
+          "grantable": false
+        },
+        {
+          "grantee": "postgres",
+          "privilege": "EXECUTE",
+          "grantable": false
+        },
+        {
+          "grantee": "service_role",
+          "privilege": "EXECUTE",
+          "grantable": false
+        }
+      ]
+    },
+    "can_view_case_data()": {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "execute": {
+        "anon": true,
+        "service_role": true,
+        "authenticated": true
+      },
+      "signature": "can_view_case_data()",
+      "definition": "CREATE OR REPLACE FUNCTION public.can_view_case_data()\n RETURNS boolean\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select exists (\n    select 1\n    from public.user_profiles up\n    where up.id = auth.uid()\n      and up.active = true\n      and up.role in (\n        'admin',\n        'partner',\n        'lawyer',\n        'assistant_lawyer',\n        'staff',\n        'viewer'\n      )\n  );\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "acl": [
+        {
+          "grantee": "PUBLIC",
+          "privilege": "EXECUTE",
+          "grantable": false
+        },
+        {
+          "grantee": "anon",
+          "privilege": "EXECUTE",
+          "grantable": false
+        },
+        {
+          "grantee": "authenticated",
+          "privilege": "EXECUTE",
+          "grantable": false
+        },
+        {
+          "grantee": "postgres",
+          "privilege": "EXECUTE",
+          "grantable": false
+        },
+        {
+          "grantee": "service_role",
+          "privilege": "EXECUTE",
+          "grantable": false
+        }
+      ]
+    },
+    "can_view_financial_data()": {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "execute": {
+        "anon": true,
+        "service_role": true,
+        "authenticated": true
+      },
+      "signature": "can_view_financial_data()",
+      "definition": "CREATE OR REPLACE FUNCTION public.can_view_financial_data()\n RETURNS boolean\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select exists (\n    select 1\n    from public.user_profiles up\n    where up.id = auth.uid()\n      and up.active = true\n      and (\n        up.role in ('admin', 'partner')\n        or up.financial_access = true\n      )\n  );\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "acl": [
+        {
+          "grantee": "PUBLIC",
+          "privilege": "EXECUTE",
+          "grantable": false
+        },
+        {
+          "grantee": "anon",
+          "privilege": "EXECUTE",
+          "grantable": false
+        },
+        {
+          "grantee": "authenticated",
+          "privilege": "EXECUTE",
+          "grantable": false
+        },
+        {
+          "grantee": "postgres",
+          "privilege": "EXECUTE",
+          "grantable": false
+        },
+        {
+          "grantee": "service_role",
+          "privilege": "EXECUTE",
+          "grantable": false
+        }
+      ]
+    },
+    "can_write_case_data()": {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "execute": {
+        "anon": true,
+        "service_role": true,
+        "authenticated": true
+      },
+      "signature": "can_write_case_data()",
+      "definition": "CREATE OR REPLACE FUNCTION public.can_write_case_data()\n RETURNS boolean\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select exists (\n    select 1\n    from public.user_profiles up\n    where up.id = auth.uid()\n      and up.active = true\n      and up.role in (\n        'admin',\n        'partner',\n        'lawyer',\n        'assistant_lawyer',\n        'staff'\n      )\n  );\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "acl": [
+        {
+          "grantee": "PUBLIC",
+          "privilege": "EXECUTE",
+          "grantable": false
+        },
+        {
+          "grantee": "anon",
+          "privilege": "EXECUTE",
+          "grantable": false
+        },
+        {
+          "grantee": "authenticated",
+          "privilege": "EXECUTE",
+          "grantable": false
+        },
+        {
+          "grantee": "postgres",
+          "privilege": "EXECUTE",
+          "grantable": false
+        },
+        {
+          "grantee": "service_role",
+          "privilege": "EXECUTE",
+          "grantable": false
+        }
+      ]
+    },
+    "can_write_financial_data()": {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "execute": {
+        "anon": true,
+        "service_role": true,
+        "authenticated": true
+      },
+      "signature": "can_write_financial_data()",
+      "definition": "CREATE OR REPLACE FUNCTION public.can_write_financial_data()\n RETURNS boolean\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select exists (\n    select 1\n    from public.user_profiles up\n    where up.id = auth.uid()\n      and up.active = true\n      and (\n        up.role in ('admin', 'partner')\n        or up.financial_access = true\n      )\n  );\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "acl": [
+        {
+          "grantee": "PUBLIC",
+          "privilege": "EXECUTE",
+          "grantable": false
+        },
+        {
+          "grantee": "anon",
+          "privilege": "EXECUTE",
+          "grantable": false
+        },
+        {
+          "grantee": "authenticated",
+          "privilege": "EXECUTE",
+          "grantable": false
+        },
+        {
+          "grantee": "postgres",
+          "privilege": "EXECUTE",
+          "grantable": false
+        },
+        {
+          "grantee": "service_role",
+          "privilege": "EXECUTE",
+          "grantable": false
+        }
+      ]
+    },
+    "create_case_with_number(uuid)": {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "execute": {
+        "anon": false,
+        "service_role": false,
+        "authenticated": true
+      },
+      "signature": "create_case_with_number(uuid)",
+      "definition": "CREATE OR REPLACE FUNCTION public.create_case_with_number(p_client_id uuid DEFAULT NULL::uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n  selected_client_name text := '';\n  created_case public.cases%rowtype;\nbegin\n  -- SECURITY DEFINER bypasses RLS, so explicitly authorize before any mutation.\n  if auth.uid() is null or public.can_create_case() is distinct from true then\n    raise exception 'CASE_CREATE_PERMISSION_DENIED' using errcode = '42501';\n  end if;\n  if p_client_id is not null then\n    select coalesce(c.name, '') into selected_client_name\n    from public.clients c where c.id = p_client_id;\n    if not found then\n      raise exception 'CASE_CLIENT_NOT_FOUND' using errcode = '23503';\n    end if;\n  end if;\n  -- Same initial fields/defaults as the existing Case create handler.\n  insert into public.cases (\n    file_no, client_id, title, client_name, court_name, case_number,\n    phase, status, owner_name, physical_storage_type, physical_storage_detail,\n    created_at, updated_at\n  ) values (\n    public.generate_file_no(), p_client_id, '', selected_client_name, '', '',\n    'litigation', 'Active', '', 'Cabinet', '', now(), now()\n  ) returning * into created_case;\n  return jsonb_build_object('id', created_case.id, 'file_no', created_case.file_no);\nend;\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "acl": [
+        {
+          "grantee": "authenticated",
+          "privilege": "EXECUTE",
+          "grantable": false
+        },
+        {
+          "grantee": "postgres",
+          "privilege": "EXECUTE",
+          "grantable": false
+        }
+      ]
+    },
+    "generate_file_no()": {
+      "owner": "postgres",
+      "config": [
+        "search_path=public"
+      ],
+      "execute": {
+        "anon": false,
+        "service_role": false,
+        "authenticated": false
+      },
+      "signature": "generate_file_no()",
+      "definition": "CREATE OR REPLACE FUNCTION public.generate_file_no()\n RETURNS text\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n  current_year text;\n  next_number int;\n  new_file_no text;\nbegin\n  if auth.uid() is null or public.can_create_case() is distinct from true then\n    raise exception 'CASE_CREATE_PERMISSION_DENIED' using errcode = '42501';\n  end if;\n  current_year := extract(year from now())::text;\n  loop\n    update public.file_no_counters\n    set last_number = last_number + 1\n    where year = current_year\n    returning last_number into next_number;\n    if found then\n      exit;\n    end if;\n    begin\n      insert into public.file_no_counters(year, last_number)\n      values (current_year, 1)\n      returning last_number into next_number;\n      exit;\n    exception when unique_violation then\n    end;\n  end loop;\n  new_file_no :=\n    'VP-' || current_year || '-' || lpad(next_number::text, 3, '0');\n  return new_file_no;\nend;\n$function$\n",
+      "volatility": "v",
+      "security_definer": true,
+      "acl": [
+        {
+          "grantee": "postgres",
+          "privilege": "EXECUTE",
+          "grantable": false
+        }
+      ]
+    }
+  }
+}
