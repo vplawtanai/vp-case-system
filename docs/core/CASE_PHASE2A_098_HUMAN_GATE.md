@@ -39,4 +39,14 @@ No procedural engine, legal automation, Finance changes, Firestore or historical
 
 ## Production receipt
 
-Pending Apply and application release.
+Applied the complete approved SQL in `vp-case-system`, `main PRODUCTION`, existing VP authenticated Chrome session on 2026-10-08. SQL Editor receipt: `Success. No rows returned`.
+
+- DB/artifact commit: `da498a5` pushed before Apply.
+- Apply snippet: `16ccf751-8587-43c4-b8f9-d5bc95ea9ee1`; editor text round-trip matched the approved 21,219-character file before execution.
+- Bound SELECT-only verifier snippet: `8944d058-bbe9-44c9-89c2-19be4d51f15d`.
+- Verifier PASS: `gate_pass=true`, `failed_checks=[]`, `object_differences=[]`, all five checks true.
+- Installed contract SHA: `108395d606548a01b155954e364f679a74a8e2e626b5a0a5bb091d8075817af1`.
+- Evidence: `evidence/case-core-098-post-apply.json`.
+- No Production business RPC/test data, legacy DML/backfill or Finance mutation executed by the release. Normal user activity is permitted independently.
+
+Application release follows this successful verification. Production UI smoke is read-only (modal selection/cancel); real business saves are covered by the targeted local PostgreSQL/browser tests and reserved for authorized Human UAT.

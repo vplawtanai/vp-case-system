@@ -421,7 +421,7 @@ function AuditLogCard({
             {item.user_name || item.user_email || "-"} · {tr(item.user_role || "-")}
           </div>
 
-          {item.note && <div style={noteStyle}>{item.note}</div>}
+          {item.note && <div style={noteStyle}>{tr(item.note)}</div>}
         </div>
 
         <div style={badgeAndButtonWrapStyle}>
@@ -607,6 +607,7 @@ function renderTableName(value?: string | null) {
   if (value === "case_tasks") return "Tasks";
   if (value === "case_time_logs") return "Time Logs";
   if (value === "case_notes") return "Notes";
+  if (value === "case_work_core") return "Case team & work";
   if (value === "cases") return "Case Information";
 
   return value;

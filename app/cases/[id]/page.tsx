@@ -7,7 +7,7 @@ import { supabase } from "../../../lib/supabase";
 import { buildPermissions } from "../../../lib/permissions";
 import type { UserPermissions, UserRole } from "../../../lib/permissions";
 import { FolderOpen, Landmark, UserRound, Building2, CalendarDays, Clock3 } from "lucide-react";
-import CaseSummary from "./CaseSummary";
+import CaseCore from "./CaseCore";
 import { CaseStatus } from "../CaseListView";
 import { useCaseDetailText } from "./labels";
 import css from "./case-detail.module.css";
@@ -336,7 +336,7 @@ export default function CaseDetailPage() {
           {permissions.canManageFinanceBillableCharges && caseItem.client_id && <Link className={css.secondary} href={`/finance/billable-charges?new=1&client=${encodeURIComponent(caseItem.client_id)}&case=${encodeURIComponent(String(caseItem.id || id))}`}>{tr("Add billable charge")}</Link>}
         </dl>
       </header>
-      <CaseSummary caseId={caseIdNumber} revision={revision} onSection={navigateSection}/>
+      <CaseCore caseId={caseIdNumber} revision={revision} canManage={permissions.canEditCaseInfo} canNext={permissions.canEditTasks} onSection={navigateSection}/>
       <nav className={css.tabs} aria-label={tr("Case Detail")}>{tabs.map(([key,label])=><button type="button" key={key} aria-current={activeSection===key ? "page" : undefined} onClick={()=>navigateSection(key)}>{tr(label)}</button>)}</nav>
         <div className={css.section} hidden={activeSection !== "info"}>
           <CaseInfoSection
