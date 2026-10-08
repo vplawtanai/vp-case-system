@@ -36,6 +36,10 @@
 .checklist{list-style:none;margin:0;padding:12px;background:#f7fafc;border:1px solid #e0e8f0;border-radius:8px;display:grid;gap:12px}.checklist li{display:flex;align-items:flex-start;gap:10px;color:#996222}.checklist li[data-ok=true]{color:#187153}.checklist svg{flex-shrink:0;margin-top:2px}.durationFields{display:flex;gap:12px;min-width:0}.durationFields>label{flex:1;min-width:0}.timeWorkspace{display:flex;flex-direction:column;gap:12px}.timeWorkspace>button{align-self:flex-end}.form>div,.form>p{min-width:0;overflow-wrap:anywhere}.form details summary{cursor:pointer;padding:8px 0}.form details label{margin-top:12px}
 
 .clientPicker{display:flex;flex-direction:column;gap:5px}
+/* Keep Finance combobox options independent of the form's centered action buttons. */
+.clientPicker [role=option]{justify-content:space-between;text-align:left;font-weight:400;white-space:normal}
+.clientPicker [role=option][aria-selected=true]{font-weight:600}
+.clientPicker [role=option]>span{flex:1;text-align:left}
 
 /* The overdue metric opens the same server-backed quick filter as its tab. */
 .metrics .overdueMetric{text-align:left;justify-content:flex-start;min-width:0}.metrics .overdueMetric:hover:not(:disabled),.metrics .overdueMetric[aria-pressed=true]{border-color:#b52836;box-shadow:inset 0 0 0 1px #b52836}.metrics .overdueMetric>.metricArrow{margin-left:auto;flex-shrink:0;width:18px;height:18px;padding:0;background:transparent;color:inherit}

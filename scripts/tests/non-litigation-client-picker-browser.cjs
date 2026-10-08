@@ -24,7 +24,10 @@ try{for(const locale of ['th','en'])for(const width of [390,768,1024,1440]){
  // Complete independent fields first; no Client selection must block submission.
  await d.locator('input[name=title]').fill('Independent Matter title');await d.locator('select[name=lead_id]').selectOption('lead');await d.locator('select[name=matter_type]').selectOption('contract_business_documents');
  assert.equal(await d.locator('input[name=template]').inputValue(),'contract_business_documents');await save.click();assert.equal(await page.evaluate(()=>window.calls.filter(c=>c.args?.p_action==='create').length),0);
- await input.click();await input.fill('UNREGISTERED CLIENT');await d.getByText(w.empty,{exact:true}).waitFor();await save.click();assert.equal(await page.evaluate(()=>window.calls.filter(c=>c.args?.p_action==='create').length),0);
+ await input.click();await d.locator('#matter-client-options [role=option]').first().waitFor();
+ const optionLayout=await d.locator('#matter-client-options [role=option]').evaluateAll(nodes=>nodes.map(el=>({align:getComputedStyle(el).textAlign,justify:getComputedStyle(el).justifyContent,labelAlign:getComputedStyle(el.querySelector('span')).textAlign,overflow:el.scrollWidth>el.clientWidth+1})));
+ assert.ok(optionLayout.length);for(const row of optionLayout){assert.equal(row.align,'left');assert.equal(row.labelAlign,'left');assert.equal(row.justify,'space-between');assert.equal(row.overflow,false);}
+ await input.fill('UNREGISTERED CLIENT');await d.getByText(w.empty,{exact:true}).waitFor();await save.click();assert.equal(await page.evaluate(()=>window.calls.filter(c=>c.args?.p_action==='create').length),0);
  // Start a slow response, then search a Client outside the first 30 master rows.
  await input.fill('Alpha');await page.waitForFunction(()=>window.calls.some(c=>c.table==='clients'&&c.query?.name==='%Alpha%'));
  await input.fill('ซูลู');await d.getByRole('option',{name:clientName,exact:true}).waitFor();await page.waitForTimeout(400);
