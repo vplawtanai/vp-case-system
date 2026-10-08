@@ -1,0 +1,31 @@
+{
+  "checks": {"098_absent":true,"contract_exact":true,"people_columns":true},
+  "gate_pass":true,
+  "failed_checks":[],
+  "candidate_sha256":"c9cf604b4e92eeb2dde685a00816cfc5770e7d02ba45a58ff76b744fee81570c",
+  "accepted_097_sha256":"bddd266cc305bf676b4fe4564181035dee25db830b367c279f6bb79729d57db6",
+  "rows_sha256":"b90f8ed39b58adcef3bf2ebe9b12fbb68b5d8fbba6a65ef341af95b2a9f99d74",
+  "contract_sha256":"c7eaaf3ad577d025480d264c1a0880f7bdc5e994a500a5bbfd80c28426aa1d77",
+  "object_differences":[],
+  "production_mutation":false,"business_rpc_executed":false,"auth_tables_read":false,
+  "row_fingerprints":{
+    "cases":{"count":57,"sha256":"5507586f3cb439aa602b45971c0aa97ba28e881256b32d15db04079b1a999156"},
+    "parties":{"count":144,"sha256":"a5a9e4763e593ede9c3d1b0e1deaaa07b99a9bc7b58fd113ae05d49eed9bc8db"},
+    "case_fees":{"count":0,"sha256":"4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"},
+    "case_notes":{"count":4,"sha256":"ea0ba577a14f11414e38a4263c833f62ce04d96f9b6b5551c49a6cada76baaca"},
+    "case_tasks":{"count":61,"sha256":"b5011450905ac7ab6c2e51b137b8a7b806949bd1e8d10ef814b3ee3e77598e12"},
+    "case_services":{"count":0,"sha256":"4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"},
+    "case_timeline":{"count":169,"sha256":"8cda471444837cd0128cfb07611022aff650c83e4a8602e9508546ea6fac66f0"},
+    "case_deadlines":{"count":23,"sha256":"c9b1f3f27a819771611a65788b241bd9f34dac095f2475aee144cee451279d23"},
+    "case_fee_items":{"count":3,"sha256":"f9c08e4fcb63b4254aec3342ba9705d8b12f1aa7e670dfb8318304bc07d1890b"},
+    "case_judgments":{"count":18,"sha256":"378f3fb52a5b74a090b090272f81aba6249ee49295907959e3326862be8e1089"},
+    "case_time_logs":{"count":103,"sha256":"2e71d8ff23664107e894abecfe212771516a96ad00837529d59049ebf03850d4"},
+    "case_audit_logs":{"count":1040,"sha256":"8f30682b55b391614f84fb019c9d3d6fda02739fb88f202286c96690c17ae4a2"},
+    "file_no_counters":{"count":1,"sha256":"255877aa449de2c9a226e3a7020edf8b546338500e6bd2361368a4da0ef995dd"},
+    "case_enforcements":{"count":0,"sha256":"4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"},
+    "case_court_filings":{"count":3,"sha256":"29a388f7bdc99e894a57567acf0fcccb7b3be52d632f05e35e82f141c23262a9"},
+    "case_expense_items":{"count":0,"sha256":"4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"},
+    "case_enforcement_assets":{"count":0,"sha256":"4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"},
+    "case_deadline_extensions":{"count":18,"sha256":"e24589b0295a965c1b22dd92d5adf9a8e61de4497bce222963c2408beff2098b"}
+  }
+}
