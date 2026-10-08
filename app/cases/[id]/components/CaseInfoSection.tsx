@@ -1,6 +1,8 @@
 "use client";
+import { useCaseDetailText } from "../labels";
+import CaseEditModal from "../CaseEditModal";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { supabase } from "../../../../lib/supabase";
 import { createAuditLog } from "../../../../lib/auditLog";
@@ -128,12 +130,15 @@ export default function CaseInfoSection({
   caseItem,
   canEdit = false,
 }: Props) {
+  const { tr } = useCaseDetailText();
   const caseIdNumber = Number(caseId);
 
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [form, setForm] = useState<CaseItem>({});
+  const savedForm = useRef<CaseItem>({});
+  const cancelEdit = () => { setForm(savedForm.current); setIsEditing(false); };
 
   useEffect(() => {
     const loadClients = async () => {
@@ -201,13 +206,13 @@ export default function CaseInfoSection({
 
   const saveCaseInfo = async () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์แก้ไขข้อมูลหลักของคดี");
+      alert(tr("คุณไม่มีสิทธิ์แก้ไขข้อมูลหลักของคดี"));
       setIsEditing(false);
       return;
     }
 
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) {
-      alert("Missing case id");
+      alert(tr("Missing case id"));
       return;
     }
 
@@ -260,7 +265,7 @@ export default function CaseInfoSection({
         .single();
 
       if (error) {
-        alert("Save failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Save failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -276,10 +281,11 @@ export default function CaseInfoSection({
         },
         note: "Update case information",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       setIsEditing(false);
     } catch (error: unknown) {
-      alert("Save failed:\n" + stringifyError(error));
+      alert(tr("Save failed:\n" + stringifyError(error)));
     } finally {
       setSaving(false);
     }
@@ -309,55 +315,27 @@ export default function CaseInfoSection({
     : "";
   const displayClientName = linkedClientName || form.clientName || "";
 
-  return (
-    <div id="info" style={sectionStyle}>
-      <div style={headerStyle}>
-        <div>
-          <h3 style={titleStyle}>Case Information</h3>
-          <div style={subTitleStyle}>
-            ข้อมูลหลักของแฟ้มคดี ศาล ประเภทคดี ทุนทรัพย์ และที่เก็บสำนวน
-          </div>
-        </div>
-
-        {!isEditing ? (
-          canEdit ? (
-            <button onClick={() => setIsEditing(true)} style={btnSecondary}>
-              Edit
-            </button>
-          ) : null
-        ) : (
-          <div style={buttonWrapStyle}>
-            <button onClick={saveCaseInfo} style={btnPrimary} disabled={saving}>
-              {saving ? "Saving..." : "Save"}
-            </button>
-            <button onClick={() => setIsEditing(false)} style={btnSecondary}>
-              Cancel
-            </button>
-          </div>
-        )}
-      </div>
-
-      <div style={mainGridStyle}>
+  const renderFields = (editing: boolean) => (<div style={mainGridStyle}>
         <InfoBlock
-          title="Basic Information"
-          subtitle="ข้อมูลคู่ความและผู้รับผิดชอบ"
+          title={tr("Basic Information")}
+          subtitle={tr("ข้อมูลคู่ความและผู้รับผิดชอบ")}
         >
-          {isEditing ? (
+          {editing ? (
             <Input
-              label="Title"
+              label={tr("Title")}
               value={form.title}
-              disabled={!isEditing}
+              disabled={!editing}
               onChange={(value) => setForm({ ...form, title: value })}
             />
           ) : (
-            <ReadOnlyValue label="Title" value={form.title} />
+            <ReadOnlyValue label={tr("Title")} value={form.title} />
           )}
 
-          {isEditing ? (
+          {editing ? (
             <Select
-              label="Client"
+              label={tr("Client")}
               value={form.clientId}
-              disabled={!isEditing}
+              disabled={!editing}
               onChange={(value) => {
                 const selectedClient =
                   clients.find((client) => client.id === value) || null;
@@ -377,43 +355,43 @@ export default function CaseInfoSection({
               ]}
             />
           ) : (
-            <ReadOnlyValue label="Client" value={displayClientName} />
+            <ReadOnlyValue label={tr("Client")} value={displayClientName} />
           )}
 
-          {isEditing && clients.length === 0 && (
-            <div style={hintStyle}>No clients yet. Create Client first.</div>
+          {editing && clients.length === 0 && (
+            <div style={hintStyle}>{tr("No clients yet. Create Client first.")} </div>
           )}
 
-          {isEditing ? (
+          {editing ? (
             <Input
-              label="Owner"
+              label={tr("Owner")}
               value={form.ownerName}
-              disabled={!isEditing}
+              disabled={!editing}
               onChange={(value) => setForm({ ...form, ownerName: value })}
             />
           ) : (
-            <ReadOnlyValue label="Owner" value={form.ownerName} />
+            <ReadOnlyValue label={tr("Owner")} value={form.ownerName} />
           )}
         </InfoBlock>
 
-        <InfoBlock title="Court Information" subtitle="ศาลและเลขคดีดำ">
-          {isEditing ? (
+        <InfoBlock title={tr("Court Information")} subtitle={tr("ศาลและเลขคดีดำ")}>
+          {editing ? (
             <Input
-              label="Court"
+              label={tr("Court")}
               value={form.courtName}
-              disabled={!isEditing}
+              disabled={!editing}
               onChange={(value) => setForm({ ...form, courtName: value })}
             />
           ) : (
-            <ReadOnlyValue label="Court" value={form.courtName} />
+            <ReadOnlyValue label={tr("Court")} value={form.courtName} />
           )}
 
-          {isEditing ? (
+          {editing ? (
             <div>
-              <label style={labelStyle}>Black Case Number</label>
+              <label style={labelStyle}>{tr("Black Case Number")} </label>
               <div style={caseNumberRowStyle}>
                 <input
-                  disabled={!isEditing}
+                  disabled={!editing}
                   value={form.caseNumberPart1 || ""}
                   onChange={(e) =>
                     setForm({ ...form, caseNumberPart1: e.target.value })
@@ -421,13 +399,13 @@ export default function CaseInfoSection({
                   style={{
                     ...inputStyle,
                     width: "28%",
-                    background: !isEditing ? "#f5f5f5" : "#fff",
+                    background: !editing ? "#f5f5f5" : "#fff",
                   }}
-                  placeholder="ผบอ"
+                  placeholder={tr("ผบอ")}
                 />
 
                 <input
-                  disabled={!isEditing}
+                  disabled={!editing}
                   value={form.caseNumberPart2 || ""}
                   onChange={(e) =>
                     setForm({ ...form, caseNumberPart2: e.target.value })
@@ -435,7 +413,7 @@ export default function CaseInfoSection({
                   style={{
                     ...inputStyle,
                     width: "32%",
-                    background: !isEditing ? "#f5f5f5" : "#fff",
+                    background: !editing ? "#f5f5f5" : "#fff",
                   }}
                   placeholder="56"
                 />
@@ -443,7 +421,7 @@ export default function CaseInfoSection({
                 <span style={slashStyle}>/</span>
 
                 <select
-                  disabled={!isEditing}
+                  disabled={!editing}
                   value={form.caseYear || ""}
                   onChange={(e) =>
                     setForm({ ...form, caseYear: e.target.value })
@@ -451,7 +429,7 @@ export default function CaseInfoSection({
                   style={{
                     ...inputStyle,
                     width: "40%",
-                    background: !isEditing ? "#f5f5f5" : "#fff",
+                    background: !editing ? "#f5f5f5" : "#fff",
                   }}
                 >
                   {yearOptions().map((y) => (
@@ -463,16 +441,16 @@ export default function CaseInfoSection({
               </div>
             </div>
           ) : (
-            <ReadOnlyValue label="Black Case Number" value={blackCaseNumber} />
+            <ReadOnlyValue label={tr("Black Case Number")} value={blackCaseNumber} />
           )}
         </InfoBlock>
 
-        <InfoBlock title="Classification" subtitle="ประเภทคดีและสถานะ">
-          {isEditing ? (
+        <InfoBlock title={tr("Classification")} subtitle={tr("ประเภทคดีและสถานะ")}>
+          {editing ? (
             <Select
-              label="Type"
+              label={tr("Type")}
               value={form.caseType}
-              disabled={!isEditing}
+              disabled={!editing}
               onChange={(value) => setForm({ ...form, caseType: value })}
               options={[
                 { value: "Civil", label: "Civil (แพ่ง)" },
@@ -482,30 +460,30 @@ export default function CaseInfoSection({
               ]}
             />
           ) : (
-            <ReadOnlyValue label="Type" value={renderCaseType(form.caseType)} />
+            <ReadOnlyValue label={tr("Type")} value={tr(renderCaseType(form.caseType))} />
           )}
 
-          {isEditing ? (
+          {editing ? (
             <Textarea
-              label="Subtype"
+              label={tr("Subtype")}
               value={form.caseSubtype}
-              disabled={!isEditing}
+              disabled={!editing}
               onChange={(value) => setForm({ ...form, caseSubtype: value })}
               minHeight={64}
             />
           ) : (
             <ReadOnlyValue
-              label="Subtype"
+              label={tr("Subtype")}
               value={form.caseSubtype}
               multiline
             />
           )}
 
-          {isEditing ? (
+          {editing ? (
             <Select
-              label="Case Status"
+              label={tr("Case Status")}
               value={form.caseStatus}
-              disabled={!isEditing}
+              disabled={!editing}
               onChange={(value) => setForm({ ...form, caseStatus: value })}
               options={[
                 { value: "Active", label: "Active" },
@@ -514,17 +492,17 @@ export default function CaseInfoSection({
               ]}
             />
           ) : (
-            <ReadOnlyValue label="Case Status" value={form.caseStatus} />
+            <ReadOnlyValue label={tr("Case Status")} value={tr(form.caseStatus)} />
           )}
         </InfoBlock>
 
-        <InfoBlock title="Claim & Issue" subtitle="ทุนทรัพย์และประเด็นหลัก">
-          {isEditing ? (
+        <InfoBlock title={tr("Claim & Issue")} subtitle={tr("ทุนทรัพย์และประเด็นหลัก")}>
+          {editing ? (
             <div>
-              <label style={labelStyle}>Claim Value / Disputed Amount</label>
+              <label style={labelStyle}>{tr("Claim Value / Disputed Amount")} </label>
               <div style={claimRowStyle}>
                 <input
-                  disabled={!isEditing}
+                  disabled={!editing}
                   value={form.claimAmountBaht || ""}
                   onChange={(e) =>
                     setForm({
@@ -535,14 +513,14 @@ export default function CaseInfoSection({
                   style={{
                     ...inputStyle,
                     flex: 1,
-                    background: !isEditing ? "#f5f5f5" : "#fff",
+                    background: !editing ? "#f5f5f5" : "#fff",
                   }}
                   placeholder="50,000"
                 />
-                <span style={unitStyle}>บาท</span>
+                <span style={unitStyle}>{tr("บาท")} </span>
 
                 <input
-                  disabled={!isEditing}
+                  disabled={!editing}
                   value={form.claimAmountSatang || ""}
                   maxLength={2}
                   onChange={(e) => {
@@ -561,33 +539,33 @@ export default function CaseInfoSection({
                   style={{
                     ...inputStyle,
                     width: 82,
-                    background: !isEditing ? "#f5f5f5" : "#fff",
+                    background: !editing ? "#f5f5f5" : "#fff",
                   }}
                   placeholder="00"
                 />
-                <span style={unitStyle}>สตางค์</span>
+                <span style={unitStyle}>{tr("สตางค์")} </span>
               </div>
 
-              <div style={claimPreviewStyle}>{claimPreview}</div>
+              <div style={claimPreviewStyle}>{tr(claimPreview)}</div>
             </div>
           ) : (
             <ReadOnlyValue
-              label="Claim Value / Disputed Amount"
-              value={claimPreview}
+              label={tr("Claim Value / Disputed Amount")}
+              value={tr(claimPreview)}
             />
           )}
 
-          {isEditing ? (
+          {editing ? (
             <Textarea
-              label="Issue Detail"
+              label={tr("Issue Detail")}
               value={form.issueText}
-              disabled={!isEditing}
+              disabled={!editing}
               onChange={(value) => setForm({ ...form, issueText: value })}
               minHeight={110}
             />
           ) : (
             <ReadOnlyValue
-              label="Issue Detail"
+              label={tr("Issue Detail")}
               value={form.issueText}
               multiline
             />
@@ -595,14 +573,14 @@ export default function CaseInfoSection({
         </InfoBlock>
 
         <InfoBlock
-          title="Storage"
-          subtitle="ที่เก็บสำนวนตัวจริงหรือเอกสารหลัก"
+          title={tr("Storage")}
+          subtitle={tr("ที่เก็บสำนวนตัวจริงหรือเอกสารหลัก")}
         >
-          {isEditing ? (
+          {editing ? (
             <Select
-              label="Storage Type"
+              label={tr("Storage Type")}
               value={form.physicalStorageType}
-              disabled={!isEditing}
+              disabled={!editing}
               onChange={(value) =>
                 setForm({ ...form, physicalStorageType: value })
               }
@@ -615,25 +593,32 @@ export default function CaseInfoSection({
             />
           ) : (
             <ReadOnlyValue
-              label="Storage Type"
-              value={form.physicalStorageType}
+              label={tr("Storage Type")}
+              value={tr(form.physicalStorageType)}
             />
           )}
 
-          {isEditing ? (
+          {editing ? (
             <Input
-              label="Detail"
+              label={tr("Detail")}
               value={form.physicalStorageDetail}
-              disabled={!isEditing}
+              disabled={!editing}
               onChange={(value) =>
                 setForm({ ...form, physicalStorageDetail: value })
               }
             />
           ) : (
-            <ReadOnlyValue label="Detail" value={form.physicalStorageDetail} />
+            <ReadOnlyValue label={tr("Detail")} value={form.physicalStorageDetail} />
           )}
         </InfoBlock>
-      </div>
+      </div>);
+
+  return (
+    <div id="info" style={sectionStyle}>
+      <div style={headerStyle}><div><h3 style={titleStyle}>{tr("Case Information")} </h3><div style={subTitleStyle}>{tr("ข้อมูลหลักของแฟ้มคดี ศาล ประเภทคดี ทุนทรัพย์ และที่เก็บสำนวน")} </div></div>{canEdit && <button onClick={() => { savedForm.current = form; setIsEditing(true); }} style={btnSecondary}>{tr("Edit")} </button>}</div>
+
+      {renderFields(false)}
+      {isEditing && <CaseEditModal title={tr("Edit Case Information")} busy={saving} onClose={cancelEdit}>{renderFields(true)}<div style={buttonWrapStyle}><button onClick={saveCaseInfo} disabled={saving} style={btnPrimary}>{saving ? tr("Saving...") : tr("Save")}</button><button onClick={cancelEdit} disabled={saving} style={btnSecondary}>{tr("Cancel")} </button></div></CaseEditModal>}
     </div>
   );
 }
@@ -654,9 +639,10 @@ function InfoBlock({ title, subtitle, children }: InfoBlockProps) {
 }
 
 function ReadOnlyValue({ label, value, multiline = false }: ReadOnlyValueProps) {
+  const { tr } = useCaseDetailText();
   return (
     <div style={readOnlyRowStyle}>
-      <div style={labelStyle}>{label}</div>
+      <div style={labelStyle}>{tr(label)}</div>
       <div style={multiline ? readOnlyTextAreaStyle : readOnlyValueStyle}>
         {value && value.trim() ? value : "-"}
       </div>
@@ -665,10 +651,11 @@ function ReadOnlyValue({ label, value, multiline = false }: ReadOnlyValueProps) 
 }
 
 function Input({ label, value, onChange, disabled }: InputProps) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
-      <input
+      <label style={labelStyle}>{tr(label)}</label>
+      <input aria-label={tr(label)}
         value={value || ""}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
@@ -685,10 +672,11 @@ function Select({
   options,
   disabled,
 }: SelectProps) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
-      <select
+      <label style={labelStyle}>{tr(label)}</label>
+      <select aria-label={tr(label)}
         value={value || ""}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
@@ -696,7 +684,7 @@ function Select({
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
-            {o.label}
+            {tr(o.label)}
           </option>
         ))}
       </select>
@@ -711,10 +699,11 @@ function Textarea({
   disabled,
   minHeight = 100,
 }: TextareaProps & { minHeight?: number }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
-      <textarea
+      <label style={labelStyle}>{tr(label)}</label>
+      <textarea aria-label={tr(label)}
         value={value || ""}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
@@ -850,7 +839,7 @@ const sectionStyle: CSSProperties = {
   padding: "clamp(12px, 2vw, 16px)",
   borderRadius: 14,
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
 };
 
 const headerStyle: CSSProperties = {
@@ -864,9 +853,9 @@ const headerStyle: CSSProperties = {
 
 const titleStyle: CSSProperties = {
   margin: 0,
-  color: "#111111",
+  color: "#183854",
   fontSize: 18,
-  fontWeight: 900,
+  fontWeight: 700,
 };
 
 const subTitleStyle: CSSProperties = {
@@ -886,7 +875,7 @@ const infoBlockStyle: CSSProperties = {
   border: "1px solid #eeeeee",
   borderRadius: 12,
   padding: 12,
-  background: "#fafafa",
+  background: "#f7f9fc",
 };
 
 const blockHeaderStyle: CSSProperties = {
@@ -895,9 +884,9 @@ const blockHeaderStyle: CSSProperties = {
 
 const blockTitleStyle: CSSProperties = {
   margin: 0,
-  color: "#111111",
+  color: "#183854",
   fontSize: 14,
-  fontWeight: 900,
+  fontWeight: 700,
 };
 
 const blockSubtitleStyle: CSSProperties = {
@@ -923,7 +912,7 @@ const labelStyle: CSSProperties = {
   display: "block",
   marginBottom: 3,
   color: "#777777",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 11,
   textTransform: "uppercase",
   letterSpacing: "0.03em",
@@ -931,16 +920,16 @@ const labelStyle: CSSProperties = {
 
 const readOnlyValueStyle: CSSProperties = {
   minHeight: 18,
-  color: "#111111",
+  color: "#183854",
   fontSize: 13,
-  fontWeight: 800,
+  fontWeight: 700,
   lineHeight: 1.45,
   wordBreak: "break-word",
 };
 
 const readOnlyTextAreaStyle: CSSProperties = {
   minHeight: 28,
-  color: "#111111",
+  color: "#183854",
   fontSize: 13,
   fontWeight: 700,
   lineHeight: 1.55,
@@ -954,7 +943,7 @@ const inputStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #bbbbbb",
   boxSizing: "border-box",
-  color: "#111111",
+  color: "#183854",
   colorScheme: "light",
   fontSize: 13,
 };
@@ -965,7 +954,7 @@ const textareaStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #bbbbbb",
   boxSizing: "border-box",
-  color: "#111111",
+  color: "#183854",
   resize: "vertical",
   colorScheme: "light",
   fontSize: 13,
@@ -979,7 +968,7 @@ const caseNumberRowStyle: CSSProperties = {
 };
 
 const slashStyle: CSSProperties = {
-  fontWeight: 900,
+  fontWeight: 700,
   color: "#333333",
 };
 
@@ -1017,7 +1006,7 @@ const btnPrimary: CSSProperties = {
   borderRadius: 8,
   border: "none",
   cursor: "pointer",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 13,
 };
 
@@ -1026,7 +1015,7 @@ const btnSecondary: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #cccccc",
   background: "white",
-  color: "#111111",
+  color: "#183854",
   cursor: "pointer",
   fontWeight: 700,
   fontSize: 13,

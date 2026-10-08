@@ -1,6 +1,9 @@
 "use client";
+import { useCaseDetailText } from "../labels";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import CaseEditModal from "../CaseEditModal";
+
+import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../../../lib/supabase";
 import { createAuditLog } from "../../../../lib/auditLog";
@@ -71,6 +74,7 @@ export default function NotesSection({
   canEdit = false,
   canDelete = false,
 }: Props) {
+  const { tr } = useCaseDetailText();
   const caseIdNumber = Number(caseId);
 
   const [items, setItems] = useState<NoteItem[]>([]);
@@ -81,16 +85,6 @@ export default function NotesSection({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<NoteForm>(emptyForm);
 
-  const formRef = useRef<HTMLDivElement | null>(null);
-
-  const scrollToForm = () => {
-    window.setTimeout(() => {
-      formRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 80);
-  };
 
   const loadNotes = async () => {
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) return;
@@ -107,7 +101,7 @@ export default function NotesSection({
         .order("created_at", { ascending: true });
 
       if (error) {
-        alert("Load notes failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Load notes failed:\n" + JSON.stringify(error, null, 2)));
         setItems([]);
         return;
       }
@@ -174,7 +168,7 @@ export default function NotesSection({
 
   const startAdd = () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์เพิ่ม Note");
+      alert(tr("คุณไม่มีสิทธิ์เพิ่ม Note"));
       return;
     }
 
@@ -185,12 +179,12 @@ export default function NotesSection({
       note_date: getTodayDateString(),
     });
     setShowForm(true);
-    scrollToForm();
+
   };
 
   const startEdit = (item: NoteItem) => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์แก้ไข Note");
+      alert(tr("คุณไม่มีสิทธิ์แก้ไข Note"));
       return;
     }
 
@@ -199,7 +193,7 @@ export default function NotesSection({
 
     setEditingId(item.id);
     setShowForm(true);
-    scrollToForm();
+
 
     setForm({
       note_no: item.note_no ? String(item.note_no) : "1",
@@ -224,37 +218,37 @@ export default function NotesSection({
 
   const validateNote = () => {
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) {
-      alert("Missing case id");
+      alert(tr("Missing case id"));
       return false;
     }
 
     if (!form.note_date) {
-      alert("กรุณาเลือกวันที่บันทึก");
+      alert(tr("กรุณาเลือกวันที่บันทึก"));
       return false;
     }
 
     if (!form.author_name.trim()) {
-      alert("กรุณาเลือกหรือกรอกผู้บันทึก");
+      alert(tr("กรุณาเลือกหรือกรอกผู้บันทึก"));
       return false;
     }
 
     if (form.author_name === "อื่นๆ" && !form.author_other.trim()) {
-      alert("กรุณากรอกชื่อผู้บันทึกอื่นๆ");
+      alert(tr("กรุณากรอกชื่อผู้บันทึกอื่นๆ"));
       return false;
     }
 
     if (!form.note_type.trim()) {
-      alert("กรุณาเลือกประเภท Note");
+      alert(tr("กรุณาเลือกประเภท Note"));
       return false;
     }
 
     if (!form.note_title.trim()) {
-      alert("กรุณากรอกหัวข้อ Note");
+      alert(tr("กรุณากรอกหัวข้อ Note"));
       return false;
     }
 
     if (!form.note_text.trim()) {
-      alert("กรุณากรอกรายละเอียด Note");
+      alert(tr("กรุณากรอกรายละเอียด Note"));
       return false;
     }
 
@@ -280,7 +274,7 @@ export default function NotesSection({
 
   const createNote = async () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์เพิ่ม Note");
+      alert(tr("คุณไม่มีสิทธิ์เพิ่ม Note"));
       cancelForm();
       return;
     }
@@ -304,7 +298,7 @@ export default function NotesSection({
         .single();
 
       if (error) {
-        alert("Create note failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Create note failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -317,6 +311,7 @@ export default function NotesSection({
         newData: data || payload,
         note: "Create note",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       cancelForm();
       await loadNotes();
@@ -327,7 +322,7 @@ export default function NotesSection({
 
   const updateNote = async () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์แก้ไข Note");
+      alert(tr("คุณไม่มีสิทธิ์แก้ไข Note"));
       cancelForm();
       return;
     }
@@ -350,7 +345,7 @@ export default function NotesSection({
         .single();
 
       if (error) {
-        alert("Update note failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Update note failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -363,6 +358,7 @@ export default function NotesSection({
         newData: data || (oldData ? { ...oldData, ...payload } : payload),
         note: "Update note",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       cancelForm();
       await loadNotes();
@@ -373,12 +369,12 @@ export default function NotesSection({
 
   const deleteNote = async (id: string) => {
     if (!canDelete) {
-      alert("คุณไม่มีสิทธิ์ลบ Note");
+      alert(tr("คุณไม่มีสิทธิ์ลบ Note"));
       return;
     }
 
     const confirmed = window.confirm(
-      "ต้องการลบ Note นี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
+      tr("ต้องการลบ Note นี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง")
     );
 
     if (!confirmed) return;
@@ -403,7 +399,7 @@ export default function NotesSection({
         .single();
 
       if (error) {
-        alert("Soft delete note failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Soft delete note failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -416,6 +412,7 @@ export default function NotesSection({
         newData: data || (oldData ? { ...oldData, ...payload } : payload),
         note: "Soft delete note",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       if (editingId === id) cancelForm();
 
@@ -429,67 +426,53 @@ export default function NotesSection({
     <div id="notes" style={sectionStyle}>
       <div style={headerStyle}>
         <div>
-          <h3 style={titleStyle}>Notes</h3>
+          <h3 style={titleStyle}>{tr("Notes")} </h3>
           <div style={subTitleStyle}>
-            สมุดบันทึกกลางของคดี สำหรับข้อมูล ความเห็น และข้อสังเกตภายใน · รวม{" "}
-            {summary.total} รายการ
-          </div>
+            {tr("สมุดบันทึกกลางของคดี สำหรับข้อมูล ความเห็น และข้อสังเกตภายใน · รวม")} {" "}
+            {summary.total} {tr("รายการ")} </div>
         </div>
 
         {!showForm ? (
           canEdit ? (
             <button type="button" onClick={startAdd} style={primaryButtonStyle}>
-              + Add Note
-            </button>
+              {tr("+ Add Note")} </button>
           ) : null
         ) : (
           <button type="button" onClick={cancelForm} style={secondaryButtonStyle}>
-            Cancel
-          </button>
+            {tr("Cancel")} </button>
         )}
       </div>
 
       <div style={summaryGridStyle}>
-        <SummaryCard label="Total" value={String(summary.total)} />
-        <SummaryCard label="Important" value={String(summary.important)} />
-        <SummaryCard label="Strategy" value={String(summary.strategy)} />
-        <SummaryCard label="Risk" value={String(summary.risk)} />
+        <SummaryCard label={tr("Total")} value={String(summary.total)} />
+        <SummaryCard label={tr("Important")} value={String(summary.important)} />
+        <SummaryCard label={tr("Strategy")} value={String(summary.strategy)} />
+        <SummaryCard label={tr("Risk")} value={String(summary.risk)} />
         <SummaryCard
-          label="Client Instruction"
+          label={tr("Client Instruction")}
           value={String(summary.clientInstruction)}
         />
       </div>
 
       {showForm && (
-        <div ref={formRef} style={formCardStyle}>
-          <div style={formHeaderStyle}>
-            <div>
-              <h4 style={formTitleStyle}>
-                {editingId ? "Edit Note" : "Add Note"}
-              </h4>
-              <div style={formSubTitleStyle}>
-                บันทึกข้อมูลภายใน ประเด็นสำคัญ แนวทางคดี หรือข้อควรระวัง
-              </div>
-            </div>
+        <CaseEditModal title={editingId ? tr("Edit Note") : tr("Add Note")} onClose={cancelForm} busy={saving}>
 
-            {editingId && <span style={editBadgeStyle}>Editing</span>}
-          </div>
 
           <div style={formGridStyle}>
             <div>
-              <label style={labelStyle}>ลำดับ Note</label>
-              <div style={readonlyBoxStyle}>Note No. {form.note_no || "-"}</div>
+              <label style={labelStyle}>{tr("ลำดับ Note")} </label>
+              <div style={readonlyBoxStyle}>{tr("Note No.")} {form.note_no || "-"}</div>
             </div>
 
             <Input
-              label="วันที่บันทึก"
+              label={tr("วันที่บันทึก")}
               type="date"
               value={form.note_date}
               onChange={(value) => setForm({ ...form, note_date: value })}
             />
 
             <Select
-              label="ผู้บันทึก"
+              label={tr("ผู้บันทึก")}
               value={form.author_name}
               onChange={(value) =>
                 setForm({
@@ -506,15 +489,15 @@ export default function NotesSection({
 
             {form.author_name === "อื่นๆ" && (
               <Input
-                label="ระบุชื่อผู้บันทึกอื่นๆ"
+                label={tr("ระบุชื่อผู้บันทึกอื่นๆ")}
                 value={form.author_other}
                 onChange={(value) => setForm({ ...form, author_other: value })}
-                placeholder="เช่น ทนายเอก / ผู้ช่วย / บุคคลอื่น"
+                placeholder={tr("เช่น ทนายเอก / ผู้ช่วย / บุคคลอื่น")}
               />
             )}
 
             <Select
-              label="ประเภท Note"
+              label={tr("ประเภท Note")}
               value={form.note_type}
               onChange={(value) => setForm({ ...form, note_type: value })}
               options={noteTypeOptions.map((option) => ({
@@ -531,24 +514,24 @@ export default function NotesSection({
                   setForm({ ...form, important: e.target.checked })
                 }
               />
-              <span>Important / สำคัญ</span>
+              <span>{tr("Important / สำคัญ")} </span>
             </div>
 
             <div style={{ gridColumn: "1 / -1" }}>
               <Input
-                label="หัวข้อ Note"
+                label={tr("หัวข้อ Note")}
                 value={form.note_title}
                 onChange={(value) => setForm({ ...form, note_title: value })}
-                placeholder="เช่น ลูกค้าแจ้งข้อมูลเพิ่มเติม / ประเด็นที่ต้องตรวจสอบ"
+                placeholder={tr("เช่น ลูกค้าแจ้งข้อมูลเพิ่มเติม / ประเด็นที่ต้องตรวจสอบ")}
               />
             </div>
 
             <div style={{ gridColumn: "1 / -1" }}>
               <Textarea
-                label="รายละเอียด Note"
+                label={tr("รายละเอียด Note")}
                 value={form.note_text}
                 onChange={(value) => setForm({ ...form, note_text: value })}
-                placeholder="บันทึกรายละเอียด ข้อสังเกต ความเห็น หรือข้อมูลที่ต้องจำไว้"
+                placeholder={tr("บันทึกรายละเอียด ข้อสังเกต ความเห็น หรือข้อมูลที่ต้องจำไว้")}
               />
             </div>
           </div>
@@ -560,7 +543,7 @@ export default function NotesSection({
               disabled={saving}
               style={primaryButtonStyle}
             >
-              {saving ? "Saving..." : "Save"}
+              {saving ? tr("Saving...") : tr("Save")}
             </button>
 
             <button
@@ -569,16 +552,15 @@ export default function NotesSection({
               disabled={saving}
               style={secondaryButtonStyle}
             >
-              Cancel
-            </button>
+              {tr("Cancel")} </button>
           </div>
-        </div>
+        </CaseEditModal>
       )}
 
       {loading ? (
-        <div style={emptyStyle}>Loading notes...</div>
+        <div style={emptyStyle}>{tr("Loading notes...")} </div>
       ) : sortedNotes.length === 0 ? (
-        <div style={emptyStyle}>No notes added.</div>
+        <div style={emptyStyle}>{tr("No notes added.")} </div>
       ) : (
         <div style={noteListStyle}>
           {sortedNotes.map((item) => (
@@ -602,9 +584,10 @@ export default function NotesSection({
 ========================================================= */
 
 function SummaryCard({ label, value }: { label: string; value: string }) {
+  const { tr } = useCaseDetailText();
   return (
     <div style={summaryCardStyle}>
-      <div style={summaryLabelStyle}>{label}</div>
+      <div style={summaryLabelStyle}>{tr(label)}</div>
       <div style={summaryValueStyle}>{value}</div>
     </div>
   );
@@ -623,6 +606,7 @@ function NoteCard({
   onEdit: (item: NoteItem) => void;
   onDelete: (id: string) => void;
 }) {
+  const { tr, date } = useCaseDetailText();
   const showActions = canEdit || canDelete;
 
   return (
@@ -636,15 +620,15 @@ function NoteCard({
       <div style={noteHeaderStyle}>
         <div>
           <div style={noteTitleStyle}>
-            Note No. {item.note_no || "-"} : {item.note_title || "-"}
+            {tr("Note No.")} {item.note_no || "-"} : {item.note_title || "-"}
           </div>
           <div style={noteMetaStyle}>
-            {formatDisplayDate(item.note_date)} • {item.author_name || "-"} •{" "}
-            {item.note_type || "-"}
+            {date(item.note_date)} • {item.author_name || "-"} •{" "}
+            {tr(item.note_type) || "-"}
           </div>
         </div>
 
-        {item.important && <span style={importantBadgeStyle}>Important</span>}
+        {item.important && <span style={importantBadgeStyle}>{tr("Important")} </span>}
       </div>
 
       <div style={noteTextStyle}>{item.note_text || "-"}</div>
@@ -657,8 +641,7 @@ function NoteCard({
               onClick={() => onEdit(item)}
               style={smallButtonStyle}
             >
-              Edit
-            </button>
+              {tr("Edit")} </button>
           )}
 
           {canDelete && (
@@ -667,8 +650,7 @@ function NoteCard({
               onClick={() => onDelete(item.id)}
               style={dangerButtonStyle}
             >
-              Delete
-            </button>
+              {tr("Delete")} </button>
           )}
         </div>
       )}
@@ -689,10 +671,11 @@ function Input({
   placeholder?: string;
   type?: string;
 }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
-      <input
+      <label style={labelStyle}>{tr(label)}</label>
+      <input aria-label={tr(label)}
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -714,17 +697,18 @@ function Select({
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
 }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
-      <select
+      <label style={labelStyle}>{tr(label)}</label>
+      <select aria-label={tr(label)}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         style={inputStyle}
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
-            {option.label}
+            {tr(option.label)}
           </option>
         ))}
       </select>
@@ -743,10 +727,11 @@ function Textarea({
   onChange: (value: string) => void;
   placeholder?: string;
 }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
-      <textarea
+      <label style={labelStyle}>{tr(label)}</label>
+      <textarea aria-label={tr(label)}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
@@ -769,15 +754,6 @@ function getTodayDateString() {
   return `${year}-${month}-${day}`;
 }
 
-function formatDisplayDate(value?: string | null) {
-  if (!value) return "-";
-
-  const parts = value.split("-");
-  if (parts.length !== 3) return value;
-
-  const [year, month, day] = parts;
-  return `${day}/${month}/${year}`;
-}
 
 /* =========================================================
    STYLES
@@ -788,7 +764,7 @@ const sectionStyle: CSSProperties = {
   padding: "clamp(12px, 2vw, 16px)",
   borderRadius: 14,
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
 };
 
 const headerStyle: CSSProperties = {
@@ -802,9 +778,9 @@ const headerStyle: CSSProperties = {
 
 const titleStyle: CSSProperties = {
   margin: 0,
-  color: "#111111",
+  color: "#183854",
   fontSize: 18,
-  fontWeight: 900,
+  fontWeight: 700,
 };
 
 const subTitleStyle: CSSProperties = {
@@ -821,7 +797,7 @@ const primaryButtonStyle: CSSProperties = {
   borderRadius: 8,
   border: "none",
   cursor: "pointer",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 13,
   whiteSpace: "nowrap",
 };
@@ -829,7 +805,7 @@ const primaryButtonStyle: CSSProperties = {
 const secondaryButtonStyle: CSSProperties = {
   padding: "8px 13px",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   borderRadius: 8,
   border: "1px solid #cccccc",
   cursor: "pointer",
@@ -849,67 +825,24 @@ const summaryCardStyle: CSSProperties = {
   border: "1px solid #eeeeee",
   borderRadius: 12,
   padding: 11,
-  background: "#fafafa",
+  background: "#f7f9fc",
 };
 
 const summaryLabelStyle: CSSProperties = {
   fontSize: 11,
   color: "#777777",
   marginBottom: 4,
-  fontWeight: 800,
+  fontWeight: 700,
   textTransform: "uppercase",
   letterSpacing: "0.03em",
 };
 
 const summaryValueStyle: CSSProperties = {
   fontSize: 18,
-  fontWeight: 900,
-  color: "#111111",
+  fontWeight: 700,
+  color: "#183854",
 };
 
-const formCardStyle: CSSProperties = {
-  border: "1px solid #dddddd",
-  borderRadius: 14,
-  padding: 14,
-  background: "#fafafa",
-  marginBottom: 16,
-  scrollMarginTop: 105,
-};
-
-const formHeaderStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: 10,
-  alignItems: "flex-start",
-  marginBottom: 12,
-  flexWrap: "wrap",
-};
-
-const formTitleStyle: CSSProperties = {
-  margin: 0,
-  color: "#111111",
-  fontSize: 16,
-  fontWeight: 900,
-};
-
-const formSubTitleStyle: CSSProperties = {
-  marginTop: 3,
-  color: "#666666",
-  fontSize: 12,
-  lineHeight: 1.45,
-};
-
-const editBadgeStyle: CSSProperties = {
-  display: "inline-flex",
-  padding: "5px 10px",
-  borderRadius: 999,
-  background: "#fff8e1",
-  color: "#b54708",
-  border: "1px solid #eedc9a",
-  fontSize: 12,
-  fontWeight: 900,
-  whiteSpace: "nowrap",
-};
 
 const formGridStyle: CSSProperties = {
   display: "grid",
@@ -921,7 +854,7 @@ const labelStyle: CSSProperties = {
   display: "block",
   marginBottom: 3,
   color: "#777777",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 11,
   textTransform: "uppercase",
   letterSpacing: "0.03em",
@@ -933,7 +866,7 @@ const inputStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #bbbbbb",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   colorScheme: "light",
   boxSizing: "border-box",
   fontSize: 13,
@@ -945,9 +878,9 @@ const readonlyBoxStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #dddddd",
   background: "#eeeeee",
-  color: "#111111",
+  color: "#183854",
   boxSizing: "border-box",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 13,
 };
 
@@ -960,7 +893,7 @@ const checkboxBoxStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #dddddd",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   fontWeight: 700,
   fontSize: 13,
 };
@@ -999,7 +932,7 @@ const noteCardStyle: CSSProperties = {
   borderRadius: 12,
   padding: 12,
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   boxShadow: "0 1px 6px rgba(0,0,0,0.04)",
 };
 
@@ -1013,8 +946,8 @@ const noteHeaderStyle: CSSProperties = {
 
 const noteTitleStyle: CSSProperties = {
   fontSize: 14,
-  fontWeight: 900,
-  color: "#111111",
+  fontWeight: 700,
+  color: "#183854",
   lineHeight: 1.45,
   wordBreak: "break-word",
 };
@@ -1032,7 +965,7 @@ const noteTextStyle: CSSProperties = {
   borderRadius: 10,
   background: "#f8fafc",
   border: "1px solid #eeeeee",
-  color: "#111111",
+  color: "#183854",
   fontSize: 13,
   lineHeight: 1.65,
   whiteSpace: "pre-wrap",
@@ -1047,7 +980,7 @@ const importantBadgeStyle: CSSProperties = {
   color: "#b54708",
   border: "1px solid #f0d58a",
   fontSize: 11,
-  fontWeight: 900,
+  fontWeight: 700,
   whiteSpace: "nowrap",
 };
 
@@ -1065,7 +998,7 @@ const smallButtonStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #cccccc",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   cursor: "pointer",
   fontWeight: 700,
   fontSize: 13,
@@ -1078,6 +1011,6 @@ const dangerButtonStyle: CSSProperties = {
   background: "#fff5f5",
   color: "#a40000",
   cursor: "pointer",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 13,
 };

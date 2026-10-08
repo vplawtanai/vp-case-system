@@ -1,6 +1,9 @@
 "use client";
+import { useCaseDetailText } from "../labels";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import CaseEditModal from "../CaseEditModal";
+
+import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../../../lib/supabase";
 import { createAuditLog } from "../../../../lib/auditLog";
@@ -88,6 +91,7 @@ export default function TimelineSection({
   canEdit = false,
   canDelete = false,
 }: Props) {
+  const { tr, date } = useCaseDetailText();
   const caseIdNumber = Number(caseId);
 
   const [items, setItems] = useState<TimelineItem[]>([]);
@@ -103,16 +107,6 @@ export default function TimelineSection({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<TimelineForm>(emptyAppointmentForm);
 
-  const formRef = useRef<HTMLDivElement | null>(null);
-
-  const scrollToForm = () => {
-    window.setTimeout(() => {
-      formRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 80);
-  };
 
   const loadTimeline = async () => {
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) return;
@@ -130,7 +124,7 @@ export default function TimelineSection({
         .order("created_at", { ascending: true });
 
       if (error) {
-        alert("Load timeline failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Load timeline failed:\n" + JSON.stringify(error, null, 2)));
         setItems([]);
         return;
       }
@@ -141,7 +135,7 @@ export default function TimelineSection({
       const filing = timelineItems.find((item) => item.event_type === "filing");
       setFilingId(filing?.id || null);
       setFilingDate(filing?.event_date || "");
-      setIsEditingFiling(!filing?.event_date && canEdit);
+      setIsEditingFiling(false);
     } finally {
       setLoading(false);
     }
@@ -209,19 +203,19 @@ export default function TimelineSection({
 
   const saveFilingDate = async () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์แก้ไขวันยื่นฟ้อง");
+      alert(tr("คุณไม่มีสิทธิ์แก้ไขวันยื่นฟ้อง"));
       setIsEditingFiling(false);
       await loadTimeline();
       return;
     }
 
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) {
-      alert("Missing case id");
+      alert(tr("Missing case id"));
       return;
     }
 
     if (!filingDate.trim()) {
-      alert("กรุณาเลือกวันที่ยื่นฟ้อง");
+      alert(tr("กรุณาเลือกวันที่ยื่นฟ้อง"));
       return;
     }
 
@@ -247,7 +241,7 @@ export default function TimelineSection({
           .single();
 
         if (error) {
-          alert("Save filing date failed:\n" + JSON.stringify(error, null, 2));
+          alert(tr("Save filing date failed:\n" + JSON.stringify(error, null, 2)));
           return;
         }
 
@@ -260,6 +254,7 @@ export default function TimelineSection({
           newData: data || (oldData ? { ...oldData, ...payload } : payload),
           note: "Update filing date",
         });
+      window.dispatchEvent(new Event("case-detail-updated"));
       } else {
         const payload = {
           case_id: caseIdNumber,
@@ -285,7 +280,7 @@ export default function TimelineSection({
           .single();
 
         if (error) {
-          alert("Create filing date failed:\n" + JSON.stringify(error, null, 2));
+          alert(tr("Create filing date failed:\n" + JSON.stringify(error, null, 2)));
           return;
         }
 
@@ -298,6 +293,7 @@ export default function TimelineSection({
           newData: data || payload,
           note: "Create filing date",
         });
+      window.dispatchEvent(new Event("case-detail-updated"));
       }
 
       setIsEditingFiling(false);
@@ -309,7 +305,7 @@ export default function TimelineSection({
 
   const startAddAppointment = () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์เพิ่มนัดศาล");
+      alert(tr("คุณไม่มีสิทธิ์เพิ่มนัดศาล"));
       return;
     }
 
@@ -319,18 +315,18 @@ export default function TimelineSection({
       order_no: String(getNextOrderNo()),
     });
     setShowForm(true);
-    scrollToForm();
+
   };
 
   const startEditAppointment = (item: TimelineItem) => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์แก้ไขนัดศาล");
+      alert(tr("คุณไม่มีสิทธิ์แก้ไขนัดศาล"));
       return;
     }
 
     setEditingId(item.id);
     setShowForm(true);
-    scrollToForm();
+
 
     setForm({
       event_date: item.event_date || "",
@@ -353,34 +349,34 @@ export default function TimelineSection({
 
   const validateAppointment = () => {
     if (!form.event_date.trim()) {
-      alert("กรุณาเลือกวันที่นัด");
+      alert(tr("กรุณาเลือกวันที่นัด"));
       return false;
     }
 
     if (!form.event_time.trim()) {
-      alert("กรุณาเลือกเวลาเริ่มต้น");
+      alert(tr("กรุณาเลือกเวลาเริ่มต้น"));
       return false;
     }
 
     if (form.event_time === otherStartTimeValue) {
       if (!form.custom_event_time.trim()) {
-        alert("กรุณากรอกเวลาเริ่มต้นเอง");
+        alert(tr("กรุณากรอกเวลาเริ่มต้นเอง"));
         return false;
       }
 
       if (!isValidTimeValue(form.custom_event_time.trim())) {
-        alert("กรุณากรอกเวลาเริ่มต้นในรูปแบบ HH:mm เช่น 14:15");
+        alert(tr("กรุณากรอกเวลาเริ่มต้นในรูปแบบ HH:mm เช่น 14:15"));
         return false;
       }
     }
 
     if (!form.event_end_time.trim()) {
-      alert("กรุณาเลือกเวลาสิ้นสุด");
+      alert(tr("กรุณาเลือกเวลาสิ้นสุด"));
       return false;
     }
 
     if (!form.appointment_type.trim()) {
-      alert("กรุณาเลือกเรื่องนัด");
+      alert(tr("กรุณาเลือกเรื่องนัด"));
       return false;
     }
 
@@ -388,7 +384,7 @@ export default function TimelineSection({
       form.appointment_type === "นัดอื่นๆ" &&
       !form.appointment_other.trim()
     ) {
-      alert("กรุณากรอกเรื่องนัดอื่นๆ");
+      alert(tr("กรุณากรอกเรื่องนัดอื่นๆ"));
       return false;
     }
 
@@ -416,7 +412,7 @@ export default function TimelineSection({
 
   const createAppointment = async () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์เพิ่มนัดศาล");
+      alert(tr("คุณไม่มีสิทธิ์เพิ่มนัดศาล"));
       cancelForm();
       return;
     }
@@ -440,7 +436,7 @@ export default function TimelineSection({
         .single();
 
       if (error) {
-        alert("Create appointment failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Create appointment failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -453,6 +449,7 @@ export default function TimelineSection({
         newData: data || payload,
         note: "Create court appointment",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       cancelForm();
       await loadTimeline();
@@ -463,7 +460,7 @@ export default function TimelineSection({
 
   const updateAppointment = async () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์แก้ไขนัดศาล");
+      alert(tr("คุณไม่มีสิทธิ์แก้ไขนัดศาล"));
       cancelForm();
       return;
     }
@@ -486,7 +483,7 @@ export default function TimelineSection({
         .single();
 
       if (error) {
-        alert("Update appointment failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Update appointment failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -499,6 +496,7 @@ export default function TimelineSection({
         newData: data || (oldData ? { ...oldData, ...payload } : payload),
         note: "Update court appointment",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       cancelForm();
       await loadTimeline();
@@ -509,12 +507,12 @@ export default function TimelineSection({
 
   const deleteAppointment = async (id: string) => {
     if (!canDelete) {
-      alert("คุณไม่มีสิทธิ์ลบนัดศาล");
+      alert(tr("คุณไม่มีสิทธิ์ลบนัดศาล"));
       return;
     }
 
     const confirmed = window.confirm(
-      "ต้องการลบนัดศาลรายการนี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
+      tr("ต้องการลบนัดศาลรายการนี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง")
     );
 
     if (!confirmed) return;
@@ -539,7 +537,7 @@ export default function TimelineSection({
         .single();
 
       if (error) {
-        alert("Soft delete appointment failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Soft delete appointment failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -552,6 +550,7 @@ export default function TimelineSection({
         newData: data || (oldData ? { ...oldData, ...payload } : payload),
         note: "Soft delete court appointment",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       if (editingId === id) cancelForm();
 
@@ -563,7 +562,7 @@ export default function TimelineSection({
 
   const toggleAppointmentDone = async (item: TimelineItem) => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์เปลี่ยนสถานะนัดศาล");
+      alert(tr("คุณไม่มีสิทธิ์เปลี่ยนสถานะนัดศาล"));
       return;
     }
 
@@ -584,7 +583,7 @@ export default function TimelineSection({
       .single();
 
     if (error) {
-      alert("Update appointment status failed:\n" + JSON.stringify(error, null, 2));
+      alert(tr("Update appointment status failed:\n" + JSON.stringify(error, null, 2)));
       return;
     }
 
@@ -603,6 +602,7 @@ export default function TimelineSection({
           ? "Undo court appointment status"
           : "Mark court appointment as done",
     });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
     await loadTimeline();
   };
@@ -611,10 +611,9 @@ export default function TimelineSection({
     <div id="timeline" style={sectionStyle}>
       <div style={headerStyle}>
         <div>
-          <h3 style={titleStyle}>Court Timeline</h3>
+          <h3 style={titleStyle}>{tr("Court Timeline")} </h3>
           <div style={subTitleStyle}>
-            วันยื่นฟ้องและนัดศาล · รวม {summary.total} นัด
-          </div>
+            {tr("วันยื่นฟ้องและนัดศาล · รวม")} {summary.total} {tr("นัด")} </div>
         </div>
 
         {!showForm ? (
@@ -624,28 +623,26 @@ export default function TimelineSection({
               onClick={startAddAppointment}
               style={primaryButtonStyle}
             >
-              + Add Appointment
-            </button>
+              {tr("+ Add Appointment")} </button>
           ) : null
         ) : (
           <button type="button" onClick={cancelForm} style={secondaryButtonStyle}>
-            Cancel
-          </button>
+            {tr("Cancel")} </button>
         )}
       </div>
 
       <div style={summaryGridStyle}>
-        <SummaryCard label="Scheduled" value={String(summary.scheduled)} />
-        <SummaryCard label="Today" value={String(summary.today)} />
-        <SummaryCard label="Upcoming" value={String(summary.upcoming)} />
-        <SummaryCard label="Overdue" value={String(summary.overdue)} />
+        <SummaryCard label={tr("Scheduled")} value={String(summary.scheduled)} />
+        <SummaryCard label={tr("Today")} value={String(summary.today)} />
+        <SummaryCard label={tr("Upcoming")} value={String(summary.upcoming)} />
+        <SummaryCard label={tr("Overdue")} value={String(summary.overdue)} />
       </div>
 
       <div style={filingCardStyle}>
         <div style={filingHeaderStyle}>
           <div>
-            <div style={filingTitleStyle}>Filing Date</div>
-            <div style={filingSubTitleStyle}>วันที่ยื่นฟ้อง</div>
+            <div style={filingTitleStyle}>{tr("Filing Date")} </div>
+            <div style={filingSubTitleStyle}>{tr("วันที่ยื่นฟ้อง")} </div>
           </div>
 
           {!isEditingFiling && canEdit && (
@@ -654,13 +651,12 @@ export default function TimelineSection({
               onClick={() => setIsEditingFiling(true)}
               style={secondaryButtonStyle}
             >
-              Edit
-            </button>
+              {tr("Edit")} </button>
           )}
         </div>
 
         {isEditingFiling && canEdit ? (
-          <div style={filingFormStyle}>
+          <CaseEditModal title={tr("Filing Date")} busy={savingFiling} onClose={() => { setIsEditingFiling(false); loadTimeline(); }}><div style={filingFormStyle}>
             <input
               type="date"
               value={filingDate}
@@ -674,7 +670,7 @@ export default function TimelineSection({
               disabled={savingFiling}
               style={primaryButtonStyle}
             >
-              {savingFiling ? "Saving..." : "Save Filing Date"}
+              {savingFiling ? tr("Saving...") : tr("Save Filing Date")}
             </button>
 
             {filingId && (
@@ -686,47 +682,35 @@ export default function TimelineSection({
                 }}
                 style={secondaryButtonStyle}
               >
-                Cancel
-              </button>
+                {tr("Cancel")} </button>
             )}
-          </div>
+          </div></CaseEditModal>
         ) : (
           <div style={filingDisplayStyle}>
-            {filingDate ? formatDisplayDate(filingDate) : "-"}
+            {filingDate ? date(filingDate) : "-"}
           </div>
         )}
       </div>
 
       {showForm && (
-        <div ref={formRef} style={formCardStyle}>
-          <div style={formHeaderStyle}>
-            <div>
-              <h4 style={formTitleStyle}>
-                {editingId ? "Edit Appointment" : "Add Appointment"}
-              </h4>
-              <div style={formSubTitleStyle}>
-                บันทึกนัดศาล วัน เวลา สถานะ และหมายเหตุที่ต้องติดตาม
-              </div>
-            </div>
+        <CaseEditModal title={editingId ? tr("Edit Appointment") : tr("Add Appointment")} onClose={cancelForm} busy={savingAppointment}>
 
-            {editingId && <span style={editBadgeStyle}>Editing</span>}
-          </div>
 
           <div style={formGridStyle}>
             <div>
-              <label style={labelStyle}>ลำดับนัด</label>
-              <div style={readonlyBoxStyle}>นัดที่ {form.order_no || "-"}</div>
+              <label style={labelStyle}>{tr("ลำดับนัด")} </label>
+              <div style={readonlyBoxStyle}>{tr("นัดที่")} {form.order_no || "-"}</div>
             </div>
 
             <Input
-              label="วันที่"
+              label={tr("วันที่")}
               type="date"
               value={form.event_date}
               onChange={(value) => setForm({ ...form, event_date: value })}
             />
 
             <Select
-              label="เวลาเริ่มต้น"
+              label={tr("เวลาเริ่มต้น")}
               value={form.event_time}
               onChange={(value) =>
                 setForm({
@@ -744,17 +728,17 @@ export default function TimelineSection({
 
             {form.event_time === otherStartTimeValue && (
               <Input
-                label="Custom start time"
+                label={tr("Custom start time")}
                 value={form.custom_event_time}
                 onChange={(value) =>
                   setForm({ ...form, custom_event_time: value })
                 }
-                placeholder="เช่น 14:15"
+                placeholder={tr("เช่น 14:15")}
               />
             )}
 
             <Select
-              label="เวลาสิ้นสุด"
+              label={tr("เวลาสิ้นสุด")}
               value={form.event_end_time}
               onChange={(value) =>
                 setForm({ ...form, event_end_time: value })
@@ -766,7 +750,7 @@ export default function TimelineSection({
             />
 
             <Select
-              label="เรื่องนัด"
+              label={tr("เรื่องนัด")}
               value={form.appointment_type}
               onChange={(value) =>
                 setForm({
@@ -784,17 +768,17 @@ export default function TimelineSection({
 
             {form.appointment_type === "นัดอื่นๆ" && (
               <Input
-                label="ระบุเรื่องนัดอื่นๆ"
+                label={tr("ระบุเรื่องนัดอื่นๆ")}
                 value={form.appointment_other}
                 onChange={(value) =>
                   setForm({ ...form, appointment_other: value })
                 }
-                placeholder="กรอกเรื่องนัด"
+                placeholder={tr("กรอกเรื่องนัด")}
               />
             )}
 
             <Select
-              label="Status"
+              label={tr("Status")}
               value={form.status}
               onChange={(value) => setForm({ ...form, status: value })}
               options={appointmentStatusOptions}
@@ -802,10 +786,10 @@ export default function TimelineSection({
 
             <div style={{ gridColumn: "1 / -1" }}>
               <Textarea
-                label="หมายเหตุ"
+                label={tr("หมายเหตุ")}
                 value={form.note}
                 onChange={(value) => setForm({ ...form, note: value })}
-                placeholder="รายละเอียดเพิ่มเติม"
+                placeholder={tr("รายละเอียดเพิ่มเติม")}
               />
             </div>
           </div>
@@ -817,7 +801,7 @@ export default function TimelineSection({
               disabled={savingAppointment}
               style={primaryButtonStyle}
             >
-              {savingAppointment ? "Saving..." : "Save"}
+              {savingAppointment ? tr("Saving...") : tr("Save")}
             </button>
 
             <button
@@ -826,18 +810,17 @@ export default function TimelineSection({
               disabled={savingAppointment}
               style={secondaryButtonStyle}
             >
-              Cancel
-            </button>
+              {tr("Cancel")} </button>
           </div>
-        </div>
+        </CaseEditModal>
       )}
 
-      <div style={listHeaderStyle}>Court Appointments</div>
+      <div style={listHeaderStyle}>{tr("Court Appointments")} </div>
 
       {loading ? (
-        <div style={emptyStyle}>Loading timeline...</div>
+        <div style={emptyStyle}>{tr("Loading timeline...")} </div>
       ) : appointments.length === 0 ? (
-        <div style={emptyStyle}>No appointments added.</div>
+        <div style={emptyStyle}>{tr("No appointments added.")} </div>
       ) : (
         <div style={appointmentListStyle}>
           {appointments.map((item) => (
@@ -862,9 +845,10 @@ export default function TimelineSection({
 ========================================================= */
 
 function SummaryCard({ label, value }: { label: string; value: string }) {
+  const { tr } = useCaseDetailText();
   return (
     <div style={summaryCardStyle}>
-      <div style={summaryLabelStyle}>{label}</div>
+      <div style={summaryLabelStyle}>{tr(label)}</div>
       <div style={summaryValueStyle}>{value}</div>
     </div>
   );
@@ -885,6 +869,7 @@ function AppointmentCard({
   onDelete: (id: string) => void;
   onToggleDone: (item: TimelineItem) => void;
 }) {
+  const { tr, date } = useCaseDetailText();
   const appointmentText =
     item.appointment_type === "นัดอื่นๆ"
       ? item.appointment_other || "นัดอื่นๆ"
@@ -910,16 +895,16 @@ function AppointmentCard({
       <div style={appointmentHeaderStyle}>
         <div>
           <div style={appointmentTitleStyle}>
-            นัดที่ {item.order_no || "-"}
+            {tr("นัดที่")} {item.order_no || "-"}
           </div>
-          <div style={appointmentMatterStyle}>{appointmentText}</div>
+          <div style={appointmentMatterStyle}>{tr(appointmentText)}</div>
 
           <div style={badgeRowStyle}>
             <span style={getAppointmentStatusBadgeStyle(item.status)}>
-              {statusText}
+              {tr(statusText)}
             </span>
             <span style={getAppointmentAlertBadgeStyle(alertStatus)}>
-              {alertStatus}
+              {tr(alertStatus)}
             </span>
           </div>
         </div>
@@ -930,19 +915,19 @@ function AppointmentCard({
             onClick={() => onToggleDone(item)}
             style={isDone ? doneButtonStyle : smallButtonStyle}
           >
-            {isDone ? "Undo" : "Done"}
+            {isDone ? tr("Undo") : tr("Done")}
           </button>
         )}
       </div>
 
       <div style={appointmentMetaGridStyle}>
-        <InfoLine label="วันที่" value={formatDisplayDate(item.event_date)} />
-        <InfoLine label="เวลา" value={timeText} />
+        <InfoLine label={tr("วันที่")} value={date(item.event_date)} />
+        <InfoLine label={tr("เวลา")} value={timeText} />
       </div>
 
       {item.note && (
         <div style={noteBlockStyle}>
-          <div style={infoLabelStyle}>หมายเหตุ</div>
+          <div style={infoLabelStyle}>{tr("หมายเหตุ")} </div>
           <div style={infoValueStyle}>{item.note}</div>
         </div>
       )}
@@ -955,8 +940,7 @@ function AppointmentCard({
               onClick={() => onEdit(item)}
               style={smallButtonStyle}
             >
-              Edit
-            </button>
+              {tr("Edit")} </button>
           )}
 
           {canDelete && (
@@ -965,8 +949,7 @@ function AppointmentCard({
               onClick={() => onDelete(item.id)}
               style={dangerButtonStyle}
             >
-              Delete
-            </button>
+              {tr("Delete")} </button>
           )}
         </div>
       )}
@@ -975,9 +958,10 @@ function AppointmentCard({
 }
 
 function InfoLine({ label, value }: { label: string; value: string }) {
+  const { tr } = useCaseDetailText();
   return (
     <div style={infoLineStyle}>
-      <div style={infoLabelStyle}>{label}</div>
+      <div style={infoLabelStyle}>{tr(label)}</div>
       <div style={infoValueStyle}>{value}</div>
     </div>
   );
@@ -996,10 +980,11 @@ function Input({
   placeholder?: string;
   type?: string;
 }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
-      <input
+      <label style={labelStyle}>{tr(label)}</label>
+      <input aria-label={tr(label)}
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -1021,17 +1006,18 @@ function Select({
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
 }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
-      <select
+      <label style={labelStyle}>{tr(label)}</label>
+      <select aria-label={tr(label)}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         style={inputStyle}
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
-            {option.label}
+            {tr(option.label)}
           </option>
         ))}
       </select>
@@ -1050,10 +1036,11 @@ function Textarea({
   onChange: (value: string) => void;
   placeholder?: string;
 }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
-      <textarea
+      <label style={labelStyle}>{tr(label)}</label>
+      <textarea aria-label={tr(label)}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
@@ -1198,15 +1185,6 @@ function getAppointmentAlertBadgeStyle(alertStatus: string): CSSProperties {
   };
 }
 
-function formatDisplayDate(value?: string | null) {
-  if (!value) return "-";
-
-  const parts = value.split("-");
-  if (parts.length !== 3) return value;
-
-  const [year, month, day] = parts;
-  return `${day}/${month}/${year}`;
-}
 
 function resolveStartTimeSelectValue(value?: string | null) {
   if (!value) return "09:00";
@@ -1241,7 +1219,7 @@ const sectionStyle: CSSProperties = {
   padding: "clamp(12px, 2vw, 16px)",
   borderRadius: 14,
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
 };
 
 const headerStyle: CSSProperties = {
@@ -1255,9 +1233,9 @@ const headerStyle: CSSProperties = {
 
 const titleStyle: CSSProperties = {
   margin: 0,
-  color: "#111111",
+  color: "#183854",
   fontSize: 18,
-  fontWeight: 900,
+  fontWeight: 700,
 };
 
 const subTitleStyle: CSSProperties = {
@@ -1274,7 +1252,7 @@ const primaryButtonStyle: CSSProperties = {
   borderRadius: 8,
   border: "none",
   cursor: "pointer",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 13,
   whiteSpace: "nowrap",
 };
@@ -1282,7 +1260,7 @@ const primaryButtonStyle: CSSProperties = {
 const secondaryButtonStyle: CSSProperties = {
   padding: "8px 13px",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   borderRadius: 8,
   border: "1px solid #cccccc",
   cursor: "pointer",
@@ -1302,29 +1280,29 @@ const summaryCardStyle: CSSProperties = {
   border: "1px solid #eeeeee",
   borderRadius: 12,
   padding: 11,
-  background: "#fafafa",
+  background: "#f7f9fc",
 };
 
 const summaryLabelStyle: CSSProperties = {
   fontSize: 11,
   color: "#777777",
   marginBottom: 4,
-  fontWeight: 800,
+  fontWeight: 700,
   textTransform: "uppercase",
   letterSpacing: "0.03em",
 };
 
 const summaryValueStyle: CSSProperties = {
   fontSize: 18,
-  fontWeight: 900,
-  color: "#111111",
+  fontWeight: 700,
+  color: "#183854",
 };
 
 const filingCardStyle: CSSProperties = {
   border: "1px solid #dddddd",
   borderRadius: 12,
   padding: 12,
-  background: "#fafafa",
+  background: "#f7f9fc",
   marginBottom: 14,
 };
 
@@ -1338,8 +1316,8 @@ const filingHeaderStyle: CSSProperties = {
 
 const filingTitleStyle: CSSProperties = {
   fontSize: 15,
-  fontWeight: 900,
-  color: "#111111",
+  fontWeight: 700,
+  color: "#183854",
 };
 
 const filingSubTitleStyle: CSSProperties = {
@@ -1361,54 +1339,11 @@ const filingDisplayStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #dddddd",
   background: "#ffffff",
-  color: "#111111",
-  fontWeight: 800,
+  color: "#183854",
+  fontWeight: 700,
   fontSize: 13,
 };
 
-const formCardStyle: CSSProperties = {
-  border: "1px solid #dddddd",
-  borderRadius: 14,
-  padding: 14,
-  background: "#fafafa",
-  marginBottom: 16,
-  scrollMarginTop: 105,
-};
-
-const formHeaderStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: 10,
-  alignItems: "flex-start",
-  marginBottom: 12,
-  flexWrap: "wrap",
-};
-
-const formTitleStyle: CSSProperties = {
-  margin: 0,
-  color: "#111111",
-  fontSize: 16,
-  fontWeight: 900,
-};
-
-const formSubTitleStyle: CSSProperties = {
-  marginTop: 3,
-  color: "#666666",
-  fontSize: 12,
-  lineHeight: 1.45,
-};
-
-const editBadgeStyle: CSSProperties = {
-  display: "inline-flex",
-  padding: "5px 10px",
-  borderRadius: 999,
-  background: "#fff8e1",
-  color: "#b54708",
-  border: "1px solid #eedc9a",
-  fontSize: 12,
-  fontWeight: 900,
-  whiteSpace: "nowrap",
-};
 
 const formGridStyle: CSSProperties = {
   display: "grid",
@@ -1420,7 +1355,7 @@ const labelStyle: CSSProperties = {
   display: "block",
   marginBottom: 3,
   color: "#777777",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 11,
   textTransform: "uppercase",
   letterSpacing: "0.03em",
@@ -1432,7 +1367,7 @@ const inputStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #bbbbbb",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   colorScheme: "light",
   boxSizing: "border-box",
   fontSize: 13,
@@ -1444,9 +1379,9 @@ const readonlyBoxStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #dddddd",
   background: "#eeeeee",
-  color: "#111111",
+  color: "#183854",
   boxSizing: "border-box",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 13,
 };
 
@@ -1465,8 +1400,8 @@ const formButtonWrapStyle: CSSProperties = {
 
 const listHeaderStyle: CSSProperties = {
   fontSize: 15,
-  fontWeight: 900,
-  color: "#111111",
+  fontWeight: 700,
+  color: "#183854",
   marginBottom: 9,
   paddingTop: 4,
 };
@@ -1491,7 +1426,7 @@ const appointmentCardStyle: CSSProperties = {
   border: "1px solid #dddddd",
   borderRadius: 12,
   padding: 12,
-  color: "#111111",
+  color: "#183854",
   boxShadow: "0 1px 6px rgba(0,0,0,0.04)",
 };
 
@@ -1505,15 +1440,15 @@ const appointmentHeaderStyle: CSSProperties = {
 
 const appointmentTitleStyle: CSSProperties = {
   fontSize: 14,
-  fontWeight: 900,
-  color: "#111111",
+  fontWeight: 700,
+  color: "#183854",
 };
 
 const appointmentMatterStyle: CSSProperties = {
   marginTop: 3,
   fontSize: 13,
   color: "#222222",
-  fontWeight: 800,
+  fontWeight: 700,
   lineHeight: 1.45,
   wordBreak: "break-word",
 };
@@ -1530,7 +1465,7 @@ const badgeBaseStyle: CSSProperties = {
   padding: "4px 8px",
   borderRadius: 999,
   fontSize: 11,
-  fontWeight: 900,
+  fontWeight: 700,
 };
 
 const appointmentMetaGridStyle: CSSProperties = {
@@ -1544,7 +1479,7 @@ const infoLineStyle: CSSProperties = {
   padding: "7px 8px",
   border: "1px solid #eeeeee",
   borderRadius: 10,
-  background: "#fafafa",
+  background: "#f7f9fc",
   minWidth: 0,
 };
 
@@ -1552,15 +1487,15 @@ const infoLabelStyle: CSSProperties = {
   fontSize: 11,
   color: "#777777",
   marginBottom: 2,
-  fontWeight: 800,
+  fontWeight: 700,
   textTransform: "uppercase",
   letterSpacing: "0.03em",
 };
 
 const infoValueStyle: CSSProperties = {
   fontSize: 13,
-  color: "#111111",
-  fontWeight: 800,
+  color: "#183854",
+  fontWeight: 700,
   wordBreak: "break-word",
   lineHeight: 1.45,
 };
@@ -1568,7 +1503,7 @@ const infoValueStyle: CSSProperties = {
 const noteBlockStyle: CSSProperties = {
   padding: "8px 9px",
   borderRadius: 10,
-  background: "#fafafa",
+  background: "#f7f9fc",
   border: "1px solid #eeeeee",
   marginTop: 8,
 };
@@ -1587,7 +1522,7 @@ const smallButtonStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #cccccc",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   cursor: "pointer",
   fontWeight: 700,
   fontSize: 13,
@@ -1600,7 +1535,7 @@ const doneButtonStyle: CSSProperties = {
   background: "#e6f4ea",
   color: "#067647",
   cursor: "pointer",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 13,
 };
 
@@ -1611,6 +1546,6 @@ const dangerButtonStyle: CSSProperties = {
   background: "#fff5f5",
   color: "#a40000",
   cursor: "pointer",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 13,
 };

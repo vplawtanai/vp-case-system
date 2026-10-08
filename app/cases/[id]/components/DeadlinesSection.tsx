@@ -1,6 +1,9 @@
 "use client";
+import { useCaseDetailText } from "../labels";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import CaseEditModal from "../CaseEditModal";
+
+import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../../../lib/supabase";
 import { createAuditLog } from "../../../../lib/auditLog";
@@ -150,6 +153,7 @@ export default function DeadlinesSection({
   canEdit = false,
   canDelete = false,
 }: Props) {
+  const { tr, date } = useCaseDetailText();
   const caseIdNumber = Number(caseId);
 
   const [items, setItems] = useState<DeadlineItem[]>([]);
@@ -171,26 +175,6 @@ export default function DeadlinesSection({
     useState<ExtensionForm>(emptyExtensionForm);
   const [savingExtension, setSavingExtension] = useState(false);
 
-  const formRef = useRef<HTMLDivElement | null>(null);
-  const extensionFormRef = useRef<HTMLDivElement | null>(null);
-
-  const scrollToForm = () => {
-    window.setTimeout(() => {
-      formRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 80);
-  };
-
-  const scrollToExtensionForm = () => {
-    window.setTimeout(() => {
-      extensionFormRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 80);
-  };
 
   const loadDeadlines = async () => {
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) return;
@@ -207,7 +191,7 @@ export default function DeadlinesSection({
         .order("created_at", { ascending: true });
 
       if (deadlineError) {
-        alert("Load deadlines failed:\n" + JSON.stringify(deadlineError, null, 2));
+        alert(tr("Load deadlines failed:\n" + JSON.stringify(deadlineError, null, 2)));
         setItems([]);
         setExtensions([]);
         return;
@@ -233,8 +217,8 @@ export default function DeadlinesSection({
 
       if (extensionError) {
         alert(
-          "Load deadline extensions failed:\n" +
-            JSON.stringify(extensionError, null, 2)
+          tr("Load deadline extensions failed:\n" +
+            JSON.stringify(extensionError, null, 2))
         );
         setExtensions([]);
         return;
@@ -307,7 +291,7 @@ export default function DeadlinesSection({
 
   const startAdd = () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์เพิ่ม Legal Deadline");
+      alert(tr("คุณไม่มีสิทธิ์เพิ่ม Legal Deadline"));
       return;
     }
 
@@ -317,18 +301,18 @@ export default function DeadlinesSection({
       order_no: String(getNextOrderNo()),
     });
     setShowForm(true);
-    scrollToForm();
+
   };
 
   const startEdit = (item: DeadlineItem) => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์แก้ไข Legal Deadline");
+      alert(tr("คุณไม่มีสิทธิ์แก้ไข Legal Deadline"));
       return;
     }
 
     setEditingId(item.id);
     setShowForm(true);
-    scrollToForm();
+
 
     setForm({
       order_no: item.order_no ? String(item.order_no) : "1",
@@ -357,27 +341,27 @@ export default function DeadlinesSection({
 
   const validateDeadline = () => {
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) {
-      alert("Missing case id");
+      alert(tr("Missing case id"));
       return false;
     }
 
     if (!form.deadline_type) {
-      alert("กรุณาเลือกประเภทกำหนดเวลา");
+      alert(tr("กรุณาเลือกประเภทกำหนดเวลา"));
       return false;
     }
 
     if (form.deadline_type === "other" && !form.deadline_other.trim()) {
-      alert("กรุณากรอกกำหนดเวลาอื่นๆ");
+      alert(tr("กรุณากรอกกำหนดเวลาอื่นๆ"));
       return false;
     }
 
     if (form.party_label === "อื่นๆ" && !form.party_other.trim()) {
-      alert("กรุณากรอกผู้เกี่ยวข้องอื่นๆ");
+      alert(tr("กรุณากรอกผู้เกี่ยวข้องอื่นๆ"));
       return false;
     }
 
     if (!form.trigger_date) {
-      alert("กรุณาเลือกวันที่ตั้งต้น / วันครบกำหนด");
+      alert(tr("กรุณาเลือกวันที่ตั้งต้น / วันครบกำหนด"));
       return false;
     }
 
@@ -419,7 +403,7 @@ export default function DeadlinesSection({
 
   const createDeadline = async () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์เพิ่ม Legal Deadline");
+      alert(tr("คุณไม่มีสิทธิ์เพิ่ม Legal Deadline"));
       cancelForm();
       return;
     }
@@ -443,7 +427,7 @@ export default function DeadlinesSection({
         .single();
 
       if (error) {
-        alert("Create deadline failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Create deadline failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -456,6 +440,7 @@ export default function DeadlinesSection({
         newData: data || payload,
         note: "Create legal deadline",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       cancelForm();
       await loadDeadlines();
@@ -466,7 +451,7 @@ export default function DeadlinesSection({
 
   const updateDeadline = async () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์แก้ไข Legal Deadline");
+      alert(tr("คุณไม่มีสิทธิ์แก้ไข Legal Deadline"));
       cancelForm();
       return;
     }
@@ -489,7 +474,7 @@ export default function DeadlinesSection({
         .single();
 
       if (error) {
-        alert("Update deadline failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Update deadline failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -502,6 +487,7 @@ export default function DeadlinesSection({
         newData: data || payload,
         note: "Update legal deadline",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       cancelForm();
       await loadDeadlines();
@@ -512,12 +498,12 @@ export default function DeadlinesSection({
 
   const deleteDeadline = async (id: string) => {
     if (!canDelete) {
-      alert("คุณไม่มีสิทธิ์ลบ Legal Deadline");
+      alert(tr("คุณไม่มีสิทธิ์ลบ Legal Deadline"));
       return;
     }
 
     const confirmed = window.confirm(
-      "ต้องการลบกำหนดเวลานี้หรือไม่?\n\nระบบจะซ่อนกำหนดเวลานี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลและประวัติการขยายเวลาไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
+      tr("ต้องการลบกำหนดเวลานี้หรือไม่?\n\nระบบจะซ่อนกำหนดเวลานี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลและประวัติการขยายเวลาไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง")
     );
 
     if (!confirmed) return;
@@ -543,7 +529,7 @@ export default function DeadlinesSection({
         .single();
 
       if (error) {
-        alert("Soft delete deadline failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Soft delete deadline failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -563,6 +549,7 @@ export default function DeadlinesSection({
         },
         note: "Soft delete legal deadline and keep related extensions",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       if (editingId === id) cancelForm();
       if (extensionDeadlineId === id) cancelExtensionForm();
@@ -575,7 +562,7 @@ export default function DeadlinesSection({
 
   const toggleDone = async (item: DeadlineItem) => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์เปลี่ยนสถานะ Legal Deadline");
+      alert(tr("คุณไม่มีสิทธิ์เปลี่ยนสถานะ Legal Deadline"));
       return;
     }
 
@@ -596,7 +583,7 @@ export default function DeadlinesSection({
       .single();
 
     if (error) {
-      alert("Update deadline status failed:\n" + JSON.stringify(error, null, 2));
+      alert(tr("Update deadline status failed:\n" + JSON.stringify(error, null, 2)));
       return;
     }
 
@@ -613,25 +600,26 @@ export default function DeadlinesSection({
       note:
         item.status === "Done" ? "Undo deadline status" : "Mark deadline as done",
     });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
     await loadDeadlines();
   };
 
   const startAddExtension = (deadlineId: string) => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์เพิ่มการขยายเวลา");
+      alert(tr("คุณไม่มีสิทธิ์เพิ่มการขยายเวลา"));
       return;
     }
 
     setExtensionDeadlineId(deadlineId);
     setEditingExtensionId(null);
     setExtensionForm(emptyExtensionForm);
-    scrollToExtensionForm();
+
   };
 
   const startEditExtension = (extension: DeadlineExtension) => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์แก้ไขการขยายเวลา");
+      alert(tr("คุณไม่มีสิทธิ์แก้ไขการขยายเวลา"));
       return;
     }
 
@@ -642,7 +630,7 @@ export default function DeadlinesSection({
       granted_until_date: extension.granted_until_date || "",
       note: extension.note || "",
     });
-    scrollToExtensionForm();
+
   };
 
   const cancelExtensionForm = () => {
@@ -677,7 +665,7 @@ export default function DeadlinesSection({
 
   const createExtension = async () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์เพิ่มการขยายเวลา");
+      alert(tr("คุณไม่มีสิทธิ์เพิ่มการขยายเวลา"));
       cancelExtensionForm();
       return;
     }
@@ -685,7 +673,7 @@ export default function DeadlinesSection({
     if (!extensionDeadlineId) return;
 
     if (!extensionForm.granted_until_date) {
-      alert("กรุณาเลือกวันที่ศาลอนุญาตให้ขยายถึง");
+      alert(tr("กรุณาเลือกวันที่ศาลอนุญาตให้ขยายถึง"));
       return;
     }
 
@@ -725,7 +713,7 @@ export default function DeadlinesSection({
 
       if (insertError) {
         alert(
-          "Create extension failed:\n" + JSON.stringify(insertError, null, 2)
+          tr("Create extension failed:\n" + JSON.stringify(insertError, null, 2))
         );
         return;
       }
@@ -739,6 +727,7 @@ export default function DeadlinesSection({
         newData: insertedExtension || extensionPayload,
         note: "Create deadline extension",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       const deadlineUpdatePayload = {
         current_due_date: extensionForm.granted_until_date,
@@ -756,8 +745,8 @@ export default function DeadlinesSection({
 
       if (updateError) {
         alert(
-          "Update current due date failed:\n" +
-            JSON.stringify(updateError, null, 2)
+          tr("Update current due date failed:\n" +
+            JSON.stringify(updateError, null, 2))
         );
         return;
       }
@@ -778,6 +767,7 @@ export default function DeadlinesSection({
             : deadlineUpdatePayload),
         note: "Update current due date after extension",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       cancelExtensionForm();
       await loadDeadlines();
@@ -788,7 +778,7 @@ export default function DeadlinesSection({
 
   const updateExtension = async () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์แก้ไขการขยายเวลา");
+      alert(tr("คุณไม่มีสิทธิ์แก้ไขการขยายเวลา"));
       cancelExtensionForm();
       return;
     }
@@ -796,7 +786,7 @@ export default function DeadlinesSection({
     if (!extensionDeadlineId || !editingExtensionId) return;
 
     if (!extensionForm.granted_until_date) {
-      alert("กรุณาเลือกวันที่ศาลอนุญาตให้ขยายถึง");
+      alert(tr("กรุณาเลือกวันที่ศาลอนุญาตให้ขยายถึง"));
       return;
     }
 
@@ -826,8 +816,8 @@ export default function DeadlinesSection({
 
       if (updateExtensionError) {
         alert(
-          "Update extension failed:\n" +
-            JSON.stringify(updateExtensionError, null, 2)
+          tr("Update extension failed:\n" +
+            JSON.stringify(updateExtensionError, null, 2))
         );
         return;
       }
@@ -844,6 +834,7 @@ export default function DeadlinesSection({
         },
         note: "Update deadline extension",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       const nextExtensions = extensions.map((item) =>
         item.id === editingExtensionId
@@ -876,8 +867,8 @@ export default function DeadlinesSection({
 
         if (updateDeadlineError) {
           alert(
-            "Recalculate current due date failed:\n" +
-              JSON.stringify(updateDeadlineError, null, 2)
+            tr("Recalculate current due date failed:\n" +
+              JSON.stringify(updateDeadlineError, null, 2))
           );
           return;
         }
@@ -898,6 +889,7 @@ export default function DeadlinesSection({
               : deadlineUpdatePayload),
           note: "Recalculate current due date after extension update",
         });
+      window.dispatchEvent(new Event("case-detail-updated"));
       }
 
       cancelExtensionForm();
@@ -909,12 +901,12 @@ export default function DeadlinesSection({
 
   const deleteExtension = async (extension: DeadlineExtension) => {
     if (!canDelete) {
-      alert("คุณไม่มีสิทธิ์ลบการขยายเวลา");
+      alert(tr("คุณไม่มีสิทธิ์ลบการขยายเวลา"));
       return;
     }
 
     const confirmed = window.confirm(
-      "ต้องการลบการขยายเวลานี้หรือไม่?\n\nระบบจะซ่อนรายการนี้และคำนวณวันครบกำหนดปัจจุบันใหม่"
+      tr("ต้องการลบการขยายเวลานี้หรือไม่?\n\nระบบจะซ่อนรายการนี้และคำนวณวันครบกำหนดปัจจุบันใหม่")
     );
 
     if (!confirmed) return;
@@ -930,7 +922,7 @@ export default function DeadlinesSection({
     );
 
     if (!nextDueDate) {
-      alert("Cannot recalculate current due date after deleting extension.");
+      alert(tr("Cannot recalculate current due date after deleting extension."));
       return;
     }
 
@@ -959,8 +951,8 @@ export default function DeadlinesSection({
 
       if (deleteExtensionError) {
         alert(
-          "Delete extension failed:\n" +
-            JSON.stringify(deleteExtensionError, null, 2)
+          tr("Delete extension failed:\n" +
+            JSON.stringify(deleteExtensionError, null, 2))
         );
         return;
       }
@@ -978,6 +970,7 @@ export default function DeadlinesSection({
           },
           note: "Soft delete deadline extension",
         });
+      window.dispatchEvent(new Event("case-detail-updated"));
       } catch (auditError) {
         console.error("CREATE EXTENSION DELETE AUDIT LOG FAILED:", auditError);
       }
@@ -999,8 +992,8 @@ export default function DeadlinesSection({
 
         if (updateDeadlineError) {
           alert(
-            "Recalculate current due date failed:\n" +
-              JSON.stringify(updateDeadlineError, null, 2)
+            tr("Recalculate current due date failed:\n" +
+              JSON.stringify(updateDeadlineError, null, 2))
           );
           return;
         }
@@ -1022,6 +1015,7 @@ export default function DeadlinesSection({
                 : deadlineUpdatePayload),
             note: "Recalculate current due date after extension delete",
           });
+      window.dispatchEvent(new Event("case-detail-updated"));
         } catch (auditError) {
           console.error(
             "CREATE DEADLINE RECALC AUDIT LOG FAILED:",
@@ -1041,59 +1035,45 @@ export default function DeadlinesSection({
     <div id="deadlines" style={sectionStyle}>
       <div style={headerStyle}>
         <div>
-          <h3 style={titleStyle}>Legal Deadlines</h3>
+          <h3 style={titleStyle}>{tr("Legal Deadlines")} </h3>
           <div style={subTitleStyle}>
-            กำหนดเวลาทางกฎหมายและการขยายเวลา · รวม {summary.total} รายการ
-          </div>
+            {tr("กำหนดเวลาทางกฎหมายและการขยายเวลา · รวม")} {summary.total} {tr("รายการ")} </div>
         </div>
 
         {!showForm ? (
           canEdit ? (
             <button type="button" onClick={startAdd} style={primaryButtonStyle}>
-              + Add Deadline
-            </button>
+              {tr("+ Add Deadline")} </button>
           ) : null
         ) : (
           <button type="button" onClick={cancelForm} style={secondaryButtonStyle}>
-            Cancel
-          </button>
+            {tr("Cancel")} </button>
         )}
       </div>
 
       <div style={summaryGridStyle}>
-        <SummaryCard label="Active" value={String(summary.active)} />
-        <SummaryCard label="Today" value={String(summary.today)} />
-        <SummaryCard label="Due Soon" value={String(summary.dueSoon)} />
-        <SummaryCard label="Overdue" value={String(summary.overdue)} />
-        <SummaryCard label="Extended" value={String(summary.extensions)} />
-        <SummaryCard label="Done" value={String(summary.done)} />
+        <SummaryCard label={tr("Active")} value={String(summary.active)} />
+        <SummaryCard label={tr("Today")} value={String(summary.today)} />
+        <SummaryCard label={tr("Due Soon")} value={String(summary.dueSoon)} />
+        <SummaryCard label={tr("Overdue")} value={String(summary.overdue)} />
+        <SummaryCard label={tr("Extended")} value={String(summary.extensions)} />
+        <SummaryCard label={tr("Done")} value={String(summary.done)} />
       </div>
 
       {showForm && (
-        <div ref={formRef} style={formCardStyle}>
-          <div style={formHeaderStyle}>
-            <div>
-              <h4 style={formTitleStyle}>
-                {editingId ? "Edit Deadline" : "Add Deadline"}
-              </h4>
-              <div style={formSubTitleStyle}>
-                บันทึกประเภทกำหนดเวลา ฝ่ายที่เกี่ยวข้อง วิธีส่งหมาย และวันครบกำหนด
-              </div>
-            </div>
+        <CaseEditModal title={editingId ? tr("Edit Deadline") : tr("Add Deadline")} onClose={cancelForm} busy={saving}>
 
-            {editingId && <span style={editBadgeStyle}>Editing</span>}
-          </div>
 
           <div style={formGridStyle}>
             <div>
-              <label style={labelStyle}>ลำดับกำหนดเวลา</label>
+              <label style={labelStyle}>{tr("ลำดับกำหนดเวลา")} </label>
               <div style={readonlyBoxStyle}>
-                Deadline {form.order_no || "-"}
+                {tr("Deadline")} {form.order_no || "-"}
               </div>
             </div>
 
             <Select
-              label="ประเภทกำหนดเวลา"
+              label={tr("ประเภทกำหนดเวลา")}
               value={form.deadline_type}
               onChange={(value) =>
                 setForm({
@@ -1107,17 +1087,17 @@ export default function DeadlinesSection({
 
             {form.deadline_type === "other" && (
               <Input
-                label="ระบุกำหนดเวลาอื่นๆ"
+                label={tr("ระบุกำหนดเวลาอื่นๆ")}
                 value={form.deadline_other}
                 onChange={(value) =>
                   setForm({ ...form, deadline_other: value })
                 }
-                placeholder="เช่น ครบกำหนดยื่นบัญชีระบุพยาน"
+                placeholder={tr("เช่น ครบกำหนดยื่นบัญชีระบุพยาน")}
               />
             )}
 
             <Select
-              label="ฝ่าย / ผู้เกี่ยวข้อง"
+              label={tr("ฝ่าย / ผู้เกี่ยวข้อง")}
               value={form.party_label}
               onChange={(value) =>
                 setForm({
@@ -1134,14 +1114,14 @@ export default function DeadlinesSection({
 
             {form.party_label === "อื่นๆ" && (
               <Input
-                label="ระบุฝ่าย / ผู้เกี่ยวข้องอื่นๆ"
+                label={tr("ระบุฝ่าย / ผู้เกี่ยวข้องอื่นๆ")}
                 value={form.party_other}
                 onChange={(value) => setForm({ ...form, party_other: value })}
               />
             )}
 
             <Select
-              label="ประเภทคดี / Procedure"
+              label={tr("ประเภทคดี / Procedure")}
               value={form.procedure_type}
               onChange={(value) =>
                 setForm({
@@ -1159,7 +1139,7 @@ export default function DeadlinesSection({
             {form.deadline_type === "answer" &&
               form.procedure_type === "ordinary_civil" && (
                 <Select
-                  label="วิธีส่งหมาย"
+                  label={tr("วิธีส่งหมาย")}
                   value={form.service_method}
                   onChange={(value) =>
                     setForm({ ...form, service_method: value })
@@ -1176,16 +1156,16 @@ export default function DeadlinesSection({
             />
 
             <div>
-              <label style={labelStyle}>วันครบกำหนดที่ระบบคำนวณ</label>
+              <label style={labelStyle}>{tr("วันครบกำหนดที่ระบบคำนวณ")} </label>
               <div style={readonlyBoxStyle}>
                 {calculateDueDate(form)
-                  ? formatDisplayDate(calculateDueDate(form))
+                  ? date(calculateDueDate(form))
                   : "-"}
               </div>
             </div>
 
             <Select
-              label="Status"
+              label={tr("Status")}
               value={form.status}
               onChange={(value) => setForm({ ...form, status: value })}
               options={statusOptions}
@@ -1193,10 +1173,10 @@ export default function DeadlinesSection({
 
             <div style={{ gridColumn: "1 / -1" }}>
               <Textarea
-                label="Note"
+                label={tr("Note")}
                 value={form.note}
                 onChange={(value) => setForm({ ...form, note: value })}
-                placeholder="หมายเหตุเพิ่มเติม"
+                placeholder={tr("หมายเหตุเพิ่มเติม")}
               />
             </div>
           </div>
@@ -1208,7 +1188,7 @@ export default function DeadlinesSection({
               disabled={saving}
               style={primaryButtonStyle}
             >
-              {saving ? "Saving..." : "Save"}
+              {saving ? tr("Saving...") : tr("Save")}
             </button>
 
             <button
@@ -1217,16 +1197,15 @@ export default function DeadlinesSection({
               disabled={saving}
               style={secondaryButtonStyle}
             >
-              Cancel
-            </button>
+              {tr("Cancel")} </button>
           </div>
-        </div>
+        </CaseEditModal>
       )}
 
       {loading ? (
-        <div style={emptyStyle}>Loading deadlines...</div>
+        <div style={emptyStyle}>{tr("Loading deadlines...")} </div>
       ) : sortedDeadlines.length === 0 ? (
-        <div style={emptyStyle}>No deadlines added.</div>
+        <div style={emptyStyle}>{tr("No deadlines added.")} </div>
       ) : (
         <div style={deadlineListStyle}>
           {sortedDeadlines.map((item) => (
@@ -1240,7 +1219,7 @@ export default function DeadlinesSection({
               savingExtension={savingExtension}
               canEdit={canEdit}
               canDelete={canDelete}
-              extensionFormRef={extensionFormRef}
+
               onEdit={startEdit}
               onDelete={deleteDeadline}
               onToggleDone={toggleDone}
@@ -1264,9 +1243,10 @@ export default function DeadlinesSection({
 ========================================================= */
 
 function SummaryCard({ label, value }: { label: string; value: string }) {
+  const { tr } = useCaseDetailText();
   return (
     <div style={summaryCardStyle}>
-      <div style={summaryLabelStyle}>{label}</div>
+      <div style={summaryLabelStyle}>{tr(label)}</div>
       <div style={summaryValueStyle}>{value}</div>
     </div>
   );
@@ -1281,7 +1261,6 @@ function DeadlineCard({
   savingExtension,
   canEdit,
   canDelete,
-  extensionFormRef,
   onEdit,
   onDelete,
   onToggleDone,
@@ -1301,7 +1280,6 @@ function DeadlineCard({
   savingExtension: boolean;
   canEdit: boolean;
   canDelete: boolean;
-  extensionFormRef: React.RefObject<HTMLDivElement | null>;
   onEdit: (item: DeadlineItem) => void;
   onDelete: (id: string) => void;
   onToggleDone: (item: DeadlineItem) => void;
@@ -1313,6 +1291,7 @@ function DeadlineCard({
   onCreateExtension: () => void;
   onUpdateExtension: () => void;
 }) {
+  const { tr, date } = useCaseDetailText();
   const deadlineText =
     item.deadline_type === "other"
       ? item.deadline_other || "อื่นๆ"
@@ -1339,20 +1318,19 @@ function DeadlineCard({
       <div style={deadlineHeaderStyle}>
         <div>
           <div style={deadlineTitleStyle}>
-            Deadline {item.order_no || "-"} : {deadlineText}
+            {tr("Deadline")} {item.order_no || "-"} : {tr(deadlineText)}
           </div>
 
-          <div style={deadlineMatterStyle}>{partyText}</div>
+          <div style={deadlineMatterStyle}>{tr(partyText)}</div>
 
           <div style={badgeRowStyle}>
             <span style={getStatusBadgeStyle(item.status)}>
-              {renderStatus(item.status)}
+              {tr(renderStatus(item.status))}
             </span>
-            <span style={getDueStatusBadgeStyle(dueStatus)}>{dueStatus}</span>
+            <span style={getDueStatusBadgeStyle(dueStatus)}>{tr(dueStatus)}</span>
             {extensions.length > 0 && (
               <span style={extensionBadgeStyle}>
-                Extended {extensions.length} time(s)
-              </span>
+                {tr("Extended")} {extensions.length} {tr("time(s)")} </span>
             )}
           </div>
         </div>
@@ -1363,50 +1341,50 @@ function DeadlineCard({
             onClick={() => onToggleDone(item)}
             style={isDone ? doneButtonStyle : smallButtonStyle}
           >
-            {isDone ? "Undo" : "Done"}
+            {isDone ? tr("Undo") : tr("Done")}
           </button>
         )}
       </div>
 
       <div style={deadlineMetaGridStyle}>
         <InfoLine
-          label="Procedure"
-          value={renderProcedureType(item.procedure_type)}
+          label={tr("Procedure")}
+          value={tr(renderProcedureType(item.procedure_type))}
         />
         <InfoLine
-          label="Service / Trigger"
-          value={renderServiceMethod(item.service_method)}
+          label={tr("Service / Trigger")}
+          value={tr(renderServiceMethod(item.service_method))}
         />
         <InfoLine
-          label="Trigger Date"
-          value={formatDisplayDate(item.trigger_date)}
+          label={tr("Trigger Date")}
+          value={date(item.trigger_date)}
         />
         <InfoLine
-          label="Original Due Date"
-          value={formatDisplayDate(item.original_due_date)}
+          label={tr("Original Due Date")}
+          value={date(item.original_due_date)}
         />
         <InfoLine
-          label="Current Due Date"
-          value={formatDisplayDate(item.current_due_date)}
+          label={tr("Current Due Date")}
+          value={date(item.current_due_date)}
         />
       </div>
 
       {item.note && (
         <div style={noteBlockStyle}>
-          <div style={infoLabelStyle}>Note</div>
+          <div style={infoLabelStyle}>{tr("Note")} </div>
           <div style={infoValueStyle}>{item.note}</div>
         </div>
       )}
 
       {extensions.length > 0 && (
         <div style={extensionListStyle}>
-          <div style={extensionTitleStyle}>Extensions</div>
+          <div style={extensionTitleStyle}>{tr("Extensions")} </div>
           {extensions.map((ex) => (
             <div key={ex.id} style={extensionItemStyle}>
               <div style={extensionRowHeaderStyle}>
                 <div style={infoValueStyle}>
-                  ขยายครั้งที่ {ex.extension_no || "-"} ถึงวันที่{" "}
-                  {formatDisplayDate(ex.granted_until_date)}
+                  {tr("ขยายครั้งที่")} {ex.extension_no || "-"} {tr("ถึงวันที่")} {" "}
+                  {date(ex.granted_until_date)}
                 </div>
                 {(canEdit || canDelete) && (
                   <div style={extensionActionWrapStyle}>
@@ -1416,8 +1394,7 @@ function DeadlineCard({
                         onClick={() => onStartEditExtension(ex)}
                         style={tinyButtonStyle}
                       >
-                        Edit
-                      </button>
+                        {tr("Edit")} </button>
                     )}
                     {canDelete && (
                       <button
@@ -1425,15 +1402,14 @@ function DeadlineCard({
                         onClick={() => onDeleteExtension(ex)}
                         style={tinyDangerButtonStyle}
                       >
-                        Delete
-                      </button>
+                        {tr("Delete")} </button>
                     )}
                   </div>
                 )}
               </div>
               {ex.requested_date && (
                 <div style={infoLabelStyle}>
-                  Requested: {formatDisplayDate(ex.requested_date)}
+                  {tr("Requested:")} {date(ex.requested_date)}
                 </div>
               )}
               {ex.note && <div style={infoLabelStyle}>{ex.note}</div>}
@@ -1443,22 +1419,12 @@ function DeadlineCard({
       )}
 
       {isAddingExtension && canEdit && (
-        <div ref={extensionFormRef} style={extensionFormStyle}>
-          <div style={extensionFormHeaderStyle}>
-            <div>
-              <div style={extensionTitleStyle}>
-                {isEditingExtension ? "Edit Extension" : "Add Extension"}
-              </div>
-              <div style={extensionSubTitleStyle}>
-                บันทึกวันที่ยื่นคำร้องและวันที่ศาลอนุญาตให้ขยาย
-              </div>
-            </div>
-            <span style={extensionBadgeStyle}>Extension</span>
-          </div>
+        <CaseEditModal title={isEditingExtension ? tr("Edit Extension") : tr("Add Extension")} onClose={onCancelExtension} busy={savingExtension}>
+
 
           <div style={formGridStyle}>
             <Input
-              label="วันที่ยื่นคำร้องขยายเวลา"
+              label={tr("วันที่ยื่นคำร้องขยายเวลา")}
               type="date"
               value={extensionForm.requested_date}
               onChange={(value) =>
@@ -1470,7 +1436,7 @@ function DeadlineCard({
             />
 
             <Input
-              label="ศาลอนุญาตถึงวันที่"
+              label={tr("ศาลอนุญาตถึงวันที่")}
               type="date"
               value={extensionForm.granted_until_date}
               onChange={(value) =>
@@ -1483,7 +1449,7 @@ function DeadlineCard({
 
             <div style={{ gridColumn: "1 / -1" }}>
               <Textarea
-                label="หมายเหตุการขยายเวลา"
+                label={tr("หมายเหตุการขยายเวลา")}
                 value={extensionForm.note}
                 onChange={(value) =>
                   onChangeExtensionForm({
@@ -1503,10 +1469,10 @@ function DeadlineCard({
               style={primaryButtonStyle}
             >
               {savingExtension
-                ? "Saving..."
+                ? tr("Saving...")
                 : isEditingExtension
-                  ? "Update Extension"
-                  : "Save Extension"}
+                  ? tr("Update Extension")
+                  : tr("Save Extension")}
             </button>
 
             <button
@@ -1515,10 +1481,9 @@ function DeadlineCard({
               disabled={savingExtension}
               style={secondaryButtonStyle}
             >
-              Cancel
-            </button>
+              {tr("Cancel")} </button>
           </div>
-        </div>
+        </CaseEditModal>
       )}
 
       {showActions && (
@@ -1530,16 +1495,14 @@ function DeadlineCard({
                 onClick={() => onEdit(item)}
                 style={smallButtonStyle}
               >
-                Edit
-              </button>
+                {tr("Edit")} </button>
 
               <button
                 type="button"
                 onClick={() => onStartAddExtension(item.id)}
                 style={smallButtonStyle}
               >
-                + Extension
-              </button>
+                {tr("+ Extension")} </button>
             </>
           )}
 
@@ -1549,8 +1512,7 @@ function DeadlineCard({
               onClick={() => onDelete(item.id)}
               style={dangerButtonStyle}
             >
-              Delete
-            </button>
+              {tr("Delete")} </button>
           )}
         </div>
       )}
@@ -1559,9 +1521,10 @@ function DeadlineCard({
 }
 
 function InfoLine({ label, value }: { label: string; value: string }) {
+  const { tr } = useCaseDetailText();
   return (
     <div style={infoLineStyle}>
-      <div style={infoLabelStyle}>{label}</div>
+      <div style={infoLabelStyle}>{tr(label)}</div>
       <div style={infoValueStyle}>{value}</div>
     </div>
   );
@@ -1580,10 +1543,11 @@ function Input({
   placeholder?: string;
   type?: string;
 }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
-      <input
+      <label style={labelStyle}>{tr(label)}</label>
+      <input aria-label={tr(label)}
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -1605,17 +1569,18 @@ function Select({
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
 }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
-      <select
+      <label style={labelStyle}>{tr(label)}</label>
+      <select aria-label={tr(label)}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         style={inputStyle}
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
-            {option.label}
+            {tr(option.label)}
           </option>
         ))}
       </select>
@@ -1634,10 +1599,11 @@ function Textarea({
   onChange: (value: string) => void;
   placeholder?: string;
 }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
-      <textarea
+      <label style={labelStyle}>{tr(label)}</label>
+      <textarea aria-label={tr(label)}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
@@ -1854,15 +1820,6 @@ function getDueStatusBadgeStyle(dueStatus: string): CSSProperties {
   };
 }
 
-function formatDisplayDate(value?: string | null) {
-  if (!value) return "-";
-
-  const parts = value.split("-");
-  if (parts.length !== 3) return value;
-
-  const [year, month, day] = parts;
-  return `${day}/${month}/${year}`;
-}
 
 /* =========================================================
    STYLES
@@ -1873,7 +1830,7 @@ const sectionStyle: CSSProperties = {
   padding: "clamp(12px, 2vw, 16px)",
   borderRadius: 14,
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
 };
 
 const headerStyle: CSSProperties = {
@@ -1887,9 +1844,9 @@ const headerStyle: CSSProperties = {
 
 const titleStyle: CSSProperties = {
   margin: 0,
-  color: "#111111",
+  color: "#183854",
   fontSize: 18,
-  fontWeight: 900,
+  fontWeight: 700,
 };
 
 const subTitleStyle: CSSProperties = {
@@ -1906,7 +1863,7 @@ const primaryButtonStyle: CSSProperties = {
   borderRadius: 8,
   border: "none",
   cursor: "pointer",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 13,
   whiteSpace: "nowrap",
 };
@@ -1914,7 +1871,7 @@ const primaryButtonStyle: CSSProperties = {
 const secondaryButtonStyle: CSSProperties = {
   padding: "8px 13px",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   borderRadius: 8,
   border: "1px solid #cccccc",
   cursor: "pointer",
@@ -1934,67 +1891,24 @@ const summaryCardStyle: CSSProperties = {
   border: "1px solid #eeeeee",
   borderRadius: 12,
   padding: 11,
-  background: "#fafafa",
+  background: "#f7f9fc",
 };
 
 const summaryLabelStyle: CSSProperties = {
   fontSize: 11,
   color: "#777777",
   marginBottom: 4,
-  fontWeight: 800,
+  fontWeight: 700,
   textTransform: "uppercase",
   letterSpacing: "0.03em",
 };
 
 const summaryValueStyle: CSSProperties = {
   fontSize: 18,
-  fontWeight: 900,
-  color: "#111111",
+  fontWeight: 700,
+  color: "#183854",
 };
 
-const formCardStyle: CSSProperties = {
-  border: "1px solid #dddddd",
-  borderRadius: 14,
-  padding: 14,
-  background: "#fafafa",
-  marginBottom: 16,
-  scrollMarginTop: 105,
-};
-
-const formHeaderStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: 10,
-  alignItems: "flex-start",
-  marginBottom: 12,
-  flexWrap: "wrap",
-};
-
-const formTitleStyle: CSSProperties = {
-  margin: 0,
-  color: "#111111",
-  fontSize: 16,
-  fontWeight: 900,
-};
-
-const formSubTitleStyle: CSSProperties = {
-  marginTop: 3,
-  color: "#666666",
-  fontSize: 12,
-  lineHeight: 1.45,
-};
-
-const editBadgeStyle: CSSProperties = {
-  display: "inline-flex",
-  padding: "5px 10px",
-  borderRadius: 999,
-  background: "#fff8e1",
-  color: "#b54708",
-  border: "1px solid #eedc9a",
-  fontSize: 12,
-  fontWeight: 900,
-  whiteSpace: "nowrap",
-};
 
 const formGridStyle: CSSProperties = {
   display: "grid",
@@ -2006,7 +1920,7 @@ const labelStyle: CSSProperties = {
   display: "block",
   marginBottom: 3,
   color: "#777777",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 11,
   textTransform: "uppercase",
   letterSpacing: "0.03em",
@@ -2018,7 +1932,7 @@ const inputStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #bbbbbb",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   colorScheme: "light",
   boxSizing: "border-box",
   fontSize: 13,
@@ -2030,9 +1944,9 @@ const readonlyBoxStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #dddddd",
   background: "#eeeeee",
-  color: "#111111",
+  color: "#183854",
   boxSizing: "border-box",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 13,
 };
 
@@ -2069,7 +1983,7 @@ const deadlineCardStyle: CSSProperties = {
   border: "1px solid #dddddd",
   borderRadius: 12,
   padding: 12,
-  color: "#111111",
+  color: "#183854",
   boxShadow: "0 1px 6px rgba(0,0,0,0.04)",
 };
 
@@ -2083,8 +1997,8 @@ const deadlineHeaderStyle: CSSProperties = {
 
 const deadlineTitleStyle: CSSProperties = {
   fontSize: 14,
-  fontWeight: 900,
-  color: "#111111",
+  fontWeight: 700,
+  color: "#183854",
   lineHeight: 1.45,
   wordBreak: "break-word",
 };
@@ -2093,7 +2007,7 @@ const deadlineMatterStyle: CSSProperties = {
   marginTop: 3,
   fontSize: 13,
   color: "#222222",
-  fontWeight: 800,
+  fontWeight: 700,
 };
 
 const badgeRowStyle: CSSProperties = {
@@ -2108,7 +2022,7 @@ const badgeBaseStyle: CSSProperties = {
   padding: "4px 8px",
   borderRadius: 999,
   fontSize: 11,
-  fontWeight: 900,
+  fontWeight: 700,
 };
 
 const extensionBadgeStyle: CSSProperties = {
@@ -2129,7 +2043,7 @@ const infoLineStyle: CSSProperties = {
   padding: "7px 8px",
   border: "1px solid #eeeeee",
   borderRadius: 10,
-  background: "#fafafa",
+  background: "#f7f9fc",
   minWidth: 0,
 };
 
@@ -2137,15 +2051,15 @@ const infoLabelStyle: CSSProperties = {
   fontSize: 11,
   color: "#777777",
   marginBottom: 2,
-  fontWeight: 800,
+  fontWeight: 700,
   textTransform: "uppercase",
   letterSpacing: "0.03em",
 };
 
 const infoValueStyle: CSSProperties = {
   fontSize: 13,
-  color: "#111111",
-  fontWeight: 800,
+  color: "#183854",
+  fontWeight: 700,
   wordBreak: "break-word",
   lineHeight: 1.45,
 };
@@ -2153,7 +2067,7 @@ const infoValueStyle: CSSProperties = {
 const noteBlockStyle: CSSProperties = {
   padding: "8px 9px",
   borderRadius: 10,
-  background: "#fafafa",
+  background: "#f7f9fc",
   border: "1px solid #eeeeee",
   marginTop: 8,
 };
@@ -2165,17 +2079,12 @@ const extensionListStyle: CSSProperties = {
 };
 
 const extensionTitleStyle: CSSProperties = {
-  fontWeight: 900,
+  fontWeight: 700,
   marginBottom: 6,
-  color: "#111111",
+  color: "#183854",
   fontSize: 14,
 };
 
-const extensionSubTitleStyle: CSSProperties = {
-  color: "#666666",
-  fontSize: 12,
-  lineHeight: 1.45,
-};
 
 const extensionItemStyle: CSSProperties = {
   border: "1px solid #eeeeee",
@@ -2199,23 +2108,6 @@ const extensionActionWrapStyle: CSSProperties = {
   justifyContent: "flex-end",
 };
 
-const extensionFormStyle: CSSProperties = {
-  marginTop: 12,
-  padding: 12,
-  border: "1px solid #dddddd",
-  borderRadius: 12,
-  background: "#fafafa",
-  scrollMarginTop: 105,
-};
-
-const extensionFormHeaderStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: 10,
-  alignItems: "flex-start",
-  marginBottom: 10,
-  flexWrap: "wrap",
-};
 
 const actionWrapStyle: CSSProperties = {
   display: "flex",
@@ -2231,7 +2123,7 @@ const smallButtonStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #cccccc",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   cursor: "pointer",
   fontWeight: 700,
   fontSize: 13,
@@ -2242,7 +2134,7 @@ const tinyButtonStyle: CSSProperties = {
   borderRadius: 7,
   border: "1px solid #cccccc",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   cursor: "pointer",
   fontWeight: 700,
   fontSize: 12,
@@ -2262,7 +2154,7 @@ const doneButtonStyle: CSSProperties = {
   background: "#e6f4ea",
   color: "#067647",
   cursor: "pointer",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 13,
 };
 
@@ -2273,6 +2165,6 @@ const dangerButtonStyle: CSSProperties = {
   background: "#fff5f5",
   color: "#a40000",
   cursor: "pointer",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 13,
 };

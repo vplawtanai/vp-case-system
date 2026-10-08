@@ -1,6 +1,9 @@
 "use client";
+import { useCaseDetailText } from "../labels";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import CaseEditModal from "../CaseEditModal";
+
+import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../../../lib/supabase";
 import { createAuditLog } from "../../../../lib/auditLog";
@@ -111,6 +114,7 @@ export default function PartiesSection({
   canEdit = false,
   canDelete = false,
 }: Props) {
+  const { tr } = useCaseDetailText();
   const [parties, setParties] = useState<PartyItem[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -119,16 +123,6 @@ export default function PartiesSection({
 
   const [form, setForm] = useState<PartyForm>(emptyForm);
 
-  const formRef = useRef<HTMLDivElement | null>(null);
-
-  const scrollToForm = () => {
-    window.setTimeout(() => {
-      formRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 80);
-  };
 
   const loadParties = async () => {
     if (!caseId) return;
@@ -145,7 +139,7 @@ export default function PartiesSection({
         .order("order_no", { ascending: true });
 
       if (error) {
-        alert("Load parties failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Load parties failed:\n" + JSON.stringify(error, null, 2)));
         setParties([]);
         return;
       }
@@ -173,7 +167,7 @@ export default function PartiesSection({
 
   const startAdd = () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์เพิ่มคู่ความ/ผู้เกี่ยวข้อง");
+      alert(tr("คุณไม่มีสิทธิ์เพิ่มคู่ความ/ผู้เกี่ยวข้อง"));
       return;
     }
 
@@ -183,7 +177,7 @@ export default function PartiesSection({
       order_no: String(getNextOrderNo("plaintiff")),
     });
     setShowForm(true);
-    scrollToForm();
+
   };
 
   const cancelForm = () => {
@@ -194,13 +188,13 @@ export default function PartiesSection({
 
   const startEdit = (party: PartyItem) => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์แก้ไขคู่ความ/ผู้เกี่ยวข้อง");
+      alert(tr("คุณไม่มีสิทธิ์แก้ไขคู่ความ/ผู้เกี่ยวข้อง"));
       return;
     }
 
     setEditingId(party.id);
     setShowForm(true);
-    scrollToForm();
+
 
     setForm({
       role: party.role || "plaintiff",
@@ -267,30 +261,30 @@ export default function PartiesSection({
 
   const validateForm = () => {
     if (!caseId) {
-      alert("Missing case id");
+      alert(tr("Missing case id"));
       return false;
     }
 
     if (!form.role) {
-      alert("กรุณาเลือก Role");
+      alert(tr("กรุณาเลือก Role"));
       return false;
     }
 
     if (!form.entity_type) {
-      alert("กรุณาเลือก Type");
+      alert(tr("กรุณาเลือก Type"));
       return false;
     }
 
     if (form.entity_type === "individual") {
       if (!form.first_name.trim() && !form.last_name.trim()) {
-        alert("กรุณากรอกชื่อหรือนามสกุล");
+        alert(tr("กรุณากรอกชื่อหรือนามสกุล"));
         return false;
       }
     }
 
     if (form.entity_type === "company") {
       if (!form.company_name.trim()) {
-        alert("กรุณากรอกชื่อนิติบุคคล");
+        alert(tr("กรุณากรอกชื่อนิติบุคคล"));
         return false;
       }
     }
@@ -300,7 +294,7 @@ export default function PartiesSection({
 
   const createParty = async () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์เพิ่มคู่ความ/ผู้เกี่ยวข้อง");
+      alert(tr("คุณไม่มีสิทธิ์เพิ่มคู่ความ/ผู้เกี่ยวข้อง"));
       cancelForm();
       return;
     }
@@ -324,7 +318,7 @@ export default function PartiesSection({
         .single();
 
       if (error) {
-        alert("Create party failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Create party failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -337,6 +331,7 @@ export default function PartiesSection({
         newData: data || payload,
         note: "Create party",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       setShowForm(false);
       setEditingId(null);
@@ -349,7 +344,7 @@ export default function PartiesSection({
 
   const updateParty = async () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์แก้ไขคู่ความ/ผู้เกี่ยวข้อง");
+      alert(tr("คุณไม่มีสิทธิ์แก้ไขคู่ความ/ผู้เกี่ยวข้อง"));
       cancelForm();
       return;
     }
@@ -372,7 +367,7 @@ export default function PartiesSection({
         .single();
 
       if (error) {
-        alert("Update party failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Update party failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -385,6 +380,7 @@ export default function PartiesSection({
         newData: data || (oldData ? { ...oldData, ...payload } : payload),
         note: "Update party",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       setShowForm(false);
       setEditingId(null);
@@ -397,12 +393,12 @@ export default function PartiesSection({
 
   const deleteParty = async (id: string) => {
     if (!canDelete) {
-      alert("คุณไม่มีสิทธิ์ลบคู่ความ/ผู้เกี่ยวข้อง");
+      alert(tr("คุณไม่มีสิทธิ์ลบคู่ความ/ผู้เกี่ยวข้อง"));
       return;
     }
 
     const confirmed = window.confirm(
-      "ต้องการลบคู่ความ/ผู้เกี่ยวข้องรายนี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
+      tr("ต้องการลบคู่ความ/ผู้เกี่ยวข้องรายนี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง")
     );
 
     if (!confirmed) return;
@@ -427,7 +423,7 @@ export default function PartiesSection({
         .single();
 
       if (error) {
-        alert("Soft delete party failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Soft delete party failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -440,6 +436,7 @@ export default function PartiesSection({
         newData: data || (oldData ? { ...oldData, ...payload } : payload),
         note: "Soft delete party",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       if (editingId === id) cancelForm();
 
@@ -464,46 +461,32 @@ export default function PartiesSection({
     <div style={sectionStyle}>
       <div style={headerStyle}>
         <div>
-          <h3 style={titleStyle}>Parties</h3>
+          <h3 style={titleStyle}>{tr("Parties")} </h3>
           <div style={subTitleStyle}>
-            คู่ความและผู้เกี่ยวข้องในคดี · รวม {totalParties} รายการ
-          </div>
+            {tr("คู่ความและผู้เกี่ยวข้องในคดี · รวม")} {totalParties} {tr("รายการ")} </div>
         </div>
 
         {!showForm ? (
           canEdit ? (
             <button type="button" onClick={startAdd} style={primaryButtonStyle}>
-              + Add Party
-            </button>
+              {tr("+ Add Party")} </button>
           ) : null
         ) : (
           <button type="button" onClick={cancelForm} style={secondaryButtonStyle}>
-            Cancel
-          </button>
+            {tr("Cancel")} </button>
         )}
       </div>
 
       {showForm && (
-        <div ref={formRef} style={formCardStyle}>
-          <div style={formHeaderStyle}>
-            <div>
-              <h4 style={formTitleStyle}>
-                {editingId ? "Edit Party" : "Add Party"}
-              </h4>
-              <div style={formSubTitleStyle}>
-                กรอกเฉพาะข้อมูลที่จำเป็นก่อน รายละเอียดที่อยู่เติมภายหลังได้
-              </div>
-            </div>
+        <CaseEditModal title={editingId ? tr("Edit Party") : tr("Add Party")} onClose={cancelForm} busy={saving}>
 
-            {editingId && <span style={editBadgeStyle}>Editing</span>}
-          </div>
 
           <div style={formSectionStyle}>
-            <div style={formSectionTitleStyle}>Identity</div>
+            <div style={formSectionTitleStyle}>{tr("Identity")} </div>
 
             <div style={formGridStyle}>
               <Select
-                label="Role"
+                label={tr("Role")}
                 value={form.role}
                 onChange={(value) => {
                   const role = value as PartyRole;
@@ -524,7 +507,7 @@ export default function PartiesSection({
               />
 
               <Input
-                label="Order No."
+                label={tr("Order No.")}
                 value={form.order_no}
                 onChange={(value) =>
                   setForm({
@@ -535,7 +518,7 @@ export default function PartiesSection({
               />
 
               <Select
-                label="Type"
+                label={tr("Type")}
                 value={form.entity_type}
                 onChange={(value) =>
                   setForm({
@@ -552,7 +535,7 @@ export default function PartiesSection({
               {form.entity_type === "individual" ? (
                 <>
                   <Select
-                    label="Title"
+                    label={tr("Title")}
                     value={form.title}
                     onChange={(value) => setForm({ ...form, title: value })}
                     options={[
@@ -566,13 +549,13 @@ export default function PartiesSection({
                   />
 
                   <Input
-                    label="First Name"
+                    label={tr("First Name")}
                     value={form.first_name}
                     onChange={(value) => setForm({ ...form, first_name: value })}
                   />
 
                   <Input
-                    label="Last Name"
+                    label={tr("Last Name")}
                     value={form.last_name}
                     onChange={(value) => setForm({ ...form, last_name: value })}
                   />
@@ -580,7 +563,7 @@ export default function PartiesSection({
               ) : (
                 <div style={{ gridColumn: "span 2" }}>
                   <Input
-                    label="Company Name"
+                    label={tr("Company Name")}
                     value={form.company_name}
                     onChange={(value) =>
                       setForm({ ...form, company_name: value })
@@ -590,13 +573,13 @@ export default function PartiesSection({
               )}
 
               <Input
-                label="ID No. / Tax ID"
+                label={tr("ID No. / Tax ID")}
                 value={form.id_number}
                 onChange={(value) => setForm({ ...form, id_number: value })}
               />
 
               <Input
-                label="Phone"
+                label={tr("Phone")}
                 value={form.phone}
                 onChange={(value) => setForm({ ...form, phone: value })}
               />
@@ -604,77 +587,77 @@ export default function PartiesSection({
           </div>
 
           <div style={formSectionStyle}>
-            <div style={formSectionTitleStyle}>Address</div>
+            <div style={formSectionTitleStyle}>{tr("Address")} </div>
 
             <div style={formGridStyle}>
               <Input
-                label="Address No."
+                label={tr("Address No.")}
                 value={form.address_no}
                 onChange={(value) => setForm({ ...form, address_no: value })}
               />
 
               <Input
-                label="Moo"
+                label={tr("Moo")}
                 value={form.moo}
                 onChange={(value) => setForm({ ...form, moo: value })}
               />
 
               <Input
-                label="Village"
+                label={tr("Village")}
                 value={form.village_name}
                 onChange={(value) => setForm({ ...form, village_name: value })}
               />
 
               <Input
-                label="Building"
+                label={tr("Building")}
                 value={form.building}
                 onChange={(value) => setForm({ ...form, building: value })}
               />
 
               <Input
-                label="Floor"
+                label={tr("Floor")}
                 value={form.floor}
                 onChange={(value) => setForm({ ...form, floor: value })}
               />
 
               <Input
-                label="Room"
+                label={tr("Room")}
                 value={form.room}
                 onChange={(value) => setForm({ ...form, room: value })}
               />
 
               <Input
-                label="Soi"
+                label={tr("Soi")}
                 value={form.soi}
                 onChange={(value) => setForm({ ...form, soi: value })}
               />
 
               <Input
-                label="Road"
+                label={tr("Road")}
                 value={form.road}
                 onChange={(value) => setForm({ ...form, road: value })}
               />
 
               <Input
-                label="Subdistrict"
+                label={tr("Subdistrict")}
                 value={form.subdistrict}
                 onChange={(value) => setForm({ ...form, subdistrict: value })}
               />
 
               <Input
-                label="District"
+                label={tr("District")}
                 value={form.district}
                 onChange={(value) => setForm({ ...form, district: value })}
               />
 
               <Input
-                label="Province"
+                label={tr("Province")}
                 value={form.province}
                 onChange={(value) => setForm({ ...form, province: value })}
               />
 
               <Input
-                label="Postal Code"
+                label={tr("Postal Code")}
                 value={form.postal_code}
                 onChange={(value) => setForm({ ...form, postal_code: value })}
               />
@@ -688,7 +671,7 @@ export default function PartiesSection({
               disabled={saving}
               style={primaryButtonStyle}
             >
-              {saving ? "Saving..." : "Save"}
+              {saving ? tr("Saving...") : tr("Save")}
             </button>
 
             <button
@@ -697,21 +680,20 @@ export default function PartiesSection({
               disabled={saving}
               style={secondaryButtonStyle}
             >
-              Cancel
-            </button>
+              {tr("Cancel")} </button>
           </div>
-        </div>
+        </CaseEditModal>
       )}
 
       {loading ? (
-        <div style={emptyStyle}>Loading parties...</div>
+        <div style={emptyStyle}>{tr("Loading parties...")} </div>
       ) : parties.length === 0 ? (
-        <div style={emptyStyle}>No parties added.</div>
+        <div style={emptyStyle}>{tr("No parties added.")} </div>
       ) : (
         <div style={partyGroupWrapStyle}>
           <PartyGroup
-            title="Plaintiff"
-            subtitle="โจทก์"
+            title={tr("Plaintiff")}
+            subtitle={tr("โจทก์")}
             parties={grouped.plaintiff}
             canEdit={canEdit}
             canDelete={canDelete}
@@ -720,8 +702,8 @@ export default function PartiesSection({
           />
 
           <PartyGroup
-            title="Defendant"
-            subtitle="จำเลย"
+            title={tr("Defendant")}
+            subtitle={tr("จำเลย")}
             parties={grouped.defendant}
             canEdit={canEdit}
             canDelete={canDelete}
@@ -730,8 +712,8 @@ export default function PartiesSection({
           />
 
           <PartyGroup
-            title="Petitioner"
-            subtitle="ผู้ร้อง"
+            title={tr("Petitioner")}
+            subtitle={tr("ผู้ร้อง")}
             parties={grouped.petitioner}
             canEdit={canEdit}
             canDelete={canDelete}
@@ -740,8 +722,8 @@ export default function PartiesSection({
           />
 
           <PartyGroup
-            title="Objector"
-            subtitle="ผู้คัดค้าน"
+            title={tr("Objector")}
+            subtitle={tr("ผู้คัดค้าน")}
             parties={grouped.objector}
             canEdit={canEdit}
             canDelete={canDelete}
@@ -815,28 +797,29 @@ function PartyCard({
   onEdit: (party: PartyItem) => void;
   onDelete: (id: string) => void;
 }) {
+  const { tr } = useCaseDetailText();
   const showActions = canEdit || canDelete;
 
   return (
     <div style={partyCardStyle}>
       <div style={partyCardHeaderStyle}>
         <div>
-          <div style={partyNameStyle}>{renderPartyName(party)}</div>
+          <div style={partyNameStyle}>{tr(renderPartyName(party))}</div>
           <div style={partyMetaStyle}>
-            {renderRole(party.role)} No. {party.order_no || "-"} ·{" "}
-            {party.entity_type === "company" ? "Company" : "Individual"}
+            {tr(renderRole(party.role))} {tr("No.")} {party.order_no || "-"} ·{" "}
+            {party.entity_type === "company" ? tr("Company") : tr("Individual")}
           </div>
         </div>
       </div>
 
       <div style={partyInfoGridStyle}>
-        <InfoLine label="ID / Tax ID" value={party.id_number || "-"} />
-        <InfoLine label="Phone" value={party.phone || "-"} />
+        <InfoLine label={tr("ID / Tax ID")} value={party.id_number || "-"} />
+        <InfoLine label={tr("Phone")} value={party.phone || "-"} />
       </div>
 
       <div style={addressTextStyle}>
-        <div style={infoLabelStyle}>Address</div>
-        <div style={addressValueStyle}>{renderAddress(party) || "-"}</div>
+        <div style={infoLabelStyle}>{tr("Address")} </div>
+        <div style={addressValueStyle}>{tr(renderAddress(party)) || "-"}</div>
       </div>
 
       {showActions && (
@@ -847,8 +830,7 @@ function PartyCard({
               onClick={() => onEdit(party)}
               style={smallButtonStyle}
             >
-              Edit
-            </button>
+              {tr("Edit")} </button>
           )}
 
           {canDelete && (
@@ -857,8 +839,7 @@ function PartyCard({
               onClick={() => onDelete(party.id)}
               style={dangerButtonStyle}
             >
-              Delete
-            </button>
+              {tr("Delete")} </button>
           )}
         </div>
       )}
@@ -867,9 +848,10 @@ function PartyCard({
 }
 
 function InfoLine({ label, value }: { label: string; value: string }) {
+  const { tr } = useCaseDetailText();
   return (
     <div style={infoLineStyle}>
-      <div style={infoLabelStyle}>{label}</div>
+      <div style={infoLabelStyle}>{tr(label)}</div>
       <div style={infoValueStyle}>{value}</div>
     </div>
   );
@@ -884,10 +866,11 @@ function Input({
   value: string;
   onChange: (value: string) => void;
 }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
-      <input
+      <label style={labelStyle}>{tr(label)}</label>
+      <input aria-label={tr(label)}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         style={inputStyle}
@@ -907,17 +890,18 @@ function Select({
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
 }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
-      <select
+      <label style={labelStyle}>{tr(label)}</label>
+      <select aria-label={tr(label)}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         style={inputStyle}
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
-            {option.label}
+            {tr(option.label)}
           </option>
         ))}
       </select>
@@ -982,7 +966,7 @@ const sectionStyle: CSSProperties = {
   padding: "clamp(12px, 2vw, 16px)",
   borderRadius: 14,
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
 };
 
 const headerStyle: CSSProperties = {
@@ -996,9 +980,9 @@ const headerStyle: CSSProperties = {
 
 const titleStyle: CSSProperties = {
   margin: 0,
-  color: "#111111",
+  color: "#183854",
   fontSize: 18,
-  fontWeight: 900,
+  fontWeight: 700,
 };
 
 const subTitleStyle: CSSProperties = {
@@ -1015,7 +999,7 @@ const primaryButtonStyle: CSSProperties = {
   borderRadius: 8,
   border: "none",
   cursor: "pointer",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 13,
   whiteSpace: "nowrap",
 };
@@ -1023,7 +1007,7 @@ const primaryButtonStyle: CSSProperties = {
 const secondaryButtonStyle: CSSProperties = {
   padding: "8px 13px",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   borderRadius: 8,
   border: "1px solid #cccccc",
   cursor: "pointer",
@@ -1032,49 +1016,6 @@ const secondaryButtonStyle: CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-const formCardStyle: CSSProperties = {
-  border: "1px solid #dddddd",
-  borderRadius: 14,
-  padding: 14,
-  background: "#fafafa",
-  marginBottom: 16,
-  scrollMarginTop: 105,
-};
-
-const formHeaderStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: 10,
-  alignItems: "flex-start",
-  marginBottom: 12,
-  flexWrap: "wrap",
-};
-
-const formTitleStyle: CSSProperties = {
-  margin: 0,
-  color: "#111111",
-  fontSize: 16,
-  fontWeight: 900,
-};
-
-const formSubTitleStyle: CSSProperties = {
-  marginTop: 3,
-  color: "#666666",
-  fontSize: 12,
-  lineHeight: 1.45,
-};
-
-const editBadgeStyle: CSSProperties = {
-  display: "inline-flex",
-  padding: "5px 10px",
-  borderRadius: 999,
-  background: "#fff8e1",
-  color: "#b54708",
-  border: "1px solid #eedc9a",
-  fontSize: 12,
-  fontWeight: 900,
-  whiteSpace: "nowrap",
-};
 
 const formSectionStyle: CSSProperties = {
   border: "1px solid #eeeeee",
@@ -1086,8 +1027,8 @@ const formSectionStyle: CSSProperties = {
 
 const formSectionTitleStyle: CSSProperties = {
   fontSize: 13,
-  fontWeight: 900,
-  color: "#111111",
+  fontWeight: 700,
+  color: "#183854",
   marginBottom: 10,
 };
 
@@ -1101,7 +1042,7 @@ const labelStyle: CSSProperties = {
   display: "block",
   marginBottom: 3,
   color: "#777777",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 11,
   textTransform: "uppercase",
   letterSpacing: "0.03em",
@@ -1113,7 +1054,7 @@ const inputStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #bbbbbb",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   colorScheme: "light",
   boxSizing: "border-box",
   fontSize: 13,
@@ -1152,8 +1093,8 @@ const partyGroupTitleStyle: CSSProperties = {
   gap: 10,
   alignItems: "center",
   fontSize: 15,
-  fontWeight: 900,
-  color: "#111111",
+  fontWeight: 700,
+  color: "#183854",
   paddingTop: 10,
   borderTop: "1px solid #eeeeee",
 };
@@ -1174,7 +1115,7 @@ const countBadgeStyle: CSSProperties = {
   color: "#475467",
   border: "1px solid #d0d5dd",
   fontSize: 12,
-  fontWeight: 900,
+  fontWeight: 700,
 };
 
 const partyCardGridStyle: CSSProperties = {
@@ -1188,7 +1129,7 @@ const partyCardStyle: CSSProperties = {
   borderRadius: 12,
   padding: 12,
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   boxShadow: "0 1px 6px rgba(0,0,0,0.04)",
 };
 
@@ -1201,8 +1142,8 @@ const partyCardHeaderStyle: CSSProperties = {
 
 const partyNameStyle: CSSProperties = {
   fontSize: 15,
-  fontWeight: 900,
-  color: "#111111",
+  fontWeight: 700,
+  color: "#183854",
   lineHeight: 1.4,
   wordBreak: "break-word",
 };
@@ -1225,7 +1166,7 @@ const infoLineStyle: CSSProperties = {
   padding: "7px 8px",
   border: "1px solid #eeeeee",
   borderRadius: 10,
-  background: "#fafafa",
+  background: "#f7f9fc",
   minWidth: 0,
 };
 
@@ -1233,15 +1174,15 @@ const infoLabelStyle: CSSProperties = {
   fontSize: 11,
   color: "#777777",
   marginBottom: 2,
-  fontWeight: 800,
+  fontWeight: 700,
   textTransform: "uppercase",
   letterSpacing: "0.03em",
 };
 
 const infoValueStyle: CSSProperties = {
   fontSize: 13,
-  color: "#111111",
-  fontWeight: 800,
+  color: "#183854",
+  fontWeight: 700,
   wordBreak: "break-word",
   lineHeight: 1.45,
 };
@@ -1250,12 +1191,12 @@ const addressTextStyle: CSSProperties = {
   padding: "8px 9px",
   border: "1px solid #eeeeee",
   borderRadius: 10,
-  background: "#fafafa",
+  background: "#f7f9fc",
 };
 
 const addressValueStyle: CSSProperties = {
   fontSize: 13,
-  color: "#111111",
+  color: "#183854",
   fontWeight: 700,
   wordBreak: "break-word",
   lineHeight: 1.5,
@@ -1275,7 +1216,7 @@ const smallButtonStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #cccccc",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   cursor: "pointer",
   fontWeight: 700,
   fontSize: 13,
@@ -1288,6 +1229,6 @@ const dangerButtonStyle: CSSProperties = {
   background: "#fff5f5",
   color: "#a40000",
   cursor: "pointer",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 13,
 };

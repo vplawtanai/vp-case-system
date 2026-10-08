@@ -1,4 +1,5 @@
 "use client";
+import { useCaseDetailText } from "../labels";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
@@ -18,8 +19,8 @@ type AuditLogItem = {
   user_name?: string | null;
   user_role?: string | null;
 
-  old_data?: any;
-  new_data?: any;
+  old_data?: Record<string, unknown>;
+  new_data?: Record<string, unknown>;
 
   note?: string | null;
   created_at?: string | null;
@@ -47,6 +48,7 @@ const restorableTables = [
 ];
 
 export default function AuditLogSection({ caseId, canRestore = false }: Props) {
+  const { tr } = useCaseDetailText();
   const caseIdNumber = Number(caseId);
 
   const [items, setItems] = useState<AuditLogItem[]>([]);
@@ -90,7 +92,7 @@ export default function AuditLogSection({ caseId, canRestore = false }: Props) {
         .limit(100);
 
       if (error) {
-        alert("Load audit logs failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Load audit logs failed:\n" + JSON.stringify(error, null, 2)));
         setItems([]);
         return;
       }
@@ -120,34 +122,34 @@ export default function AuditLogSection({ caseId, canRestore = false }: Props) {
 
   const restoreRecord = async (item: AuditLogItem) => {
     if (!canRestore) {
-      alert("คุณไม่มีสิทธิ์กู้คืนข้อมูลนี้");
+      alert(tr("คุณไม่มีสิทธิ์กู้คืนข้อมูลนี้"));
       return;
     }
 
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) {
-      alert("Missing case id");
+      alert(tr("Missing case id"));
       return;
     }
 
     if (item.action !== "soft_delete") {
-      alert("รายการนี้ไม่ใช่รายการที่ถูก Soft Delete");
+      alert(tr("รายการนี้ไม่ใช่รายการที่ถูก Soft Delete"));
       return;
     }
 
     if (!item.table_name || !restorableTables.includes(item.table_name)) {
-      alert("ตารางนี้ยังไม่รองรับการ Restore");
+      alert(tr("ตารางนี้ยังไม่รองรับการ Restore"));
       return;
     }
 
     if (!item.record_id) {
-      alert("Missing record id");
+      alert(tr("Missing record id"));
       return;
     }
 
     const confirmed = window.confirm(
-      `ต้องการกู้คืนรายการนี้หรือไม่?\n\nTable: ${renderTableName(
+      tr(`ต้องการกู้คืนรายการนี้หรือไม่?\n\nTable: ${renderTableName(
         item.table_name
-      )}\nRecord ID: ${item.record_id}`
+      )}\nRecord ID: ${item.record_id}`)
     );
 
     if (!confirmed) return;
@@ -162,19 +164,19 @@ export default function AuditLogSection({ caseId, canRestore = false }: Props) {
         .maybeSingle();
 
       if (readError) {
-        alert("Read deleted record failed:\n" + JSON.stringify(readError, null, 2));
+        alert(tr("Read deleted record failed:\n" + JSON.stringify(readError, null, 2)));
         return;
       }
 
       if (!currentRow) {
         alert(
-          "ไม่พบ record นี้ในตารางแล้ว อาจถูกลบถาวร หรือ record id ไม่ตรงกับตาราง"
+          tr("ไม่พบ record นี้ในตารางแล้ว อาจถูกลบถาวร หรือ record id ไม่ตรงกับตาราง")
         );
         return;
       }
 
       if (!currentRow.deleted_at) {
-        alert("รายการนี้ถูกกู้คืนแล้ว หรือยังไม่ได้ถูกลบ");
+        alert(tr("รายการนี้ถูกกู้คืนแล้ว หรือยังไม่ได้ถูกลบ"));
         await loadAuditLogs();
         return;
       }
@@ -193,7 +195,7 @@ export default function AuditLogSection({ caseId, canRestore = false }: Props) {
         .single();
 
       if (error) {
-        alert("Restore failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Restore failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -209,8 +211,9 @@ export default function AuditLogSection({ caseId, canRestore = false }: Props) {
         },
         note: `Restore ${renderTableName(item.table_name)}`,
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
-      alert("Restore สำเร็จแล้ว");
+      alert(tr("Restore สำเร็จแล้ว"));
 
       await loadAuditLogs();
     } finally {
@@ -262,10 +265,9 @@ export default function AuditLogSection({ caseId, canRestore = false }: Props) {
     <div id="history" style={sectionStyle}>
       <div style={headerStyle}>
         <div>
-          <h3 style={titleStyle}>History / Audit Log</h3>
+          <h3 style={titleStyle}>{tr("History / Audit Log")} </h3>
           <div style={subTitleStyle}>
-            ประวัติการเพิ่ม แก้ไข ลบ และกู้คืนข้อมูลในคดีนี้
-          </div>
+            {tr("ประวัติการเพิ่ม แก้ไข ลบ และกู้คืนข้อมูลในคดีนี้")} </div>
         </div>
 
         <div style={buttonWrapStyle}>
@@ -275,8 +277,7 @@ export default function AuditLogSection({ caseId, canRestore = false }: Props) {
               onClick={loadAuditLogs}
               style={secondaryButtonStyle}
             >
-              Refresh
-            </button>
+              {tr("Refresh")} </button>
           )}
 
           <button
@@ -284,47 +285,45 @@ export default function AuditLogSection({ caseId, canRestore = false }: Props) {
             onClick={handleToggleOpen}
             style={primaryButtonStyle}
           >
-            {isOpen ? "Hide History" : "Show History"}
+            {isOpen ? tr("Hide History") : tr("Show History")}
           </button>
         </div>
       </div>
 
       {!isOpen ? (
         <div style={collapsedBoxStyle}>
-          History ถูกพับไว้ กด “Show History” เพื่อดูประวัติการแก้ไขข้อมูล
-        </div>
+          {tr("History ถูกพับไว้ กด “Show History” เพื่อดูประวัติการแก้ไขข้อมูล")} </div>
       ) : (
         <div ref={historyBodyRef} style={historyBodyStyle}>
           <div style={historyTopBarStyle}>
             <div>
-              <div style={historyTopTitleStyle}>Audit Trail</div>
+              <div style={historyTopTitleStyle}>{tr("Audit Trail")} </div>
               <div style={historyTopHintStyle}>
-                แสดงรายการล่าสุดไม่เกิน 100 รายการ ใช้ตรวจสอบว่าใครเพิ่ม แก้ไข ลบ หรือกู้คืนข้อมูลใดในคดีนี้
-              </div>
+                {tr("แสดงรายการล่าสุดไม่เกิน 100 รายการ ใช้ตรวจสอบว่าใครเพิ่ม แก้ไข ลบ หรือกู้คืนข้อมูลใดในคดีนี้")} </div>
             </div>
 
             <span style={canRestore ? restoreAccessBadgeStyle : viewOnlyBadgeStyle}>
-              {canRestore ? "RESTORE ENABLED" : "VIEW ONLY"}
+              {canRestore ? tr("RESTORE ENABLED") : tr("VIEW ONLY")}
             </span>
           </div>
 
           <div style={summaryGridStyle}>
-            <SummaryCard label="Total Logs" value={String(summary.total)} />
-            <SummaryCard label="Create" value={String(summary.createCount)} />
-            <SummaryCard label="Update" value={String(summary.updateCount)} />
+            <SummaryCard label={tr("Total Logs")} value={String(summary.total)} />
+            <SummaryCard label={tr("Create")} value={String(summary.createCount)} />
+            <SummaryCard label={tr("Update")} value={String(summary.updateCount)} />
             <SummaryCard
-              label="Soft Delete"
+              label={tr("Soft Delete")}
               value={String(summary.softDeleteCount)}
             />
-            <SummaryCard label="Restore" value={String(summary.restoreCount)} />
+            <SummaryCard label={tr("Restore")} value={String(summary.restoreCount)} />
           </div>
 
           <div style={filterBoxStyle}>
-            <div style={filterTitleStyle}>Filter History</div>
+            <div style={filterTitleStyle}>{tr("Filter History")} </div>
 
             <div style={filterGridStyle}>
               <div>
-                <label style={labelStyle}>Table</label>
+                <label style={labelStyle}>{tr("Table")} </label>
                 <select
                   value={tableFilter}
                   onChange={(e) => setTableFilter(e.target.value)}
@@ -332,14 +331,14 @@ export default function AuditLogSection({ caseId, canRestore = false }: Props) {
                 >
                   {tableOptions.map((option) => (
                     <option key={option} value={option}>
-                      {renderTableName(option)}
+                      {tr(renderTableName(option))}
                     </option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label style={labelStyle}>Action</label>
+                <label style={labelStyle}>{tr("Action")} </label>
                 <select
                   value={actionFilter}
                   onChange={(e) => setActionFilter(e.target.value)}
@@ -347,7 +346,7 @@ export default function AuditLogSection({ caseId, canRestore = false }: Props) {
                 >
                   {actionOptions.map((option) => (
                     <option key={option} value={option}>
-                      {renderAction(option)}
+                      {tr(renderAction(option))}
                     </option>
                   ))}
                 </select>
@@ -356,9 +355,9 @@ export default function AuditLogSection({ caseId, canRestore = false }: Props) {
           </div>
 
           {loading ? (
-            <div style={emptyStyle}>Loading history...</div>
+            <div style={emptyStyle}>{tr("Loading history...")} </div>
           ) : filteredItems.length === 0 ? (
-            <div style={emptyStyle}>No audit logs found.</div>
+            <div style={emptyStyle}>{tr("No audit logs found.")} </div>
           ) : (
             <div style={logListStyle}>
               {filteredItems.map((item) => (
@@ -383,9 +382,10 @@ export default function AuditLogSection({ caseId, canRestore = false }: Props) {
 ========================================================= */
 
 function SummaryCard({ label, value }: { label: string; value: string }) {
+  const { tr } = useCaseDetailText();
   return (
     <div style={summaryCardStyle}>
-      <div style={summaryLabelStyle}>{label}</div>
+      <div style={summaryLabelStyle}>{tr(label)}</div>
       <div style={summaryValueStyle}>{value}</div>
     </div>
   );
@@ -402,6 +402,7 @@ function AuditLogCard({
   canRestore: boolean;
   onRestore: (item: AuditLogItem) => void;
 }) {
+  const { tr, date } = useCaseDetailText();
   const changedFields = getChangedFields(item.old_data, item.new_data);
   const canShowRestoreButton =
     canRestore &&
@@ -414,12 +415,12 @@ function AuditLogCard({
       <div style={logHeaderStyle}>
         <div>
           <div style={logTitleStyle}>
-            {renderAction(item.action)} · {renderTableName(item.table_name)}
+            {tr(renderAction(item.action))} · {tr(renderTableName(item.table_name))}
           </div>
 
           <div style={logMetaStyle}>
-            {formatDateTime(item.created_at)} ·{" "}
-            {item.user_name || item.user_email || "-"} · {item.user_role || "-"}
+            {date(item.created_at, true)} ·{" "}
+            {item.user_name || item.user_email || "-"} · {tr(item.user_role || "-")}
           </div>
 
           {item.note && <div style={noteStyle}>{item.note}</div>}
@@ -427,7 +428,7 @@ function AuditLogCard({
 
         <div style={badgeAndButtonWrapStyle}>
           <span style={getActionBadgeStyle(item.action)}>
-            {item.action || "-"}
+            {tr(renderAction(item.action))}
           </span>
 
           {canShowRestoreButton && (
@@ -437,20 +438,20 @@ function AuditLogCard({
               disabled={restoring}
               style={restoreButtonStyle}
             >
-              {restoring ? "Restoring..." : "Restore"}
+              {restoring ? tr("Restoring...") : tr("Restore")}
             </button>
           )}
         </div>
       </div>
 
       <div style={smallInfoGridStyle}>
-        <InfoLine label="Record ID" value={item.record_id || "-"} />
-        <InfoLine label="User Email" value={item.user_email || "-"} />
+        <InfoLine label={tr("Record ID")} value={item.record_id || "-"} />
+        <InfoLine label={tr("User Email")} value={item.user_email || "-"} />
       </div>
 
       {changedFields.length > 0 ? (
         <div style={changeBoxStyle}>
-          <div style={changeTitleStyle}>Changed Fields</div>
+          <div style={changeTitleStyle}>{tr("Changed Fields")} </div>
 
           <div style={changeListStyle}>
             {changedFields.map((row) => (
@@ -459,12 +460,12 @@ function AuditLogCard({
 
                 <div style={beforeAfterGridStyle}>
                   <div>
-                    <div style={beforeLabelStyle}>Before</div>
+                    <div style={beforeLabelStyle}>{tr("Before")} </div>
                     <div style={beforeValueStyle}>{formatValue(row.before)}</div>
                   </div>
 
                   <div>
-                    <div style={afterLabelStyle}>After</div>
+                    <div style={afterLabelStyle}>{tr("After")} </div>
                     <div style={afterValueStyle}>{formatValue(row.after)}</div>
                   </div>
                 </div>
@@ -474,16 +475,16 @@ function AuditLogCard({
         </div>
       ) : (
         <details style={detailsStyle}>
-          <summary style={summaryStyle}>View raw data</summary>
+          <summary style={summaryStyle}>{tr("View raw data")} </summary>
 
           <div style={rawGridStyle}>
             <div>
-              <div style={rawTitleStyle}>Old Data</div>
+              <div style={rawTitleStyle}>{tr("Old Data")} </div>
               <pre style={preStyle}>{safeStringify(item.old_data)}</pre>
             </div>
 
             <div>
-              <div style={rawTitleStyle}>New Data</div>
+              <div style={rawTitleStyle}>{tr("New Data")} </div>
               <pre style={preStyle}>{safeStringify(item.new_data)}</pre>
             </div>
           </div>
@@ -494,9 +495,10 @@ function AuditLogCard({
 }
 
 function InfoLine({ label, value }: { label: string; value: string }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <div style={infoLabelStyle}>{label}</div>
+      <div style={infoLabelStyle}>{tr(label)}</div>
       <div style={infoValueStyle}>{value}</div>
     </div>
   );
@@ -506,7 +508,7 @@ function InfoLine({ label, value }: { label: string; value: string }) {
    HELPERS
 ========================================================= */
 
-function getChangedFields(oldData: any, newData: any) {
+function getChangedFields(oldData: unknown, newData: unknown) {
   if (!oldData || !newData) return [];
 
   const oldFlat = flattenObject(oldData);
@@ -527,15 +529,15 @@ function getChangedFields(oldData: any, newData: any) {
     }));
 }
 
-function flattenObject(input: any, prefix = ""): Record<string, any> {
-  const result: Record<string, any> = {};
+function flattenObject(input: unknown, prefix = ""): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
 
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     return result;
   }
 
   Object.keys(input).forEach((key) => {
-    const value = input[key];
+    const value = (input as Record<string, unknown>)[key];
     const nextKey = prefix ? `${prefix}.${key}` : key;
 
     if (
@@ -554,12 +556,12 @@ function flattenObject(input: any, prefix = ""): Record<string, any> {
   return result;
 }
 
-function normalizeValue(value: any) {
+function normalizeValue(value: unknown) {
   if (value === null || value === undefined) return "";
   return String(value);
 }
 
-function formatValue(value: any) {
+function formatValue(value: unknown) {
   if (value === null || value === undefined || value === "") return "-";
 
   if (typeof value === "object") {
@@ -569,7 +571,7 @@ function formatValue(value: any) {
   return String(value);
 }
 
-function safeStringify(value: any) {
+function safeStringify(value: unknown) {
   if (value === null || value === undefined) return "-";
 
   try {
@@ -612,15 +614,6 @@ function renderTableName(value?: string | null) {
   return value;
 }
 
-function formatDateTime(value?: string | null) {
-  if (!value) return "-";
-
-  try {
-    return new Date(value).toLocaleString("th-TH");
-  } catch {
-    return value;
-  }
-}
 
 function getActionBadgeStyle(action: string): CSSProperties {
   if (action === "create") {
@@ -676,7 +669,7 @@ const sectionStyle: CSSProperties = {
   padding: 16,
   borderRadius: 12,
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
 };
 
 const headerStyle: CSSProperties = {
@@ -690,7 +683,7 @@ const headerStyle: CSSProperties = {
 
 const titleStyle: CSSProperties = {
   margin: 0,
-  color: "#111111",
+  color: "#183854",
 };
 
 const subTitleStyle: CSSProperties = {
@@ -719,7 +712,7 @@ const primaryButtonStyle: CSSProperties = {
 const secondaryButtonStyle: CSSProperties = {
   padding: "9px 14px",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   borderRadius: 8,
   border: "1px solid #cccccc",
   cursor: "pointer",
@@ -731,7 +724,7 @@ const collapsedBoxStyle: CSSProperties = {
   padding: 14,
   border: "1px dashed #cccccc",
   borderRadius: 12,
-  background: "#fafafa",
+  background: "#f7f9fc",
   color: "#555555",
   fontSize: 14,
   fontWeight: 600,
@@ -757,8 +750,8 @@ const historyTopBarStyle: CSSProperties = {
 
 const historyTopTitleStyle: CSSProperties = {
   fontSize: 16,
-  fontWeight: 900,
-  color: "#111111",
+  fontWeight: 700,
+  color: "#183854",
 };
 
 const historyTopHintStyle: CSSProperties = {
@@ -776,7 +769,7 @@ const restoreAccessBadgeStyle: CSSProperties = {
   color: "#175cd3",
   border: "1px solid #b2ccff",
   fontSize: 12,
-  fontWeight: 900,
+  fontWeight: 700,
   whiteSpace: "nowrap",
 };
 
@@ -810,8 +803,8 @@ const summaryLabelStyle: CSSProperties = {
 
 const summaryValueStyle: CSSProperties = {
   fontSize: 22,
-  fontWeight: 900,
-  color: "#111111",
+  fontWeight: 700,
+  color: "#183854",
 };
 
 const filterBoxStyle: CSSProperties = {
@@ -823,8 +816,8 @@ const filterBoxStyle: CSSProperties = {
 };
 
 const filterTitleStyle: CSSProperties = {
-  fontWeight: 900,
-  color: "#111111",
+  fontWeight: 700,
+  color: "#183854",
   marginBottom: 10,
 };
 
@@ -848,7 +841,7 @@ const inputStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #bbbbbb",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   colorScheme: "light",
   boxSizing: "border-box",
 };
@@ -871,7 +864,7 @@ const logCardStyle: CSSProperties = {
   borderRadius: 12,
   padding: 14,
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   boxShadow: "0 1px 6px rgba(0,0,0,0.05)",
 };
 
@@ -885,8 +878,8 @@ const logHeaderStyle: CSSProperties = {
 
 const logTitleStyle: CSSProperties = {
   fontSize: 15,
-  fontWeight: 900,
-  color: "#111111",
+  fontWeight: 700,
+  color: "#183854",
 };
 
 const logMetaStyle: CSSProperties = {
@@ -916,7 +909,7 @@ const badgeBaseStyle: CSSProperties = {
   padding: "5px 10px",
   borderRadius: 999,
   fontSize: 12,
-  fontWeight: 800,
+  fontWeight: 700,
   whiteSpace: "nowrap",
 };
 
@@ -928,7 +921,7 @@ const restoreButtonStyle: CSSProperties = {
   color: "#175cd3",
   cursor: "pointer",
   fontSize: 12,
-  fontWeight: 900,
+  fontWeight: 700,
   whiteSpace: "nowrap",
 };
 
@@ -948,7 +941,7 @@ const infoLabelStyle: CSSProperties = {
 
 const infoValueStyle: CSSProperties = {
   fontSize: 13,
-  color: "#111111",
+  color: "#183854",
   fontWeight: 700,
   wordBreak: "break-word",
 };
@@ -958,14 +951,14 @@ const changeBoxStyle: CSSProperties = {
   padding: 12,
   borderRadius: 12,
   border: "1px solid #eeeeee",
-  background: "#fafafa",
+  background: "#f7f9fc",
 };
 
 const changeTitleStyle: CSSProperties = {
   fontSize: 14,
-  fontWeight: 900,
+  fontWeight: 700,
   marginBottom: 10,
-  color: "#111111",
+  color: "#183854",
 };
 
 const changeListStyle: CSSProperties = {
@@ -982,9 +975,9 @@ const changeItemStyle: CSSProperties = {
 
 const fieldNameStyle: CSSProperties = {
   fontSize: 13,
-  fontWeight: 900,
+  fontWeight: 700,
   marginBottom: 8,
-  color: "#111111",
+  color: "#183854",
 };
 
 const beforeAfterGridStyle: CSSProperties = {
@@ -996,14 +989,14 @@ const beforeAfterGridStyle: CSSProperties = {
 const beforeLabelStyle: CSSProperties = {
   fontSize: 12,
   color: "#a40000",
-  fontWeight: 800,
+  fontWeight: 700,
   marginBottom: 4,
 };
 
 const afterLabelStyle: CSSProperties = {
   fontSize: 12,
   color: "#067647",
-  fontWeight: 800,
+  fontWeight: 700,
   marginBottom: 4,
 };
 
@@ -1011,7 +1004,7 @@ const beforeValueStyle: CSSProperties = {
   padding: 8,
   borderRadius: 8,
   background: "#fff5f5",
-  color: "#111111",
+  color: "#183854",
   whiteSpace: "pre-wrap",
   wordBreak: "break-word",
   fontSize: 13,
@@ -1021,7 +1014,7 @@ const afterValueStyle: CSSProperties = {
   padding: 8,
   borderRadius: 8,
   background: "#e6f4ea",
-  color: "#111111",
+  color: "#183854",
   whiteSpace: "pre-wrap",
   wordBreak: "break-word",
   fontSize: 13,
@@ -1033,7 +1026,7 @@ const detailsStyle: CSSProperties = {
 
 const summaryStyle: CSSProperties = {
   cursor: "pointer",
-  fontWeight: 800,
+  fontWeight: 700,
   color: "#333333",
 };
 
@@ -1045,9 +1038,9 @@ const rawGridStyle: CSSProperties = {
 };
 
 const rawTitleStyle: CSSProperties = {
-  fontWeight: 900,
+  fontWeight: 700,
   marginBottom: 6,
-  color: "#111111",
+  color: "#183854",
 };
 
 const preStyle: CSSProperties = {
@@ -1055,7 +1048,7 @@ const preStyle: CSSProperties = {
   borderRadius: 10,
   border: "1px solid #eeeeee",
   background: "#f8fafc",
-  color: "#111111",
+  color: "#183854",
   overflowX: "auto",
   fontSize: 12,
   maxHeight: 280,

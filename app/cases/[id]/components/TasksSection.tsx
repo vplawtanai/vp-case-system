@@ -1,6 +1,9 @@
 "use client";
+import { useCaseDetailText } from "../labels";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import CaseEditModal from "../CaseEditModal";
+
+import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../../../lib/supabase";
 import { createAuditLog } from "../../../../lib/auditLog";
@@ -82,6 +85,7 @@ export default function TasksSection({
   canEdit = false,
   canDelete = false,
 }: Props) {
+  const { tr } = useCaseDetailText();
   const caseIdNumber = Number(caseId);
 
   const [items, setItems] = useState<TaskItem[]>([]);
@@ -92,16 +96,6 @@ export default function TasksSection({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<TaskForm>(emptyForm);
 
-  const formRef = useRef<HTMLDivElement | null>(null);
-
-  const scrollToForm = () => {
-    window.setTimeout(() => {
-      formRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 80);
-  };
 
   const loadTasks = async () => {
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) return;
@@ -118,7 +112,7 @@ export default function TasksSection({
         .order("created_at", { ascending: true });
 
       if (error) {
-        alert("Load tasks failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Load tasks failed:\n" + JSON.stringify(error, null, 2)));
         setItems([]);
         return;
       }
@@ -184,7 +178,7 @@ export default function TasksSection({
 
   const startAddTask = () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์เพิ่ม Task");
+      alert(tr("คุณไม่มีสิทธิ์เพิ่ม Task"));
       return;
     }
 
@@ -194,18 +188,18 @@ export default function TasksSection({
       order_no: String(getNextOrderNo()),
     });
     setShowForm(true);
-    scrollToForm();
+
   };
 
   const startEditTask = (item: TaskItem) => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์แก้ไข Task");
+      alert(tr("คุณไม่มีสิทธิ์แก้ไข Task"));
       return;
     }
 
     setEditingId(item.id);
     setShowForm(true);
-    scrollToForm();
+
 
     setForm({
       order_no: item.order_no ? String(item.order_no) : "1",
@@ -228,22 +222,22 @@ export default function TasksSection({
 
   const validateTask = () => {
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) {
-      alert("Missing case id");
+      alert(tr("Missing case id"));
       return false;
     }
 
     if (!form.task_type.trim()) {
-      alert("กรุณาเลือกงานที่ต้องทำ");
+      alert(tr("กรุณาเลือกงานที่ต้องทำ"));
       return false;
     }
 
     if (form.task_type === "อื่นๆ" && !form.task_other.trim()) {
-      alert("กรุณากรอกรายละเอียดงานอื่นๆ");
+      alert(tr("กรุณากรอกรายละเอียดงานอื่นๆ"));
       return false;
     }
 
     if (!form.assignee_name.trim()) {
-      alert("กรุณากรอกผู้รับมอบหมาย");
+      alert(tr("กรุณากรอกผู้รับมอบหมาย"));
       return false;
     }
 
@@ -276,7 +270,7 @@ export default function TasksSection({
 
   const createTask = async () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์เพิ่ม Task");
+      alert(tr("คุณไม่มีสิทธิ์เพิ่ม Task"));
       cancelForm();
       return;
     }
@@ -300,7 +294,7 @@ export default function TasksSection({
         .single();
 
       if (error) {
-        alert("Create task failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Create task failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -313,6 +307,7 @@ export default function TasksSection({
         newData: data || payload,
         note: "Create task",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       cancelForm();
       await loadTasks();
@@ -323,7 +318,7 @@ export default function TasksSection({
 
   const updateTask = async () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์แก้ไข Task");
+      alert(tr("คุณไม่มีสิทธิ์แก้ไข Task"));
       cancelForm();
       return;
     }
@@ -346,7 +341,7 @@ export default function TasksSection({
         .single();
 
       if (error) {
-        alert("Update task failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Update task failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -359,6 +354,7 @@ export default function TasksSection({
         newData: data || (oldData ? { ...oldData, ...payload } : payload),
         note: "Update task",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       cancelForm();
       await loadTasks();
@@ -369,12 +365,12 @@ export default function TasksSection({
 
   const deleteTask = async (id: string) => {
     if (!canDelete) {
-      alert("คุณไม่มีสิทธิ์ลบ Task");
+      alert(tr("คุณไม่มีสิทธิ์ลบ Task"));
       return;
     }
 
     const confirmed = window.confirm(
-      "ต้องการลบงานนี้หรือไม่?\n\nระบบจะซ่อนงานนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
+      tr("ต้องการลบงานนี้หรือไม่?\n\nระบบจะซ่อนงานนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง")
     );
 
     if (!confirmed) return;
@@ -399,7 +395,7 @@ export default function TasksSection({
         .single();
 
       if (error) {
-        alert("Soft delete task failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Soft delete task failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -412,6 +408,7 @@ export default function TasksSection({
         newData: data || (oldData ? { ...oldData, ...payload } : payload),
         note: "Soft delete task",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       if (editingId === id) cancelForm();
 
@@ -423,7 +420,7 @@ export default function TasksSection({
 
   const markDone = async (item: TaskItem) => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์เปลี่ยนสถานะ Task");
+      alert(tr("คุณไม่มีสิทธิ์เปลี่ยนสถานะ Task"));
       return;
     }
 
@@ -444,7 +441,7 @@ export default function TasksSection({
       .single();
 
     if (error) {
-      alert("Update task status failed:\n" + JSON.stringify(error, null, 2));
+      alert(tr("Update task status failed:\n" + JSON.stringify(error, null, 2)));
       return;
     }
 
@@ -460,6 +457,7 @@ export default function TasksSection({
       },
       note: item.status === "Done" ? "Undo task status" : "Mark task as done",
     });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
     await loadTasks();
   };
@@ -468,10 +466,9 @@ export default function TasksSection({
     <div id="tasks" style={sectionStyle}>
       <div style={headerStyle}>
         <div>
-          <h3 style={titleStyle}>Tasks</h3>
+          <h3 style={titleStyle}>{tr("Tasks")} </h3>
           <div style={subTitleStyle}>
-            งานที่ต้องทำในคดีนี้ · รวม {summary.total} งาน
-          </div>
+            {tr("งานที่ต้องทำในคดีนี้ · รวม")} {summary.total} {tr("งาน")} </div>
         </div>
 
         {!showForm ? (
@@ -481,47 +478,34 @@ export default function TasksSection({
               onClick={startAddTask}
               style={primaryButtonStyle}
             >
-              + Add Task
-            </button>
+              {tr("+ Add Task")} </button>
           ) : null
         ) : (
           <button type="button" onClick={cancelForm} style={secondaryButtonStyle}>
-            Cancel
-          </button>
+            {tr("Cancel")} </button>
         )}
       </div>
 
       <div style={summaryGridStyle}>
-        <SummaryCard label="Pending" value={String(summary.pending)} />
-        <SummaryCard label="In Progress" value={String(summary.inProgress)} />
-        <SummaryCard label="Today" value={String(summary.today)} />
-        <SummaryCard label="Overdue" value={String(summary.overdue)} />
-        <SummaryCard label="Done" value={String(summary.done)} />
+        <SummaryCard label={tr("Pending")} value={String(summary.pending)} />
+        <SummaryCard label={tr("In Progress")} value={String(summary.inProgress)} />
+        <SummaryCard label={tr("Today")} value={String(summary.today)} />
+        <SummaryCard label={tr("Overdue")} value={String(summary.overdue)} />
+        <SummaryCard label={tr("Done")} value={String(summary.done)} />
       </div>
 
       {showForm && (
-        <div ref={formRef} style={formCardStyle}>
-          <div style={formHeaderStyle}>
-            <div>
-              <h4 style={formTitleStyle}>
-                {editingId ? "Edit Task" : "Add Task"}
-              </h4>
-              <div style={formSubTitleStyle}>
-                บันทึกงาน ผู้รับผิดชอบ วันที่เริ่ม วันที่ครบกำหนด และสถานะงาน
-              </div>
-            </div>
+        <CaseEditModal title={editingId ? tr("Edit Task") : tr("Add Task")} onClose={cancelForm} busy={saving}>
 
-            {editingId && <span style={editBadgeStyle}>Editing</span>}
-          </div>
 
           <div style={formGridStyle}>
             <div>
-              <label style={labelStyle}>ลำดับงาน</label>
-              <div style={readonlyBoxStyle}>งานที่ {form.order_no || "-"}</div>
+              <label style={labelStyle}>{tr("ลำดับงาน")} </label>
+              <div style={readonlyBoxStyle}>{tr("งานที่")} {form.order_no || "-"}</div>
             </div>
 
             <Select
-              label="งานที่ต้องทำ"
+              label={tr("งานที่ต้องทำ")}
               value={form.task_type}
               onChange={(value) =>
                 setForm({
@@ -538,43 +522,43 @@ export default function TasksSection({
 
             {form.task_type === "อื่นๆ" && (
               <Input
-                label="ระบุงานอื่นๆ"
+                label={tr("ระบุงานอื่นๆ")}
                 value={form.task_other}
                 onChange={(value) => setForm({ ...form, task_other: value })}
-                placeholder="กรอกรายละเอียดงาน"
+                placeholder={tr("กรอกรายละเอียดงาน")}
               />
             )}
 
             <Input
-              label="Owner / ผู้มอบหมาย"
+              label={tr("Owner / ผู้มอบหมาย")}
               value={form.owner_name}
               onChange={(value) => setForm({ ...form, owner_name: value })}
-              placeholder="เช่น ทนายเป้า"
+              placeholder={tr("เช่น ทนายเป้า")}
             />
 
             <Input
-              label="Assignee / ผู้รับมอบหมาย"
+              label={tr("Assignee / ผู้รับมอบหมาย")}
               value={form.assignee_name}
               onChange={(value) => setForm({ ...form, assignee_name: value })}
-              placeholder="เช่น แพม / แตงโม / ทนายตุลย์"
+              placeholder={tr("เช่น แพม / แตงโม / ทนายตุลย์")}
             />
 
             <Input
-              label="Start Date"
+              label={tr("Start Date")}
               type="date"
               value={form.start_date}
               onChange={(value) => setForm({ ...form, start_date: value })}
             />
 
             <Input
-              label="Due Date"
+              label={tr("Due Date")}
               type="date"
               value={form.due_date}
               onChange={(value) => setForm({ ...form, due_date: value })}
             />
 
             <Select
-              label="Status"
+              label={tr("Status")}
               value={form.status}
               onChange={(value) => setForm({ ...form, status: value })}
               options={statusOptions}
@@ -582,10 +566,10 @@ export default function TasksSection({
 
             <div style={{ gridColumn: "1 / -1" }}>
               <Textarea
-                label="Note"
+                label={tr("Note")}
                 value={form.note}
                 onChange={(value) => setForm({ ...form, note: value })}
-                placeholder="หมายเหตุเพิ่มเติม"
+                placeholder={tr("หมายเหตุเพิ่มเติม")}
               />
             </div>
           </div>
@@ -597,7 +581,7 @@ export default function TasksSection({
               disabled={saving}
               style={primaryButtonStyle}
             >
-              {saving ? "Saving..." : "Save"}
+              {saving ? tr("Saving...") : tr("Save")}
             </button>
 
             <button
@@ -606,16 +590,15 @@ export default function TasksSection({
               disabled={saving}
               style={secondaryButtonStyle}
             >
-              Cancel
-            </button>
+              {tr("Cancel")} </button>
           </div>
-        </div>
+        </CaseEditModal>
       )}
 
       {loading ? (
-        <div style={emptyStyle}>Loading tasks...</div>
+        <div style={emptyStyle}>{tr("Loading tasks...")} </div>
       ) : sortedTasks.length === 0 ? (
-        <div style={emptyStyle}>No tasks added.</div>
+        <div style={emptyStyle}>{tr("No tasks added.")} </div>
       ) : (
         <div style={taskListStyle}>
           {sortedTasks.map((item) => (
@@ -640,9 +623,10 @@ export default function TasksSection({
 ========================================================= */
 
 function SummaryCard({ label, value }: { label: string; value: string }) {
+  const { tr } = useCaseDetailText();
   return (
     <div style={summaryCardStyle}>
-      <div style={summaryLabelStyle}>{label}</div>
+      <div style={summaryLabelStyle}>{tr(label)}</div>
       <div style={summaryValueStyle}>{value}</div>
     </div>
   );
@@ -663,6 +647,7 @@ function TaskCard({
   onDelete: (id: string) => void;
   onToggleDone: (item: TaskItem) => void;
 }) {
+  const { tr, date } = useCaseDetailText();
   const taskText =
     item.task_type === "อื่นๆ" ? item.task_other || "อื่นๆ" : item.task_type || "-";
 
@@ -681,14 +666,14 @@ function TaskCard({
       <div style={taskHeaderStyle}>
         <div>
           <div style={taskTitleStyle}>
-            งานที่ {item.order_no || "-"} : {taskText}
+            {tr("งานที่")} {item.order_no || "-"} : {tr(taskText)}
           </div>
 
           <div style={badgeRowStyle}>
             <span style={getStatusBadgeStyle(item.status)}>
-              {renderStatus(item.status)}
+              {tr(renderStatus(item.status))}
             </span>
-            <span style={dueStatusStyle}>{dueStatus}</span>
+            <span style={dueStatusStyle}>{tr(dueStatus)}</span>
           </div>
         </div>
 
@@ -698,21 +683,21 @@ function TaskCard({
             onClick={() => onToggleDone(item)}
             style={isDone ? doneButtonStyle : smallButtonStyle}
           >
-            {isDone ? "Undo" : "Done"}
+            {isDone ? tr("Undo") : tr("Done")}
           </button>
         )}
       </div>
 
       <div style={taskMetaGridStyle}>
-        <InfoLine label="Owner" value={item.owner_name || "-"} />
-        <InfoLine label="Assignee" value={item.assignee_name || "-"} />
-        <InfoLine label="Start Date" value={formatDisplayDate(item.start_date)} />
-        <InfoLine label="Due Date" value={formatDisplayDate(item.due_date)} />
+        <InfoLine label={tr("Owner")} value={item.owner_name || "-"} />
+        <InfoLine label={tr("Assignee")} value={item.assignee_name || "-"} />
+        <InfoLine label={tr("Start Date")} value={date(item.start_date)} />
+        <InfoLine label={tr("Due Date")} value={date(item.due_date)} />
       </div>
 
       {item.note && (
         <div style={noteBlockStyle}>
-          <div style={infoLabelStyle}>Note</div>
+          <div style={infoLabelStyle}>{tr("Note")} </div>
           <div style={infoValueStyle}>{item.note}</div>
         </div>
       )}
@@ -725,8 +710,7 @@ function TaskCard({
               onClick={() => onEdit(item)}
               style={smallButtonStyle}
             >
-              Edit
-            </button>
+              {tr("Edit")} </button>
           )}
 
           {canDelete && (
@@ -735,8 +719,7 @@ function TaskCard({
               onClick={() => onDelete(item.id)}
               style={dangerButtonStyle}
             >
-              Delete
-            </button>
+              {tr("Delete")} </button>
           )}
         </div>
       )}
@@ -745,9 +728,10 @@ function TaskCard({
 }
 
 function InfoLine({ label, value }: { label: string; value: string }) {
+  const { tr } = useCaseDetailText();
   return (
     <div style={infoLineStyle}>
-      <div style={infoLabelStyle}>{label}</div>
+      <div style={infoLabelStyle}>{tr(label)}</div>
       <div style={infoValueStyle}>{value}</div>
     </div>
   );
@@ -766,10 +750,11 @@ function Input({
   placeholder?: string;
   type?: string;
 }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
-      <input
+      <label style={labelStyle}>{tr(label)}</label>
+      <input aria-label={tr(label)}
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -791,17 +776,18 @@ function Select({
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
 }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
-      <select
+      <label style={labelStyle}>{tr(label)}</label>
+      <select aria-label={tr(label)}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         style={inputStyle}
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
-            {option.label}
+            {tr(option.label)}
           </option>
         ))}
       </select>
@@ -820,10 +806,11 @@ function Textarea({
   onChange: (value: string) => void;
   placeholder?: string;
 }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
-      <textarea
+      <label style={labelStyle}>{tr(label)}</label>
+      <textarea aria-label={tr(label)}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
@@ -956,15 +943,6 @@ function getDueStatusStyle(dueStatus: string): CSSProperties {
   };
 }
 
-function formatDisplayDate(value?: string | null) {
-  if (!value) return "-";
-
-  const parts = value.split("-");
-  if (parts.length !== 3) return value;
-
-  const [year, month, day] = parts;
-  return `${day}/${month}/${year}`;
-}
 
 /* =========================================================
    STYLES
@@ -975,7 +953,7 @@ const sectionStyle: CSSProperties = {
   padding: "clamp(12px, 2vw, 16px)",
   borderRadius: 14,
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
 };
 
 const headerStyle: CSSProperties = {
@@ -989,9 +967,9 @@ const headerStyle: CSSProperties = {
 
 const titleStyle: CSSProperties = {
   margin: 0,
-  color: "#111111",
+  color: "#183854",
   fontSize: 18,
-  fontWeight: 900,
+  fontWeight: 700,
 };
 
 const subTitleStyle: CSSProperties = {
@@ -1008,7 +986,7 @@ const primaryButtonStyle: CSSProperties = {
   borderRadius: 8,
   border: "none",
   cursor: "pointer",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 13,
   whiteSpace: "nowrap",
 };
@@ -1016,7 +994,7 @@ const primaryButtonStyle: CSSProperties = {
 const secondaryButtonStyle: CSSProperties = {
   padding: "8px 13px",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   borderRadius: 8,
   border: "1px solid #cccccc",
   cursor: "pointer",
@@ -1036,67 +1014,24 @@ const summaryCardStyle: CSSProperties = {
   border: "1px solid #eeeeee",
   borderRadius: 12,
   padding: 11,
-  background: "#fafafa",
+  background: "#f7f9fc",
 };
 
 const summaryLabelStyle: CSSProperties = {
   fontSize: 11,
   color: "#777777",
   marginBottom: 4,
-  fontWeight: 800,
+  fontWeight: 700,
   textTransform: "uppercase",
   letterSpacing: "0.03em",
 };
 
 const summaryValueStyle: CSSProperties = {
   fontSize: 18,
-  fontWeight: 900,
-  color: "#111111",
+  fontWeight: 700,
+  color: "#183854",
 };
 
-const formCardStyle: CSSProperties = {
-  border: "1px solid #dddddd",
-  borderRadius: 14,
-  padding: 14,
-  background: "#fafafa",
-  marginBottom: 16,
-  scrollMarginTop: 105,
-};
-
-const formHeaderStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: 10,
-  alignItems: "flex-start",
-  marginBottom: 12,
-  flexWrap: "wrap",
-};
-
-const formTitleStyle: CSSProperties = {
-  margin: 0,
-  color: "#111111",
-  fontSize: 16,
-  fontWeight: 900,
-};
-
-const formSubTitleStyle: CSSProperties = {
-  marginTop: 3,
-  color: "#666666",
-  fontSize: 12,
-  lineHeight: 1.45,
-};
-
-const editBadgeStyle: CSSProperties = {
-  display: "inline-flex",
-  padding: "5px 10px",
-  borderRadius: 999,
-  background: "#fff8e1",
-  color: "#b54708",
-  border: "1px solid #eedc9a",
-  fontSize: 12,
-  fontWeight: 900,
-  whiteSpace: "nowrap",
-};
 
 const formGridStyle: CSSProperties = {
   display: "grid",
@@ -1108,7 +1043,7 @@ const labelStyle: CSSProperties = {
   display: "block",
   marginBottom: 3,
   color: "#777777",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 11,
   textTransform: "uppercase",
   letterSpacing: "0.03em",
@@ -1120,7 +1055,7 @@ const inputStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #bbbbbb",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   colorScheme: "light",
   boxSizing: "border-box",
   fontSize: 13,
@@ -1132,9 +1067,9 @@ const readonlyBoxStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #dddddd",
   background: "#eeeeee",
-  color: "#111111",
+  color: "#183854",
   boxSizing: "border-box",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 13,
 };
 
@@ -1171,7 +1106,7 @@ const taskCardStyle: CSSProperties = {
   border: "1px solid #dddddd",
   borderRadius: 12,
   padding: 12,
-  color: "#111111",
+  color: "#183854",
   boxShadow: "0 1px 6px rgba(0,0,0,0.04)",
 };
 
@@ -1185,8 +1120,8 @@ const taskHeaderStyle: CSSProperties = {
 
 const taskTitleStyle: CSSProperties = {
   fontSize: 14,
-  fontWeight: 900,
-  color: "#111111",
+  fontWeight: 700,
+  color: "#183854",
   lineHeight: 1.45,
   wordBreak: "break-word",
 };
@@ -1203,7 +1138,7 @@ const badgeBaseStyle: CSSProperties = {
   padding: "4px 8px",
   borderRadius: 999,
   fontSize: 11,
-  fontWeight: 900,
+  fontWeight: 700,
 };
 
 const taskMetaGridStyle: CSSProperties = {
@@ -1217,7 +1152,7 @@ const infoLineStyle: CSSProperties = {
   padding: "7px 8px",
   border: "1px solid #eeeeee",
   borderRadius: 10,
-  background: "#fafafa",
+  background: "#f7f9fc",
   minWidth: 0,
 };
 
@@ -1225,15 +1160,15 @@ const infoLabelStyle: CSSProperties = {
   fontSize: 11,
   color: "#777777",
   marginBottom: 2,
-  fontWeight: 800,
+  fontWeight: 700,
   textTransform: "uppercase",
   letterSpacing: "0.03em",
 };
 
 const infoValueStyle: CSSProperties = {
   fontSize: 13,
-  color: "#111111",
-  fontWeight: 800,
+  color: "#183854",
+  fontWeight: 700,
   wordBreak: "break-word",
   lineHeight: 1.45,
 };
@@ -1241,7 +1176,7 @@ const infoValueStyle: CSSProperties = {
 const noteBlockStyle: CSSProperties = {
   padding: "8px 9px",
   borderRadius: 10,
-  background: "#fafafa",
+  background: "#f7f9fc",
   border: "1px solid #eeeeee",
   marginTop: 8,
 };
@@ -1260,7 +1195,7 @@ const smallButtonStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #cccccc",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   cursor: "pointer",
   fontWeight: 700,
   fontSize: 13,
@@ -1273,7 +1208,7 @@ const doneButtonStyle: CSSProperties = {
   background: "#e6f4ea",
   color: "#067647",
   cursor: "pointer",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 13,
 };
 
@@ -1284,6 +1219,6 @@ const dangerButtonStyle: CSSProperties = {
   background: "#fff5f5",
   color: "#a40000",
   cursor: "pointer",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 13,
 };

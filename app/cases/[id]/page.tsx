@@ -1,12 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
 import { buildPermissions } from "../../../lib/permissions";
 import type { UserPermissions, UserRole } from "../../../lib/permissions";
-import CaseSectionNav from "../../components/CaseSectionNav";
+import { FolderOpen, Landmark, UserRound, Building2, CalendarDays, Clock3 } from "lucide-react";
+import CaseSummary from "./CaseSummary";
+import { CaseStatus } from "../CaseListView";
+import { useCaseDetailText } from "./labels";
+import css from "./case-detail.module.css";
 import CaseInfoSection from "./components/CaseInfoSection";
 import PartiesSection from "./components/PartiesSection";
 import TimelineSection from "./components/TimelineSection";
@@ -123,151 +127,10 @@ type ClientOption = {
   name: string;
 };
 
-/* =========================================================
-   STYLE
-========================================================= */
-
-const pageStyle: React.CSSProperties = {
-  padding: "clamp(12px, 2.5vw, 24px)",
-  fontFamily: "system-ui",
-  maxWidth: 1280,
-  margin: "0 auto",
-  background: "#ffffff",
-};
-
-const sectionWrapStyle: React.CSSProperties = {
-  scrollMarginTop: 100,
-  marginBottom: 18,
-};
-
-const backLinkStyle: React.CSSProperties = {
-  margin: 0,
-  marginBottom: 10,
-  fontSize: 14,
-  fontWeight: 700,
-};
-
-const caseHeaderCardStyle: React.CSSProperties = {
-  border: "1px solid #e5e5e5",
-  borderRadius: 16,
-  padding: "clamp(14px, 2.2vw, 20px)",
-  background: "#ffffff",
-  boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
-  marginBottom: 14,
-};
-
-const caseHeaderTopStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: 14,
-  flexWrap: "wrap",
-};
-
-const fileNoTitleStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: "clamp(26px, 4vw, 38px)",
-  fontWeight: 900,
-  letterSpacing: "-0.04em",
-  color: "#111111",
-  lineHeight: 1.05,
-};
-
-const caseTitleStyle: React.CSSProperties = {
-  marginTop: 8,
-  color: "#333333",
-  fontSize: "clamp(14px, 2.2vw, 16px)",
-  fontWeight: 700,
-  lineHeight: 1.5,
-};
-
-const caseMetaGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  gap: 10,
-  marginTop: 14,
-};
-
-const metaBoxStyle: React.CSSProperties = {
-  border: "1px solid #eeeeee",
-  borderRadius: 12,
-  padding: "10px 12px",
-  background: "#fafafa",
-  minWidth: 0,
-};
-
-const metaLabelStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 800,
-  color: "#777777",
-  textTransform: "uppercase",
-  letterSpacing: "0.04em",
-  marginBottom: 4,
-};
-
-const metaValueStyle: React.CSSProperties = {
-  fontSize: 14,
-  fontWeight: 800,
-  color: "#111111",
-  wordBreak: "break-word",
-  lineHeight: 1.45,
-};
-
-const statusPillStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  padding: "6px 11px",
-  borderRadius: 999,
-  background: "#e6f4ea",
-  color: "#067647",
-  border: "1px solid #b9dfc3",
-  fontSize: 12,
-  fontWeight: 900,
-  whiteSpace: "nowrap",
-};
-
-const caseHeaderActionsStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "flex-end",
-  gap: 9,
-  flexWrap: "wrap",
-};
-
-const billableChargeLinkStyle: React.CSSProperties = {
-  minHeight: 38,
-  display: "inline-flex",
-  alignItems: "center",
-  border: "1px solid #17324d",
-  borderRadius: 7,
-  padding: "8px 12px",
-  background: "#ffffff",
-  color: "#17324d",
-  textDecoration: "none",
-  fontSize: 13,
-  fontWeight: 800,
-};
-
-const backToTopButtonStyle: React.CSSProperties = {
-  position: "fixed",
-  right: 18,
-  bottom: 18,
-  zIndex: 80,
-  padding: "10px 14px",
-  borderRadius: 999,
-  border: "1px solid #cccccc",
-  background: "#000000",
-  color: "#ffffff",
-  cursor: "pointer",
-  fontWeight: 900,
-  boxShadow: "0 8px 24px rgba(0,0,0,0.20)",
-};
-
-/* =========================================================
-   MAIN PAGE
-========================================================= */
-
 export default function CaseDetailPage() {
+  const { tr, date } = useCaseDetailText();
+  const [section, setSection] = useState("info");
+  const [revision, setRevision] = useState(0);
   const params = useParams();
   const id = params?.id as string;
   const caseIdNumber = Number(id);
@@ -288,7 +151,18 @@ export default function CaseDetailPage() {
     return buildPermissions(profile);
   }, [profile]);
 
-  const didScrollRef = useRef(false);
+  const navigateSection = (next: string) => {
+    setSection(next);
+    window.history.replaceState(null, "", `#${next}`);
+  };
+  useEffect(() => {
+    const syncHash = () => setSection(window.location.hash.slice(1) || "info");
+    const refresh = () => setRevision(value => value + 1);
+    syncHash();
+    window.addEventListener("hashchange", syncHash);
+    window.addEventListener("case-detail-updated", refresh);
+    return () => { window.removeEventListener("hashchange", syncHash); window.removeEventListener("case-detail-updated", refresh); };
+  }, []);
 
   /* =========================================================
      LOAD CURRENT USER PROFILE / PERMISSIONS
@@ -356,11 +230,11 @@ export default function CaseDetailPage() {
     if (!id) return;
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) return;
 
-    didScrollRef.current = false;
+
 
     const loadCase = async () => {
       try {
-        setLoading(true);
+        if (!revision) setLoading(true);
 
         const { data, error } = await supabase
           .from("cases")
@@ -368,8 +242,8 @@ export default function CaseDetailPage() {
           .eq("id", caseIdNumber)
           .single();
 
-        console.log("CASE DATA:", data);
-        console.log("CASE ERROR:", error);
+
+
 
         if (error || !data) {
           console.error("LOAD CASE ERROR:", error);
@@ -445,41 +319,7 @@ export default function CaseDetailPage() {
     };
 
     loadCase();
-  }, [id, caseIdNumber]);
-
-  /* =========================================================
-     SCROLL TO HASH
-  ========================================================= */
-
-  useEffect(() => {
-    if (loading) return;
-    if (didScrollRef.current) return;
-
-    const hash = window.location.hash;
-    if (!hash) return;
-
-    const timer = setTimeout(() => {
-      const el = document.querySelector(hash);
-
-      if (el) {
-        el.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-
-        didScrollRef.current = true;
-      }
-    }, 250);
-
-    return () => clearTimeout(timer);
-  }, [loading]);
-
-  const scrollToTop = () => {
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
-  };
+  }, [id, caseIdNumber, revision]);
 
   const linkedClientName = caseItem?.client_id
     ? clients.find((client) => client.id === caseItem.client_id)?.name
@@ -488,106 +328,27 @@ export default function CaseDetailPage() {
   const displayClientName =
     linkedClientName || caseItem?.client_name || caseItem?.clientName || "-";
 
-  /* =========================================================
-     RENDER STATES
-  ========================================================= */
-
-  if (loading) {
-    return (
-      <AuthGuard>
-        <main style={pageStyle}>
-          <AppTopNav title="Case Detail" activePage="cases" />
-          Loading...
-        </main>
-      </AuthGuard>
-    );
-  }
-
-  if (!caseItem) {
-    return (
-      <AuthGuard>
-        <main style={pageStyle}>
-          <AppTopNav title="Case Detail" activePage="cases" />
-          <p style={backLinkStyle}>
-            <Link href="/cases">← Back to Cases</Link>
-          </p>
-
-          <div>Case not found.</div>
-
-          <button type="button" onClick={scrollToTop} style={backToTopButtonStyle}>
-            ↑ Top
-          </button>
-        </main>
-      </AuthGuard>
-    );
-  }
-
-  /* =========================================================
-     RENDER
-  ========================================================= */
-
+  const tabs = [["info","Overview"],["parties","Parties"],["timeline","Court Appointments"],["judgments","Judgments & Filings"],["enforcement","Enforcement"],["tasks","Tasks"],["deadlines","Legal Deadlines"],["timelogs","Time Logs"],...(permissions.canViewFees ? [["fees","Fees & Expenses"]] : []),["finance-documents","Finance documents"],["notes","Notes"],...(permissions.canViewHistory ? [["history","History / Audit Log"]] : [])];
+  const activeSection = tabs.some(([key]) => key === section) ? section : "info";
   return (
-    <AuthGuard>
-      <main style={pageStyle}>
-        <AppTopNav
-          title="Case Detail"
-          subtitle={caseItem.file_no || caseItem.fileNo || caseItem.title || ""}
-          activePage="cases"
-        />
-
-        <p style={backLinkStyle}>
-          <Link href="/cases">← Back to Cases</Link>
-        </p>
-
-        <div style={caseHeaderCardStyle}>
-          <div style={caseHeaderTopStyle}>
-            <div>
-              <h1 style={fileNoTitleStyle}>
-                {caseItem.file_no || caseItem.fileNo || "-"}
-              </h1>
-
-              <div style={caseTitleStyle}>{caseItem.title || "-"}</div>
-            </div>
-
-            <div style={caseHeaderActionsStyle}>
-              <span style={statusPillStyle}>{caseItem.status || caseItem.caseStatus || "-"}</span>
-              {permissions.canManageFinanceBillableCharges && caseItem.client_id ? <Link href={`/finance/billable-charges?new=1&client=${encodeURIComponent(caseItem.client_id)}&case=${encodeURIComponent(String(caseItem.id || id))}`} style={billableChargeLinkStyle}>เพิ่มรายการเรียกเก็บ</Link> : null}
-            </div>
-          </div>
-
-          <div style={caseMetaGridStyle}>
-            <div style={metaBoxStyle}>
-              <div style={metaLabelStyle}>Client</div>
-              <div style={metaValueStyle}>{displayClientName}</div>
-            </div>
-
-            <div style={metaBoxStyle}>
-              <div style={metaLabelStyle}>Owner</div>
-              <div style={metaValueStyle}>
-                {caseItem.owner_name || caseItem.ownerName || "-"}
-              </div>
-            </div>
-
-            <div style={metaBoxStyle}>
-              <div style={metaLabelStyle}>Court</div>
-              <div style={metaValueStyle}>
-                {caseItem.court_name || caseItem.courtName || "-"}
-              </div>
-            </div>
-
-            <div style={metaBoxStyle}>
-              <div style={metaLabelStyle}>Black Case No.</div>
-              <div style={metaValueStyle}>
-                {caseItem.case_number || caseItem.caseNumber || "-"}
-              </div>
-            </div>
-          </div>
-
+    <AuthGuard><main className={css.page}>
+      <AppTopNav title={tr("Case Detail")} subtitle={caseItem?.file_no || ""} activePage="cases"/>
+      <nav className={css.breadcrumb} aria-label={tr("Cases")}><Link href="/cases">{tr("Cases")}</Link><span>›</span><strong>{caseItem?.file_no || "—"}</strong></nav>
+      {loading ? <p role="status">{tr("Loading...")}</p> : !caseItem ? <p role="alert">{tr("Case not found.")}</p> : <>
+      <header className={css.header}>
+        <div className={css.identity}>
+          <div className={css.identityRow}><div className={css.fileIdentity}><FolderOpen/><div><small>{tr("VP file no.")}</small><strong>{caseItem.file_no || "—"}</strong></div></div><div className={css.courtIdentity}><Landmark/><div><small>{tr("Court / Black case no.")}</small><h1>{caseItem.court_name || tr("Not recorded")}<span>{caseItem.case_number || tr("Not recorded")}</span></h1></div></div></div>
+          <small className={css.label}>{tr("Title")}</small><p className={css.title}>{caseItem.title || tr("Not recorded")}</p>
+          <div className={css.badges}><CaseStatus value={caseItem.status}/><span>{tr(caseItem.case_type)}</span>{caseItem.case_subtype && <span>{caseItem.case_subtype}</span>}</div>
         </div>
-
-        <CaseSectionNav canViewFees={permissions.canViewFees} />
-
-        <div id="info" style={sectionWrapStyle}>
+        <dl className={css.facts}>
+          {[[Building2,"Client",displayClientName],[UserRound,"Owner",caseItem.owner_name || tr("Not recorded")],[CalendarDays,"Created",date(caseItem.created_at)],[Clock3,"Last updated",date(caseItem.updated_at,true)]].map(([Icon,label,value]) => { const FactIcon = Icon as typeof UserRound; return <div key={String(label)}><FactIcon size={17}/><dt>{tr(String(label))}</dt><dd>{String(value)}</dd></div>; })}
+          {permissions.canManageFinanceBillableCharges && caseItem.client_id && <Link className={css.secondary} href={`/finance/billable-charges?new=1&client=${encodeURIComponent(caseItem.client_id)}&case=${encodeURIComponent(String(caseItem.id || id))}`}>{tr("Add billable charge")}</Link>}
+        </dl>
+      </header>
+      <CaseSummary caseId={caseIdNumber} revision={revision} onSection={navigateSection}/>
+      <nav className={css.tabs} aria-label={tr("Case Detail")}>{tabs.map(([key,label])=><button type="button" key={key} aria-current={activeSection===key ? "page" : undefined} onClick={()=>navigateSection(key)}>{tr(label)}</button>)}</nav>
+        <div className={css.section} hidden={activeSection !== "info"}>
           <CaseInfoSection
             caseId={id}
             caseItem={caseItem}
@@ -595,7 +356,7 @@ export default function CaseDetailPage() {
           />
         </div>
 
-        <div id="parties" style={sectionWrapStyle}>
+        <div className={css.section} hidden={activeSection !== "parties"}>
           <PartiesSection
             caseId={caseIdNumber}
             canEdit={permissions.canEditParties}
@@ -603,7 +364,7 @@ export default function CaseDetailPage() {
           />
         </div>
 
-        <div id="timeline" style={sectionWrapStyle}>
+        <div className={css.section} hidden={activeSection !== "timeline"}>
           <TimelineSection
             caseId={id}
             timeline={timeline}
@@ -612,7 +373,7 @@ export default function CaseDetailPage() {
           />
         </div>
 
-        <div id="judgments" style={sectionWrapStyle}>
+        <div className={css.section} hidden={activeSection !== "judgments"}>
           <JudgmentsSection
             caseId={id}
             canEdit={permissions.canEditJudgments}
@@ -620,7 +381,7 @@ export default function CaseDetailPage() {
           />
         </div>
 
-        <div id="enforcement" style={sectionWrapStyle}>
+        <div className={css.section} hidden={activeSection !== "enforcement"}>
           <EnforcementSection
             caseId={id}
             canEdit={permissions.canEditEnforcement}
@@ -628,7 +389,7 @@ export default function CaseDetailPage() {
           />
         </div>
 
-        <div id="tasks" style={sectionWrapStyle}>
+        <div className={css.section} hidden={activeSection !== "tasks"}>
           <TasksSection
             caseId={id}
             tasks={tasks}
@@ -637,7 +398,7 @@ export default function CaseDetailPage() {
           />
         </div>
 
-        <div id="deadlines" style={sectionWrapStyle}>
+        <div className={css.section} hidden={activeSection !== "deadlines"}>
           <DeadlinesSection
             caseId={id}
             canEdit={permissions.canEditDeadlines}
@@ -645,7 +406,7 @@ export default function CaseDetailPage() {
           />
         </div>
 
-        <div id="timelogs" style={sectionWrapStyle}>
+        <div className={css.section} hidden={activeSection !== "timelogs"}>
           <TimeLogsSection
             caseId={id}
             canEdit={permissions.canEditTimeLogs}
@@ -654,7 +415,7 @@ export default function CaseDetailPage() {
         </div>
 
         {permissions.canViewFees && (
-          <div id="fees" style={sectionWrapStyle}>
+          <div className={css.section} hidden={activeSection !== "fees"}>
             <FeesSection
               caseId={id}
               fees={fees}
@@ -664,11 +425,11 @@ export default function CaseDetailPage() {
           </div>
         )}
 
-        <div id="finance-documents" style={sectionWrapStyle}>
+        <div className={css.section} hidden={activeSection !== "finance-documents"}>
           <FinanceQuotationsSection caseId={caseIdNumber || id} />
         </div>
 
-        <div id="notes" style={sectionWrapStyle}>
+        <div className={css.section} hidden={activeSection !== "notes"}>
           <NotesSection
             caseId={id}
             canEdit={permissions.canEditNotes}
@@ -677,15 +438,12 @@ export default function CaseDetailPage() {
         </div>
 
         {permissions.canViewHistory && (
-          <div id="history" style={sectionWrapStyle}>
+          <div className={css.section} hidden={activeSection !== "history"}>
             <AuditLogSection caseId={id} canRestore={permissions.canRestore} />
           </div>
         )}
 
-        <button type="button" onClick={scrollToTop} style={backToTopButtonStyle}>
-          ↑ Top
-        </button>
-      </main>
-    </AuthGuard>
+      </>}
+    </main></AuthGuard>
   );
 }

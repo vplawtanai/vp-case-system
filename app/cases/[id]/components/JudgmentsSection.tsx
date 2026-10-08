@@ -1,6 +1,9 @@
 "use client";
+import { useCaseDetailText } from "../labels";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import CaseEditModal from "../CaseEditModal";
+
+import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../../../lib/supabase";
 import { createAuditLog } from "../../../../lib/auditLog";
@@ -109,10 +112,9 @@ export default function JudgmentsSection({
   canEdit = false,
   canDelete = false,
 }: Props) {
+  const { tr } = useCaseDetailText();
   const caseIdNumber = Number(caseId);
 
-  const judgmentFormRef = useRef<HTMLDivElement | null>(null);
-  const filingFormRef = useRef<HTMLDivElement | null>(null);
 
   const [judgments, setJudgments] = useState<JudgmentItem[]>([]);
   const [filings, setFilings] = useState<CourtFilingItem[]>([]);
@@ -132,14 +134,6 @@ export default function JudgmentsSection({
   const [savingFiling, setSavingFiling] = useState(false);
   const [filingForm, setFilingForm] = useState<FilingForm>(emptyFilingForm);
 
-  const scrollToRef = (ref: React.RefObject<HTMLDivElement | null>) => {
-    window.setTimeout(() => {
-      ref.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 80);
-  };
 
   const loadData = async () => {
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) return;
@@ -155,7 +149,7 @@ export default function JudgmentsSection({
         .order("created_at", { ascending: true });
 
       if (judgmentError) {
-        alert("Load judgments failed:\n" + JSON.stringify(judgmentError, null, 2));
+        alert(tr("Load judgments failed:\n" + JSON.stringify(judgmentError, null, 2)));
         setJudgments([]);
         return;
       }
@@ -169,7 +163,7 @@ export default function JudgmentsSection({
         .order("created_at", { ascending: true });
 
       if (filingError) {
-        alert("Load court filings failed:\n" + JSON.stringify(filingError, null, 2));
+        alert(tr("Load court filings failed:\n" + JSON.stringify(filingError, null, 2)));
         setFilings([]);
         return;
       }
@@ -223,19 +217,19 @@ export default function JudgmentsSection({
 
   const startAddJudgment = () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์เพิ่มข้อมูลคำพิพากษา/คำสั่ง");
+      alert(tr("คุณไม่มีสิทธิ์เพิ่มข้อมูลคำพิพากษา/คำสั่ง"));
       return;
     }
 
     setEditingJudgmentId(null);
     setJudgmentForm(emptyJudgmentForm);
     setShowJudgmentForm(true);
-    scrollToRef(judgmentFormRef);
+
   };
 
   const startEditJudgment = (item: JudgmentItem) => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์แก้ไขข้อมูลคำพิพากษา/คำสั่ง");
+      alert(tr("คุณไม่มีสิทธิ์แก้ไขข้อมูลคำพิพากษา/คำสั่ง"));
       return;
     }
 
@@ -247,7 +241,7 @@ export default function JudgmentsSection({
       note: item.note || "",
     });
     setShowJudgmentForm(true);
-    scrollToRef(judgmentFormRef);
+
   };
 
   const cancelJudgmentForm = () => {
@@ -258,12 +252,12 @@ export default function JudgmentsSection({
 
   const validateJudgment = () => {
     if (!judgmentForm.court_level) {
-      alert("กรุณาเลือกชั้นศาล");
+      alert(tr("กรุณาเลือกชั้นศาล"));
       return false;
     }
 
     if (!judgmentForm.summary_text.trim()) {
-      alert("กรุณากรอกสรุปคำพิพากษา/คำสั่งโดยย่อ");
+      alert(tr("กรุณากรอกสรุปคำพิพากษา/คำสั่งโดยย่อ"));
       return false;
     }
 
@@ -283,7 +277,7 @@ export default function JudgmentsSection({
 
   const createJudgment = async () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์เพิ่มข้อมูลคำพิพากษา/คำสั่ง");
+      alert(tr("คุณไม่มีสิทธิ์เพิ่มข้อมูลคำพิพากษา/คำสั่ง"));
       cancelJudgmentForm();
       return;
     }
@@ -307,7 +301,7 @@ export default function JudgmentsSection({
         .single();
 
       if (error) {
-        alert("Create judgment failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Create judgment failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -320,6 +314,7 @@ export default function JudgmentsSection({
         newData: data || payload,
         note: "Create judgment summary",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       cancelJudgmentForm();
       await loadData();
@@ -330,7 +325,7 @@ export default function JudgmentsSection({
 
   const updateJudgment = async () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์แก้ไขข้อมูลคำพิพากษา/คำสั่ง");
+      alert(tr("คุณไม่มีสิทธิ์แก้ไขข้อมูลคำพิพากษา/คำสั่ง"));
       cancelJudgmentForm();
       return;
     }
@@ -354,7 +349,7 @@ export default function JudgmentsSection({
         .single();
 
       if (error) {
-        alert("Update judgment failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Update judgment failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -367,6 +362,7 @@ export default function JudgmentsSection({
         newData: data || (oldData ? { ...oldData, ...payload } : payload),
         note: "Update judgment summary",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       cancelJudgmentForm();
       await loadData();
@@ -377,12 +373,12 @@ export default function JudgmentsSection({
 
   const deleteJudgment = async (id: string) => {
     if (!canDelete) {
-      alert("คุณไม่มีสิทธิ์ลบข้อมูลคำพิพากษา/คำสั่ง");
+      alert(tr("คุณไม่มีสิทธิ์ลบข้อมูลคำพิพากษา/คำสั่ง"));
       return;
     }
 
     const confirmed = window.confirm(
-      "ต้องการลบข้อมูลคำพิพากษานี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
+      tr("ต้องการลบข้อมูลคำพิพากษานี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง")
     );
 
     if (!confirmed) return;
@@ -407,7 +403,7 @@ export default function JudgmentsSection({
         .single();
 
       if (error) {
-        alert("Soft delete judgment failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Soft delete judgment failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -420,6 +416,7 @@ export default function JudgmentsSection({
         newData: data || (oldData ? { ...oldData, ...payload } : payload),
         note: "Soft delete judgment summary",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       if (editingJudgmentId === id) cancelJudgmentForm();
 
@@ -431,19 +428,19 @@ export default function JudgmentsSection({
 
   const startAddFiling = () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์เพิ่มข้อมูลการยื่นอุทธรณ์/ฎีกา");
+      alert(tr("คุณไม่มีสิทธิ์เพิ่มข้อมูลการยื่นอุทธรณ์/ฎีกา"));
       return;
     }
 
     setEditingFilingId(null);
     setFilingForm(emptyFilingForm);
     setShowFilingForm(true);
-    scrollToRef(filingFormRef);
+
   };
 
   const startEditFiling = (item: CourtFilingItem) => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์แก้ไขข้อมูลการยื่นอุทธรณ์/ฎีกา");
+      alert(tr("คุณไม่มีสิทธิ์แก้ไขข้อมูลการยื่นอุทธรณ์/ฎีกา"));
       return;
     }
 
@@ -457,7 +454,7 @@ export default function JudgmentsSection({
       note: item.note || "",
     });
     setShowFilingForm(true);
-    scrollToRef(filingFormRef);
+
   };
 
   const cancelFilingForm = () => {
@@ -468,17 +465,17 @@ export default function JudgmentsSection({
 
   const validateFiling = () => {
     if (!filingForm.filing_type) {
-      alert("กรุณาเลือกประเภทการยื่น");
+      alert(tr("กรุณาเลือกประเภทการยื่น"));
       return false;
     }
 
     if (filingForm.party_label === "อื่นๆ" && !filingForm.party_other.trim()) {
-      alert("กรุณาระบุฝ่ายที่ยื่น");
+      alert(tr("กรุณาระบุฝ่ายที่ยื่น"));
       return false;
     }
 
     if (!filingForm.filed_date) {
-      alert("กรุณาเลือกวันที่ยื่น");
+      alert(tr("กรุณาเลือกวันที่ยื่น"));
       return false;
     }
 
@@ -501,7 +498,7 @@ export default function JudgmentsSection({
 
   const createFiling = async () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์เพิ่มข้อมูลการยื่นอุทธรณ์/ฎีกา");
+      alert(tr("คุณไม่มีสิทธิ์เพิ่มข้อมูลการยื่นอุทธรณ์/ฎีกา"));
       cancelFilingForm();
       return;
     }
@@ -525,7 +522,7 @@ export default function JudgmentsSection({
         .single();
 
       if (error) {
-        alert("Create filing failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Create filing failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -538,6 +535,7 @@ export default function JudgmentsSection({
         newData: data || payload,
         note: "Create appeal/supreme filing",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       cancelFilingForm();
       await loadData();
@@ -548,7 +546,7 @@ export default function JudgmentsSection({
 
   const updateFiling = async () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์แก้ไขข้อมูลการยื่นอุทธรณ์/ฎีกา");
+      alert(tr("คุณไม่มีสิทธิ์แก้ไขข้อมูลการยื่นอุทธรณ์/ฎีกา"));
       cancelFilingForm();
       return;
     }
@@ -571,7 +569,7 @@ export default function JudgmentsSection({
         .single();
 
       if (error) {
-        alert("Update filing failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Update filing failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -584,6 +582,7 @@ export default function JudgmentsSection({
         newData: data || (oldData ? { ...oldData, ...payload } : payload),
         note: "Update appeal/supreme filing",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       cancelFilingForm();
       await loadData();
@@ -594,12 +593,12 @@ export default function JudgmentsSection({
 
   const deleteFiling = async (id: string) => {
     if (!canDelete) {
-      alert("คุณไม่มีสิทธิ์ลบข้อมูลการยื่นอุทธรณ์/ฎีกา");
+      alert(tr("คุณไม่มีสิทธิ์ลบข้อมูลการยื่นอุทธรณ์/ฎีกา"));
       return;
     }
 
     const confirmed = window.confirm(
-      "ต้องการลบข้อมูลการยื่นนี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
+      tr("ต้องการลบข้อมูลการยื่นนี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง")
     );
 
     if (!confirmed) return;
@@ -624,7 +623,7 @@ export default function JudgmentsSection({
         .single();
 
       if (error) {
-        alert("Soft delete filing failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Soft delete filing failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -637,6 +636,7 @@ export default function JudgmentsSection({
         newData: data || (oldData ? { ...oldData, ...payload } : payload),
         note: "Soft delete appeal/supreme filing",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       if (editingFilingId === id) cancelFilingForm();
 
@@ -650,10 +650,9 @@ export default function JudgmentsSection({
     <div id="judgments" style={sectionStyle}>
       <div style={headerStyle}>
         <div>
-          <h3 style={titleStyle}>Judgments & Filings</h3>
+          <h3 style={titleStyle}>{tr("Judgments & Filings")} </h3>
           <div style={subTitleStyle}>
-            คำพิพากษา คำสั่ง อุทธรณ์ คำแก้อุทธรณ์ ฎีกา และคำแก้ฎีกา
-          </div>
+            {tr("คำพิพากษา คำสั่ง อุทธรณ์ คำแก้อุทธรณ์ ฎีกา และคำแก้ฎีกา")} </div>
         </div>
       </div>
 
@@ -661,8 +660,8 @@ export default function JudgmentsSection({
         <div style={panelStyle}>
           <div style={panelHeaderStyle}>
             <div>
-              <h4 style={panelTitleStyle}>Judgment Summary</h4>
-              <div style={panelSubtitleStyle}>สรุปคำพิพากษา/คำสั่ง</div>
+              <h4 style={panelTitleStyle}>{tr("Judgment Summary")} </h4>
+              <div style={panelSubtitleStyle}>{tr("สรุปคำพิพากษา/คำสั่ง")} </div>
             </div>
 
             {!showJudgmentForm ? (
@@ -672,8 +671,7 @@ export default function JudgmentsSection({
                   onClick={startAddJudgment}
                   style={primaryButtonStyle}
                 >
-                  + Add Judgment
-                </button>
+                  {tr("+ Add Judgment")} </button>
               ) : null
             ) : (
               <button
@@ -681,20 +679,17 @@ export default function JudgmentsSection({
                 onClick={cancelJudgmentForm}
                 style={secondaryButtonStyle}
               >
-                Cancel
-              </button>
+                {tr("Cancel")} </button>
             )}
           </div>
 
           {showJudgmentForm && (
-            <div ref={judgmentFormRef} style={formCardStyle}>
-              <h4 style={formTitleStyle}>
-                {editingJudgmentId ? "Edit Judgment" : "Add Judgment"}
-              </h4>
+            <CaseEditModal title={editingJudgmentId ? tr("Edit Judgment") : tr("Add Judgment")} onClose={cancelJudgmentForm} busy={savingJudgment}>
+
 
               <div style={formGridStyle}>
                 <Select
-                  label="ชั้นศาล"
+                  label={tr("ชั้นศาล")}
                   value={judgmentForm.court_level}
                   onChange={(value) =>
                     setJudgmentForm({ ...judgmentForm, court_level: value })
@@ -703,7 +698,7 @@ export default function JudgmentsSection({
                 />
 
                 <Input
-                  label="วันที่อ่านคำพิพากษา/คำสั่ง"
+                  label={tr("วันที่อ่านคำพิพากษา/คำสั่ง")}
                   type="date"
                   value={judgmentForm.judgment_date}
                   onChange={(value) =>
@@ -716,7 +711,7 @@ export default function JudgmentsSection({
 
                 <div style={{ gridColumn: "1 / -1" }}>
                   <Textarea
-                    label="สรุปคำพิพากษา/คำสั่งโดยย่อ"
+                    label={tr("สรุปคำพิพากษา/คำสั่งโดยย่อ")}
                     value={judgmentForm.summary_text}
                     onChange={(value) =>
                       setJudgmentForm({
@@ -724,13 +719,13 @@ export default function JudgmentsSection({
                         summary_text: value,
                       })
                     }
-                    placeholder="เช่น ศาลชั้นต้นพิพากษาให้จำเลยชำระเงิน..."
+                    placeholder={tr("เช่น ศาลชั้นต้นพิพากษาให้จำเลยชำระเงิน...")}
                   />
                 </div>
 
                 <div style={{ gridColumn: "1 / -1" }}>
                   <Textarea
-                    label="หมายเหตุ"
+                    label={tr("หมายเหตุ")}
                     value={judgmentForm.note}
                     onChange={(value) =>
                       setJudgmentForm({ ...judgmentForm, note: value })
@@ -746,7 +741,7 @@ export default function JudgmentsSection({
                   disabled={savingJudgment}
                   style={primaryButtonStyle}
                 >
-                  {savingJudgment ? "Saving..." : "Save"}
+                  {savingJudgment ? tr("Saving...") : tr("Save")}
                 </button>
 
                 <button
@@ -755,16 +750,15 @@ export default function JudgmentsSection({
                   disabled={savingJudgment}
                   style={secondaryButtonStyle}
                 >
-                  Cancel
-                </button>
+                  {tr("Cancel")} </button>
               </div>
-            </div>
+            </CaseEditModal>
           )}
 
           {loading ? (
-            <div style={emptyStyle}>Loading judgments...</div>
+            <div style={emptyStyle}>{tr("Loading judgments...")} </div>
           ) : sortedJudgments.length === 0 ? (
-            <div style={emptyStyle}>No judgments added.</div>
+            <div style={emptyStyle}>{tr("No judgments added.")} </div>
           ) : (
             <div style={cardListStyle}>
               {sortedJudgments.map((item) => (
@@ -784,10 +778,9 @@ export default function JudgmentsSection({
         <div style={panelStyle}>
           <div style={panelHeaderStyle}>
             <div>
-              <h4 style={panelTitleStyle}>Appeal / Supreme Filings</h4>
+              <h4 style={panelTitleStyle}>{tr("Appeal / Supreme Filings")} </h4>
               <div style={panelSubtitleStyle}>
-                การยื่นอุทธรณ์ คำแก้อุทธรณ์ ฎีกา คำแก้ฎีกา
-              </div>
+                {tr("การยื่นอุทธรณ์ คำแก้อุทธรณ์ ฎีกา คำแก้ฎีกา")} </div>
             </div>
 
             {!showFilingForm ? (
@@ -797,8 +790,7 @@ export default function JudgmentsSection({
                   onClick={startAddFiling}
                   style={primaryButtonStyle}
                 >
-                  + Add Filing
-                </button>
+                  {tr("+ Add Filing")} </button>
               ) : null
             ) : (
               <button
@@ -806,20 +798,17 @@ export default function JudgmentsSection({
                 onClick={cancelFilingForm}
                 style={secondaryButtonStyle}
               >
-                Cancel
-              </button>
+                {tr("Cancel")} </button>
             )}
           </div>
 
           {showFilingForm && (
-            <div ref={filingFormRef} style={formCardStyle}>
-              <h4 style={formTitleStyle}>
-                {editingFilingId ? "Edit Filing" : "Add Filing"}
-              </h4>
+            <CaseEditModal title={editingFilingId ? tr("Edit Filing") : tr("Add Filing")} onClose={cancelFilingForm} busy={savingFiling}>
+
 
               <div style={formGridStyle}>
                 <Select
-                  label="ประเภทการยื่น"
+                  label={tr("ประเภทการยื่น")}
                   value={filingForm.filing_type}
                   onChange={(value) =>
                     setFilingForm({ ...filingForm, filing_type: value })
@@ -828,7 +817,7 @@ export default function JudgmentsSection({
                 />
 
                 <Select
-                  label="ฝ่ายที่ยื่น"
+                  label={tr("ฝ่ายที่ยื่น")}
                   value={filingForm.party_label}
                   onChange={(value) =>
                     setFilingForm({
@@ -846,7 +835,7 @@ export default function JudgmentsSection({
 
                 {filingForm.party_label === "อื่นๆ" && (
                   <Input
-                    label="ระบุฝ่ายที่ยื่น"
+                    label={tr("ระบุฝ่ายที่ยื่น")}
                     value={filingForm.party_other}
                     onChange={(value) =>
                       setFilingForm({ ...filingForm, party_other: value })
@@ -855,7 +844,7 @@ export default function JudgmentsSection({
                 )}
 
                 <Input
-                  label="วันที่ยื่น"
+                  label={tr("วันที่ยื่น")}
                   type="date"
                   value={filingForm.filed_date}
                   onChange={(value) =>
@@ -865,7 +854,7 @@ export default function JudgmentsSection({
 
                 <div style={{ gridColumn: "1 / -1" }}>
                   <Textarea
-                    label="ประเด็น / เนื้อหาโดยย่อ"
+                    label={tr("ประเด็น / เนื้อหาโดยย่อ")}
                     value={filingForm.summary_text}
                     onChange={(value) =>
                       setFilingForm({
@@ -873,13 +862,13 @@ export default function JudgmentsSection({
                         summary_text: value,
                       })
                     }
-                    placeholder="เช่น อุทธรณ์โต้แย้งประเด็นความรับผิด..."
+                    placeholder={tr("เช่น อุทธรณ์โต้แย้งประเด็นความรับผิด...")}
                   />
                 </div>
 
                 <div style={{ gridColumn: "1 / -1" }}>
                   <Textarea
-                    label="หมายเหตุ"
+                    label={tr("หมายเหตุ")}
                     value={filingForm.note}
                     onChange={(value) =>
                       setFilingForm({ ...filingForm, note: value })
@@ -895,7 +884,7 @@ export default function JudgmentsSection({
                   disabled={savingFiling}
                   style={primaryButtonStyle}
                 >
-                  {savingFiling ? "Saving..." : "Save"}
+                  {savingFiling ? tr("Saving...") : tr("Save")}
                 </button>
 
                 <button
@@ -904,16 +893,15 @@ export default function JudgmentsSection({
                   disabled={savingFiling}
                   style={secondaryButtonStyle}
                 >
-                  Cancel
-                </button>
+                  {tr("Cancel")} </button>
               </div>
-            </div>
+            </CaseEditModal>
           )}
 
           {loading ? (
-            <div style={emptyStyle}>Loading filings...</div>
+            <div style={emptyStyle}>{tr("Loading filings...")} </div>
           ) : sortedFilings.length === 0 ? (
-            <div style={emptyStyle}>No filings added.</div>
+            <div style={emptyStyle}>{tr("No filings added.")} </div>
           ) : (
             <div style={cardListStyle}>
               {sortedFilings.map((item) => (
@@ -951,15 +939,16 @@ function JudgmentCard({
   onEdit: (item: JudgmentItem) => void;
   onDelete: (id: string) => void;
 }) {
+  const { tr, date } = useCaseDetailText();
   const showActions = canEdit || canDelete;
 
   return (
     <div style={itemCardStyle}>
       <div style={itemHeaderStyle}>
         <div>
-          <div style={itemTitleStyle}>{renderCourtLevel(item.court_level)}</div>
+          <div style={itemTitleStyle}>{tr(renderCourtLevel(item.court_level))}</div>
           <div style={itemMetaStyle}>
-            วันที่อ่าน: {formatDisplayDate(item.judgment_date)}
+            {tr("วันที่อ่าน:")} {date(item.judgment_date)}
           </div>
         </div>
       </div>
@@ -968,7 +957,7 @@ function JudgmentCard({
 
       {item.note && (
         <div style={noteBlockStyle}>
-          <div style={infoLabelStyle}>หมายเหตุ</div>
+          <div style={infoLabelStyle}>{tr("หมายเหตุ")} </div>
           <div style={infoValueStyle}>{item.note}</div>
         </div>
       )}
@@ -981,8 +970,7 @@ function JudgmentCard({
               onClick={() => onEdit(item)}
               style={smallButtonStyle}
             >
-              Edit
-            </button>
+              {tr("Edit")} </button>
           )}
 
           {canDelete && (
@@ -991,8 +979,7 @@ function JudgmentCard({
               onClick={() => onDelete(item.id)}
               style={dangerButtonStyle}
             >
-              Delete
-            </button>
+              {tr("Delete")} </button>
           )}
         </div>
       )}
@@ -1013,6 +1000,7 @@ function FilingCard({
   onEdit: (item: CourtFilingItem) => void;
   onDelete: (id: string) => void;
 }) {
+  const { tr, date } = useCaseDetailText();
   const showActions = canEdit || canDelete;
 
   const partyText =
@@ -1024,20 +1012,20 @@ function FilingCard({
     <div style={itemCardStyle}>
       <div style={itemHeaderStyle}>
         <div>
-          <div style={itemTitleStyle}>{renderFilingType(item.filing_type)}</div>
+          <div style={itemTitleStyle}>{tr(renderFilingType(item.filing_type))}</div>
           <div style={itemMetaStyle}>
-            {partyText} • วันที่ยื่น: {formatDisplayDate(item.filed_date)}
+            {tr(partyText)} {tr("• วันที่ยื่น:")} {date(item.filed_date)}
           </div>
         </div>
       </div>
 
       <div style={summaryBlockStyle}>
-        {item.summary_text || "ไม่ได้กรอกประเด็นโดยย่อ"}
+        {item.summary_text || tr("ไม่ได้กรอกประเด็นโดยย่อ")}
       </div>
 
       {item.note && (
         <div style={noteBlockStyle}>
-          <div style={infoLabelStyle}>หมายเหตุ</div>
+          <div style={infoLabelStyle}>{tr("หมายเหตุ")} </div>
           <div style={infoValueStyle}>{item.note}</div>
         </div>
       )}
@@ -1050,8 +1038,7 @@ function FilingCard({
               onClick={() => onEdit(item)}
               style={smallButtonStyle}
             >
-              Edit
-            </button>
+              {tr("Edit")} </button>
           )}
 
           {canDelete && (
@@ -1060,8 +1047,7 @@ function FilingCard({
               onClick={() => onDelete(item.id)}
               style={dangerButtonStyle}
             >
-              Delete
-            </button>
+              {tr("Delete")} </button>
           )}
         </div>
       )}
@@ -1082,10 +1068,11 @@ function Input({
   placeholder?: string;
   type?: string;
 }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
-      <input
+      <label style={labelStyle}>{tr(label)}</label>
+      <input aria-label={tr(label)}
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -1107,17 +1094,18 @@ function Select({
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
 }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
-      <select
+      <label style={labelStyle}>{tr(label)}</label>
+      <select aria-label={tr(label)}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         style={inputStyle}
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
-            {option.label}
+            {tr(option.label)}
           </option>
         ))}
       </select>
@@ -1136,10 +1124,11 @@ function Textarea({
   onChange: (value: string) => void;
   placeholder?: string;
 }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
-      <textarea
+      <label style={labelStyle}>{tr(label)}</label>
+      <textarea aria-label={tr(label)}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
@@ -1168,15 +1157,6 @@ function renderFilingType(type?: string | null) {
   return "-";
 }
 
-function formatDisplayDate(value?: string | null) {
-  if (!value) return "-";
-
-  const parts = value.split("-");
-  if (parts.length !== 3) return value;
-
-  const [year, month, day] = parts;
-  return `${day}/${month}/${year}`;
-}
 
 /* =========================================================
    STYLES
@@ -1187,7 +1167,7 @@ const sectionStyle: CSSProperties = {
   padding: 14,
   borderRadius: 12,
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
 };
 
 const headerStyle: CSSProperties = {
@@ -1201,7 +1181,7 @@ const headerStyle: CSSProperties = {
 
 const titleStyle: CSSProperties = {
   margin: 0,
-  color: "#111111",
+  color: "#183854",
   fontSize: 18,
 };
 
@@ -1221,7 +1201,7 @@ const panelStyle: CSSProperties = {
   border: "1px solid #eeeeee",
   borderRadius: 12,
   padding: 12,
-  background: "#fafafa",
+  background: "#f7f9fc",
 };
 
 const panelHeaderStyle: CSSProperties = {
@@ -1235,7 +1215,7 @@ const panelHeaderStyle: CSSProperties = {
 
 const panelTitleStyle: CSSProperties = {
   margin: 0,
-  color: "#111111",
+  color: "#183854",
   fontSize: 15,
 };
 
@@ -1260,7 +1240,7 @@ const primaryButtonStyle: CSSProperties = {
 const secondaryButtonStyle: CSSProperties = {
   padding: "8px 12px",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   borderRadius: 8,
   border: "1px solid #cccccc",
   cursor: "pointer",
@@ -1269,21 +1249,6 @@ const secondaryButtonStyle: CSSProperties = {
   fontSize: 13,
 };
 
-const formCardStyle: CSSProperties = {
-  scrollMarginTop: 130,
-  border: "1px solid #dddddd",
-  borderRadius: 12,
-  padding: 14,
-  background: "#ffffff",
-  marginBottom: 12,
-};
-
-const formTitleStyle: CSSProperties = {
-  marginTop: 0,
-  marginBottom: 10,
-  color: "#111111",
-  fontSize: 15,
-};
 
 const formGridStyle: CSSProperties = {
   display: "grid",
@@ -1305,7 +1270,7 @@ const inputStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #bbbbbb",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   colorScheme: "light",
   boxSizing: "border-box",
   fontSize: 13,
@@ -1344,7 +1309,7 @@ const itemCardStyle: CSSProperties = {
   borderRadius: 12,
   padding: 12,
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   boxShadow: "0 1px 6px rgba(0,0,0,0.05)",
 };
 
@@ -1358,8 +1323,8 @@ const itemHeaderStyle: CSSProperties = {
 
 const itemTitleStyle: CSSProperties = {
   fontSize: 14,
-  fontWeight: 800,
-  color: "#111111",
+  fontWeight: 700,
+  color: "#183854",
 };
 
 const itemMetaStyle: CSSProperties = {
@@ -1374,7 +1339,7 @@ const summaryBlockStyle: CSSProperties = {
   borderRadius: 10,
   background: "#f8fafc",
   border: "1px solid #eeeeee",
-  color: "#111111",
+  color: "#183854",
   fontSize: 13,
   lineHeight: 1.55,
   whiteSpace: "pre-wrap",
@@ -1388,7 +1353,7 @@ const infoLabelStyle: CSSProperties = {
 
 const infoValueStyle: CSSProperties = {
   fontSize: 13,
-  color: "#111111",
+  color: "#183854",
   fontWeight: 600,
   wordBreak: "break-word",
   lineHeight: 1.5,
@@ -1415,7 +1380,7 @@ const smallButtonStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #cccccc",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   cursor: "pointer",
   fontWeight: 600,
   fontSize: 12,

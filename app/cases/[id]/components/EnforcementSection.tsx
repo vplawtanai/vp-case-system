@@ -1,6 +1,9 @@
 "use client";
+import { useCaseDetailText } from "../labels";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import CaseEditModal from "../CaseEditModal";
+
+import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../../../lib/supabase";
 import { createAuditLog } from "../../../../lib/auditLog";
@@ -283,6 +286,7 @@ export default function EnforcementSection({
   canEdit = false,
   canDelete = false,
 }: Props) {
+  const { tr } = useCaseDetailText();
   const caseIdNumber = Number(caseId);
 
   const [enforcements, setEnforcements] = useState<EnforcementItem[]>([]);
@@ -303,26 +307,6 @@ export default function EnforcementSection({
   const [editingAssetId, setEditingAssetId] = useState<string | null>(null);
   const [assetForm, setAssetForm] = useState<AssetForm>(emptyAssetForm);
 
-  const enforcementFormRef = useRef<HTMLDivElement | null>(null);
-  const assetFormRef = useRef<HTMLDivElement | null>(null);
-
-  const scrollToEnforcementForm = () => {
-    window.setTimeout(() => {
-      enforcementFormRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 80);
-  };
-
-  const scrollToAssetForm = () => {
-    window.setTimeout(() => {
-      assetFormRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 80);
-  };
 
   const loadData = async () => {
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) return;
@@ -348,8 +332,8 @@ export default function EnforcementSection({
 
       if (enforcementRes.error) {
         alert(
-          "Load enforcements failed:\n" +
-            JSON.stringify(enforcementRes.error, null, 2)
+          tr("Load enforcements failed:\n" +
+            JSON.stringify(enforcementRes.error, null, 2))
         );
         setEnforcements([]);
         return;
@@ -357,8 +341,8 @@ export default function EnforcementSection({
 
       if (assetRes.error) {
         alert(
-          "Load enforcement assets failed:\n" +
-            JSON.stringify(assetRes.error, null, 2)
+          tr("Load enforcement assets failed:\n" +
+            JSON.stringify(assetRes.error, null, 2))
         );
         setAssets([]);
         return;
@@ -479,7 +463,7 @@ export default function EnforcementSection({
 
   const startAddEnforcement = () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์เพิ่มข้อมูลบังคับคดี");
+      alert(tr("คุณไม่มีสิทธิ์เพิ่มข้อมูลบังคับคดี"));
       return;
     }
 
@@ -487,19 +471,19 @@ export default function EnforcementSection({
     setEnforcementForm(emptyEnforcementForm);
     setShowEnforcementForm(true);
     setShowAssetForm(false);
-    scrollToEnforcementForm();
+
   };
 
   const startEditEnforcement = (item: EnforcementItem) => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์แก้ไขข้อมูลบังคับคดี");
+      alert(tr("คุณไม่มีสิทธิ์แก้ไขข้อมูลบังคับคดี"));
       return;
     }
 
     setEditingEnforcementId(item.id);
     setShowEnforcementForm(true);
     setShowAssetForm(false);
-    scrollToEnforcementForm();
+
 
     setEnforcementForm({
       party_label: item.party_label || "defendant",
@@ -539,12 +523,12 @@ export default function EnforcementSection({
 
   const validateEnforcement = () => {
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) {
-      alert("Missing case id");
+      alert(tr("Missing case id"));
       return false;
     }
 
     if (!enforcementForm.party_label.trim()) {
-      alert("กรุณาเลือกจำเลยหรือผู้ถูกบังคับ");
+      alert(tr("กรุณาเลือกจำเลยหรือผู้ถูกบังคับ"));
       return false;
     }
 
@@ -552,7 +536,7 @@ export default function EnforcementSection({
       enforcementForm.party_label === "other" &&
       !enforcementForm.party_other.trim()
     ) {
-      alert("กรุณาระบุผู้ถูกบังคับอื่นๆ");
+      alert(tr("กรุณาระบุผู้ถูกบังคับอื่นๆ"));
       return false;
     }
 
@@ -597,7 +581,7 @@ export default function EnforcementSection({
 
   const createEnforcement = async () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์เพิ่มข้อมูลบังคับคดี");
+      alert(tr("คุณไม่มีสิทธิ์เพิ่มข้อมูลบังคับคดี"));
       cancelEnforcementForm();
       return;
     }
@@ -621,7 +605,7 @@ export default function EnforcementSection({
         .single();
 
       if (error) {
-        alert("Create enforcement failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Create enforcement failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -634,6 +618,7 @@ export default function EnforcementSection({
         newData: data || payload,
         note: "Create enforcement command/writ",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       cancelEnforcementForm();
       await loadData();
@@ -644,7 +629,7 @@ export default function EnforcementSection({
 
   const updateEnforcement = async () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์แก้ไขข้อมูลบังคับคดี");
+      alert(tr("คุณไม่มีสิทธิ์แก้ไขข้อมูลบังคับคดี"));
       cancelEnforcementForm();
       return;
     }
@@ -668,7 +653,7 @@ export default function EnforcementSection({
         .single();
 
       if (error) {
-        alert("Update enforcement failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Update enforcement failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -681,6 +666,7 @@ export default function EnforcementSection({
         newData: data || (oldData ? { ...oldData, ...payload } : payload),
         note: "Update enforcement command/writ",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       cancelEnforcementForm();
       await loadData();
@@ -691,12 +677,12 @@ export default function EnforcementSection({
 
   const deleteEnforcement = async (id: string) => {
     if (!canDelete) {
-      alert("คุณไม่มีสิทธิ์ลบข้อมูลบังคับคดี");
+      alert(tr("คุณไม่มีสิทธิ์ลบข้อมูลบังคับคดี"));
       return;
     }
 
     const confirmed = window.confirm(
-      "ต้องการลบรายการบังคับคดีนี้หรือไม่?\n\nระบบจะซ่อนรายการบังคับคดีนี้และรายการทรัพย์ที่ผูกอยู่ ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
+      tr("ต้องการลบรายการบังคับคดีนี้หรือไม่?\n\nระบบจะซ่อนรายการบังคับคดีนี้และรายการทรัพย์ที่ผูกอยู่ ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง")
     );
 
     if (!confirmed) return;
@@ -725,8 +711,8 @@ export default function EnforcementSection({
 
       if (enforcementError) {
         alert(
-          "Soft delete enforcement failed:\n" +
-            JSON.stringify(enforcementError, null, 2)
+          tr("Soft delete enforcement failed:\n" +
+            JSON.stringify(enforcementError, null, 2))
         );
         return;
       }
@@ -749,8 +735,8 @@ export default function EnforcementSection({
 
         if (assetError) {
           alert(
-            "Soft delete related assets failed:\n" +
-              JSON.stringify(assetError, null, 2)
+            tr("Soft delete related assets failed:\n" +
+              JSON.stringify(assetError, null, 2))
           );
           return;
         }
@@ -777,6 +763,7 @@ export default function EnforcementSection({
         },
         note: "Soft delete enforcement command/writ and related assets",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       if (editingEnforcementId === id) cancelEnforcementForm();
 
@@ -788,7 +775,7 @@ export default function EnforcementSection({
 
   const startAddAsset = (enforcementId?: string) => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์เพิ่มข้อมูลทรัพย์/สืบทรัพย์");
+      alert(tr("คุณไม่มีสิทธิ์เพิ่มข้อมูลทรัพย์/สืบทรัพย์"));
       return;
     }
 
@@ -799,19 +786,19 @@ export default function EnforcementSection({
     });
     setShowAssetForm(true);
     setShowEnforcementForm(false);
-    scrollToAssetForm();
+
   };
 
   const startEditAsset = (item: AssetItem) => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์แก้ไขข้อมูลทรัพย์/สืบทรัพย์");
+      alert(tr("คุณไม่มีสิทธิ์แก้ไขข้อมูลทรัพย์/สืบทรัพย์"));
       return;
     }
 
     setEditingAssetId(item.id);
     setShowAssetForm(true);
     setShowEnforcementForm(false);
-    scrollToAssetForm();
+
 
     setAssetForm({
       enforcement_id: item.enforcement_id || "",
@@ -865,12 +852,12 @@ export default function EnforcementSection({
 
   const validateAsset = () => {
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) {
-      alert("Missing case id");
+      alert(tr("Missing case id"));
       return false;
     }
 
     if (!assetForm.enforcement_id) {
-      alert("กรุณาเลือก Command & Writ ที่เกี่ยวข้องก่อน");
+      alert(tr("กรุณาเลือก Command & Writ ที่เกี่ยวข้องก่อน"));
       return false;
     }
 
@@ -919,7 +906,7 @@ export default function EnforcementSection({
 
   const createAsset = async () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์เพิ่มข้อมูลทรัพย์/สืบทรัพย์");
+      alert(tr("คุณไม่มีสิทธิ์เพิ่มข้อมูลทรัพย์/สืบทรัพย์"));
       cancelAssetForm();
       return;
     }
@@ -943,7 +930,7 @@ export default function EnforcementSection({
         .single();
 
       if (error) {
-        alert("Create asset failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Create asset failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -956,6 +943,7 @@ export default function EnforcementSection({
         newData: data || payload,
         note: "Create enforcement asset/search record",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       cancelAssetForm();
       await loadData();
@@ -966,7 +954,7 @@ export default function EnforcementSection({
 
   const updateAsset = async () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์แก้ไขข้อมูลทรัพย์/สืบทรัพย์");
+      alert(tr("คุณไม่มีสิทธิ์แก้ไขข้อมูลทรัพย์/สืบทรัพย์"));
       cancelAssetForm();
       return;
     }
@@ -989,7 +977,7 @@ export default function EnforcementSection({
         .single();
 
       if (error) {
-        alert("Update asset failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Update asset failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -1002,6 +990,7 @@ export default function EnforcementSection({
         newData: data || (oldData ? { ...oldData, ...payload } : payload),
         note: "Update enforcement asset/search record",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       cancelAssetForm();
       await loadData();
@@ -1012,12 +1001,12 @@ export default function EnforcementSection({
 
   const deleteAsset = async (id: string) => {
     if (!canDelete) {
-      alert("คุณไม่มีสิทธิ์ลบข้อมูลทรัพย์/สืบทรัพย์");
+      alert(tr("คุณไม่มีสิทธิ์ลบข้อมูลทรัพย์/สืบทรัพย์"));
       return;
     }
 
     const confirmed = window.confirm(
-      "ต้องการลบรายการทรัพย์นี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
+      tr("ต้องการลบรายการทรัพย์นี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง")
     );
 
     if (!confirmed) return;
@@ -1042,7 +1031,7 @@ export default function EnforcementSection({
         .single();
 
       if (error) {
-        alert("Soft delete asset failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Soft delete asset failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -1055,6 +1044,7 @@ export default function EnforcementSection({
         newData: data || (oldData ? { ...oldData, ...payload } : payload),
         note: "Soft delete enforcement asset/search record",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       if (editingAssetId === id) cancelAssetForm();
 
@@ -1081,10 +1071,9 @@ export default function EnforcementSection({
     <div id="enforcement" style={sectionStyle}>
       <div style={headerStyle}>
         <div>
-          <h3 style={titleStyle}>Enforcement</h3>
+          <h3 style={titleStyle}>{tr("Enforcement")} </h3>
           <div style={subTitleStyle}>
-            คำบังคับ หมายบังคับคดี สืบทรัพย์ อนุมัติยึด ยึดทรัพย์ และขายทอดตลาด
-          </div>
+            {tr("คำบังคับ หมายบังคับคดี สืบทรัพย์ อนุมัติยึด ยึดทรัพย์ และขายทอดตลาด")} </div>
         </div>
 
         <div style={buttonWrapStyle}>
@@ -1095,8 +1084,7 @@ export default function EnforcementSection({
                 onClick={startAddEnforcement}
                 style={primaryButtonStyle}
               >
-                + Add Command/Writ
-              </button>
+                {tr("+ Add Command/Writ")} </button>
             ) : null
           ) : (
             <button
@@ -1104,8 +1092,7 @@ export default function EnforcementSection({
               onClick={cancelEnforcementForm}
               style={secondaryButtonStyle}
             >
-              Cancel Command
-            </button>
+              {tr("Cancel Command")} </button>
           )}
 
           {!showAssetForm ? (
@@ -1117,12 +1104,11 @@ export default function EnforcementSection({
                 disabled={enforcements.length === 0}
                 title={
                   enforcements.length === 0
-                    ? "ต้องมี Command/Writ ก่อนจึงเพิ่มทรัพย์ได้"
+                    ? tr("ต้องมี Command/Writ ก่อนจึงเพิ่มทรัพย์ได้")
                     : ""
                 }
               >
-                + Add Asset Search
-              </button>
+                {tr("+ Add Asset Search")} </button>
             ) : null
           ) : (
             <button
@@ -1130,38 +1116,35 @@ export default function EnforcementSection({
               onClick={cancelAssetForm}
               style={secondaryButtonStyle}
             >
-              Cancel Asset
-            </button>
+              {tr("Cancel Asset")} </button>
           )}
         </div>
       </div>
 
       <div style={summaryGridStyle}>
         <SummaryCard
-          label="Ready for Writ"
+          label={tr("Ready for Writ")}
           value={String(summary.readyForWrit)}
         />
-        <SummaryCard label="Writ Issued" value={String(summary.writIssued)} />
-        <SummaryCard label="Assets Found" value={String(summary.assetsFound)} />
+        <SummaryCard label={tr("Writ Issued")} value={String(summary.writIssued)} />
+        <SummaryCard label={tr("Assets Found")} value={String(summary.assetsFound)} />
         <SummaryCard
-          label="Waiting Approval"
+          label={tr("Waiting Approval")}
           value={String(summary.waitingApproval)}
         />
         <SummaryCard
-          label="Auction Soon"
+          label={tr("Auction Soon")}
           value={String(summary.auctionSoon)}
         />
       </div>
 
       {showEnforcementForm && (
-        <div ref={enforcementFormRef} style={formCardStyle}>
-          <h4 style={formTitleStyle}>
-            {editingEnforcementId ? "Edit Command & Writ" : "Add Command & Writ"}
-          </h4>
+        <CaseEditModal title={editingEnforcementId ? tr("Edit Command & Writ") : tr("Add Command & Writ")} onClose={cancelEnforcementForm} busy={savingEnforcement}>
+
 
           <div style={formGridStyle}>
             <Select
-              label="ผู้ถูกบังคับ / จำเลย"
+              label={tr("ผู้ถูกบังคับ / จำเลย")}
               value={enforcementForm.party_label}
               onChange={(value) =>
                 setEnforcementForm({
@@ -1176,7 +1159,7 @@ export default function EnforcementSection({
 
             {enforcementForm.party_label === "other" && (
               <Input
-                label="ระบุผู้ถูกบังคับ"
+                label={tr("ระบุผู้ถูกบังคับ")}
                 value={enforcementForm.party_other}
                 onChange={(value) =>
                   setEnforcementForm({
@@ -1188,7 +1171,7 @@ export default function EnforcementSection({
             )}
 
             <Input
-              label="วันที่ศาลมีคำพิพากษา"
+              label={tr("วันที่ศาลมีคำพิพากษา")}
               type="date"
               value={enforcementForm.judgment_date}
               onChange={(value) =>
@@ -1200,7 +1183,7 @@ export default function EnforcementSection({
             />
 
             <Input
-              label="วันที่ชำระค่าส่งคำบังคับ"
+              label={tr("วันที่ชำระค่าส่งคำบังคับ")}
               type="date"
               value={enforcementForm.command_service_fee_paid_date}
               onChange={(value) =>
@@ -1212,21 +1195,21 @@ export default function EnforcementSection({
             />
 
             <Input
-              label="วันที่ส่งคำบังคับได้"
+              label={tr("วันที่ส่งคำบังคับได้")}
               type="date"
               value={enforcementForm.command_service_date}
               onChange={handleCommandDateChange}
             />
 
             <Select
-              label="ส่งคำบังคับได้โดยวิธี"
+              label={tr("ส่งคำบังคับได้โดยวิธี")}
               value={enforcementForm.service_method}
               onChange={handleServiceMethodChange}
               options={serviceMethodOptions}
             />
 
             <Select
-              label="ผลการส่งคำบังคับ"
+              label={tr("ผลการส่งคำบังคับ")}
               value={enforcementForm.service_result}
               onChange={(value) =>
                 setEnforcementForm({
@@ -1238,31 +1221,31 @@ export default function EnforcementSection({
             />
 
             <Input
-              label="จำนวนวันที่ให้ปฏิบัติตามคำพิพากษา"
+              label={tr("จำนวนวันที่ให้ปฏิบัติตามคำพิพากษา")}
               value={enforcementForm.compliance_days}
               onChange={handleComplianceDaysChange}
-              placeholder="15 หรือ 30"
+              placeholder={tr("15 หรือ 30")}
             />
 
             <Input
-              label="จำนวนวันเพิ่มพิเศษ"
+              label={tr("จำนวนวันเพิ่มพิเศษ")}
               value={enforcementForm.extra_days}
               onChange={handleExtraDaysChange}
-              placeholder="กรณีปิดหมาย ส่วนใหญ่ 15"
+              placeholder={tr("กรณีปิดหมาย ส่วนใหญ่ 15")}
             />
 
             <ReadOnlyBox
-              label="วันครบกำหนดเดิม"
+              label={tr("วันครบกำหนดเดิม")}
               value={formatDisplayDate(enforcementForm.original_due_date)}
             />
 
             <ReadOnlyBox
-              label="วันครบกำหนดจริง"
+              label={tr("วันครบกำหนดจริง")}
               value={formatDisplayDate(enforcementForm.final_due_date)}
             />
 
             <Input
-              label="วันที่ยื่นขอออกหมายบังคับคดี"
+              label={tr("วันที่ยื่นขอออกหมายบังคับคดี")}
               type="date"
               value={enforcementForm.writ_request_date}
               onChange={(value) =>
@@ -1274,7 +1257,7 @@ export default function EnforcementSection({
             />
 
             <Input
-              label="วันที่ศาลออกหมายบังคับคดี"
+              label={tr("วันที่ศาลออกหมายบังคับคดี")}
               type="date"
               value={enforcementForm.writ_issued_date}
               onChange={(value) =>
@@ -1286,7 +1269,7 @@ export default function EnforcementSection({
             />
 
             <Select
-              label="Status"
+              label={tr("Status")}
               value={enforcementForm.status}
               onChange={(value) =>
                 setEnforcementForm({
@@ -1299,7 +1282,7 @@ export default function EnforcementSection({
 
             <div style={{ gridColumn: "1 / -1" }}>
               <Textarea
-                label="หมายเหตุ"
+                label={tr("หมายเหตุ")}
                 value={enforcementForm.note}
                 onChange={(value) =>
                   setEnforcementForm({ ...enforcementForm, note: value })
@@ -1317,7 +1300,7 @@ export default function EnforcementSection({
               disabled={savingEnforcement}
               style={primaryButtonStyle}
             >
-              {savingEnforcement ? "Saving..." : "Save"}
+              {savingEnforcement ? tr("Saving...") : tr("Save")}
             </button>
 
             <button
@@ -1326,23 +1309,20 @@ export default function EnforcementSection({
               disabled={savingEnforcement}
               style={secondaryButtonStyle}
             >
-              Cancel
-            </button>
+              {tr("Cancel")} </button>
           </div>
-        </div>
+        </CaseEditModal>
       )}
 
       {showAssetForm && (
-        <div ref={assetFormRef} style={formCardStyle}>
-          <h4 style={formTitleStyle}>
-            {editingAssetId
-              ? "Edit Asset Search / Seizure / Auction"
-              : "Add Asset Search / Seizure / Auction"}
-          </h4>
+        <CaseEditModal title={editingAssetId
+              ? tr("Edit Asset Search / Seizure / Auction")
+              : tr("Add Asset Search / Seizure / Auction")} onClose={cancelAssetForm} busy={savingAsset}>
+
 
           <div style={formGridStyle}>
             <Select
-              label="ผูกกับ Command/Writ"
+              label={tr("ผูกกับ Command/Writ")}
               value={assetForm.enforcement_id}
               onChange={(value) =>
                 setAssetForm({ ...assetForm, enforcement_id: value })
@@ -1360,7 +1340,7 @@ export default function EnforcementSection({
             />
 
             <Select
-              label="หน่วยงานที่สืบ"
+              label={tr("หน่วยงานที่สืบ")}
               value={assetForm.search_agency}
               onChange={(value) =>
                 setAssetForm({ ...assetForm, search_agency: value })
@@ -1369,16 +1349,16 @@ export default function EnforcementSection({
             />
 
             <Input
-              label="สำนักงาน / สาขา / จังหวัด"
+              label={tr("สำนักงาน / สาขา / จังหวัด")}
               value={assetForm.search_office}
               onChange={(value) =>
                 setAssetForm({ ...assetForm, search_office: value })
               }
-              placeholder="เช่น สำนักงานที่ดินกรุงเทพมหานคร / ขนส่งจตุจักร"
+              placeholder={tr("เช่น สำนักงานที่ดินกรุงเทพมหานคร / ขนส่งจตุจักร")}
             />
 
             <Input
-              label="วันที่สืบทรัพย์"
+              label={tr("วันที่สืบทรัพย์")}
               type="date"
               value={assetForm.search_date}
               onChange={(value) =>
@@ -1387,7 +1367,7 @@ export default function EnforcementSection({
             />
 
             <Select
-              label="ผลการสืบทรัพย์"
+              label={tr("ผลการสืบทรัพย์")}
               value={assetForm.search_result}
               onChange={(value) =>
                 setAssetForm({ ...assetForm, search_result: value })
@@ -1396,7 +1376,7 @@ export default function EnforcementSection({
             />
 
             <Select
-              label="ประเภททรัพย์"
+              label={tr("ประเภททรัพย์")}
               value={assetForm.asset_type}
               onChange={(value) =>
                 setAssetForm({ ...assetForm, asset_type: value })
@@ -1405,16 +1385,16 @@ export default function EnforcementSection({
             />
 
             <Input
-              label="เลขทรัพย์ / เลขโฉนด / ทะเบียนรถ"
+              label={tr("เลขทรัพย์ / เลขโฉนด / ทะเบียนรถ")}
               value={assetForm.asset_identifier}
               onChange={(value) =>
                 setAssetForm({ ...assetForm, asset_identifier: value })
               }
-              placeholder="เช่น โฉนดเลขที่... / กข 1234"
+              placeholder={tr("เช่น โฉนดเลขที่... / กข 1234")}
             />
 
             <Input
-              label="เจ้าของกรรมสิทธิ์"
+              label={tr("เจ้าของกรรมสิทธิ์")}
               value={assetForm.asset_owner}
               onChange={(value) =>
                 setAssetForm({ ...assetForm, asset_owner: value })
@@ -1422,7 +1402,7 @@ export default function EnforcementSection({
             />
 
             <Input
-              label="ราคาประเมิน / มูลค่าโดยประมาณ"
+              label={tr("ราคาประเมิน / มูลค่าโดยประมาณ")}
               value={assetForm.estimated_value}
               onChange={(value) =>
                 setAssetForm({
@@ -1434,7 +1414,7 @@ export default function EnforcementSection({
 
             <div style={{ gridColumn: "1 / -1" }}>
               <Textarea
-                label="รายละเอียดทรัพย์"
+                label={tr("รายละเอียดทรัพย์")}
                 value={assetForm.asset_description}
                 onChange={(value) =>
                   setAssetForm({
@@ -1442,12 +1422,12 @@ export default function EnforcementSection({
                     asset_description: value,
                   })
                 }
-                placeholder="เช่น ที่ดินตั้งอยู่ที่... / รถยนต์ยี่ห้อ... รุ่น..."
+                placeholder={tr("เช่น ที่ดินตั้งอยู่ที่... / รถยนต์ยี่ห้อ... รุ่น...")}
               />
             </div>
 
             <Input
-              label="วันที่แจ้งลูกค้า"
+              label={tr("วันที่แจ้งลูกค้า")}
               type="date"
               value={assetForm.client_notified_date}
               onChange={(value) =>
@@ -1459,7 +1439,7 @@ export default function EnforcementSection({
             />
 
             <Select
-              label="ผลการอนุมัติจากลูกค้า"
+              label={tr("ผลการอนุมัติจากลูกค้า")}
               value={assetForm.client_approval_status}
               onChange={(value) =>
                 setAssetForm({
@@ -1471,7 +1451,7 @@ export default function EnforcementSection({
             />
 
             <Input
-              label="วันที่ลูกค้าตอบ"
+              label={tr("วันที่ลูกค้าตอบ")}
               type="date"
               value={assetForm.client_approval_date}
               onChange={(value) =>
@@ -1483,7 +1463,7 @@ export default function EnforcementSection({
             />
 
             <Input
-              label="วันที่ยื่นคำขอยึด"
+              label={tr("วันที่ยื่นคำขอยึด")}
               type="date"
               value={assetForm.seizure_request_date}
               onChange={(value) =>
@@ -1495,7 +1475,7 @@ export default function EnforcementSection({
             />
 
             <Input
-              label="วันที่ยึดจริง"
+              label={tr("วันที่ยึดจริง")}
               type="date"
               value={assetForm.seizure_date}
               onChange={(value) =>
@@ -1504,7 +1484,7 @@ export default function EnforcementSection({
             />
 
             <Select
-              label="สถานะการยึด"
+              label={tr("สถานะการยึด")}
               value={assetForm.seizure_status}
               onChange={(value) =>
                 setAssetForm({ ...assetForm, seizure_status: value })
@@ -1513,7 +1493,7 @@ export default function EnforcementSection({
             />
 
             <Input
-              label="วันที่ประกาศขาย"
+              label={tr("วันที่ประกาศขาย")}
               type="date"
               value={assetForm.auction_announcement_date}
               onChange={(value) =>
@@ -1525,7 +1505,7 @@ export default function EnforcementSection({
             />
 
             <Input
-              label="วันขายทอดตลาด"
+              label={tr("วันขายทอดตลาด")}
               type="date"
               value={assetForm.auction_date}
               onChange={(value) =>
@@ -1534,7 +1514,7 @@ export default function EnforcementSection({
             />
 
             <Input
-              label="ขายครั้งที่"
+              label={tr("ขายครั้งที่")}
               value={assetForm.auction_round}
               onChange={(value) =>
                 setAssetForm({
@@ -1545,7 +1525,7 @@ export default function EnforcementSection({
             />
 
             <Select
-              label="สถานะการขาย"
+              label={tr("สถานะการขาย")}
               value={assetForm.auction_status}
               onChange={(value) =>
                 setAssetForm({ ...assetForm, auction_status: value })
@@ -1554,7 +1534,7 @@ export default function EnforcementSection({
             />
 
             <Input
-              label="ราคาขายได้"
+              label={tr("ราคาขายได้")}
               value={assetForm.sale_amount}
               onChange={(value) =>
                 setAssetForm({
@@ -1566,7 +1546,7 @@ export default function EnforcementSection({
 
             <div style={{ gridColumn: "1 / -1" }}>
               <Textarea
-                label="เหตุผลลูกค้า / ผลการขาย / หมายเหตุ"
+                label={tr("เหตุผลลูกค้า / ผลการขาย / หมายเหตุ")}
                 value={assetForm.client_reason || assetForm.note}
                 onChange={(value) =>
                   setAssetForm({
@@ -1586,7 +1566,7 @@ export default function EnforcementSection({
               disabled={savingAsset}
               style={primaryButtonStyle}
             >
-              {savingAsset ? "Saving..." : "Save"}
+              {savingAsset ? tr("Saving...") : tr("Save")}
             </button>
 
             <button
@@ -1595,16 +1575,15 @@ export default function EnforcementSection({
               disabled={savingAsset}
               style={secondaryButtonStyle}
             >
-              Cancel
-            </button>
+              {tr("Cancel")} </button>
           </div>
-        </div>
+        </CaseEditModal>
       )}
 
       {loading ? (
-        <div style={emptyStyle}>Loading enforcement data...</div>
+        <div style={emptyStyle}>{tr("Loading enforcement data...")} </div>
       ) : enforcements.length === 0 ? (
-        <div style={emptyStyle}>No enforcement data added.</div>
+        <div style={emptyStyle}>{tr("No enforcement data added.")} </div>
       ) : (
         <div style={enforcementListStyle}>
           {enforcements.map((item) => {
@@ -1635,9 +1614,10 @@ export default function EnforcementSection({
 ========================================================= */
 
 function SummaryCard({ label, value }: { label: string; value: string }) {
+  const { tr } = useCaseDetailText();
   return (
     <div style={summaryCardStyle}>
-      <div style={summaryLabelStyle}>{label}</div>
+      <div style={summaryLabelStyle}>{tr(label)}</div>
       <div style={summaryValueStyle}>{value}</div>
     </div>
   );
@@ -1664,6 +1644,7 @@ function EnforcementCard({
   onEditAsset: (item: AssetItem) => void;
   onDeleteAsset: (id: string) => void;
 }) {
+  const { tr, date } = useCaseDetailText();
   const status = renderEnforcementStatus(item.status);
   const urgency = getEnforcementUrgency(item);
   const commandDueAlert = getCommandDueAlert(item);
@@ -1674,24 +1655,24 @@ function EnforcementCard({
       <div style={cardHeaderStyle}>
         <div>
           <div style={cardTitleStyle}>
-            {renderPartyLabel(item.party_label, item.party_other)}
+            {tr(renderPartyLabel(item.party_label, item.party_other))}
           </div>
-          <div style={cardSubTitleStyle}>{status}</div>
+          <div style={cardSubTitleStyle}>{tr(status)}</div>
         </div>
 
-        <span style={getUrgencyBadgeStyle(urgency)}>{urgency}</span>
+        <span style={getUrgencyBadgeStyle(urgency)}>{tr(urgency)}</span>
       </div>
 
-      {commandDueAlert && <div style={alertBoxStyle}>{commandDueAlert}</div>}
+      {commandDueAlert && <div style={alertBoxStyle}>{tr(commandDueAlert)}</div>}
 
       <div style={metaGridStyle}>
-        <InfoLine label="Judgment Date" value={formatDisplayDate(item.judgment_date)} />
-        <InfoLine label="Command Service Date" value={formatDisplayDate(item.command_service_date)} />
-        <InfoLine label="Command Service Fee Paid" value={formatDisplayDate(item.command_service_fee_paid_date)} />
-        <InfoLine label="Service Method" value={renderServiceMethod(item.service_method)} />
-        <InfoLine label="Service Result" value={renderServiceResult(item.service_result)} />
+        <InfoLine label={tr("Judgment Date")} value={date(item.judgment_date)} />
+        <InfoLine label={tr("Command Service Date")} value={date(item.command_service_date)} />
+        <InfoLine label={tr("Command Service Fee Paid")} value={date(item.command_service_fee_paid_date)} />
+        <InfoLine label={tr("Service Method")} value={tr(renderServiceMethod(item.service_method))} />
+        <InfoLine label={tr("Service Result")} value={tr(renderServiceResult(item.service_result))} />
         <InfoLine
-          label="Compliance Days"
+          label={tr("Compliance Days")}
           value={
             item.compliance_days !== null && item.compliance_days !== undefined
               ? String(item.compliance_days)
@@ -1699,17 +1680,17 @@ function EnforcementCard({
           }
         />
         <InfoLine
-          label="Extra Days"
+          label={tr("Extra Days")}
           value={
             item.extra_days !== null && item.extra_days !== undefined
               ? String(item.extra_days)
               : "-"
           }
         />
-        <InfoLine label="Original Due Date" value={formatDisplayDate(item.original_due_date)} />
-        <InfoLine label="Final Due Date" value={formatDisplayDate(item.final_due_date)} />
-        <InfoLine label="Writ Request Date" value={formatDisplayDate(item.writ_request_date)} />
-        <InfoLine label="Writ Issued Date" value={formatDisplayDate(item.writ_issued_date)} />
+        <InfoLine label={tr("Original Due Date")} value={date(item.original_due_date)} />
+        <InfoLine label={tr("Final Due Date")} value={date(item.final_due_date)} />
+        <InfoLine label={tr("Writ Request Date")} value={date(item.writ_request_date)} />
+        <InfoLine label={tr("Writ Issued Date")} value={date(item.writ_issued_date)} />
       </div>
 
       {item.note && <div style={noteBlockStyle}>{item.note}</div>}
@@ -1719,28 +1700,25 @@ function EnforcementCard({
           {canEdit && (
             <>
               <button type="button" onClick={() => onEdit(item)} style={smallButtonStyle}>
-                Edit Command
-              </button>
+                {tr("Edit Command")} </button>
 
               <button type="button" onClick={() => onAddAsset(item.id)} style={smallButtonStyle}>
-                + Add Asset
-              </button>
+                {tr("+ Add Asset")} </button>
             </>
           )}
 
           {canDelete && (
             <button type="button" onClick={() => onDelete(item.id)} style={dangerButtonStyle}>
-              Delete
-            </button>
+              {tr("Delete")} </button>
           )}
         </div>
       )}
 
       <div style={assetSectionStyle}>
-        <div style={assetHeaderStyle}>Asset Search / Seizure / Auction</div>
+        <div style={assetHeaderStyle}>{tr("Asset Search / Seizure / Auction")} </div>
 
         {assets.length === 0 ? (
-          <div style={smallEmptyStyle}>No asset search records.</div>
+          <div style={smallEmptyStyle}>{tr("No asset search records.")} </div>
         ) : (
           <div style={assetListStyle}>
             {assets.map((asset) => (
@@ -1773,6 +1751,7 @@ function AssetCard({
   onEdit: (item: AssetItem) => void;
   onDelete: (id: string) => void;
 }) {
+  const { tr, date } = useCaseDetailText();
   const showActions = canEdit || canDelete;
 
   const title =
@@ -1785,38 +1764,38 @@ function AssetCard({
         <div>
           <div style={assetTitleStyle}>{title}</div>
           <div style={assetSubTitleStyle}>
-            {renderSearchAgency(item.search_agency)} •{" "}
-            {renderSearchResult(item.search_result)}
+            {tr(renderSearchAgency(item.search_agency))} •{" "}
+            {tr(renderSearchResult(item.search_result))}
           </div>
         </div>
 
         <span style={assetBadgeStyle}>
-          {renderClientApproval(item.client_approval_status)}
+          {tr(renderClientApproval(item.client_approval_status))}
         </span>
       </div>
 
       <div style={metaGridStyle}>
-        <InfoLine label="Search Office" value={item.search_office || "-"} />
-        <InfoLine label="Search Date" value={formatDisplayDate(item.search_date)} />
-        <InfoLine label="Asset Owner" value={item.asset_owner || "-"} />
-        <InfoLine label="Estimated Value" value={formatMoneyDisplay(item.estimated_value)} />
-        <InfoLine label="Client Notified" value={formatDisplayDate(item.client_notified_date)} />
-        <InfoLine label="Client Approval Date" value={formatDisplayDate(item.client_approval_date)} />
-        <InfoLine label="Seizure Request" value={formatDisplayDate(item.seizure_request_date)} />
-        <InfoLine label="Seizure Date" value={formatDisplayDate(item.seizure_date)} />
-        <InfoLine label="Seizure Status" value={renderSeizureStatus(item.seizure_status)} />
-        <InfoLine label="Auction Announcement" value={formatDisplayDate(item.auction_announcement_date)} />
-        <InfoLine label="Auction Date" value={formatDisplayDate(item.auction_date)} />
+        <InfoLine label={tr("Search Office")} value={item.search_office || "-"} />
+        <InfoLine label={tr("Search Date")} value={date(item.search_date)} />
+        <InfoLine label={tr("Asset Owner")} value={item.asset_owner || "-"} />
+        <InfoLine label={tr("Estimated Value")} value={tr(formatMoneyDisplay(item.estimated_value))} />
+        <InfoLine label={tr("Client Notified")} value={date(item.client_notified_date)} />
+        <InfoLine label={tr("Client Approval Date")} value={date(item.client_approval_date)} />
+        <InfoLine label={tr("Seizure Request")} value={date(item.seizure_request_date)} />
+        <InfoLine label={tr("Seizure Date")} value={date(item.seizure_date)} />
+        <InfoLine label={tr("Seizure Status")} value={tr(renderSeizureStatus(item.seizure_status))} />
+        <InfoLine label={tr("Auction Announcement")} value={date(item.auction_announcement_date)} />
+        <InfoLine label={tr("Auction Date")} value={date(item.auction_date)} />
         <InfoLine
-          label="Auction Round"
+          label={tr("Auction Round")}
           value={
             item.auction_round !== null && item.auction_round !== undefined
               ? String(item.auction_round)
               : "-"
           }
         />
-        <InfoLine label="Auction Status" value={renderAuctionStatus(item.auction_status)} />
-        <InfoLine label="Sale Amount" value={formatMoneyDisplay(item.sale_amount)} />
+        <InfoLine label={tr("Auction Status")} value={tr(renderAuctionStatus(item.auction_status))} />
+        <InfoLine label={tr("Sale Amount")} value={tr(formatMoneyDisplay(item.sale_amount))} />
       </div>
 
       {item.asset_description && (
@@ -1831,14 +1810,12 @@ function AssetCard({
         <div style={actionWrapStyle}>
           {canEdit && (
             <button type="button" onClick={() => onEdit(item)} style={smallButtonStyle}>
-              Edit Asset
-            </button>
+              {tr("Edit Asset")} </button>
           )}
 
           {canDelete && (
             <button type="button" onClick={() => onDelete(item.id)} style={dangerButtonStyle}>
-              Delete
-            </button>
+              {tr("Delete")} </button>
           )}
         </div>
       )}
@@ -1847,18 +1824,20 @@ function AssetCard({
 }
 
 function InfoLine({ label, value }: { label: string; value: string }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <div style={infoLabelStyle}>{label}</div>
+      <div style={infoLabelStyle}>{tr(label)}</div>
       <div style={infoValueStyle}>{value}</div>
     </div>
   );
 }
 
 function ReadOnlyBox({ label, value }: { label: string; value: string }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
+      <label style={labelStyle}>{tr(label)}</label>
       <div style={readonlyBoxStyle}>{value || "-"}</div>
     </div>
   );
@@ -1877,10 +1856,11 @@ function Input({
   placeholder?: string;
   type?: string;
 }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
-      <input
+      <label style={labelStyle}>{tr(label)}</label>
+      <input aria-label={tr(label)}
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -1902,17 +1882,18 @@ function Select({
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
 }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
-      <select
+      <label style={labelStyle}>{tr(label)}</label>
+      <select aria-label={tr(label)}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         style={inputStyle}
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
-            {option.label}
+            {tr(option.label)}
           </option>
         ))}
       </select>
@@ -1931,10 +1912,11 @@ function Textarea({
   onChange: (value: string) => void;
   placeholder?: string;
 }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
-      <textarea
+      <label style={labelStyle}>{tr(label)}</label>
+      <textarea aria-label={tr(label)}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
@@ -2221,7 +2203,7 @@ const sectionStyle: CSSProperties = {
   padding: "clamp(12px, 2vw, 16px)",
   borderRadius: 14,
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
 };
 
 const headerStyle: CSSProperties = {
@@ -2235,9 +2217,9 @@ const headerStyle: CSSProperties = {
 
 const titleStyle: CSSProperties = {
   margin: 0,
-  color: "#111111",
+  color: "#183854",
   fontSize: 18,
-  fontWeight: 900,
+  fontWeight: 700,
 };
 
 const subTitleStyle: CSSProperties = {
@@ -2264,40 +2246,24 @@ const summaryCardStyle: CSSProperties = {
   border: "1px solid #eeeeee",
   borderRadius: 12,
   padding: 11,
-  background: "#fafafa",
+  background: "#f7f9fc",
 };
 
 const summaryLabelStyle: CSSProperties = {
   fontSize: 11,
   color: "#777777",
   marginBottom: 4,
-  fontWeight: 800,
+  fontWeight: 700,
   textTransform: "uppercase",
   letterSpacing: "0.03em",
 };
 
 const summaryValueStyle: CSSProperties = {
   fontSize: 20,
-  fontWeight: 900,
-  color: "#111111",
+  fontWeight: 700,
+  color: "#183854",
 };
 
-const formCardStyle: CSSProperties = {
-  border: "1px solid #dddddd",
-  borderRadius: 14,
-  padding: 14,
-  background: "#ffffff",
-  marginBottom: 16,
-  scrollMarginTop: 105,
-};
-
-const formTitleStyle: CSSProperties = {
-  marginTop: 0,
-  marginBottom: 10,
-  color: "#111111",
-  fontSize: 16,
-  fontWeight: 900,
-};
 
 const formGridStyle: CSSProperties = {
   display: "grid",
@@ -2309,7 +2275,7 @@ const labelStyle: CSSProperties = {
   display: "block",
   marginBottom: 3,
   color: "#777777",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 11,
   textTransform: "uppercase",
   letterSpacing: "0.03em",
@@ -2321,7 +2287,7 @@ const inputStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #bbbbbb",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   colorScheme: "light",
   boxSizing: "border-box",
   fontSize: 13,
@@ -2339,9 +2305,9 @@ const readonlyBoxStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #dddddd",
   background: "#eeeeee",
-  color: "#111111",
+  color: "#183854",
   boxSizing: "border-box",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 13,
 };
 
@@ -2359,7 +2325,7 @@ const primaryButtonStyle: CSSProperties = {
   borderRadius: 8,
   border: "none",
   cursor: "pointer",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 13,
   whiteSpace: "nowrap",
 };
@@ -2367,7 +2333,7 @@ const primaryButtonStyle: CSSProperties = {
 const secondaryButtonStyle: CSSProperties = {
   padding: "8px 13px",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   borderRadius: 8,
   border: "1px solid #cccccc",
   cursor: "pointer",
@@ -2403,7 +2369,7 @@ const enforcementCardStyle: CSSProperties = {
   borderRadius: 12,
   padding: 12,
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   boxShadow: "0 1px 6px rgba(0,0,0,0.04)",
 };
 
@@ -2417,8 +2383,8 @@ const cardHeaderStyle: CSSProperties = {
 
 const cardTitleStyle: CSSProperties = {
   fontSize: 15,
-  fontWeight: 900,
-  color: "#111111",
+  fontWeight: 700,
+  color: "#183854",
   lineHeight: 1.45,
 };
 
@@ -2436,7 +2402,7 @@ const alertBoxStyle: CSSProperties = {
   border: "1px solid #f0d58a",
   color: "#8a4b00",
   fontSize: 14,
-  fontWeight: 800,
+  fontWeight: 700,
   marginBottom: 12,
 };
 
@@ -2451,15 +2417,15 @@ const infoLabelStyle: CSSProperties = {
   fontSize: 11,
   color: "#777777",
   marginBottom: 2,
-  fontWeight: 800,
+  fontWeight: 700,
   textTransform: "uppercase",
   letterSpacing: "0.03em",
 };
 
 const infoValueStyle: CSSProperties = {
   fontSize: 13,
-  color: "#111111",
-  fontWeight: 800,
+  color: "#183854",
+  fontWeight: 700,
   wordBreak: "break-word",
   lineHeight: 1.5,
 };
@@ -2469,7 +2435,7 @@ const noteBlockStyle: CSSProperties = {
   borderRadius: 10,
   background: "#f8fafc",
   border: "1px solid #eeeeee",
-  color: "#111111",
+  color: "#183854",
   fontSize: 13,
   lineHeight: 1.6,
   whiteSpace: "pre-wrap",
@@ -2491,7 +2457,7 @@ const smallButtonStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #cccccc",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   cursor: "pointer",
   fontWeight: 700,
   fontSize: 13,
@@ -2504,7 +2470,7 @@ const dangerButtonStyle: CSSProperties = {
   background: "#fff5f5",
   color: "#a40000",
   cursor: "pointer",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 13,
 };
 
@@ -2513,7 +2479,7 @@ const badgeBaseStyle: CSSProperties = {
   padding: "4px 8px",
   borderRadius: 999,
   fontSize: 11,
-  fontWeight: 900,
+  fontWeight: 700,
   whiteSpace: "nowrap",
 };
 
@@ -2525,9 +2491,9 @@ const assetSectionStyle: CSSProperties = {
 
 const assetHeaderStyle: CSSProperties = {
   fontSize: 15,
-  fontWeight: 900,
+  fontWeight: 700,
   marginBottom: 10,
-  color: "#111111",
+  color: "#183854",
 };
 
 const assetListStyle: CSSProperties = {
@@ -2539,7 +2505,7 @@ const assetCardStyle: CSSProperties = {
   border: "1px solid #eeeeee",
   borderRadius: 12,
   padding: 11,
-  background: "#fafafa",
+  background: "#f7f9fc",
 };
 
 const assetCardHeaderStyle: CSSProperties = {
@@ -2552,8 +2518,8 @@ const assetCardHeaderStyle: CSSProperties = {
 
 const assetTitleStyle: CSSProperties = {
   fontSize: 14,
-  fontWeight: 900,
-  color: "#111111",
+  fontWeight: 700,
+  color: "#183854",
   lineHeight: 1.45,
 };
 
@@ -2572,6 +2538,6 @@ const assetBadgeStyle: CSSProperties = {
   color: "#475467",
   border: "1px solid #d0d5dd",
   fontSize: 11,
-  fontWeight: 900,
+  fontWeight: 700,
   whiteSpace: "nowrap",
 };

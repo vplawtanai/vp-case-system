@@ -12,9 +12,9 @@ const { workspaceFixture } = require('./i18n-workspace-fixture.cjs');
 const item = { id:49, file_no:'VP-2026-049', court_name:'Court name', case_number:'1234/2569', title:'A very long complete case title '.repeat(30),client_id:'c1',client_name:'Client name',owner_name:'Lawyer name',phase:'litigation',case_type:'Civil',status:'Active',next_alerts:[] };
 const render = (Component,props,locale='en') => renderToStaticMarkup(React.createElement(UiLocaleProvider,{initialLocale:locale,pathname:'/cases'},React.createElement(Component,props)));
 
-test('English coverage is limited to the case list; full Case detail stays unchanged',()=>{
- for(const p of ['/cases','/cases/']) assert.equal(effectiveUiLocale('en',p),'en');
- for(const p of ['/cases/49','/cases/49/edit','/alerts']) assert.equal(effectiveUiLocale('en',p),'th');
+test('English coverage includes the released list and modernized full Case detail',()=>{
+ for(const p of ['/cases','/cases/','/cases/49']) assert.equal(effectiveUiLocale('en',p),'en');
+ for(const p of ['/cases/49/edit','/alerts']) assert.equal(effectiveUiLocale('en',p),'th');
 });
 test('preview uses real pending records: nearest upcoming hearing, outstanding task and deadline; no 30-day cutoff',()=>{
  const tasks=[{case_id:49,task_type:'Done task',due_date:'2026-10-01',status:'Done'},{case_id:49,task_type:'Pending task',due_date:'2026-10-07',status:'Pending'},{case_id:1,task_type:'Other case',due_date:'2026-01-01'}];

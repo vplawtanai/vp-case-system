@@ -1,6 +1,9 @@
 "use client";
+import { useCaseDetailText } from "../labels";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import CaseEditModal from "../CaseEditModal";
+
+import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../../../lib/supabase";
 import { createAuditLog } from "../../../../lib/auditLog";
@@ -146,6 +149,7 @@ export default function FeesSection({
   canEdit = false,
   canDelete = false,
 }: Props) {
+  const { tr } = useCaseDetailText();
   const caseIdNumber = Number(caseId);
 
   const [feeItems, setFeeItems] = useState<FeeItem[]>([]);
@@ -163,26 +167,6 @@ export default function FeesSection({
   const [expenseForm, setExpenseForm] =
     useState<ExpenseForm>(emptyExpenseForm);
 
-  const feeFormRef = useRef<HTMLDivElement | null>(null);
-  const expenseFormRef = useRef<HTMLDivElement | null>(null);
-
-  const scrollToFeeForm = () => {
-    window.setTimeout(() => {
-      feeFormRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 80);
-  };
-
-  const scrollToExpenseForm = () => {
-    window.setTimeout(() => {
-      expenseFormRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 80);
-  };
 
   const loadFees = async () => {
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) return;
@@ -199,7 +183,7 @@ export default function FeesSection({
         .order("due_date", { ascending: true });
 
       if (feesError) {
-        alert("Load fee items failed:\n" + JSON.stringify(feesError, null, 2));
+        alert(tr("Load fee items failed:\n" + JSON.stringify(feesError, null, 2)));
         setFeeItems([]);
         return;
       }
@@ -214,8 +198,8 @@ export default function FeesSection({
 
       if (expensesError) {
         alert(
-          "Load expense items failed:\n" +
-            JSON.stringify(expensesError, null, 2)
+          tr("Load expense items failed:\n" +
+            JSON.stringify(expensesError, null, 2))
         );
         setExpenseItems([]);
         return;
@@ -316,7 +300,7 @@ export default function FeesSection({
 
   const startAddFee = () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์เพิ่มรายการค่าวิชาชีพ");
+      alert(tr("คุณไม่มีสิทธิ์เพิ่มรายการค่าวิชาชีพ"));
       return;
     }
 
@@ -327,19 +311,19 @@ export default function FeesSection({
     });
     setShowFeeForm(true);
     setShowExpenseForm(false);
-    scrollToFeeForm();
+
   };
 
   const startEditFee = (item: FeeItem) => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์แก้ไขรายการค่าวิชาชีพ");
+      alert(tr("คุณไม่มีสิทธิ์แก้ไขรายการค่าวิชาชีพ"));
       return;
     }
 
     setEditingFeeId(item.id);
     setShowFeeForm(true);
     setShowExpenseForm(false);
-    scrollToFeeForm();
+
 
     setFeeForm({
       fee_type: item.fee_type || "ค่าวิชาชีพทนาย",
@@ -362,17 +346,17 @@ export default function FeesSection({
 
   const validateFee = () => {
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) {
-      alert("Missing case id");
+      alert(tr("Missing case id"));
       return false;
     }
 
     if (!feeForm.fee_type.trim()) {
-      alert("กรุณาเลือกประเภทค่าวิชาชีพ");
+      alert(tr("กรุณาเลือกประเภทค่าวิชาชีพ"));
       return false;
     }
 
     if (toNumber(feeForm.amount) <= 0) {
-      alert("กรุณากรอกจำนวนเงินค่าวิชาชีพ");
+      alert(tr("กรุณากรอกจำนวนเงินค่าวิชาชีพ"));
       return false;
     }
 
@@ -402,7 +386,7 @@ export default function FeesSection({
 
   const createFee = async () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์เพิ่มรายการค่าวิชาชีพ");
+      alert(tr("คุณไม่มีสิทธิ์เพิ่มรายการค่าวิชาชีพ"));
       cancelFeeForm();
       return;
     }
@@ -426,7 +410,7 @@ export default function FeesSection({
         .single();
 
       if (error) {
-        alert("Create fee item failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Create fee item failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -439,6 +423,7 @@ export default function FeesSection({
         newData: data || payload,
         note: "Create professional fee item",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       cancelFeeForm();
       await loadFees();
@@ -449,7 +434,7 @@ export default function FeesSection({
 
   const updateFee = async () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์แก้ไขรายการค่าวิชาชีพ");
+      alert(tr("คุณไม่มีสิทธิ์แก้ไขรายการค่าวิชาชีพ"));
       cancelFeeForm();
       return;
     }
@@ -472,7 +457,7 @@ export default function FeesSection({
         .single();
 
       if (error) {
-        alert("Update fee item failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Update fee item failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -485,6 +470,7 @@ export default function FeesSection({
         newData: data || (oldData ? { ...oldData, ...payload } : payload),
         note: "Update professional fee item",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       cancelFeeForm();
       await loadFees();
@@ -495,12 +481,12 @@ export default function FeesSection({
 
   const deleteFee = async (id: string) => {
     if (!canDelete) {
-      alert("คุณไม่มีสิทธิ์ลบรายการค่าวิชาชีพ");
+      alert(tr("คุณไม่มีสิทธิ์ลบรายการค่าวิชาชีพ"));
       return;
     }
 
     const confirmed = window.confirm(
-      "ต้องการลบรายการค่าวิชาชีพนี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
+      tr("ต้องการลบรายการค่าวิชาชีพนี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง")
     );
 
     if (!confirmed) return;
@@ -525,7 +511,7 @@ export default function FeesSection({
         .single();
 
       if (error) {
-        alert("Soft delete fee item failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Soft delete fee item failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -538,6 +524,7 @@ export default function FeesSection({
         newData: data || (oldData ? { ...oldData, ...payload } : payload),
         note: "Soft delete professional fee item",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       if (editingFeeId === id) cancelFeeForm();
 
@@ -549,7 +536,7 @@ export default function FeesSection({
 
   const startAddExpense = () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์เพิ่มรายการค่าใช้จ่าย");
+      alert(tr("คุณไม่มีสิทธิ์เพิ่มรายการค่าใช้จ่าย"));
       return;
     }
 
@@ -560,19 +547,19 @@ export default function FeesSection({
     });
     setShowExpenseForm(true);
     setShowFeeForm(false);
-    scrollToExpenseForm();
+
   };
 
   const startEditExpense = (item: ExpenseItem) => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์แก้ไขรายการค่าใช้จ่าย");
+      alert(tr("คุณไม่มีสิทธิ์แก้ไขรายการค่าใช้จ่าย"));
       return;
     }
 
     setEditingExpenseId(item.id);
     setShowExpenseForm(true);
     setShowFeeForm(false);
-    scrollToExpenseForm();
+
 
     setExpenseForm({
       expense_type: item.expense_type || "Travel / ค่าเดินทาง",
@@ -595,17 +582,17 @@ export default function FeesSection({
 
   const validateExpense = () => {
     if (!caseIdNumber || Number.isNaN(caseIdNumber)) {
-      alert("Missing case id");
+      alert(tr("Missing case id"));
       return false;
     }
 
     if (!expenseForm.expense_type.trim()) {
-      alert("กรุณาเลือกประเภทค่าใช้จ่าย");
+      alert(tr("กรุณาเลือกประเภทค่าใช้จ่าย"));
       return false;
     }
 
     if (toNumber(expenseForm.amount) <= 0) {
-      alert("กรุณากรอกจำนวนเงินค่าใช้จ่าย");
+      alert(tr("กรุณากรอกจำนวนเงินค่าใช้จ่าย"));
       return false;
     }
 
@@ -630,7 +617,7 @@ export default function FeesSection({
 
   const createExpense = async () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์เพิ่มรายการค่าใช้จ่าย");
+      alert(tr("คุณไม่มีสิทธิ์เพิ่มรายการค่าใช้จ่าย"));
       cancelExpenseForm();
       return;
     }
@@ -654,7 +641,7 @@ export default function FeesSection({
         .single();
 
       if (error) {
-        alert("Create expense item failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Create expense item failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -667,6 +654,7 @@ export default function FeesSection({
         newData: data || payload,
         note: "Create expense item",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       cancelExpenseForm();
       await loadFees();
@@ -677,7 +665,7 @@ export default function FeesSection({
 
   const updateExpense = async () => {
     if (!canEdit) {
-      alert("คุณไม่มีสิทธิ์แก้ไขรายการค่าใช้จ่าย");
+      alert(tr("คุณไม่มีสิทธิ์แก้ไขรายการค่าใช้จ่าย"));
       cancelExpenseForm();
       return;
     }
@@ -701,7 +689,7 @@ export default function FeesSection({
         .single();
 
       if (error) {
-        alert("Update expense item failed:\n" + JSON.stringify(error, null, 2));
+        alert(tr("Update expense item failed:\n" + JSON.stringify(error, null, 2)));
         return;
       }
 
@@ -714,6 +702,7 @@ export default function FeesSection({
         newData: data || (oldData ? { ...oldData, ...payload } : payload),
         note: "Update expense item",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       cancelExpenseForm();
       await loadFees();
@@ -724,12 +713,12 @@ export default function FeesSection({
 
   const deleteExpense = async (id: string) => {
     if (!canDelete) {
-      alert("คุณไม่มีสิทธิ์ลบรายการค่าใช้จ่าย");
+      alert(tr("คุณไม่มีสิทธิ์ลบรายการค่าใช้จ่าย"));
       return;
     }
 
     const confirmed = window.confirm(
-      "ต้องการลบรายการค่าใช้จ่ายนี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง"
+      tr("ต้องการลบรายการค่าใช้จ่ายนี้หรือไม่?\n\nระบบจะซ่อนรายการนี้ออกจากหน้าใช้งาน แต่ยังเก็บข้อมูลไว้ในฐานข้อมูลเพื่อใช้ตรวจสอบย้อนหลัง")
     );
 
     if (!confirmed) return;
@@ -755,7 +744,7 @@ export default function FeesSection({
 
       if (error) {
         alert(
-          "Soft delete expense item failed:\n" + JSON.stringify(error, null, 2)
+          tr("Soft delete expense item failed:\n" + JSON.stringify(error, null, 2))
         );
         return;
       }
@@ -769,6 +758,7 @@ export default function FeesSection({
         newData: data || (oldData ? { ...oldData, ...payload } : payload),
         note: "Soft delete expense item",
       });
+      window.dispatchEvent(new Event("case-detail-updated"));
 
       if (editingExpenseId === id) cancelExpenseForm();
 
@@ -782,43 +772,42 @@ export default function FeesSection({
     <div id="fees" style={sectionStyle}>
       <div style={headerStyle}>
         <div>
-          <h3 style={titleStyle}>Fees & Expenses</h3>
+          <h3 style={titleStyle}>{tr("Fees & Expenses")} </h3>
           <div style={subTitleStyle}>
-            ค่าวิชาชีพทนาย งวดชำระ ค่าเดินทาง ค่าธรรมเนียม และค่าใช้จ่ายภายนอก
-          </div>
+            {tr("ค่าวิชาชีพทนาย งวดชำระ ค่าเดินทาง ค่าธรรมเนียม และค่าใช้จ่ายภายนอก")} </div>
         </div>
       </div>
 
       <div style={summaryGridStyle}>
         <SummaryCard
-          label="Professional Fees"
-          value={formatCurrency(summary.professionalFeeTotal)}
+          label={tr("Professional Fees")}
+          value={tr(formatCurrency(summary.professionalFeeTotal))}
         />
         <SummaryCard
-          label="Fee Paid"
-          value={formatCurrency(summary.professionalFeePaid)}
+          label={tr("Fee Paid")}
+          value={tr(formatCurrency(summary.professionalFeePaid))}
         />
         <SummaryCard
-          label="Fee Outstanding"
-          value={formatCurrency(summary.professionalFeeOutstanding)}
+          label={tr("Fee Outstanding")}
+          value={tr(formatCurrency(summary.professionalFeeOutstanding))}
           tone={summary.professionalFeeOutstanding > 0 ? "warning" : "normal"}
         />
         <SummaryCard
-          label="Expenses"
-          value={formatCurrency(summary.expenseTotal)}
+          label={tr("Expenses")}
+          value={tr(formatCurrency(summary.expenseTotal))}
         />
         <SummaryCard
-          label="Expense Reimbursed"
-          value={formatCurrency(summary.expenseReimbursed)}
+          label={tr("Expense Reimbursed")}
+          value={tr(formatCurrency(summary.expenseReimbursed))}
         />
         <SummaryCard
-          label="Expense Outstanding"
-          value={formatCurrency(summary.expenseOutstanding)}
+          label={tr("Expense Outstanding")}
+          value={tr(formatCurrency(summary.expenseOutstanding))}
           tone={summary.expenseOutstanding > 0 ? "warning" : "normal"}
         />
         <SummaryCard
-          label="Total Outstanding"
-          value={formatCurrency(summary.totalOutstanding)}
+          label={tr("Total Outstanding")}
+          value={tr(formatCurrency(summary.totalOutstanding))}
           tone={summary.totalOutstanding > 0 ? "danger" : "normal"}
         />
       </div>
@@ -827,8 +816,8 @@ export default function FeesSection({
         <section style={panelStyle}>
           <div style={panelHeaderStyle}>
             <div>
-              <h4 style={panelTitleStyle}>Professional Fees</h4>
-              <div style={panelSubtitleStyle}>ค่าบริการ / ค่าวิชาชีพทนาย</div>
+              <h4 style={panelTitleStyle}>{tr("Professional Fees")} </h4>
+              <div style={panelSubtitleStyle}>{tr("ค่าบริการ / ค่าวิชาชีพทนาย")} </div>
             </div>
 
             {!showFeeForm ? (
@@ -838,8 +827,7 @@ export default function FeesSection({
                   onClick={startAddFee}
                   style={primaryButtonStyle}
                 >
-                  + Add Fee
-                </button>
+                  {tr("+ Add Fee")} </button>
               ) : null
             ) : (
               <button
@@ -847,29 +835,17 @@ export default function FeesSection({
                 onClick={cancelFeeForm}
                 style={secondaryButtonStyle}
               >
-                Cancel
-              </button>
+                {tr("Cancel")} </button>
             )}
           </div>
 
           {showFeeForm && (
-            <div ref={feeFormRef} style={formCardStyle}>
-              <div style={formHeaderStyle}>
-                <div>
-                  <h4 style={formTitleStyle}>
-                    {editingFeeId ? "Edit Fee" : "Add Fee"}
-                  </h4>
-                  <div style={formSubTitleStyle}>
-                    บันทึกค่าวิชาชีพ งวดชำระ ยอดรับชำระ และวันครบกำหนด
-                  </div>
-                </div>
+            <CaseEditModal title={editingFeeId ? tr("Edit Fee") : tr("Add Fee")} onClose={cancelFeeForm} busy={savingFee}>
 
-                {editingFeeId && <span style={editBadgeStyle}>Editing</span>}
-              </div>
 
               <div style={formGridStyle}>
                 <Select
-                  label="Fee Type"
+                  label={tr("Fee Type")}
                   value={feeForm.fee_type}
                   onChange={(value) =>
                     setFeeForm({ ...feeForm, fee_type: value })
@@ -881,7 +857,7 @@ export default function FeesSection({
                 />
 
                 <Input
-                  label="Installment No."
+                  label={tr("Installment No.")}
                   type="number"
                   value={feeForm.installment_no}
                   onChange={(value) =>
@@ -893,7 +869,7 @@ export default function FeesSection({
                 />
 
                 <Input
-                  label="Amount"
+                  label={tr("Amount")}
                   value={feeForm.amount}
                   onChange={(value) =>
                     setFeeForm({
@@ -905,7 +881,7 @@ export default function FeesSection({
                 />
 
                 <Input
-                  label="Paid Amount"
+                  label={tr("Paid Amount")}
                   value={feeForm.paid_amount}
                   onChange={(value) =>
                     setFeeForm({
@@ -917,7 +893,7 @@ export default function FeesSection({
                 />
 
                 <Input
-                  label="Due Date"
+                  label={tr("Due Date")}
                   type="date"
                   value={feeForm.due_date}
                   onChange={(value) =>
@@ -926,7 +902,7 @@ export default function FeesSection({
                 />
 
                 <Input
-                  label="Paid Date"
+                  label={tr("Paid Date")}
                   type="date"
                   value={feeForm.paid_date}
                   onChange={(value) =>
@@ -935,7 +911,7 @@ export default function FeesSection({
                 />
 
                 <Select
-                  label="Status"
+                  label={tr("Status")}
                   value={feeForm.status}
                   onChange={(value) =>
                     setFeeForm({ ...feeForm, status: value })
@@ -948,18 +924,18 @@ export default function FeesSection({
 
                 <div style={{ gridColumn: "1 / -1" }}>
                   <Textarea
-                    label="Description"
+                    label={tr("Description")}
                     value={feeForm.description}
                     onChange={(value) =>
                       setFeeForm({ ...feeForm, description: value })
                     }
-                    placeholder="เช่น ค่าวิชาชีพงวดที่ 1 เมื่อรับดำเนินคดี"
+                    placeholder={tr("เช่น ค่าวิชาชีพงวดที่ 1 เมื่อรับดำเนินคดี")}
                   />
                 </div>
 
                 <div style={{ gridColumn: "1 / -1" }}>
                   <Textarea
-                    label="Note"
+                    label={tr("Note")}
                     value={feeForm.note}
                     onChange={(value) =>
                       setFeeForm({ ...feeForm, note: value })
@@ -975,7 +951,7 @@ export default function FeesSection({
                   disabled={savingFee}
                   style={primaryButtonStyle}
                 >
-                  {savingFee ? "Saving..." : "Save"}
+                  {savingFee ? tr("Saving...") : tr("Save")}
                 </button>
 
                 <button
@@ -984,16 +960,15 @@ export default function FeesSection({
                   disabled={savingFee}
                   style={secondaryButtonStyle}
                 >
-                  Cancel
-                </button>
+                  {tr("Cancel")} </button>
               </div>
-            </div>
+            </CaseEditModal>
           )}
 
           {loading ? (
-            <div style={emptyStyle}>Loading fees...</div>
+            <div style={emptyStyle}>{tr("Loading fees...")} </div>
           ) : sortedFeeItems.length === 0 ? (
-            <div style={emptyStyle}>No professional fees added.</div>
+            <div style={emptyStyle}>{tr("No professional fees added.")} </div>
           ) : (
             <div style={itemListStyle}>
               {sortedFeeItems.map((item) => (
@@ -1013,10 +988,9 @@ export default function FeesSection({
         <section style={panelStyle}>
           <div style={panelHeaderStyle}>
             <div>
-              <h4 style={panelTitleStyle}>Expenses</h4>
+              <h4 style={panelTitleStyle}>{tr("Expenses")} </h4>
               <div style={panelSubtitleStyle}>
-                ค่าเดินทาง ค่าธรรมเนียม และค่าใช้จ่ายภายนอก
-              </div>
+                {tr("ค่าเดินทาง ค่าธรรมเนียม และค่าใช้จ่ายภายนอก")} </div>
             </div>
 
             {!showExpenseForm ? (
@@ -1026,8 +1000,7 @@ export default function FeesSection({
                   onClick={startAddExpense}
                   style={primaryButtonStyle}
                 >
-                  + Add Expense
-                </button>
+                  {tr("+ Add Expense")} </button>
               ) : null
             ) : (
               <button
@@ -1035,31 +1008,17 @@ export default function FeesSection({
                 onClick={cancelExpenseForm}
                 style={secondaryButtonStyle}
               >
-                Cancel
-              </button>
+                {tr("Cancel")} </button>
             )}
           </div>
 
           {showExpenseForm && (
-            <div ref={expenseFormRef} style={formCardStyle}>
-              <div style={formHeaderStyle}>
-                <div>
-                  <h4 style={formTitleStyle}>
-                    {editingExpenseId ? "Edit Expense" : "Add Expense"}
-                  </h4>
-                  <div style={formSubTitleStyle}>
-                    บันทึกค่าใช้จ่าย การออกเงินแทน และยอดเรียกคืนจากลูกค้า
-                  </div>
-                </div>
+            <CaseEditModal title={editingExpenseId ? tr("Edit Expense") : tr("Add Expense")} onClose={cancelExpenseForm} busy={savingExpense}>
 
-                {editingExpenseId && (
-                  <span style={editBadgeStyle}>Editing</span>
-                )}
-              </div>
 
               <div style={formGridStyle}>
                 <Select
-                  label="Expense Type"
+                  label={tr("Expense Type")}
                   value={expenseForm.expense_type}
                   onChange={(value) =>
                     setExpenseForm({ ...expenseForm, expense_type: value })
@@ -1071,7 +1030,7 @@ export default function FeesSection({
                 />
 
                 <Input
-                  label="Amount"
+                  label={tr("Amount")}
                   value={expenseForm.amount}
                   onChange={(value) =>
                     setExpenseForm({
@@ -1083,7 +1042,7 @@ export default function FeesSection({
                 />
 
                 <Input
-                  label="Expense Date"
+                  label={tr("Expense Date")}
                   type="date"
                   value={expenseForm.expense_date}
                   onChange={(value) =>
@@ -1092,7 +1051,7 @@ export default function FeesSection({
                 />
 
                 <Select
-                  label="Paid By"
+                  label={tr("Paid By")}
                   value={expenseForm.paid_by}
                   onChange={(value) =>
                     setExpenseForm({ ...expenseForm, paid_by: value })
@@ -1104,7 +1063,7 @@ export default function FeesSection({
                 />
 
                 <Select
-                  label="Status"
+                  label={tr("Status")}
                   value={expenseForm.status}
                   onChange={(value) =>
                     setExpenseForm({ ...expenseForm, status: value })
@@ -1116,7 +1075,7 @@ export default function FeesSection({
                 />
 
                 <Input
-                  label="Reimbursed Amount"
+                  label={tr("Reimbursed Amount")}
                   value={expenseForm.reimbursed_amount}
                   onChange={(value) =>
                     setExpenseForm({
@@ -1141,23 +1100,23 @@ export default function FeesSection({
                       })
                     }
                   />
-                  <span>Reimbursable / เรียกคืนจากลูกค้า</span>
+                  <span>{tr("Reimbursable / เรียกคืนจากลูกค้า")} </span>
                 </div>
 
                 <div style={{ gridColumn: "1 / -1" }}>
                   <Textarea
-                    label="Description"
+                    label={tr("Description")}
                     value={expenseForm.description}
                     onChange={(value) =>
                       setExpenseForm({ ...expenseForm, description: value })
                     }
-                    placeholder="เช่น ค่าเดินทางไปศาล / ค่าธรรมเนียมศาล / ค่าส่งเอกสาร"
+                    placeholder={tr("เช่น ค่าเดินทางไปศาล / ค่าธรรมเนียมศาล / ค่าส่งเอกสาร")}
                   />
                 </div>
 
                 <div style={{ gridColumn: "1 / -1" }}>
                   <Textarea
-                    label="Note"
+                    label={tr("Note")}
                     value={expenseForm.note}
                     onChange={(value) =>
                       setExpenseForm({ ...expenseForm, note: value })
@@ -1173,7 +1132,7 @@ export default function FeesSection({
                   disabled={savingExpense}
                   style={primaryButtonStyle}
                 >
-                  {savingExpense ? "Saving..." : "Save"}
+                  {savingExpense ? tr("Saving...") : tr("Save")}
                 </button>
 
                 <button
@@ -1182,16 +1141,15 @@ export default function FeesSection({
                   disabled={savingExpense}
                   style={secondaryButtonStyle}
                 >
-                  Cancel
-                </button>
+                  {tr("Cancel")} </button>
               </div>
-            </div>
+            </CaseEditModal>
           )}
 
           {loading ? (
-            <div style={emptyStyle}>Loading expenses...</div>
+            <div style={emptyStyle}>{tr("Loading expenses...")} </div>
           ) : sortedExpenseItems.length === 0 ? (
-            <div style={emptyStyle}>No expenses added.</div>
+            <div style={emptyStyle}>{tr("No expenses added.")} </div>
           ) : (
             <div style={itemListStyle}>
               {sortedExpenseItems.map((item) => (
@@ -1225,6 +1183,7 @@ function SummaryCard({
   value: string;
   tone?: "normal" | "warning" | "danger";
 }) {
+  const { tr } = useCaseDetailText();
   return (
     <div
       style={{
@@ -1233,7 +1192,7 @@ function SummaryCard({
         ...(tone === "danger" ? summaryDangerStyle : {}),
       }}
     >
-      <div style={summaryLabelStyle}>{label}</div>
+      <div style={summaryLabelStyle}>{tr(label)}</div>
       <div style={summaryValueStyle}>{value}</div>
     </div>
   );
@@ -1252,6 +1211,7 @@ function FeeCard({
   onEdit: (item: FeeItem) => void;
   onDelete: (id: string) => void;
 }) {
+  const { tr, date } = useCaseDetailText();
   const amount = toNumber(item.amount);
   const paid = toNumber(item.paid_amount);
   const outstanding = amount - paid;
@@ -1262,15 +1222,15 @@ function FeeCard({
       <div style={itemHeaderStyle}>
         <div>
           <div style={itemTitleStyle}>
-            งวดที่ {item.installment_no || "-"} : {item.fee_type || "-"}
+            {tr("งวดที่")} {item.installment_no || "-"} : {tr(item.fee_type || "-")}
           </div>
           <div style={itemMetaStyle}>
-            Due: {formatDisplayDate(item.due_date)} • Paid:{" "}
-            {formatCurrency(paid)}
+            {tr("Due:")} {date(item.due_date)} {tr("• Paid:")} {" "}
+            {tr(formatCurrency(paid))}
           </div>
         </div>
 
-        <span style={getStatusBadgeStyle(item.status)}>{item.status || "-"}</span>
+        <span style={getStatusBadgeStyle(item.status)}>{tr(item.status) || "-"}</span>
       </div>
 
       {item.description && (
@@ -1278,10 +1238,10 @@ function FeeCard({
       )}
 
       <div style={moneyGridStyle}>
-        <InfoLine label="Amount" value={formatCurrency(amount)} />
-        <InfoLine label="Paid" value={formatCurrency(paid)} />
-        <InfoLine label="Outstanding" value={formatCurrency(outstanding)} />
-        <InfoLine label="Paid Date" value={formatDisplayDate(item.paid_date)} />
+        <InfoLine label={tr("Amount")} value={tr(formatCurrency(amount))} />
+        <InfoLine label={tr("Paid")} value={tr(formatCurrency(paid))} />
+        <InfoLine label={tr("Outstanding")} value={tr(formatCurrency(outstanding))} />
+        <InfoLine label={tr("Paid Date")} value={date(item.paid_date)} />
       </div>
 
       {item.note && <div style={noteBlockStyle}>{item.note}</div>}
@@ -1294,8 +1254,7 @@ function FeeCard({
               onClick={() => onEdit(item)}
               style={smallButtonStyle}
             >
-              Edit
-            </button>
+              {tr("Edit")} </button>
           )}
 
           {canDelete && (
@@ -1304,8 +1263,7 @@ function FeeCard({
               onClick={() => onDelete(item.id)}
               style={dangerButtonStyle}
             >
-              Delete
-            </button>
+              {tr("Delete")} </button>
           )}
         </div>
       )}
@@ -1326,6 +1284,7 @@ function ExpenseCard({
   onEdit: (item: ExpenseItem) => void;
   onDelete: (id: string) => void;
 }) {
+  const { tr, date } = useCaseDetailText();
   const amount = toNumber(item.amount);
   const reimbursed = toNumber(item.reimbursed_amount);
   const outstanding = item.reimbursable === false ? 0 : amount - reimbursed;
@@ -1335,14 +1294,14 @@ function ExpenseCard({
     <div style={itemCardStyle}>
       <div style={itemHeaderStyle}>
         <div>
-          <div style={itemTitleStyle}>{item.expense_type || "-"}</div>
+          <div style={itemTitleStyle}>{tr(item.expense_type || "-")}</div>
           <div style={itemMetaStyle}>
-            Date: {formatDisplayDate(item.expense_date)} • Paid By:{" "}
-            {item.paid_by || "-"}
+            {tr("Date:")} {date(item.expense_date)} {tr("• Paid By:")} {" "}
+            {tr(item.paid_by || "-")}
           </div>
         </div>
 
-        <span style={getStatusBadgeStyle(item.status)}>{item.status || "-"}</span>
+        <span style={getStatusBadgeStyle(item.status)}>{tr(item.status) || "-"}</span>
       </div>
 
       {item.description && (
@@ -1350,11 +1309,11 @@ function ExpenseCard({
       )}
 
       <div style={moneyGridStyle}>
-        <InfoLine label="Amount" value={formatCurrency(amount)} />
-        <InfoLine label="Reimbursed" value={formatCurrency(reimbursed)} />
-        <InfoLine label="Outstanding" value={formatCurrency(outstanding)} />
+        <InfoLine label={tr("Amount")} value={tr(formatCurrency(amount))} />
+        <InfoLine label={tr("Reimbursed")} value={tr(formatCurrency(reimbursed))} />
+        <InfoLine label={tr("Outstanding")} value={tr(formatCurrency(outstanding))} />
         <InfoLine
-          label="Reimbursable"
+          label={tr("Reimbursable")}
           value={item.reimbursable === false ? "No" : "Yes"}
         />
       </div>
@@ -1369,8 +1328,7 @@ function ExpenseCard({
               onClick={() => onEdit(item)}
               style={smallButtonStyle}
             >
-              Edit
-            </button>
+              {tr("Edit")} </button>
           )}
 
           {canDelete && (
@@ -1379,8 +1337,7 @@ function ExpenseCard({
               onClick={() => onDelete(item.id)}
               style={dangerButtonStyle}
             >
-              Delete
-            </button>
+              {tr("Delete")} </button>
           )}
         </div>
       )}
@@ -1389,9 +1346,10 @@ function ExpenseCard({
 }
 
 function InfoLine({ label, value }: { label: string; value: string }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <div style={infoLabelStyle}>{label}</div>
+      <div style={infoLabelStyle}>{tr(label)}</div>
       <div style={infoValueStyle}>{value}</div>
     </div>
   );
@@ -1410,10 +1368,11 @@ function Input({
   placeholder?: string;
   type?: string;
 }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
-      <input
+      <label style={labelStyle}>{tr(label)}</label>
+      <input aria-label={tr(label)}
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -1435,17 +1394,18 @@ function Select({
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
 }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
-      <select
+      <label style={labelStyle}>{tr(label)}</label>
+      <select aria-label={tr(label)}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         style={inputStyle}
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
-            {option.label}
+            {tr(option.label)}
           </option>
         ))}
       </select>
@@ -1464,10 +1424,11 @@ function Textarea({
   onChange: (value: string) => void;
   placeholder?: string;
 }) {
+  const { tr } = useCaseDetailText();
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
-      <textarea
+      <label style={labelStyle}>{tr(label)}</label>
+      <textarea aria-label={tr(label)}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
@@ -1536,15 +1497,6 @@ function formatCurrency(value: number) {
   })} บาท`;
 }
 
-function formatDisplayDate(value?: string | null) {
-  if (!value) return "-";
-
-  const parts = value.split("-");
-  if (parts.length !== 3) return value;
-
-  const [year, month, day] = parts;
-  return `${day}/${month}/${year}`;
-}
 
 function getFeeSortScore(status?: string | null) {
   if (status === "Overdue") return 1;
@@ -1615,7 +1567,7 @@ const sectionStyle: CSSProperties = {
   padding: "clamp(12px, 2vw, 16px)",
   borderRadius: 14,
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
 };
 
 const headerStyle: CSSProperties = {
@@ -1629,9 +1581,9 @@ const headerStyle: CSSProperties = {
 
 const titleStyle: CSSProperties = {
   margin: 0,
-  color: "#111111",
+  color: "#183854",
   fontSize: 18,
-  fontWeight: 900,
+  fontWeight: 700,
 };
 
 const subTitleStyle: CSSProperties = {
@@ -1652,7 +1604,7 @@ const summaryCardStyle: CSSProperties = {
   border: "1px solid #eeeeee",
   borderRadius: 12,
   padding: 11,
-  background: "#fafafa",
+  background: "#f7f9fc",
 };
 
 const summaryWarningStyle: CSSProperties = {
@@ -1669,15 +1621,15 @@ const summaryLabelStyle: CSSProperties = {
   fontSize: 11,
   color: "#777777",
   marginBottom: 4,
-  fontWeight: 800,
+  fontWeight: 700,
   textTransform: "uppercase",
   letterSpacing: "0.03em",
 };
 
 const summaryValueStyle: CSSProperties = {
   fontSize: 16,
-  fontWeight: 900,
-  color: "#111111",
+  fontWeight: 700,
+  color: "#183854",
   lineHeight: 1.35,
 };
 
@@ -1691,7 +1643,7 @@ const panelStyle: CSSProperties = {
   border: "1px solid #eeeeee",
   borderRadius: 14,
   padding: 12,
-  background: "#fafafa",
+  background: "#f7f9fc",
 };
 
 const panelHeaderStyle: CSSProperties = {
@@ -1705,9 +1657,9 @@ const panelHeaderStyle: CSSProperties = {
 
 const panelTitleStyle: CSSProperties = {
   margin: 0,
-  color: "#111111",
+  color: "#183854",
   fontSize: 16,
-  fontWeight: 900,
+  fontWeight: 700,
 };
 
 const panelSubtitleStyle: CSSProperties = {
@@ -1724,7 +1676,7 @@ const primaryButtonStyle: CSSProperties = {
   borderRadius: 8,
   border: "none",
   cursor: "pointer",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 13,
   whiteSpace: "nowrap",
 };
@@ -1732,7 +1684,7 @@ const primaryButtonStyle: CSSProperties = {
 const secondaryButtonStyle: CSSProperties = {
   padding: "8px 13px",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   borderRadius: 8,
   border: "1px solid #cccccc",
   cursor: "pointer",
@@ -1741,49 +1693,6 @@ const secondaryButtonStyle: CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-const formCardStyle: CSSProperties = {
-  border: "1px solid #dddddd",
-  borderRadius: 14,
-  padding: 14,
-  background: "#ffffff",
-  marginBottom: 14,
-  scrollMarginTop: 105,
-};
-
-const formHeaderStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: 10,
-  alignItems: "flex-start",
-  marginBottom: 12,
-  flexWrap: "wrap",
-};
-
-const formTitleStyle: CSSProperties = {
-  margin: 0,
-  color: "#111111",
-  fontSize: 16,
-  fontWeight: 900,
-};
-
-const formSubTitleStyle: CSSProperties = {
-  marginTop: 3,
-  color: "#666666",
-  fontSize: 12,
-  lineHeight: 1.45,
-};
-
-const editBadgeStyle: CSSProperties = {
-  display: "inline-flex",
-  padding: "5px 10px",
-  borderRadius: 999,
-  background: "#fff8e1",
-  color: "#b54708",
-  border: "1px solid #eedc9a",
-  fontSize: 12,
-  fontWeight: 900,
-  whiteSpace: "nowrap",
-};
 
 const formGridStyle: CSSProperties = {
   display: "grid",
@@ -1795,7 +1704,7 @@ const labelStyle: CSSProperties = {
   display: "block",
   marginBottom: 3,
   color: "#777777",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 11,
   textTransform: "uppercase",
   letterSpacing: "0.03em",
@@ -1807,7 +1716,7 @@ const inputStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #bbbbbb",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   colorScheme: "light",
   boxSizing: "border-box",
   fontSize: 13,
@@ -1828,7 +1737,7 @@ const checkboxBoxStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #dddddd",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   fontWeight: 700,
   fontSize: 13,
 };
@@ -1861,7 +1770,7 @@ const itemCardStyle: CSSProperties = {
   borderRadius: 12,
   padding: 12,
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   boxShadow: "0 1px 6px rgba(0,0,0,0.04)",
 };
 
@@ -1875,8 +1784,8 @@ const itemHeaderStyle: CSSProperties = {
 
 const itemTitleStyle: CSSProperties = {
   fontSize: 14,
-  fontWeight: 900,
-  color: "#111111",
+  fontWeight: 700,
+  color: "#183854",
   lineHeight: 1.45,
   wordBreak: "break-word",
 };
@@ -1894,7 +1803,7 @@ const descriptionStyle: CSSProperties = {
   borderRadius: 10,
   background: "#f8fafc",
   border: "1px solid #eeeeee",
-  color: "#111111",
+  color: "#183854",
   fontSize: 13,
   lineHeight: 1.6,
   whiteSpace: "pre-wrap",
@@ -1912,15 +1821,15 @@ const infoLabelStyle: CSSProperties = {
   fontSize: 11,
   color: "#777777",
   marginBottom: 2,
-  fontWeight: 800,
+  fontWeight: 700,
   textTransform: "uppercase",
   letterSpacing: "0.03em",
 };
 
 const infoValueStyle: CSSProperties = {
   fontSize: 13,
-  color: "#111111",
-  fontWeight: 800,
+  color: "#183854",
+  fontWeight: 700,
   wordBreak: "break-word",
   lineHeight: 1.5,
 };
@@ -1931,7 +1840,7 @@ const noteBlockStyle: CSSProperties = {
   borderRadius: 10,
   background: "#f8fafc",
   border: "1px solid #eeeeee",
-  color: "#111111",
+  color: "#183854",
   fontSize: 13,
   lineHeight: 1.6,
   whiteSpace: "pre-wrap",
@@ -1952,7 +1861,7 @@ const smallButtonStyle: CSSProperties = {
   borderRadius: 8,
   border: "1px solid #cccccc",
   background: "#ffffff",
-  color: "#111111",
+  color: "#183854",
   cursor: "pointer",
   fontWeight: 700,
   fontSize: 13,
@@ -1965,7 +1874,7 @@ const dangerButtonStyle: CSSProperties = {
   background: "#fff5f5",
   color: "#a40000",
   cursor: "pointer",
-  fontWeight: 800,
+  fontWeight: 700,
   fontSize: 13,
 };
 
@@ -1974,6 +1883,6 @@ const badgeBaseStyle: CSSProperties = {
   padding: "4px 8px",
   borderRadius: 999,
   fontSize: 11,
-  fontWeight: 900,
+  fontWeight: 700,
   whiteSpace: "nowrap",
 };
