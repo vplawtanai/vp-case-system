@@ -34,6 +34,7 @@ export function formatMessage(catalog: MessageCatalog, locale: UiLocale, key: st
 // A module opts in only after its complete UI coverage has been validated.
 export const englishCoverage = {
   finance: true,
+  caseList: true,
   advisoryControl: true,
   visualAssets: true,
   documentSettings: true,
@@ -43,6 +44,7 @@ export const englishCoverage = {
 export type ModuleCoverage = Readonly<Record<keyof typeof englishCoverage, boolean>>;
 
 export function uiModule(pathname: string): keyof typeof englishCoverage {
+  if (/^\/cases\/?$/.test(pathname)) return "caseList";
   if (/^\/clients\/[^/]+\/tax-identity(?:\/|$)/.test(pathname)) return "finance";
   if (/^\/admin\/journey-templates(?:\/|$)/.test(pathname)) return "advisoryControl";
   if (/^\/advisory(?:\/[0-9a-f-]{36})?\/?$/.test(pathname)) return "advisoryControl";
