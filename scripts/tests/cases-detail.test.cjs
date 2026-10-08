@@ -13,6 +13,16 @@ const { effectiveUiLocale } = require('../../lib/i18n/core.ts');
 const { buildPermissions } = require('../../lib/permissions.ts');
 const base = 'app/cases/[id]/components/';
 const modal = { default: ({title,children}) => React.createElement('section',{role:'dialog'},React.createElement('h2',null,title),children) };
+test('detail alert keeps the shared list priority: overdue deadline before upcoming task',()=>{
+ const { getTodayDateKey } = require('../../lib/dueStatus.ts');
+ const day = delta => { const date = new Date(getTodayDateKey()+'T12:00:00Z'); date.setUTCDate(date.getUTCDate()+delta); return date.toISOString().slice(0,10); };
+ const f=workspaceFixture('app/cases/[id]/CaseSummary.tsx');
+ for(const locale of ['th','en']) {
+  const html=f.render(locale,{'CaseSummary.data':{tasks:[{case_id:1,task_type:'อื่นๆ',task_other:'Later task',due_date:day(10),status:'pending'}],deadlines:[{case_id:1,deadline_type:'other',deadline_other:'Overdue deadline',current_due_date:day(-1),status:'pending'}],timeline:[],enforcements:[]}},{caseId:1,revision:0,onSection:()=>{}});
+  const alert=html.match(/<button\b[^>]*data-tone="3"[\s\S]*?<\/button>/)?.[0];
+  assert.ok(alert);assert.match(alert,/Overdue deadline/);assert.doesNotMatch(alert,/Later task/);
+ }
+});
 const cases = [
  ['CaseInfoSection','isEditing','Edit Case Information'],['PartiesSection','showForm','Add Party'],['TimelineSection','showForm','Add Appointment'],['JudgmentsSection','showJudgmentForm','Add Judgment'],['JudgmentsSection','showFilingForm','Add Filing'],['EnforcementSection','showEnforcementForm','Add Command & Writ'],['EnforcementSection','showAssetForm','Add Asset Search / Seizure / Auction'],['TasksSection','showForm','Add Task'],['DeadlinesSection','showForm','Add Deadline'],['TimeLogsSection','showForm','Add Time Log'],['NotesSection','showForm','Add Note'],['FeesSection','showFeeForm','Add Fee'],['FeesSection','showExpenseForm','Add Expense'],['TimelineSection','isEditingFiling','Filing Date'],
 ];

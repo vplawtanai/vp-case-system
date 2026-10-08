@@ -30,7 +30,7 @@ export default function CaseSummary({ caseId, revision, onSection }: { caseId: n
   if (failed) return <div role="alert" className={css.notice}>{tr("Could not load case data. Please refresh.")}</div>;
   if (!data) return <div role="status" className={css.notice}>{tr("Loading...")}</div>;
   const { hearing, task, deadline } = casePreview(caseId,data.tasks,data.deadlines,data.timeline);
-  const alerts = buildAlertCandidates(data.tasks,data.deadlines,data.timeline,data.enforcements).sort((a,b)=>b.score-a.score||a.date.localeCompare(b.date));
+  const alerts = buildAlertCandidates(data.tasks,data.deadlines,data.timeline,data.enforcements);
   const next = alerts[0];
   const cards = [
     {key:"timeline",title:"Next hearing",icon:CalendarDays,value:hearing ? date(hearing.event_date) : tr("No upcoming hearing"),detail:hearing ? `${hearing.appointment_type === "นัดอื่นๆ" ? hearing.appointment_other || tr("Court Appointments") : caseTerm(hearing.appointment_type,locale)} ${hearing.event_time?.slice(0,5)||""}` : ""},
