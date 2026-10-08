@@ -594,6 +594,7 @@ function renderTableName(value?: string | null) {
   if (!value) return "-";
   if (value === "All") return "All";
 
+  if (value === "case_proceedings") return "Hearings & proceedings";
   if (value === "parties") return "Parties";
   if (value === "case_deadlines") return "Legal Deadlines";
   if (value === "case_deadline_extensions") return "Deadline Extensions";

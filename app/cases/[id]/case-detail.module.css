@@ -69,3 +69,37 @@
 @media(max-width:900px){.coreGrid{grid-template-columns:1fr}}
 @media(max-width:540px){.coreCard{padding:14px}.coreCard>header{align-items:flex-start;flex-wrap:wrap}.coreCard h2{font-size:14px}.coreFormGrid{grid-template-columns:1fr}.coreRoles>div{grid-template-columns:minmax(110px,42%) minmax(0,1fr);gap:8px}.coreEditor [role="dialog"]{width:100vw}.coreForm [role="listbox"]>div:last-child{margin-top:0}.coreForm [role="option"]{min-height:44px}}
 .primary{padding:9px 18px;border:1px solid #143c69;background:#143c69;color:#fff;border-radius:7px;font:inherit;cursor:pointer}.primary:disabled{opacity:.55;cursor:wait}
+
+.proceedings { display: grid; gap: 12px; min-width: 0; }
+.proceedingsHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.proceedingsHeader h4, .proceedingFollowups h4 { margin: 0; font-size: 14px; font-weight: 650; }
+.proceedingRow { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; border: 1px solid var(--border, #dde5ef); border-radius: 10px; background: #fff; }
+.proceedingRow > div { min-width: 0; }
+.proceedingRow h4 { margin: 5px 0; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.proceedingRow p, .reportSummary p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: 4px 0; font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+.proceedingRow button { flex-shrink: 0; }
+.reportSummary { border-top: 1px solid #e2e8f0; padding-top: 12px; margin-top: 12px; font-size: 13px; }
+.reportSummary > span { display: block; margin-bottom: 8px; }
+.proceedingsEditor { font-size: 13px; }
+.proceedingsEditor [role="dialog"] { width: min(660px, calc(100vw - 32px)); }
+.proceedingsEditor h2 { font-size: 18px; }
+.proceedingFieldset { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 14px; }
+.proceedingTitle { margin: 0; font-size: 16px; overflow-wrap: anywhere; }
+.proceedingFacts { display: grid; gap: 16px; margin: 0; }
+.proceedingFacts dt { font-size: 12px; color: #526580; margin-bottom: 5px; }
+.proceedingFacts dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.65; }
+.proceedingOptional { border-top: 1px solid #e2e8f0; padding-top: 12px; }
+.proceedingOptional summary { cursor: pointer; font-weight: 550; }
+.proceedingOptional label { margin-top: 12px; }
+.proceedingFollowups { border-top: 1px solid #e2e8f0; padding-top: 14px; display: grid; gap: 10px; overflow-wrap: anywhere; }
+.proceedingFollowups p { margin: 0; }
+.proceedingToggle { display: flex !important; align-items: center; gap: 9px; font-weight: 500; }
+.proceedingToggle input { width: 16px !important; height: 16px !important; min-height: 16px !important; margin: 0; flex-shrink: 0; }
+.proceedingFields { display: grid; gap: 12px; padding: 4px 0 12px 25px; }
+.proceedingByline { border-top: 1px solid #e2e8f0; padding-top: 12px; font-size: 12px; color: #526580; }
+.proceedingByline p { margin: 4px 0; }
+@media (max-width: 600px) {
+ .proceedingsEditor [role="dialog"] { width: 100vw; }
+ .proceedingRow { align-items: flex-start; flex-direction: column; gap: 8px; }
+ .proceedingFields { padding-left: 0; }
+}

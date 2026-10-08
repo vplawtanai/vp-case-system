@@ -2,9 +2,10 @@
 import { useCaseDetailText } from "../labels";
 
 import CaseEditModal from "../CaseEditModal";
+import CaseProceedings from "../CaseProceedings";
 
 import { useEffect, useMemo, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { supabase } from "../../../../lib/supabase";
 import { createAuditLog } from "../../../../lib/auditLog";
 
@@ -46,6 +47,7 @@ type Props = {
   timeline?: unknown[];
   canEdit?: boolean;
   canDelete?: boolean;
+  canViewHistory?: boolean;
 };
 
 const appointmentOptions = [
@@ -90,6 +92,7 @@ export default function TimelineSection({
   caseId,
   canEdit = false,
   canDelete = false,
+  canViewHistory = false,
 }: Props) {
   const { tr, date } = useCaseDetailText();
   const caseIdNumber = Number(caseId);
@@ -146,23 +149,13 @@ export default function TimelineSection({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [caseId, canEdit]);
 
-  const appointments = useMemo(() => {
-    return items
-      .filter((item) => item.event_type === "hearing")
-      .sort((a, b) => {
-        const aScore = getAppointmentAlertScore(a);
-        const bScore = getAppointmentAlertScore(b);
-
-        if (aScore !== bScore) return aScore - bScore;
-
-        const aDate = a.event_date || "9999-12-31";
-        const bDate = b.event_date || "9999-12-31";
-
-        if (aDate !== bDate) return aDate.localeCompare(bDate);
-
-        return (a.order_no || 0) - (b.order_no || 0);
-      });
-  }, [items]);
+  const appointments = useMemo(() => items.filter(item => item.event_type === "hearing"), [items]);
+  useEffect(() => {
+    const refresh = () => { void loadTimeline(); };
+    window.addEventListener("case-detail-updated", refresh);
+    return () => window.removeEventListener("case-detail-updated", refresh);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [caseId]);
 
   const summary = useMemo(() => {
     const scheduled = appointments.filter(
@@ -611,7 +604,7 @@ export default function TimelineSection({
     <div id="timeline" style={sectionStyle}>
       <div style={headerStyle}>
         <div>
-          <h3 style={titleStyle}>{tr("Court Timeline")} </h3>
+          <h3 style={titleStyle}>{tr("Hearings & proceedings")} </h3>
           <div style={subTitleStyle}>
             {tr("วันยื่นฟ้องและนัดศาล · รวม")} {summary.total} {tr("นัด")} </div>
         </div>
@@ -815,27 +808,12 @@ export default function TimelineSection({
         </CaseEditModal>
       )}
 
-      <div style={listHeaderStyle}>{tr("Court Appointments")} </div>
+      {loading ? <div style={emptyStyle}>{tr("Loading timeline...")}</div> :
+        <CaseProceedings caseId={Number(caseId)} hearings={appointments} canEdit={canEdit} canViewHistory={canViewHistory}
+          renderHearing={(item, report) => <AppointmentCard item={item} canEdit={canEdit} canDelete={canDelete}
+            onEdit={startEditAppointment} onDelete={deleteAppointment} onToggleDone={toggleAppointmentDone} report={report}/>}/>
+      }
 
-      {loading ? (
-        <div style={emptyStyle}>{tr("Loading timeline...")} </div>
-      ) : appointments.length === 0 ? (
-        <div style={emptyStyle}>{tr("No appointments added.")} </div>
-      ) : (
-        <div style={appointmentListStyle}>
-          {appointments.map((item) => (
-            <AppointmentCard
-              key={item.id}
-              item={item}
-              canEdit={canEdit}
-              canDelete={canDelete}
-              onEdit={startEditAppointment}
-              onDelete={deleteAppointment}
-              onToggleDone={toggleAppointmentDone}
-            />
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -861,6 +839,7 @@ function AppointmentCard({
   onEdit,
   onDelete,
   onToggleDone,
+  report,
 }: {
   item: TimelineItem;
   canEdit: boolean;
@@ -868,6 +847,7 @@ function AppointmentCard({
   onEdit: (item: TimelineItem) => void;
   onDelete: (id: string) => void;
   onToggleDone: (item: TimelineItem) => void;
+  report?: ReactNode;
 }) {
   const { tr, date } = useCaseDetailText();
   const appointmentText =
@@ -931,6 +911,8 @@ function AppointmentCard({
           <div style={infoValueStyle}>{item.note}</div>
         </div>
       )}
+
+      {report}
 
       {showActions && (
         <div style={actionWrapStyle}>
@@ -1082,19 +1064,6 @@ function getAppointmentAlertStatus(item: TimelineItem) {
   return "Normal (ยังไม่ใกล้)";
 }
 
-function getAppointmentAlertScore(item: TimelineItem) {
-  const status = getAppointmentAlertStatus(item);
-
-  if (status.startsWith("Overdue")) return 1;
-  if (status.startsWith("Today")) return 2;
-  if (status.startsWith("Upcoming")) return 3;
-  if (status.startsWith("Normal")) return 4;
-  if (status.startsWith("No Date")) return 5;
-  if (status.startsWith("Cancelled")) return 6;
-  if (status.startsWith("Done")) return 7;
-
-  return 9;
-}
 
 function getAppointmentBackground(alertStatus: string) {
   if (alertStatus.startsWith("Overdue")) return "#fff5f5";
@@ -1398,13 +1367,6 @@ const formButtonWrapStyle: CSSProperties = {
   flexWrap: "wrap",
 };
 
-const listHeaderStyle: CSSProperties = {
-  fontSize: 15,
-  fontWeight: 700,
-  color: "#183854",
-  marginBottom: 9,
-  paddingTop: 4,
-};
 
 const emptyStyle: CSSProperties = {
   padding: 14,
@@ -1416,11 +1378,6 @@ const emptyStyle: CSSProperties = {
   fontWeight: 700,
 };
 
-const appointmentListStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-  gap: 10,
-};
 
 const appointmentCardStyle: CSSProperties = {
   border: "1px solid #dddddd",

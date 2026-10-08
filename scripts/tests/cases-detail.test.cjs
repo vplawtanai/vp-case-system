@@ -27,7 +27,7 @@ const cases = [
  ['CaseInfoSection','isEditing','Edit Case Information'],['PartiesSection','showForm','Add Party'],['TimelineSection','showForm','Add Appointment'],['JudgmentsSection','showJudgmentForm','Add Judgment'],['JudgmentsSection','showFilingForm','Add Filing'],['EnforcementSection','showEnforcementForm','Add Command & Writ'],['EnforcementSection','showAssetForm','Add Asset Search / Seizure / Auction'],['TasksSection','showForm','Add Task'],['DeadlinesSection','showForm','Add Deadline'],['TimeLogsSection','showForm','Add Time Log'],['NotesSection','showForm','Add Note'],['TimelineSection','isEditingFiling','Filing Date'],
 ];
 for(const [section,key,title] of cases) test(`${section}/${key}: modal retains fields and save/cancel in TH/EN`,()=>{
- const f=workspaceFixture(base+section+'.tsx',[],{'../CaseEditModal':modal});
+ const f=workspaceFixture(base+section+'.tsx',[],{'../CaseEditModal':modal,'../CaseProceedings':{default:workspaceFixture('app/cases/[id]/CaseProceedings.tsx',[],{'./CaseEditModal':modal}).component('CaseProceedings')}});
  for(const locale of ['th','en']) {
   const html=f.render(locale,{[`${section}.${key}`]:true,[`${section}.loading`]:false},{caseId:'1',caseItem:{id:1},canEdit:true,canDelete:true});
   assert.match(html,/role="dialog"/);assert.ok(html.includes(detailText(title,locale).replaceAll("&", "&amp;")),title);

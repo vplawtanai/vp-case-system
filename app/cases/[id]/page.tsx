@@ -318,7 +318,7 @@ export default function CaseDetailPage() {
   const displayClientName =
     linkedClientName || caseItem?.client_name || caseItem?.clientName || "-";
 
-  const tabs = [["info","Overview"],["parties","Parties"],["timeline","Court Appointments"],["judgments","Judgments & Filings"],["enforcement","Enforcement"],["tasks","Tasks"],["deadlines","Legal Deadlines"],["timelogs","Time Logs"],["finance-documents","Finance documents"],["notes","Notes"],...(permissions.canViewHistory || (permissions.canViewFees && hasLegacyFees) ? [["history",permissions.canViewHistory ? "History / Audit Log" : "Legacy history"]] : [])];
+  const tabs = [["info","Overview"],["parties","Parties"],["timeline","Hearings & proceedings"],["judgments","Judgments & Filings"],["enforcement","Enforcement"],["tasks","Tasks"],["deadlines","Legal Deadlines"],["timelogs","Time Logs"],["finance-documents","Finance documents"],["notes","Notes"],...(permissions.canViewHistory || (permissions.canViewFees && hasLegacyFees) ? [["history",permissions.canViewHistory ? "History / Audit Log" : "Legacy history"]] : [])];
   const activeSection = tabs.some(([key]) => key === section) ? section : "info";
   return (
     <AuthGuard><main className={css.page}>
@@ -359,6 +359,7 @@ export default function CaseDetailPage() {
             caseId={id}
             timeline={timeline}
             canEdit={permissions.canEditTimeline}
+            canViewHistory={permissions.canViewHistory}
             canDelete={permissions.canSoftDelete}
           />
         </div>
