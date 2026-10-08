@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
-import { CalendarDays, ListTodo, Clock3, BellRing, CircleDot } from "lucide-react";
+import { CalendarDays, ListTodo, Clock3, BellRing, UserRound } from "lucide-react";
 import { supabase } from "../../../lib/supabase";
 import { buildAlertCandidates, casePreview, type CaseTask, type CaseDeadline, type CaseTimeline, type CaseEnforcement } from "../case-list-model";
 import { alertLabel, caseTerm } from "../labels";
 import { useCaseDetailText } from "./labels";
 import css from "./case-detail.module.css";
 
-export default function CaseSummary({ caseId, revision, onSection, coreSummary }: { caseId: number; revision: number; onSection: (section: string) => void; coreSummary?: {next:string;nextDetail:string;work:string;onNext:()=>void;onWork:()=>void} }) {
+export default function CaseSummary({ caseId, revision, onSection, coreSummary }: { caseId: number; revision: number; onSection: (section: string) => void; coreSummary?: {next:string;nextDetail:string;currentActor:string;onNext:()=>void;onActor:()=>void} }) {
   const { tr, date, locale } = useCaseDetailText();
   const [data, setData] = useState<{ tasks: CaseTask[]; deadlines: CaseDeadline[]; timeline: CaseTimeline[]; enforcements: CaseEnforcement[] } | null>(null);
   const [failed, setFailed] = useState(false);
@@ -38,6 +38,6 @@ export default function CaseSummary({ caseId, revision, onSection, coreSummary }
     {key:"deadlines",title:"Nearest deadline",icon:Clock3,value:deadline ? date(deadline.current_due_date) : tr("No pending deadline"),detail:deadline ? (deadline.deadline_type === "other" ? deadline.deadline_other || tr("Deadline") : caseTerm(deadline.deadline_type,locale)) : ""},
     {key:next?.kind === "enforcement" ? "enforcement" : next?.kind === "task" ? "tasks" : next?.kind === "hearing" ? "timeline" : "deadlines",title:"Current alerts",icon:BellRing,value:next ? alertLabel(next,locale) : tr("No current alerts"),detail:next ? date(next.date) : ""},
   ];
-  const shown = coreSummary ? [cards[0],cards[2],{key:"primary",title:"Primary next action",icon:ListTodo,value:coreSummary.next,detail:coreSummary.nextDetail},{key:"work",title:"Work state",icon:CircleDot,value:coreSummary.work,detail:""}] : cards;
-  return <><div className={css.summary}>{shown.map(({key,title,icon:Icon,value,detail},i)=><button key={title} className={css.summaryCard} data-tone={i} onClick={()=>key==="primary"?coreSummary?.onNext():key==="work"?coreSummary?.onWork():onSection(key)}><Icon size={21}/><span><small>{tr(title)}</small><strong>{value}</strong>{detail && <span>{detail}</span>}</span></button>)}</div>{coreSummary && next && <button className={css.coreAlert} onClick={()=>onSection(cards[3].key)}><BellRing size={16}/>{tr("Current alerts")}: {alertLabel(next,locale)} · {date(next.date)}</button>}</>;
+  const shown = coreSummary ? [cards[0],cards[2],{key:"primary",title:"Primary next action",icon:ListTodo,value:coreSummary.next,detail:coreSummary.nextDetail},{key:"actor",title:"role.current_actor",icon:UserRound,value:coreSummary.currentActor,detail:""}] : cards;
+  return <><div className={css.summary}>{shown.map(({key,title,icon:Icon,value,detail},i)=><button key={title} className={css.summaryCard} data-tone={i} onClick={()=>key==="primary"?coreSummary?.onNext():key==="actor"?coreSummary?.onActor():onSection(key)}><Icon size={21}/><span><small>{tr(title)}</small><strong>{value}</strong>{detail && <span>{detail}</span>}</span></button>)}</div>{coreSummary && next && <button className={css.coreAlert} onClick={()=>onSection(cards[3].key)}><BellRing size={16}/>{tr("Current alerts")}: {alertLabel(next,locale)} · {date(next.date)}</button>}</>;
 }

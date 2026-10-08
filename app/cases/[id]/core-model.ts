@@ -7,7 +7,12 @@ export type CoreData = {
  core: null | {version:number;work_state:string|null;next_mode:'none'|'manual'|'task';next_task_id:string|null;next_title:string|null;next_assignee_id:string|null;next_due:string|null};
  team: {person_id:string;team_role:TeamRole}[]; people:CorePerson[];tasks:CoreTask[];
 };
-export function personLabel(p:CorePerson) { return `${p.name}${p.full_name && p.full_name!==p.name ? ' · '+p.full_name : ''} · ${p.id.slice(0,8)}`; }
+export function personLabel(p:CorePerson, people:CorePerson[] = []) {
+ const name=p.name.trim();
+ // Names are display/search facts only. Selection and stored history always use People IDs.
+ return people.some(other=>other.id!==p.id && other.name.trim()===name) && p.full_name && p.full_name!==name
+  ? `${name} · ${p.full_name}` : name;
+}
 export function linkedTaskAvailable(t:CoreTask|undefined) { return !!t && !t.deleted_at && t.status!=='Done'; }
 export function primaryAction(data:CoreData) {
  const c=data.core;
