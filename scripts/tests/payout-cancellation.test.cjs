@@ -34,7 +34,9 @@ for(const locale of ['th','en']){
  test(`${locale}: cancelled history retains amounts/choices/date but exposes no mutations or false cash impact`,()=>{
   const cancelled={...data,payout:{...payout,status:'cancelled',version:2,cancelled_at:'2026-09-18T02:00:00Z'},history:[{...data.history[0],status:'cancelled'}]};
   const html=render(locale,{},cancelled);
-  for(const key of ['cancelledDraft','cancelledResult','cancelledEvidence','cancelledAt','cancelRightsRemain','backPayables','history','draftNet'])assert.ok(html.includes(t(key)),key);
+  assert.ok(html.includes('href="/finance/revenue-distribution"'));
+  assert.ok(!html.includes('href="/finance/payables"'));
+  for(const key of ['cancelledDraft','cancelledResult','cancelledEvidence','cancelledAt','cancelRightsRemain','history','draftNet'])assert.ok(html.includes(t(key)),key);
   for(const key of ['save','review','cancel','fixPayee'])assert.equal(buttons(html).some(b=>b.includes(t(key))),false,key);
   assert.ok(!html.includes(t('after')));assert.ok(!html.includes(t('before')));
   assert.ok(!html.includes(`aria-label="${t('progress')}"`));

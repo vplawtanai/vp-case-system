@@ -48,7 +48,7 @@ export function MaterializeEntitlements({ distributionId, version, canManage }: 
     <div className={styles.actions}>
       {state === "missing" && canManage ? <button type="button" className={ui.primary} disabled={busy} onClick={() => void run(true)}>{t("payables.materialize")}</button> : null}
       {state === "failed" ? <button type="button" className={ui.secondary} disabled={busy} onClick={() => void run(false)}>{t("common.actions.retry")}</button> : null}
-      <Link className={ui.secondary} href="/finance/payables">{t("payables.title")}</Link>
+      <Link className={ui.secondary} href="/finance/revenue-distribution">{t("revenueDistribution.title")}</Link>
     </div>
   </section>;
 }

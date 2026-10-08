@@ -20,7 +20,7 @@ import css from "./overview.module.css";
 
 type Amount = { currency: string; amount: number | null };
 type Alert = { key: string; count: number; href: string; amounts?: Amount[] };
-const routes = { statement: "/finance/statement", invoices: "/finance/invoices", payables: "/finance/payables", tax: "/finance/tax-position", distribution: "/finance/revenue-distribution" };
+const routes = { statement: "/finance/statement", invoices: "/finance/invoices", expenses: "/finance/expenses", claims: "/finance/expenses/claims", tax: "/finance/tax-position", distribution: "/finance/revenue-distribution" };
 
  function Values({ values, id }: { values: Amount[] | null; id?: string }) {
   const { t, locale } = useI18n(), w = (key: string) => t(`executive.${key}`);
@@ -39,9 +39,9 @@ const routes = { statement: "/finance/statement", invoices: "/finance/invoices",
   const { t } = useI18n(), w = (key: string) => t(`executive.${key}`);
   return <section className={css.section} data-section={name} data-tone={tone} aria-labelledby={`overview-${name}`}><header className={css.sectionHead}><span className={css.sectionIcon}>{icon}</span><div><h2 id={`overview-${name}`}>{w(name)}</h2><p>{help}</p></div>{action}</header>{children}</section>;
  }
- function Liability({ result, rows, href }: { result: Result<Aggregate> | undefined; rows: [string, string, string][]; href: string }) {
+ function Liability({ result, rows, href }: { result: Result<Aggregate> | undefined; rows: [string, string, string, string?][]; href: string }) {
   const { t } = useI18n(), w = (key: string) => t(`executive.${key}`);
-  return <><Notice result={result}/>{result?.status === "ready" ? result.value.currencies.length ? result.value.currencies.map(currency => <div className={css.liability} key={currency.currency}><div className={css.currencyLabel}>{currency.currency}</div>{rows.map(([label, amount, count]) => <Link href={href} key={label} className={css.liabilityRow}><span>{w(label)}</span><small>{t("executive.count", { count: Number(currency[count]) })}</small><Values values={[{ currency: currency.currency, amount: Number(currency[amount]) }]}/></Link>)}</div>) : <p className={css.empty}>{w("empty")}</p> : !result ? <p className={css.empty}>—</p> : null}</>;
+  return <><Notice result={result}/>{result?.status === "ready" ? result.value.currencies.length ? result.value.currencies.map(currency => <div className={css.liability} key={currency.currency}><div className={css.currencyLabel}>{currency.currency}</div>{rows.map(([label, amount, count, sourceHref]) => <Link href={sourceHref || href} key={label} className={css.liabilityRow}><span>{w(label)}</span><small>{t("executive.count", { count: Number(currency[count]) })}</small><Values values={[{ currency: currency.currency, amount: Number(currency[amount]) }]}/></Link>)}</div>) : <p className={css.empty}>{w("empty")}</p> : !result ? <p className={css.empty}>—</p> : null}</>;
  }
 
 export function ExecutiveOverview({ permissions }: { permissions: UserPermissions }) {
@@ -84,7 +84,7 @@ export function OverviewView({ data, month, today, setMonth, refresh, detail, se
  if (balances?.unknown) alerts.push({ key: "opening", count: balances.unknown, href: routes.statement });
  for (const [key, result, countField, amountField, href] of [
   ["overdue", data?.receivables, "overdue_count", "overdue_amount", routes.invoices],
-  ["totalPayable", data?.payables, "outstanding_count", "outstanding_amount", routes.payables],
+  ["totalPayable", data?.payables, "outstanding_count", "outstanding_amount", routes.expenses],
   ["participants", data?.participants, "unpaid_entitlement_count", "unpaid_amount", routes.distribution],
  ] as const) if (result?.status === "ready") { const rows = result.value.currencies.filter(row => Number(row[countField]) > 0); if (rows.length) alerts.push({ key, count: rows.reduce((n, row) => n + Number(row[countField]), 0), href, amounts: rows.map(row => ({ currency: row.currency, amount: Number(row[amountField]) })) }); }
  if (pending?.some(row => row.count > 0)) alerts.push({ key: "pendingDistribution", count: pending.reduce((n, row) => n + row.count, 0), href: routes.distribution, amounts: pendingAmounts! });
@@ -126,7 +126,7 @@ export function OverviewView({ data, month, today, setMonth, refresh, detail, se
    </Section>
    <div className={css.two}>
     <Section name="receivables" help={w("receivableHelp")} icon={<FileText size={18}/>} tone="green" action={<More href={routes.invoices}/>}><Liability result={data?.receivables} href={routes.invoices} rows={[["outstandingInvoice", "outstanding_amount", "outstanding_count"], ["overdue", "overdue_amount", "overdue_count"], ["dueSoon", "due_soon_amount", "due_soon_count"], ["noDue", "no_due_date_amount", "no_due_date_count"]]}/></Section>
-    <Section name="payables" help={w("payableHelp")} icon={<Wallet size={18}/>} tone="orange" action={<More href={routes.payables}/>}><Liability result={data?.payables} href={routes.payables} rows={[["totalPayable", "outstanding_amount", "outstanding_count"], ["purchase", "company_purchase_amount", "company_purchase_count"], ["reimbursement", "reimbursement_amount", "reimbursement_count"], ["dueSoon", "due_soon_amount", "due_soon_count"]]}/></Section>
+    <Section name="payables" help={w("payableHelp")} icon={<Wallet size={18}/>} tone="orange" action={<More href={routes.expenses}/>}><Liability result={data?.payables} href={routes.expenses} rows={[["totalPayable", "outstanding_amount", "outstanding_count"], ["purchase", "company_purchase_amount", "company_purchase_count"], ["reimbursement", "reimbursement_amount", "reimbursement_count", routes.claims], ["dueSoon", "due_soon_amount", "due_soon_count"]]}/></Section>
    </div>
    <Section name="tax" help={w("taxHelp")} icon={<FileText size={18}/>} tone="purple" action={<More href={routes.tax}/>}>
     <p className={css.note}>{taxScope}{tax ? ` · ${w("filingMonth")} ${monthLabel(filingMonthForTaxPeriod(tax.month.month))}` : ""}</p>

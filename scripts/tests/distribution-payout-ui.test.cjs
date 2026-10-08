@@ -2,7 +2,8 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
 const {workspaceFixture}=require('./i18n-workspace-fixture.cjs'),{translate}=require('../../lib/i18n/catalog.ts');
 const fixture=require('./distribution-payout-fixture.json');
-const detail=workspaceFixture('app/finance/revenue-distribution/detail.tsx',['RevenueDetail'],{'./participant-payment':{ParticipantPayment:()=>null}});
+const badge=workspaceFixture('app/finance/revenue-distribution/workspace.tsx',['RevenueBadge']);
+const detail=workspaceFixture('app/finance/revenue-distribution/detail.tsx',['RevenueDetail'],{'./participant-payment':{ParticipantPayment:()=>null},'./workspace':{RevenueBadge:badge.RevenueBadge},'../payments/vp-formula-editor':{VpFormulaEditor:()=>null}});
 for(const locale of ['th','en'])test('068 '+locale+' participant actions/status, company excluded and readonly',()=>{
  const c={...structuredClone(fixture.detail),can_pay:true},w=k=>translate(locale,'revenueDistribution.'+k),render=data=>detail.render(locale,{'RevenueDetail.data':data},{sourceType:'direct_money_receipt',sourceId:c.summary.source_id},'RevenueDetail');
  let html=render(c);assert.equal((html.match(new RegExp('>'+w('pay')+'</button>','g'))||[]).length,2);assert.ok(html.includes(w('company')));

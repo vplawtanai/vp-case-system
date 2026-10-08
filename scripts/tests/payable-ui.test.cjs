@@ -7,29 +7,14 @@ const {financeNavigationLinks,financeNavigationItems,activeFinancePage}=require(
 const {translate}=require('../../lib/i18n/catalog.ts');
 const {payableMessages}=require('../../lib/i18n/messages/payables.ts');
 const {initialPayableFilters,payableError,payableGroupKey,payableRoleLabel,payableQueueSummary}=require('../../app/finance/payables/shared.ts');
-const page=workspaceFixture('app/finance/payables/page.tsx',['PayablesWorkspace','PayableGroups'],{'../quotations/shared':{QuotationGuard:()=>null},'../FinanceSubNav':{default:()=>null},'./multi-source':{MultiSourcePayables:()=>null}});
+const page=workspaceFixture('app/finance/payables/groups.tsx',['PayableGroups']);
 const materialize=workspaceFixture('app/finance/payables/materialize-action.tsx',['MaterializeEntitlements']);
-for(const locale of ['th','en'])test(`Payables ${locale}: initial zero-state is neutral and offers no payout or materialization action`,()=>{
- const html=page.render(locale,{'PayablesWorkspace.loading':false,'PayablesWorkspace.data':{groups:[],has_next:false}},{},'PayablesWorkspace');
- assert.ok(html.includes(translate(locale,'payables.empty')));
- assert.ok(html.includes(translate(locale,'payables.emptyHelp')));
- assert.doesNotMatch(html,/role="alert"|data-recipient=|type="checkbox"/);
- assert.ok(!html.includes(translate(locale,'payables.materialize')));
- assert.equal(translate(locale,'payables.superseded'),locale==='th'?'ถูกแทนที่':'Superseded');
- assert.equal(translate(locale,'payables.open'),locale==='th'?'รอจ่าย':'Open');
-});
 test('Payables source and entitlement type default to All; status remains Open',()=>{
  assert.deepEqual(initialPayableFilters,{search:'',source:'all',bucket:'all',status:'open'});
 });
-for(const locale of ['th','en'])test(`Payables ${locale}: hide pagination for zero/one page; keep real next/previous navigation`,()=>{
- for(const [data,offset,visible] of [[{groups:[],has_next:false},0,false],[fixture(),0,false],[multiPageFixture(),0,true],[multiPageFixture(),25,true],[{groups:[],has_next:false},25,true]]){
-  const html=page.render(locale,{'PayablesWorkspace.loading':false,'PayablesWorkspace.data':data,'PayablesWorkspace.offset':offset},{},'PayablesWorkspace');
-  for(const key of ['previous','next'])assert.equal(html.includes(`aria-label="${translate(locale,'finance.receipt.'+key)}"`),visible);
- }
-});
 for(const locale of ['th','en'])test(`Finance ${locale}: Expense Claims and Compensation stay permission-gated inside Legacy`,()=>{
  const p=buildPermissions({role:'admin'}),items=financeNavigationItems(p,locale);
- assert.deepEqual(items.map(i=>i.group||i.page),['quotations','fee-agreements','billable-charges','invoices','payments','payment-documents','expense-claims','payables','treasury','tax-position','legacy']);
+ assert.ok(!items.some(i=>i.page==='payables'));
  assert.ok(!items.some(i=>i.page==='compensation'));
  const legacy=items.find(i=>i.group==='legacy');
  assert.deepEqual(legacy.children.map(i=>i.href),['/finance/expense-claims','/finance/compensation','/finance/ledger']);
@@ -44,10 +29,10 @@ for(const locale of ['th','en'])test(`Finance ${locale}: Expense Claims and Comp
 });
 for(const locale of ['th','en'])test(`Payables ${locale}: recipient/currency groups retain role components, frozen facts and closed technical evidence`,()=>{
  const data=fixture(),before=JSON.stringify(data);
- const html=page.render(locale,{'PayablesWorkspace.loading':false,'PayablesWorkspace.data':data},{},'PayablesWorkspace');
+ const html=page.render(locale,{},data,'PayableGroups');
  assert.equal((html.match(/data-recipient=/g)||[]).length,3);assert.equal((html.match(/<h2>Pam<\/h2>/g)||[]).length,1);
- for(const amount of ['5,820.00 THB','3,104.00 THB','1,940.00 THB','776.00 THB','1,164.00 THB'])assert.ok(html.includes(amount));
- for(const key of ['title','referral','work','open'])assert.ok(html.includes(translate(locale,'payables.'+key)));
+ for(const amount of ['3,104.00 THB','1,940.00 THB','776.00 THB','1,164.00 THB'])assert.ok(html.includes(amount));
+ for(const key of ['referral','work','open'])assert.ok(html.includes(translate(locale,'payables.'+key)));
  assert.doesNotMatch(html,/<pre/);
  assert.ok(page.render(locale,{}, {...data,isAdmin:true},'PayableGroups').includes(translate(locale,'payables.technical')));
  assert.doesNotMatch(html,/<details[^>]*\bopen|\/finance\/compensation|<button[^>]*>Pay<\/button>/);
@@ -89,11 +74,11 @@ test('TH/EN catalog complete; existing Finance read policy and navigation order 
  for(const entry of Object.values(payableMessages)){assert.ok(entry.th);assert.ok(entry.en);}
  for(const role of ['admin','partner','staff']){
   const p=buildPermissions({role}),links=financeNavigationLinks(p,'en');
-  assert.equal(links.some(l=>l.page==='payables'),p.canViewFinancePayments);
-  if(role==='admin'){assert.ok(links.findIndex(l=>l.page==='payables')<links.findIndex(l=>l.page==='compensation'));assert.ok(links.some(l=>l.page==='compensation'));}
+  assert.equal(links.some(l=>l.page==='payables'),false);
+  if(role==='admin')assert.ok(links.some(l=>l.page==='compensation'));
  }
  assert.equal(activeFinancePage('/finance/payables','payments'),'payables');
- const source=fs.readFileSync('app/finance/payables/page.tsx','utf8');assert.match(source,/get_finance_payable_entitlements/);assert.doesNotMatch(source,/\.insert\(|\.update\(|\.delete\(|ensure_finance|confirm_finance_payout/i);assert.match(fs.readFileSync('app/finance/payables/groups.tsx','utf8'),/payoutHref\(group.recipient_id\)/);
+ const source=fs.readFileSync('app/finance/payables/page.tsx','utf8');assert.match(source,/redirect\("\/finance\/overview"\)/);assert.doesNotMatch(source,/\.insert\(|\.update\(|\.delete\(|ensure_finance|confirm_finance_payout/i);assert.match(fs.readFileSync('app/finance/payables/groups.tsx','utf8'),/payoutHref\(group.recipient_id\)/);
  const action=fs.readFileSync('app/finance/payables/materialize-action.tsx','utf8');assert.match(action,/if \(lock.current/);assert.match(action,/p_expected_version: version/);
  const panel=fs.readFileSync('app/finance/payments/vp-distribution-panel.tsx','utf8');assert.match(panel,/current\?\.status === "finalized" \? <MaterializeEntitlements/);
 });

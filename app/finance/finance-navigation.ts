@@ -82,9 +82,6 @@ export function financeNavigationLinks(permissions: FinanceNavigationPermissions
     permissions.canUseNewFinanceExpenses
       ? { href: "/finance/expenses/claims", page: "expense-claims" as const, label: t("expenses.claims") }
       : null,
-    permissions.canViewFinancePayables
-      ? { href: "/finance/payables", page: "payables" as const, label: t("payables.title") }
-      : null,
     permissions.canViewFinanceTaxInvoices
       ? { href: "/finance/tax-position", page: "tax-position" as const, label: t("taxPosition.title") }
       : null,

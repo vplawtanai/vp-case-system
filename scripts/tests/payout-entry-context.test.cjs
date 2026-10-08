@@ -52,7 +52,7 @@ for(const locale of ['th','en'])test(`${locale}: contextual summary vs generic s
  const viewer=page.render(locale,{}, {...props,fixture:{...f,can_manage:false}},'PayoutWorkspace');for(const key of ['fixPayee','changeRecipient','add','save'])assert.ok(!viewer.includes(t(key)),key);
 });
 test('Existing Payables UUID link and keyed route reset remain wired; view permission and read RPC are retained',()=>{
- const groups=workspaceFixture('app/finance/payables/page.tsx',['PayableGroups'],{'../quotations/shared':{QuotationGuard:()=>null},'../FinanceSubNav':{default:()=>null}});
+ const groups=workspaceFixture('app/finance/payables/groups.tsx',['PayableGroups']);
  const html=groups.render('en',{}, {groups:[{recipient_id:payee.id,recipient_name:payee.legal_name,currency:'THB',open_amount:3104,components:f.components}]},'PayableGroups');
  assert.ok(html.includes(`/finance/payouts/new?payee=${payee.id}`));
  const route=fs.readFileSync('app/finance/payouts/[id]/page.tsx','utf8');assert.match(route,/permissions.canViewFinancePayments/);assert.match(route,/key=\{`\$\{params.id\}:\$\{search.get\("payee"\)\}/);assert.match(route,/payeeId=\{search.get\("payee"\)\}/);

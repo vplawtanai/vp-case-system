@@ -58,9 +58,9 @@ for(const locale of ['th','en'])test(`${locale} presentation separates 1070 cash
  for(const [key,value]of Object.entries({'cash-out':'1,070.00','economic-expense':'1,000.00','tax-vat':'630.00','tax-wht':'60.00','tax-credit':'560.19'}))assert.match(html,new RegExp(`data-metric="${key}"><div><strong>${value}`));
  assert.ok(html.includes(translate(locale,'taxHome.dataReady')));assert.ok(!html.includes(translate(locale,'taxHome.ready')));
  assert.ok(!html.includes('987,654,321'));assert.ok(!html.includes('executive.'));assert.ok(!html.includes('Statement — บริษัท'));
- for(const route of ['/finance/statement','/finance/invoices','/finance/payables','/finance/tax-position','/finance/revenue-distribution'])assert.ok(html.includes(`href="${route}"`));
+ for(const route of ['/finance/statement','/finance/invoices','/finance/expenses','/finance/expenses/claims','/finance/tax-position','/finance/revenue-distribution'])assert.ok(html.includes(`href="${route}"`));
  assert.ok(!html.includes('/credits'));assert.equal((html.match(/<select/g)||[]).length,1);assert.equal((html.match(/<form/g)||[]).length,0);
- const links=financeNavigationLinks(p,locale);assert.equal(links[0].href,'/finance/overview');assert.equal(activeFinancePage('/finance/overview','payments'),'overview');
+ const links=financeNavigationLinks(p,locale);assert.ok(links.some(link=>link.href==='/finance/overview'));assert.equal(activeFinancePage('/finance/overview','payments'),'overview');
  assert.ok(financeNavigationItems(p,locale).some(i=>i.group==='statement'));assert.ok(!links.some(i=>i.href==='/finance/statement/company'));
 });
 test('Existing money-only Statement and Tax/Payables/Distribution implementation stay outside Dashboard writes',()=>{
@@ -100,7 +100,7 @@ for(const locale of ['th','en'])test(`${locale}: management-only Overview menu a
   assert.equal(canOverview(custody),allowed,role);
   const items=financeNavigationItems(custody,locale);
   assert.equal(items.some(i=>i.page==='overview'),allowed,role);
-  assert.deepEqual(items.filter(i=>i.page!=='overview'),financeNavigationItems({...custody,role:''},locale));
+  assert.deepEqual(items.filter(i=>!['overview','payroll'].includes(i.page)),financeNavigationItems({...custody,role:''},locale));
   let mounts=0;
   const page=guardedRoute('app/finance/overview/page.tsx',profile,{
    './workspace':{ExecutiveOverview:()=>{mounts++;return React.createElement('div',{'data-overview-mounted':true});}},
@@ -126,7 +126,7 @@ test('Operator keeps operational links and KTB-only Statement access when Overvi
  assert.equal(canOverview(permissions),false);
  for(const key of ['canViewFinanceQuotations','canManageFinancePayments','canViewFinancePayables','canViewFinanceTaxInvoices','canFileFinanceTax','canViewFinanceCashTransactions','canUseNewFinanceExpenses'])assert.equal(permissions[key],true,key);
  const links=financeNavigationLinks(permissions).map(l=>l.page);
- for(const page of ['quotations','payments','expenses','payables','tax-position','expense-claims'])assert.ok(links.includes(page),page);
+ for(const page of ['quotations','payments','expenses','tax-position','expense-claims'])assert.ok(links.includes(page),page);
  for(const locale of ['th','en'])for(const accountId of ['ktb','kbank','bay']){
   const access={profile,permissions};let mounts=0;
   const page=workspaceFixture('app/finance/statement/account/[kind]/[id]/page.tsx',[],{
