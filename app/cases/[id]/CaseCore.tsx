@@ -5,6 +5,7 @@ import { supabase } from '../../../lib/supabase';
 import { SearchableCombobox } from '../../finance/expenses/searchable-combobox';
 import CaseEditModal from './CaseEditModal';
 import CaseSummary from './CaseSummary';
+import CaseEngagement from './CaseEngagement';
 import { useCaseDetailText } from './labels';
 import { coreError, linkedTaskAvailable, personLabel, primaryAction, TEAM_ROLES, type CoreData, type TeamRole } from './core-model';
 import { loadAssignmentPeople } from './core-people';
@@ -12,7 +13,7 @@ import css from './case-detail.module.css';
 
 type EditorMode = 'team' | 'next';
 
-export default function CaseCore({caseId,revision,canManage,canNext,onSection}:{caseId:number;revision:number;canManage:boolean;canNext:boolean;onSection:(section:string)=>void}) {
+export default function CaseCore({caseId,revision,canManage,canNext,canViewHistory,onSection}:{caseId:number;revision:number;canManage:boolean;canNext:boolean;canViewHistory:boolean;onSection:(section:string)=>void}) {
  const {tr,date}=useCaseDetailText();
  const [data,setData]=useState<CoreData|null>(null),[failed,setFailed]=useState(false),[reload,setReload]=useState(0);
  const [editing,setEditing]=useState<EditorMode|null>(null);
@@ -45,6 +46,7 @@ export default function CaseCore({caseId,revision,canManage,canNext,onSection}:{
     {data.core?.next_mode==='task'&&<p className={css.coreMuted}>{tr(next?'Linked to an existing task. Edit its details in Tasks.':'The linked task is completed or removed. Choose a new action when needed.')} <button className={css.coreTextButton} onClick={()=>onSection('tasks')}>{tr('View tasks')}</button></p>}
    </section>
   </div>}
+  {data&&!failed&&<CaseEngagement caseId={caseId} revision={revision} people={data.people} canEdit={canManage} canViewHistory={canViewHistory}/>}
   {editing&&data&&<CoreEditor key={editing} mode={editing} data={data} caseId={caseId} onClose={()=>setEditing(null)} onSaved={value=>{setData(value);setEditing(null);window.dispatchEvent(new Event('case-detail-updated'));}}/>}
  </>;
 }

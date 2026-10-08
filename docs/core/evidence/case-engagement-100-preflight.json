@@ -1,0 +1,19 @@
+{
+  "checks": {
+    "100_absent": true,
+    "contract_exact": true,
+    "people_contract": true,
+    "candidate_apply_has_no_legacy_dml": true
+  },
+  "gate_pass": true,
+  "failed_checks": [],
+  "contract_sha256": "df1eaeced54b4e2909dcc621951c45df3fb4ab15b95cfcb2a772da28c059ce21",
+  "auth_tables_read": false,
+  "candidate_sha256": "5680dee06e16a668cbb55784c69055c7f7c8447a30ed5d003be0474d58dda0f1",
+  "object_differences": [],
+  "accepted_099_sha256": "3756a06a439210310ea6efb84003d5de1d722abadccb4f9e15e72834c03103f1",
+  "production_mutation": false,
+  "business_rpc_executed": false,
+  "accepted_contract_sha256": "df1eaeced54b4e2909dcc621951c45df3fb4ab15b95cfcb2a772da28c059ce21",
+  "business_rows_are_not_gate_inputs": true
+}
