@@ -40,5 +40,14 @@
 .editor {color:#17334f}.editor h4{margin-top:0}.editor label{color:#425f7b!important;font-size:13px!important;font-weight:550!important}
 .editor [aria-busy]{min-width:0}.editor [aria-busy]>div:last-child{margin-top:20px}
 .notice{padding:18px;border:1px solid #e0e8f1;border-radius:10px;margin-bottom:20px;background:#f6f9fd;font-size:14px}
+.legacyHistory{margin-bottom:18px}
+.legacySummary{cursor:pointer;font-weight:650;line-height:1.6;overflow-wrap:anywhere}
+.legacySummary span{display:inline-block;margin-left:8px;padding:2px 8px;border-radius:5px;background:#f0f4f8;color:#64748b;font-size:12px;font-weight:500}
+.legacyRecord{padding:16px 0;border-top:1px solid #e3eaf2;overflow-wrap:anywhere}
+.legacyRecord h5{font-size:14px;margin:0 0 12px}
+.legacyFields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:12px;margin:12px 0;font-size:13px}
+.legacyFields dt{color:#728299;margin-bottom:4px}.legacyFields dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.legacyText{font-size:13px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}
+.legacyDeleted{font-size:12px;color:#64748b}
 @media(max-width:1050px){.header{grid-template-columns:1fr;gap:20px}.facts{grid-template-columns:1fr 1fr}.summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.page{padding:12px}.breadcrumb{margin:12px 0 18px}.header{gap:16px;margin-bottom:16px}.identityRow{gap:16px}.identityRow strong,.identityRow h1{font-size:20px}.courtIdentity h1 span{font-size:18px}.title{font-size:14px}.facts{grid-template-columns:1fr;padding:14px}.summary{gap:8px}.summaryCard{padding:12px;gap:8px;flex-direction:column}.summaryCard>svg{padding:6px;width:18px;height:18px}.summaryCard strong{font-size:13px}.tabs{flex-wrap:nowrap;overflow-x:auto;max-width:100%;padding:3px}.tabs button{font-size:12px;padding:11px}.section>div{padding:14px!important}.section [style*="grid-template-columns"],.editor [style*="grid-template-columns"]{grid-template-columns:minmax(0,1fr)!important}.section [style*="display: flex"],.editor [style*="display: flex"]{flex-wrap:wrap}.section [style*="white-space: nowrap"]{white-space:normal!important}.section [style*="min-width"],.editor [style*="min-width"]{min-width:0!important}}

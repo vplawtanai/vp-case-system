@@ -1396,5 +1396,11 @@
   "lawyer": {"th":"ทนายความ","en":"Lawyer"},
   "assistant_lawyer": {"th":"ผู้ช่วยทนายความ","en":"Assistant lawyer"},
   "staff": {"th":"เจ้าหน้าที่","en":"Staff"},
-  "viewer": {"th":"ผู้ดูข้อมูล","en":"Viewer"}
+  "viewer": {"th":"ผู้ดูข้อมูล","en":"Viewer"},
+  "Legacy history": {"th":"ประวัติระบบเดิม","en":"Legacy history"},
+  "Recorded on": {"th":"วันที่บันทึก","en":"Recorded on"},
+  "Legacy fees & expenses": {"th":"ค่าวิชาชีพและค่าใช้จ่ายจากระบบเดิม","en":"Legacy fees & expenses"},
+  "Historical records only. Current financial transactions are managed in Finance.": {"th":"ข้อมูลย้อนหลังสำหรับอ่านเท่านั้น รายการเงินจริงปัจจุบันจัดการในระบบการเงิน","en":"Historical records only. Current financial transactions are managed in Finance."},
+  "Previously deleted": {"th":"ลบไว้ก่อนหน้านี้","en":"Previously deleted"},
+  "Could not load legacy records. Please refresh.": {"th":"โหลดข้อมูลย้อนหลังไม่สำเร็จ กรุณาโหลดหน้าใหม่","en":"Could not load legacy records. Please refresh."}
 }

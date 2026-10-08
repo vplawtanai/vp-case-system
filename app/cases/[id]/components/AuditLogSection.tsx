@@ -42,8 +42,6 @@ const restorableTables = [
   "case_deadlines",
   "case_deadline_extensions",
   "case_time_logs",
-  "case_fee_items",
-  "case_expense_items",
   "case_notes",
 ];
 

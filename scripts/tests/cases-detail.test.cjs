@@ -24,7 +24,7 @@ test('detail alert keeps the shared list priority: overdue deadline before upcom
  }
 });
 const cases = [
- ['CaseInfoSection','isEditing','Edit Case Information'],['PartiesSection','showForm','Add Party'],['TimelineSection','showForm','Add Appointment'],['JudgmentsSection','showJudgmentForm','Add Judgment'],['JudgmentsSection','showFilingForm','Add Filing'],['EnforcementSection','showEnforcementForm','Add Command & Writ'],['EnforcementSection','showAssetForm','Add Asset Search / Seizure / Auction'],['TasksSection','showForm','Add Task'],['DeadlinesSection','showForm','Add Deadline'],['TimeLogsSection','showForm','Add Time Log'],['NotesSection','showForm','Add Note'],['FeesSection','showFeeForm','Add Fee'],['FeesSection','showExpenseForm','Add Expense'],['TimelineSection','isEditingFiling','Filing Date'],
+ ['CaseInfoSection','isEditing','Edit Case Information'],['PartiesSection','showForm','Add Party'],['TimelineSection','showForm','Add Appointment'],['JudgmentsSection','showJudgmentForm','Add Judgment'],['JudgmentsSection','showFilingForm','Add Filing'],['EnforcementSection','showEnforcementForm','Add Command & Writ'],['EnforcementSection','showAssetForm','Add Asset Search / Seizure / Auction'],['TasksSection','showForm','Add Task'],['DeadlinesSection','showForm','Add Deadline'],['TimeLogsSection','showForm','Add Time Log'],['NotesSection','showForm','Add Note'],['TimelineSection','isEditingFiling','Filing Date'],
 ];
 for(const [section,key,title] of cases) test(`${section}/${key}: modal retains fields and save/cancel in TH/EN`,()=>{
  const f=workspaceFixture(base+section+'.tsx',[],{'../CaseEditModal':modal});
@@ -35,8 +35,8 @@ for(const [section,key,title] of cases) test(`${section}/${key}: modal retains f
   assert.match(html,/<(?:input|select|textarea)/);
  }
 });
-test('all existing queries, mutation payloads and audit calls stay identical to Phase 1A baseline',()=>{
- for(const [file,expected] of Object.entries(baseline.sections)) assert.deepEqual(caseMutationEvidence(fs.readFileSync(base+file,'utf8'),file),expected,file);
+test('non-retired queries, mutation payloads and audit calls stay identical to Phase 1A baseline',()=>{
+ for(const [file,expected] of Object.entries(baseline.sections).filter(([file])=>file!=='FeesSection.tsx')) assert.deepEqual(caseMutationEvidence(fs.readFileSync(base+file,'utf8'),file),expected,file);
 });
 test('complete literal UI vocabulary has TH/EN coverage, with stored case prefix and names preserved',()=>{
  for(const file of Object.keys(baseline.sections)) {

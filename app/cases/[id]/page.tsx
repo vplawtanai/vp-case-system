@@ -105,17 +105,6 @@ type TaskItem = {
   done?: boolean;
 };
 
-type FeeItem = {
-  id: string;
-  feeType?: string;
-  description?: string;
-  amount?: number;
-  paidAmount?: number;
-  dueDate?: string;
-  status?: string;
-  note?: string;
-};
-
 type UserProfile = {
   role?: UserRole | string | null;
   financial_access?: boolean | null;
@@ -139,7 +128,7 @@ export default function CaseDetailPage() {
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [timeline] = useState<TimelineItem[]>([]);
   const [tasks] = useState<TaskItem[]>([]);
-  const [fees] = useState<FeeItem[]>([]);
+  const [hasLegacyFees, setHasLegacyFees] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const [profile, setProfile] = useState<UserProfile>({
@@ -152,11 +141,12 @@ export default function CaseDetailPage() {
   }, [profile]);
 
   const navigateSection = (next: string) => {
+    if (next === "fees") next = "history";
     setSection(next);
     window.history.replaceState(null, "", `#${next}`);
   };
   useEffect(() => {
-    const syncHash = () => setSection(window.location.hash.slice(1) || "info");
+    const syncHash = () => { const hash = window.location.hash.slice(1); setSection(hash === "fees" ? "history" : hash || "info"); };
     const refresh = () => setRevision(value => value + 1);
     syncHash();
     window.addEventListener("hashchange", syncHash);
@@ -328,7 +318,7 @@ export default function CaseDetailPage() {
   const displayClientName =
     linkedClientName || caseItem?.client_name || caseItem?.clientName || "-";
 
-  const tabs = [["info","Overview"],["parties","Parties"],["timeline","Court Appointments"],["judgments","Judgments & Filings"],["enforcement","Enforcement"],["tasks","Tasks"],["deadlines","Legal Deadlines"],["timelogs","Time Logs"],...(permissions.canViewFees ? [["fees","Fees & Expenses"]] : []),["finance-documents","Finance documents"],["notes","Notes"],...(permissions.canViewHistory ? [["history","History / Audit Log"]] : [])];
+  const tabs = [["info","Overview"],["parties","Parties"],["timeline","Court Appointments"],["judgments","Judgments & Filings"],["enforcement","Enforcement"],["tasks","Tasks"],["deadlines","Legal Deadlines"],["timelogs","Time Logs"],["finance-documents","Finance documents"],["notes","Notes"],...(permissions.canViewHistory || (permissions.canViewFees && hasLegacyFees) ? [["history",permissions.canViewHistory ? "History / Audit Log" : "Legacy history"]] : [])];
   const activeSection = tabs.some(([key]) => key === section) ? section : "info";
   return (
     <AuthGuard><main className={css.page}>
@@ -414,17 +404,6 @@ export default function CaseDetailPage() {
           />
         </div>
 
-        {permissions.canViewFees && (
-          <div className={css.section} hidden={activeSection !== "fees"}>
-            <FeesSection
-              caseId={id}
-              fees={fees}
-              canEdit={permissions.canEditFees}
-              canDelete={permissions.canSoftDelete}
-            />
-          </div>
-        )}
-
         <div className={css.section} hidden={activeSection !== "finance-documents"}>
           <FinanceQuotationsSection caseId={caseIdNumber || id} />
         </div>
@@ -437,11 +416,10 @@ export default function CaseDetailPage() {
           />
         </div>
 
-        {permissions.canViewHistory && (
-          <div className={css.section} hidden={activeSection !== "history"}>
-            <AuditLogSection caseId={id} canRestore={permissions.canRestore} />
-          </div>
-        )}
+        <div className={css.section} hidden={activeSection !== "history"}>
+          {permissions.canViewFees && <FeesSection caseId={id} onAvailability={setHasLegacyFees} />}
+          {permissions.canViewHistory && <AuditLogSection caseId={id} canRestore={permissions.canRestore} />}
+        </div>
 
       </>}
     </main></AuthGuard>
