@@ -1,6 +1,6 @@
 # Case Phase 3A — Civil Flow Foundation / Human Gate
 
-Prepared on `main`, base `d20d68d0d0858544b55de9346f838d0f2fffebd7`. **Human Apply approved for the exact candidate below. Fresh Production preflight passed; verifier bound. Application release remains after successful Apply/verifier.**
+Prepared on `main`, base `d20d68d0d0858544b55de9346f838d0f2fffebd7`. **Human-approved candidate APPLIED and VERIFIED in Production. Candidate is now immutable.**
 
 Candidate: `supabase/migrations/202610090101_case_civil_flow_foundation.sql`
 
@@ -64,3 +64,12 @@ pbcopy < scripts/sql/verify_case_flow_101.sql
 Require `gate_pass=true` before any application release. Stop on material contract drift. The approved release task applies this exact candidate, verifies, then releases the application. Git push is deferred until verification because main auto-deploys to Production.
 
 Background/dev processes: stopped. Only this task's isolated preview and disposable PostgreSQL were started and stopped; pre-existing processes were not stopped.
+
+## Production Apply receipt
+
+- Existing authenticated VP Chrome session; `vp-case-system` / `main PRODUCTION`.
+- Fresh scoped preflight PASS, no object drift, before Apply.
+- Apply query `46c7421b-4fd1-4382-9a1b-3e80838d882a`: complete approved BEGIN/COMMIT script; UI returned `Success. No rows returned`.
+- Bound SELECT-only verifier query `2f6c3ecd-2af6-4038-9470-2ba36295ef0b`: `gate_pass=true`, `failed_checks=[]`, `object_differences=[]`, exact template seed and People contract. Full observed result: `evidence/case-flow-101-post-apply.json`.
+- Only immutable configuration was seeded. No Case enrollment or business RPC/test record was executed. No legacy Case/history/Finance DML in Apply; existing scoped schema/security objects remain exact.
+- Release binding checks: 13/13 local static/PostgreSQL tests PASS; deliberately unbound verifier still fails closed. Candidate unchanged.
