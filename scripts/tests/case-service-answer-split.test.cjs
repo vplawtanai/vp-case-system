@@ -8,7 +8,7 @@ const p={id:'p1',name:'Defendant One',control:{version:1,required:true,lawful_at
 const extended={...p,id:'p2',name:'Defendant Two',answer_deadline:{...p.answer_deadline,id:'d2',current_due_date:'2026-11-01'},extensions:[{id:'ex',extension_no:1,granted_until_date:'2026-11-01',note:'Reviewed court order'}]};
 const filed={...p,id:'p3',name:'Defendant Three',control:{...p.control,answer_filed_on:'2026-10-07'},answer_deadline:{...p.answer_deadline,id:'d3',status:'Done'}};
 const data={today:'2026-10-10',flow:{lifecycle:'active',current_stage:'service'},defendants:[p,extended,filed],deadlines:[],hearings:[],history:[{id:"event1",party_id:"p1",action:"answer",actor_name:"Recorded lawyer",occurred_at:"2026-10-09"}]};
-const props={data,canRecord:true,canConfirm:true,onEdit:()=>{},onDeadlines:()=>{},onReview:()=>{}};
+const props={data,canRecord:true,canConfirm:true,onEdit:()=>{},onExtensions:()=>{},onReview:()=>{}};
 test('service completion is independent of answer overdue, extension, or filing; all defendants retain real method/date',()=>{
  for(const person of [p,extended,filed])assert.equal(M.serviceStatus(person),'served');
  for(const lang of ['th','en']){
@@ -46,7 +46,7 @@ test('confirmed default review suggests trigger+15 with no automatic actual dead
   assert.match(html,/type="date" required="" value="2026-10-24"/);assert.match(html,/type="checkbox" required=""/);assert.doesNotMatch(html,/checked=""/);assert.ok(html.includes(T('service.ruleDefault',lang)));
  }
  const source=fs.readFileSync('app/cases/[id]/CaseService.tsx','utf8');
- assert.match(source,/kind==='default'&&\(!defaultMotion\|\|!canConfirm/);assert.match(source,/expected_due:d\?\.current_due_date/);assert.match(source,/expected_updated_at:d\?\.updated_at/);assert.match(source,/p_version:person\?\.control\?\.version/);assert.match(source,/onDeadlines\(due.id\)/);
+ assert.match(source,/kind==='default'&&\(!defaultMotion\|\|!canConfirm/);assert.match(source,/expected_due:d\?\.current_due_date/);assert.match(source,/expected_updated_at:d\?\.updated_at/);assert.match(source,/p_version:person\?\.control\?\.version/);assert.match(source,/onExtensions\(p.id,due.id\)/);
  assert.doesNotMatch(source,/\.(?:insert|update|delete|upsert)\(|case101_save|case_tasks['"]|createAuditLog/);
 });
 test('Viewer has read-only service and answers; assistant cannot confirm non-filing or create default deadline',()=>{

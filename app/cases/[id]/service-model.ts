@@ -26,3 +26,14 @@ export function serviceAttemptChanges(event:ServiceData['history'][number]){
 }
 export function serviceFlowSuggestions(data:ServiceData){const required=data.defendants.filter(p=>p.control?.required!==false);const all=required.length>0&&required.every(p=>lawfulAttempt(p));return {advance:!!(all&&data.flow?.lifecycle==='active'&&data.flow.current_stage==='service'),branch:!!(all&&data.flow?.lifecycle==='active'&&['service','defence'].includes(data.flow.current_stage)&&required.every(p=>p.control?.absent_hearing_id&&!p.control?.answer_filed_on))};}
 export function serviceError(message:string){const code=message.match(/CASE102_[A-Z_]+/)?.[0];return code|| (message.includes('STALE')?'CASE102_STALE':message.includes('PERSON_INELIGIBLE')?'CASE102_PERSON_INELIGIBLE':'service.saveError');}
+
+// Canonical 102 foreign keys, never a title/name match. Used only by the Deadline read model.
+export type ServiceDeadlineLink={party_id:string;answer_deadline_id:string|null;default_deadline_id:string|null;answer_filed_on:string|null;party:{entity_type:string;company_name:string|null;title:string|null;first_name:string|null;last_name:string|null;deleted_at:string|null}|null;attempt:{method:ServiceAttempt['method'];attempted_on:string|null}|null};
+export function linkedServiceDeadline(links:ServiceDeadlineLink[],id:string){
+ const link=links.find(p=>p.answer_deadline_id===id||p.default_deadline_id===id);
+ if(!link)return null;
+ const name=link.party?.entity_type==='company'?link.party.company_name:[link.party?.title,link.party?.first_name,link.party?.last_name].filter(Boolean).join(' ');
+ return {...link,name:name||'',kind:link.answer_deadline_id===id?'answer' as const:'default' as const};
+}
+export type AnswerRequest={partyId:string;key:number};
+export type AnswerExtensionRequest=AnswerRequest&{deadlineId:string};

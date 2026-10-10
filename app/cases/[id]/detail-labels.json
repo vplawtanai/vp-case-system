@@ -1810,5 +1810,10 @@
   "service.pendingFactsHint": {"th":"ใช้เมื่อมีการส่งจริงแล้วและทราบวิธีส่งกับวันที่ แต่ยังรอผล","en":"Use only for an actual attempt with a known method and date while awaiting the result."},
   "service.servedSaveHint": {"th":"การบันทึกนี้ยืนยันผลและหลักฐานการส่งเพื่อเสนอวันครบกำหนด ทนายยังต้องตรวจและยืนยันก่อนสร้างกำหนดเวลาจริง","en":"Saving confirms the service evidence for a due-date suggestion. A lawyer must still review and confirm before creating a deadline."},
   "service.currentResult": {"th":"ผลปัจจุบัน","en":"Current result"},
-  "service.historyCorrection": {"th":"แก้ไขผลการส่ง","en":"Service result corrected"}
+  "service.historyCorrection": {"th":"แก้ไขผลการส่ง","en":"Service result corrected"},
+  "answer.linkedDeadlineHint": {"th": "กำหนดเวลาที่เชื่อมกับคำให้การจำเลย ดูและติดตามผลได้ที่นี่ ดำเนินการจากคำให้การจำเลย", "en": "Linked defendant’s answer deadline. View and monitor here; act from Defendant’s answer."},
+  "answer.goToAnswer": {"th": "ไปที่คำให้การจำเลย", "en": "Go to Defendant’s answer"},
+  "answer.deadlineSource": {"th": "ที่มา", "en": "Source"},
+  "answer.deadlineLinksError": {"th": "ตรวจสอบที่มาของกำหนดเวลาไม่สำเร็จ กรุณาโหลดใหม่ก่อนแก้ไข", "en": "Deadline sources could not be checked. Reload before editing."},
+  "answer.showAllDefendants": {"th": "ดูจำเลยทั้งหมด", "en": "Show all defendants"}
 }

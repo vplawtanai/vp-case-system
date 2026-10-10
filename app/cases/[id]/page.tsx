@@ -10,6 +10,7 @@ import { FolderOpen, Landmark, UserRound, Building2, CalendarDays, Clock3 } from
 import CaseCore from "./CaseCore";
 import CaseFlow from "./CaseFlow";
 import CaseService from "./CaseService";
+import type { AnswerRequest, AnswerExtensionRequest } from "./service-model";
 import {flowPermissions} from "./flow-model";
 import { CaseStatus } from "../CaseListView";
 import { useCaseDetailText } from "./labels";
@@ -123,6 +124,8 @@ export default function CaseDetailPage() {
   const { tr, date } = useCaseDetailText();
   const [section, setSection] = useState("info");
   const [revision, setRevision] = useState(0);
+  const [answerRequest, setAnswerRequest] = useState<AnswerRequest | null>(null);
+  const [extensionRequest, setExtensionRequest] = useState<AnswerExtensionRequest | null>(null);
   const params = useParams();
   const id = params?.id as string;
   const caseIdNumber = Number(id);
@@ -340,7 +343,7 @@ export default function CaseDetailPage() {
         </dl>
       </header>
       <CaseFlow caseRecord={caseItem} caseId={caseIdNumber} revision={revision} canStart={flowPermissions(profile.role).start} canTransition={flowPermissions(profile.role).transition}/>
-      <CaseService caseId={caseIdNumber} revision={revision} canRecord={flowPermissions(profile.role).transition} canConfirm={flowPermissions(profile.role).start} onSection={navigateSection}/>
+      <CaseService caseId={caseIdNumber} revision={revision} canRecord={flowPermissions(profile.role).transition} canConfirm={flowPermissions(profile.role).start} answerRequest={answerRequest} onExtend={(partyId,deadlineId)=>setExtensionRequest({partyId,deadlineId,key:Date.now()})}/>
       <CaseCore caseId={caseIdNumber} revision={revision} canManage={permissions.canEditCaseInfo} canNext={permissions.canEditTasks} canViewHistory={permissions.canViewHistory} onSection={navigateSection}/>
       <nav className={css.tabs} aria-label={tr("Case Detail")}>{tabs.map(([key,label])=><button type="button" key={key} aria-current={activeSection===key ? "page" : undefined} onClick={()=>navigateSection(key)}>{tr(label)}</button>)}</nav>
         <div className={css.section} hidden={activeSection !== "info"}>
@@ -397,6 +400,10 @@ export default function CaseDetailPage() {
         <div className={css.section} hidden={activeSection !== "deadlines"}>
           <DeadlinesSection
             caseId={id}
+            revision={revision}
+            onAnswer={partyId=>setAnswerRequest({partyId,key:Date.now()})}
+            extensionRequest={extensionRequest}
+            onExtensionClosed={()=>{if(extensionRequest)setAnswerRequest({partyId:extensionRequest.partyId,key:Date.now()});setExtensionRequest(null);}}
             canEdit={permissions.canEditDeadlines}
             canDelete={permissions.canSoftDelete}
           />

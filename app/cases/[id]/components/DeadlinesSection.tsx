@@ -2,8 +2,9 @@
 import { useCaseDetailText } from "../labels";
 
 import CaseEditModal from "../CaseEditModal";
+import { linkedServiceDeadline, type ServiceDeadlineLink, type AnswerExtensionRequest } from "../service-model";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { supabase } from "../../../../lib/supabase";
 import { createAuditLog } from "../../../../lib/auditLog";
@@ -77,6 +78,10 @@ type ExtensionForm = {
 type Props = {
   caseId: string;
   deadlines?: unknown[];
+  revision?: number;
+  onAnswer?: (partyId: string) => void;
+  extensionRequest?: AnswerExtensionRequest | null;
+  onExtensionClosed?: () => void;
   canEdit?: boolean;
   canDelete?: boolean;
 };
@@ -152,10 +157,15 @@ export default function DeadlinesSection({
   caseId,
   canEdit = false,
   canDelete = false,
+  revision = 0, onAnswer, extensionRequest, onExtensionClosed,
 }: Props) {
   const { tr, date } = useCaseDetailText();
   const caseIdNumber = Number(caseId);
 
+  const [links, setLinks] = useState<ServiceDeadlineLink[]>([]);
+  const [linksReady, setLinksReady] = useState(false);
+  const handledExtension = useRef<number | null>(null);
+  const linked = (id: string) => linkedServiceDeadline(links, id);
   const [items, setItems] = useState<DeadlineItem[]>([]);
   const [extensions, setExtensions] = useState<DeadlineExtension[]>([]);
   const [loading, setLoading] = useState(false);
@@ -181,6 +191,12 @@ export default function DeadlinesSection({
 
     try {
       setLoading(true);
+      setLinksReady(false);
+      const {data: linkData, error: linkError} = await supabase.from("case_service_controls")
+        .select("party_id,answer_deadline_id,default_deadline_id,answer_filed_on,party:parties!party_id(entity_type,company_name,title,first_name,last_name,deleted_at),attempt:case_service_attempts!case102_lawful_party(method,attempted_on)")
+        .eq("case_id", caseIdNumber);
+      if (!linkError) {setLinks((linkData || []) as unknown as ServiceDeadlineLink[]);setLinksReady(true);}
+
 
       const { data: deadlineData, error: deadlineError } = await supabase
         .from("case_deadlines")
@@ -233,7 +249,7 @@ export default function DeadlinesSection({
   useEffect(() => {
     loadDeadlines();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [caseId]);
+  }, [caseId, revision]);
 
   const sortedDeadlines = useMemo(() => {
     return [...items].sort((a, b) => {
@@ -305,6 +321,7 @@ export default function DeadlinesSection({
   };
 
   const startEdit = (item: DeadlineItem) => {
+    if (!linksReady || linked(item.id)) return;
     if (!canEdit) {
       alert(tr("คุณไม่มีสิทธิ์แก้ไข Legal Deadline"));
       return;
@@ -456,7 +473,7 @@ export default function DeadlinesSection({
       return;
     }
 
-    if (!editingId) return;
+    if (!editingId || !linksReady || linked(editingId)) return;
     if (!validateDeadline()) return;
 
     try {
@@ -497,6 +514,7 @@ export default function DeadlinesSection({
   };
 
   const deleteDeadline = async (id: string) => {
+    if (!linksReady || linked(id)) return;
     if (!canDelete) {
       alert(tr("คุณไม่มีสิทธิ์ลบ Legal Deadline"));
       return;
@@ -561,6 +579,7 @@ export default function DeadlinesSection({
   };
 
   const toggleDone = async (item: DeadlineItem) => {
+    if (!linksReady || linked(item.id)) return;
     if (!canEdit) {
       alert(tr("คุณไม่มีสิทธิ์เปลี่ยนสถานะ Legal Deadline"));
       return;
@@ -606,6 +625,7 @@ export default function DeadlinesSection({
   };
 
   const startAddExtension = (deadlineId: string) => {
+    if (!linksReady || linked(deadlineId)) return;
     if (!canEdit) {
       alert(tr("คุณไม่มีสิทธิ์เพิ่มการขยายเวลา"));
       return;
@@ -618,6 +638,7 @@ export default function DeadlinesSection({
   };
 
   const startEditExtension = (extension: DeadlineExtension) => {
+    if (!linksReady || linked(extension.deadline_id)) return;
     if (!canEdit) {
       alert(tr("คุณไม่มีสิทธิ์แก้ไขการขยายเวลา"));
       return;
@@ -637,6 +658,7 @@ export default function DeadlinesSection({
     setExtensionDeadlineId(null);
     setEditingExtensionId(null);
     setExtensionForm(emptyExtensionForm);
+    if (extensionRequest) onExtensionClosed?.();
   };
 
   const getLatestExtensionDueDate = (
@@ -670,7 +692,9 @@ export default function DeadlinesSection({
       return;
     }
 
-    if (!extensionDeadlineId) return;
+    if (!extensionDeadlineId || !linksReady) return;
+    const source = linked(extensionDeadlineId);
+    if (source && (source.kind !== 'answer' || source.answer_filed_on || source.party?.deleted_at || source.party_id !== extensionRequest?.partyId || extensionDeadlineId !== extensionRequest.deadlineId || items.find(d=>d.id===extensionDeadlineId)?.status !== 'Active')) return;
 
     if (!extensionForm.granted_until_date) {
       alert(tr("กรุณาเลือกวันที่ศาลอนุญาตให้ขยายถึง"));
@@ -783,7 +807,7 @@ export default function DeadlinesSection({
       return;
     }
 
-    if (!extensionDeadlineId || !editingExtensionId) return;
+    if (!extensionDeadlineId || !editingExtensionId || !linksReady || linked(extensionDeadlineId)) return;
 
     if (!extensionForm.granted_until_date) {
       alert(tr("กรุณาเลือกวันที่ศาลอนุญาตให้ขยายถึง"));
@@ -900,6 +924,7 @@ export default function DeadlinesSection({
   };
 
   const deleteExtension = async (extension: DeadlineExtension) => {
+    if (!linksReady || linked(extension.deadline_id)) return;
     if (!canDelete) {
       alert(tr("คุณไม่มีสิทธิ์ลบการขยายเวลา"));
       return;
@@ -1030,6 +1055,17 @@ export default function DeadlinesSection({
       setSavingExtension(false);
     }
   };
+
+  useEffect(() => {
+    if (!extensionRequest || !linksReady || loading || handledExtension.current === extensionRequest.key) return;
+    const source = linkedServiceDeadline(links, extensionRequest.deadlineId);
+    const deadline = items.find(d=>d.id===extensionRequest.deadlineId);
+    if (!canEdit || source?.kind !== 'answer' || source.party_id !== extensionRequest.partyId || source.answer_filed_on || source.party?.deleted_at || deadline?.status !== 'Active') return;
+    handledExtension.current = extensionRequest.key;
+    setExtensionDeadlineId(extensionRequest.deadlineId);
+    setEditingExtensionId(null);
+    setExtensionForm(emptyExtensionForm);
+  }, [extensionRequest, linksReady, loading, links, items, canEdit]);
 
   return (
     <div id="deadlines" style={sectionStyle}>
@@ -1202,6 +1238,7 @@ export default function DeadlinesSection({
         </CaseEditModal>
       )}
 
+      {!linksReady && !loading && <p role="alert">{tr("answer.deadlineLinksError")}</p>}
       {loading ? (
         <div style={emptyStyle}>{tr("Loading deadlines...")} </div>
       ) : sortedDeadlines.length === 0 ? (
@@ -1217,8 +1254,11 @@ export default function DeadlinesSection({
               editingExtensionId={editingExtensionId}
               extensionForm={extensionForm}
               savingExtension={savingExtension}
-              canEdit={canEdit}
-              canDelete={canDelete}
+              canEdit={canEdit && linksReady}
+              canDelete={canDelete && linksReady}
+              link={linked(item.id)}
+              onAnswer={onAnswer}
+              answerExtension={extensionRequest?.deadlineId === item.id && extensionRequest?.partyId === linked(item.id)?.party_id}
 
               onEdit={startEdit}
               onDelete={deleteDeadline}
@@ -1264,6 +1304,7 @@ function DeadlineCard({
   onEdit,
   onDelete,
   onToggleDone,
+  link, onAnswer, answerExtension = false,
   onStartAddExtension,
   onStartEditExtension,
   onDeleteExtension,
@@ -1273,6 +1314,9 @@ function DeadlineCard({
   onUpdateExtension,
 }: {
   item: DeadlineItem;
+  link?: ReturnType<typeof linkedServiceDeadline>;
+  onAnswer?: (partyId: string) => void;
+  answerExtension?: boolean;
   extensions: DeadlineExtension[];
   extensionDeadlineId: string | null;
   editingExtensionId: string | null;
@@ -1292,7 +1336,7 @@ function DeadlineCard({
   onUpdateExtension: () => void;
 }) {
   const { tr, date } = useCaseDetailText();
-  const deadlineText =
+  const deadlineText = link?.kind === 'default' ? 'service.defaultDue' :
     item.deadline_type === "other"
       ? item.deadline_other || "อื่นๆ"
       : renderDeadlineType(item.deadline_type);
@@ -1306,7 +1350,7 @@ function DeadlineCard({
   const isDone = item.status === "Done";
   const isAddingExtension = extensionDeadlineId === item.id;
   const isEditingExtension = isAddingExtension && !!editingExtensionId;
-  const showActions = canEdit || canDelete;
+  const showActions = !link && (canEdit || canDelete);
 
   return (
     <div
@@ -1323,7 +1367,8 @@ function DeadlineCard({
             {tr("Deadline")} {item.order_no || "-"} : {tr(deadlineText)}
           </div>
 
-          <div style={deadlineMatterStyle}>{tr(partyText)}</div>
+          <div style={deadlineMatterStyle}>{link ? link.name || tr('service.unnamed') : tr(partyText)}</div>
+          {link && <p style={infoLabelStyle}>{tr('answer.linkedDeadlineHint')}</p>}
 
           <div style={badgeRowStyle}>
             <span style={getStatusBadgeStyle(item.status)}>
@@ -1337,7 +1382,7 @@ function DeadlineCard({
           </div>
         </div>
 
-        {canEdit && (
+        {canEdit && !link && (
           <button
             type="button"
             onClick={() => onToggleDone(item)}
@@ -1348,8 +1393,12 @@ function DeadlineCard({
         )}
       </div>
 
+      {link && <div style={deadlineMetaGridStyle}>
+        <InfoLine label={tr('answer.deadlineSource')} value={link.kind === 'answer' ? `${tr(link.attempt?.method ? 'service.method.'+link.attempt.method : 'service.methodUnknown')} · ${date(link.attempt?.attempted_on)}` : tr('service.defaultDue')}/>
+        {link.kind === 'answer' && link.answer_filed_on && <InfoLine label={tr('service.answeredOn')} value={date(link.answer_filed_on)}/>}
+      </div>}
       <div style={deadlineMetaGridStyle}>
-        <InfoLine
+        {!link && <><InfoLine
           label={tr("Procedure")}
           value={tr(renderProcedureType(item.procedure_type))}
         />
@@ -1360,7 +1409,7 @@ function DeadlineCard({
         <InfoLine
           label={tr("Trigger Date")}
           value={date(item.trigger_date)}
-        />
+        /></>}
         <InfoLine
           label={tr("Original Due Date")}
           value={date(item.original_due_date)}
@@ -1388,7 +1437,7 @@ function DeadlineCard({
                   {tr("ขยายครั้งที่")} {ex.extension_no || "-"} {tr("ถึงวันที่")} {" "}
                   {date(ex.granted_until_date)}
                 </div>
-                {(canEdit || canDelete) && (
+                {!link && (canEdit || canDelete) && (
                   <div style={extensionActionWrapStyle}>
                     {canEdit && (
                       <button
@@ -1420,10 +1469,11 @@ function DeadlineCard({
         </div>
       )}
 
-      {isAddingExtension && canEdit && (
+      {isAddingExtension && canEdit && (!link || answerExtension) && (
         <CaseEditModal title={isEditingExtension ? tr("Edit Extension") : tr("Add Extension")} onClose={onCancelExtension} busy={savingExtension}>
 
 
+          {link && <p>{link.name || tr('service.unnamed')} · {tr('service.answerDue')}: {date(item.current_due_date)}</p>}
           <div style={formGridStyle}>
             <Input
               label={tr("วันที่ยื่นคำร้องขยายเวลา")}
@@ -1488,6 +1538,7 @@ function DeadlineCard({
         </CaseEditModal>
       )}
 
+      {link && onAnswer && !link.party?.deleted_at && <button type="button" style={smallButtonStyle} onClick={()=>onAnswer(link.party_id)}>{tr('answer.goToAnswer')}</button>}
       {showActions && (
         <div style={actionWrapStyle}>
           {canEdit && (

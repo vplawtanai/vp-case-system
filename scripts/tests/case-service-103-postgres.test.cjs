@@ -99,3 +99,31 @@ test('103: installing over populated 102 preserves every existing service record
  const capture=`SELECT jsonb_build_object('controls',(SELECT jsonb_agg(to_jsonb(x) ORDER BY party_id) FROM case_service_controls x),'attempts',(SELECT jsonb_agg(to_jsonb(x) ORDER BY id) FROM case_service_attempts x),'events',(SELECT jsonb_agg(to_jsonb(x) ORDER BY id) FROM case_service_events x),'legacy',(${A.rows()}))`;
  const output=sql(`BEGIN;${reset}SET LOCAL request.jwt.claims='{"sub":"${uid(3)}"}';SET LOCAL ROLE authenticated;${begin()}${seeds}RESET ROLE;${capture};${A.read('scripts/sql/case_service_103_contract.sql')}${capture};ROLLBACK;`).split('\n').map(JSON.parse);assert.deepEqual(output[1],output[0]);assert.equal(output[0].attempts.length,3);
 });
+
+test('final answer cleanup: three defendants file, extend and default independently without duplicate deadlines/tasks or stage advance',()=>{
+ const second=`RESET ROLE;INSERT INTO parties(id,case_id,role,first_name,entity_type) VALUES('${uid(202)}',1,'defendant','Second defendant','individual'),('${uid(203)}',1,'defendant','Third defendant','individual');SET LOCAL ROLE authenticated;`;
+ const seeded=[201,202,203].map((party,n)=>perform(save('attempt',{method:'posting',attempted_on:'2026-01-01',result:'served',confirm_lawful:true},0,710+n,party))+perform(save('deadline',{kind:'answer',due:'2026-02-03',confirmed:true},1,720+n,party))).join('');
+ const actions=`DO $$DECLARE d case_deadlines; c case_service_controls; payload jsonb;BEGIN
+ PERFORM case102_save(1,NULL,0,'${uid(730)}','advance','{"flow_version":1,"confirmed":true}');
+ SELECT * INTO c FROM case_service_controls WHERE party_id='${uid(201)}';SELECT * INTO d FROM case_deadlines WHERE id=c.answer_deadline_id;
+ payload:=jsonb_build_object('date','2026-02-02','expected_due',d.current_due_date,'expected_updated_at',d.updated_at);
+ PERFORM case102_save(1,c.party_id,c.version,'${uid(731)}','answer',payload);
+ PERFORM case102_save(1,c.party_id,c.version,'${uid(731)}','answer',payload);
+ SELECT * INTO c FROM case_service_controls WHERE party_id='${uid(202)}';
+ INSERT INTO case_deadline_extensions(deadline_id,extension_no,granted_until_date,note) VALUES(c.answer_deadline_id,1,'2099-11-01','Actual order for second defendant');
+ UPDATE case_deadlines SET current_due_date='2099-11-01',updated_at=clock_timestamp() WHERE id=c.answer_deadline_id;
+ SELECT * INTO c FROM case_service_controls WHERE party_id='${uid(203)}';SELECT * INTO d FROM case_deadlines WHERE id=c.answer_deadline_id;
+ payload:=jsonb_build_object('kind','default','due',d.current_due_date+15,'confirmed',true,'expected_due',d.current_due_date,'expected_updated_at',d.updated_at);
+ PERFORM case102_save(1,c.party_id,c.version,'${uid(732)}','deadline',payload);
+ PERFORM case102_save(1,c.party_id,c.version,'${uid(732)}','deadline',payload);
+ BEGIN PERFORM case102_save(1,c.party_id,c.version+1,'${uid(733)}','deadline',payload);RAISE EXCEPTION 'DUPLICATE_ACCEPTED';EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE '%CASE102_DEADLINE_LINKED%' THEN RAISE;END IF;END;
+ END $$;`;
+ const taskCount=Number(sql('SELECT count(*) FROM case_tasks'));
+ const result=JSON.parse(run(3,`${second}${begin()}${seeded}${actions}SELECT jsonb_build_object('service',case102_read(1),'tasks',(SELECT count(*) FROM case_tasks),'flow_events',(SELECT count(*) FROM case_flow_transitions))`));
+ const one=result.service.defendants.find(x=>x.id===uid(201)),two=result.service.defendants.find(x=>x.id===uid(202)),three=result.service.defendants.find(x=>x.id===uid(203));
+ assert.equal(one.control.answer_filed_on,'2026-02-02');assert.equal(one.answer_deadline.status,'Done');assert.equal(one.default_deadline,null);
+ assert.equal(two.control.answer_filed_on,null);assert.equal(two.answer_deadline.current_due_date,'2099-11-01');assert.equal(two.extensions.length,1);assert.equal(two.default_deadline,null);
+ assert.equal(three.control.answer_filed_on,null);assert.equal(three.answer_deadline.status,'Active');assert.equal(three.extensions.length,0);assert.equal(three.default_deadline.current_due_date,'2026-02-18');
+ assert.equal(new Set([one,two,three].map(p=>p.answer_deadline.id)).size,3);assert.equal(result.tasks,taskCount);assert.equal(result.flow_events,2);assert.equal(result.service.flow.current_stage,'defence');
+ assert.deepEqual(json(A.rows()),beforeRows);
+});
