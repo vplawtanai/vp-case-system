@@ -1,0 +1,13 @@
+{
+  "approved_sha256": "011cb7ed70adf1fb66d30c1af81bbfe20e5c1a18f2e3e2849393b21f450fb486",
+  "started_at": "2026-10-10T16:33:13.964Z",
+  "completed_at": "2026-10-10T16:34:33.486Z",
+  "project": "vp-case-system",
+  "project_ref": "rtualftvaapjburgjfgb",
+  "branch": "main PRODUCTION",
+  "query_url": "https://supabase.com/dashboard/project/rtualftvaapjburgjfgb/sql/44878f9f-36d4-4136-8e2c-732ef432f850",
+  "execution_count": 1,
+  "result": "Success. No rows returned",
+  "atomic_begin_commit": true,
+  "business_rpc_executed": false
+}

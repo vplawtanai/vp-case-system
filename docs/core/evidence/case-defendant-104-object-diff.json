@@ -1,0 +1,2719 @@
+[
+  {
+    "kind": "tables",
+    "name": "case_deadlines",
+    "change": "modified",
+    "before_sha256": "587ddce405382527f91ea30b3c4253ea4530f60369a92db50bdb5b9d83ce58fb",
+    "after_sha256": "35384ed14729cbd3ce5b9a78bc0bec1732d6951ad1f002c7815ae7af506f9aeb",
+    "details": {
+      "triggers": {
+        "before": [
+          {
+            "name": "case097_soft_delete",
+            "enabled": "O",
+            "function": "case097_soft_delete_guard()",
+            "definition": "CREATE TRIGGER case097_soft_delete BEFORE INSERT OR UPDATE ON case_deadlines FOR EACH ROW EXECUTE FUNCTION case097_soft_delete_guard()"
+          }
+        ],
+        "after": [
+          {
+            "name": "case097_soft_delete",
+            "enabled": "O",
+            "function": "case097_soft_delete_guard()",
+            "definition": "CREATE TRIGGER case097_soft_delete BEFORE INSERT OR UPDATE ON case_deadlines FOR EACH ROW EXECUTE FUNCTION case097_soft_delete_guard()"
+          },
+          {
+            "name": "case104_deadline",
+            "enabled": "O",
+            "function": "case104_deadline_guard()",
+            "definition": "CREATE TRIGGER case104_deadline BEFORE INSERT OR DELETE OR UPDATE ON case_deadlines FOR EACH ROW EXECUTE FUNCTION case104_deadline_guard()"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "kind": "tables",
+    "name": "case_deadline_extensions",
+    "change": "modified",
+    "before_sha256": "68b48ce1baeb2b69c64a5d7428bdec6971cf8fb44175b9665d8a585807be84ed",
+    "after_sha256": "e8fc8a354db2121626751fbb95a676f93ba73ad2804dec977ab6e13bfcd7a407",
+    "details": {
+      "triggers": {
+        "before": [
+          {
+            "name": "case097_soft_delete",
+            "enabled": "O",
+            "function": "case097_soft_delete_guard()",
+            "definition": "CREATE TRIGGER case097_soft_delete BEFORE INSERT OR UPDATE ON case_deadline_extensions FOR EACH ROW EXECUTE FUNCTION case097_soft_delete_guard()"
+          }
+        ],
+        "after": [
+          {
+            "name": "case097_soft_delete",
+            "enabled": "O",
+            "function": "case097_soft_delete_guard()",
+            "definition": "CREATE TRIGGER case097_soft_delete BEFORE INSERT OR UPDATE ON case_deadline_extensions FOR EACH ROW EXECUTE FUNCTION case097_soft_delete_guard()"
+          },
+          {
+            "name": "case104_extension",
+            "enabled": "O",
+            "function": "case104_deadline_guard()",
+            "definition": "CREATE TRIGGER case104_extension BEFORE INSERT OR DELETE OR UPDATE ON case_deadline_extensions FOR EACH ROW EXECUTE FUNCTION case104_deadline_guard()"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "kind": "tables",
+    "name": "case_flow_instances",
+    "change": "modified",
+    "before_sha256": "734b3c64507b6d93bb9ec48730f336e7d6b846fc09cb5bd254f47bbd8095162f",
+    "after_sha256": "ea7f4a9b17a9786e6c86e4e4cc02dc9f34b01d6c360d74fa2fa75ad1c0843aa0",
+    "details": {
+      "columns": {
+        "before": [
+          {
+            "acl": null,
+            "name": "id",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "case_id",
+            "type": "bigint",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "track_key",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "template_id",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "filing_method",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "current_stage",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "started_stage",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "lifecycle",
+            "type": "text",
+            "default": "'active'::text",
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "version",
+            "type": "integer",
+            "default": "1",
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "start_kind",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "started_at",
+            "type": "timestamp with time zone",
+            "default": "clock_timestamp()",
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "started_by",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "updated_at",
+            "type": "timestamp with time zone",
+            "default": "clock_timestamp()",
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "updated_by",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          }
+        ],
+        "after": [
+          {
+            "acl": null,
+            "name": "id",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "case_id",
+            "type": "bigint",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "track_key",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "template_id",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "filing_method",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": false,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "current_stage",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "started_stage",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "lifecycle",
+            "type": "text",
+            "default": "'active'::text",
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "version",
+            "type": "integer",
+            "default": "1",
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "start_kind",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "started_at",
+            "type": "timestamp with time zone",
+            "default": "clock_timestamp()",
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "started_by",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "updated_at",
+            "type": "timestamp with time zone",
+            "default": "clock_timestamp()",
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "updated_by",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          }
+        ]
+      },
+      "triggers": {
+        "before": [
+          {
+            "name": "case101_no_delete",
+            "enabled": "O",
+            "function": "case101_immutable()",
+            "definition": "CREATE TRIGGER case101_no_delete BEFORE DELETE OR TRUNCATE ON case_flow_instances FOR EACH STATEMENT EXECUTE FUNCTION case101_immutable()"
+          }
+        ],
+        "after": [
+          {
+            "name": "case101_no_delete",
+            "enabled": "O",
+            "function": "case101_immutable()",
+            "definition": "CREATE TRIGGER case101_no_delete BEFORE DELETE OR TRUNCATE ON case_flow_instances FOR EACH STATEMENT EXECUTE FUNCTION case101_immutable()"
+          },
+          {
+            "name": "case104_flow",
+            "enabled": "O",
+            "function": "case104_flow_guard()",
+            "definition": "CREATE TRIGGER case104_flow BEFORE INSERT OR UPDATE ON case_flow_instances FOR EACH ROW EXECUTE FUNCTION case104_flow_guard()"
+          }
+        ]
+      },
+      "constraints": {
+        "before": [
+          {
+            "name": "case_flow_instances_case_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (case_id) REFERENCES cases(id)"
+          },
+          {
+            "name": "case_flow_instances_case_id_track_key_key",
+            "validated": true,
+            "definition": "UNIQUE (case_id, track_key)"
+          },
+          {
+            "name": "case_flow_instances_filing_method_check",
+            "validated": true,
+            "definition": "CHECK (filing_method = ANY (ARRAY['not_filed'::text, 'paper'::text, 'efiling_v3'::text, 'efiling_v4'::text]))"
+          },
+          {
+            "name": "case_flow_instances_id_template_id_key",
+            "validated": true,
+            "definition": "UNIQUE (id, template_id)"
+          },
+          {
+            "name": "case_flow_instances_lifecycle_check",
+            "validated": true,
+            "definition": "CHECK (lifecycle = ANY (ARRAY['active'::text, 'paused'::text, 'exited'::text]))"
+          },
+          {
+            "name": "case_flow_instances_pkey",
+            "validated": true,
+            "definition": "PRIMARY KEY (id)"
+          },
+          {
+            "name": "case_flow_instances_start_kind_check",
+            "validated": true,
+            "definition": "CHECK (start_kind = ANY (ARRAY['new'::text, 'cut_in'::text]))"
+          },
+          {
+            "name": "case_flow_instances_started_by_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (started_by) REFERENCES user_profiles(id)"
+          },
+          {
+            "name": "case_flow_instances_template_id_current_stage_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (template_id, current_stage) REFERENCES case_flow_stages(template_id, stage_key)"
+          },
+          {
+            "name": "case_flow_instances_template_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (template_id) REFERENCES case_flow_versions(id)"
+          },
+          {
+            "name": "case_flow_instances_template_id_started_stage_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (template_id, started_stage) REFERENCES case_flow_stages(template_id, stage_key)"
+          },
+          {
+            "name": "case_flow_instances_track_key_check",
+            "validated": true,
+            "definition": "CHECK (length(btrim(track_key)) >= 1 AND length(btrim(track_key)) <= 100)"
+          },
+          {
+            "name": "case_flow_instances_updated_by_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (updated_by) REFERENCES user_profiles(id)"
+          },
+          {
+            "name": "case_flow_instances_version_check",
+            "validated": true,
+            "definition": "CHECK (version > 0)"
+          }
+        ],
+        "after": [
+          {
+            "name": "case104_filing_method_scope",
+            "validated": true,
+            "definition": "CHECK (template_id = 'civil_ordinary_defendant_v1'::text OR filing_method IS NOT NULL)"
+          },
+          {
+            "name": "case_flow_instances_case_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (case_id) REFERENCES cases(id)"
+          },
+          {
+            "name": "case_flow_instances_case_id_track_key_key",
+            "validated": true,
+            "definition": "UNIQUE (case_id, track_key)"
+          },
+          {
+            "name": "case_flow_instances_filing_method_check",
+            "validated": true,
+            "definition": "CHECK (filing_method = ANY (ARRAY['not_filed'::text, 'paper'::text, 'efiling_v3'::text, 'efiling_v4'::text]))"
+          },
+          {
+            "name": "case_flow_instances_id_template_id_key",
+            "validated": true,
+            "definition": "UNIQUE (id, template_id)"
+          },
+          {
+            "name": "case_flow_instances_lifecycle_check",
+            "validated": true,
+            "definition": "CHECK (lifecycle = ANY (ARRAY['active'::text, 'paused'::text, 'exited'::text]))"
+          },
+          {
+            "name": "case_flow_instances_pkey",
+            "validated": true,
+            "definition": "PRIMARY KEY (id)"
+          },
+          {
+            "name": "case_flow_instances_start_kind_check",
+            "validated": true,
+            "definition": "CHECK (start_kind = ANY (ARRAY['new'::text, 'cut_in'::text]))"
+          },
+          {
+            "name": "case_flow_instances_started_by_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (started_by) REFERENCES user_profiles(id)"
+          },
+          {
+            "name": "case_flow_instances_template_id_current_stage_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (template_id, current_stage) REFERENCES case_flow_stages(template_id, stage_key)"
+          },
+          {
+            "name": "case_flow_instances_template_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (template_id) REFERENCES case_flow_versions(id)"
+          },
+          {
+            "name": "case_flow_instances_template_id_started_stage_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (template_id, started_stage) REFERENCES case_flow_stages(template_id, stage_key)"
+          },
+          {
+            "name": "case_flow_instances_track_key_check",
+            "validated": true,
+            "definition": "CHECK (length(btrim(track_key)) >= 1 AND length(btrim(track_key)) <= 100)"
+          },
+          {
+            "name": "case_flow_instances_updated_by_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (updated_by) REFERENCES user_profiles(id)"
+          },
+          {
+            "name": "case_flow_instances_version_check",
+            "validated": true,
+            "definition": "CHECK (version > 0)"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "kind": "tables",
+    "name": "case_service_controls",
+    "change": "modified",
+    "before_sha256": "b3904fe7f2167d611823c2623e6305fa03bfde69ad799fd3e88404f222ef4948",
+    "after_sha256": "d5b1858d3339ec0b97a62d736c2abb2c7e4a887f2c4b4b24cba9b75d9eac54b9",
+    "details": {
+      "triggers": {
+        "before": [
+          {
+            "name": "case102_controls_preserve",
+            "enabled": "O",
+            "function": "case101_immutable()",
+            "definition": "CREATE TRIGGER case102_controls_preserve BEFORE DELETE OR TRUNCATE ON case_service_controls FOR EACH STATEMENT EXECUTE FUNCTION case101_immutable()"
+          }
+        ],
+        "after": [
+          {
+            "name": "case102_controls_preserve",
+            "enabled": "O",
+            "function": "case101_immutable()",
+            "definition": "CREATE TRIGGER case102_controls_preserve BEFORE DELETE OR TRUNCATE ON case_service_controls FOR EACH STATEMENT EXECUTE FUNCTION case101_immutable()"
+          },
+          {
+            "name": "case104_integrity",
+            "enabled": "O",
+            "function": "case104_integrity()",
+            "definition": "CREATE CONSTRAINT TRIGGER case104_integrity AFTER INSERT OR UPDATE ON case_service_controls DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION case104_integrity()"
+          },
+          {
+            "name": "case104_projection",
+            "enabled": "O",
+            "function": "case104_projection_guard()",
+            "definition": "CREATE TRIGGER case104_projection BEFORE INSERT OR UPDATE ON case_service_controls FOR EACH ROW EXECUTE FUNCTION case104_projection_guard()"
+          }
+        ]
+      },
+      "constraints": {
+        "before": [
+          {
+            "name": "case102_lawful_party",
+            "validated": true,
+            "definition": "FOREIGN KEY (lawful_attempt_id, party_id) REFERENCES case_service_attempts(id, party_id)"
+          },
+          {
+            "name": "case_service_controls_absent_hearing_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (absent_hearing_id) REFERENCES case_timeline(id)"
+          },
+          {
+            "name": "case_service_controls_answer_deadline_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (answer_deadline_id) REFERENCES case_deadlines(id)"
+          },
+          {
+            "name": "case_service_controls_answer_deadline_id_key",
+            "validated": true,
+            "definition": "UNIQUE (answer_deadline_id)"
+          },
+          {
+            "name": "case_service_controls_answer_filed_on_check",
+            "validated": true,
+            "definition": "CHECK (isfinite(answer_filed_on))"
+          },
+          {
+            "name": "case_service_controls_case_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (case_id) REFERENCES cases(id)"
+          },
+          {
+            "name": "case_service_controls_check",
+            "validated": true,
+            "definition": "CHECK (required OR exemption_reason IS NOT NULL AND length(btrim(exemption_reason)) > 0)"
+          },
+          {
+            "name": "case_service_controls_check1",
+            "validated": true,
+            "definition": "CHECK (lawful_attempt_id IS NULL AND lawful_at IS NULL AND lawful_by IS NULL OR lawful_attempt_id IS NOT NULL AND lawful_at IS NOT NULL AND lawful_by IS NOT NULL)"
+          },
+          {
+            "name": "case_service_controls_default_deadline_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (default_deadline_id) REFERENCES case_deadlines(id)"
+          },
+          {
+            "name": "case_service_controls_default_deadline_id_key",
+            "validated": true,
+            "definition": "UNIQUE (default_deadline_id)"
+          },
+          {
+            "name": "case_service_controls_lawful_by_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (lawful_by) REFERENCES user_profiles(id)"
+          },
+          {
+            "name": "case_service_controls_party_id_case_id_key",
+            "validated": true,
+            "definition": "UNIQUE (party_id, case_id)"
+          },
+          {
+            "name": "case_service_controls_party_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (party_id) REFERENCES parties(id)"
+          },
+          {
+            "name": "case_service_controls_pkey",
+            "validated": true,
+            "definition": "PRIMARY KEY (party_id)"
+          },
+          {
+            "name": "case_service_controls_updated_by_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (updated_by) REFERENCES user_profiles(id)"
+          },
+          {
+            "name": "case_service_controls_version_check",
+            "validated": true,
+            "definition": "CHECK (version > 0)"
+          }
+        ],
+        "after": [
+          {
+            "name": "case102_lawful_party",
+            "validated": true,
+            "definition": "FOREIGN KEY (lawful_attempt_id, party_id) REFERENCES case_service_attempts(id, party_id)"
+          },
+          {
+            "name": "case104_integrity",
+            "validated": true,
+            "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+          },
+          {
+            "name": "case_service_controls_absent_hearing_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (absent_hearing_id) REFERENCES case_timeline(id)"
+          },
+          {
+            "name": "case_service_controls_answer_deadline_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (answer_deadline_id) REFERENCES case_deadlines(id)"
+          },
+          {
+            "name": "case_service_controls_answer_deadline_id_key",
+            "validated": true,
+            "definition": "UNIQUE (answer_deadline_id)"
+          },
+          {
+            "name": "case_service_controls_answer_filed_on_check",
+            "validated": true,
+            "definition": "CHECK (isfinite(answer_filed_on))"
+          },
+          {
+            "name": "case_service_controls_case_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (case_id) REFERENCES cases(id)"
+          },
+          {
+            "name": "case_service_controls_check",
+            "validated": true,
+            "definition": "CHECK (required OR exemption_reason IS NOT NULL AND length(btrim(exemption_reason)) > 0)"
+          },
+          {
+            "name": "case_service_controls_check1",
+            "validated": true,
+            "definition": "CHECK (lawful_attempt_id IS NULL AND lawful_at IS NULL AND lawful_by IS NULL OR lawful_attempt_id IS NOT NULL AND lawful_at IS NOT NULL AND lawful_by IS NOT NULL)"
+          },
+          {
+            "name": "case_service_controls_default_deadline_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (default_deadline_id) REFERENCES case_deadlines(id)"
+          },
+          {
+            "name": "case_service_controls_default_deadline_id_key",
+            "validated": true,
+            "definition": "UNIQUE (default_deadline_id)"
+          },
+          {
+            "name": "case_service_controls_lawful_by_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (lawful_by) REFERENCES user_profiles(id)"
+          },
+          {
+            "name": "case_service_controls_party_id_case_id_key",
+            "validated": true,
+            "definition": "UNIQUE (party_id, case_id)"
+          },
+          {
+            "name": "case_service_controls_party_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (party_id) REFERENCES parties(id)"
+          },
+          {
+            "name": "case_service_controls_pkey",
+            "validated": true,
+            "definition": "PRIMARY KEY (party_id)"
+          },
+          {
+            "name": "case_service_controls_updated_by_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (updated_by) REFERENCES user_profiles(id)"
+          },
+          {
+            "name": "case_service_controls_version_check",
+            "validated": true,
+            "definition": "CHECK (version > 0)"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "kind": "tables",
+    "name": "case_counterclaims",
+    "change": "added",
+    "before_sha256": null,
+    "after_sha256": "12071744596a2ec7bb548a70f28b4937478bc4c88f384b80c5483710db40f009",
+    "details": {
+      "acl": {
+        "before": null,
+        "after": [
+          {
+            "grantee": "authenticated",
+            "grantable": false,
+            "privilege": "SELECT"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "DELETE"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "INSERT"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "MAINTAIN"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "REFERENCES"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "SELECT"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "TRIGGER"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "TRUNCATE"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "UPDATE"
+          }
+        ]
+      },
+      "owner": {
+        "before": null,
+        "after": "postgres"
+      },
+      "columns": {
+        "before": null,
+        "after": [
+          {
+            "acl": null,
+            "name": "id",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "case_id",
+            "type": "bigint",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "filing_id",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "filed_on",
+            "type": "date",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "document_ref",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": false,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "note",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": false,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "lifecycle",
+            "type": "text",
+            "default": "'active'::text",
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "version",
+            "type": "integer",
+            "default": "1",
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "coverage_version",
+            "type": "integer",
+            "default": "1",
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "replaces_id",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": false,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "reason",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": false,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "recorded_at",
+            "type": "timestamp with time zone",
+            "default": "clock_timestamp()",
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "recorded_by",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "updated_at",
+            "type": "timestamp with time zone",
+            "default": "clock_timestamp()",
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "updated_by",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          }
+        ]
+      },
+      "indexes": {
+        "before": null,
+        "after": [
+          {
+            "name": "case104_counterclaim_filing",
+            "valid": true,
+            "definition": "CREATE INDEX case104_counterclaim_filing ON public.case_counterclaims USING btree (filing_id, lifecycle)"
+          },
+          {
+            "name": "case_counterclaims_id_case_id_key",
+            "valid": true,
+            "definition": "CREATE UNIQUE INDEX case_counterclaims_id_case_id_key ON public.case_counterclaims USING btree (id, case_id)"
+          },
+          {
+            "name": "case_counterclaims_pkey",
+            "valid": true,
+            "definition": "CREATE UNIQUE INDEX case_counterclaims_pkey ON public.case_counterclaims USING btree (id)"
+          }
+        ]
+      },
+      "policies": {
+        "before": null,
+        "after": [
+          {
+            "name": "case104_read",
+            "roles": [
+              "authenticated"
+            ],
+            "using": "(case097_session_ready() AND can_view_case_data())",
+            "command": "r",
+            "permissive": true,
+            "with_check": null
+          }
+        ]
+      },
+      "triggers": {
+        "before": null,
+        "after": [
+          {
+            "name": "case104_integrity",
+            "enabled": "O",
+            "function": "case104_integrity()",
+            "definition": "CREATE CONSTRAINT TRIGGER case104_integrity AFTER INSERT OR UPDATE ON case_counterclaims DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION case104_integrity()"
+          },
+          {
+            "name": "case104_preserve",
+            "enabled": "O",
+            "function": "case101_immutable()",
+            "definition": "CREATE TRIGGER case104_preserve BEFORE DELETE OR TRUNCATE ON case_counterclaims FOR EACH STATEMENT EXECUTE FUNCTION case101_immutable()"
+          }
+        ]
+      },
+      "rls_forced": {
+        "before": null,
+        "after": false
+      },
+      "constraints": {
+        "before": null,
+        "after": [
+          {
+            "name": "case104_integrity",
+            "validated": true,
+            "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+          },
+          {
+            "name": "case_counterclaims_case_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (case_id) REFERENCES cases(id)"
+          },
+          {
+            "name": "case_counterclaims_check",
+            "validated": true,
+            "definition": "CHECK (replaces_id IS DISTINCT FROM id)"
+          },
+          {
+            "name": "case_counterclaims_check1",
+            "validated": true,
+            "definition": "CHECK (lifecycle = 'active'::text OR length(btrim(reason)) > 0)"
+          },
+          {
+            "name": "case_counterclaims_coverage_version_check",
+            "validated": true,
+            "definition": "CHECK (coverage_version > 0)"
+          },
+          {
+            "name": "case_counterclaims_document_ref_check",
+            "validated": true,
+            "definition": "CHECK (document_ref IS NULL OR document_ref ~ '^https://[^[:space:]]+$'::text)"
+          },
+          {
+            "name": "case_counterclaims_filed_on_check",
+            "validated": true,
+            "definition": "CHECK (isfinite(filed_on))"
+          },
+          {
+            "name": "case_counterclaims_filing_id_case_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (filing_id, case_id) REFERENCES case_answer_filings(id, case_id)"
+          },
+          {
+            "name": "case_counterclaims_id_case_id_key",
+            "validated": true,
+            "definition": "UNIQUE (id, case_id)"
+          },
+          {
+            "name": "case_counterclaims_lifecycle_check",
+            "validated": true,
+            "definition": "CHECK (lifecycle = ANY (ARRAY['active'::text, 'void'::text, 'corrected'::text]))"
+          },
+          {
+            "name": "case_counterclaims_pkey",
+            "validated": true,
+            "definition": "PRIMARY KEY (id)"
+          },
+          {
+            "name": "case_counterclaims_recorded_by_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (recorded_by) REFERENCES user_profiles(id)"
+          },
+          {
+            "name": "case_counterclaims_replaces_id_case_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (replaces_id, case_id) REFERENCES case_counterclaims(id, case_id)"
+          },
+          {
+            "name": "case_counterclaims_updated_by_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (updated_by) REFERENCES user_profiles(id)"
+          },
+          {
+            "name": "case_counterclaims_version_check",
+            "validated": true,
+            "definition": "CHECK (version > 0)"
+          }
+        ]
+      },
+      "rls_enabled": {
+        "before": null,
+        "after": true
+      },
+      "api_role_privileges": {
+        "before": null,
+        "after": {
+          "anon": {
+            "delete": false,
+            "insert": false,
+            "select": false,
+            "update": false,
+            "truncate": false
+          },
+          "service_role": {
+            "delete": false,
+            "insert": false,
+            "select": false,
+            "update": false,
+            "truncate": false
+          },
+          "authenticated": {
+            "delete": false,
+            "insert": false,
+            "select": true,
+            "update": false,
+            "truncate": false
+          }
+        }
+      }
+    }
+  },
+  {
+    "kind": "tables",
+    "name": "case_answer_filings",
+    "change": "added",
+    "before_sha256": null,
+    "after_sha256": "cf9c0fb282cbbdcdae6c0ff425a00654c99e29b0734e0951e8ca8ba4174a415a",
+    "details": {
+      "acl": {
+        "before": null,
+        "after": [
+          {
+            "grantee": "authenticated",
+            "grantable": false,
+            "privilege": "SELECT"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "DELETE"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "INSERT"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "MAINTAIN"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "REFERENCES"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "SELECT"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "TRIGGER"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "TRUNCATE"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "UPDATE"
+          }
+        ]
+      },
+      "owner": {
+        "before": null,
+        "after": "postgres"
+      },
+      "columns": {
+        "before": null,
+        "after": [
+          {
+            "acl": null,
+            "name": "id",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "case_id",
+            "type": "bigint",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "filed_on",
+            "type": "date",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "document_ref",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": false,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "note",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": false,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "lifecycle",
+            "type": "text",
+            "default": "'active'::text",
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "version",
+            "type": "integer",
+            "default": "1",
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "coverage_version",
+            "type": "integer",
+            "default": "1",
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "replaces_id",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": false,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "reason",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": false,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "recorded_at",
+            "type": "timestamp with time zone",
+            "default": "clock_timestamp()",
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "recorded_by",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "updated_at",
+            "type": "timestamp with time zone",
+            "default": "clock_timestamp()",
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "updated_by",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          }
+        ]
+      },
+      "indexes": {
+        "before": null,
+        "after": [
+          {
+            "name": "case104_filings_case",
+            "valid": true,
+            "definition": "CREATE INDEX case104_filings_case ON public.case_answer_filings USING btree (case_id, lifecycle)"
+          },
+          {
+            "name": "case_answer_filings_id_case_id_key",
+            "valid": true,
+            "definition": "CREATE UNIQUE INDEX case_answer_filings_id_case_id_key ON public.case_answer_filings USING btree (id, case_id)"
+          },
+          {
+            "name": "case_answer_filings_pkey",
+            "valid": true,
+            "definition": "CREATE UNIQUE INDEX case_answer_filings_pkey ON public.case_answer_filings USING btree (id)"
+          }
+        ]
+      },
+      "policies": {
+        "before": null,
+        "after": [
+          {
+            "name": "case104_read",
+            "roles": [
+              "authenticated"
+            ],
+            "using": "(case097_session_ready() AND can_view_case_data())",
+            "command": "r",
+            "permissive": true,
+            "with_check": null
+          }
+        ]
+      },
+      "triggers": {
+        "before": null,
+        "after": [
+          {
+            "name": "case104_integrity",
+            "enabled": "O",
+            "function": "case104_integrity()",
+            "definition": "CREATE CONSTRAINT TRIGGER case104_integrity AFTER INSERT OR UPDATE ON case_answer_filings DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION case104_integrity()"
+          },
+          {
+            "name": "case104_preserve",
+            "enabled": "O",
+            "function": "case101_immutable()",
+            "definition": "CREATE TRIGGER case104_preserve BEFORE DELETE OR TRUNCATE ON case_answer_filings FOR EACH STATEMENT EXECUTE FUNCTION case101_immutable()"
+          }
+        ]
+      },
+      "rls_forced": {
+        "before": null,
+        "after": false
+      },
+      "constraints": {
+        "before": null,
+        "after": [
+          {
+            "name": "case104_integrity",
+            "validated": true,
+            "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+          },
+          {
+            "name": "case_answer_filings_case_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (case_id) REFERENCES cases(id)"
+          },
+          {
+            "name": "case_answer_filings_check",
+            "validated": true,
+            "definition": "CHECK (replaces_id IS DISTINCT FROM id)"
+          },
+          {
+            "name": "case_answer_filings_check1",
+            "validated": true,
+            "definition": "CHECK (lifecycle = 'active'::text OR length(btrim(reason)) > 0)"
+          },
+          {
+            "name": "case_answer_filings_coverage_version_check",
+            "validated": true,
+            "definition": "CHECK (coverage_version > 0)"
+          },
+          {
+            "name": "case_answer_filings_document_ref_check",
+            "validated": true,
+            "definition": "CHECK (document_ref IS NULL OR document_ref ~ '^https://[^[:space:]]+$'::text)"
+          },
+          {
+            "name": "case_answer_filings_filed_on_check",
+            "validated": true,
+            "definition": "CHECK (isfinite(filed_on))"
+          },
+          {
+            "name": "case_answer_filings_id_case_id_key",
+            "validated": true,
+            "definition": "UNIQUE (id, case_id)"
+          },
+          {
+            "name": "case_answer_filings_lifecycle_check",
+            "validated": true,
+            "definition": "CHECK (lifecycle = ANY (ARRAY['active'::text, 'void'::text, 'corrected'::text]))"
+          },
+          {
+            "name": "case_answer_filings_pkey",
+            "validated": true,
+            "definition": "PRIMARY KEY (id)"
+          },
+          {
+            "name": "case_answer_filings_recorded_by_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (recorded_by) REFERENCES user_profiles(id)"
+          },
+          {
+            "name": "case_answer_filings_replaces_id_case_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (replaces_id, case_id) REFERENCES case_answer_filings(id, case_id)"
+          },
+          {
+            "name": "case_answer_filings_updated_by_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (updated_by) REFERENCES user_profiles(id)"
+          },
+          {
+            "name": "case_answer_filings_version_check",
+            "validated": true,
+            "definition": "CHECK (version > 0)"
+          }
+        ]
+      },
+      "rls_enabled": {
+        "before": null,
+        "after": true
+      },
+      "api_role_privileges": {
+        "before": null,
+        "after": {
+          "anon": {
+            "delete": false,
+            "insert": false,
+            "select": false,
+            "update": false,
+            "truncate": false
+          },
+          "service_role": {
+            "delete": false,
+            "insert": false,
+            "select": false,
+            "update": false,
+            "truncate": false
+          },
+          "authenticated": {
+            "delete": false,
+            "insert": false,
+            "select": true,
+            "update": false,
+            "truncate": false
+          }
+        }
+      }
+    }
+  },
+  {
+    "kind": "tables",
+    "name": "case_extension_groups",
+    "change": "added",
+    "before_sha256": null,
+    "after_sha256": "8f3084e43d6817d80d264d7957edbc4d8b210e45e412d3dbc47f174c345d5d52",
+    "details": {
+      "acl": {
+        "before": null,
+        "after": [
+          {
+            "grantee": "authenticated",
+            "grantable": false,
+            "privilege": "SELECT"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "DELETE"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "INSERT"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "MAINTAIN"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "REFERENCES"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "SELECT"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "TRIGGER"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "TRUNCATE"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "UPDATE"
+          }
+        ]
+      },
+      "owner": {
+        "before": null,
+        "after": "postgres"
+      },
+      "columns": {
+        "before": null,
+        "after": [
+          {
+            "acl": null,
+            "name": "id",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "case_id",
+            "type": "bigint",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "requested_on",
+            "type": "date",
+            "default": null,
+            "identity": "",
+            "not_null": false,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "lifecycle",
+            "type": "text",
+            "default": "'pending'::text",
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "document_ref",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": false,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "note",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": false,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "version",
+            "type": "integer",
+            "default": "1",
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "recorded_at",
+            "type": "timestamp with time zone",
+            "default": "clock_timestamp()",
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "recorded_by",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "updated_at",
+            "type": "timestamp with time zone",
+            "default": "clock_timestamp()",
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "updated_by",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          }
+        ]
+      },
+      "indexes": {
+        "before": null,
+        "after": [
+          {
+            "name": "case104_extensions_case",
+            "valid": true,
+            "definition": "CREATE INDEX case104_extensions_case ON public.case_extension_groups USING btree (case_id)"
+          },
+          {
+            "name": "case_extension_groups_pkey",
+            "valid": true,
+            "definition": "CREATE UNIQUE INDEX case_extension_groups_pkey ON public.case_extension_groups USING btree (id)"
+          }
+        ]
+      },
+      "policies": {
+        "before": null,
+        "after": [
+          {
+            "name": "case104_read",
+            "roles": [
+              "authenticated"
+            ],
+            "using": "(case097_session_ready() AND can_view_case_data())",
+            "command": "r",
+            "permissive": true,
+            "with_check": null
+          }
+        ]
+      },
+      "triggers": {
+        "before": null,
+        "after": [
+          {
+            "name": "case104_preserve",
+            "enabled": "O",
+            "function": "case101_immutable()",
+            "definition": "CREATE TRIGGER case104_preserve BEFORE DELETE OR TRUNCATE ON case_extension_groups FOR EACH STATEMENT EXECUTE FUNCTION case101_immutable()"
+          }
+        ]
+      },
+      "rls_forced": {
+        "before": null,
+        "after": false
+      },
+      "constraints": {
+        "before": null,
+        "after": [
+          {
+            "name": "case_extension_groups_case_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (case_id) REFERENCES cases(id)"
+          },
+          {
+            "name": "case_extension_groups_document_ref_check",
+            "validated": true,
+            "definition": "CHECK (document_ref IS NULL OR document_ref ~ '^https://[^[:space:]]+$'::text)"
+          },
+          {
+            "name": "case_extension_groups_lifecycle_check",
+            "validated": true,
+            "definition": "CHECK (lifecycle = ANY (ARRAY['pending'::text, 'granted'::text]))"
+          },
+          {
+            "name": "case_extension_groups_pkey",
+            "validated": true,
+            "definition": "PRIMARY KEY (id)"
+          },
+          {
+            "name": "case_extension_groups_recorded_by_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (recorded_by) REFERENCES user_profiles(id)"
+          },
+          {
+            "name": "case_extension_groups_requested_on_check",
+            "validated": true,
+            "definition": "CHECK (isfinite(requested_on))"
+          },
+          {
+            "name": "case_extension_groups_updated_by_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (updated_by) REFERENCES user_profiles(id)"
+          },
+          {
+            "name": "case_extension_groups_version_check",
+            "validated": true,
+            "definition": "CHECK (version > 0)"
+          }
+        ]
+      },
+      "rls_enabled": {
+        "before": null,
+        "after": true
+      },
+      "api_role_privileges": {
+        "before": null,
+        "after": {
+          "anon": {
+            "delete": false,
+            "insert": false,
+            "select": false,
+            "update": false,
+            "truncate": false
+          },
+          "service_role": {
+            "delete": false,
+            "insert": false,
+            "select": false,
+            "update": false,
+            "truncate": false
+          },
+          "authenticated": {
+            "delete": false,
+            "insert": false,
+            "select": true,
+            "update": false,
+            "truncate": false
+          }
+        }
+      }
+    }
+  },
+  {
+    "kind": "tables",
+    "name": "case_counterclaim_parties",
+    "change": "added",
+    "before_sha256": null,
+    "after_sha256": "59fb0cac0c66c2b402cb7f2e9f1e4212fdc529a7df7f84ba42cf6187f048393c",
+    "details": {
+      "acl": {
+        "before": null,
+        "after": [
+          {
+            "grantee": "authenticated",
+            "grantable": false,
+            "privilege": "SELECT"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "DELETE"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "INSERT"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "MAINTAIN"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "REFERENCES"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "SELECT"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "TRIGGER"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "TRUNCATE"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "UPDATE"
+          }
+        ]
+      },
+      "owner": {
+        "before": null,
+        "after": "postgres"
+      },
+      "columns": {
+        "before": null,
+        "after": [
+          {
+            "acl": null,
+            "name": "counterclaim_id",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "coverage_version",
+            "type": "integer",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "party_id",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "side",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          }
+        ]
+      },
+      "indexes": {
+        "before": null,
+        "after": [
+          {
+            "name": "case_counterclaim_parties_pkey",
+            "valid": true,
+            "definition": "CREATE UNIQUE INDEX case_counterclaim_parties_pkey ON public.case_counterclaim_parties USING btree (counterclaim_id, coverage_version, party_id, side)"
+          }
+        ]
+      },
+      "policies": {
+        "before": null,
+        "after": [
+          {
+            "name": "case104_read",
+            "roles": [
+              "authenticated"
+            ],
+            "using": "(case097_session_ready() AND can_view_case_data())",
+            "command": "r",
+            "permissive": true,
+            "with_check": null
+          }
+        ]
+      },
+      "triggers": {
+        "before": null,
+        "after": [
+          {
+            "name": "case104_integrity",
+            "enabled": "O",
+            "function": "case104_integrity()",
+            "definition": "CREATE CONSTRAINT TRIGGER case104_integrity AFTER INSERT ON case_counterclaim_parties DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION case104_integrity()"
+          },
+          {
+            "name": "case104_preserve",
+            "enabled": "O",
+            "function": "case101_immutable()",
+            "definition": "CREATE TRIGGER case104_preserve BEFORE DELETE OR UPDATE OR TRUNCATE ON case_counterclaim_parties FOR EACH STATEMENT EXECUTE FUNCTION case101_immutable()"
+          }
+        ]
+      },
+      "rls_forced": {
+        "before": null,
+        "after": false
+      },
+      "constraints": {
+        "before": null,
+        "after": [
+          {
+            "name": "case104_integrity",
+            "validated": true,
+            "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+          },
+          {
+            "name": "case_counterclaim_parties_counterclaim_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (counterclaim_id) REFERENCES case_counterclaims(id)"
+          },
+          {
+            "name": "case_counterclaim_parties_coverage_version_check",
+            "validated": true,
+            "definition": "CHECK (coverage_version > 0)"
+          },
+          {
+            "name": "case_counterclaim_parties_party_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (party_id) REFERENCES parties(id)"
+          },
+          {
+            "name": "case_counterclaim_parties_pkey",
+            "validated": true,
+            "definition": "PRIMARY KEY (counterclaim_id, coverage_version, party_id, side)"
+          },
+          {
+            "name": "case_counterclaim_parties_side_check",
+            "validated": true,
+            "definition": "CHECK (side = ANY (ARRAY['claimant'::text, 'target'::text]))"
+          }
+        ]
+      },
+      "rls_enabled": {
+        "before": null,
+        "after": true
+      },
+      "api_role_privileges": {
+        "before": null,
+        "after": {
+          "anon": {
+            "delete": false,
+            "insert": false,
+            "select": false,
+            "update": false,
+            "truncate": false
+          },
+          "service_role": {
+            "delete": false,
+            "insert": false,
+            "select": false,
+            "update": false,
+            "truncate": false
+          },
+          "authenticated": {
+            "delete": false,
+            "insert": false,
+            "select": true,
+            "update": false,
+            "truncate": false
+          }
+        }
+      }
+    }
+  },
+  {
+    "kind": "tables",
+    "name": "case_answer_filing_parties",
+    "change": "added",
+    "before_sha256": null,
+    "after_sha256": "61153d9afb868dce603ea0be08937d1af8ba5df88e235574cfc4a4ab476b14c5",
+    "details": {
+      "acl": {
+        "before": null,
+        "after": [
+          {
+            "grantee": "authenticated",
+            "grantable": false,
+            "privilege": "SELECT"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "DELETE"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "INSERT"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "MAINTAIN"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "REFERENCES"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "SELECT"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "TRIGGER"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "TRUNCATE"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "UPDATE"
+          }
+        ]
+      },
+      "owner": {
+        "before": null,
+        "after": "postgres"
+      },
+      "columns": {
+        "before": null,
+        "after": [
+          {
+            "acl": null,
+            "name": "filing_id",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "coverage_version",
+            "type": "integer",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "party_id",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          }
+        ]
+      },
+      "indexes": {
+        "before": null,
+        "after": [
+          {
+            "name": "case104_coverage_party",
+            "valid": true,
+            "definition": "CREATE INDEX case104_coverage_party ON public.case_answer_filing_parties USING btree (party_id, filing_id)"
+          },
+          {
+            "name": "case_answer_filing_parties_pkey",
+            "valid": true,
+            "definition": "CREATE UNIQUE INDEX case_answer_filing_parties_pkey ON public.case_answer_filing_parties USING btree (filing_id, coverage_version, party_id)"
+          }
+        ]
+      },
+      "policies": {
+        "before": null,
+        "after": [
+          {
+            "name": "case104_read",
+            "roles": [
+              "authenticated"
+            ],
+            "using": "(case097_session_ready() AND can_view_case_data())",
+            "command": "r",
+            "permissive": true,
+            "with_check": null
+          }
+        ]
+      },
+      "triggers": {
+        "before": null,
+        "after": [
+          {
+            "name": "case104_integrity",
+            "enabled": "O",
+            "function": "case104_integrity()",
+            "definition": "CREATE CONSTRAINT TRIGGER case104_integrity AFTER INSERT ON case_answer_filing_parties DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION case104_integrity()"
+          },
+          {
+            "name": "case104_preserve",
+            "enabled": "O",
+            "function": "case101_immutable()",
+            "definition": "CREATE TRIGGER case104_preserve BEFORE DELETE OR UPDATE OR TRUNCATE ON case_answer_filing_parties FOR EACH STATEMENT EXECUTE FUNCTION case101_immutable()"
+          }
+        ]
+      },
+      "rls_forced": {
+        "before": null,
+        "after": false
+      },
+      "constraints": {
+        "before": null,
+        "after": [
+          {
+            "name": "case104_integrity",
+            "validated": true,
+            "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+          },
+          {
+            "name": "case_answer_filing_parties_coverage_version_check",
+            "validated": true,
+            "definition": "CHECK (coverage_version > 0)"
+          },
+          {
+            "name": "case_answer_filing_parties_filing_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (filing_id) REFERENCES case_answer_filings(id)"
+          },
+          {
+            "name": "case_answer_filing_parties_party_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (party_id) REFERENCES parties(id)"
+          },
+          {
+            "name": "case_answer_filing_parties_pkey",
+            "validated": true,
+            "definition": "PRIMARY KEY (filing_id, coverage_version, party_id)"
+          }
+        ]
+      },
+      "rls_enabled": {
+        "before": null,
+        "after": true
+      },
+      "api_role_privileges": {
+        "before": null,
+        "after": {
+          "anon": {
+            "delete": false,
+            "insert": false,
+            "select": false,
+            "update": false,
+            "truncate": false
+          },
+          "service_role": {
+            "delete": false,
+            "insert": false,
+            "select": false,
+            "update": false,
+            "truncate": false
+          },
+          "authenticated": {
+            "delete": false,
+            "insert": false,
+            "select": true,
+            "update": false,
+            "truncate": false
+          }
+        }
+      }
+    }
+  },
+  {
+    "kind": "tables",
+    "name": "case_extension_group_parties",
+    "change": "added",
+    "before_sha256": null,
+    "after_sha256": "9b370d64ef52a11e9b8bd802eb51d36816aecd7552ef657bf1d99cc02f9798af",
+    "details": {
+      "acl": {
+        "before": null,
+        "after": [
+          {
+            "grantee": "authenticated",
+            "grantable": false,
+            "privilege": "SELECT"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "DELETE"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "INSERT"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "MAINTAIN"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "REFERENCES"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "SELECT"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "TRIGGER"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "TRUNCATE"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "UPDATE"
+          }
+        ]
+      },
+      "owner": {
+        "before": null,
+        "after": "postgres"
+      },
+      "columns": {
+        "before": null,
+        "after": [
+          {
+            "acl": null,
+            "name": "group_id",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "party_id",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "deadline_id",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "extension_id",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": false,
+            "generated": ""
+          }
+        ]
+      },
+      "indexes": {
+        "before": null,
+        "after": [
+          {
+            "name": "case_extension_group_parties_extension_id_key",
+            "valid": true,
+            "definition": "CREATE UNIQUE INDEX case_extension_group_parties_extension_id_key ON public.case_extension_group_parties USING btree (extension_id)"
+          },
+          {
+            "name": "case_extension_group_parties_group_id_deadline_id_key",
+            "valid": true,
+            "definition": "CREATE UNIQUE INDEX case_extension_group_parties_group_id_deadline_id_key ON public.case_extension_group_parties USING btree (group_id, deadline_id)"
+          },
+          {
+            "name": "case_extension_group_parties_pkey",
+            "valid": true,
+            "definition": "CREATE UNIQUE INDEX case_extension_group_parties_pkey ON public.case_extension_group_parties USING btree (group_id, party_id)"
+          }
+        ]
+      },
+      "policies": {
+        "before": null,
+        "after": [
+          {
+            "name": "case104_read",
+            "roles": [
+              "authenticated"
+            ],
+            "using": "(case097_session_ready() AND can_view_case_data())",
+            "command": "r",
+            "permissive": true,
+            "with_check": null
+          }
+        ]
+      },
+      "triggers": {
+        "before": null,
+        "after": [
+          {
+            "name": "case104_preserve",
+            "enabled": "O",
+            "function": "case101_immutable()",
+            "definition": "CREATE TRIGGER case104_preserve BEFORE DELETE OR TRUNCATE ON case_extension_group_parties FOR EACH STATEMENT EXECUTE FUNCTION case101_immutable()"
+          }
+        ]
+      },
+      "rls_forced": {
+        "before": null,
+        "after": false
+      },
+      "constraints": {
+        "before": null,
+        "after": [
+          {
+            "name": "case_extension_group_parties_deadline_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (deadline_id) REFERENCES case_deadlines(id)"
+          },
+          {
+            "name": "case_extension_group_parties_extension_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (extension_id) REFERENCES case_deadline_extensions(id)"
+          },
+          {
+            "name": "case_extension_group_parties_extension_id_key",
+            "validated": true,
+            "definition": "UNIQUE (extension_id)"
+          },
+          {
+            "name": "case_extension_group_parties_group_id_deadline_id_key",
+            "validated": true,
+            "definition": "UNIQUE (group_id, deadline_id)"
+          },
+          {
+            "name": "case_extension_group_parties_group_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (group_id) REFERENCES case_extension_groups(id)"
+          },
+          {
+            "name": "case_extension_group_parties_party_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (party_id) REFERENCES parties(id)"
+          },
+          {
+            "name": "case_extension_group_parties_pkey",
+            "validated": true,
+            "definition": "PRIMARY KEY (group_id, party_id)"
+          }
+        ]
+      },
+      "rls_enabled": {
+        "before": null,
+        "after": true
+      },
+      "api_role_privileges": {
+        "before": null,
+        "after": {
+          "anon": {
+            "delete": false,
+            "insert": false,
+            "select": false,
+            "update": false,
+            "truncate": false
+          },
+          "service_role": {
+            "delete": false,
+            "insert": false,
+            "select": false,
+            "update": false,
+            "truncate": false
+          },
+          "authenticated": {
+            "delete": false,
+            "insert": false,
+            "select": true,
+            "update": false,
+            "truncate": false
+          }
+        }
+      }
+    }
+  },
+  {
+    "kind": "tables",
+    "name": "case_defendant_representations",
+    "change": "added",
+    "before_sha256": null,
+    "after_sha256": "e34d2253d2fcf438f2558fb8fec43dcf51f7b18ef7fe81cc832cad50de5aaae5",
+    "details": {
+      "acl": {
+        "before": null,
+        "after": [
+          {
+            "grantee": "authenticated",
+            "grantable": false,
+            "privilege": "SELECT"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "DELETE"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "INSERT"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "MAINTAIN"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "REFERENCES"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "SELECT"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "TRIGGER"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "TRUNCATE"
+          },
+          {
+            "grantee": "postgres",
+            "grantable": false,
+            "privilege": "UPDATE"
+          }
+        ]
+      },
+      "owner": {
+        "before": null,
+        "after": "postgres"
+      },
+      "columns": {
+        "before": null,
+        "after": [
+          {
+            "acl": null,
+            "name": "case_id",
+            "type": "bigint",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "party_id",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "active",
+            "type": "boolean",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "version",
+            "type": "integer",
+            "default": "1",
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "reason",
+            "type": "text",
+            "default": null,
+            "identity": "",
+            "not_null": false,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "recorded_at",
+            "type": "timestamp with time zone",
+            "default": "clock_timestamp()",
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "recorded_by",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "updated_at",
+            "type": "timestamp with time zone",
+            "default": "clock_timestamp()",
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          },
+          {
+            "acl": null,
+            "name": "updated_by",
+            "type": "uuid",
+            "default": null,
+            "identity": "",
+            "not_null": true,
+            "generated": ""
+          }
+        ]
+      },
+      "indexes": {
+        "before": null,
+        "after": [
+          {
+            "name": "case_defendant_representations_pkey",
+            "valid": true,
+            "definition": "CREATE UNIQUE INDEX case_defendant_representations_pkey ON public.case_defendant_representations USING btree (case_id, party_id)"
+          }
+        ]
+      },
+      "policies": {
+        "before": null,
+        "after": [
+          {
+            "name": "case104_read",
+            "roles": [
+              "authenticated"
+            ],
+            "using": "(case097_session_ready() AND can_view_case_data())",
+            "command": "r",
+            "permissive": true,
+            "with_check": null
+          }
+        ]
+      },
+      "triggers": {
+        "before": null,
+        "after": [
+          {
+            "name": "case104_preserve",
+            "enabled": "O",
+            "function": "case101_immutable()",
+            "definition": "CREATE TRIGGER case104_preserve BEFORE DELETE OR TRUNCATE ON case_defendant_representations FOR EACH STATEMENT EXECUTE FUNCTION case101_immutable()"
+          }
+        ]
+      },
+      "rls_forced": {
+        "before": null,
+        "after": false
+      },
+      "constraints": {
+        "before": null,
+        "after": [
+          {
+            "name": "case_defendant_representations_case_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (case_id) REFERENCES cases(id)"
+          },
+          {
+            "name": "case_defendant_representations_check",
+            "validated": true,
+            "definition": "CHECK (active OR length(btrim(reason)) > 0)"
+          },
+          {
+            "name": "case_defendant_representations_party_id_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (party_id) REFERENCES parties(id)"
+          },
+          {
+            "name": "case_defendant_representations_pkey",
+            "validated": true,
+            "definition": "PRIMARY KEY (case_id, party_id)"
+          },
+          {
+            "name": "case_defendant_representations_recorded_by_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (recorded_by) REFERENCES user_profiles(id)"
+          },
+          {
+            "name": "case_defendant_representations_updated_by_fkey",
+            "validated": true,
+            "definition": "FOREIGN KEY (updated_by) REFERENCES user_profiles(id)"
+          },
+          {
+            "name": "case_defendant_representations_version_check",
+            "validated": true,
+            "definition": "CHECK (version > 0)"
+          }
+        ]
+      },
+      "rls_enabled": {
+        "before": null,
+        "after": true
+      },
+      "api_role_privileges": {
+        "before": null,
+        "after": {
+          "anon": {
+            "delete": false,
+            "insert": false,
+            "select": false,
+            "update": false,
+            "truncate": false
+          },
+          "service_role": {
+            "delete": false,
+            "insert": false,
+            "select": false,
+            "update": false,
+            "truncate": false
+          },
+          "authenticated": {
+            "delete": false,
+            "insert": false,
+            "select": true,
+            "update": false,
+            "truncate": false
+          }
+        }
+      }
+    }
+  },
+  {
+    "kind": "functions",
+    "name": "case104_integrity()",
+    "change": "added",
+    "before_sha256": null,
+    "after_sha256": "c80390ec6133eada405608beb01b01e32178be311d342b8dda3ce49a99feb607"
+  },
+  {
+    "kind": "functions",
+    "name": "case104_flow_guard()",
+    "change": "added",
+    "before_sha256": null,
+    "after_sha256": "2475b8d6ae0ef5d1a5da88932e601f27088c9a373d8280bbe3ce05d5c95709b8"
+  },
+  {
+    "kind": "functions",
+    "name": "case104_read(bigint)",
+    "change": "added",
+    "before_sha256": null,
+    "after_sha256": "130ab37ea5f001658727097a590e3a00c7353ef5dd1761e66eb55876aafd88f6"
+  },
+  {
+    "kind": "functions",
+    "name": "case104_deadline_guard()",
+    "change": "added",
+    "before_sha256": null,
+    "after_sha256": "cfdea0edf9498525e4b2d25e005de3d5ad1cce45049ccf48fd15760cb1745999"
+  },
+  {
+    "kind": "functions",
+    "name": "case104_projection_guard()",
+    "change": "added",
+    "before_sha256": null,
+    "after_sha256": "f20cfc71e75502d7aa7c6923887e1e1a3b12272e0abc57b4d6b1948cba607d50"
+  },
+  {
+    "kind": "functions",
+    "name": "case104_all_resolved(bigint)",
+    "change": "added",
+    "before_sha256": null,
+    "after_sha256": "ae85b8b4d42e7243b7d4b2b3b23e7bb1714fe243893e35c5fc7c9d9edda9773b"
+  },
+  {
+    "kind": "functions",
+    "name": "case104_filed_date(bigint,uuid)",
+    "change": "added",
+    "before_sha256": null,
+    "after_sha256": "dcc858d3f7f39aac9ae85e4f33173fcf137e8b9b6d2c77f057d7ff1741f1d9de"
+  },
+  {
+    "kind": "functions",
+    "name": "case104_sync(bigint,uuid[],jsonb)",
+    "change": "added",
+    "before_sha256": null,
+    "after_sha256": "dcc2c8a529bc77819f11afff203f92e5beed76225bd8e386bbbc58b3c6ac280d"
+  },
+  {
+    "kind": "functions",
+    "name": "case104_deadline_token(uuid,jsonb)",
+    "change": "added",
+    "before_sha256": null,
+    "after_sha256": "c7960c77907dbd389d5d91ad4221c4bac34a4f04d8428c3f7c26a4bb201dc940"
+  },
+  {
+    "kind": "functions",
+    "name": "case104_parties(bigint,jsonb,text,boolean)",
+    "change": "added",
+    "before_sha256": null,
+    "after_sha256": "dedc54dde76dad7e6d4beff4613f06af3b02806c1d9945ab37ed48dc0279ade9"
+  },
+  {
+    "kind": "functions",
+    "name": "case104_save(bigint,uuid,text,jsonb,jsonb)",
+    "change": "added",
+    "before_sha256": null,
+    "after_sha256": "9b2ef1610a0cf51fe1bb6bc7633ec7e0c1d363a82f0a595a36fd70624baf0e06"
+  },
+  {
+    "kind": "functions",
+    "name": "case104_counterclaim_write(bigint,text,jsonb)",
+    "change": "added",
+    "before_sha256": null,
+    "after_sha256": "c75bf19ee38c60f39c724a79859511db0ee2cb1d0a0ef8d5e7dc7585c47c26a9"
+  }
+]

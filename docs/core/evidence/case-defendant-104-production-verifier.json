@@ -1,0 +1,28 @@
+{
+  "captured_at": "2026-10-10T16:38:16.667Z",
+  "project": "vp-case-system",
+  "project_ref": "rtualftvaapjburgjfgb",
+  "branch": "main PRODUCTION",
+  "query_sha256": "3be0995478e5700c6570af9880ab99d75e0e962c65d4a96b1a7151382c0fcb13",
+  "query_url": "https://supabase.com/dashboard/project/rtualftvaapjburgjfgb/sql/3aea7896-779f-44a1-9f92-28929e8408f0",
+  "result": {
+    "checks": {
+      "contract_exact": true,
+      "people_contract": true,
+      "template_seed_exact": true,
+      "reviewed_contract_bound": true,
+      "candidate_apply_has_no_legacy_dml": true
+    },
+    "gate_pass": true,
+    "failed_checks": [],
+    "contract_sha256": "4ab7188d2475f76a295762c331abb00c96e80903d284e0ff7aa8bd488654d0dd",
+    "auth_tables_read": false,
+    "candidate_sha256": "011cb7ed70adf1fb66d30c1af81bbfe20e5c1a18f2e3e2849393b21f450fb486",
+    "object_differences": [],
+    "accepted_103_sha256": "273a7bda67b81d0c581ebbb5cd6c68757ade0ebb8fe9301aaaa4cccccece7133",
+    "production_mutation": false,
+    "business_rpc_executed": false,
+    "accepted_contract_sha256": "5daa028767c1276d689fbcaad132c5a30e4f4ad51fb32af0f4b8e7146a2cec48",
+    "business_rows_are_not_gate_inputs": true
+  }
+}

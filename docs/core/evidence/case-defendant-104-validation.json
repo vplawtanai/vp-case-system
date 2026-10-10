@@ -1,0 +1,71 @@
+{
+  "validated_at": "2026-10-10T16:22:00.860Z",
+  "branch": "main",
+  "head": "206254a9cb7ecca741da0ac8077cb9270da56c66",
+  "candidate_sha256": "011cb7ed70adf1fb66d30c1af81bbfe20e5c1a18f2e3e2849393b21f450fb486",
+  "postgres": {
+    "passed": 21,
+    "failed": 0,
+    "tests": [
+      "installation is DDL + one immutable 3-stage template only; all legacy rows and accepted functions preserved",
+      "role/security parity, actual actor, private helpers and API writes denied",
+      "representation uses exact live Defendant IDs; withdrawal/re-add preserves all existing facts and creates no duplicate obligation",
+      "D1 single filing resolves only its linked deadline; projection and true actor are atomic; no task or auto-stage",
+      "D1+D2 separate filings stay independent; joint filing has one identity and two coverage rows",
+      "joint pending/granted/corrected extension reuses distinct core rows and due dates; never resolves filing obligation",
+      "joint counterclaim structured linkage excludes D3; invalid claimant/target/case rejected",
+      "active Counterclaim blocks dependent void/coverage/replacement, permits non-impact correction; preserves originals",
+      "filed-date correction syncs projections; withdrawing/re-adding a filed Party preserves Filing, Extension and Deadline facts",
+      "explicit Counterclaim correction or relink + Filing replacement is atomic; no active orphan or removed original coverage",
+      "void joint A with active B(D1) recomputes projection and reopens D2 only; earliest active filed date is compatibility projection",
+      "D-CIV-03 void does not auto-rewind; inconsistency yields Human-confirmed RETURN and immutable history",
+      "old RPC and direct API cannot bypass active-Filing truth, confirmed stage gate or linked Deadline guard",
+      "retry receipt is exact, request/actor conflicts fail; stale and late audit failure roll back all joint effects",
+      "joint failures on second defendant never leave first defendant completed or partially extended",
+      "Core 098 handoff remains one Case-level Next Action / Current Actor, no new Task; Viewer/ineligible assignee denied",
+      "service facts reuse 102/103 tables and guards; no default-motion semantics or fabricated dates",
+      "Plaintiff 101–103 runtime remains unchanged, and immutable template/history protections survive",
+      "verifier stays fail-closed unbound; local binding checks exact objects while ordinary activity is not drift",
+      "two concurrent transactions with the same joint-filing request commit one receipt, one filing, two completions",
+      "concurrent Counterclaim create versus dependent Filing void serializes and cannot produce an active orphan"
+    ],
+    "log_sha256": "a4e2aff55f8c7990df303393edb342f7de1e40e6057a01e662470d99ce0c904e"
+  },
+  "static": {
+    "passed": 4,
+    "failed": 0,
+    "log_sha256": "cca110a11a0c2d6123a815ff611fb37515e419377c1c99efb3b1c05ad9f120ec"
+  },
+  "eslint": "PASS",
+  "diff_whitespace": "PASS including task untracked files",
+  "app_build": "Not required: SQL/RPC artifacts and tests only; no application changes",
+  "production_preflight": "PASS; SELECT-only; evidence in case-defendant-104-production-preflight.json",
+  "reviewed_binding": "UNBOUND; no Human Apply approval",
+  "immutable_097_103_sha_check": "PASS",
+  "preserved_preexisting_dirty_paths": 59,
+  "owned_processes": {
+    "postgres_cluster": "/private/tmp/case104-pg-Wd90x8",
+    "pg_ctl_status_exit": 3,
+    "stopped": true,
+    "dev_server_opened": false
+  },
+  "production_mutation": false,
+  "committed": false,
+  "pushed": false,
+  "deployed": false,
+  "files": [
+    "supabase/migrations/202610100104_case_civil_defendant.sql",
+    "scripts/sql/case_defendant_104_contract.sql",
+    "scripts/sql/preflight_case_defendant_104.sql",
+    "scripts/sql/verify_case_defendant_104.sql",
+    "scripts/tests/case-defendant-104-artifacts.cjs",
+    "scripts/tests/case-defendant-104-postgres.test.cjs",
+    "scripts/tests/case-defendant-104.test.cjs",
+    "scripts/tests/fixtures/case-defendant-104-after.json",
+    "scripts/tests/fixtures/case-defendant-104-reviewed.json",
+    "docs/core/evidence/case-defendant-104-object-diff.json",
+    "docs/core/evidence/case-defendant-104-production-preflight.json",
+    "docs/core/CASE_DEFENDANT_104_HUMAN_GATE.md",
+    "docs/core/evidence/case-defendant-104-validation.json"
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "captured_at": "2026-10-10T16:39:16.200Z",
+  "project": "vp-case-system",
+  "query_url": "https://supabase.com/dashboard/project/rtualftvaapjburgjfgb/sql/dcf2e8be-4d92-4ea3-b7fd-453dbbdcb434",
+  "query_sha256": "42f4dd082f7dc29ef44f9bc44dc26e23de21025f4a851680fbede75237961ba6",
+  "result": {
+    "counts": {
+      "104_audit_rows": 0,
+      "case_counterclaims": 0,
+      "case_answer_filings": 0,
+      "104_business_receipts": 0,
+      "case_extension_groups": 0,
+      "defendant_flow_instances": 0,
+      "case_counterclaim_parties": 0,
+      "case_answer_filing_parties": 0,
+      "defendant_flow_transitions": 0,
+      "case_extension_group_parties": 0,
+      "case_defendant_representations": 0
+    },
+    "gate_pass": true,
+    "select_only": true,
+    "defendant_stages": [
+      "D-CIV-01",
+      "D-CIV-02",
+      "D-CIV-03"
+    ],
+    "business_rpc_executed": false,
+    "new_business_rows_zero": true,
+    "defendant_template_versions": 1
+  }
+}

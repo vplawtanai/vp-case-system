@@ -1,0 +1,42 @@
+{
+  "validated_at": "2026-10-10T16:40:07.137Z",
+  "approved_sha256": "011cb7ed70adf1fb66d30c1af81bbfe20e5c1a18f2e3e2849393b21f450fb486",
+  "prior_full_postgres_suite": "21/21 PASS; reused unchanged runtime evidence",
+  "current_static_artifacts": "4/4 PASS",
+  "current_postgres_binding": "1/1 PASS; approved, null and wrong candidate; RLS/grants/object drift; normal business activity",
+  "eslint": "PASS",
+  "preflight": "PASS; equals approved scoped contract",
+  "production_apply": "Succeeded once",
+  "post_apply_verifier": "PASS; exact catalog/seed; bound to approved SHA",
+  "new_business_rows": "All 7 tables, 104 receipts/audit and Defendant instances/transitions zero",
+  "legacy_business_dml": "None in exact approved installation SQL; no Production business RPC executed",
+  "preserved_preexisting_paths": 59,
+  "process_cleanup": {
+    "cluster": "/private/tmp/case104-pg-VGmNvw",
+    "status_exit": 3,
+    "stopped": true,
+    "dev_server_opened": false
+  },
+  "manual_deploy": false,
+  "files": [
+    "supabase/migrations/202610100104_case_civil_defendant.sql",
+    "scripts/sql/case_defendant_104_contract.sql",
+    "scripts/sql/preflight_case_defendant_104.sql",
+    "scripts/sql/verify_case_defendant_104.sql",
+    "scripts/sql/verify_case_defendant_104_installation.sql",
+    "scripts/tests/case-defendant-104-artifacts.cjs",
+    "scripts/tests/case-defendant-104-postgres.test.cjs",
+    "scripts/tests/case-defendant-104.test.cjs",
+    "scripts/tests/fixtures/case-defendant-104-after.json",
+    "scripts/tests/fixtures/case-defendant-104-reviewed.json",
+    "docs/core/CASE_DEFENDANT_104_HUMAN_GATE.md",
+    "docs/core/evidence/case-defendant-104-object-diff.json",
+    "docs/core/evidence/case-defendant-104-production-preflight.json",
+    "docs/core/evidence/case-defendant-104-validation.json",
+    "docs/core/evidence/case-defendant-104-final-preflight.json",
+    "docs/core/evidence/case-defendant-104-apply-receipt.json",
+    "docs/core/evidence/case-defendant-104-production-verifier.json",
+    "docs/core/evidence/case-defendant-104-installation.json",
+    "docs/core/evidence/case-defendant-104-release-validation.json"
+  ]
+}
