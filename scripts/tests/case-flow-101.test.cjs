@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const{test}=require('node:test'),assert=require('node:assert/strict'),ts=require('typescript');
-require('./receipt-render-fixture.cjs');const React=require('react');const{workspaceFixture}=require('./i18n-workspace-fixture.cjs');const A=require('./case-flow-101-artifacts.cjs');const{detailText}=require('../../app/cases/[id]/labels.ts');const{flowPermissions,stageEvidence,needsFlowReason,flowError}=require('../../app/cases/[id]/flow-model.ts');
+require('./receipt-render-fixture.cjs');const React=require('react');const{workspaceFixture}=require('./i18n-workspace-fixture.cjs');const A=require('./case-flow-101-artifacts.cjs');const{detailText}=require('../../app/cases/[id]/labels.ts');const{hasCourtRecord,validCutInFiling,flowPermissions,stageEvidence,needsFlowReason,flowError}=require('../../app/cases/[id]/flow-model.ts');
 const modal={default:({title,children})=>React.createElement('section',{role:'dialog'},title,children)};
 const f=workspaceFixture('app/cases/[id]/CaseFlow.tsx',['FlowEditor','FlowView'],{'./CaseEditModal':modal});
 const seed=JSON.parse(A.read(A.afterPath)).seed;
@@ -15,4 +15,25 @@ test('cut-in shows current stage and 11 unrecorded stages, never fabricated comp
 test('same concise modal for cut-in and manual transitions; no technical semantics picker or invented deadlines',()=>{for(const locale of ['th','en']){const props={action:'start',data:{...data,instance:null,history:[]},caseId:1,onClose:()=>{},onSaved:()=>{}};const html=f.render(locale,{},props,'FlowEditor');assert.equal((html.match(/<select/g)||[]).length,4);assert.match(html,/type="checkbox" required/);assert.doesNotMatch(html,/type="date"|NEXT|SKIP|PARALLEL|BRANCH/);assert.ok(html.includes(detailText('Start a new flow from this stage. Only events from now onward will be recorded; no history is backfilled.',locale)));const correction=f.render(locale,{}, {...props,action:'correct',data},'FlowEditor');assert.match(correction,/<textarea required/);assert.equal((correction.match(/<select/g)||[]).length,1);}
  assert.equal(needsFlowReason(data,'advance','defence'),false);for(const target of ['service','prepare_claim','evidence'])assert.equal(needsFlowReason(data,'advance',target),true);
 });
-test('all new fixed labels and known business errors are localized through shared Case language mechanism',()=>{const src=A.read('app/cases/[id]/CaseFlow.tsx'),ast=ts.createSourceFile('x.tsx',src,99,true,4);function visit(n){if(ts.isCallExpression(n)&&n.expression.getText(ast)==='tr'&&ts.isStringLiteral(n.arguments[0])){const key=n.arguments[0].text;assert.match(detailText(key,'th'),/[ก-๙]/,key);assert.doesNotMatch(detailText(key,'en'),/[ก-๙]/,key);}ts.forEachChild(n,visit);}visit(ast);for(const code of ['FORBIDDEN','NOT_FOUND','STALE','REQUEST_CONFLICT','INVALID_INPUT','REASON_REQUIRED','CUT_IN_REQUIRED','STATE','IMMUTABLE']){const key=flowError('CASE101_'+code);assert.match(detailText(key,'th'),/[ก-๙]/);assert.doesNotMatch(detailText(key,'en'),/CASE101|[ก-๙]/);}assert.match(src,/case101_save/);assert.doesNotMatch(src,/\.from\(|case098_save|case099_save|case100_save|createAuditLog/);});
+test('all new fixed labels and known business errors are localized through shared Case language mechanism',()=>{const src=A.read('app/cases/[id]/CaseFlow.tsx'),ast=ts.createSourceFile('x.tsx',src,99,true,4);function visit(n){if(ts.isCallExpression(n)&&n.expression.getText(ast)==='tr'&&ts.isStringLiteral(n.arguments[0])){const key=n.arguments[0].text;assert.match(detailText(key,'th'),/[ก-๙]/,key);assert.doesNotMatch(detailText(key,'en'),/[ก-๙]/,key);}ts.forEachChild(n,visit);}visit(ast);for(const code of ['FORBIDDEN','NOT_FOUND','STALE','REQUEST_CONFLICT','INVALID_INPUT','REASON_REQUIRED','CUT_IN_REQUIRED','STATE','IMMUTABLE']){const key=flowError('CASE101_'+code);assert.match(detailText(key,'th'),/[ก-๙]/);assert.doesNotMatch(detailText(key,'en'),/CASE101|[ก-๙]/);}assert.match(src,/case101_save/);assert.doesNotMatch(src,/\.(?:insert|update|delete|upsert)\(|case098_save|case099_save|case100_save|createAuditLog/);});
+
+test('cut-in filing method requires an explicit choice for court evidence; never guesses or stores the placeholder',()=>{
+ for(const record of [{court_name:'ศาลแพ่ง'},{case_number:'พ 2988/2569'}])assert.equal(hasCourtRecord(record),true);
+ for(const record of [{},{court_name:null,case_number:null},{court_name:'  ',case_number:''}])assert.equal(hasCourtRecord(record),false);
+ for(const method of ['paper','efiling_v3','efiling_v4'])assert.equal(validCutInFiling(method,true),true);
+ for(const method of ['','not_filed','unknown'])assert.equal(validCutInFiling(method,true),false);
+ assert.equal(validCutInFiling('not_filed',false),true);assert.equal(validCutInFiling('',false),false);
+ for(const locale of ['th','en'])for(const requiresFilingMethod of [true,false]){
+  const html=f.render(locale,{}, {action:'start',data:{...data,instance:null,history:[]},caseId:1,requiresFilingMethod,onClose:()=>{},onSaved:()=>{}},'FlowEditor');
+  assert.equal(html.includes('value="not_filed"'),!requiresFilingMethod);
+  if(requiresFilingMethod)assert.match(html,/<option value="" disabled="" selected="">/);
+  else assert.match(html,/<option value="not_filed" selected="">/);
+  for(const value of ['paper','efiling_v3','efiling_v4'])assert.ok(html.includes('value="'+value+'"'));
+  assert.equal(html.includes(detailText('Filing method not specified',locale)),requiresFilingMethod);
+ }
+ const src=A.read('app/cases/[id]/CaseFlow.tsx');
+ assert.match(src,/requiresFilingMethod=\{courtRecorded\|\|datedCourtEvent\}/);
+ assert.match(src,/\.from\('case_timeline'\)\.select\('id'\)\.eq\('case_id',caseId\)\.is\('deleted_at',null\)\.in\('event_type',\['filing','hearing'\]\)\.not\('event_date','is',null\)\.limit\(1\)/);
+ assert.match(src,/if\(events.error\)throw events.error/);
+ assert.match(A.read('app/cases/[id]/page.tsx'),/<CaseFlow caseRecord=\{caseItem\}/);
+});

@@ -1613,6 +1613,8 @@
   "This adds a correction to the latest record. The original history remains visible.": {"th":"เพิ่มรายการแก้ไขบันทึกล่าสุด โดยประวัติเดิมยังคงเปิดดูได้","en":"This adds a correction to the latest record. The original history remains visible."},
   "This ends only the flow. Legal case status and VP engagement stay unchanged.": {"th":"สิ้นสุดเฉพาะเส้นทางนี้ สถานะคดีและขอบเขตงานของสำนักงานยังคงเดิม","en":"This ends only the flow. Legal case status and VP engagement stay unchanged."},
   "Flow could not be saved. Please try again.": {"th":"บันทึกเส้นทางไม่สำเร็จ กรุณาลองอีกครั้ง","en":"Flow could not be saved. Please try again."},
+  "Filing method not specified": {"th":"ยังไม่ระบุรูปแบบการยื่น","en":"Filing method not specified"},
+  "Choose the filing method before starting the flow.": {"th":"กรุณาเลือกรูปแบบการยื่นก่อนเริ่มเส้นทางคดี","en":"Choose the filing method before starting the flow."},
   "filing.not_filed": {"th":"ยังไม่ยื่น","en":"Not filed"},
   "filing.paper": {"th":"กระดาษ / ที่ทำการศาล","en":"Paper / court office"},
   "filing.efiling_v3": {"th":"ยื่นผ่าน e-Filing V3","en":"e-Filing V3"},

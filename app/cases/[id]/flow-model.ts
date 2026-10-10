@@ -1,4 +1,6 @@
 export const FILING_METHODS = ['not_filed','paper','efiling_v3','efiling_v4'] as const;
+export function hasCourtRecord(record:{court_name?:string|null;case_number?:string|null}){return !!(record.court_name?.trim()||record.case_number?.trim());}
+export function validCutInFiling(method:string,requiresFiledMethod:boolean){return FILING_METHODS.some(value=>value===method)&&(!requiresFiledMethod||method!=='not_filed');}
 export type FlowStage = { stage_key:string; ordinal:number; title_th:string; title_en:string };
 export type FlowEvent = { id:string; sequence_no:number; event_kind:'start'|'transition'|'correction'; transition_code:string|null; from_stage:string|null; to_stage:string; from_lifecycle:string|null; to_lifecycle:string; reason:string|null; corrects_id:string|null; actor_name:string; occurred_at:string };
 export type FlowData = {

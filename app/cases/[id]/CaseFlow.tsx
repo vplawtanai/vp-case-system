@@ -4,15 +4,24 @@ import {Route,MapPin} from 'lucide-react';
 import {supabase} from '../../../lib/supabase';
 import CaseEditModal from './CaseEditModal';
 import {useCaseDetailText} from './labels';
-import {FILING_METHODS,flowError,needsFlowReason,stageEvidence,type FlowAction,type FlowData} from './flow-model';
+import {FILING_METHODS,hasCourtRecord,validCutInFiling,flowError,needsFlowReason,stageEvidence,type FlowAction,type FlowData} from './flow-model';
 import base from './case-detail.module.css';
 import css from './case-flow.module.css';
 
-export default function CaseFlow({caseId,revision,canStart,canTransition}:{caseId:number;revision:number;canStart:boolean;canTransition:boolean}){
+export default function CaseFlow({caseId,revision,canStart,canTransition,caseRecord={}}:{caseId:number;revision:number;canStart:boolean;canTransition:boolean;caseRecord?:{court_name?:string|null;case_number?:string|null}}){
  const {tr,locale}=useCaseDetailText();
  const [data,setData]=useState<FlowData|null>(null),[failed,setFailed]=useState(false),[reload,setReload]=useState(0);
+ const courtRecorded=hasCourtRecord(caseRecord);
+ const [datedCourtEvent,setDatedCourtEvent]=useState(false);
  const [view,setView]=useState(false),[editor,setEditor]=useState<FlowAction|null>(null);
- useEffect(()=>{let live=true;void(async()=>{try{const r=await supabase.rpc('case101_read',{p_case_id:caseId});if(r.error)throw r.error;if(live){setData(r.data as FlowData);setFailed(false);}}catch{if(live)setFailed(true);}})();return()=>{live=false;};},[caseId,revision,reload]);
+ useEffect(()=>{let live=true;void(async()=>{try{
+  const r=await supabase.rpc('case101_read',{p_case_id:caseId});if(r.error)throw r.error;
+  const value=r.data as FlowData;let datedEvent=false;
+  // An existing filing/hearing date is evidence even when the court/number fields are blank.
+  // Read only presence, including completed/past appointments; never infer a filing method.
+  if(!value.instance&&!courtRecorded){const events=await supabase.from('case_timeline').select('id').eq('case_id',caseId).is('deleted_at',null).in('event_type',['filing','hearing']).not('event_date','is',null).limit(1);if(events.error)throw events.error;datedEvent=!!events.data?.length;}
+  if(live){setDatedCourtEvent(datedEvent);setData(value);setFailed(false);}
+ }catch{if(live)setFailed(true);}})();return()=>{live=false;};},[caseId,revision,reload,courtRecorded]);
  if(failed)return <p role="alert" className={base.notice}>{tr('Could not load case flow.')} <button onClick={()=>setReload(n=>n+1)}>{tr('Reload')}</button></p>;
  if(!data)return null;
  const i=data.instance,stage=data.stages.find(s=>s.stage_key===i?.current_stage);
@@ -21,7 +30,7 @@ export default function CaseFlow({caseId,revision,canStart,canTransition}:{caseI
   <div className={css.heading}><Route size={20}/><div><h2>{tr('Case procedure')}</h2><p>{tr('Civil / Ordinary / Plaintiff')}{i&&<> · {tr('filing.'+i.filing_method)}</>}</p></div></div>
   {i?<><div className={css.current}><span>{tr('Current stage')}</span><strong>{stage?.[locale==='th'?'title_th':'title_en']}</strong>{i.lifecycle!=='active'&&<small>{tr('flow.'+i.lifecycle)}</small>}</div><button className={base.secondary} onClick={()=>setView(true)}>{tr('View case flow')}</button></>:<div className={css.empty}><p>{tr('No case flow recorded. Existing case history stays unchanged.')}</p>{canStart&&<button className={base.secondary} onClick={()=>edit('start')}>{tr('Start flow from current state')}</button>}</div>}
   {view&&i&&<CaseEditModal title={tr('Case flow')} className={css.viewer} onClose={()=>setView(false)}><FlowView data={data} canTransition={canTransition} onEdit={edit}/></CaseEditModal>}
-  {editor&&<FlowEditor action={editor} data={data} caseId={caseId} onClose={()=>setEditor(null)} onSaved={value=>{setData(value);setEditor(null);setView(true);window.dispatchEvent(new Event('case-detail-updated'));}}/>}
+  {editor&&<FlowEditor action={editor} data={data} caseId={caseId} requiresFilingMethod={courtRecorded||datedCourtEvent} onClose={()=>setEditor(null)} onSaved={value=>{setData(value);setEditor(null);setView(true);window.dispatchEvent(new Event('case-detail-updated'));}}/>}
  </section>;
 }
 
@@ -37,21 +46,21 @@ function FlowView({data,canTransition,onEdit}:{data:FlowData;canTransition:boole
  </div>;
 }
 
-function FlowEditor({action,data,caseId,onClose,onSaved}:{action:FlowAction;data:FlowData;caseId:number;onClose:()=>void;onSaved:(v:FlowData)=>void}){
+function FlowEditor({action,data,caseId,requiresFilingMethod=false,onClose,onSaved}:{action:FlowAction;data:FlowData;caseId:number;requiresFilingMethod?:boolean;onClose:()=>void;onSaved:(v:FlowData)=>void}){
  const {tr,locale}=useCaseDetailText();const i=data.instance;
  const [stage,setStage]=useState(action==='start'?'':action==='advance'?(data.stages.find(s=>s.ordinal===(data.stages.find(x=>x.stage_key===i?.current_stage)?.ordinal||0)+1)?.stage_key||i?.current_stage||''):i?.current_stage||'');
- const [filing,setFiling]=useState('not_filed'),[reason,setReason]=useState(''),[ack,setAck]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const [filing,setFiling]=useState(requiresFilingMethod?'':'not_filed'),[reason,setReason]=useState(''),[ack,setAck]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const [instanceId]=useState(()=>i?.id||crypto.randomUUID());const retry=useRef<{body:string;id:string}|null>(null),lock=useRef(false);
  const title=action==='start'?'Start flow from current state':action==='correct'?'Correct latest stage record':action==='pause'?'Pause case flow':action==='resume'?'Resume case flow':action==='exit'?'End this flow':'Record next stage';
  const reasonRequired=needsFlowReason(data,action,stage);
- async function save(e:React.FormEvent){e.preventDefault();if(lock.current)return;lock.current=true;setBusy(true);setError('');try{
+ async function save(e:React.FormEvent){e.preventDefault();if(lock.current)return;if(action==='start'&&!validCutInFiling(filing,requiresFilingMethod)){setError('Choose the filing method before starting the flow.');return;}lock.current=true;setBusy(true);setError('');try{
   const payload=action==='start'?{stage,filing_method:filing,start_kind:'cut_in',acknowledged:ack}:{stage,reason:reason||null,...(action==='correct'?{corrects_id:data.history[0]?.id}:{})};
   const body=JSON.stringify(payload);if(retry.current?.body!==body)retry.current={body,id:crypto.randomUUID()};
   const r=await supabase.rpc('case101_save',{p_case_id:caseId,p_instance_id:instanceId,p_version:i?.version||0,p_request_id:retry.current!.id,p_action:action,p_data:payload});
   if(r.error){setError(flowError(r.error.message));return;}onSaved(r.data as FlowData);
  }catch{setError('Flow could not be saved. Please try again.');}finally{lock.current=false;setBusy(false);}}
  return <CaseEditModal title={tr(title)} className={css.editor} busy={busy} onClose={onClose}><form className={base.coreForm} onSubmit={save}><fieldset disabled={busy} className={css.fields}>
-  {action==='start'&&<><label>{tr('Procedural variant')}<select value="ordinary" onChange={()=>{}}><option value="ordinary">{tr('Civil ordinary')}</option></select></label><label>{tr('Represented role')}<select value="plaintiff" onChange={()=>{}}><option value="plaintiff">{tr('Plaintiff')}</option></select></label><label>{tr('Filing method')}<select value={filing} onChange={e=>setFiling(e.target.value)}>{FILING_METHODS.map(m=><option key={m} value={m}>{tr('filing.'+m)}</option>)}</select></label></>}
+  {action==='start'&&<><label>{tr('Procedural variant')}<select value="ordinary" onChange={()=>{}}><option value="ordinary">{tr('Civil ordinary')}</option></select></label><label>{tr('Represented role')}<select value="plaintiff" onChange={()=>{}}><option value="plaintiff">{tr('Plaintiff')}</option></select></label><label>{tr('Filing method')}<select required value={filing} onChange={e=>setFiling(e.target.value)}>{requiresFilingMethod&&<option value="" disabled>{tr('Filing method not specified')}</option>}{FILING_METHODS.filter(m=>!requiresFilingMethod||m!=='not_filed').map(m=><option key={m} value={m}>{tr('filing.'+m)}</option>)}</select></label></>}
   {['start','advance','correct'].includes(action)?<label>{tr(action==='advance'?'Next stage':'Actual current stage')}<select required value={stage} onChange={e=>setStage(e.target.value)}><option value="">{tr('Choose the actual stage')}</option>{data.stages.map(s=><option key={s.stage_key} value={s.stage_key}>{s[locale==='th'?'title_th':'title_en']}</option>)}</select></label>:<p>{tr('Current stage')}: {data.stages.find(s=>s.stage_key===stage)?.[locale==='th'?'title_th':'title_en']}</p>}
   {action==='start'?<><p className={css.hint}>{tr('Start a new flow from this stage. Only events from now onward will be recorded; no history is backfilled.')}</p><label className={css.check}><input type="checkbox" required checked={ack} onChange={e=>setAck(e.target.checked)}/>{tr('I confirm this is the actual current stage and recording starts here.')}</label></>:<><label>{tr(reasonRequired?'Reason for this change':'Notes (optional)')}<textarea required={reasonRequired} rows={3} maxLength={10000} value={reason} onChange={e=>setReason(e.target.value)}/></label>{action==='correct'&&<p className={css.hint}>{tr('This adds a correction to the latest record. The original history remains visible.')}</p>}{action==='exit'&&<p className={css.hint}>{tr('This ends only the flow. Legal case status and VP engagement stay unchanged.')}</p>}</>}
  </fieldset>{error&&<p role="alert" className={base.coreError}>{tr(error)}</p>}<footer className={base.coreFooter}><button type="button" disabled={busy} className={base.secondary} onClick={onClose}>{tr('Cancel')}</button><button disabled={busy} className={base.primary}>{tr(busy?'Saving...':'Save')}</button></footer></form></CaseEditModal>;
