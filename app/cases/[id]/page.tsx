@@ -9,6 +9,7 @@ import type { UserPermissions, UserRole } from "../../../lib/permissions";
 import { FolderOpen, Landmark, UserRound, Building2, CalendarDays, Clock3 } from "lucide-react";
 import CaseCore from "./CaseCore";
 import CaseFlow from "./CaseFlow";
+import CaseService from "./CaseService";
 import {flowPermissions} from "./flow-model";
 import { CaseStatus } from "../CaseListView";
 import { useCaseDetailText } from "./labels";
@@ -339,6 +340,7 @@ export default function CaseDetailPage() {
         </dl>
       </header>
       <CaseFlow caseRecord={caseItem} caseId={caseIdNumber} revision={revision} canStart={flowPermissions(profile.role).start} canTransition={flowPermissions(profile.role).transition}/>
+      <CaseService caseId={caseIdNumber} revision={revision} canRecord={flowPermissions(profile.role).transition} canConfirm={flowPermissions(profile.role).start} onSection={navigateSection}/>
       <CaseCore caseId={caseIdNumber} revision={revision} canManage={permissions.canEditCaseInfo} canNext={permissions.canEditTasks} canViewHistory={permissions.canViewHistory} onSection={navigateSection}/>
       <nav className={css.tabs} aria-label={tr("Case Detail")}>{tabs.map(([key,label])=><button type="button" key={key} aria-current={activeSection===key ? "page" : undefined} onClick={()=>navigateSection(key)}>{tr(label)}</button>)}</nav>
         <div className={css.section} hidden={activeSection !== "info"}>

@@ -1,0 +1,108 @@
+{
+  "checked_at": "2026-10-10T03:08:20.328292+00:00",
+  "repo": "/Users/paolawyer/vp-case-app/vp-case-web",
+  "branch": "main",
+  "head_unchanged": "2b436941748d6b3129e487d100e62fc28563f539",
+  "candidate_sha256": "d88d3b513a9f574d7a03868e583fe0ead2a12056d95e6e621c853dde48df228e",
+  "postgres_tests": {
+    "passed": 10,
+    "failed": 0,
+    "log": "/private/tmp/case102-postgres.log"
+  },
+  "ui_artifact_tests": {
+    "passed": 6,
+    "failed": 0,
+    "log": "/private/tmp/case102-ui-test.log"
+  },
+  "eslint": "PASS",
+  "typescript": "PASS",
+  "production_build": "PASS",
+  "diff_check": "PASS",
+  "local_ui_smoke": {
+    "th_en": true,
+    "desktop_and_390px": true,
+    "review_checkbox_blocks_unconfirmed_save": true,
+    "reviewed_date_override": "PASS: 2 Nov suggestion changed to 3 Nov via native date keyboard; fixture save rendered 3 Nov",
+    "people_search_and_existing_task_mode": true,
+    "viewer_read_only": true,
+    "overflow": false,
+    "console_errors": [],
+    "data_source": "isolated synthetic UI adapter; actual RPC behavior tested in disposable PostgreSQL"
+  },
+  "production_preflight": {
+    "gate_pass": true,
+    "query_url": "https://supabase.com/dashboard/project/rtualftvaapjburgjfgb/sql/bac9b231-4133-43ff-be9a-517f45687751",
+    "method": "SELECT-only existing authenticated Chrome VP (VP Partners) session; JSON transcribed from result row/full-cell AX evidence",
+    "production_mutation": false,
+    "business_rpc_executed": false
+  },
+  "immutable_migrations_097_to_101": "unchanged",
+  "unrelated_paths_preserved": 59,
+  "reviewed_verifier_binding": "Human approved candidate and fresh Production scoped contract bound",
+  "background_dev_processes": "stopped",
+  "limitations": [
+    "Suggestion arithmetic follows the Human-requested pilot matrix; no holiday/court-order/legal automation.",
+    "Case-wide ex parte branch offered only for all required defendants with explicit lawful-service/nonappearance and no-answer facts; no parallel track.",
+    "Existing Deadline Core remains the extension editor."
+  ],
+  "files": [
+    "app/cases/[id]/detail-labels.json",
+    "app/cases/[id]/page.tsx",
+    "app/cases/[id]/CaseService.tsx",
+    "app/cases/[id]/case-service.module.css",
+    "app/cases/[id]/service-model.ts",
+    "docs/core/evidence/case-service-102-preflight.json",
+    "scripts/sql/case_service_102_contract.sql",
+    "scripts/sql/preflight_case_service_102.sql",
+    "scripts/sql/verify_case_service_102.sql",
+    "scripts/tests/case-service-102-artifacts.cjs",
+    "scripts/tests/case-service-102-postgres.test.cjs",
+    "scripts/tests/case-service-102-preview.cjs",
+    "scripts/tests/case-service-102.test.cjs",
+    "scripts/tests/fixtures/case-service-102-after.json",
+    "scripts/tests/fixtures/case-service-102-reviewed.json",
+    "supabase/migrations/202610100102_case_civil_service.sql"
+  ],
+  "release_fresh_check": {
+    "checked_at": "2026-10-10T03:34:58.085153+00:00",
+    "gate_pass": true,
+    "failed_checks": [],
+    "object_differences": [],
+    "candidate_sha256": "d88d3b513a9f574d7a03868e583fe0ead2a12056d95e6e621c853dde48df228e",
+    "accepted_contract_sha256": "c567624c9c59546f0f4b17ec78d6f587671d97deb2c526bee3667083d550edbe",
+    "binding_tests_passed": 2,
+    "binding_lint": "PASS",
+    "release_order": "Commit locally; Apply and verify before push because main automatically deploys through Vercel."
+  },
+  "production_apply": {
+    "recorded_at": "2026-10-10T03:40:13.321888+00:00",
+    "query_url": "https://supabase.com/dashboard/project/rtualftvaapjburgjfgb/sql/ffc977df-ec20-450e-84f3-1f4a39610ffd",
+    "result": "Success. No rows returned",
+    "candidate_sha256": "d88d3b513a9f574d7a03868e583fe0ead2a12056d95e6e621c853dde48df228e",
+    "business_rpc_executed": false
+  },
+  "production_verifier": {
+    "query_url": "https://supabase.com/dashboard/project/rtualftvaapjburgjfgb/sql/cd22390b-e21a-4f33-b442-43fc3a76c7d3",
+    "method": "SELECT-only; transcribed from Production result row and full-cell AX evidence",
+    "result": {
+      "checks": {
+        "contract_exact": true,
+        "people_contract": true,
+        "template_seed_exact": true,
+        "reviewed_contract_bound": true,
+        "candidate_apply_has_no_legacy_dml": true
+      },
+      "gate_pass": true,
+      "failed_checks": [],
+      "contract_sha256": "6fc5a0470eb4fb2ee4455a4470f536e0deb3b4694d22ffef1157a96accffbc2a",
+      "auth_tables_read": false,
+      "candidate_sha256": "d88d3b513a9f574d7a03868e583fe0ead2a12056d95e6e621c853dde48df228e",
+      "object_differences": [],
+      "accepted_101_sha256": "7e88a49065a7ebbd0c50c9514ec5608869291a7464218921233c2970a21d311c",
+      "production_mutation": false,
+      "business_rpc_executed": false,
+      "accepted_contract_sha256": "c567624c9c59546f0f4b17ec78d6f587671d97deb2c526bee3667083d550edbe",
+      "business_rows_are_not_gate_inputs": true
+    }
+  }
+}
