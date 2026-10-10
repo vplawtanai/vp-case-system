@@ -28,9 +28,51 @@ test('void joint filing respects overlapping active filing, withdraw/re-add uses
  assert.deepEqual(data.represented.map(r=>M.filingsFor(data,r.party_id).length),[1,0,0]);data.represented[0].active=false;assert.equal(M.liveRepresentations(data).length,2);data.represented[0].active=true;assert.equal(M.filingsFor(data,id(201))[0].id,id(802));
  data.filings[1].coverage.push({party_id:id(202),coverage_version:0});assert.equal(M.filingsFor(data,id(202)).length,0);
 });
-test('D03 reopened obligation suggests Human return, pending extension prevents completion claims',()=>{
+test('D03 inconsistency depends on active filing coverage, not pending extensions',()=>{
  const {data}=fixture();data.flow.current_stage='D-CIV-03';data.filings=[filing(801,[1,2])];assert.equal(M.flowReadiness(data).inconsistent,true);assert.equal(data.flow.current_stage,'D-CIV-03');
- data.filings.push(filing(802,[3]));data.extension_groups=[{lifecycle:'pending',coverage:[{party_id:id(203)}]}];assert.equal(M.flowReadiness(data).readyForHearing,false);
+ data.filings.push(filing(802,[3]));data.extension_groups=[{lifecycle:'pending',coverage:[{party_id:id(203)}]}];assert.equal(M.flowReadiness(data).readyForHearing,true);assert.equal(M.flowReadiness(data).inconsistent,false);
+});
+test('pending and granted extensions do not resolve unfiled obligations or block active filings',()=>{
+ for(const lifecycle of ['pending','granted']){
+  const {data}=fixture();data.extension_groups=[{id:id(901),lifecycle,coverage:[1,2,3].map(n=>({party_id:id(200+n)}))}];
+  assert.equal(M.flowReadiness(data).readyForHearing,false);
+  data.filings=[filing(801,[1,2,3])];const before=structuredClone(data);
+  assert.equal(M.flowReadiness(data).allFiled,true);assert.equal(M.flowReadiness(data).readyForHearing,true);assert.equal(M.flowReadiness(data).pending.length,0);
+  assert.deepEqual(data.represented.map(r=>M.defendantObligation(data,r,'2026-10-10').state),['filed','filed','filed']);assert.deepEqual(data,before);
+ }
+});
+test('joint extension tracks D1 filed, D2 open and D3 filed independently without rewriting any facts',()=>{
+ const {data}=fixture();data.filings=[filing(801,[1]),filing(802,[3])];data.extension_groups=[{id:id(901),lifecycle:'pending',coverage:[{party_id:id(201)},{party_id:id(202)}]}];
+ const before=structuredClone(data),r=M.flowReadiness(data);
+ assert.deepEqual(data.represented.map(p=>M.defendantObligation(data,p,'2026-10-10').state),['filed','open','filed']);assert.equal(r.readyForHearing,false);assert.equal(r.pending.length,1);assert.deepEqual(data,before);
+ data.filings.push(filing(803,[2]));assert.equal(M.flowReadiness(data).readyForHearing,true);assert.equal(M.flowReadiness(data).pending.length,0);assert.deepEqual(data.extension_groups,before.extension_groups);
+});
+test('void or coverage correction reopens only uncovered parties, preserves extension facts and never rewinds D03',()=>{
+ const {data}=fixture();data.flow.current_stage='D-CIV-03';data.filings=[filing(801,[1,2]),filing(802,[1]),filing(803,[3])];
+ data.extension_groups=[{id:id(901),lifecycle:'pending',coverage:[{party_id:id(201)},{party_id:id(202)}]}];const extensionBefore=structuredClone(data.extension_groups);
+ data.filings[0].lifecycle='void';assert.deepEqual(data.represented.map(r=>M.filingsFor(data,r.party_id).length),[1,0,1]);assert.equal(M.flowReadiness(data).inconsistent,true);
+ data.filings[0].lifecycle='active';data.filings[0].coverage_version=2;data.filings[0].coverage.push({party_id:id(201),coverage_version:2});
+ assert.equal(M.filingsFor(data,id(202)).length,0);assert.equal(M.flowReadiness(data).inconsistent,true);
+ data.filings.push(filing(804,[2]));assert.equal(M.flowReadiness(data).inconsistent,false);assert.equal(M.flowReadiness(data).readyForHearing,true);
+ assert.equal(data.flow.current_stage,'D-CIV-03');assert.deepEqual(data.extension_groups,extensionBefore);assert.equal(data.filings[0].coverage.length,3);
+});
+test('withdraw/re-add recomputes completion from existing coverage while retaining pending requests',()=>{
+ const {data}=fixture();data.filings=[filing(801,[1,3])];data.extension_groups=[{id:id(901),lifecycle:'pending',coverage:[{party_id:id(202)}]}];const extensionBefore=structuredClone(data.extension_groups);
+ data.represented[1].active=false;assert.equal(M.flowReadiness(data).readyForHearing,true);assert.equal(M.flowReadiness(data).pending.length,0);
+ data.represented[1].active=true;assert.equal(M.flowReadiness(data).readyForHearing,false);assert.equal(M.flowReadiness(data).pending.length,1);
+ data.filings.push(filing(802,[2]));data.represented[1].active=false;data.represented[1].active=true;assert.equal(M.flowReadiness(data).readyForHearing,true);assert.deepEqual(data.extension_groups,extensionBefore);assert.equal(data.filings.length,2);
+});
+test('TH/EN pending notices are per-party; D03 proposal is available after all file and Viewer stays read-only',()=>{
+ const context=fixture();context.data.filings=[filing(801,[1,3])];context.data.extension_groups=[{id:id(901),lifecycle:'pending',requested_on:'2026-10-01',coverage:[{party_id:id(201)},{party_id:id(202)}]}];
+ for(const lang of ['th','en']){
+  const before=structuredClone(context),options={'CaseDefendant.localView':'answer'},html=component.render(lang,options,props(context));
+  const portion=n=>html.match(new RegExp('data-extension-party="'+id(200+n)+'">([\\s\\S]*?)</div>'))?.[1];
+  assert.ok(portion(1).includes(T('pendingFiled',lang)));assert.ok(!portion(2).includes(T('pendingFiled',lang)));assert.ok(html.includes(T('pendingExtension',lang)));assert.ok(html.includes(T('pendingReview',lang)));assert.ok(html.includes(T('pendingBlocked',lang)));assert.deepEqual(context,before);
+  const complete=structuredClone(context);complete.data.filings.push(filing(802,[2]));
+  const done=component.render(lang,options,props(complete));assert.ok(done.includes(T('awaitHearing',lang)));assert.ok(!done.includes(T('pendingReview',lang)));assert.ok(!done.includes(T('pendingBlocked',lang)));assert.ok(done.includes(T('pendingExtension',lang)));
+  const viewer=component.render(lang,options,{...props(complete),canLegal:false,canRecord:false});assert.ok(viewer.includes(T('pendingFiled',lang)));for(const key of ['awaitHearing','grant','fileAnswer','manage','extension'])assert.ok(!viewer.includes(T(key,lang)+'<'),key);
+  const form=editor.render(lang,{}, {...props(complete),edit:{kind:'flow_transition',targetStage:'D-CIV-03'},onClose:noop});assert.match(form,/<option value="D-CIV-03" selected="">/);assert.ok(form.includes(T('humanConfirm',lang)));
+ }
 });
 test('transport retry freezes UUID, full data and concurrency tokens even if latest read changes',()=>{
  const context=fixture(),payload={id:id(801),parties:[id(201),id(202)],filed_on:'2026-10-01'};

@@ -31,9 +31,10 @@ export function defendantSuggestion(r:Representation){
 }
 export function flowReadiness(data:DefendantData){
  const active=liveRepresentations(data),allFiled=active.length>0&&active.every(r=>filingsFor(data,r.party_id).length>0);
- const pending=data.extension_groups.filter(g=>g.lifecycle==='pending'&&g.coverage.some(c=>active.some(r=>r.party_id===c.party_id)));
+ // Pending requests are context for open obligations, never a completion gate.
+ const pending=data.extension_groups.filter(g=>g.lifecycle==='pending'&&g.coverage.some(c=>active.some(r=>r.party_id===c.party_id)&&!filingsFor(data,c.party_id).length));
  const readyForPreparation=active.length>0&&active.every(r=>r.deadline&&!r.deadline.deleted_at&&r.control?.answer_deadline_id===r.deadline.id);
- return {allFiled,pending,readyForPreparation,readyForHearing:allFiled&&pending.length===0,inconsistent:data.flow?.current_stage==='D-CIV-03'&&!allFiled&&active.length>0};
+ return {allFiled,pending,readyForPreparation,readyForHearing:allFiled,inconsistent:data.flow?.current_stage==='D-CIV-03'&&!allFiled&&active.length>0};
 }
 export function deadlineVersions(data:DefendantData,manual:ServiceDeadline[]=[]){
  return Object.fromEntries([...data.represented.flatMap(r=>r.deadline?[r.deadline]:[]),...manual].map(d=>[d.id,{due:d.current_due_date,updated_at:d.updated_at}]));

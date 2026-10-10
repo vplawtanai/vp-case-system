@@ -35,7 +35,8 @@ test('cut-in filing method requires an explicit choice for court evidence; never
  assert.match(src,/requiresFilingMethod=\{courtRecorded\|\|datedCourtEvent\}/);
  assert.match(src,/\.from\('case_timeline'\)\.select\('id'\)\.eq\('case_id',caseId\)\.is\('deleted_at',null\)\.in\('event_type',\['filing','hearing'\]\)\.not\('event_date','is',null\)\.limit\(1\)/);
  assert.match(src,/if\(events.error\)throw events.error/);
- assert.match(A.read('app/cases/[id]/page.tsx'),/<CaseFlow caseRecord=\{caseItem\}/);
+ assert.match(A.read('app/cases/[id]/page.tsx'),/<CaseProcedure caseRecord=\{caseItem\}/);
+ assert.match(A.read('app/cases/[id]/CaseProcedure.tsx'),/<CaseFlow[^>]*caseRecord=\{caseRecord\}/);
 });
 
 test('approved operational stage terminology is display-only; immutable stages/history remain exact',()=>{
