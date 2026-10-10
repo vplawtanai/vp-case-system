@@ -1,0 +1,38 @@
+{
+  "phase": "3C-3 Civil Ordinary Defendant operational UI",
+  "foundation_commit": "12fc5e50f17830ec644d4092dc83f01bec6b2305",
+  "migration_104_sha256": "011cb7ed70adf1fb66d30c1af81bbfe20e5c1a18f2e3e2849393b21f450fb486",
+  "application_only": true,
+  "backend_schema_rpc_changes": false,
+  "production_business_mutations": false,
+  "protected_working_tree_items": 59,
+  "local_validation": {
+    "ui_and_read_model_tests": 9,
+    "plaintiff_manual_deadline_regression_tests": 5,
+    "postgres_contract_security_atomicity_tests": 17,
+    "eslint": "PASS",
+    "typescript": "PASS",
+    "production_build": "PASS (one build)",
+    "diff_check": "PASS",
+    "local_rpc_browser": [
+      "joint filing D1+D2 completes only their linked deadlines; D3 unchanged",
+      "response lost after commit; same request retry returns one filing",
+      "structured counterclaim for D1+D2; dependent filing void blocked",
+      "D3 extension changes only D3 current due date"
+    ],
+    "presentation": [
+      "TH/EN",
+      "desktop",
+      "390px viewport and page width verified equal",
+      "Viewer read-only including summons dialog",
+      "no console error/warning in final local smoke"
+    ]
+  },
+  "contract_limitations": [
+    {
+      "scope": "Pending extension after a covered party has filed",
+      "behavior": "No 104 action exists to close/withdraw this pending request. UI exposes history and requires review, blocks editing that would violate the contract, and does not claim completion or suggest D-CIV-03 while pending. No backend workaround."
+    }
+  ],
+  "process_cleanup": "Owned preview servers and disposable PostgreSQL stopped; pre-existing processes untouched"
+}

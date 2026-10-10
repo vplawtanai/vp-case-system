@@ -8,8 +8,8 @@ import { buildPermissions } from "../../../lib/permissions";
 import type { UserPermissions, UserRole } from "../../../lib/permissions";
 import { FolderOpen, Landmark, UserRound, Building2, CalendarDays, Clock3 } from "lucide-react";
 import CaseCore from "./CaseCore";
-import CaseFlow from "./CaseFlow";
-import CaseService from "./CaseService";
+import CaseProcedure from "./CaseProcedure";
+import type {DefendantData} from "./defendant-model";
 import type { AnswerRequest, AnswerExtensionRequest } from "./service-model";
 import {flowPermissions} from "./flow-model";
 import { CaseStatus } from "../CaseListView";
@@ -124,6 +124,7 @@ export default function CaseDetailPage() {
   const { tr, date } = useCaseDetailText();
   const [section, setSection] = useState("info");
   const [revision, setRevision] = useState(0);
+  const [defendantData,setDefendantData] = useState<DefendantData|null>(null);
   const [answerRequest, setAnswerRequest] = useState<AnswerRequest | null>(null);
   const [extensionRequest, setExtensionRequest] = useState<AnswerExtensionRequest | null>(null);
   const params = useParams();
@@ -342,8 +343,7 @@ export default function CaseDetailPage() {
           {permissions.canManageFinanceBillableCharges && caseItem.client_id && <Link className={css.secondary} href={`/finance/billable-charges?new=1&client=${encodeURIComponent(caseItem.client_id)}&case=${encodeURIComponent(String(caseItem.id || id))}`}>{tr("Add billable charge")}</Link>}
         </dl>
       </header>
-      <CaseFlow caseRecord={caseItem} caseId={caseIdNumber} revision={revision} canStart={flowPermissions(profile.role).start} canTransition={flowPermissions(profile.role).transition}/>
-      <CaseService caseId={caseIdNumber} revision={revision} canRecord={flowPermissions(profile.role).transition} canConfirm={flowPermissions(profile.role).start} answerRequest={answerRequest} onExtend={(partyId,deadlineId)=>setExtensionRequest({partyId,deadlineId,key:Date.now()})}/>
+      <CaseProcedure caseRecord={caseItem} caseId={caseIdNumber} revision={revision} canStart={flowPermissions(profile.role).start} canTransition={flowPermissions(profile.role).transition} answerRequest={answerRequest} onExtend={(partyId,deadlineId)=>setExtensionRequest({partyId,deadlineId,key:Date.now()})} onDefendantData={setDefendantData}/>
       <CaseCore caseId={caseIdNumber} revision={revision} canManage={permissions.canEditCaseInfo} canNext={permissions.canEditTasks} canViewHistory={permissions.canViewHistory} onSection={navigateSection}/>
       <nav className={css.tabs} aria-label={tr("Case Detail")}>{tabs.map(([key,label])=><button type="button" key={key} aria-current={activeSection===key ? "page" : undefined} onClick={()=>navigateSection(key)}>{tr(label)}</button>)}</nav>
         <div className={css.section} hidden={activeSection !== "info"}>
@@ -399,6 +399,7 @@ export default function CaseDetailPage() {
 
         <div className={css.section} hidden={activeSection !== "deadlines"}>
           <DeadlinesSection
+            defendantData={defendantData}
             caseId={id}
             revision={revision}
             onAnswer={partyId=>setAnswerRequest({partyId,key:Date.now()})}

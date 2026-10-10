@@ -2,6 +2,8 @@
 import { useCaseDetailText } from "../labels";
 
 import CaseEditModal from "../CaseEditModal";
+import {DefendantDeadline} from "../DefendantDeadline";
+import type {DefendantData} from "../defendant-model";
 import { useCaseBusinessDate } from "../use-case-business-date";
 import { answerDeadlineState, confirmedDeadlineOverdueDays, linkedServiceDeadline, type ServiceDeadlineLink, type AnswerExtensionRequest } from "../service-model";
 
@@ -77,6 +79,7 @@ type ExtensionForm = {
 };
 
 type Props = {
+  defendantData?: DefendantData | null;
   caseId: string;
   deadlines?: unknown[];
   revision?: number;
@@ -158,7 +161,7 @@ export default function DeadlinesSection({
   caseId,
   canEdit = false,
   canDelete = false,
-  revision = 0, onAnswer, extensionRequest, onExtensionClosed,
+  revision = 0, onAnswer, extensionRequest, onExtensionClosed, defendantData,
 }: Props) {
   const { tr, date } = useCaseDetailText();
   const businessDate = useCaseBusinessDate();
@@ -1247,7 +1250,10 @@ export default function DeadlinesSection({
         <div style={emptyStyle}>{tr("No deadlines added.")} </div>
       ) : (
         <div style={deadlineListStyle}>
-          {sortedDeadlines.map((item) => (
+          {sortedDeadlines.map((item) => {
+            const represented = defendantData?.represented.find(r=>r.control?.answer_deadline_id===item.id);
+            if(defendantData&&represented)return <DefendantDeadline key={item.id} data={defendantData} person={represented} onAnswer={onAnswer?()=>onAnswer(represented.party_id):undefined}/>;
+            return (
             <DeadlineCard
               key={item.id}
               item={item}
@@ -1274,7 +1280,7 @@ export default function DeadlinesSection({
               onCreateExtension={createExtension}
               onUpdateExtension={updateExtension}
             />
-          ))}
+          );})}
         </div>
       )}
     </div>
