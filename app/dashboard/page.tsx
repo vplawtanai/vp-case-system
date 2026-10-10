@@ -3478,7 +3478,7 @@ function renderDeadlineType(
 ) {
   if (!deadlineType) return "Deadline";
 
-  if (deadlineType === "answer") return "ครบกำหนดยื่นคำให้การ";
+  if (deadlineType === "answer") return "ครบกำหนดยื่นคำให้การจำเลย";
   if (deadlineType === "appeal") return "ครบกำหนดอุทธรณ์";
   if (deadlineType === "appeal_answer") return "ครบกำหนดแก้อุทธรณ์";
   if (deadlineType === "supreme") return "ครบกำหนดฎีกา";

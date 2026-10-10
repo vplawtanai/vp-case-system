@@ -65,3 +65,28 @@ test('default next action reuses single primary action and existing task linkage
 });
 
 test('answer labels are available in both locales without mixed translated labels',()=>{const labels=JSON.parse(fs.readFileSync('app/cases/[id]/detail-labels.json','utf8'));for(const [key,value]of Object.entries(labels).filter(([k])=>k.startsWith('answer.'))){assert.match(value.th,/[ก-๙]/,key);assert.doesNotMatch(value.en,/[ก-๙]/,key);}});
+
+test('final cleanup: service has no answer stage action; answer UI has no attendance control and retains historical audit',()=>{
+ for(const lang of ['th','en']){
+  const history={id:'attendance',party_id:'p1',action:'absence',actor_name:'Historical recorder',occurred_at:'2026-10-01'};
+  const view=f.render(lang,{}, {...props,data:{...data,history:[history]}},'AnswerView');
+  assert.ok(!view.includes(T('service.recordAbsence',lang)+'</button>'));assert.ok(view.includes('Historical recorder'));
+  const service=f.render(lang,{},props,'ServiceView');assert.ok(!service.includes(T('service.advance',lang)));
+  const filedView=f.render(lang,{}, {...props,data:{...data,defendants:[filed]}},'AnswerView');
+  assert.match(filedView,/data-state="answered"/);
+  for(const key of ['answer.overdueHint','answer.confirmNotFiled','service.recordAnswer','service.manageExtensions'])assert.ok(!filedView.includes(T(key,lang)),key);
+ }
+ const src=fs.readFileSync('app/cases/[id]/CaseService.tsx','utf8');assert.doesNotMatch(src,/action:'absence'|action==='absence'/);
+ // The same answer RPC completes the existing linked deadline atomically; no added client-side deadline/flow writes.
+ assert.match(src,/if\(action==='answer'\)payload=\{date:day,\.\.\.expected\}/);
+ const sql=fs.readFileSync('scripts/sql/case_service_103_contract.sql','utf8');const answer=sql.split("ELSIF p_action='answer' THEN")[1].split("ELSIF p_action='absence'")[0];
+ assert.match(answer,/UPDATE public.case_deadlines SET status='Done'/);assert.match(answer,/SET answer_filed_on=event_day/);assert.doesNotMatch(answer,/case101_save|INSERT INTO|case_flow/);
+});
+test('current labels use full defendant-answer terminology; stored free text remains unchanged',()=>{
+ const labels=JSON.parse(fs.readFileSync('app/cases/[id]/detail-labels.json','utf8'));
+ for(const[key,value]of Object.entries(labels))if(/คำให้การ/.test(value.th)){assert.doesNotMatch(value.th,/คำให้การ(?!จำเลย)/,key);if(!/นัดสอบคำให้การ/.test(value.th))assert.match(value.en.toLowerCase(),/defendant/,key);}
+ assert.equal(T('View case flow','th'),'ดูขั้นตอนคดี');assert.equal(T('View case flow','en'),'View case stages');
+ const {caseTerm}=require('../../app/cases/labels.ts');
+ for(const key of ['answer','ครบกำหนดยื่นคำให้การ']){assert.equal(caseTerm(key,'th'),'ครบกำหนดยื่นคำให้การจำเลย');assert.equal(caseTerm(key,'en'),'Defendant’s answer due');}
+ for(const lang of ['th','en'])assert.equal(T('ข้อความเดิม: คำให้การตามเอกสารต้นฉบับ',lang),'ข้อความเดิม: คำให้การตามเอกสารต้นฉบับ');
+});

@@ -24,3 +24,10 @@ export function needsFlowReason(data:FlowData,action:FlowAction,target:string){
  return data.stages.find(s=>s.stage_key===target)?.ordinal!==(from??-2)+1;
 }
 export function flowError(message:string){return ['FORBIDDEN','NOT_FOUND','STALE','REQUEST_CONFLICT','INVALID_INPUT','REASON_REQUIRED','CUT_IN_REQUIRED','STATE','IMMUTABLE'].map(v=>'CASE101_'+v).find(v=>message.includes(v))||'Flow could not be saved. Please try again.';}
+
+// Presentation alias only; immutable template and recorded history are not rewritten.
+export function flowStageTitle(stage:FlowStage|undefined,locale:'th'|'en'){
+ if(!stage)return '';
+ if(stage.stage_key==='defence')return locale==='th'?'รอคำให้การจำเลย / นัดแรก':'Await defendant’s answer / first hearing';
+ return stage[locale==='th'?'title_th':'title_en'];
+}

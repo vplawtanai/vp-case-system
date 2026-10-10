@@ -37,3 +37,14 @@ test('cut-in filing method requires an explicit choice for court evidence; never
  assert.match(src,/if\(events.error\)throw events.error/);
  assert.match(A.read('app/cases/[id]/page.tsx'),/<CaseFlow caseRecord=\{caseItem\}/);
 });
+
+test('approved operational stage terminology is display-only; immutable stages/history remain exact',()=>{
+ const {flowStageTitle}=require('../../app/cases/[id]/flow-model.ts');const before=JSON.stringify(data);
+ const defence=data.stages.find(s=>s.stage_key==='defence');
+ assert.equal(flowStageTitle(defence,'th'),'รอคำให้การจำเลย / นัดแรก');assert.equal(flowStageTitle(defence,'en'),'Await defendant’s answer / first hearing');
+ for(const lang of ['th','en']){
+  const view=f.render(lang,{}, {data,canTransition:true,onEdit:()=>{}},'FlowView');assert.ok(view.includes(flowStageTitle(defence,lang)));
+  const editor=f.render(lang,{}, {action:'advance',data,caseId:1,onClose:()=>{},onSaved:()=>{}},'FlowEditor');assert.ok(editor.includes(flowStageTitle(defence,lang)));
+ }
+ assert.equal(JSON.stringify(data),before);assert.equal(defence.title_th,'รอคำให้การ / นัดแรก');
+});
