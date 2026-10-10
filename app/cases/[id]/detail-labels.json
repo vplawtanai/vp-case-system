@@ -10,7 +10,7 @@
   "answer.status.beforeService": {"th": "รอข้อมูลการส่งหมาย", "en": "Awaiting service information"},
   "answer.status.inactive": {"th": "ตรวจสอบกำหนดเวลาเดิม", "en": "Review existing deadline"},
   "answer.status.exempt": {"th": "ไม่อยู่ในขอบเขตที่ต้องติดตาม", "en": "Outside required scope"},
-  "answer.overdueDays": {"th":"พ้นกำหนด {days} วัน","en":"{days} days overdue"},
+  "answer.overdueDays": {"th":"เกินกำหนด {days} วัน","en":"{days} days overdue"},
   "answer.overdueHint": {"th": "โปรดตรวจสอบข้อมูลจากศาลหรือระบบ e-Filing ว่าจำเลยได้ยื่นคำให้การจำเลยแล้วหรือไม่ ก่อนยืนยันว่าจำเลยไม่ยื่นคำให้การจำเลย", "en": "Please check with the court or the e-Filing system whether the defendant’s answer has been filed before confirming that it has not been filed."},
   "answer.confirmNotFiled": {"th": "ยืนยันว่าไม่ยื่นคำให้การจำเลย", "en": "Confirm defendant’s answer was not filed"},
   "answer.motionQuestion": {"th": "ต้องดำเนินการยื่นคำร้องขอให้ศาลมีคำสั่งให้โจทก์ชนะคดีโดยจำเลยขาดนัดยื่นคำให้การจำเลยหรือไม่", "en": "Proceed with a motion for judgment in the plaintiff’s favor for failure to file the defendant’s answer?"},
