@@ -1652,7 +1652,7 @@
   "service.lawful":{"th":"ยืนยันส่งโดยชอบ","en":"Lawful service confirmed"},
   "service.noAttempt":{"th":"ยังไม่ได้บันทึกผลส่งหมาย","en":"No service attempt recorded"},
   "service.answerDue":{"th":"กำหนดคำให้การ","en":"Answer deadline"},
-  "service.noDeadline":{"th":"ยังไม่ได้เชื่อมหรือยืนยันกำหนดเวลา","en":"No deadline linked or confirmed"},
+  "service.noDeadline": {"th":"ยังไม่ได้ยืนยันกำหนดยื่นคำให้การ","en":"Answer filing deadline not yet confirmed"},
   "service.answeredOn":{"th":"วันที่ยื่นคำให้การ","en":"Answer filed on"},
   "service.defaultDue":{"th":"กำหนดคำร้องขาดนัด","en":"Default motion deadline"},
   "service.removed":{"th":"ถูกนำออกจากการใช้งาน","en":"Removed from active use"},
@@ -1683,7 +1683,7 @@
   "service.failureKind":{"th":"สถานการณ์","en":"Situation"},
   "service.failureReason":{"th":"เหตุผลส่งไม่ได้","en":"Reason service failed"},
   "service.notes":{"th":"หมายเหตุ (ถ้ามี)","en":"Notes (optional)"},
-  "service.notLawfulHint":{"th":"ผล “ส่งได้” ยังไม่ใช่การยืนยันส่งโดยชอบ ทนายต้องยืนยันแยกต่างหาก","en":"A successful delivery is not confirmation of lawful service. A lawyer must confirm it separately."},
+  "service.notLawfulHint": {"th":"บันทึกผลการส่งตามข้อมูลจริง ระบบจะไม่สร้างกำหนดเวลาอัตโนมัติ","en":"Record the actual service result. This does not create a deadline automatically."},
   "service.lawfulHint":{"th":"ยืนยันจากหลักฐานการส่งหมายจริง ระบบจะยังไม่สร้างกำหนดเวลาหรือเปลี่ยนขั้นคดี","en":"Confirm against actual service evidence. This does not create a deadline or change the case stage."},
   "service.suggestedDue":{"th":"วันที่เสนอ","en":"Suggested date"},
   "service.rule15":{"th":"15 วันจากวันที่ส่ง","en":"15 calendar days from service"},
@@ -1729,7 +1729,7 @@
   "service.status.pending": {"th":"รอผลการส่ง","en":"Awaiting service result"},
   "service.status.served":{"th":"ส่งได้","en":"Delivered"},
   "service.status.failed":{"th":"ส่งไม่ได้","en":"Service failed"},
-  "service.status.void":{"th":"ยกเลิกผลครั้งนี้","en":"Voided"},
+  "service.status.void": {"th":"ยกเลิกแล้ว","en":"Voided"},
   "service.status.lawful":{"th":"ส่งโดยชอบ","en":"Lawfully served"},
   "service.status.answered":{"th":"ยื่นคำให้การแล้ว","en":"Answer filed"},
   "service.status.exempt":{"th":"ไม่ต้องส่งเพื่อขั้นถัดไป","en":"Not required for next stage"},
@@ -1787,5 +1787,7 @@
   "service.dateOptional": {"th":"วันที่ส่ง (ถ้าทราบ)","en":"Service date (if known)"},
   "service.methodUnknown": {"th":"ยังไม่ทราบวิธีส่ง","en":"Service method unknown"},
   "service.pendingFactsHint": {"th":"ใช้เมื่อมีการส่งจริงแล้วและทราบวิธีส่งกับวันที่ แต่ยังรอผล","en":"Use only for an actual attempt with a known method and date while awaiting the result."},
-  "service.servedSaveHint": {"th":"การบันทึกนี้ยืนยันผลและหลักฐานการส่งเพื่อเสนอวันครบกำหนด ทนายยังต้องตรวจและยืนยันก่อนสร้างกำหนดเวลาจริง","en":"Saving confirms the service evidence for a due-date suggestion. A lawyer must still review and confirm before creating a deadline."}
+  "service.servedSaveHint": {"th":"การบันทึกนี้ยืนยันผลและหลักฐานการส่งเพื่อเสนอวันครบกำหนด ทนายยังต้องตรวจและยืนยันก่อนสร้างกำหนดเวลาจริง","en":"Saving confirms the service evidence for a due-date suggestion. A lawyer must still review and confirm before creating a deadline."},
+  "service.currentResult": {"th":"ผลปัจจุบัน","en":"Current result"},
+  "service.historyCorrection": {"th":"แก้ไขผลการส่ง","en":"Service result corrected"}
 }
