@@ -1782,5 +1782,10 @@
   "service.replaceNextHint": {"th":"คดีนี้มีงานสำคัญถัดไปอยู่แล้ว การบันทึกจะแทนที่งานสำคัญนี้ โดยคงงานและประวัติเดิมไว้","en":"This case already has a primary next action. Saving replaces this priority while preserving existing tasks and history."},
   "service.correctionReason": {"th":"เหตุผลแก้วิธีหรือวันที่ส่ง","en":"Reason for correcting the method or date"},
   "service.audit.before": {"th":"ก่อนแก้ไข","en":"Before change"},
-  "service.audit.after": {"th":"หลังแก้ไข","en":"After change"}
+  "service.audit.after": {"th":"หลังแก้ไข","en":"After change"},
+  "service.methodOptional": {"th":"วิธีส่ง (ถ้าทราบ)","en":"Service method (if known)"},
+  "service.dateOptional": {"th":"วันที่ส่ง (ถ้าทราบ)","en":"Service date (if known)"},
+  "service.methodUnknown": {"th":"ยังไม่ทราบวิธีส่ง","en":"Service method unknown"},
+  "service.pendingFactsHint": {"th":"ใช้เมื่อมีการส่งจริงแล้วและทราบวิธีส่งกับวันที่ แต่ยังรอผล","en":"Use only for an actual attempt with a known method and date while awaiting the result."},
+  "service.servedSaveHint": {"th":"การบันทึกนี้ยืนยันผลและหลักฐานการส่งเพื่อเสนอวันครบกำหนด ทนายยังต้องตรวจและยืนยันก่อนสร้างกำหนดเวลาจริง","en":"Saving confirms the service evidence for a due-date suggestion. A lawyer must still review and confirm before creating a deadline."}
 }
