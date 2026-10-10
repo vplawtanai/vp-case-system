@@ -10,11 +10,24 @@ export function answerSuggestion(p:ServicePerson){const a=lawfulAttempt(p);retur
 export function defaultSuggestion(p:ServicePerson,today:string){const d=p.answer_deadline;return lawfulAttempt(p)&&!p.control?.answer_filed_on&&d&&!d.deleted_at&&d.status==='Active'&&d.current_due_date&&d.current_due_date<today?addCalendarDays(d.current_due_date,15):null;}
 export function latestServiceAttempt(p:ServicePerson){return p.attempts.find(a=>a.result!=='void')||null;}
 export function serviceStatus(p:ServicePerson){if(p.control?.required===false)return 'exempt';return lawfulAttempt(p)?'served':latestServiceAttempt(p)?.result||'unrecorded';}
+// Presentation only: confirmed foreign keys and current (extended) dates are authoritative.
+export type DeadlineDisplayFacts={id:string;status?:string|null;deleted_at?:string|null;current_due_date?:string|null};
+export const caseBusinessDate=(now=new Date())=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
+export function confirmedDeadlineOverdueDays(deadline:DeadlineDisplayFacts|null,confirmedId:string|null|undefined,today:string){
+ if(!deadline||!confirmedId||deadline.id!==confirmedId||deadline.deleted_at||deadline.status!=='Active'||!deadline.current_due_date)return 0;
+ if(!addCalendarDays(today,0)||!addCalendarDays(deadline.current_due_date,0))return 0;
+ return Math.max(0,(Date.parse(today+'T00:00:00Z')-Date.parse(deadline.current_due_date+'T00:00:00Z'))/86400000);
+}
+export function answerDeadlineState(control:{answer_deadline_id?:string|null;answer_filed_on?:string|null}|null,deadline:DeadlineDisplayFacts|null,today:string){
+ if(control?.answer_filed_on)return {status:'answered' as const,overdueDays:0};
+ if(!control?.answer_deadline_id||deadline?.id!==control.answer_deadline_id)return {status:'unconfirmed' as const,overdueDays:0};
+ if(deadline.deleted_at||deadline.status!=='Active'||!deadline.current_due_date)return {status:'inactive' as const,overdueDays:0};
+ const overdueDays=confirmedDeadlineOverdueDays(deadline,control.answer_deadline_id,today);
+ return {status:overdueDays>0?'overdue' as const:'awaitingAnswer' as const,overdueDays};
+}
 export function answerStatus(p:ServicePerson,today:string){
- if(p.control?.answer_filed_on)return 'answered';
- const d=p.answer_deadline;
- if(d&&!d.deleted_at&&d.status==='Active'&&d.current_due_date)return d.current_due_date<today?'overdue':'awaitingAnswer';
- if(d)return 'inactive';
+ const state=answerDeadlineState(p.control,p.answer_deadline,today);
+ if(state.status!=='unconfirmed')return state.status;
  if(p.control?.required===false)return 'exempt';
  return serviceStatus(p)==='served'?'pendingDeadline':'beforeService';
 }

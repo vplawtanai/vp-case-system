@@ -5,8 +5,8 @@ const {detailText:T}=require('../../app/cases/[id]/labels.ts'),M=require('../../
 const f=workspaceFixture('app/cases/[id]/CaseService.tsx',['ServiceView','AnswerView','DefaultMotionReview','ServiceEditor'],{'./CaseCore':{CoreEditor:()=>null},'./CaseEditModal':{default:({children})=>React.createElement('section',{role:'dialog'},children)}});
 const attempt={id:'a',result:'served',method:'normal',attempted_on:'2026-09-01'};
 const p={id:'p1',name:'Defendant One',control:{version:1,required:true,lawful_attempt_id:'a',answer_deadline_id:'d1'},attempts:[attempt],answer_deadline:{id:'d1',current_due_date:'2026-10-09',status:'Active',updated_at:'2026-10-01',deleted_at:null},default_deadline:null,extensions:[]};
-const extended={...p,id:'p2',name:'Defendant Two',answer_deadline:{...p.answer_deadline,id:'d2',current_due_date:'2026-11-01'},extensions:[{id:'ex',extension_no:1,granted_until_date:'2026-11-01',note:'Reviewed court order'}]};
-const filed={...p,id:'p3',name:'Defendant Three',control:{...p.control,answer_filed_on:'2026-10-07'},answer_deadline:{...p.answer_deadline,id:'d3',status:'Done'}};
+const extended={...p,id:'p2',name:'Defendant Two',control:{...p.control,answer_deadline_id:'d2'},answer_deadline:{...p.answer_deadline,id:'d2',current_due_date:'2026-11-01'},extensions:[{id:'ex',extension_no:1,granted_until_date:'2026-11-01',note:'Reviewed court order'}]};
+const filed={...p,id:'p3',name:'Defendant Three',control:{...p.control,answer_deadline_id:'d3',answer_filed_on:'2026-10-07'},answer_deadline:{...p.answer_deadline,id:'d3',status:'Done'}};
 const data={today:'2026-10-10',flow:{lifecycle:'active',current_stage:'service'},defendants:[p,extended,filed],deadlines:[],hearings:[],history:[{id:"event1",party_id:"p1",action:"answer",actor_name:"Recorded lawyer",occurred_at:"2026-10-09"}]};
 const props={data,canRecord:true,canConfirm:true,onEdit:()=>{},onExtensions:()=>{},onReview:()=>{}};
 test('service completion is independent of answer overdue, extension, or filing; all defendants retain real method/date',()=>{
@@ -24,7 +24,7 @@ test('separate answers show each current extended due date and actual filing fac
  for(const lang of ['th','en'])for(const defendants of [[p],[p,extended,filed]]){
   const html=f.render(lang,{}, {...props,data:{...data,defendants}},'AnswerView');
   for(const person of defendants)assert.ok(html.includes(person.name));
-  assert.equal((html.match(/data-state="overdue"/g)||[]).length,1);assert.ok(html.includes(T('answer.overdueHint',lang)));assert.ok(html.includes(T('answer.confirmNotFiled',lang)));
+  assert.equal((html.match(/data-state="overdue"/g)||[]).length,2);assert.ok(html.includes(T('answer.overdueHint',lang)));assert.ok(html.includes(T('answer.confirmNotFiled',lang)));
   assert.ok(!html.includes(T('service.defaultMotionNext',lang)));assert.ok(!html.includes(T('service.ruleDefault',lang)));
   if(defendants.length===3){assert.match(html,/data-state="awaitingAnswer"/);assert.match(html,/data-state="answered"/);assert.ok(html.includes('Reviewed court order'));}
  }

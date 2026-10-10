@@ -10,7 +10,7 @@ const people=[person(1,'Done','2026-10-09'),person(2,'Active','2026-11-01'),pers
 const links=people.map(p=>({...p.control,party_id:p.id,party:{entity_type:'individual',first_name:p.name,deleted_at:null},attempt:p.attempts[0]}));
 const data={today:'2026-10-10',flow:{lifecycle:'active',current_stage:'defence'},defendants:people,history:[],deadlines:[],hearings:[]};
 const noop=()=>{};
-const props=p=>({item:{...p.answer_deadline,deadline_type:'answer'},extensions:p.extensions,extensionDeadlineId:null,editingExtensionId:null,extensionForm:{requested_date:'',granted_until_date:'',note:''},canEdit:true,canDelete:true,savingExtension:false,onAnswer:noop,onEdit:noop,onDelete:noop,onToggleDone:noop,onStartAddExtension:noop,onStartEditExtension:noop,onDeleteExtension:noop,onCancelExtension:noop,onChangeExtensionForm:noop,onCreateExtension:noop,onUpdateExtension:noop});
+const props=p=>({businessDate:'2026-10-10',item:{...p.answer_deadline,deadline_type:'answer'},extensions:p.extensions,extensionDeadlineId:null,editingExtensionId:null,extensionForm:{requested_date:'',granted_until_date:'',note:''},canEdit:true,canDelete:true,savingExtension:false,onAnswer:noop,onEdit:noop,onDelete:noop,onToggleDone:noop,onStartAddExtension:noop,onStartEditExtension:noop,onDeleteExtension:noop,onCancelExtension:noop,onChangeExtensionForm:noop,onCreateExtension:noop,onUpdateExtension:noop});
 test('canonical links use actual deadline and Party IDs; a manual answer deadline stays manual',()=>{
  for(let n=1;n<=3;n++)assert.equal(M.linkedServiceDeadline(links,'d'+n).party_id,'p'+n);
  assert.equal(M.linkedServiceDeadline(links,'manual-answer'),null);
@@ -36,7 +36,7 @@ test('three defendants stay independent: filed, extended, overdue; confirmation 
  assert.deepEqual(people.map(p=>M.defaultSuggestion(p,data.today)),[null,null,'2026-10-24']);
  for(const lang of ['th','en']){
   const html=a.render(lang,{}, {data,canRecord:true,canConfirm:true,onEdit:noop,onExtensions:noop,onReview:noop},'AnswerView');
-  assert.equal((html.match(/data-state="answered"/g)||[]).length,1);assert.equal((html.match(/data-state="awaitingAnswer"/g)||[]).length,1);assert.equal((html.match(/data-state="overdue"/g)||[]).length,1);
+  assert.equal((html.match(/data-state="answered"/g)||[]).length,1);assert.equal((html.match(/data-state="awaitingAnswer"/g)||[]).length,1);assert.equal((html.match(/data-state="overdue"/g)||[]).length,2);
   const third=a.render(lang,{}, {data,canRecord:true,canConfirm:true,onEdit:noop,onExtensions:noop,onReview:noop,partyId:'p3'},'AnswerView');assert.ok(third.includes('Defendant 3'));assert.ok(!third.includes('Defendant 1'));assert.ok(!third.includes('Court order for defendant 2'));
   const viewer=a.render(lang,{}, {data,canRecord:false,canConfirm:false,onEdit:noop,onExtensions:noop,onReview:noop},'AnswerView');assert.doesNotMatch(viewer,/<button/);
  }

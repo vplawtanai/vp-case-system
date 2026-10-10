@@ -2,7 +2,8 @@
 import { useCaseDetailText } from "../labels";
 
 import CaseEditModal from "../CaseEditModal";
-import { linkedServiceDeadline, type ServiceDeadlineLink, type AnswerExtensionRequest } from "../service-model";
+import { useCaseBusinessDate } from "../use-case-business-date";
+import { answerDeadlineState, confirmedDeadlineOverdueDays, linkedServiceDeadline, type ServiceDeadlineLink, type AnswerExtensionRequest } from "../service-model";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
@@ -160,6 +161,7 @@ export default function DeadlinesSection({
   revision = 0, onAnswer, extensionRequest, onExtensionClosed,
 }: Props) {
   const { tr, date } = useCaseDetailText();
+  const businessDate = useCaseBusinessDate();
   const caseIdNumber = Number(caseId);
 
   const [links, setLinks] = useState<ServiceDeadlineLink[]>([]);
@@ -253,8 +255,8 @@ export default function DeadlinesSection({
 
   const sortedDeadlines = useMemo(() => {
     return [...items].sort((a, b) => {
-      const aScore = getDeadlineStatusScore(a);
-      const bScore = getDeadlineStatusScore(b);
+      const aScore = getDeadlineStatusScore(a, linkedServiceDeadline(links,a.id), businessDate);
+      const bScore = getDeadlineStatusScore(b, linkedServiceDeadline(links,b.id), businessDate);
 
       if (aScore !== bScore) return aScore - bScore;
 
@@ -265,7 +267,7 @@ export default function DeadlinesSection({
 
       return (a.order_no || 0) - (b.order_no || 0);
     });
-  }, [items]);
+  }, [items, links, businessDate]);
 
   const summary = useMemo(() => {
     const active = items.filter((item) => item.status !== "Done" && item.status !== "Cancelled").length;
@@ -273,15 +275,15 @@ export default function DeadlinesSection({
     const cancelled = items.filter((item) => item.status === "Cancelled").length;
 
     const overdue = items.filter((item) =>
-      getDeadlineDueStatus(item).startsWith("Overdue")
+      getDeadlineDueStatus(item, linkedServiceDeadline(links,item.id), businessDate).startsWith("Overdue")
     ).length;
 
     const today = items.filter((item) =>
-      getDeadlineDueStatus(item).startsWith("Today")
+      getDeadlineDueStatus(item, linkedServiceDeadline(links,item.id), businessDate).startsWith("Today")
     ).length;
 
     const dueSoon = items.filter((item) =>
-      getDeadlineDueStatus(item).startsWith("Due Soon")
+      getDeadlineDueStatus(item, linkedServiceDeadline(links,item.id), businessDate).startsWith("Due Soon")
     ).length;
 
     return {
@@ -294,7 +296,7 @@ export default function DeadlinesSection({
       cancelled,
       extensions: extensions.length,
     };
-  }, [items, extensions]);
+  }, [items, extensions, links, businessDate]);
 
   const getNextOrderNo = () => {
     const maxOrder = items.reduce((max, item) => {
@@ -1249,6 +1251,7 @@ export default function DeadlinesSection({
             <DeadlineCard
               key={item.id}
               item={item}
+              businessDate={businessDate}
               extensions={extensions.filter((ex) => ex.deadline_id === item.id)}
               extensionDeadlineId={extensionDeadlineId}
               editingExtensionId={editingExtensionId}
@@ -1293,7 +1296,7 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
 }
 
 function DeadlineCard({
-  item,
+  item, businessDate,
   extensions,
   extensionDeadlineId,
   editingExtensionId,
@@ -1314,6 +1317,7 @@ function DeadlineCard({
   onUpdateExtension,
 }: {
   item: DeadlineItem;
+  businessDate: string;
   link?: ReturnType<typeof linkedServiceDeadline>;
   onAnswer?: (partyId: string) => void;
   answerExtension?: boolean;
@@ -1346,7 +1350,9 @@ function DeadlineCard({
       ? item.party_other || "อื่นๆ"
       : item.party_label || "-";
 
-  const dueStatus = getDeadlineDueStatus(item);
+  const answerState = link?.kind === 'answer' ? answerDeadlineState(link,item,businessDate) : null;
+  const overdueDays = answerState?.overdueDays ?? confirmedDeadlineOverdueDays(item,link?.default_deadline_id,businessDate);
+  const dueStatus = getDeadlineDueStatus(item,link,businessDate);
   const isDone = item.status === "Done";
   const isAddingExtension = extensionDeadlineId === item.id;
   const isEditingExtension = isAddingExtension && !!editingExtensionId;
@@ -1372,9 +1378,9 @@ function DeadlineCard({
 
           <div style={badgeRowStyle}>
             <span style={getStatusBadgeStyle(item.status)}>
-              {tr(renderStatus(item.status))}
+              {tr(answerState ? 'answer.status.'+answerState.status : renderStatus(item.status))}
             </span>
-            <span style={getDueStatusBadgeStyle(dueStatus)}>{tr(dueStatus)}</span>
+            {(!answerState || overdueDays>0) && <span style={getDueStatusBadgeStyle(dueStatus)}>{overdueDays>0 ? tr('answer.overdueDays').replace('{days}',String(overdueDays)) : tr(dueStatus)}</span>}
             {extensions.length > 0 && (
               <span style={extensionBadgeStyle}>
                 {tr("Extended")} {extensions.length} {tr("time(s)")} </span>
@@ -1393,6 +1399,7 @@ function DeadlineCard({
         )}
       </div>
 
+      {answerState && overdueDays>0 && <p style={{...noteBlockStyle,background:'#fff7e9',color:'#8c5d23',fontSize:13,lineHeight:1.7}}>{tr('answer.overdueHint')}</p>}
       {link && <div style={deadlineMetaGridStyle}>
         <InfoLine label={tr('answer.deadlineSource')} value={link.kind === 'answer' ? `${tr(link.attempt?.method ? 'service.method.'+link.attempt.method : 'service.methodUnknown')} · ${date(link.attempt?.attempted_on)}` : tr('service.defaultDue')}/>
         {link.kind === 'answer' && link.answer_filed_on && <InfoLine label={tr('service.answeredOn')} value={date(link.answer_filed_on)}/>}
@@ -1410,12 +1417,12 @@ function DeadlineCard({
           label={tr("Trigger Date")}
           value={date(item.trigger_date)}
         /></>}
-        <InfoLine
+        {(!link || extensions.length>0) && <InfoLine
           label={tr("Original Due Date")}
           value={date(item.original_due_date)}
-        />
+        />}
         <InfoLine
-          label={tr("Current Due Date")}
+          label={tr(link && !extensions.length ? "Due Date" : "Current Due Date")}
           value={date(item.current_due_date)}
         />
       </div>
@@ -1749,7 +1756,17 @@ function renderStatus(status?: string | null) {
   return "Active (ยังต้องติดตาม)";
 }
 
-function getDeadlineDueStatus(item: DeadlineItem) {
+function getDeadlineDueStatus(item: DeadlineItem, link?: ReturnType<typeof linkedServiceDeadline>, businessDate?: string) {
+  if (link && businessDate) {
+    const state = link.kind==='answer' ? answerDeadlineState(link,item,businessDate) : null;
+    if (state?.status==='answered' || item.status==='Done') return "Done (เสร็จแล้ว)";
+    if (item.status==='Cancelled' || item.deleted_at) return "Cancelled (ยกเลิก)";
+    if (!item.current_due_date || item.status!=='Active') return "No Due Date (ไม่กำหนดวัน)";
+    const overdue = state?.overdueDays ?? confirmedDeadlineOverdueDays(item,link.default_deadline_id,businessDate);
+    if (overdue>0) return "Overdue (เกินกำหนด)";
+    const days = (Date.parse(item.current_due_date+'T00:00:00Z')-Date.parse(businessDate+'T00:00:00Z'))/86400000;
+    return days===0 ? "Today (ครบกำหนดวันนี้)" : days>0 && days<=3 ? "Due Soon (ใกล้ครบกำหนด)" : "Normal (ปกติ)";
+  }
   if (item.status === "Done") return "Done (เสร็จแล้ว)";
   if (item.status === "Cancelled") return "Cancelled (ยกเลิก)";
   if (!item.current_due_date) return "No Due Date (ไม่กำหนดวัน)";
@@ -1770,8 +1787,8 @@ function getDeadlineDueStatus(item: DeadlineItem) {
   return "Normal (ปกติ)";
 }
 
-function getDeadlineStatusScore(item: DeadlineItem) {
-  const dueStatus = getDeadlineDueStatus(item);
+function getDeadlineStatusScore(item: DeadlineItem, link?: ReturnType<typeof linkedServiceDeadline>, businessDate?: string) {
+  const dueStatus = getDeadlineDueStatus(item,link,businessDate);
 
   if (dueStatus.startsWith("Overdue")) return 1;
   if (dueStatus.startsWith("Today")) return 2;
