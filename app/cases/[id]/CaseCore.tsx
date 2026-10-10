@@ -51,7 +51,7 @@ export default function CaseCore({caseId,revision,canManage,canNext,canViewHisto
  </>;
 }
 
-function CoreEditor({mode,data,caseId,onClose,onSaved}:{mode:EditorMode;data:CoreData;caseId:number;onClose:()=>void;onSaved:(data:CoreData)=>void}){
+export function CoreEditor({mode,data,caseId,onClose,onSaved}:{mode:EditorMode;data:CoreData;caseId:number;onClose:()=>void;onSaved:(data:CoreData)=>void}){
  const {tr,date}=useCaseDetailText();const c=data.core;
  const [team,setTeam]=useState(data.team),[member,setMember]=useState('');
  const [nextMode,setNextMode]=useState(c?.next_mode||'none'),[task,setTask]=useState(c?.next_task_id||'');

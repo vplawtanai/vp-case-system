@@ -3,3 +3,5 @@
 .badge[data-state=overdue],.compact [data-state=overdue]{color:#a32b32;background:#fff0f1}.badge[data-state=awaitingAnswer],.compact [data-state=awaitingAnswer]{color:#245b8a;background:#eaf3ff}.auditChange{border-left:2px solid #dfe7f0;padding-left:10px;display:grid;gap:6px;font-size:12px;overflow-wrap:anywhere}
 
 .historyHeading{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}.history[data-current=false]{color:#64748b;background:#f8fafc;padding:10px 8px}.history[data-current=false] .historyHeading strong{font-size:12px;font-weight:400}.history[data-void=true] .badge{color:#475569;background:#e9eef4}.history .currentResult{color:#285f9b;font-weight:600}.auditChange [data-side=before]{color:#64748b}
+
+.badge[data-state=served],.compact [data-state=served]{color:#126850;background:#e7f5ef}.fields legend{font-size:13px;font-weight:550;line-height:1.7;margin-bottom:10px;overflow-wrap:anywhere}

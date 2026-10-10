@@ -2,7 +2,7 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 require('./receipt-render-fixture.cjs');const React=require('react'),{workspaceFixture}=require('./i18n-workspace-fixture.cjs'),A=require('./case-service-103-artifacts.cjs');
 const {detailText}=require('../../app/cases/[id]/labels.ts'),M=require('../../app/cases/[id]/service-model.ts');
-const f=workspaceFixture('app/cases/[id]/CaseService.tsx',['ServiceEditor','ServiceView'],{'./CaseEditModal':{default:({title,children})=>React.createElement('section',{role:'dialog'},title,children)}});
+const f=workspaceFixture('app/cases/[id]/CaseService.tsx',['ServiceEditor','ServiceView'],{'./CaseCore':{CoreEditor:()=>null},'./CaseEditModal':{default:({title,children})=>React.createElement('section',{role:'dialog'},title,children)}});
 const person={id:'p1',name:'Local defendant',control:null,attempts:[],answer_deadline:null,default_deadline:null,extensions:[]};
 const data={today:'2026-10-10',flow:{current_stage:'service',lifecycle:'active',version:1},defendants:[person],deadlines:[],hearings:[],history:[]};
 const props={action:'attempt',person,data,caseId:1,canConfirm:true,onClose:()=>{},onSaved:()=>{}};

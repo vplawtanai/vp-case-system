@@ -9,8 +9,16 @@ export function lawfulAttempt(p:ServicePerson){return p.attempts.find(a=>a.id===
 export function answerSuggestion(p:ServicePerson){const a=lawfulAttempt(p);return a&&a.attempted_on&&a.method&&a.method!=='other'?addCalendarDays(a.attempted_on,a.method==='normal'?15:30):null;}
 export function defaultSuggestion(p:ServicePerson,today:string){const d=p.answer_deadline;return lawfulAttempt(p)&&!p.control?.answer_filed_on&&d&&!d.deleted_at&&d.status==='Active'&&d.current_due_date&&d.current_due_date<today?addCalendarDays(d.current_due_date,15):null;}
 export function latestServiceAttempt(p:ServicePerson){return p.attempts.find(a=>a.result!=='void')||null;}
-export function serviceStatus(p:ServicePerson,today?:string){if(p.control?.required===false)return 'exempt';if(p.control?.answer_filed_on)return 'answered';if(lawfulAttempt(p)){if(today&&defaultSuggestion(p,today))return 'overdue';const d=p.answer_deadline;return d&&!d.deleted_at&&d.status==='Active'?'awaitingAnswer':'lawful';}return latestServiceAttempt(p)?.result||'unrecorded';}
-export function serviceNextSuggestion(p:ServicePerson,today:string){if(defaultSuggestion(p,today))return 'service.defaultMotionNext';const a=latestServiceAttempt(p);if(!a||a.result==='pending')return 'service.followupNext';if(a.failure_kind==='demolished')return 'service.demolishedNext';if(a.failure_kind==='not_found')return 'service.notFoundNext';return a.result==='failed'?'service.investigateSuggestion':null;}
+export function serviceStatus(p:ServicePerson){if(p.control?.required===false)return 'exempt';return lawfulAttempt(p)?'served':latestServiceAttempt(p)?.result||'unrecorded';}
+export function answerStatus(p:ServicePerson,today:string){
+ if(p.control?.answer_filed_on)return 'answered';
+ const d=p.answer_deadline;
+ if(d&&!d.deleted_at&&d.status==='Active'&&d.current_due_date)return d.current_due_date<today?'overdue':'awaitingAnswer';
+ if(d)return 'inactive';
+ if(p.control?.required===false)return 'exempt';
+ return serviceStatus(p)==='served'?'pendingDeadline':'beforeService';
+}
+export function serviceNextSuggestion(p:ServicePerson){const a=latestServiceAttempt(p);if(!a||a.result==='pending')return 'service.followupNext';if(a.failure_kind==='demolished')return 'service.demolishedNext';if(a.failure_kind==='not_found')return 'service.notFoundNext';return a.result==='failed'?'service.investigateSuggestion':null;}
 // Only display changes from stored audit snapshots; never reconstruct historical facts.
 export function serviceAttemptChanges(event:ServiceData['history'][number]){
  const attempts=(value:unknown):ServiceAttempt[]=>{if(!value||typeof value!=='object'||!('attempts' in value)||!Array.isArray(value.attempts))return [];return value.attempts.filter((a):a is ServiceAttempt=>!!a&&typeof a==='object'&&typeof a.id==='string');};
