@@ -1,0 +1,27 @@
+{
+  "apply": {
+    "query_url": "https://supabase.com/dashboard/project/rtualftvaapjburgjfgb/sql/88c124c6-2fca-4f9a-a299-bd8a920c87c7",
+    "receipt": "Success. No rows returned",
+    "candidate_sha256": "273a7bda67b81d0c581ebbb5cd6c68757ade0ebb8fe9301aaaa4cccccece7133",
+    "business_rpc_executed": false,
+    "backfill": false
+  },
+  "verifier": {
+    "query_url": "https://supabase.com/dashboard/project/rtualftvaapjburgjfgb/sql/4dab533f-a57c-4bf6-a3f9-ea51b70c65a2",
+    "gate_pass": true,
+    "failed_checks": [],
+    "object_differences": [],
+    "checks": {
+      "contract_exact": true,
+      "reviewed_contract_bound": true,
+      "existing_attempts_compatible": true,
+      "candidate_apply_has_no_legacy_dml": true
+    },
+    "contract_sha256": "af36653bee8f6cd778c0a43db639075ef3cb632ac7a46bd5961e175ae06ff33b",
+    "accepted_contract_sha256": "6fc5a0470eb4fb2ee4455a4470f536e0deb3b4694d22ffef1157a96accffbc2a",
+    "production_mutation": false,
+    "business_rpc_executed": false
+  },
+  "application_commit": "3da523513813ce18dcb799c08de2530b39479aa9",
+  "release_order": "Commit locally; Apply and verify; push to trigger established Vercel Production deployment."
+}
