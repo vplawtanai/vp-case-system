@@ -1310,6 +1310,8 @@ function DeadlineCard({
 
   return (
     <div
+      id={`case-deadline-${item.id}`}
+      tabIndex={-1}
       style={{
         ...deadlineCardStyle,
         background: isDone ? "#f7f7f7" : getDeadlineBackground(dueStatus),
